@@ -144,27 +144,57 @@ def _peer_override(raw: object) -> list[str] | None:
 
 
 async def _llm_select_peers(deps: FinRobotDeps, prompt: str) -> PeerSelection:
-    """LLM peer selection (ranked, same-industry judgment). Raises ValueError
-    if the model fails to produce a valid selection."""
+    """LLM peer selection (ranked, business-comparability judgment). Raises
+    ValueError if the model fails to produce a valid selection.
+
+    Selection is driven by BUSINESS comparability (same end-market / product /
+    demand drivers / margin structure), NOT by exact equality of a third-party
+    industry label. yfinance's ``industry`` taxonomy is too coarse for cyclical
+    sub-sectors (it lumps memory + logic + analog into one "Semiconductors"
+    bucket) and simultaneously splits true comps across buckets (Western Digital
+    / Seagate sit in "Computer Hardware", not "Semiconductors"; Goldman / Morgan
+    Stanley in "Capital Markets", not "Banks"). A hard same-industry gate
+    therefore forced wrong comps (Micron benchmarked against NVDA/AMD instead of
+    the memory oligopoly). The taxonomy is now a HINT; the LLM judges real
+    comparability and may cross buckets and include foreign global leaders, which
+    are FX-normalized downstream (``normalize_peer_to_usd``) with a named
+    ``[待核]`` warning on FX failure instead of a silent substitution.
+    """
     peer_agent = Agent(
         deps.settings.create_model(),
         output_type=PeerSelection,
         instructions=(
-            "Select 6-8 comparable publicly traded companies for peer analysis, "
-            "RANKED most-comparable first. "
-            "Choose companies in the same sector with similar business models and market cap. "
-            "Return valid ticker symbols only (e.g. MSFT, GOOGL, not 'Microsoft').\n\n"
-            "**为什么要 6-8 个（不是 3-5）**：下游只保留前几个能成功取到财报的，"
-            "多出来的是冗余保险——任一 peer 的数据源被限流 / 取不到 FX 汇率时直接丢弃，"
-            "靠排名靠后的候补补位，避免'少一个就整份研报失败'。所以宁多勿少。\n\n"
-            "**优先美股上市 peer**：外国 ADR（如 BIDU/TSM）需要把本币财报按即期汇率"
-            "归一到 USD，汇率源限流时该 peer 会被丢弃。同 industry 下优先选美股本币(USD)公司，"
-            "外国 peer 可以放进列表但排在靠后位置当候补。\n\n"
-            "**Peer 选择硬约束**：\n"
-            "所有 peer 必须与 target 的 yfinance industry 字段完全一致（不是 sector，是 industry）。\n"
-            "例：AAPL industry='Consumer Electronics' → peer 必须也是 Consumer Electronics。\n"
-            "不允许跨 industry 选 peer（即使同 sector）。\n"
-            "如果合规 peer 不足 6 个，按实际数量给（最少 3 个），不要补凑跨 industry 的。"
+            "Select 6-8 comparable publicly traded companies for peer-multiple "
+            "analysis, RANKED most-comparable first. Return valid ticker symbols "
+            "only (e.g. MSFT, WDC, ASML; a foreign primary listing keeps its "
+            "exchange suffix, e.g. 005930.KS).\n\n"
+            "**可比性的判据是业务，不是分类标签**：按『同一终端市场 / 同类产品 / "
+            "相同需求与周期驱动 / 相近成本与毛利结构 / 体量量级可比』选同业。"
+            "yfinance 的 sector/industry 只是线索，不是硬门槛——真正的同业经常落在"
+            "相邻的 industry 桶里，必须照选，不要因为分类标签不同就排除。例：\n"
+            "  • 美光（MU，DRAM/NAND 存储）的同业是存储厂：三星电子（005930.KS）、"
+            "SK海力士（000660.KS）、西部数据（WDC）、希捷（STX）、闪迪（SNDK）——"
+            "不是 NVDA/AMD 这类逻辑芯片（后者只是恰好同在 yfinance 'Semiconductors' "
+            "桶里，业务并不可比）；WDC/STX/SNDK 被 yfinance 归到 'Computer Hardware'，"
+            "但它们正是美光 NAND 的直接对手，必须纳入。\n"
+            "  • 摩根大通（JPM）的同业含高盛（GS）、摩根士丹利（MS），即使 yfinance "
+            "把它们归在 'Capital Markets' 而非 'Banks'。\n"
+            "**区分价值链位置 / 商业模式**：同一 sector 里，一家公司的同业是『和它处在"
+            "价值链同一环、商业模式相同』的公司，不是它的客户或供应商。例：台积电（TSM）"
+            "是纯晶圆代工，同业是其它代工厂——联电（UMC）、格芯（GFS）、中芯国际，"
+            "而不是 NVDA/AMD/苹果（那些是 TSM 的客户）也不是 ASML（那是设备供应商）。\n"
+            "反过来：不要因为市值相近或同处一个宽泛 sector，就把业务无关的大盘股"
+            "塞进来——那是相关性凑数，不是可比性。\n\n"
+            "**覆盖范围是美股，但同业可含真正的全球龙头**：优先选美股本币（USD）上市"
+            "公司（含 USD 计价的 ADR）；当某行业的竞争格局由境外龙头定义时（如存储 = "
+            "三星 / 海力士），也要把它们放进列表，排在美股同业之后当靠后候补。下游会按"
+            "即期汇率把其本币财报归一到 USD；若汇率源临时取不到，该 peer 会被丢弃并在"
+            "研报里点名提示，绝不静默用别的公司顶替。因此务必让美股可比公司排在前面，"
+            "保证即便境外行汇率失败，核心同业集仍然成立。\n\n"
+            "**为什么要 6-8 个（不是 3-5）**：下游只保留前几个能成功取到财报的——"
+            "任一 peer 数据源被限流 / 取不到 FX 汇率时直接丢弃，靠靠后候补补位，"
+            "避免'少一个就整份分析失败'。宁多勿少，但每一个都必须业务真可比，"
+            "不许为凑数硬塞不相干的公司。"
         ),
         defer_model_check=True,
     )
@@ -193,8 +223,8 @@ async def execute_peer_analysis(
 ) -> StepOutput:
     """Select peer tickers, then fetch + compute multiples deterministically.
 
-    Peers come from the LLM (ranked, same-industry judgment) UNLESS the caller
-    passes ``peers=[...]`` (e.g. ``finrobot comps --peers AAPL,MSFT``), in which
+    Peers come from the LLM (ranked, business-comparability judgment) UNLESS the
+    caller passes ``peers=[...]`` (e.g. ``finrobot comps --peers AAPL,MSFT``), in which
     case the LLM selection is skipped and the user's set is used verbatim. Either
     path runs the identical fetch / FX-normalize / multiples / median math, so a
     custom peer set yields the same traceable multiples — only membership changes.
@@ -212,6 +242,19 @@ async def execute_peer_analysis(
     else:
         selection = await _llm_select_peers(deps, prompt)
 
+    # A company is never its own comp. The LLM (and occasionally a caller) sometimes
+    # lists the target among its peers; drop it so it neither consumes a candidate
+    # slot nor double-counts itself into the peer medians.
+    deduped_tickers = [t for t in selection.tickers if t.strip().upper() != ticker.strip().upper()]
+    if deduped_tickers != selection.tickers:
+        selection = PeerSelection(tickers=deduped_tickers, rationale=selection.rationale)
+
+    # Why a peer was dropped, keyed by ticker — so a foreign comp lost to an FX
+    # rate-limit (e.g. SK Hynix) is NAMED in the artifact warning instead of
+    # silently vanishing and leaving the analyst to wonder why the obvious peer is
+    # missing. Mutated inside _fetch_one_peer; read after the gather.
+    peer_drops: dict[str, str] = {}
+
     async def _fetch_one_peer(peer_ticker: str) -> CompanyFinancials | None:
         try:
             _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, peer_ticker)
@@ -228,6 +271,7 @@ async def execute_peer_analysis(
             xbrl_result = await deps.data_layer.fetch(DataType.XBRL_FACTS, peer_ticker)
             return override_company_with_xbrl(company, xbrl_result.data)
         except (ProviderError, ValueError, KeyError, ArithmeticError) as e:
+            peer_drops[peer_ticker] = str(e)
             logger.warning(f"Skipping peer {peer_ticker}: {e}")
             return None
 
@@ -300,6 +344,18 @@ async def execute_peer_analysis(
     peer_comps = calculate_core_pe(peer_comps)
     if thin_warning is not None and thin_warning not in peer_comps.warnings:
         peer_comps.warnings.insert(0, thin_warning)
+
+    # Name every dropped candidate (even when the surviving set is healthy) so a
+    # genuine comp lost to a transient FX rate-limit — e.g. a foreign memory peer
+    # like SK Hynix — is visibly accounted for, never silently swapped for a
+    # less-comparable substitute that happened to fetch cleanly.
+    if peer_drops:
+        dropped_warning = (
+            "Peers excluded (data/FX unavailable, retry for a fuller set): "
+            + "; ".join(f"{t}: {reason}" for t, reason in peer_drops.items())
+        )
+        if dropped_warning not in peer_comps.warnings:
+            peer_comps.warnings.append(dropped_warning)
 
     # Surface per-row XBRL-vs-FMP TTM divergence flags (ADR-0008) so a kept-FMP
     # [待核] doesn't stay buried on the CompanyFinancials row.

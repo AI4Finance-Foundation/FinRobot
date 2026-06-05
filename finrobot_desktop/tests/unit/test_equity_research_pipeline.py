@@ -1304,3 +1304,136 @@ async def test_peer_selection_propagates_agent_run_error(mock_deps):
     ):
         with pytest.raises(AgentRunError):
             await _llm_select_peers(mock_deps, "select peers prompt")
+
+
+def test_peer_selection_prompt_judges_business_not_industry_equality():
+    """Root-bug guard: peer selection must NOT gate on exact yfinance-industry
+    equality.
+
+    The old prompt forced ``peer.industry == target.industry`` exactly, which
+    benchmarked Micron (memory) against NVDA/AMD (logic) — both happen to sit in
+    yfinance's coarse "Semiconductors" bucket — while excluding the real memory
+    comps (WDC/Seagate live in "Computer Hardware"; Samsung/SK Hynix are foreign).
+    This test fails loudly if anyone re-introduces that hard gate, and asserts the
+    business-comparability principles that replaced it are present.
+    """
+    import inspect
+
+    from finrobot.engine.pipelines._helpers import _llm_select_peers
+
+    src = inspect.getsource(_llm_select_peers)
+
+    # The exact-industry gate and its no-cross-industry rule must be gone.
+    assert "完全一致" not in src, "exact yfinance-industry equality gate must not return"
+    assert "不允许跨 industry" not in src, "cross-industry prohibition must not return"
+
+    # Business comparability + the three principles that generalize the fix.
+    assert "可比性的判据是业务" in src
+    assert "价值链位置" in src  # foundry ≠ its fabless customers
+    assert "全球龙头" in src  # foreign leaders (Samsung/Hynix) are eligible
+
+
+@pytest.mark.asyncio
+async def test_peer_analysis_excludes_target_and_names_dropped_peers(mock_deps):
+    """execute_peer_analysis (1) never lists the target as its own comp even when
+    the LLM returns it, and (2) NAMES every dropped peer in the warnings so a
+    comp lost to a transient fetch/FX failure is visibly accounted for rather than
+    silently swapped."""
+    from datetime import datetime, timezone
+
+    from finrobot.engine.data.normalize.financials import normalize_financials
+    from finrobot.engine.models.financial import (
+        BalanceSheet,
+        FinancialData,
+        IncomeStatement,
+        MarketData,
+        PeerSelection,
+        ValuationMetrics,
+    )
+    from finrobot.engine.pipelines._helpers import execute_peer_analysis
+
+    # LLM returns the target (AAPL) plus peers, one of which will fail to fetch.
+    mock_peer_result = MagicMock()
+    mock_peer_result.output = PeerSelection(
+        tickers=["AAPL", "MSFT", "GOOGL", "META", "FAILME"],
+        rationale="business-comparable large-cap tech",
+    )
+    mock_agent_instance = MagicMock()
+    mock_agent_instance.run = AsyncMock(return_value=mock_peer_result)
+
+    def _mk_norm(t: str):
+        return normalize_financials(
+            DataResult(
+                data=dict(
+                    revenue=50e9,
+                    ebitda=15e9,
+                    net_income=10e9,
+                    gross_margin=0.40,
+                    operating_margin=0.25,
+                    pe_ratio=25.0,
+                    market_cap=1e12,
+                    shares_outstanding=5e9,
+                    current_price=100.0,
+                    total_debt=10e9,
+                    total_cash=5e9,
+                ),
+                provider="yfinance",
+                ticker=t,
+                data_type="financials",
+                timestamp=datetime.now(tz=timezone.utc),
+            )
+        )
+
+    async def _canon(_dt, t):
+        if t == "FAILME":
+            raise ValueError("simulated FX rate-limit for FAILME")
+        # If target-dedup regressed, AAPL would be fetched here and leak into peers.
+        return _mk_norm(t)
+
+    mock_deps.data_layer.fetch_canonical = AsyncMock(side_effect=_canon)
+    mock_deps.data_layer.fetch = AsyncMock(
+        return_value=DataResult(
+            data={},
+            provider="fake",
+            ticker="x",
+            data_type="xbrl_facts",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+    )
+    mock_deps.settings.fmp_api_key = None  # keep FX a no-op (all USD)
+
+    target_fd = FinancialData(
+        ticker="AAPL",
+        company_name="Apple Inc.",
+        timestamp=datetime.now(tz=timezone.utc),
+        income=IncomeStatement(
+            revenue=385e9,
+            ebitda=130e9,
+            net_income=95e9,
+            gross_margin=0.43,
+            operating_margin=0.30,
+            interest_expense=3e9,
+        ),
+        balance=BalanceSheet(total_debt=120e9, total_cash=60e9),
+        market=MarketData(
+            market_cap=2.5e12,
+            shares_outstanding=15.5e9,
+            current_price=150.0,
+            industry="Consumer Electronics",
+            beta=1.25,
+        ),
+        valuation=ValuationMetrics(),
+    )
+    ctx = {"data_collection": target_fd}
+
+    mock_agent = MagicMock()
+    with patch("finrobot.engine.pipelines._helpers.Agent", return_value=mock_agent_instance):
+        out = await execute_peer_analysis(mock_agent, mock_deps, "prompt", ctx, "AAPL")
+
+    peer_comps = out.structured
+    peer_tickers = {p.ticker.upper() for p in peer_comps.peers}
+    # (1) target excluded from its own comp set
+    assert "AAPL" not in peer_tickers
+    assert peer_tickers == {"MSFT", "GOOGL", "META"}
+    # (2) the dropped peer is named, not silent
+    assert any("FAILME" in w for w in peer_comps.warnings)

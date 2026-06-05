@@ -8,10 +8,17 @@ primary DataResult and surfaced to the LLM via to_context_string().
 Thresholds (conservative, chosen so TTM vs. latest-fiscal-year differences
 don't trip the validator for most companies):
 
-- revenue / ebitda / net_income / total_debt / total_cash: 15% relative
+- revenue / net_income / total_debt / total_cash: 15% relative
   (covers one quarter of timing drift).
 - market_cap: 5% relative (real-time vs. delayed should still be close).
 - gross_margin / operating_margin: 10 percentage-point absolute.
+
+EBITDA is deliberately NOT cross-validated: the FMP path reports operating-caliber
+EBITDA (EBIT + D&A, our own derivation) while yfinance returns reported-caliber
+``info.ebitda`` (NI + tax + interest + D&A). Comparing the two at a 15% threshold
+is apples-to-oranges — it falsely "agrees" for cash-rich firms and falsely alarms
+elsewhere, adding no real cross-source signal. revenue / net_income are as-reported
+in both providers and remain the genuine like-for-like checks.
 
 Only applies to data_type == "financials". Price and news have different
 field structures and are not cross-validated here.
@@ -33,7 +40,8 @@ logger = logging.getLogger(__name__)
 # field -> relative tolerance (as a fraction)
 _RELATIVE_FIELDS: dict[str, float] = {
     "revenue": 0.15,
-    "ebitda": 0.15,
+    # ebitda intentionally omitted — FMP (operating caliber) vs yfinance (reported
+    # caliber) are different definitions; see module docstring.
     "net_income": 0.15,
     "market_cap": 0.05,
     "total_debt": 0.15,
@@ -146,6 +154,45 @@ _SINGLE_CLASS_LO, _SINGLE_CLASS_HI = 0.9, 1.1
 def _num(v: object) -> float | None:
     """Coerce to float iff v is a real number (excluding bool); else None."""
     return float(v) if isinstance(v, Real) and not isinstance(v, bool) else None
+
+
+# --- Current-price cross-source check ----------------------------------------
+#
+# cross_validate() only runs for FINANCIALS. PRICE is fetched single-source
+# (first provider wins), so a stale, split-unadjusted, or wrong-ticker price
+# flows downstream as authoritative — and price drives market_cap, upside %, and
+# the model-vs-market circuit breaker. This is a lightweight tripwire: confirm
+# the current price against a SECOND provider's quote before trusting it. Same 5%
+# band as market_cap (market_cap ≈ price × shares, so a looser price tolerance
+# would be self-inconsistent) — wide enough to tolerate a delayed feed on a
+# volatile session, tight enough to catch a ~2× split mismatch or multi-day-stale
+# quote. Measured 2026-06-05: FMP vs yfinance agree to <0.04% across 12 names.
+_PRICE_REL_TOLERANCE = 0.05
+
+
+def _price_of(result: DataResult) -> float | None:
+    """Current price from a PRICE (``current_price``) or QUOTE (``price``) result."""
+    return _num(result.data.get("current_price")) or _num(result.data.get("price"))
+
+
+def cross_validate_price(primary: DataResult, secondary: DataResult) -> list[str]:
+    """Compare the current price of two providers; warn if they diverge >5%.
+
+    Returns ``[]`` when they agree, when either price is missing/non-positive, or
+    when no second price is available (abstain — never a false "agree" signal).
+    """
+    pv, sv = _price_of(primary), _price_of(secondary)
+    if pv is None or sv is None or pv <= 0 or sv <= 0:
+        return []
+    rel_diff = abs(pv - sv) / max(pv, sv)
+    if rel_diff <= _PRICE_REL_TOLERANCE:
+        return []
+    return [
+        f"Price discrepancy: current price differs by {rel_diff:.0%} "
+        f"({primary.provider}: {pv:,.2f} vs {secondary.provider}: {sv:,.2f}). "
+        f"Threshold: {_PRICE_REL_TOLERANCE:.0%}. Possible stale or split-unadjusted "
+        f"price, wrong ticker, or a delayed feed on a volatile session — verify."
+    ]
 
 
 def _coherent_mc_price(result: DataResult) -> tuple[float, float] | None:

@@ -21,6 +21,7 @@ from finrobot.engine.data.types import DataType
 from finrobot.engine.data.normalize.contracts import degraded_provider_divergence
 from finrobot.engine.data.validator import (
     cross_validate,
+    cross_validate_price,
     key_field_divergences,
     market_cap_consistency,
 )
@@ -463,6 +464,19 @@ class DataLayer:
                 last_error = e
                 continue
             self._health.record_success(provider.name)
+            # Cross-source price tripwire (ADR-0004 §6 open question H): confirm
+            # the current price against a SECOND provider's lightweight QUOTE
+            # before caching it as authoritative. Best-effort — a secondary
+            # failure never blocks the primary price. Only the cheap QUOTE is
+            # pulled (not a second year of OHLC), preserving the QUOTE/PRICE
+            # perf split. Runs only on cache-miss, like FINANCIALS cross_validate.
+            price_warns = await self._cross_source_price_warnings(
+                ticker, primary=result, skip_provider=provider.name
+            )
+            if price_warns:
+                for w in price_warns:
+                    logger.warning(w)
+                result = result.model_copy(update={"warnings": list(result.warnings) + price_warns})
             await self._cache.set(DataType.PRICE, ticker, result)
             return result
         if cached is not None:
@@ -470,6 +484,37 @@ class DataLayer:
         if last_error is not None:
             raise last_error
         raise ProviderError(f"No PRICE-capable provider available for {ticker}")
+
+    async def _cross_source_price_warnings(
+        self, ticker: str, *, primary: DataResult, skip_provider: str
+    ) -> list[str]:
+        """Confirm ``primary``'s current price against a second provider's QUOTE.
+
+        Walks the provider chain for the first QUOTE-capable provider that is NOT
+        the one that served ``primary``, and cross-validates the two prices. Pure
+        best-effort: a secondary ProviderError is swallowed (this is a validation
+        probe, not a data dependency) and does NOT touch the health breaker, which
+        governs real fetches. Returns ``[]`` when no second provider answers.
+        """
+        for provider in self._providers:
+            if provider.name == skip_provider:
+                continue
+            if DataType.QUOTE not in provider.capabilities():
+                continue
+            if self._health_gated(provider):
+                continue
+            try:
+                secondary = await provider.fetch(ticker, DataType.QUOTE)
+            except ProviderError as e:
+                logger.debug(
+                    "Price cross-check probe skipped: %s QUOTE failed for %s: %s",
+                    provider.name,
+                    ticker,
+                    e,
+                )
+                continue
+            return cross_validate_price(primary, secondary)
+        return []
 
     @staticmethod
     def _split_yearly(result: DataResult) -> list[DataResult]:

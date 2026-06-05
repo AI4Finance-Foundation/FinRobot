@@ -512,7 +512,7 @@ function OtherArtifacts({
               {v ? <VerdictPill tone={tone}>{v}</VerdictPill> : <span />}
               <span style={{ color: 'var(--text-secondary)' }}>
                 {a.target_price !== null && a.target_price !== undefined
-                  ? `$${a.target_price.toFixed(0)}`
+                  ? `$${a.target_price.toFixed(2)}`
                   : '—'}
               </span>
               <span style={{ color: 'var(--text-dim)', fontSize: 10.5 }}>
@@ -1107,7 +1107,7 @@ function HotState({
                   <VerdictPill tone={tone}>{v ?? '—'}</VerdictPill>
                   <span style={{ color: 'var(--text-secondary)' }}>
                     {a.target_price !== null && a.target_price !== undefined
-                      ? `$${a.target_price.toFixed(0)}`
+                      ? `$${a.target_price.toFixed(2)}`
                       : '—'}
                   </span>
                   <span style={{ color: 'var(--text-dim)', fontSize: 10.5 }}>

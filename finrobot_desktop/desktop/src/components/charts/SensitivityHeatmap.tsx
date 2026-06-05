@@ -93,7 +93,7 @@ export default function SensitivityHeatmap({ data, title }: ChartProps) {
                         key={`${wacc}_${tg}`}
                         className={`${heatmapClass(normalised)}${isCurrent ? ' current' : ''}`}
                       >
-                        {price != null ? `$${price.toFixed(0)}` : '\u2014'}
+                        {price != null ? `$${price.toFixed(2)}` : '\u2014'}
                       </td>
                     )
                   })}

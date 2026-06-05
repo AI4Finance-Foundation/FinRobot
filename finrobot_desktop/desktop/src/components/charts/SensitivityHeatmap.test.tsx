@@ -45,9 +45,9 @@ describe('SensitivityHeatmap', () => {
     expect(screen.getByText('10.0%')).toBeInTheDocument()
   })
 
-  it('renders implied prices in cells', () => {
+  it('renders implied prices in cells to the cent (a price is exact — never rounded to whole dollars)', () => {
     render(<SensitivityHeatmap data={SAMPLE_DATA} title="Sensitivity" />)
-    expect(screen.getByText('$150')).toBeInTheDocument()
-    expect(screen.getByText('$110')).toBeInTheDocument()
+    expect(screen.getByText('$150.00')).toBeInTheDocument()
+    expect(screen.getByText('$110.00')).toBeInTheDocument()
   })
 })

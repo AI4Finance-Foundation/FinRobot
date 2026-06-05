@@ -11,6 +11,7 @@ from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.contracts import (
     DEGRADED_CCY_INFERRED,
     DEGRADED_CLOSE_ONLY,
+    DEGRADED_PERIOD_BASIS_UNKNOWN,
     DEGRADED_PRICE_FALLBACK_CLOSE,
     DEGRADED_TTM_LAG,
 )
@@ -127,7 +128,9 @@ def test_financials_exposes_ttm_lag_and_period_end():
             period_basis="ttm",
         )
     )
+    assert fin.period_end is not None
     assert fin.period_end.isoformat() == "2025-09-30"
+    assert fin.pe_ttm_lag_quarters is not None
     assert fin.pe_ttm_lag_quarters >= 2
     assert DEGRADED_TTM_LAG in fin.provenance.degraded
     assert fin.as_of.date().isoformat() == "2025-09-30"
@@ -152,6 +155,30 @@ def test_financials_carries_ebitda_components():
     assert fin.income_tax_expense == 1.511e9
     assert fin.interest_expense == 0.339e9
     assert fin.depreciation_amortization == 6.291e9
+
+
+def test_financials_missing_period_basis_is_degraded():
+    """Provider omits period_basis (None/empty) → defaults to ttm but stamps
+    DEGRADED_PERIOD_BASIS_UNKNOWN so the unknown basis is visible, not silent."""
+    fin = normalize_financials(_fin_result(revenue=1e9, date="2026-03-31"))
+    assert fin.period_basis == "ttm"
+    assert DEGRADED_PERIOD_BASIS_UNKNOWN in fin.provenance.degraded
+
+
+def test_financials_unrecognized_period_basis_is_degraded():
+    """Provider sends a non-standard basis string (e.g. 'fy2024') → defaults to
+    ttm and stamps DEGRADED_PERIOD_BASIS_UNKNOWN instead of silently mislabeling."""
+    fin = normalize_financials(_fin_result(revenue=1e9, date="2026-03-31", period_basis="fy2024"))
+    assert fin.period_basis == "ttm"
+    assert DEGRADED_PERIOD_BASIS_UNKNOWN in fin.provenance.degraded
+
+
+def test_financials_valid_period_basis_no_degraded_marker():
+    """Explicit valid basis strings must NOT trigger the unknown marker."""
+    for basis in ("ttm", "annual", "quarterly"):
+        fin = normalize_financials(_fin_result(revenue=1e9, date="2026-03-31", period_basis=basis))
+        assert fin.period_basis == basis
+        assert DEGRADED_PERIOD_BASIS_UNKNOWN not in fin.provenance.degraded
 
 
 def test_financials_missing_revenue_market_cap_stay_none():

@@ -13,6 +13,7 @@ from typing import Any
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.contracts import (
     DEGRADED_CCY_INFERRED,
+    DEGRADED_PERIOD_BASIS_UNKNOWN,
     DEGRADED_TTM_LAG,
     NormalizedFinancials,
     Provenance,
@@ -63,13 +64,15 @@ def normalize_financials(result: DataResult) -> NormalizedFinancials:
     quote_currency = (data.get("quote_currency") or "USD").upper()
 
     period_end = _parse_date(data.get("fiscal_year") or data.get("date"))
-    period_basis = data.get("period_basis") or "ttm"
-    if period_basis not in ("ttm", "annual", "quarterly"):
-        period_basis = "ttm"
+    _raw_basis: str = data.get("period_basis") or ""
+    _basis_unknown = _raw_basis not in ("ttm", "annual", "quarterly")
+    period_basis = "ttm" if _basis_unknown else _raw_basis
     as_of = _date_to_dt(period_end) if period_end else result.timestamp
     lag = _ttm_lag_quarters(period_end, result.timestamp)
 
     degraded: list[str] = []
+    if _basis_unknown:
+        degraded.append(DEGRADED_PERIOD_BASIS_UNKNOWN)
     if reporting_currency != provider_ccy:
         degraded.append(DEGRADED_CCY_INFERRED)
     if lag is not None and lag >= _TTM_LAG_DEGRADE_THRESHOLD:

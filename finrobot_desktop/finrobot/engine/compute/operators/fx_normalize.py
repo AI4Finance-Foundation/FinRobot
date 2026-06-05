@@ -233,7 +233,8 @@ def normalize_financialdata_to_usd(
     )
 
     # ----- balance sheet (reporting currency) -------------------------------
-    # None stays None through FX; unknown debt/cash must not become fabricated 0.
+    # None ≠ 0: preserve "not reported" through the FX conversion rather than
+    # scaling a fabricated zero (mirrors the income_tax_expense guard above).
     converted.balance.total_debt = (
         None
         if financials.balance.total_debt is None

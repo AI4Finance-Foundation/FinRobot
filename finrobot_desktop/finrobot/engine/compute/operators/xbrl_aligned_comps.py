@@ -190,12 +190,15 @@ async def build_xbrl_aligned_company(
     # income.ebitda is already the operating caliber (extract_financial_data),
     # matching the peer numerator produced by extract_company_financials.
     #
-    # Preserve the "debt/cash not reported" signal: extract_financial_data leaves
-    # valuation.enterprise_value None precisely when a net-debt component was
-    # missing (and zero-filled balance.total_debt/total_cash). Passing None makes
-    # the target row withhold EV just like a peer would, instead of comparing an
-    # EV=market_cap artifact against debt-aware peers.
-    debt_cash_reported = financial_data.valuation.enterprise_value is not None
+    # Preserve the "debt/cash not reported" signal: balance.total_debt/total_cash
+    # are now None (not 0) when unreported, in lockstep with
+    # valuation.enterprise_value. Withhold EV for the target row just like a peer
+    # would, instead of comparing an EV=market_cap artifact against debt-aware
+    # peers.
+    debt_cash_reported = (
+        financial_data.balance.total_debt is not None
+        and financial_data.balance.total_cash is not None
+    )
     base = CompanyFinancials(
         ticker=ticker.upper(),
         revenue=financial_data.income.revenue,

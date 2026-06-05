@@ -212,6 +212,7 @@ class TestFMPFetch:
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
             _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_quote_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials")
@@ -251,11 +252,121 @@ class TestFMPFetch:
             _mock_response(balance_without_debt),
             _mock_response(_fmp_quarterly_cashflow_response()),
             _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_quote_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials")
         assert result.data["total_debt"] is None
         assert result.data["total_cash"] is None
+
+    @pytest.mark.asyncio
+    async def test_quarterly_debt_stub_backfilled_from_annual(self, provider):
+        """FMP's freshest quarter often ships a debt stub (totalDebt /
+        longTermDebt / shortTermDebt all 0) while cash is already populated —
+        the literal-0 that the None≠0 guard can't catch and that fabricates a
+        debt-free EV (real hit: SAP Q1'26 vs €8.07B annual). When the quarter is
+        a stub, debt is backfilled from the latest annual filing; the quarter's
+        fresher cash is kept."""
+        quarter_stub = [
+            {
+                "date": "2026-03-31",
+                "symbol": "SAP",
+                "totalDebt": 0,
+                "longTermDebt": 0,
+                "shortTermDebt": 0,
+                "cashAndCashEquivalents": 9_648_000_000,
+            }
+        ]
+        annual_with_debt = [
+            {
+                "date": "2025-12-31",
+                "symbol": "SAP",
+                "totalDebt": 8_067_565_000,
+                "longTermDebt": 6_018_437_000,
+                "shortTermDebt": 2_049_128_000,
+                "cashAndCashEquivalents": 8_216_502_000,
+            }
+        ]
+        # Call order: income, quarter balance, ANNUAL balance (stub-triggered),
+        # cash-flow, profile, quote.
+        responses = [
+            _mock_response(_fmp_quarterly_income_response()),
+            _mock_response(quarter_stub),
+            _mock_response(annual_with_debt),
+            _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_quote_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials")
+        assert result.data["total_debt"] == 8_067_565_000  # from annual, not 0
+        assert result.data["total_cash"] == 9_648_000_000  # kept from the quarter
+        assert any("debt stub" in w for w in result.warnings)
+
+    @pytest.mark.asyncio
+    async def test_full_quarter_with_debt_does_not_fetch_annual(self, provider):
+        """A normal quarter (debt present) must NOT trigger the annual backfill —
+        only 5 provider calls, no extra balance fetch."""
+        get_mock = AsyncMock(
+            side_effect=[
+                _mock_response(_fmp_quarterly_income_response()),
+                _mock_response(_fmp_balance_response()),  # totalDebt populated
+                _mock_response(_fmp_quarterly_cashflow_response()),
+                _mock_response(_fmp_profile_response()),
+                _mock_response(_fmp_quote_response()),
+            ]
+        )
+        with patch.object(provider, "_get", get_mock):
+            result = await provider.fetch("AAPL", "financials")
+        assert result.data["total_debt"] == 111_088_000_000
+        assert get_mock.await_count == 5  # no annual backfill call
+
+    def test_resolve_total_debt_sums_components_when_total_missing(self) -> None:
+        """_resolve_total_debt defends the None≠0 contract: present total wins,
+        else sum components, else 0 only for a genuine debt-free filing, else
+        None for a missing figure."""
+        from finrobot.engine.data.providers.fmp_provider import _resolve_total_debt
+
+        assert _resolve_total_debt({"totalDebt": 8_067_565_000}) == 8_067_565_000
+        assert _resolve_total_debt({"longTermDebt": 6e9, "shortTermDebt": 2e9}) == 8e9
+        assert _resolve_total_debt({"totalDebt": 0}) == 0  # genuinely debt-free
+        assert _resolve_total_debt({}) is None  # not reported → withhold EV
+
+    @pytest.mark.asyncio
+    async def test_shares_outstanding_from_quote_not_derived(self, provider):
+        """R2: shares_outstanding must come from /quote's real sharesOutstanding,
+        NOT the int(mktCap/price) back-solve. A distinct quote value (15.5B vs the
+        ~14.97B that mktCap/price would imply) proves the real field wins — which
+        is what breaks the price×shares≈mktCap tautology."""
+        responses = [
+            _mock_response(_fmp_quarterly_income_response()),
+            _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_quote_response(shares_outstanding=15_500_000_000)),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials")
+        # int(2_620_000_000_000 / 175) == 14_971_428_571 — the derived value we must NOT use.
+        assert result.data["shares_outstanding"] == 15_500_000_000
+
+    @pytest.mark.asyncio
+    async def test_shares_falls_back_to_derived_when_quote_lacks_field(self, provider):
+        """R2: when /quote omits sharesOutstanding, fall back to int(mktCap/price)
+        and WARN that the figure is not independent (so a downstream
+        market-cap-consistency check abstains instead of comparing a tautology)."""
+        quote_without_shares = [{"symbol": "AAPL", "price": 175.0, "marketCap": 2_620_000_000_000}]
+        responses = [
+            _mock_response(_fmp_quarterly_income_response()),
+            _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_profile_response()),
+            _mock_response(quote_without_shares),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials")
+        assert result.data["shares_outstanding"] == 14_971_428_571  # int(2.62e12 / 175)
+        assert any("derived as int(mktCap/price)" in w for w in result.warnings)
 
     @pytest.mark.asyncio
     async def test_fetch_financials_tags_foreign_adr_currency(self, provider):
@@ -270,6 +381,7 @@ class TestFMPFetch:
             _mock_response(_fmp_balance_response("TSM")),
             _mock_response(_fmp_quarterly_cashflow_response("TSM")),
             _mock_response(_fmp_profile_response("TSM", currency="USD", country="TW")),
+            _mock_response(_fmp_quote_response("TSM")),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("TSM", "financials")
@@ -398,6 +510,7 @@ class TestFMPFetchHistorical:
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_multi_year_cashflow("AAPL", 3)),
             _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_quote_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials", years=3)
@@ -431,6 +544,7 @@ class TestFMPFetchHistorical:
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_multi_year_cashflow("AAPL", 3)),
             _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_quote_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials", years=3)
@@ -453,6 +567,7 @@ class TestFMPFetchHistorical:
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_multi_year_cashflow("AAPL", 1)),  # only newest year
             _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_quote_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials", years=3)
@@ -470,6 +585,7 @@ class TestFMPFetchHistorical:
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
             _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_quote_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials")
@@ -492,6 +608,7 @@ class TestFMPFetchHistorical:
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response(da=3_000_000_000)),
             _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_quote_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials")
@@ -510,6 +627,7 @@ class TestFMPFetchHistorical:
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
             _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_quote_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials")
@@ -566,6 +684,7 @@ class TestFMPFetchHistorical:
             _mock_response(_fmp_balance_response("TSLA")),
             _mock_response(cashflow),
             _mock_response(_fmp_profile_response("TSLA")),
+            _mock_response(_fmp_quote_response("TSLA")),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("TSLA", "financials")
@@ -857,9 +976,17 @@ class TestFMPPeerCandidates:
         )
         assert result.data["quotes"]["AMD"]["pe"] == 42.0
 
+def _fmp_quote_response(
+    ticker: str = "AAPL",
+    price: float = 175.0,
+    shares_outstanding: int = 14_971_428_571,
+) -> list[dict]:
+    """Mock FMP /quote/{ticker} response.
 
-def _fmp_quote_response(ticker: str = "AAPL", price: float = 175.0) -> list[dict]:
-    """Mock FMP /quote/{ticker} response."""
+    Default sharesOutstanding is consistent with marketCap 2.62T / price 175 so
+    the real-shares path returns the same value the old int(mktCap/price) derivation
+    did — existing assertions stay valid while exercising the /quote source.
+    """
     return [
         {
             "symbol": ticker,
@@ -868,6 +995,7 @@ def _fmp_quote_response(ticker: str = "AAPL", price: float = 175.0) -> list[dict
             "exchange": "NASDAQ",
             "exchangeShortName": "NASDAQ",
             "marketCap": 2_620_000_000_000,
+            "sharesOutstanding": shares_outstanding,
             "volume": 54_000_000,
         }
     ]
@@ -1219,6 +1347,7 @@ class TestFMPHistoricalPerYear:
             _mock_response(self._multi_year_balance()),
             _mock_response(self._multi_year_cashflow()),
             _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_quote_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", DataType.FINANCIALS, years=3)

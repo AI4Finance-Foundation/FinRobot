@@ -69,6 +69,28 @@ def _adjust_fmp_bar(p: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _resolve_total_debt(bal: dict[str, Any]) -> float | None:
+    """Total debt from a balance-sheet row, defended against FMP quirks.
+
+    ``totalDebt`` is the headline field, but FMP occasionally reports it absent
+    while the components are present. Sum ``longTermDebt + shortTermDebt`` as a
+    fallback. Preserves the None ≠ 0 contract: a genuinely debt-free filing
+    (totalDebt == 0, no components) returns 0, while a *missing* figure
+    (totalDebt None, no components) returns None so EV is withheld rather than
+    fabricated. Does NOT rescue an all-zero freshest-quarter stub — that is
+    backfilled from the annual filing upstream, before this runs.
+    """
+    td = bal.get("totalDebt")
+    if td:
+        return float(td)
+    lt = bal.get("longTermDebt") or 0
+    st = bal.get("shortTermDebt") or 0
+    component = lt + st
+    if component:
+        return float(component)
+    return float(td) if td is not None else None
+
+
 class FMPProvider(DataProvider):
     """DataProvider backed by Financial Modeling Prep API.
 
@@ -178,6 +200,37 @@ class FMPProvider(DataProvider):
                         params={"period": "quarter", "limit": 1},
                     )
                 ).json()
+                # FMP often ships a DEBT STUB on the freshest quarter: totalDebt /
+                # longTermDebt / shortTermDebt all 0 until FMP backfills the
+                # detail (cash is usually already populated). Trusting that 0
+                # fabricates a debt-free balance (EV = market_cap − cash), and
+                # because it's a literal 0 — not None — the None≠0 guard
+                # downstream can't catch it (real-world hit: SAP Q1'26 stub vs
+                # €8.07B annual debt). Debt is a slow-moving stock, so when the
+                # quarter is a stub, backfill the debt lines from the latest
+                # ANNUAL filing (keep the quarter's fresher cash). See
+                # project-memory/已知bug-待修清单.
+                # Stub signature: the row is a REAL filing (cash backfilled) but
+                # every debt line is 0/None. A wholly-empty row (no cash either)
+                # is just missing data — leave it None, don't chase the annual.
+                if (
+                    balance
+                    and balance[0].get("cashAndCashEquivalents")
+                    and not any(
+                        balance[0].get(f) for f in ("totalDebt", "longTermDebt", "shortTermDebt")
+                    )
+                ):
+                    annual_balance = (
+                        await self._get(f"/balance-sheet-statement/{ticker}", params={"limit": 1})
+                    ).json()
+                    if annual_balance:
+                        for f in ("totalDebt", "longTermDebt", "shortTermDebt"):
+                            balance[0][f] = annual_balance[0].get(f)
+                        warnings.append(
+                            f"FMP latest-quarter balance for {ticker} was a debt stub "
+                            "(all debt lines 0); total_debt backfilled from the latest "
+                            "annual filing (cash kept from the quarter)."
+                        )
                 # D&A on FMP's income statement is unreliable for the freshest
                 # quarter (it arrives 0 until FMP backfills), which silently
                 # understates TTM EBITDA. The cash-flow statement carries the
@@ -196,9 +249,35 @@ class FMPProvider(DataProvider):
                         "TTM metrics use the available rows."
                     )
             profile = (await self._get(f"/profile/{ticker}")).json()
+            # FMP /profile carries NO share count, which is why shares were
+            # historically back-solved as int(mktCap/price) — a tautology that
+            # turned price×shares≈mktCap into a fake cross-check. /quote DOES expose
+            # a real sharesOutstanding (its mktCap is price×shares, i.e. shares is
+            # the source), so prefer it. Best-effort: a /quote 429 / parse failure
+            # must not sink the whole financials fetch — fall back to the derived
+            # value and warn.
+            try:
+                quote = (await self._get(f"/quote/{ticker}")).json()
+            except (httpx.HTTPError, ProviderError) as exc:
+                quote = []
+                warnings.append(
+                    f"FMP /quote/{ticker} unavailable ({exc!r}); "
+                    "shares_outstanding falls back to mktCap/price"
+                )
 
         bal = balance[0] if balance else {}
         prof = profile[0] if profile else {}
+        quote_row = quote[0] if isinstance(quote, list) and quote else {}
+        shares_raw = quote_row.get("sharesOutstanding")
+        # Real, independent share count from /quote; None ⇒ the builders derive it.
+        quote_shares = (
+            int(shares_raw) if isinstance(shares_raw, int | float) and shares_raw > 0 else None
+        )
+        if quote_shares is None:
+            warnings.append(
+                f"FMP shares_outstanding for {ticker} derived as int(mktCap/price) — "
+                "not an independent figure (/quote had no sharesOutstanding)"
+            )
 
         if years and years > 1 and len(income) > 1:
             # Align cash-flow AND balance-sheet rows to income rows by
@@ -219,12 +298,13 @@ class FMPProvider(DataProvider):
                         prof,
                         cf_by_date.get(inc_i.get("date")),
                         is_current=(idx == 0),
+                        quote_shares=quote_shares,
                     )
                     for idx, inc_i in enumerate(income)
                 ],
             }
         else:
-            data = self._build_ttm_data(income, bal, prof, cashflow)
+            data = self._build_ttm_data(income, bal, prof, cashflow, quote_shares)
 
         return DataResult(
             data=data,
@@ -243,6 +323,7 @@ class FMPProvider(DataProvider):
         cf: dict[str, Any] | None = None,
         *,
         is_current: bool = True,
+        quote_shares: int | None = None,
     ) -> dict[str, Any]:
         """Extract a flat dict of normalized financial fields for one year.
 
@@ -262,7 +343,14 @@ class FMPProvider(DataProvider):
         mkt_cap = prof.get("mktCap") if is_current else None
         price = prof.get("price") if is_current else None
         beta = prof.get("beta") if is_current else None
-        shares = int(mkt_cap / price) if mkt_cap and price else None
+        # Prefer the real /quote sharesOutstanding (independent source). Only the
+        # current period carries live market data, so older years stay None rather
+        # than stamping today's share count onto a past fiscal year (BUG-028).
+        shares: int | None
+        if is_current and quote_shares:
+            shares = quote_shares
+        else:
+            shares = int(mkt_cap / price) if mkt_cap and price else None
         cf = cf or {}
         # FMP reports capitalExpenditure as a negative (cash outflow); the rest
         # of the codebase + the DCF FCF formula expect a positive magnitude.
@@ -314,7 +402,7 @@ class FMPProvider(DataProvider):
             # None ≠ 0: a missing balance-sheet line must stay None so enterprise
             # value is left undefined rather than fabricated (market_cap + 0 - 0).
             # calculate_multiples only computes EV when both are present.
-            "total_debt": bal.get("totalDebt"),
+            "total_debt": _resolve_total_debt(bal),
             "total_cash": bal.get("cashAndCashEquivalents"),
             "market_cap": mkt_cap,
             "shares_outstanding": shares,
@@ -340,10 +428,11 @@ class FMPProvider(DataProvider):
         bal: dict[str, Any],
         prof: dict[str, Any],
         cashflow_rows: list[dict[str, Any]] | None = None,
+        quote_shares: int | None = None,
     ) -> dict[str, Any]:
         """Build a current snapshot from the latest four quarterly rows."""
         if not income_rows:
-            return cls._build_single_year_data({}, bal, prof)
+            return cls._build_single_year_data({}, bal, prof, quote_shares=quote_shares)
 
         def _sum(rows: list[dict[str, Any]], key: str) -> float | None:
             values = [float(r[key]) for r in rows if isinstance(r.get(key), int | float)]
@@ -379,7 +468,14 @@ class FMPProvider(DataProvider):
             ebitda = total("ebitda")
         mkt_cap = prof.get("mktCap")
         price = prof.get("price")
-        shares = int(mkt_cap / price) if mkt_cap and price else None
+        # Prefer the real /quote sharesOutstanding (independent source); the TTM
+        # snapshot is always the current period. Fall back to int(mktCap/price)
+        # only when /quote was unavailable.
+        shares: int | None
+        if quote_shares:
+            shares = quote_shares
+        else:
+            shares = int(mkt_cap / price) if mkt_cap and price else None
         profile_pe = prof.get("pe")
         pe_ratio = (
             profile_pe
@@ -407,7 +503,7 @@ class FMPProvider(DataProvider):
             # None ≠ 0: a missing balance-sheet line must stay None so enterprise
             # value is left undefined rather than fabricated (market_cap + 0 - 0).
             # calculate_multiples only computes EV when both are present.
-            "total_debt": bal.get("totalDebt"),
+            "total_debt": _resolve_total_debt(bal),
             "total_cash": bal.get("cashAndCashEquivalents"),
             "market_cap": mkt_cap,
             "shares_outstanding": shares,

@@ -242,6 +242,28 @@ async def test_whitelist_contains_actual_dcf_numbers() -> None:
 
 
 @pytest.mark.asyncio
+async def test_current_market_price_injected() -> None:
+    """The current market price ($172.50) must appear in the thesis prompt.
+
+    Regression for the 2026-06-05 MSFT bug: without the absolute market price
+    the LLM back-filled it with the target price ("目标 $306.59，比市场价 $306.59
+    低 28%"). It must be both an AUTHORITATIVE line and a whitelisted citable
+    number so the narrative quotes the real price.
+    """
+    ctx = _make_structured_context()
+    prompt = await _capture_thesis_prompt(ctx)
+    # current_price = 172.50 from _VALUATION_SYNTHESIS
+    assert "172.50" in prompt, (
+        "Current market price (172.50) missing from thesis prompt — the narrative "
+        "will mislabel the target price as the market price."
+    )
+    assert "AUTHORITATIVE CURRENT MARKET PRICE" in prompt, (
+        "Market price must be an authoritative (do-not-deviate) instruction, not "
+        "just a whitelist line."
+    )
+
+
+@pytest.mark.asyncio
 async def test_whitelist_contains_peer_medians() -> None:
     """Whitelist must include peer median multiples from the actual PeerComps."""
     ctx = _make_structured_context()

@@ -637,6 +637,7 @@ def _reconcile_narrative_targets(
     thesis: ThesisResult,
     canonical_target: float,
     allowed_mids: list[float],
+    current_price: float | None = None,
 ) -> tuple[ThesisResult, bool]:
     """Code-only guard: neutralize prose $-amounts that contradict the canonical target.
 
@@ -650,12 +651,24 @@ def _reconcile_narrative_targets(
     canonical "$Y" in place (least-invasive neutralization — the sentence
     structure is preserved). No second LLM call is made.
 
+    ``current_price`` is a legitimately-citable reference (the narrative now
+    states the real market price; whitelisting it stops this guard from
+    rewriting "市场价 $425" → the target "$306.59" — which would re-create the
+    very mislabel the market-price injection fixes).
+
     Returns the (possibly model_copied) thesis and whether any drift was found.
     """
     canonical_token = f"${canonical_target:.2f}"
 
     def _is_allowed(value: float) -> bool:
         if abs(value - canonical_target) <= abs(canonical_target) * _NARRATIVE_DRIFT_TOLERANCE:
+            return True
+        # The current market price is a legitimate reference number, not drift.
+        if (
+            current_price is not None
+            and current_price > 0
+            and abs(value - current_price) <= abs(current_price) * _NARRATIVE_DRIFT_TOLERANCE
+        ):
             return True
         # A per-method mid is legitimately citable even if far from the target
         # ("DCF $5.88 vs comps $19.54, they disagree" is the honest narrative).
@@ -858,10 +871,22 @@ async def _execute_thesis(
         )
     elif canonical_target is not None:
         upside_str = f"{canonical_upside:+.1%}" if canonical_upside is not None else "n/a"
+        # The current market price MUST be injected as its own authoritative
+        # number. Without it the narrative LLM has only the target and the upside%
+        # — and back-fills the absolute market price with the nearest number it
+        # has, the target itself. That shipped the 2026-06-05 MSFT artifact:
+        # "目标 $306.59，比目前市场价 $306.59 低了约 28%" (target pasted in as the
+        # market price → a 0% gap narrated as -28%).
+        market_price_str = (
+            f"${vs.current_price:.2f}"
+            if isinstance(vs, ValuationSynthesis) and vs.current_price > 0
+            else "n/a"
+        )
         thesis_prompt = (
             f"{thesis_prompt}\n\n"
             f"AUTHORITATIVE PRICE TARGET (do not deviate): "
             f"${canonical_target:.2f}\n"
+            f"AUTHORITATIVE CURRENT MARKET PRICE (do not deviate): {market_price_str}\n"
             f"AUTHORITATIVE RECOMMENDATION (do not deviate): "
             f"{canonical_verdict}\n"
             f"Derivation: {canonical_basis}; implied upside vs current price = {upside_str}.\n"
@@ -871,7 +896,10 @@ async def _execute_thesis(
             f"SELL ≤ {int(_VERDICT_SELL_THRESHOLD * 100)}%, else HOLD). "
             f"Your `price_target_basis` MUST cite that this is the confidence-weighted "
             f"synthesis of the listed methods. Your narrative is free to discuss why each "
-            f"method points where it does and why the verdict is consistent with the upside."
+            f"method points where it does and why the verdict is consistent with the upside. "
+            f"任何提到'当前股价 / 市场价 / 现价'的地方,必须用上面这个权威市场价"
+            f"({market_price_str}),绝不能用目标价(${canonical_target:.2f})或你记忆里的价格顶替;"
+            f"目标价相对市场价的差距就是上面的 implied upside({upside_str}),别另算一个百分比。"
         )
 
     # ── Numeric discipline whitelist ──────────────────────────────────────────
@@ -889,6 +917,14 @@ async def _execute_thesis(
         "增长率）都属于违规，必须被 prompt-fidelity 评估标记为 hallucination：",
     ]
     if isinstance(vs_for_prompt, ValuationSynthesis):
+        # The current market price is the reference every upside/downside is
+        # measured against — whitelist it so the narrative cites the REAL price
+        # instead of back-filling with the target (the MSFT mislabel bug).
+        if vs_for_prompt.current_price > 0:
+            _whitelist_parts.append(
+                f"  - valuation_synthesis.current_price (当前市场价): "
+                f"${vs_for_prompt.current_price:.2f}"
+            )
         for m in vs_for_prompt.methods:
             _whitelist_parts.append(
                 f"  - valuation_synthesis.methods['{m.name}']: "
@@ -1064,7 +1100,10 @@ async def _execute_thesis(
         # prose ~$280"). Scan the headline-bearing fields and neutralize any
         # drifting $-amount to the canonical value (code only, no second LLM call).
         allowed_mids = [m.mid for m in vs.methods] if isinstance(vs, ValuationSynthesis) else []
-        thesis, _ = _reconcile_narrative_targets(thesis, canonical_target, allowed_mids)
+        market_price = vs.current_price if isinstance(vs, ValuationSynthesis) else None
+        thesis, _ = _reconcile_narrative_targets(
+            thesis, canonical_target, allowed_mids, current_price=market_price
+        )
 
     target_str = (
         f"${thesis.price_target:.2f}" if thesis.price_target is not None else "N/A (under review)"

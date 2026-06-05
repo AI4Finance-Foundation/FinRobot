@@ -61,7 +61,12 @@ function compsPeLabel(
 
 const FORWARD_METHODS = new Set(['ev_ebitda', 'p_fcf'])
 
-export default function FootballField({ data, title, currentPrice, forwardFiscalPeriod }: ChartProps) {
+export default function FootballField({
+  data,
+  title,
+  currentPrice,
+  forwardFiscalPeriod,
+}: ChartProps) {
   const { t } = useI18n()
   const rows: Row[] = useMemo(
     () =>

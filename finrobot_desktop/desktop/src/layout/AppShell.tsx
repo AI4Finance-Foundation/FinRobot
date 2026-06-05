@@ -44,15 +44,15 @@ export function AppShell(): React.ReactElement {
   }, [])
 
   // Silent auto-update check (Tauri only). The updater is a POLL, not a push,
-  // so we check shortly after launch AND every 6h — a long-running session then
-  // still surfaces the TitleBar pill without needing a restart. A found update
-  // shows the pill; up-to-date / errors stay silent here (see updaterStore.check,
-  // which no-ops while a check or install is already in flight).
+  // so we check shortly after launch AND every 2h — a long-running session then
+  // still surfaces the TitleBar pill within a couple hours, no restart needed.
+  // A found update shows the pill; up-to-date / errors stay silent here (see
+  // updaterStore.check, which no-ops while a check or install is in flight).
   useEffect(() => {
     if (!isTauri()) return
     const check = () => void useUpdaterStore.getState().check()
     const initial = setTimeout(check, 4000)
-    const interval = setInterval(check, 6 * 60 * 60 * 1000)
+    const interval = setInterval(check, 2 * 60 * 60 * 1000)
     return () => {
       clearTimeout(initial)
       clearInterval(interval)

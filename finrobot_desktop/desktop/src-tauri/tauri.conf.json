@@ -46,7 +46,7 @@
   "plugins": {
     "updater": {
       "endpoints": [
-        "https://github.com/__GH_OWNER__/finrobot-releases/releases/latest/download/latest.json"
+        "https://github.com/lrz68/finrobot-releases/releases/latest/download/latest.json"
       ],
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEZEMzgwMkQxNkZGQUNFMjQKUldRa3p2cHYwUUk0L1VKRjVqQWx3cVRkZU9YclBOQjNIcVNoRlVRYWE2dlJYQTRVQzF0dWw5ajAK"
     }

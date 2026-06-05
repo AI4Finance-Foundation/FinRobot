@@ -43,15 +43,26 @@ def extract_target_price(artifact: "Artifact") -> float | None:
     """AI-given target price from whichever structured slot the pipeline used."""
     structured = artifact.outputs.structured
 
-    # equity_research / ic_memo store the synthesis agent thesis here.
+    # equity_research / ic_memo store the synthesis agent thesis here. A
+    # ``thesis`` block is AUTHORITATIVE: its ``price_target`` is the gated,
+    # cross-checked headline. The data-health gate deliberately nulls it when
+    # the valuation is untrustworthy (a single method 0.05x the market, methods
+    # disagreeing > 50%, …). Honour that withhold — do NOT fall through to the
+    # raw ``financial_modeling.implied_price`` below. ``financial_modeling`` is
+    # the un-gated DCF that only ever ships alongside a thesis, so resurrecting
+    # it here re-published the very number the gate suppressed (TSLA $20.38 /
+    # AMD $22.39 stamped on REVIEW verdicts, 2026-06-05) into the coverage-list
+    # column and the signal lamp.
     thesis = structured.get("thesis")
     if isinstance(thesis, dict):
         for key in ("price_target", "target_price"):
             if (v := _coerce_positive_float(thesis.get(key))) is not None:
                 return v
+        return None
 
-    # Single-method valuation pipelines surface an implied_price directly.
-    for nest in ("financial_modeling", "dcf_calc", "ddm_calc"):
+    # Single-method valuation pipelines (plain dcf / ddm) surface an
+    # implied_price directly and carry no thesis / data-health gate.
+    for nest in ("dcf_calc", "ddm_calc"):
         nested = structured.get(nest)
         if isinstance(nested, dict):
             if (v := _coerce_positive_float(nested.get("implied_price"))) is not None:

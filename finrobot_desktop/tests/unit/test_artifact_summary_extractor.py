@@ -69,10 +69,32 @@ def test_target_price_from_equity_research_thesis_block() -> None:
 
 def test_target_price_from_dcf_implied_price_nested() -> None:
     art = _artifact(
-        structured={"financial_modeling": {"implied_price": 185.4}},
+        structured={"dcf_calc": {"implied_price": 185.4}},
         type_="dcf",
     )
     assert extract_target_price(art) == 185.4
+
+
+def test_target_price_withheld_when_data_health_gate_nulls_thesis() -> None:
+    """The data-health gate withholds the headline target (thesis.price_target
+    -> None) precisely because the raw DCF implied_price is untrustworthy (e.g.
+    TSLA $20.38 on a $418 market). The summary extractor must honour that
+    withhold and NOT resurrect ``financial_modeling.implied_price`` for the
+    coverage-list column / signal lamp — the gate's whole purpose is to keep
+    that number off the screen. Regression for the 2026-06-05 TSLA/AMD artifacts
+    whose REVIEW verdict still carried a $20 / $22 target in the artifacts.db
+    column."""
+    art = _artifact(
+        structured={
+            "thesis": {
+                "price_target": None,
+                "recommendation": "REVIEW",
+                "price_target_basis": "DATA-HEALTH GATE: target withheld.",
+            },
+            "financial_modeling": {"implied_price": 20.38},
+        },
+    )
+    assert extract_target_price(art) is None
 
 
 def test_target_price_from_top_level_implied_price() -> None:

@@ -91,6 +91,9 @@ _TTL_SECONDS: dict[str, int] = {
     DataType.PRICE: 900,  # 15 minutes
     DataType.QUOTE: 60,  # 1 minute — aligns with the QuoteCache batch TTL
     DataType.NEWS: 1800,  # 30 minutes
+    # Catalysts derive from NEWS via an LLM classify pass — align the TTL with
+    # NEWS (30 min) so the calendar refreshes on the same cadence as its source.
+    DataType.CATALYST: 1800,  # 30 minutes
     DataType.FINANCIALS: 86400,  # 24 hours
     DataType.EARNINGS: 86400,  # 24 hours (quarterly data)
     DataType.EARNINGS_TRANSCRIPT: 604800,  # 7 days

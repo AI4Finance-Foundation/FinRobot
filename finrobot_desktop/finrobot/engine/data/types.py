@@ -32,6 +32,12 @@ class DataType(StrEnum):
     # (yfinance-only deep financial data — historical multi-year + quarterly).
     HISTORICAL = "historical"
     QUARTERLY = "quarterly"
+    # Catalyst calendar (v5 catalyst section): news → LLM classify → extract →
+    # rank. The classification is an expensive (~11–18s) LLM round-trip with NO
+    # provider cache of its own, so the assembled list is cached here keyed by
+    # (ticker, min_importance) to keep warm loads instant and the result stable
+    # (LLM classification is non-deterministic run-to-run).
+    CATALYST = "catalyst"
     # Arbitrary-date-range daily OHLCV (split/dividend-adjusted), distinct from
     # PRICE (trailing ~1y, the 52w-high/low feed). Drives the backtest engine and
     # any chart needing a caller-chosen window. Cache slot is keyed by

@@ -68,41 +68,58 @@ async def get_catalysts(
 
     Pipeline: fetch_news -> classify_news (LLM) -> extract_catalysts -> rank.
 
+    The classify step is a slow (~11–18s) LLM round-trip with no provider cache
+    of its own, so the assembled list is cached (DataType.CATALYST, 30 min,
+    keyed by min_importance). Warm loads skip the whole pipeline; only a cold
+    load (or a stale cache) pays the LLM cost. Caching also stabilises the
+    calendar — classification is non-deterministic run-to-run.
+
     Args:
         ticker: Stock ticker symbol.
         min_importance: Minimum news importance to become a catalyst (1-5).
     """
     deps = request.app.state.deps
     data_layer = deps.data_layer
-    try:
-        raw_news = await fetch_news(data_layer, ticker.upper())
-    except (ValueError, ProviderError) as e:
-        raise _data_http_error(e, ticker.upper()) from e
+    cache = data_layer.cache
+    ticker_upper = ticker.upper()
 
-    if not raw_news:
-        return []
-
-    # LLM classification failure must surface as a real 5xx — silently
-    # returning [] makes a backend outage indistinguishable from "no
-    # catalysts found", which is the failure mode this endpoint exists to
-    # avoid.
-    try:
+    async def _fetch_catalysts() -> dict[str, Any]:
+        raw_news = await fetch_news(data_layer, ticker_upper)
+        if not raw_news:
+            return {"catalysts": []}
         classified = await classify_news(raw_news, deps)
+        events = extract_catalysts_from_news(classified, min_importance=min_importance)
+        events = compute_expected_impact(events)
+        events = rank_catalysts(events)
+        return {"catalysts": [e.model_dump(mode="json") for e in events]}
+
+    try:
+        payload = await cached_fetch(
+            cache,
+            DataType.CATALYST,
+            ticker_upper,
+            _fetch_catalysts,
+            cache_key_suffix=f":{min_importance}",
+        )
+    except (ValueError, ProviderError) as e:
+        raise _data_http_error(e, ticker_upper) from e
     except RuntimeError as e:
-        logger.error("Catalyst classification failed for %s: %s", ticker, e)
+        # LLM classification failure must surface as a real 5xx — silently
+        # returning [] makes a backend outage indistinguishable from "no
+        # catalysts found", which is the failure mode this endpoint exists to
+        # avoid. The fetcher raised before cache.set, so nothing is cached.
+        logger.error("Catalyst classification failed for %s: %s", ticker_upper, e)
         raise HTTPException(
             status_code=500,
             detail={
                 "error": "catalyst_classification_failed",
                 "message": str(e),
-                "ticker": ticker.upper(),
+                "ticker": ticker_upper,
             },
         ) from e
 
-    catalysts = extract_catalysts_from_news(classified, min_importance=min_importance)
-    catalysts = compute_expected_impact(catalysts)
-    catalysts = rank_catalysts(catalysts)
-    return catalysts
+    raw_list = payload.get("catalysts", [])
+    return [CatalystEvent.model_validate(item) for item in raw_list]
 
 
 @router.get("/{ticker}/financials", response_model=FinancialData)

@@ -1437,3 +1437,122 @@ async def test_peer_analysis_excludes_target_and_names_dropped_peers(mock_deps):
     assert peer_tickers == {"MSFT", "GOOGL", "META"}
     # (2) the dropped peer is named, not silent
     assert any("FAILME" in w for w in peer_comps.warnings)
+
+
+@pytest.mark.asyncio
+async def test_thesis_single_method_out_of_band_forces_review(mock_deps):
+    """The 2026-06-05 TSLA live artifact: comps died (all-EV peer set, P/E n=0)
+    → single-method synthesis (weighted_price=None) → NO canonical target and NO
+    gate → the LLM stamped SELL $20.38 on a 0.05x model/market ratio, bypassing
+    every data-health gate. A single uncorroborated method whose mid sits outside
+    the [1/K, K] calibration band must trip the same REVIEW machinery: target
+    withheld, recommendation forced to REVIEW."""
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
+    from finrobot.engine.models.financial import (
+        ThesisResult,
+        StepOutput,
+        ValuationMethod,
+        ValuationSynthesis,
+    )
+
+    rogue = ThesisResult(
+        recommendation="Sell",
+        price_target=20.38,  # the live bug: DCF mid published as headline target
+        price_target_basis="Based on the DCF model",
+        catalysts=["c"],
+        risks=["r"],
+        narrative="n",
+    )
+    mock_result = MagicMock()
+    mock_result.output = rogue
+    agent = MagicMock()
+    agent.run = AsyncMock(return_value=mock_result)
+
+    vs = ValuationSynthesis(
+        methods=[
+            ValuationMethod(
+                name="dcf", low=15.0, mid=20.38, high=25.0, confidence=0.85, source="DCF"
+            )
+        ],
+        weighted_price=None,  # single method — no cross-check
+        current_price=418.45,  # ratio 0.049 — far outside [0.25, 4]
+        upside_downside=None,
+    )
+
+    with patch(
+        "finrobot.engine.pipelines.equity_research.Agent",
+        return_value=agent,
+    ):
+        output = await _execute_thesis(
+            agent, mock_deps, "base prompt", {"valuation_synthesis": vs}, "TSLA"
+        )
+
+    assert isinstance(output, StepOutput)
+    thesis = output.structured
+    assert isinstance(thesis, ThesisResult)
+    assert thesis.recommendation == "REVIEW"
+    assert thesis.price_target is None, (
+        f"single-method out-of-band mid must NOT publish a target, got {thesis.price_target}"
+    )
+    # The prompt must have carried the gate instruction.
+    prompt = agent.run.call_args[0][0]
+    assert "DATA-HEALTH GATE TRIPPED" in prompt
+
+
+@pytest.mark.asyncio
+async def test_thesis_single_method_in_band_publishes_with_caveat(mock_deps):
+    """Banks legitimately run comps-only (DCF structurally n/a): a single method
+    whose mid sits INSIDE the calibration band publishes as the canonical target
+    — deterministic, with an explicit single-method/no-cross-check caveat — so
+    JPM-class names keep coverage instead of degrading to REVIEW."""
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
+    from finrobot.engine.models.financial import (
+        ThesisResult,
+        ValuationMethod,
+        ValuationSynthesis,
+    )
+
+    rogue = ThesisResult(
+        recommendation="Buy",
+        price_target=999.0,  # LLM drift — must be overridden to the method mid
+        price_target_basis="vibes",
+        catalysts=["c"],
+        risks=["r"],
+        narrative="n",
+    )
+    mock_result = MagicMock()
+    mock_result.output = rogue
+    agent = MagicMock()
+    agent.run = AsyncMock(return_value=mock_result)
+
+    vs = ValuationSynthesis(
+        methods=[
+            ValuationMethod(
+                name="comps_pe", low=250.0, mid=289.57, high=330.0, confidence=0.55, source="Comps"
+            )
+        ],
+        weighted_price=None,
+        current_price=310.89,  # ratio 0.93 — comfortably in-band
+        upside_downside=None,
+    )
+
+    with patch(
+        "finrobot.engine.pipelines.equity_research.Agent",
+        return_value=agent,
+    ):
+        output = await _execute_thesis(
+            agent, mock_deps, "base prompt", {"valuation_synthesis": vs}, "JPM"
+        )
+
+    thesis = output.structured
+    assert isinstance(thesis, ThesisResult)
+    assert thesis.price_target == 289.57, (
+        f"in-band single-method mid must become the canonical target, got {thesis.price_target}"
+    )
+    # -6.9% upside → HOLD band (±15%).
+    assert thesis.recommendation == "HOLD"
+    # Basis must disclose the single-method / no-cross-check caliber.
+    basis = thesis.price_target_basis.lower()
+    assert "single" in basis or "cross-check" in basis or "无交叉" in thesis.price_target_basis
+    prompt = agent.run.call_args[0][0]
+    assert "AUTHORITATIVE PRICE TARGET" in prompt

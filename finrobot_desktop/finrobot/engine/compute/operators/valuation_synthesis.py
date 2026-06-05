@@ -60,7 +60,7 @@ _RELIABILITY_RATIO_K = 2.0
 # calibration" and equally deserve REVIEW — divergence MAGNITUDE matters, not
 # direction. Genuine 2-3x over/undervaluation calls still publish. (K is the
 # single tunable knob; drop to 3 for a stricter gate.)
-_MARKET_DIVERGENCE_RATIO_K = 4.0
+MARKET_DIVERGENCE_RATIO_K = 4.0
 
 
 def synthesize_valuations(
@@ -177,14 +177,14 @@ def synthesize_valuations(
     # guaranteed by upside_downside being computed above.
     valuation_ratio = weighted_price / current_price
     if (
-        valuation_ratio > _MARKET_DIVERGENCE_RATIO_K
-        or valuation_ratio < 1.0 / _MARKET_DIVERGENCE_RATIO_K
+        valuation_ratio > MARKET_DIVERGENCE_RATIO_K
+        or valuation_ratio < 1.0 / MARKET_DIVERGENCE_RATIO_K
     ):
         reliable = False
         synthesis_warnings.append(
             f"Weighted target ${weighted_price:.2f} is UNRELIABLE: it is "
             f"{valuation_ratio:.2g}x the ${current_price:.2f} market price (outside the "
-            f"[{1.0 / _MARKET_DIVERGENCE_RATIO_K:.2g}x, {_MARKET_DIVERGENCE_RATIO_K:.2g}x] "
+            f"[{1.0 / MARKET_DIVERGENCE_RATIO_K:.2g}x, {MARKET_DIVERGENCE_RATIO_K:.2g}x] "
             "calibration band). The valuation methods corroborate each other but sit far "
             "outside the market — the market is pricing option value (e.g. new business "
             "lines / growth optionality) that cash-flow and relative models do not "

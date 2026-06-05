@@ -43,14 +43,20 @@ export function AppShell(): React.ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Silent auto-update check once per launch (Tauri only). Delayed a few
-  // seconds so it never competes with first paint or the sidecar boot; a found
-  // update surfaces as the TitleBar pill (UpdatePill), up-to-date / errors stay
-  // silent here (see updaterStore.check).
+  // Silent auto-update check (Tauri only). The updater is a POLL, not a push,
+  // so we check shortly after launch AND every 6h — a long-running session then
+  // still surfaces the TitleBar pill without needing a restart. A found update
+  // shows the pill; up-to-date / errors stay silent here (see updaterStore.check,
+  // which no-ops while a check or install is already in flight).
   useEffect(() => {
     if (!isTauri()) return
-    const id = setTimeout(() => void useUpdaterStore.getState().check(), 4000)
-    return () => clearTimeout(id)
+    const check = () => void useUpdaterStore.getState().check()
+    const initial = setTimeout(check, 4000)
+    const interval = setInterval(check, 6 * 60 * 60 * 1000)
+    return () => {
+      clearTimeout(initial)
+      clearInterval(interval)
+    }
   }, [])
 
   // 2026-05-27 perf: pause CSS animations (cosmic-stars × 2 layers,

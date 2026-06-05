@@ -623,9 +623,10 @@ class ValuationSynthesis(BaseModel):
         description=(
             "False when EITHER (a) at least one method deviates > 50% from the "
             "cross-method median (methods don't corroborate each other), OR (b) the "
-            "confidence-weighted target deviates > 75% from the market price (methods "
-            "corroborate each other but sit far outside the market, which is pricing "
-            "option value the models can't capture — the Amazon-1999 / TSLA failure). "
+            "confidence-weighted target / market price ratio falls outside [0.25x, 4x] "
+            "(methods corroborate each other but sit far outside the market, which is "
+            "pricing option value the models can't capture — the Amazon-1999 / TSLA "
+            "failure; the ratio band is symmetric in log-space, unlike an upside%%). "
             "In either case the weighted target MUST NOT be published as a headline "
             "target/verdict. Drives the equity-research data-health gate."
         ),

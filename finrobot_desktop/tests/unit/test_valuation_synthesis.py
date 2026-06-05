@@ -97,9 +97,7 @@ class TestSynthesizeValuations:
             ValuationMethod(
                 name="Comps", low=110, mid=120, high=130, confidence=0.4, source="Comps"
             ),
-            ValuationMethod(
-                name="LBO", low=175, mid=200, high=225, confidence=0.3, source="LBO"
-            ),
+            ValuationMethod(name="LBO", low=175, mid=200, high=225, confidence=0.3, source="LBO"),
         ]
         result = synthesize_valuations(methods, current_price=150.0)
         assert result.outlier_methods == ["LBO"]
@@ -179,8 +177,8 @@ class TestSynthesizeValuations:
         assert any("market price" in w and "UNRELIABLE" in w for w in result.warnings)
 
     def test_reliable_true_when_target_near_market(self):
-        """A weighted target within ±75% of the market price is NOT tripped by
-        the model-vs-market gate. $245.50 vs $230 market = +6.7% — well inside."""
+        """A weighted target inside the [0.25x, 4x] band of the market price is
+        NOT tripped by the model-vs-market gate. $245.50 vs $230 market = 1.07x."""
         methods = [
             ValuationMethod(name="DCF", low=210, mid=245, high=290, confidence=0.5, source="DCF"),
             ValuationMethod(
@@ -190,6 +188,39 @@ class TestSynthesizeValuations:
         result = synthesize_valuations(methods, current_price=230.0)
         assert result.reliable is True
         assert not any("market price" in w for w in result.warnings)
+
+    def test_reliable_true_2x_undervaluation_still_publishes(self):
+        """A genuine deep-value BUY worth 2x the market (ratio 2.0, inside the
+        [0.25x, 4x] band) MUST still publish. The earlier abs(upside)>0.75 gate
+        wrongly killed this (+100% upside), trusting an over-priced model far
+        more readily than an under-priced one — the log-asymmetry the ratio gate
+        fixes. Methods agree tightly so the spread gate stays clean too."""
+        methods = [
+            ValuationMethod(name="DCF", low=180, mid=200, high=220, confidence=0.6, source="DCF"),
+            ValuationMethod(
+                name="Comps", low=190, mid=205, high=225, confidence=0.4, source="Comps"
+            ),
+        ]
+        # weighted = (200*0.6 + 205*0.4)/1.0 = 202 → 2.02x the $100 market
+        result = synthesize_valuations(methods, current_price=100.0)
+        assert result.weighted_price == pytest.approx(202.0, abs=0.5)
+        assert result.reliable is True
+        assert not any("market price" in w for w in result.warnings)
+
+    def test_reliable_false_overvalued_model_above_4x(self):
+        """Symmetry with the downside: a model worth > 4x the market is just as
+        'out of calibration' as one worth < 1/4x. $450 weighted vs $100 market =
+        4.5x → outside the [0.25x, 4x] band → reliable=False. Divergence
+        MAGNITUDE matters, not direction."""
+        methods = [
+            ValuationMethod(name="DCF", low=420, mid=450, high=480, confidence=0.6, source="DCF"),
+            ValuationMethod(
+                name="Comps", low=430, mid=450, high=470, confidence=0.4, source="Comps"
+            ),
+        ]
+        result = synthesize_valuations(methods, current_price=100.0)
+        assert result.reliable is False
+        assert any("market price" in w and "UNRELIABLE" in w for w in result.warnings)
 
     def test_single_method_is_reliable_by_default(self):
         """A lone method has no cross-check to fail — reliable stays True

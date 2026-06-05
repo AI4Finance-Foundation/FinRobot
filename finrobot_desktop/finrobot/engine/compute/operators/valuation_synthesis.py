@@ -32,14 +32,22 @@ _RELIABILITY_SPREAD_THRESHOLD = 0.50
 # / TSLA failure: a fundamentals DCF and auto-peer comps corroborate each other
 # at ~$18 while the market prices ~$418 of option value (FSD / robotaxi / energy)
 # that no cash-flow model captures. A point estimate 24x off the market is NOT a
-# publishable target however internally consistent it is. When the confidence-
-# weighted price deviates from the market price by more than this fraction, the
-# model is outside its calibration range: flag ``reliable=False`` so the same
-# data-health gate withholds the headline target/verdict (a fundamentals point
-# target must never ship a confident "-96% SELL"). 0.75 was chosen so genuine
-# 1-2x over/undervaluation calls still publish, while a >4x downside gap (or
-# >1.75x upside gap) trips review.
-_MARKET_DIVERGENCE_THRESHOLD = 0.75
+# publishable target however internally consistent it is. When the model is this
+# far outside its calibration range, flag ``reliable=False`` so the same
+# data-health gate withholds the headline target/verdict.
+#
+# Gate on the RATIO fair_value / market_price, NOT abs(upside%). Upside% is
+# log-asymmetric: a +75% upside is a 1.75x ratio, but a -75% "downside" is a
+# 0.25x ratio (= 4x gap) — gating on abs(upside)>0.75 would trip the upside at
+# 1.75x while only tripping the downside at 4x, i.e. trust an over-priced model
+# far more readily than an under-priced one. The symmetric breaker is
+# ratio > K  OR  ratio < 1/K. K=4 keeps the 0.25x downside floor (the original
+# -75% choice, which caught the TSLA screenshot) and makes the upside symmetric
+# to it: a model worth >4x the market and one worth <1/4x are equally "out of
+# calibration" and equally deserve REVIEW — divergence MAGNITUDE matters, not
+# direction. Genuine 2-3x over/undervaluation calls still publish. (K is the
+# single tunable knob; drop to 3 for a stricter gate.)
+_MARKET_DIVERGENCE_RATIO_K = 4.0
 
 
 def synthesize_valuations(
@@ -131,18 +139,24 @@ def synthesize_valuations(
 
     # --- Model-vs-market divergence check (orthogonal to the spread check) ---
     # Trips even when the methods agree with each other but all sit far from the
-    # market — the blind spot the spread check above cannot see.
-    market_divergence = abs(upside_downside)
-    if market_divergence > _MARKET_DIVERGENCE_THRESHOLD:
+    # market — the blind spot the spread check above cannot see. Gated on the
+    # ratio (symmetric in log-space), not abs(upside%). current_price > 0 is
+    # guaranteed by upside_downside being computed above.
+    valuation_ratio = weighted_price / current_price
+    if (
+        valuation_ratio > _MARKET_DIVERGENCE_RATIO_K
+        or valuation_ratio < 1.0 / _MARKET_DIVERGENCE_RATIO_K
+    ):
         reliable = False
         synthesis_warnings.append(
-            f"Weighted target ${weighted_price:.2f} is UNRELIABLE: it deviates "
-            f"{market_divergence:.0%} from the ${current_price:.2f} market price "
-            f"(>{_MARKET_DIVERGENCE_THRESHOLD:.0%}). The valuation methods corroborate "
-            "each other but sit far outside the market — the market is pricing option "
-            "value (e.g. new business lines / growth optionality) that cash-flow and "
-            "relative models do not capture. The model is outside its calibration "
-            "range; a fundamentals point target must be withheld pending review."
+            f"Weighted target ${weighted_price:.2f} is UNRELIABLE: it is "
+            f"{valuation_ratio:.2g}x the ${current_price:.2f} market price (outside the "
+            f"[{1.0 / _MARKET_DIVERGENCE_RATIO_K:.2g}x, {_MARKET_DIVERGENCE_RATIO_K:.2g}x] "
+            "calibration band). The valuation methods corroborate each other but sit far "
+            "outside the market — the market is pricing option value (e.g. new business "
+            "lines / growth optionality) that cash-flow and relative models do not "
+            "capture. The model is outside its calibration range; a fundamentals point "
+            "target must be withheld pending review."
         )
 
     return ValuationSynthesis(

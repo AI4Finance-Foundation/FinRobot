@@ -92,3 +92,6 @@ desktop/src-tauri/binaries/finrobot-server-*
 
 # design-demos — UI 重设计探索的临时产物（HTML mockup + 截图），本地参考用，不进仓库
 design-demos/
+
+# rope's local cache, created by scripts/find_refs.py on each run; never source.
+.ropeproject/

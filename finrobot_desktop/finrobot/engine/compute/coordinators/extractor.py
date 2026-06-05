@@ -36,6 +36,14 @@ from finrobot.engine.primitives.ebitda import (
     calculate_ebitda_reported,
 )
 
+# Relative gap above which a reported share count is treated as NOT on the price's
+# basis (multi-class issuer with one class reported, ADR ratio, or stale data), so
+# the market_cap/price-implied count is used for per-share valuation instead. 10%
+# clears normal timestamp drift between the financials and price fetches while
+# catching the ~2× single-vs-all-class mismatch. Mirrors the validator's 0.9–1.1
+# closing band (see engine/data/validator.market_cap_consistency).
+_SHARES_PRICE_CONSISTENCY_TOL = 0.10
+
 
 def extract_financial_data(
     fin: NormalizedFinancials,
@@ -134,16 +142,40 @@ def extract_financial_data(
             "Ensure the price provider is configured and returning data."
         )
 
-    # --- shares_outstanding: refuse silent fallback to 1 ---
-    shares = fin.shares_outstanding
-    if shares is None or shares <= 0:
-        shares = market_cap / current_price
+    # --- shares_outstanding: price-consistent count for per-share valuation ---
+    # Every per-share figure downstream (DCF implied price via seed_dcf_inputs,
+    # comps EPS, LBO/EV-EBITDA/P-FCF targets) divides an equity/enterprise TOTAL
+    # by this count and compares the result to current_price — so the count MUST
+    # be on the SAME basis as the price, i.e. market_cap / current_price. A
+    # reported filing count that covers only ONE class of a multi-class issuer
+    # (yfinance .info reports single-class for GOOG/META/FOX) would put total
+    # net_income over a single-class denominator and overstate EPS ~class-ratio×.
+    # FMP already reports the all-class mc/price count, so this only corrects the
+    # degraded yfinance-only path — making it symmetric with FMP (no Mode A/B gap).
+    implied_shares = market_cap / current_price
+    reported_shares = fin.shares_outstanding
+    if reported_shares is None or reported_shares <= 0:
+        shares = implied_shares
         warnings.append(
             f"shares_outstanding missing or invalid from {fin.provenance.provider} "
             f"for {ticker} — derived as market_cap/price ({shares:,.0f}). "
             "Per-share metrics (EPS, P/E) may be approximate."
         )
         field_warnings.setdefault("pe", []).append(FIELD_WARN_SHARES_DERIVED)
+    elif abs(reported_shares - implied_shares) / implied_shares > _SHARES_PRICE_CONSISTENCY_TOL:
+        shares = implied_shares
+        warnings.append(
+            f"shares_outstanding from {fin.provenance.provider} for {ticker} "
+            f"({reported_shares:,.0f}) diverges "
+            f"{abs(reported_shares - implied_shares) / implied_shares:.0%} from "
+            f"market_cap/price ({implied_shares:,.0f}) — likely a single share class "
+            "of a multi-class issuer or an ADR ratio. Using the price-consistent "
+            "count so per-share metrics (EPS, P/E, implied price) stay on the "
+            "market's basis."
+        )
+        field_warnings.setdefault("pe", []).append(FIELD_WARN_SHARES_DERIVED)
+    else:
+        shares = reported_shares
 
     # Carry any warnings that arrived on the canonical objects (e.g. cross-validate
     # discrepancies forwarded from raw fetch).
@@ -175,8 +207,11 @@ def extract_financial_data(
             income_tax_expense=fin.income_tax_expense,
         ),
         balance=BalanceSheet(
-            total_debt=total_debt,
-            total_cash=total_cash,
+            # Preserve None (not reported) into FinancialData — the local
+            # total_debt/total_cash are 0-coerced only for the guarded EV calc
+            # above; the stored balance must not fabricate a zero (N15/#10).
+            total_debt=raw_debt,
+            total_cash=raw_cash,
         ),
         market=MarketData(
             market_cap=market_cap,

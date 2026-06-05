@@ -197,6 +197,27 @@ def test_extract_financial_data_zero_shares_outstanding_warns():
     assert any("shares_outstanding" in w for w in fd.warnings)
 
 
+def test_extract_multi_class_uses_price_consistent_shares():
+    """A reported count covering only ONE class of a multi-class issuer (e.g.
+    yfinance .info for GOOG) diverges from market_cap/price. Per-share valuation
+    must divide by the price-consistent (all-class) count, not the single-class
+    filing count — else total net_income ÷ single-class shares overstates EPS."""
+    # market_cap 3e12 / price 200 = 15e9 implied; reported only 7e9 (one class).
+    fd = extract_financial_data(_make_fin(shares_outstanding=7e9), _make_price())
+    assert fd.market.shares_outstanding == pytest.approx(15e9, rel=1e-6)
+    assert any("diverges" in w and "per-share" in w for w in fd.warnings)
+    assert fd.field_warnings.get("pe") == ["shares_derived"]
+
+
+def test_extract_minor_share_noise_keeps_reported_count():
+    """Within tolerance (timestamp drift between financials and price), keep the
+    precise reported filing count — do NOT swap in the noisier mc/price value."""
+    # 15.3e9 vs 15e9 implied = 2% — under threshold → keep reported.
+    fd = extract_financial_data(_make_fin(shares_outstanding=15.3e9), _make_price())
+    assert fd.market.shares_outstanding == pytest.approx(15.3e9, rel=1e-6)
+    assert not any("diverges" in w for w in fd.warnings)
+
+
 def test_extract_financial_data_ev_none_when_debt_missing():
     """N15: EV should be None (not computed with default 0) when total_debt missing."""
     fd = extract_financial_data(_make_fin(total_debt=None), _make_price())
@@ -206,6 +227,9 @@ def test_extract_financial_data_ev_none_when_debt_missing():
     assert any("total_debt" in w and "EV" in w for w in fd.warnings)
     # Structured: the caveat is attributed to the EV/EBITDA cell.
     assert fd.field_warnings.get("ev_ebitda") == ["ev_missing_net_debt"]
+    # #10: the stored balance itself must preserve None, not fabricate a 0 — the
+    # old BalanceSheet default=0 silently turned EV into market_cap downstream.
+    assert fd.balance.total_debt is None
 
 
 def test_extract_financial_data_ev_none_when_cash_missing():

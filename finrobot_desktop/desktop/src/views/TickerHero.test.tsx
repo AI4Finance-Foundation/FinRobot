@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { TickerHero } from './TickerHero'
 
-// Mock i18n: provide tSync for format helpers + useI18n for WorkspaceBreadcrumb
+// Mock i18n: provide tSync for the format helpers used by the freshness pill.
 vi.mock('../i18n', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('../i18n')
   return {

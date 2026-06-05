@@ -26,6 +26,7 @@ import { useTickerPrice } from '../hooks/useTickerData'
 import { useAddStudiedTicker } from '../hooks/useCoverage'
 import { FetchHttpError, mapErrorToUserMessage } from '../utils/errorMessage'
 import { TickerNotFoundView } from './workspace/TickerNotFoundView'
+import { WorkspaceBackBar } from './workspace/WorkspaceBackBar'
 import { TickerHero } from './TickerHero'
 import { MarketDataZone } from './workspace/MarketDataZone'
 import { AIZone } from './workspace/AIZone'
@@ -167,6 +168,7 @@ export function StockWorkspace(): React.ReactElement {
       data-testid="stock-workspace"
       style={{ minHeight: '100vh', position: 'relative', zIndex: 1 }}
     >
+      <WorkspaceBackBar ticker={symbol} />
       <TickerHero ticker={symbol} />
       <main
         style={{

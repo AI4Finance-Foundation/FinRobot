@@ -1,21 +1,20 @@
 // Sticky top toolbar for the 13-chapter research report view.
 //
-// Single-row, Finder-style (Spacedrive-inspired): one ← back arrow as the
-// canonical return path, a 3-segment breadcrumb whose tail doubles as a
-// version dropdown, a quote strip with live price / change / distance to
-// target, and primary Re-run + Diff actions. The chrome lives in one
-// 48px row so the chapter content gets the screen height. What-if
-// assumption editing lives in the right rail panel, not here.
+// Single-row, Finder-style (Spacedrive-inspired): one ← back arrow that returns
+// to wherever the user came from, the ticker label, a quote strip with live
+// price / change / distance to target, and Delete / Export / Re-run actions.
+// The chrome lives in one 48px row so the chapter content gets the screen
+// height. Version switching lives in the right-rail Version Timeline (click a
+// version → its report); What-if assumption editing lives in the right rail too.
 
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTickerPrice } from '../../../hooks/useTickerData'
+import { useHistoryBack } from '../../../hooks/useHistoryBack'
 import { useRunStreamStore } from '../../../stores/runStreamStore'
 import { useToastStore } from '../../../stores/toastStore'
-import type { ArtifactSummaryV5 } from '../../../types/v5'
 import { useI18n } from '../../../i18n'
-import { formatDate } from '../../../utils/format'
 import { mapErrorToUserMessage } from '../../../utils/errorMessage'
 import { deleteArtifact } from '../../../api/client'
 import { CompareTargetPicker } from '../../../components/CompareTargetPicker'
@@ -26,7 +25,6 @@ interface ReportToolbarProps {
   reportType: string
   reportVersionLabel: string
   targetPrice: number | null
-  timeline: ArtifactSummaryV5[]
   /** Export the report as a self-contained interactive HTML. Owned by
       ArtifactDetailPage (it holds the artifact + the query cache to inline). */
   onExportHtml: () => void
@@ -40,16 +38,18 @@ export function ReportToolbar({
   reportType,
   reportVersionLabel,
   targetPrice,
-  timeline,
   onExportHtml,
   onOpenIcDebate,
 }: ReportToolbarProps): React.ReactElement {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  // Back = return to wherever the user opened the report from. Falls back to the
+  // ticker workspace on a cold-start / deep link, the report's natural parent.
+  const goBack = useHistoryBack(`/stocks/${ticker}`)
   const { data: priceData } = useTickerPrice(ticker)
   const startRun = useRunStreamStore((s) => s.startRun)
   const addToast = useToastStore((s) => s.addToast)
-  const { locale, t } = useI18n()
+  const { t } = useI18n()
   const [pickerOpen, setPickerOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -60,8 +60,6 @@ export function ReportToolbar({
     livePrice !== null && targetPrice !== null && livePrice > 0
       ? ((targetPrice - livePrice) / livePrice) * 100
       : null
-
-  const sameTypeTimeline = timeline.filter((a) => a.type === reportType)
 
   // Map artifact type → pipeline_type accepted by POST /api/runs.
   // artifact type uses snake_case; pipeline type uses kebab-case for ic-memo.
@@ -98,12 +96,6 @@ export function ReportToolbar({
         title: t('report.toolbar.rerunFailed'),
         description: mapErrorToUserMessage(err),
       })
-    }
-  }
-
-  function handleVersionChange(targetArtifactId: string): void {
-    if (targetArtifactId && targetArtifactId !== artifactId) {
-      navigate(`/stocks/${ticker}/runs/${targetArtifactId}`)
     }
   }
 
@@ -160,12 +152,13 @@ export function ReportToolbar({
         borderBottom: '1px solid var(--border-soft)',
       }}
     >
-      {/* Back arrow — the single canonical return path. Always goes to the
-          ticker workspace so the breadcrumb and the arrow stay in sync. */}
+      {/* Back arrow — returns to where the user came from (useHistoryBack),
+          not a hardcoded destination. Version switching lives in the right-rail
+          Version Timeline, so no breadcrumb / version dropdown here. */}
       <button
         type="button"
         data-testid="report-back"
-        onClick={() => navigate(`/stocks/${ticker}`)}
+        onClick={goBack}
         title={t('report.toolbar.back', { ticker })}
         style={backBtnStyle}
         onMouseEnter={(e) => {
@@ -180,52 +173,19 @@ export function ReportToolbar({
         <ArrowLeft />
       </button>
 
-      {/* Breadcrumb — 3 segments, last is a hidden-select dropdown that
-          mirrors the version label and lets the user jump siblings. */}
-      <div style={breadcrumbBoxStyle}>
-        <button type="button" onClick={() => navigate('/coverage')} style={crumbBtnStyle}>
-          COVERAGE
-        </button>
-        <Sep />
-        <button
-          type="button"
-          onClick={() => navigate(`/stocks/${ticker}`)}
-          style={{ ...crumbBtnStyle, color: 'var(--accent-cyan)' }}
-        >
-          {ticker}
-        </button>
-        <Sep />
-        <span
-          className="version-switch"
-          style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
-        >
-          <span style={{ color: 'var(--secondary)' }}>{reportVersionLabel}</span>
-          {sameTypeTimeline.length > 1 && (
-            <>
-              <ChevronDown />
-              <select
-                data-testid="version-select"
-                value={artifactId}
-                onChange={(e) => handleVersionChange(e.target.value)}
-                title={t('report.toolbar.switchVersion')}
-                aria-label={t('report.toolbar.switchVersion')}
-                style={hiddenSelectStyle}
-              >
-                {sameTypeTimeline.map((a) => (
-                  <option key={a.id} value={a.id} style={{ background: 'var(--bg-card)' }}>
-                    {a.id === artifactId ? `${t('report.timeline.current')} · ` : ''}
-                    {formatDate(a.created_at, locale, 'short')}
-                    {' · '}
-                    {(a.signal ?? 'pending').toUpperCase()}
-                    {/* Mark retired (stale-archived) versions (BUG-055). */}
-                    {a.archived ? ` · ${t('report.timeline.archived')}` : ''}
-                  </option>
-                ))}
-              </select>
-            </>
-          )}
-        </span>
-      </div>
+      {/* Ticker label — lightweight wayfinding (matches the workspace back
+          strip's "← TICKER"), not a hierarchy. */}
+      <span
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 12,
+          letterSpacing: '0.08em',
+          color: 'var(--accent-cyan)',
+          textTransform: 'uppercase',
+        }}
+      >
+        {ticker}
+      </span>
 
       {/* Quote strip — only renders if we have live price data. Keeps the
           row from looking empty pre-fetch but doesn't reserve space. */}
@@ -337,31 +297,6 @@ function ArrowLeft(): React.ReactElement {
   )
 }
 
-function ChevronDown(): React.ReactElement {
-  return (
-    <svg
-      width="11"
-      height="11"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden
-      style={{ marginLeft: 3, color: 'var(--text-muted)' }}
-    >
-      <path
-        d="M6 9l6 6 6-6"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function Sep(): React.ReactElement {
-  return <span style={{ color: 'var(--text-dim)', margin: '0 6px' }}>›</span>
-}
-
 function ToolbarButton({
   children,
   onClick,
@@ -432,44 +367,6 @@ const backBtnStyle: React.CSSProperties = {
   color: 'var(--text-secondary)',
   transition: 'all 0.18s',
   flexShrink: 0,
-}
-
-const breadcrumbBoxStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 11,
-  letterSpacing: '0.06em',
-  color: 'var(--text-muted)',
-  textTransform: 'uppercase',
-  display: 'flex',
-  alignItems: 'center',
-  minWidth: 0,
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-}
-
-const crumbBtnStyle: React.CSSProperties = {
-  background: 'transparent',
-  border: 'none',
-  padding: 0,
-  margin: 0,
-  cursor: 'pointer',
-  fontFamily: 'inherit',
-  fontSize: 'inherit',
-  letterSpacing: 'inherit',
-  color: 'var(--text-muted)',
-  textTransform: 'inherit',
-  transition: 'color 0.18s',
-}
-
-const hiddenSelectStyle: React.CSSProperties = {
-  position: 'absolute',
-  inset: 0,
-  opacity: 0,
-  cursor: 'pointer',
-  appearance: 'none',
-  border: 'none',
-  background: 'transparent',
 }
 
 const quoteStripStyle: React.CSSProperties = {

@@ -8,7 +8,7 @@ describe('i18n / lingui runtime', () => {
   })
 
   it('translates a static zh key', () => {
-    expect(tSync('nav.stocks')).toBe('股票')
+    expect(tSync('nav.research')).toBe('研究台')
   })
 
   it('falls back to key when missing', () => {
@@ -24,11 +24,10 @@ describe('i18n / lingui runtime', () => {
   it('switches locale via setLocale', () => {
     useUiPrefs.getState().setLocale('en')
     expect(i18n.locale).toBe('en')
-    expect(tSync('nav.stocks')).toBe('Stocks')
+    expect(tSync('nav.research')).toBe('Research')
   })
 
   it('zh catalog and en catalog have the same key set', () => {
-    const zh = i18n.messages // current after setLocale('en') above
     // re-activate both and pull keys
     useUiPrefs.getState().setLocale('zh')
     const zhKeys = Object.keys(i18n.messages).sort()

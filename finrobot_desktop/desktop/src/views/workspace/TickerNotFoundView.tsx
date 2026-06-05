@@ -5,7 +5,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { useI18n } from '../../i18n'
-import { WorkspaceBreadcrumb } from './WorkspaceBreadcrumb'
+import { WorkspaceBackBar } from './WorkspaceBackBar'
 
 interface Props {
   ticker: string
@@ -20,19 +20,17 @@ export function TickerNotFoundView({ ticker }: Props): React.ReactElement {
         minHeight: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',
-        padding: '48px 32px',
       }}
     >
-      <div style={{ width: '100%', maxWidth: 1280 }}>
-        <WorkspaceBreadcrumb ticker={ticker} />
-      </div>
+      <WorkspaceBackBar ticker={ticker} />
 
       <div
         style={{
           marginTop: 80,
           textAlign: 'center',
           maxWidth: 520,
+          alignSelf: 'center',
+          padding: '0 32px',
         }}
       >
         {/* Title — Audiowide 48px, letter-spacing 4px per §3 */}
@@ -64,7 +62,7 @@ export function TickerNotFoundView({ ticker }: Props): React.ReactElement {
 
         {/* CTA — .btn-shimmer (§6.3 shimmer button), Audiowide 13px + letter-spacing 2px */}
         <Link
-          to="/coverage"
+          to="/research"
           className="btn-shimmer"
           style={{
             display: 'inline-block',

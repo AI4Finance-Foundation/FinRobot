@@ -246,7 +246,6 @@ export function ArtifactDetailPage(): React.ReactElement {
               reportType={data.type}
               reportVersionLabel={versionLabel}
               targetPrice={null}
-              timeline={timeline ?? []}
               onExportHtml={handleExportHtml}
             />
           </div>
@@ -289,7 +288,6 @@ export function ArtifactDetailPage(): React.ReactElement {
             reportType={data.type}
             reportVersionLabel={versionLabel}
             targetPrice={thesis?.price_target ?? null}
-            timeline={timeline ?? []}
             onExportHtml={handleExportHtml}
             onOpenIcDebate={
               data.type === 'equity_research'

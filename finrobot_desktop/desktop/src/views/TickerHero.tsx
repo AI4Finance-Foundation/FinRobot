@@ -8,7 +8,6 @@
 // data-testid="run-analysis-trigger") — the hero stays a pure identity strip.
 
 import { useTickerPrice } from '../hooks/useTickerData'
-import { WorkspaceBreadcrumb } from './workspace/WorkspaceBreadcrumb'
 import { formatAge, freshnessColor, freshnessTier } from '../utils/format'
 import { useI18n, tSync } from '../i18n'
 
@@ -63,15 +62,12 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
       }}
     >
       <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 32px', minWidth: 0 }}>
-        <WorkspaceBreadcrumb ticker={ticker} />
-
         <div
           style={{
             display: 'flex',
             alignItems: 'baseline',
             gap: 18,
             flexWrap: 'wrap',
-            marginTop: 10,
           }}
         >
           <span

@@ -19,7 +19,11 @@ from finrobot.engine.data.normalize import (
 )
 from finrobot.engine.data.types import DataType
 from finrobot.engine.data.normalize.contracts import degraded_provider_divergence
-from finrobot.engine.data.validator import cross_validate, key_field_divergences
+from finrobot.engine.data.validator import (
+    cross_validate,
+    key_field_divergences,
+    market_cap_consistency,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -154,6 +158,11 @@ class DataLayer:
                 # insertion order while de-duping so the same warning text
                 # isn't shown twice.
                 discrepancies = cross_validate(primary_result, result)
+                # Lineage-aware market_cap ≈ price × shares check. Skipped inside
+                # when the only share count is FMP's rederived mc/price (a False
+                # Validation); fires a share-structure WARNING for multi-class /
+                # ADR / unit mismatches (e.g. GOOG/META) without hardcoding names.
+                discrepancies += market_cap_consistency(primary_result, result)
                 for w in discrepancies:
                     logger.warning(w)
                 merged = list(

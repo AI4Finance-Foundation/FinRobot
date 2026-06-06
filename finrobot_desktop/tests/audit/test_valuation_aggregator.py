@@ -454,6 +454,26 @@ class TestAggregatorContract:
         # source must disclose that口径 rather than mix definitions silently.
         assert "as-reported" in row.source
 
+    def test_comps_pe_prefers_peer_forward_pe_when_available(self) -> None:
+        # When peers carry a forward P/E (median_forward_pe, set per peer in
+        # _fetch_one_peer), comps_pe pairs the peer FORWARD median with the target
+        # forward EPS — one forward caliber both sides, resolving the BUG-029
+        # as-reported fallback. Higher confidence than that fallback.
+        pc = _peer_comps(median_pe=28.0)
+        pc.median_forward_pe = 40.0
+        agg = aggregate_valuation(
+            ticker="NVDA",
+            current_price=876.42,
+            peer_comps=pc,
+            forward_eps=12.5,
+            shares_outstanding=2.4e9,
+            as_of=AS_OF,
+        )
+        row = next(m for m in agg.methods if m.method == "comps_pe")
+        assert row.mid == 40.0 * 12.5  # peer forward median, NOT the trailing 28.0
+        assert row.confidence == 0.80
+        assert "forward_pe" in row.source
+
     def test_comps_pe_uses_core_caliber_when_available(self) -> None:
         """Trailing path with NOPAT core fields populated (the real post-
         calculate_core_pe pipeline state) pairs the core peer median with the

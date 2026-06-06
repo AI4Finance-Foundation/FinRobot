@@ -232,17 +232,31 @@ def _comps_pe_method(
     confidence = 0.55
 
     if used_forward:
-        # Forward EPS is analyst consensus — already a normalised forward number,
-        # paired with the as-reported trailing peer median P/E (we have no peer
-        # forward P/E). Highest-confidence path.
-        #
-        # 口径 caveat (BUG-029): median_pe is the median of peers' AS-REPORTED P/E
-        # (market_cap / net_income), which still carries peers' non-operating
-        # income — a DIFFERENT earnings definition than the trailing path's
-        # NOPAT-core median_core_pe. Unifying forward onto a core peer multiple
-        # needs peer forward NOPAT we don't have, so the label below states the
-        # caliber explicitly rather than silently mixing definitions.
-        if peer_comps.median_pe is not None and peer_comps.median_pe > 0:
+        # Forward EPS is analyst consensus — a normalised forward number. Prefer a
+        # peer FORWARD median P/E (added per peer in _fetch_one_peer) so both sides
+        # share one forward caliber; fall back to the as-reported trailing peer
+        # median P/E only when no peer carried a forward multiple. Highest-confidence
+        # path either way.
+        if peer_comps.median_forward_pe is not None and peer_comps.median_forward_pe > 0:
+            # Fully forward: peer FORWARD median P/E × target forward EPS — ONE
+            # forward caliber on both sides, resolving the BUG-029 mixed-caliber
+            # caveat below (peers' forward P/E = market_cap / FY1 consensus net
+            # income, set per peer in _fetch_one_peer). Slightly higher confidence
+            # than the as-reported fallback because the calibers now agree.
+            mid = peer_comps.median_forward_pe * forward_eps  # type: ignore[operator]
+            source = "peer_median_forward_pe × forward_eps（同业 forward P/E × 标的 forward EPS，同口径）"
+            multiple = peer_comps.median_forward_pe
+            caliber = "forward EPS（同业 forward P/E，同口径）"
+            confidence = 0.80
+        elif peer_comps.median_pe is not None and peer_comps.median_pe > 0:
+            # Fallback when no peer carried a forward P/E (foreign-only set, or no
+            # analyst consensus): as-reported trailing peer median P/E × forward EPS.
+            #
+            # 口径 caveat (BUG-029): median_pe is the median of peers' AS-REPORTED P/E
+            # (market_cap / net_income), which still carries peers' non-operating
+            # income — a DIFFERENT earnings definition than the trailing path's
+            # NOPAT-core median_core_pe. The label states the caliber explicitly
+            # rather than silently mixing definitions.
             mid = peer_comps.median_pe * forward_eps  # type: ignore[operator]
             source = "peer_median_pe × forward_eps（as-reported 同业 P/E，含非经营性收益；无 peer forward 口径）"
             multiple = peer_comps.median_pe

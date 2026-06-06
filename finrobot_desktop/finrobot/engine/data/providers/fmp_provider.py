@@ -91,6 +91,37 @@ def _resolve_total_debt(bal: dict[str, Any]) -> float | None:
     return float(td) if td is not None else None
 
 
+def _derive_pe(
+    mkt_cap: float | None,
+    net_income: float | None,
+    *,
+    fin_ccy: str | None,
+    quote_ccy: str | None,
+    profile_pe: float | None = None,
+) -> float | None:
+    """P/E from the FMP snapshot, guarded against a cross-currency fabrication.
+
+    ``market_cap`` is quote-currency, ``net_income`` reporting-currency. For ADRs
+    these disagree (SAP USD/EUR, TSM USD/TWD, TM USD/JPY) and FMP's ``profile.pe``
+    is currently None, so the naive ``mkt_cap / net_income`` fallback shipped a
+    dimensionally-mixed P/E into the snapshot (SAP 29.4x, TSM 1.11x, TM 0.06x —
+    live probe 2026-06-06). The provider is synchronous with no FX rate, so a
+    mixed-currency P/E cannot be made correct here: return None (the snapshot
+    renders N/A) and let ``fx_normalize.normalize_financialdata_to_usd`` recompute
+    it from same-currency USD inputs for the absolute-valuation paths.
+
+    ``profile_pe`` (FMP's own self-consistent figure) is trusted when present; the
+    currency guard only governs the ``mkt_cap / net_income`` fallback.
+    """
+    if profile_pe:
+        return profile_pe
+    if not (mkt_cap and net_income and net_income > 0):
+        return None
+    if fin_ccy != quote_ccy:
+        return None
+    return mkt_cap / net_income
+
+
 class FMPProvider(DataProvider):
     """DataProvider backed by Financial Modeling Prep API.
 
@@ -358,9 +389,16 @@ class FMPProvider(DataProvider):
         capex = abs(capex_raw) if isinstance(capex_raw, int | float) else None
         # PE = market_cap / net_income (algebraically equivalent to
         # price / EPS where EPS = net_income / shares = net_income * price / mkt_cap).
-        # None on historical rows: mixing today's market cap with a past year's
-        # net income produced a meaningless per-year P/E (BUG-028).
-        pe_ratio = mkt_cap / net_income if mkt_cap and net_income and net_income > 0 else None
+        # None on historical rows (mkt_cap None: mixing today's cap with a past
+        # year's net income, BUG-028) AND on cross-currency ADRs (_derive_pe
+        # guard: quote-ccy mkt_cap / reporting-ccy net_income is dimensionally
+        # mixed — SAP/TSM/TM, probe 2026-06-06).
+        pe_ratio = _derive_pe(
+            mkt_cap,
+            net_income,
+            fin_ccy=inc.get("reportedCurrency"),
+            quote_ccy=prof.get("currency"),
+        )
         return {
             "revenue": revenue,
             "ebitda": inc.get("ebitda"),
@@ -476,13 +514,12 @@ class FMPProvider(DataProvider):
             shares = quote_shares
         else:
             shares = int(mkt_cap / price) if mkt_cap and price else None
-        profile_pe = prof.get("pe")
-        pe_ratio = (
-            profile_pe
-            if profile_pe
-            else mkt_cap / net_income
-            if mkt_cap and net_income and net_income > 0
-            else None
+        pe_ratio = _derive_pe(
+            mkt_cap,
+            net_income,
+            fin_ccy=latest.get("reportedCurrency"),
+            quote_ccy=prof.get("currency"),
+            profile_pe=prof.get("pe"),
         )
         return {
             "revenue": revenue,

@@ -396,6 +396,45 @@ class TestFinancialDataRateValidation:
         normalize_financialdata_to_usd(fd, -9.9, float("nan"))
 
 
+class TestFinancialDataPeRatio:
+    """P/E must be re-derived from same-currency USD inputs at the FX boundary.
+
+    The provider may have stamped a mixed-currency mc/ni P/E (quote-ccy market_cap
+    over reporting-ccy net_income) for an ADR — SAP/TSM/TM, live probe 2026-06-06.
+    fx_normalize is the first point that holds both in one currency, so it must
+    recompute the ratio rather than carry the dimensionally-mixed cached value.
+    """
+
+    def test_adr_pe_recomputed_from_usd(self):
+        rate = 0.0313  # TWD→USD
+        fd = _fd(
+            reporting_currency="TWD",
+            quote_currency="USD",
+            net_income=1_500_000e6,  # TWD
+            market_cap=2_290_000e6,  # USD (already quote ccy)
+        )
+        # Simulate the mixed-currency P/E a naive provider fallback would stamp.
+        fd.market.pe_ratio = 2_290_000e6 / 1_500_000e6  # USD-over-TWD garbage
+        result = normalize_financialdata_to_usd(fd, rate, 1.0)
+        expected = 2_290_000e6 / (1_500_000e6 * rate)  # USD mc / USD ni
+        assert result.market.pe_ratio is not None
+        assert math.isclose(result.market.pe_ratio, expected, rel_tol=1e-9)
+
+    def test_adr_negative_net_income_pe_none(self):
+        """Loss-making ADR: P/E is not meaningful — None, never a garbage number."""
+        fd = _fd(reporting_currency="TWD", quote_currency="USD", net_income=-100_000e6)
+        fd.market.pe_ratio = 123.0  # stale upstream value
+        result = normalize_financialdata_to_usd(fd, 0.0313, 1.0)
+        assert result.market.pe_ratio is None
+
+    def test_usd_issuer_pe_preserved_through_fast_path(self):
+        """Same-currency issuer: fast path no-op keeps the already-correct P/E."""
+        fd = _fd()  # USD/USD
+        fd.market.pe_ratio = 25.0
+        result = normalize_financialdata_to_usd(fd, 999.0, 999.0)
+        assert result.market.pe_ratio == 25.0
+
+
 class TestRateValidation:
     def test_zero_reporting_rate_raises(self):
         company = _peer(ticker="X", reporting_currency="TWD", quote_currency="USD")

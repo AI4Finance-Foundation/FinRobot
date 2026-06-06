@@ -160,9 +160,15 @@ def normalize_financialdata_to_usd(
       net debt; when the two currencies disagree the cached value is meaningless,
       so it is dropped (recomputed downstream from the now-USD inputs). When they
       agree it scales by the (shared) rate.
-    - **untouched**: ``shares_outstanding`` (a count), ``beta`` and ``pe_ratio`` and
-      the margin fields (dimensionless ratios). Per-share *amounts* that are
-      already in the quote currency are handled above.
+    - **recomputed**: ``pe_ratio`` is re-derived from the converted USD
+      ``market_cap / net_income``. It is NOT safely dimensionless when the
+      provider computed it pre-normalization across two currencies (quote-ccy
+      market_cap / reporting-ccy net_income — the SAP/TSM/TM ADR bug, probe
+      2026-06-06), so the cached value cannot be carried through; the FX boundary
+      is the first point both sides share a currency.
+    - **untouched**: ``shares_outstanding`` (a count), ``beta`` and the margin
+      fields (dimensionless ratios). Per-share *amounts* that are already in the
+      quote currency are handled above.
 
     Args:
         financials: A ticker's snapshot carrying ``reporting_currency`` and
@@ -266,6 +272,18 @@ def normalize_financialdata_to_usd(
         converted.valuation.enterprise_value = (
             None if reporting_src != quote_src else ev * quote_rate
         )
+
+    # ----- pe_ratio (re-derived from the now-USD inputs) --------------------
+    # The provider may have computed pe = mkt_cap(quote ccy) / net_income(reporting
+    # ccy) BEFORE FX normalization — a dimensionally-mixed P/E for ADRs (SAP/TSM/TM,
+    # probe 2026-06-06). This is the first point both numerator and denominator are
+    # in one currency, so re-derive rather than carry the mixed cached value.
+    ni_usd = converted.income.net_income
+    converted.market.pe_ratio = (
+        converted.market.market_cap / ni_usd
+        if (converted.market.market_cap and ni_usd and ni_usd > 0)
+        else None
+    )
 
     converted.reporting_currency = "USD"
     converted.quote_currency = "USD"

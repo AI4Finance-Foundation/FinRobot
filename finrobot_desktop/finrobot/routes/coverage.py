@@ -142,14 +142,15 @@ class BatchRunResponse(BaseModel):
 # overview = an N-ticker canonical fan-out; a short TTL absorbs refresh storms
 # while staying live. Keyed by group_id; invalidated on any membership/name
 # mutation so an edit is reflected immediately.
-# Keyed by (group_id, fast) — the fast skeleton and the full table are distinct
-# payloads, cached independently.
+# Keyed by (group_id, cache_only) — the instant cache-only paint and the
+# network-revalidated table are distinct payloads, cached independently.
 _OVERVIEW_CACHE: dict[tuple[str, bool], tuple[float, CoverageOverview]] = {}
 _OVERVIEW_TTL_S = 60.0
 
 
 def _invalidate(group_id: str) -> None:
-    # Drop both phases — a membership/name edit invalidates skeleton and full.
+    # Drop both phases — a membership/name edit invalidates the cache-only paint
+    # and the network table.
     _OVERVIEW_CACHE.pop((group_id, True), None)
     _OVERVIEW_CACHE.pop((group_id, False), None)
 
@@ -291,24 +292,31 @@ async def add_studied_member(request: Request, body: StudiedMemberRequest) -> Co
 
 @router.get("/groups/{group_id}/overview", response_model=CoverageOverview)
 async def group_overview(
-    group_id: str, request: Request, refresh: bool = False, fast: bool = False
+    group_id: str, request: Request, refresh: bool = False
 ) -> CoverageOverview:
-    """Assembled Coverage Table for a group (60s L1 cache; ``refresh=true`` bypasses).
+    """Assembled Coverage Table for a group.
 
     Needs the data layer + artifact store; per-ticker fetch failures degrade
     individual rows (``partial=true``) rather than failing the request.
 
-    ``fast=true`` returns the skeleton (research + run state only, no market
-    fan-out) so the client paints the table instantly on cold start, then
-    backfills with a full fetch. The two phases are cached separately.
+    Two modes, both 60s L1-cached under distinct keys (stale-while-revalidate):
+
+    * ``refresh=false`` (default) — **instant first paint**: market cells read
+      from the canonical cache (allow-stale), NO network. ~ms at any N (measured
+      5ms/6t, 4ms/100t). Rows past their TTL carry ``market_stale=true``; cold
+      rows leave market ``None``. This is what the desk opens with — no more
+      waiting on the cold provider fan-out (6.6s/6t, >180s/100t).
+    * ``refresh=true`` — **network revalidate**: bounded per-ticker fan-out
+      repopulates the canonical cache and returns fresh numbers. The client
+      fires this in the background after the instant paint, then swaps it in.
     """
     store = _store(request)
     now_ts = time.time()
-    key = (group_id, fast)
-    if not refresh:
-        cached = _OVERVIEW_CACHE.get(key)
-        if cached and now_ts - cached[0] < _OVERVIEW_TTL_S:
-            return cached[1]
+    cache_only = not refresh
+    key = (group_id, cache_only)
+    cached = _OVERVIEW_CACHE.get(key)
+    if cached and now_ts - cached[0] < _OVERVIEW_TTL_S:
+        return cached[1]
 
     group = await store.get_group(group_id)
     if group is None:
@@ -324,9 +332,14 @@ async def group_overview(
         artifact_store=artifact_store,
         data_layer=data_layer,
         run_store=getattr(request.app.state, "run_store", None),
-        fast=fast,
+        cache_only=cache_only,
     )
     _OVERVIEW_CACHE[key] = (now_ts, overview)
+    # A network revalidate just rewrote the canonical cache; drop the stale
+    # cache-only L1 so the next instant paint re-reads the fresh snapshot
+    # rather than serving a pre-revalidate copy for up to 60s.
+    if refresh:
+        _OVERVIEW_CACHE.pop((group_id, True), None)
     return overview
 
 

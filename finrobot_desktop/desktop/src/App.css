@@ -6219,6 +6219,26 @@ body.cursor-trail-on * {
   letter-spacing: 0;
   white-space: nowrap;
 }
+/* Background revalidate in flight on a row that already shows its last-known
+   snapshot: a gentle pulse signals "updating", distinct from a cold shimmer. */
+.coverage-card__provider[data-refreshing='true'] {
+  color: var(--accent);
+  animation: coverage-provider-pulse 1.4s ease-in-out infinite;
+}
+/* Last-known snapshot past its TTL (not currently revalidating): the as-of age
+   reads as stale rather than live. */
+.coverage-card__provider[data-stale='true'] {
+  color: var(--accent-amber);
+}
+@keyframes coverage-provider-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
 .coverage-card__metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -320,6 +320,43 @@ class DataLayer:
         await self._cache.set_canonical(data_type, ticker, normalized.model_dump_json())
         return normalized
 
+    @overload
+    async def read_canonical_cached(
+        self, data_type: Literal[DataType.FINANCIALS], ticker: str
+    ) -> tuple[NormalizedFinancials, bool] | None: ...
+    @overload
+    async def read_canonical_cached(
+        self, data_type: Literal[DataType.PRICE], ticker: str
+    ) -> tuple[NormalizedPrice, bool] | None: ...
+    @overload
+    async def read_canonical_cached(
+        self, data_type: str | DataType, ticker: str
+    ) -> tuple[NormalizedPrice | NormalizedFinancials, bool] | None: ...
+
+    async def read_canonical_cached(
+        self, data_type: str | DataType, ticker: str
+    ) -> tuple[NormalizedPrice | NormalizedFinancials, bool] | None:
+        """Read canonical PRICE/FINANCIALS from cache WITHOUT ever fetching.
+
+        Returns ``(normalized, is_stale)`` — the last-known snapshot even when
+        past its freshness TTL (``is_stale=True``) — or ``None`` on a true cache
+        miss. This is the stale-while-revalidate read: the Coverage overview
+        paints instantly from the last snapshot (no network, ~ms at any N), then
+        a separate ``refresh`` pass revalidates. Contrast ``fetch_canonical``,
+        which goes to the provider chain on a stale/missing entry (the 6.6s-for-6,
+        >180s-for-100 cold fan-out that made the desk "load every open").
+        """
+        data_type = DataType(data_type)
+        if data_type not in (DataType.PRICE, DataType.FINANCIALS):
+            raise ValueError(
+                f"read_canonical_cached supports only PRICE / FINANCIALS, got {data_type}."
+            )
+        cached = await self._cache.get_canonical(data_type, ticker)
+        if cached is None:
+            return None
+        normalized = self._deserialize_canonical(data_type, cached.payload_json, from_cache=True)
+        return normalized, cached.is_stale
+
     @staticmethod
     def _deserialize_canonical(
         data_type: DataType, payload_json: str, *, from_cache: bool

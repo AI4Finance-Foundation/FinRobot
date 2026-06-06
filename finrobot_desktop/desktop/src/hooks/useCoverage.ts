@@ -30,57 +30,60 @@ export interface CoverageOverviewState {
   data: CoverageOverview | undefined
   isLoading: boolean
   isError: boolean
-  /** Showing the fast skeleton while the full (market) fetch is unresolved —
-   *  in flight OR failed-with-fallback. Market cells render as loading, not as
-   *  missing; an outright '—' here would be indistinguishable from "no data". */
+  /** The background network revalidate is in flight. Drives the global
+   *  "refreshing" affordance; the card shimmers ONLY its cold cells (no snapshot
+   *  yet) — rows that already hold a stale snapshot show their last-known value
+   *  with a refreshing hint, never a blank shimmer. */
   marketPending: boolean
-  /** The full (market) fetch FAILED while the fast skeleton stands in. Market
-   *  columns keep shimmering (marketPending stays true) and the page surfaces a
+  /** The revalidate FAILED while the cache-only paint stands in — market numbers
+   *  are the last-known snapshot (possibly stale), not fresh. The page surfaces a
    *  retry affordance wired to refetch() (BUG-032). */
   marketError: boolean
-  /** Re-run the full fetch — used by the error-state retry (BUG-051) and the
-   *  market-degraded retry bar (BUG-032). */
+  /** Re-run the network revalidate — used by the error-state retry (BUG-051) and
+   *  the market-degraded retry bar (BUG-032). */
   refetch: () => void
 }
 
 /**
- * Two-phase overview: a fast skeleton (research + run state, local SQLite ~ms)
- * paints the table instantly, then the full fetch backfills market/valuation.
- * The fast query nests under the full key so member-mutation invalidations
- * (prefix-matched on `['coverage','overview',id]`) hit both phases.
+ * Stale-while-revalidate overview. Phase 1 (`refresh=false`) is the instant
+ * cache-only paint: the server reads the canonical cache (allow-stale, no
+ * network) so the desk fills in ~ms at any N — no more waiting on the cold
+ * provider fan-out (measured 6.6s/6 tickers, >180s/100). Phase 2 (`refresh=true`)
+ * is the background network revalidate: a bounded fan-out repopulates the cache
+ * and returns fresh numbers, swapped into the primary view. The revalidate query
+ * nests under the primary key so member-mutation invalidations (prefix-matched on
+ * `['coverage','overview',id]`) hit both phases.
  */
 export function useCoverageOverview(groupId: string | null): CoverageOverviewState {
-  const full = useQuery<CoverageOverview>({
+  const cached = useQuery<CoverageOverview>({
     queryKey: KEYS.overview(groupId ?? ''),
-    queryFn: () => coverageApi.overview(groupId as string),
+    queryFn: () => coverageApi.overview(groupId as string, false),
     enabled: !!groupId,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   })
-  const fast = useQuery<CoverageOverview>({
-    queryKey: [...KEYS.overview(groupId ?? ''), 'fast'],
-    queryFn: () => coverageApi.overview(groupId as string, false, true),
-    // Only needed until the full table lands; never refetches once full has data.
-    enabled: !!groupId && !full.data,
+  const fresh = useQuery<CoverageOverview>({
+    queryKey: [...KEYS.overview(groupId ?? ''), 'fresh'],
+    queryFn: () => coverageApi.overview(groupId as string, true),
+    // Fire once the instant paint has landed; the network result then supersedes
+    // the cache-only snapshot.
+    enabled: !!groupId && !!cached.data,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   })
-  const data = full.data ?? fast.data
+  const data = fresh.data ?? cached.data
   return {
     data,
-    isLoading: !data && full.isLoading,
-    isError: !data && full.isError,
-    // While the full fetch is unresolved (in flight OR failed) but the fast
-    // skeleton stands in, keep market cells shimmering rather than collapsing to
-    // '—'. Dropping the old `&& !full.isError` term is the whole BUG-032 fix:
-    // previously a full-fetch failure turned every market column into a silent
-    // '—' (looked like "no data"); now it stays a loading placeholder and the
-    // page offers a retry via marketError below.
-    marketPending: !full.data && !!fast.data,
-    // Full fetch failed but the fast skeleton kept the table alive — market data
-    // is unavailable (not merely slow). Drives the degraded retry bar.
-    marketError: !full.data && full.isError && !!fast.data,
-    refetch: () => void full.refetch(),
+    isLoading: !data && cached.isLoading,
+    isError: !data && cached.isError,
+    // Background revalidate in flight (and not yet resolved). The card uses this
+    // together with per-row market_stale/price to decide shimmer (cold) vs
+    // refreshing-hint (stale snapshot present).
+    marketPending: !fresh.data && fresh.isFetching,
+    // Revalidate failed but the cache-only paint kept the table alive — the
+    // numbers are last-known, not fresh. Drives the degraded retry bar.
+    marketError: !fresh.data && fresh.isError && !!cached.data,
+    refetch: () => void fresh.refetch(),
   }
 }
 

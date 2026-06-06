@@ -27,7 +27,9 @@ import type { CoverageDensity } from '../../stores/coverageStore'
 interface Props {
   row: CoverageRow
   density: CoverageDensity
-  // Fast-skeleton phase: market cells render as a loading shimmer, not '—'.
+  // Background revalidate in flight. A COLD row (no snapshot yet, price null)
+  // shimmers its cells; a row that already holds a (stale) snapshot keeps showing
+  // its last-known numbers with a refreshing hint — never a blank shimmer.
   marketPending?: boolean
   onOpen: (ticker: string) => void
 }
@@ -70,7 +72,14 @@ export const CoverageCard = memo(function CoverageCard({
   const status = cardStatus(row, t)
   const needsWarn = coveragePriority(row).needsAction
 
-  const mc = (node: React.ReactNode): React.ReactNode => (marketPending ? <Shimmer /> : node)
+  // A row with no snapshot yet (price null) is genuinely cold → shimmer while
+  // the revalidate runs. A row that already holds a (stale) snapshot shows its
+  // last-known numbers immediately; the as-of line carries the refreshing/stale
+  // hint instead of a blank shimmer.
+  const isCold = row.price == null
+  const showShimmer = marketPending && isCold
+  const refreshing = marketPending && !isCold
+  const mc = (node: React.ReactNode): React.ReactNode => (showShimmer ? <Shimmer /> : node)
 
   // EV/EBITDA when computable, else P/E — one slot, label follows the value.
   const useEv = row.ev_ebitda != null
@@ -156,8 +165,16 @@ export const CoverageCard = memo(function CoverageCard({
             )}
           </div>
         </div>
-        <span className="coverage-card__provider" title={provider ?? undefined}>
+        <span
+          className="coverage-card__provider"
+          data-refreshing={refreshing ? 'true' : undefined}
+          // A past-TTL snapshot that isn't currently revalidating: tint the
+          // as-of so the last-known age reads as "stale", not live.
+          data-stale={row.market_stale && !refreshing ? 'true' : undefined}
+          title={provider ?? undefined}
+        >
           {provider ? `${provider} · ${asOf}` : asOf}
+          {refreshing && ` · ${t('coverage.card.refreshing')}`}
         </span>
       </section>
 

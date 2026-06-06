@@ -122,9 +122,20 @@ class _StubArtifactStore:
 
 
 class _StubDataLayer:
-    def __init__(self, *, raise_for: set[str] | None = None, current: float = 200.0) -> None:
+    def __init__(
+        self,
+        *,
+        raise_for: set[str] | None = None,
+        current: float = 200.0,
+        cached: set[str] | None = None,
+        cache_stale: bool = False,
+    ) -> None:
         self._raise_for = {t.upper() for t in (raise_for or set())}
         self._current = current
+        # None == every ticker has a cache snapshot; a set restricts which do
+        # (the rest are cold misses → read_canonical_cached returns None).
+        self._cached = None if cached is None else {t.upper() for t in cached}
+        self._cache_stale = cache_stale
 
     async def fetch_canonical(self, data_type, ticker, **_):
         if ticker.upper() in self._raise_for:
@@ -132,6 +143,12 @@ class _StubDataLayer:
         if data_type == DataType.PRICE:
             return _price(ticker, current=self._current)
         return _fin(ticker)
+
+    async def read_canonical_cached(self, data_type, ticker, **_):
+        if self._cached is not None and ticker.upper() not in self._cached:
+            return None
+        norm = _price(ticker, current=self._current) if data_type == DataType.PRICE else _fin(ticker)
+        return norm, self._cache_stale
 
 
 def _group(*tickers: str) -> CoverageGroupDetail:
@@ -312,49 +329,69 @@ async def test_overview_populates_per_field_sources() -> None:
     assert src.upside_to_target_live.provider is None  # not a provider number
 
 
-async def test_overview_fast_skips_market_keeps_research() -> None:
-    # Fast skeleton: research side real, market side pending (None), and the
-    # data layer must not be touched at all (no network on cold first paint).
-    class _ExplodingDataLayer:
+async def test_overview_cache_only_serves_stale_snapshot_no_network() -> None:
+    # Instant first paint: market cells come from the canonical cache (allow
+    # stale) and the provider chain must NOT be touched. A stale snapshot still
+    # populates real numbers (last-known) and flags market_stale.
+    class _CacheOnlyLayer(_StubDataLayer):
         async def fetch_canonical(self, data_type, ticker, **_):  # pragma: no cover
-            raise AssertionError("fast mode must not hit the data layer")
+            raise AssertionError("cache_only must not hit the provider chain")
 
     store = _StubArtifactStore({"AAPL": [_summary()]})
     ov = await build_overview(
         _group("AAPL"),
         artifact_store=store,  # type: ignore[arg-type]
-        data_layer=_ExplodingDataLayer(),  # type: ignore[arg-type]
+        data_layer=_CacheOnlyLayer(current=200.0, cache_stale=True),  # type: ignore[arg-type]
         now=NOW,
-        fast=True,
+        cache_only=True,
     )
-    assert ov.fast is True
+    assert ov.cache_only is True
     (row,) = ov.rows
     # research side present
     assert row.latest_verdict == "BUY"
-    assert row.artifact_count == 1
-    assert row.research_count == 1
     assert row.target_price == 240.0
-    # market side pending, not fabricated
+    # market side served from the (stale) snapshot — real numbers, flagged stale
+    assert row.price == 200.0
+    assert row.market_cap is not None
+    assert row.market_stale is True
+    # price present → signal/upside compute off the snapshot, not pending
+    assert row.upside_to_target_live is not None
+    assert row.sources.price is not None
+    assert ov.partial is False  # cache read never degrades
+
+
+async def test_overview_cache_only_cold_miss_leaves_market_none() -> None:
+    # A genuinely cold row (no cache snapshot) leaves market None — the client
+    # shimmers it — and never falls through to the network on this path.
+    class _CacheOnlyLayer(_StubDataLayer):
+        async def fetch_canonical(self, data_type, ticker, **_):  # pragma: no cover
+            raise AssertionError("cache_only must not hit the provider chain")
+
+    ov = await build_overview(
+        _group("AAPL"),
+        artifact_store=_StubArtifactStore({"AAPL": [_summary()]}),  # type: ignore[arg-type]
+        data_layer=_CacheOnlyLayer(cached=set()),  # type: ignore[arg-type]
+        now=NOW,
+        cache_only=True,
+    )
+    (row,) = ov.rows
     assert row.price is None
     assert row.market_cap is None
-    assert row.pe is None
-    # signal/upside depend on live price → pending too
-    assert row.signal is None
+    assert row.market_stale is False  # absent, not stale
     assert row.upside_to_target_live is None
-    assert row.sources.price is None
-    # no market fetch → no degradation
     assert ov.partial is False
 
 
-async def test_overview_full_mode_defaults_fast_false() -> None:
+async def test_overview_network_mode_default_cache_only_false() -> None:
     ov = await build_overview(
         _group("AAPL"),
         artifact_store=_StubArtifactStore({"AAPL": [_summary()]}),  # type: ignore[arg-type]
         data_layer=_StubDataLayer(),  # type: ignore[arg-type]
         now=NOW,
     )
-    assert ov.fast is False
-    assert ov.rows[0].price == 200.0  # market filled in full mode
+    assert ov.cache_only is False
+    assert ov.rows[0].price == 200.0  # market filled via the network path
+    assert ov.rows[0].market_stale is False
 
 
 def test_field_caveats_and_join() -> None:

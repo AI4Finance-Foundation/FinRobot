@@ -106,6 +106,10 @@ class _StubDataLayer:
     async def fetch_canonical(self, data_type, ticker, **_):
         return _price(ticker) if data_type == DataType.PRICE else _fin(ticker)
 
+    async def read_canonical_cached(self, data_type, ticker, **_):
+        norm = _price(ticker) if data_type == DataType.PRICE else _fin(ticker)
+        return norm, False  # fresh cache snapshot
+
 
 @pytest.fixture
 async def client(tmp_path: Path):

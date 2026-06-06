@@ -27,6 +27,7 @@ function row(over: Partial<CoverageRow>): CoverageRow {
     latest_at: null,
     run_status: null,
     run_error: null,
+    market_stale: false,
     needs_refresh: [],
     warnings: [],
     sources: {

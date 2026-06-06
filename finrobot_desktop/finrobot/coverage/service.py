@@ -92,6 +92,15 @@ def _now() -> datetime:
 # ── Overview ─────────────────────────────────────────────────────────────────
 
 
+# Max concurrent per-ticker market fan-outs on the NETWORK (revalidate) path.
+# The cache-only first paint reads local SQLite and ignores this. Without a
+# bound, a 100-ticker group fired 200 simultaneous provider calls (100 PRICE +
+# 100 FINANCIALS), saturating the chain and rate-limits — measured >180s and
+# climbing. A small bound keeps the chain healthy; the desk no longer waits on
+# this anyway (it paints from cache, revalidates in the background).
+_MARKET_FANOUT_CONCURRENCY = 8
+
+
 async def build_overview(
     group: CoverageGroupDetail,
     *,
@@ -99,24 +108,26 @@ async def build_overview(
     data_layer: DataLayer,
     run_store: "RunStore | None" = None,
     now: datetime | None = None,
-    fast: bool = False,
+    cache_only: bool = False,
 ) -> CoverageOverview:
     """Assemble the Coverage Table for one group.
 
     Rows are built concurrently — each ticker's chain (artifacts + canonical
     PRICE/FINANCIALS + signal) is independent, so wall-clock is one ticker's
-    latency, not N×. Cache stampede guard + per-provider rate lock in the
-    DataLayer bound the actual outbound calls.
+    latency, not N×. On the network path the per-ticker fan-out is bounded by a
+    semaphore (``_MARKET_FANOUT_CONCURRENCY``) so a large group can't saturate
+    the provider chain.
 
     ``run_store`` is optional: when given, each row carries the latest run's
     status/error (an in-flight batch run, or a failed attempt) and a
     ``run_failed`` refresh reason.
 
-    ``fast`` builds the **skeleton**: research + run state only (local SQLite,
-    ~ms), skipping the per-ticker market fan-out. Market/valuation/signal/upside
-    come back ``None`` (pending, not missing) — the client renders them as
-    loading and backfills with a full fetch. This makes cold-start first paint
-    instant on big groups instead of waiting on N rate-limited provider calls.
+    ``cache_only`` is the **instant first-paint**: market cells come from the
+    canonical cache (allow-stale) with NO network — ~ms at any N (measured 5ms
+    for 6 tickers, 4ms for 100). Rows past their freshness TTL carry
+    ``market_stale=True``; genuinely-cold rows leave market ``None``. The client
+    paints this immediately, then revalidates with a network pass (the default,
+    ``cache_only=False``) that repopulates the cache and returns fresh numbers.
     """
     now = now or _now()
     tickers = [m.ticker for m in group.members]
@@ -127,7 +138,7 @@ async def build_overview(
             rows=[],
             generated_at=now,
             partial=False,
-            fast=fast,
+            cache_only=cache_only,
         )
 
     latest_runs = {}
@@ -137,6 +148,9 @@ async def build_overview(
         except (sqlite3.Error, RuntimeError, OSError) as exc:
             logger.warning("Coverage overview run-status lookup failed: %s", exc)
 
+    # Only the network path needs throttling; cache reads are cheap. A shared
+    # semaphore caps concurrent outbound market fan-outs across the whole group.
+    sem = None if cache_only else asyncio.Semaphore(_MARKET_FANOUT_CONCURRENCY)
     rows = await asyncio.gather(
         *(
             _assemble_row(
@@ -145,7 +159,8 @@ async def build_overview(
                 data_layer=data_layer,
                 latest_run=latest_runs.get(t.upper()),
                 now=now,
-                fast=fast,
+                cache_only=cache_only,
+                market_sem=sem,
             )
             for t in tickers
         )
@@ -157,7 +172,7 @@ async def build_overview(
         rows=list(rows),
         generated_at=now,
         partial=partial,
-        fast=fast,
+        cache_only=cache_only,
     )
 
 
@@ -168,7 +183,8 @@ async def _assemble_row(
     data_layer: DataLayer,
     latest_run: "RunRecord | None" = None,
     now: datetime,
-    fast: bool = False,
+    cache_only: bool = False,
+    market_sem: "asyncio.Semaphore | None" = None,
 ) -> CoverageRow:
     ticker = ticker.upper()
     row = CoverageRow(ticker=ticker)
@@ -183,11 +199,17 @@ async def _assemble_row(
         row.warnings.append(f"{ticker} 研报读取失败：{exc}")
     _apply_research_fields(row, summaries)
 
-    # 2. Market side — network, degradable independently of the research side.
-    # Skipped in fast mode: market/signal/upside stay None (pending), the
-    # skeleton renders instantly off the local research side above.
-    if not fast:
-        await _apply_market_fields(row, ticker, data_layer)
+    # 2. Market side — degradable independently of the research side. The
+    # cache-only path reads local SQLite (instant, last-known snapshot); the
+    # network path is throttled by the shared semaphore so a big group can't
+    # saturate the provider chain.
+    if cache_only:
+        await _apply_market_fields(row, ticker, data_layer, cache_only=True)
+    elif market_sem is not None:
+        async with market_sem:
+            await _apply_market_fields(row, ticker, data_layer, cache_only=False)
+    else:
+        await _apply_market_fields(row, ticker, data_layer, cache_only=False)
 
     # 3. Live run state (in-flight batch run / failed attempt).
     if latest_run is not None:
@@ -291,24 +313,41 @@ def _source(
     )
 
 
-async def _apply_market_fields(row: CoverageRow, ticker: str, data_layer: DataLayer) -> None:
+async def _apply_market_fields(
+    row: CoverageRow, ticker: str, data_layer: DataLayer, *, cache_only: bool = False
+) -> None:
     """Price / 1D / market cap / TTM revenue / EV-EBITDA / P/E.
 
     Reuses ``extract_financial_data`` — the same assembly behind
     ``/api/data/{ticker}/financials`` — so no caliber is re-derived. Price-only
     fields survive a financials-extraction failure (and vice-versa); both
     degradations surface as row warnings, never an exception.
+
+    ``cache_only`` reads the canonical cache WITHOUT touching the provider chain
+    (instant first paint): a snapshot past its TTL still populates the cells and
+    sets ``row.market_stale`` (the client shows last-known + "refreshing", not a
+    blank shimmer); a true cache miss leaves the cells ``None`` (cold → shimmer).
     """
     price_norm = None
     fin_norm = None
-    try:
-        price_norm = await data_layer.fetch_canonical(DataType.PRICE, ticker)
-    except _MARKET_DEGRADABLE as exc:
-        row.warnings.append(f"{ticker} 行情获取失败：{exc}")
-    try:
-        fin_norm = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
-    except _MARKET_DEGRADABLE as exc:
-        row.warnings.append(f"{ticker} 财务获取失败：{exc}")
+    if cache_only:
+        price_hit = await data_layer.read_canonical_cached(DataType.PRICE, ticker)
+        if price_hit is not None:
+            price_norm, price_stale = price_hit
+            row.market_stale = row.market_stale or price_stale
+        fin_hit = await data_layer.read_canonical_cached(DataType.FINANCIALS, ticker)
+        if fin_hit is not None:
+            fin_norm, fin_stale = fin_hit
+            row.market_stale = row.market_stale or fin_stale
+    else:
+        try:
+            price_norm = await data_layer.fetch_canonical(DataType.PRICE, ticker)
+        except _MARKET_DEGRADABLE as exc:
+            row.warnings.append(f"{ticker} 行情获取失败：{exc}")
+        try:
+            fin_norm = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+        except _MARKET_DEGRADABLE as exc:
+            row.warnings.append(f"{ticker} 财务获取失败：{exc}")
 
     if price_norm is not None:
         prov = price_norm.provenance

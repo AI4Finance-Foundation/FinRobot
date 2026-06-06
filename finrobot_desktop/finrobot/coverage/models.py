@@ -177,6 +177,14 @@ class CoverageRow(BaseModel):
     """created | running | completed | failed — latest run, or None if never run."""
     run_error: str | None = None
 
+    market_stale: bool = False
+    """The market cells (price/mcap/rev/pe/upside) were served from a cache
+    snapshot past its freshness TTL — a background revalidate is advisable. The
+    values are real last-known numbers (rendered with their ``price_as_of`` age),
+    NOT pending/missing: the client shows them with a "refreshing" affordance
+    rather than a blank shimmer. ``False`` means either fresh-from-cache or a
+    cold row whose market is genuinely absent (None → shimmer)."""
+
     needs_refresh: list[NeedsRefreshReason] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
@@ -197,8 +205,9 @@ class CoverageOverview(BaseModel):
     partial: bool = False
     """True when at least one ticker's market/fundamental fetch degraded — the
     table still renders, the affected rows carry warnings."""
-    fast: bool = False
-    """True when this is the fast skeleton: research + run state only (SQLite,
-    ~ms), the per-ticker market fan-out skipped. Market/valuation fields are
-    **pending, not missing** — the client renders them as loading and backfills
-    with a full (``fast=false``) fetch. Distinct from ``partial`` (degraded)."""
+    cache_only: bool = False
+    """True when this overview was assembled from the canonical cache WITHOUT any
+    network fetch (the instant first-paint, ~ms at any N). Market cells are
+    last-known snapshots; per-row :attr:`CoverageRow.market_stale` flags the ones
+    past their TTL. The client revalidates in the background via a
+    ``refresh=true`` (network) pass. ``False`` = a fresh network-backed table."""

@@ -84,6 +84,12 @@ export interface CoverageRow {
   latest_at: string | null
   run_status: RunStatus | null
   run_error: string | null
+  // The market cells came from a cache snapshot past its freshness TTL — real
+  // last-known numbers (rendered with their price_as_of age), NOT pending. The
+  // card shows them with a "refreshing" affordance, never a blank shimmer; a
+  // background revalidate (refresh=true) replaces them. false = fresh, or a cold
+  // row whose market is genuinely absent (price null → shimmer).
+  market_stale: boolean
   needs_refresh: NeedsRefreshReason[]
   warnings: string[]
   sources: CoverageRowSources
@@ -95,9 +101,10 @@ export interface CoverageOverview {
   rows: CoverageRow[]
   generated_at: string
   partial: boolean
-  // True for the fast skeleton: market fields are pending (loading), not
-  // missing — the client backfills with a full fetch.
-  fast: boolean
+  // True when assembled from the canonical cache with NO network (the instant
+  // first paint). Market cells are last-known snapshots; per-row market_stale
+  // flags the ones past TTL. The client revalidates via a refresh=true pass.
+  cache_only: boolean
 }
 
 export interface CompanyValuation {
@@ -157,11 +164,10 @@ export const coverageApi = {
   addStudiedTicker: (ticker: string) =>
     req<CoverageGroupDetail>('/api/coverage/studied-tickers/members', jsonInit('POST', { ticker })),
 
-  overview: (id: string, refresh = false, fast = false) => {
-    const qs = new URLSearchParams()
-    if (refresh) qs.set('refresh', 'true')
-    if (fast) qs.set('fast', 'true')
-    const suffix = qs.toString() ? `?${qs}` : ''
+  // refresh=false → instant cache-only paint (server reads canonical cache,
+  // allow-stale, no network). refresh=true → bounded network revalidate.
+  overview: (id: string, refresh = false) => {
+    const suffix = refresh ? '?refresh=true' : ''
     return req<CoverageOverview>(`/api/coverage/groups/${id}/overview${suffix}`)
   },
 

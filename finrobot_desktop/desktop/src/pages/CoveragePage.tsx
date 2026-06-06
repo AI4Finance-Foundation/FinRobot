@@ -35,10 +35,10 @@ export function CoveragePage(): React.ReactElement {
   // the card/grid sizing props keep working, pinned to comfort.
   const density = useCoverageStore((s) => s.density)
 
-  // Market-degraded retry bar (BUG-032): the fast skeleton painted the table but
-  // the full (market) fetch failed, so price/market-cap/multiples columns keep
-  // shimmering. We surface a dismissible retry bar; dismissal is sticky until a
-  // fresh failure (the marketError → false → true transition re-shows it).
+  // Market-degraded retry bar (BUG-032): the cache-only paint filled the table
+  // but the network revalidate failed, so the numbers are last-known (possibly
+  // stale), not fresh. We surface a dismissible retry bar; dismissal is sticky
+  // until a fresh failure (the marketError → false → true transition re-shows it).
   const [marketRetryDismissed, setMarketRetryDismissed] = useState(false)
 
   // The single surfaced list is the system "Studied Tickers" group; there is no
@@ -54,7 +54,7 @@ export function CoveragePage(): React.ReactElement {
   const visibleRows = useMemo(() => sortCoverageRows(rows, DEFAULT_SORT), [rows])
 
   // Re-arm the market-degraded retry bar on each fresh failure: when marketError
-  // flips false→true (e.g. a retry failed again, or a new group's full fetch
+  // flips false→true (e.g. a retry failed again, or a new group's revalidate
   // fails), clear a prior dismissal so the user sees it again.
   const prevMarketErrorRef = useRef(false)
   useEffect(() => {
@@ -104,10 +104,10 @@ export function CoveragePage(): React.ReactElement {
         padding: '20px 24px',
       }}
     >
-      {/* Market-degraded retry bar (BUG-032): the table is alive (fast skeleton)
-          but the full market fetch failed, so the price/cap/multiples columns
-          are shimmering with no data behind them. Offer a retry on the FULL
-          query (not the fast skeleton) and let the user dismiss the bar. */}
+      {/* Market-degraded retry bar (BUG-032): the table is alive (cache-only
+          paint) but the network revalidate failed, so the numbers are last-known
+          (possibly stale), not fresh. Offer a retry on the revalidate query and
+          let the user dismiss the bar. */}
       {overviewQuery.marketError && !marketRetryDismissed && (
         <MarketRetryBar
           message={t('coverage.error.marketFailed')}
@@ -208,9 +208,9 @@ function ErrorState({
   )
 }
 
-// Slim inline bar shown when the fast skeleton stands in but the full market
-// fetch failed (BUG-032). Retry re-runs the FULL query; dismiss hides the bar
-// (the columns keep their shimmer either way).
+// Slim inline bar shown when the cache-only paint stands in but the network
+// revalidate failed (BUG-032). Retry re-runs the revalidate; dismiss hides the
+// bar (the numbers stay last-known either way).
 function MarketRetryBar({
   message,
   retryLabel,

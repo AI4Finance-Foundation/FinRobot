@@ -3390,6 +3390,10 @@ msgid "coverage.card.fresh"
 msgstr "数据新鲜"
 
 #. js-lingui-explicit-id
+msgid "coverage.card.refreshing"
+msgstr "刷新中"
+
+#. js-lingui-explicit-id
 msgid "coverage.card.reports"
 msgstr "{n} 份研报 · 最新 {date}"
 

@@ -589,6 +589,66 @@ class TestCircuitOpenProvenance:
         assert expected_marker.startswith(DEGRADED_CIRCUIT_OPEN_PREFIX)
 
 
+class TestReadCanonicalCached:
+    """Cache-only canonical read — the stale-while-revalidate first paint.
+
+    Must never call the provider chain, and must return last-known snapshots
+    even past their freshness TTL (flagged stale) so the Coverage desk paints
+    instantly instead of waiting on the cold provider fan-out.
+    """
+
+    async def test_miss_returns_none(self, cache):
+        provider = MockProvider("mock", ["financials"])
+        layer = DataLayer([provider], cache)
+        assert await layer.read_canonical_cached(DataType.FINANCIALS, "AAPL") is None
+        assert provider.fetch_called == 0  # never touches the provider
+
+    async def test_fresh_snapshot_returns_not_stale_without_provider(self, cache):
+        provider = MockProvider("mock", ["financials"])
+        layer = DataLayer([provider], cache)
+        await layer.fetch_canonical(DataType.FINANCIALS, "AAPL")  # prime the cache
+        provider.fetch_called = 0
+
+        hit = await layer.read_canonical_cached(DataType.FINANCIALS, "AAPL")
+        assert hit is not None
+        norm, is_stale = hit
+        assert isinstance(norm, NormalizedFinancials)
+        assert is_stale is False
+        assert provider.fetch_called == 0  # cache read, no network
+
+    async def test_stale_snapshot_still_returned_flagged_no_provider(self, cache, tmp_path):
+        import aiosqlite
+        from datetime import timedelta
+
+        from finrobot.engine.data.cache import canonical_key
+
+        provider = MockProvider("mock", ["financials"])
+        layer = DataLayer([provider], cache)
+        await layer.fetch_canonical(DataType.FINANCIALS, "AAPL")
+
+        # Backdate the canonical slot past the 24h FINANCIALS TTL.
+        old_time = (datetime.now(tz=timezone.utc) - timedelta(hours=25)).isoformat()
+        async with aiosqlite.connect(str(tmp_path / "layer_test.db")) as conn:
+            await conn.execute(
+                "UPDATE cache SET cached_at = ? WHERE data_type = ? AND ticker = ?",
+                (old_time, canonical_key(DataType.FINANCIALS), "AAPL"),
+            )
+            await conn.commit()
+
+        provider.fetch_called = 0
+        hit = await layer.read_canonical_cached(DataType.FINANCIALS, "AAPL")
+        assert hit is not None
+        norm, is_stale = hit
+        assert isinstance(norm, NormalizedFinancials)
+        assert is_stale is True  # past TTL → flagged, but value still served
+        assert provider.fetch_called == 0  # NEVER revalidates here (that's refresh)
+
+    async def test_rejects_non_canonical_type(self, cache):
+        layer = DataLayer([MockProvider("mock", ["news"])], cache)
+        with pytest.raises(ValueError, match="PRICE / FINANCIALS"):
+            await layer.read_canonical_cached(DataType.NEWS, "AAPL")
+
+
 class TestClose:
     """P3 Track 2: DataLayer.close() public method (T9)."""
 

@@ -1,8 +1,8 @@
 // UI shell state — simplified for Desktop V1.
 //
 // Scope: shell chrome only — AI Panel visibility/width, Tab system (kept for
-// StatusBar "About" tab + RightChatPanel "pipeline" tab), conversation
-// mode/model, ContextBundle, workspace path.
+// RightChatPanel "pipeline" tab), conversation mode/model, ContextBundle,
+// workspace path.
 //
 // Deliberately separate from:
 //   - useUiPrefs  (i18n/index.ts)      → persisted prefs (locale, legacy chatExpanded)
@@ -88,7 +88,7 @@ interface UiStoreState {
   // Workspace
   workspacePath: string
 
-  // Tabs (kept: StatusBar opens 'about', RightChatPanel opens 'pipeline')
+  // Tabs (kept: RightChatPanel opens 'pipeline')
   openTabs: Tab[]
   activeTabId: string | null
 

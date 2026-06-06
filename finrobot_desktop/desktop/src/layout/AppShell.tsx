@@ -8,7 +8,6 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { TitleBar } from './TitleBar'
 import { RightChatPanel } from './RightChatPanel'
 import { ErrorBoundary } from '../components/ErrorBoundary'
-import StatusBar from '../components/StatusBar'
 import ToastContainer from '../components/Toast'
 import { MandatoryUpdateGate } from '../components/MandatoryUpdateGate'
 import { useUiStore } from '../stores/uiStore'
@@ -23,8 +22,8 @@ export function AppShell(): React.ReactElement {
   const location = useLocation()
 
   // The Research homepage is the luminous cockpit: paint the cockpit glow at
-  // the SHELL level (behind the title/status bars too, so they frost into it
-  // rather than reading as black frames). Other routes keep the dark base.
+  // the SHELL level (behind the title bar too, so it frosts into it rather
+  // than reading as a black frame). Other routes keep the dark base.
   const onHome = location.pathname === '/' || location.pathname.startsWith('/research')
 
   // First-launch workspace picker (Tauri only).
@@ -94,7 +93,6 @@ export function AppShell(): React.ReactElement {
         </main>
         <RightChatPanel />
       </div>
-      <StatusBar />
       {/* v5: toast portal — mounted at shell level so every page / section
           can pop toasts (pipeline launch / completion / errors). */}
       <ToastContainer />

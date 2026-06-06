@@ -172,7 +172,6 @@
   --activitybar-w: 64px; /* slim icon-only — cosmic spec §5.2 */
   --explorer-w: 260px;
   --aipanel-w: 420px;
-  --statusbar-h: 28px;
   --tabs-h: 38px;
   --breadcrumb-h: 32px;
   --sidebar-bg: var(--bg-sticky-88);
@@ -2939,93 +2938,6 @@ select.settings-input {
 }
 
 /* ═══════════════════════════
-   STATUS BAR
-   ═══════════════════════════ */
-.statusbar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  height: 28px;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 var(--sp-4);
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  user-select: none;
-}
-
-.statusbar-group {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-}
-
-.statusbar-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--positive);
-  flex-shrink: 0;
-  box-shadow: 0 0 4px rgba(16, 185, 129, 0.4);
-}
-.statusbar-dot.running {
-  background: var(--accent);
-  box-shadow: 0 0 4px rgba(59, 130, 246, 0.3);
-  animation: statusbar-pulse 1.2s ease-in-out infinite;
-}
-@keyframes statusbar-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
-}
-
-.statusbar-text {
-  font-weight: 500;
-  letter-spacing: 0.02em;
-}
-.statusbar-mono {
-  font-family: var(--font-mono);
-  letter-spacing: 0.03em;
-}
-.statusbar-accent {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.statusbar-divider {
-  width: 1px;
-  height: 10px;
-  background: var(--border);
-  margin: 0 var(--sp-1);
-}
-
-.statusbar-hint {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  font-weight: 400;
-}
-
-.statusbar-kbd {
-  font-family: var(--font-mono);
-  font-size: 0.58rem;
-  font-weight: 500;
-  padding: 0px 3px;
-  border-radius: 2px;
-  background: var(--elevated);
-  border: 1px solid var(--border);
-}
-
-/* ═══════════════════════════
    TOAST NOTIFICATIONS
    ═══════════════════════════ */
 .toast-container {
@@ -3767,7 +3679,7 @@ select.settings-input {
 .app-shell:not(.cockpit-shell)::before {
   content: '';
   position: fixed;
-  inset: var(--titlebar-h) 0 var(--statusbar-h) 0;
+  inset: var(--titlebar-h) 0 0 0;
   z-index: 0;
   pointer-events: none;
   opacity: 0.32;
@@ -3795,13 +3707,13 @@ select.settings-input {
   );
 }
 
-/* App body: fills the vertical space between TitleBar and StatusBar */
+/* App body: fills the vertical space below the TitleBar */
 .app-shell > .app-body {
   display: flex;
   flex-direction: row;
   overflow: hidden;
   margin-top: 0;
-  height: calc(100vh - var(--titlebar-h) - var(--statusbar-h));
+  height: calc(100vh - var(--titlebar-h));
   position: relative;
   z-index: 1;
 }
@@ -4263,78 +4175,6 @@ select.settings-input {
 }
 .explorer-resize-handle:hover {
   background: var(--accent);
-  opacity: 0.5;
-}
-
-/* ── Status bar (terminal style) ── */
-@keyframes status-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.4;
-  }
-}
-
-.statusbar {
-  height: var(--statusbar-h);
-  /* Translucent on every route: titlebar and statusbar share the graphite
-     terminal glass from the demo. */
-  background: var(--cockpit-bar-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid var(--border-faint);
-  position: relative;
-  z-index: 80;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-muted);
-  flex-shrink: 0;
-  user-select: none;
-  grid-column: 1 / -1;
-}
-
-.sb-section {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.sb-left {
-  justify-content: flex-start;
-}
-.sb-center {
-  justify-content: center;
-}
-.sb-right {
-  justify-content: flex-end;
-}
-
-.sb-pulse-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--positive);
-  flex-shrink: 0;
-  animation: status-pulse 2s ease-in-out infinite;
-}
-
-.sb-text {
-  letter-spacing: 0.04em;
-}
-
-.sb-ticker {
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.sb-sep {
-  color: var(--text-muted);
   opacity: 0.5;
 }
 
@@ -5856,9 +5696,8 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
 .app-shell.cockpit-shell .main-content {
   background: transparent;
 }
-/* The title/status bars are translucent on every route (see TitleBar inline bg
-   + the base `.statusbar` rule), so they frost into the cockpit here too —
-   no homepage-specific override needed. */
+/* The title bar is translucent on every route (see TitleBar inline bg), so it
+   frosts into the cockpit here too — no homepage-specific override needed. */
 
 /* Floating cyan motes that drift up across the cockpit (design `.ambient .mote`). */
 .cockpit-mote {

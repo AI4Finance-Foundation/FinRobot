@@ -1,5 +1,5 @@
-// useHealth — derives the global StatusBar's connection/health state from the
-// backend's real signals, so the footer stops lying about being "已连接".
+// useHealth — derives the backend's connection/health state from its real
+// signals (consumed by AIZone to gate the cold/running/hot workspace state).
 //
 // Two independent signals are combined:
 //   GET /api/health/quotes-warmed → { warmed, studied_ticker_count }
@@ -10,8 +10,8 @@
 //       (e.g. "fmp" only appears if the FMP key is set), plus a boot-time
 //       config error if validate_runtime_config() failed.
 //
-// Failure is graceful: a thrown fetch never blanks the bar — the hook resolves
-// to an `offline`/`degraded` status object instead. react-query `retry: false`
+// Failure is graceful: a thrown fetch never throws to the caller — the hook
+// resolves to an `offline`/`degraded` status object instead. react-query `retry: false`
 // keeps a wedged backend from spamming the network; the refetch interval picks
 // state back up once the server returns.
 

@@ -1894,14 +1894,6 @@ msgid "shell.titlebar.aiAssistant"
 msgstr "AI 助手 (⌘L)"
 
 #. js-lingui-explicit-id
-msgid "shell.status.connected"
-msgstr "已连接"
-
-#. js-lingui-explicit-id
-msgid "shell.status.delay15min"
-msgstr "延迟15分钟"
-
-#. js-lingui-explicit-id
 msgid "shell.warning.collapse"
 msgstr "收起"
 

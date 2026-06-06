@@ -31,7 +31,6 @@ describe('AppShell — simplified shell structure', () => {
   it('renders core shell regions', () => {
     renderWithProviders()
     expect(screen.getByTestId('titlebar')).toBeInTheDocument()
-    expect(screen.getByTestId('statusbar')).toBeInTheDocument()
   })
 
   it('renders the three product-door nav buttons in the titlebar', () => {

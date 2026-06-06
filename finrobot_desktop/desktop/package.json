@@ -29,6 +29,7 @@
     "@fontsource/space-grotesk": "^5.2.10",
     "@lingui/core": "^6.1.0",
     "@lingui/react": "^6.1.0",
+    "@splinetool/viewer": "^1.9.54",
     "@tanstack/react-query": "^5.100.9",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",

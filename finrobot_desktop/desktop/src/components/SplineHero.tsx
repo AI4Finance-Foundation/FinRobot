@@ -19,9 +19,16 @@
 //     the user inspects the tables below — no point rendering 3D under
 //     the fold)
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+// Vendored viewer: importing the package self-registers the <spline-viewer>
+// custom element (customElements.define) at module load. Replaces the old
+// unpkg remote <script> injection — no third-party CODE is fetched into the app
+// context at runtime, which was the sharpest supply-chain risk under csp:null.
+// The scene + its runtime WASM stay remote DATA (Spline can't be fully
+// self-hosted: the viewer hardcodes the unpkg WASM URL); the tightened CSP in
+// tauri.conf.json constrains those to the specific spline.design / unpkg hosts.
+import '@splinetool/viewer'
 
-const SCRIPT_SRC = 'https://unpkg.com/@splinetool/viewer@1.9.54/build/spline-viewer.js'
 const SCENE_SRC = 'https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode'
 const LOAD_TIMEOUT_MS = 8000
 
@@ -123,52 +130,24 @@ export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.R
     return () => ro.disconnect()
   }, [])
 
+  // The custom element is statically registered (vendored import), so there is
+  // no script to load — readiness is the SCENE loading. Drive it off the
+  // viewer's own lifecycle events, with the 8s timeout as the fallback to the
+  // static rings if load-complete never arrives (offline / corrupt asset).
+  const bindViewer = useCallback((el: HTMLElement | null) => {
+    if (!el) return
+    // { once } so re-renders don't stack listeners; attached at mount (before
+    // the element's async scene load resolves) so we never miss load-complete.
+    el.addEventListener('load-complete', () => setStatus('ready'), { once: true })
+    el.addEventListener('error', () => setStatus('failed'), { once: true })
+  }, [])
+
   useEffect(() => {
     if (!allowed) return
-    let cancelled = false
-
-    // Inject the viewer module once. Re-renders attach to the existing tag.
-    const existing = document.querySelector<HTMLScriptElement>('script[data-spline-viewer="1"]')
-
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
-    function armTimeout() {
-      timeoutId = setTimeout(() => {
-        if (cancelled) return
-        // If still loading after 8s, fall back to the double ring.
-        setStatus((cur) => (cur === 'loading' ? 'failed' : cur))
-      }, LOAD_TIMEOUT_MS)
-    }
-
-    function onReady() {
-      if (cancelled) return
-      if (timeoutId) clearTimeout(timeoutId)
-      setStatus('ready')
-    }
-
-    function onError() {
-      if (cancelled) return
-      if (timeoutId) clearTimeout(timeoutId)
-      setStatus('failed')
-    }
-
-    if (!existing) {
-      const s = document.createElement('script')
-      s.type = 'module'
-      s.src = SCRIPT_SRC
-      s.dataset.splineViewer = '1'
-      s.onload = onReady
-      s.onerror = onError
-      document.head.appendChild(s)
-      armTimeout()
-    } else {
-      // Already injected — viewer custom element should already be defined.
-      onReady()
-    }
-
-    return () => {
-      cancelled = true
-      if (timeoutId) clearTimeout(timeoutId)
-    }
+    const timeoutId = setTimeout(() => {
+      setStatus((cur) => (cur === 'loading' ? 'failed' : cur))
+    }, LOAD_TIMEOUT_MS)
+    return () => clearTimeout(timeoutId)
   }, [allowed])
 
   // "Built with Spline" branding lives inside spline-viewer's shadow DOM
@@ -237,6 +216,7 @@ export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.R
     >
       {allowed && status !== 'failed' && (
         <spline-viewer
+          ref={bindViewer}
           url={SCENE_SRC}
           events-target="global"
           style={

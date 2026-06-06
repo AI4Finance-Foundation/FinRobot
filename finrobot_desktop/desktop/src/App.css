@@ -6202,13 +6202,16 @@ body.cursor-trail-on * {
   font-size: 23px;
 }
 .coverage-card__change {
-  margin-top: 6px;
+  margin-top: 7px;
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
   letter-spacing: 0;
   font-variant-numeric: tabular-nums;
+  /* Keep "-10.86% · 1D" on one line — at narrow card widths it wrapped to two
+     and crammed against the price. */
+  white-space: nowrap;
 }
 .coverage-card__provider {
   flex: none;

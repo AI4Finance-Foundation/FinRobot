@@ -1,7 +1,9 @@
-// CoverageCardGrid — the workspace's main surface: a five-column wall of ticker
-// slabs. Five equal tracks keep the cards compact so more of the studied universe
-// is visible above the fold before any scrolling; compare peers side-by-side
-// first, then scroll vertically for the rest.
+// CoverageCardGrid — the workspace's main surface: a responsive wall of ticker
+// slabs. Columns auto-fill at a ~240px min track (≈5 across on a typical window,
+// more on a wide monitor, fewer when narrow) so cards stay compact and readable
+// without ever cramping or clipping; compare peers side-by-side, then scroll
+// vertically for the rest. auto-FILL (not auto-fit) keeps a short final row at
+// normal card width instead of stretching a lone card across the whole row.
 
 import { useI18n } from '../../i18n'
 import { CoverageCard } from './CoverageCard'
@@ -47,7 +49,7 @@ export function CoverageCardGrid({
       data-testid="coverage-card-grid"
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
         // Each row sizes to its tallest card's FULL content. Without this the
         // implicit rows defaulted to `auto`, which sized a minHeight:244 flex
         // card to 244 (not its ~330 content) — the card then overflowed its row

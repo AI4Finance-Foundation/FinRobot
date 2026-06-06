@@ -10,7 +10,6 @@ import { RightChatPanel } from './RightChatPanel'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import StatusBar from '../components/StatusBar'
 import ToastContainer from '../components/Toast'
-import { CursorCanvas } from '../components/CursorCanvas'
 import { MandatoryUpdateGate } from '../components/MandatoryUpdateGate'
 import { useUiStore } from '../stores/uiStore'
 import { useUpdaterStore } from '../stores/updaterStore'
@@ -99,11 +98,9 @@ export function AppShell(): React.ReactElement {
       {/* v5: toast portal — mounted at shell level so every page / section
           can pop toasts (pipeline launch / completion / errors). */}
       <ToastContainer />
-      {/* Cosmic: backdrop starfield + bezier-spring cursor trail.
-          Both lazy-mount via useEffect; safe under SSR / Vitest jsdom. */}
+      {/* Cosmic: backdrop starfield (two parallax layers, CSS-only). */}
       <div className="cosmic-stars" aria-hidden />
       <div className="cosmic-stars cosmic-stars-fast" aria-hidden />
-      <CursorCanvas />
       {/* Mandatory-update gate — full-screen block when the installed version is
           below the published floor. Renders null unless mandatory. */}
       <MandatoryUpdateGate />

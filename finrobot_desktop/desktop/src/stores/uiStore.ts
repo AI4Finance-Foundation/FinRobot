@@ -85,11 +85,6 @@ interface UiStoreState {
   aiPanelOpen: boolean
   aiPanelWidth: number
 
-  /** Cosmic desktop trail cursor (spec §5.3). Default OFF — a 60fps RAF
-   *  loop pinning one core was the #1 fan/heat complaint. Users who want
-   *  the "桌面 App 灵魂" can opt-in via Settings. */
-  cursorTrailEnabled: boolean
-
   // Workspace
   workspacePath: string
 
@@ -108,8 +103,6 @@ interface UiStoreState {
   setAiPanelOpen: (open: boolean) => void
   toggleAiPanel: () => void
   setAiPanelWidth: (w: number) => void
-
-  setCursorTrailEnabled: (on: boolean) => void
 
   setWorkspacePath: (p: string) => void
 
@@ -157,10 +150,6 @@ export const useUiStore = create<UiStoreState>()(
     (set) => ({
       aiPanelOpen: true,
       aiPanelWidth: DEFAULT_AIPANEL_W,
-      // Heat-conservative default — the cursor trail pegs a CPU core, so it
-      // is opt-in. (The Spline robot is always on and self-throttles via
-      // visibility/intersection guards; it has no user toggle.)
-      cursorTrailEnabled: false,
 
       workspacePath: DEFAULT_WORKSPACE_PATH,
 
@@ -174,9 +163,6 @@ export const useUiStore = create<UiStoreState>()(
       setAiPanelOpen: (aiPanelOpen) => set({ aiPanelOpen }),
       toggleAiPanel: () => set((s) => ({ aiPanelOpen: !s.aiPanelOpen })),
       setAiPanelWidth: (w) => set({ aiPanelWidth: clamp(w, MIN_AIPANEL_W, MAX_AIPANEL_W) }),
-
-      // Cosmic cursor trail
-      setCursorTrailEnabled: (cursorTrailEnabled) => set({ cursorTrailEnabled }),
 
       // workspace
       setWorkspacePath: (workspacePath) =>
@@ -260,30 +246,12 @@ export const useUiStore = create<UiStoreState>()(
       partialize: (s) => ({
         aiPanelWidth: s.aiPanelWidth,
         aiPanelOpen: s.aiPanelOpen,
-        cursorTrailEnabled: s.cursorTrailEnabled,
         workspacePath: s.workspacePath,
       }),
-      onRehydrateStorage: () => (state) => {
+      onRehydrateStorage: () => () => {
         // 没有 theme toggle：清掉持久化里残留的 light 主题，
         // 否则本地存了 light 的用户启动后还是 light，看着乱。
         document.documentElement.removeAttribute('data-theme')
-        // prefers-reduced-motion: 自动关掉所有 heavy 装饰（仅首次冷启动）
-        // 已经 hydrate 过的用户保留其手动选择。
-        if (typeof window !== 'undefined' && state) {
-          const mql =
-            typeof window.matchMedia === 'function'
-              ? window.matchMedia('(prefers-reduced-motion: reduce)')
-              : null
-          if (mql?.matches) {
-            const stored = localStorage.getItem('finrobot-ui-shell')
-            // Only auto-disable if the user has no persisted choice — i.e.,
-            // they never used Settings to flip these on. Once they manually
-            // turn on the cosmic decorations we respect that.
-            if (!stored || !stored.includes('"cursorTrailEnabled"')) {
-              state.cursorTrailEnabled = false
-            }
-          }
-        }
       },
     },
   ),

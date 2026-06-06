@@ -1850,22 +1850,6 @@ msgid "settings.secHoldings.syncError"
 msgstr "无法启动同步——后端不可用或返回错误。"
 
 #. js-lingui-explicit-id
-msgid "settings.appearance.title"
-msgstr "外观"
-
-#. js-lingui-explicit-id
-msgid "settings.appearance.intro"
-msgstr "关掉装饰动效可以省电、降低风扇噪音。不影响任何数据和分析结果。"
-
-#. js-lingui-explicit-id
-msgid "settings.appearance.cursor"
-msgstr "鼠标光带"
-
-#. js-lingui-explicit-id
-msgid "settings.appearance.cursorDesc"
-msgstr "鼠标移动时跟随的彩色尾迹，纯装饰。"
-
-#. js-lingui-explicit-id
 msgid "settings.saveFailedTitle"
 msgstr "保存失败"
 

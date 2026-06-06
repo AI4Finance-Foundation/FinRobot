@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, BASE_URL } from '../api/client'
 import { useToastStore } from '../stores/toastStore'
-import { useUiStore } from '../stores/uiStore'
 import { mapErrorToUserMessage, FetchHttpError } from '../utils/errorMessage'
 import { useI18n, tSync } from '../i18n'
 import { useUpdaterStore } from '../stores/updaterStore'
@@ -69,7 +68,6 @@ const ICON_MODEL = 'M8 1.5 14 5v6l-6 3.5L2 11V5l6-3.5ZM8 8 14 5M8 8v6.5M8 8 2 5'
 const ICON_DATA =
   'M2.5 4c0-1.1 2.5-2 5.5-2s5.5.9 5.5 2-2.5 2-5.5 2-5.5-.9-5.5-2Zm0 0v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4'
 const ICON_SEC = 'M8 1.5 13.5 4v4c0 3.5-2.4 5.6-5.5 6.5C4.9 13.6 2.5 11.5 2.5 8V4L8 1.5Z'
-const ICON_DISPLAY = 'M2 3.5h12v7H2v-7Zm4 9.5h4M8 10.5V13'
 const ICON_UPDATE = 'M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5V5H11'
 
 // ─── Password input with show/hide toggle ────────────────────────────────────
@@ -250,7 +248,6 @@ const NAV_ITEMS = [
   { id: 'aiModel', icon: ICON_MODEL, labelKey: 'settings.section.aiModel' },
   { id: 'dataSources', icon: ICON_DATA, labelKey: 'settings.section.dataSources' },
   { id: 'secHoldings', icon: ICON_SEC, labelKey: 'settings.nav.secHoldings' },
-  { id: 'display', icon: ICON_DISPLAY, labelKey: 'settings.appearance.title' },
   { id: 'updates', icon: ICON_UPDATE, labelKey: 'settings.nav.updates' },
 ] as const
 
@@ -1216,9 +1213,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
             {/* ── SEC 13F holdings ── */}
             <SecHoldingsSection sectionRef={setSectionRef('secHoldings')} />
 
-            {/* ── Appearance & language ── */}
-            <DisplaySection sectionRef={setSectionRef('display')} />
-
             {/* ── Updates ── */}
             <UpdatesSection sectionRef={setSectionRef('updates')} />
           </div>
@@ -1570,32 +1564,6 @@ function SecHoldingsConfirmModal({
         </div>
       </div>
     </div>
-  )
-}
-
-// ─── Appearance & language section ──────────────────────────────────────────
-
-function DisplaySection({
-  sectionRef,
-}: {
-  sectionRef: (el: HTMLElement | null) => void
-}): React.ReactElement {
-  const { t } = useI18n()
-  const cursorOn = useUiStore((s) => s.cursorTrailEnabled)
-  const setCursor = useUiStore((s) => s.setCursorTrailEnabled)
-
-  return (
-    <section className="settings-section" data-section="display" ref={sectionRef}>
-      <h2 className="settings-section-title">{t('settings.appearance.title')}</h2>
-      <p className="settings-section-desc">{t('settings.appearance.intro')}</p>
-
-      <ToggleRow
-        label={t('settings.appearance.cursor')}
-        desc={t('settings.appearance.cursorDesc')}
-        enabled={cursorOn}
-        onToggle={() => setCursor(!cursorOn)}
-      />
-    </section>
   )
 }
 

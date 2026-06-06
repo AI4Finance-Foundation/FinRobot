@@ -5719,12 +5719,6 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   color: var(--text-primary);
 }
 
-/* ── Custom cursor support ───────────────────────────────────── */
-body.cursor-trail-on,
-body.cursor-trail-on * {
-  cursor: none !important;
-}
-
 /* ── 7 cosmic keyframes (spec §7, no other animation kinds) ──── */
 @keyframes cosmic-pull-up {
   0% {

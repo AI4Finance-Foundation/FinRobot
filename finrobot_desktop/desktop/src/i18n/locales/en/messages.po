@@ -1850,22 +1850,6 @@ msgid "settings.secHoldings.syncError"
 msgstr "Couldn't start the sync — the backend is unreachable or returned an error."
 
 #. js-lingui-explicit-id
-msgid "settings.appearance.title"
-msgstr "Appearance"
-
-#. js-lingui-explicit-id
-msgid "settings.appearance.intro"
-msgstr "Turning off decorative animations saves power and reduces fan noise. It does not affect any data or analysis results."
-
-#. js-lingui-explicit-id
-msgid "settings.appearance.cursor"
-msgstr "Cursor trail"
-
-#. js-lingui-explicit-id
-msgid "settings.appearance.cursorDesc"
-msgstr "Colored trail following the cursor; purely decorative."
-
-#. js-lingui-explicit-id
 msgid "settings.saveFailedTitle"
 msgstr "Save failed"
 

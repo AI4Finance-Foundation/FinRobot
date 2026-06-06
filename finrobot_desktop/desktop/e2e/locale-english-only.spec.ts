@@ -2,8 +2,8 @@ import { expect, test } from '@playwright/test'
 
 // Visual self-check for the English-only switch (2026-06-05): the in-app language
 // selector was removed and the whole app defaults to English. Seeds a STALE 'zh'
-// locale in localStorage to prove main.tsx coerces it back to 'en' on launch, and
-// confirms the Appearance section no longer renders a language <select>.
+// locale in localStorage to prove main.tsx coerces it back to 'en' on launch — an
+// English settings heading is the probe.
 
 const SETTINGS = {
   model_name: 'openai:gpt-4o',
@@ -25,7 +25,7 @@ const SETTINGS = {
   secret_storage_mode: 'keychain',
 }
 
-test('appearance section is English-only, language selector removed', async ({ page }) => {
+test('stale zh locale is coerced to English on launch', async ({ page }) => {
   // Seed a stale 'zh' pref — main.tsx must force it back to 'en'.
   await page.addInitScript(() => {
     localStorage.setItem(
@@ -38,11 +38,9 @@ test('appearance section is English-only, language selector removed', async ({ p
   )
   await page.goto('/settings')
 
-  const section = page.locator('[data-section="display"]')
+  // English section heading proves the stale 'zh' was coerced to 'en'.
+  const section = page.locator('[data-section="aiModel"]')
   await section.scrollIntoViewIfNeeded()
-  // English heading proves the stale 'zh' was coerced to 'en'.
-  await expect(section.locator('.settings-section-title')).toHaveText('Appearance')
-  // No language <select> remains in the section.
-  await expect(section.locator('select')).toHaveCount(0)
-  await section.screenshot({ path: 'e2e/_appearance-english-only.png' })
+  await expect(section.locator('.settings-section-title')).toHaveText('AI Model')
+  await section.screenshot({ path: 'e2e/_locale-english-only.png' })
 })

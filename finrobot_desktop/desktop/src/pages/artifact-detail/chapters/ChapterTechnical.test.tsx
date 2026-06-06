@@ -78,6 +78,34 @@ describe('ChapterTechnical', () => {
     expect(screen.getByText('2.40')).toBeInTheDocument()
   })
 
+  it('NEUTRAL sniper shows the withheld note + support/resistance, no directional trade', () => {
+    renderChapter({
+      sniper: {
+        ideal_buy: null,
+        secondary_buy: null,
+        stop_loss: null,
+        take_profit: null,
+        position_size_pct: null,
+        safety_margin: null,
+        support_level: 292.68,
+        resistance_level: 315.2,
+        risk_reward_ratio: null,
+        direction: 'NEUTRAL',
+        sell_mode: false,
+      },
+    })
+    // Explicit honest note instead of a silent drop.
+    expect(screen.getByTestId('sniper-neutral-note')).toBeInTheDocument()
+    // Support / resistance (pure price facts) still render.
+    expect(screen.getByText('$292.68')).toBeInTheDocument()
+    expect(screen.getByText('$315.20')).toBeInTheDocument()
+    // No directional trade may leak: no entry / stop / target / R/R cells.
+    expect(screen.queryByText('Ideal Buy')).not.toBeInTheDocument()
+    expect(screen.queryByText('Take Profit')).not.toBeInTheDocument()
+    expect(screen.queryByText('Stop Loss')).not.toBeInTheDocument()
+    expect(screen.queryByText('R / R Ratio')).not.toBeInTheDocument()
+  })
+
   it('renders historical EV/EBITDA bands with timeline and classification badge', () => {
     renderChapter({
       historical_bands: {

@@ -27,6 +27,7 @@ from finrobot.engine.compute.operators.monte_carlo import MonteCarloResult, run_
 from finrobot.engine.compute.operators.sniper import (
     SniperPoints,
     SniperRequest,
+    calculate_sniper_levels_only,
     calculate_sniper_points,
 )
 from finrobot.engine.data.historical_loaders import (
@@ -113,19 +114,33 @@ async def build_technical_analysis(
     current_price: float,
     data_layer: DataLayer,
     band_years: int = 3,
+    *,
+    reliable: bool = True,
+    current_ev_ebitda: float | None = None,
 ) -> TechnicalAnalysis:
     """Run MC + Sniper + Bands and assemble the payload.
 
     All three branches are best-effort: each catches its own failure and
     records a warning so the artifact stays partial-but-honest rather than
     failing the whole research pipeline.
+
+    Args:
+        reliable: ``valuation_synthesis.reliable`` — when False the sniper drops
+            the directional trade (B1: a LONG/SHORT keyed to a withheld,
+            non-corroborated target is self-contradictory).
+        current_ev_ebitda: canonical TTM EV/EBITDA (matches the comps chapter:
+            ``(market_cap + net_debt) / TTM_EBITDA``). Used as the band's
+            *current* point so the report never shows two different "current
+            EV/EBITDA" (B2). None → band falls back to trailing-annual EBITDA.
     """
     warnings: list[str] = []
 
     monte_carlo = _safe_monte_carlo(dcf_inputs, current_price, warnings)
     prices = await load_price_history(ticker, data_layer, years=1)
-    sniper = _safe_sniper(ticker, current_price, dcf_target, prices, warnings)
-    historical_bands = await _safe_historical_bands(ticker, data_layer, band_years, warnings)
+    sniper = _safe_sniper(ticker, current_price, dcf_target, prices, warnings, reliable=reliable)
+    historical_bands = await _safe_historical_bands(
+        ticker, data_layer, band_years, warnings, current_ev_ebitda=current_ev_ebitda
+    )
 
     return TechnicalAnalysis(
         monte_carlo=monte_carlo,
@@ -164,6 +179,8 @@ def _safe_sniper(
     dcf_target: float,
     prices: list[Any],
     warnings: list[str],
+    *,
+    reliable: bool = True,
 ) -> SniperPoints | None:
     if current_price <= 0 or dcf_target <= 0:
         warnings.append("sniper skipped: missing current_price or dcf_target")
@@ -178,6 +195,17 @@ def _safe_sniper(
             dcf_target=dcf_target,
             historical_prices=[p.close for p in prices],
         )
+        if not reliable:
+            # B1: the valuation synthesis flagged itself unreliable (methods
+            # don't corroborate → headline target withheld). A directional
+            # LONG/SHORT keyed to the single non-defensible DCF leg would
+            # contradict that withholding — the very inconsistency this gate
+            # prevents. Emit levels-only (support/resistance, no trade).
+            warnings.append(
+                "sniper directional trade withheld: valuation unreliable "
+                "(methods do not corroborate) — only support/resistance shown."
+            )
+            return calculate_sniper_levels_only(request)
         return calculate_sniper_points(request)
     except (ValueError, ArithmeticError) as exc:
         logger.warning("Sniper failed for %s: %s", ticker, exc)
@@ -186,10 +214,17 @@ def _safe_sniper(
 
 
 async def _safe_historical_bands(
-    ticker: str, data_layer: DataLayer, years: int, warnings: list[str]
+    ticker: str,
+    data_layer: DataLayer,
+    years: int,
+    warnings: list[str],
+    *,
+    current_ev_ebitda: float | None = None,
 ) -> HistoricalBandSnapshot | None:
     try:
-        band = await compute_bands_via_data_layer(ticker, "ev_ebitda", years, data_layer)
+        band = await compute_bands_via_data_layer(
+            ticker, "ev_ebitda", years, data_layer, current_override=current_ev_ebitda
+        )
     except (ValueError, RuntimeError) as exc:
         logger.warning("Historical bands failed for %s: %s", ticker, exc)
         warnings.append(f"historical_bands failed: {exc}")

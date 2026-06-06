@@ -3447,23 +3447,23 @@ export interface components {
     /** SniperPoints */
     SniperPoints: {
       /** Ideal Buy */
-      ideal_buy: number
+      ideal_buy: number | null
       /** Secondary Buy */
       secondary_buy: number | null
       /** Stop Loss */
-      stop_loss: number
+      stop_loss: number | null
       /** Take Profit */
-      take_profit: number
+      take_profit: number | null
       /** Position Size Pct */
-      position_size_pct: number
+      position_size_pct: number | null
       /** Safety Margin */
-      safety_margin: number
+      safety_margin: number | null
       /** Support Level */
       support_level: number
       /** Resistance Level */
       resistance_level: number
       /** Risk Reward Ratio */
-      risk_reward_ratio: number
+      risk_reward_ratio: number | null
       /**
        * Sell Mode
        * @default false

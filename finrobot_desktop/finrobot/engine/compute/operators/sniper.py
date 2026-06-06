@@ -35,25 +35,35 @@ class SniperPoints(BaseModel):
     # ``ideal_buy`` / ``secondary_buy`` are entries; in SHORT mode they are
     # the *short-entry* levels (open the short here / add here on bounce).
     # Always interpret these together with ``direction`` — never assume LONG.
-    ideal_buy: float
+    #
+    # NEUTRAL (levels-only) mode: when the upstream valuation synthesis flags
+    # itself unreliable (methods don't corroborate → no defensible target), we
+    # MUST NOT anchor a directional trade to a single non-defensible DCF leg.
+    # In that case every trade-level field below is ``None`` and only
+    # ``support_level`` / ``resistance_level`` (pure price facts, independent of
+    # the DCF) are populated. That's why the trade fields are Optional — a
+    # directional LONG/SHORT always fills them, NEUTRAL never does.
+    ideal_buy: float | None
     # Optional second entry level. ``None`` when no coherent secondary entry
     # exists — e.g. a LONG whose 20-day support sits below the stop_loss floor
     # (a recent crash low still in the trailing window): rendering a "buy" you
     # could only reach after being stopped out is incoherent, so we drop the
     # level and record the reason in ``invariant_warnings``.
     secondary_buy: float | None
-    stop_loss: float
-    take_profit: float
-    position_size_pct: float  # suggested position as % of portfolio (1-5%)
-    safety_margin: float  # the discount applied to DCF target
+    stop_loss: float | None
+    take_profit: float | None
+    position_size_pct: float | None  # suggested position as % of portfolio (1-5%)
+    safety_margin: float | None  # the discount applied to DCF target
     support_level: float  # detected support (20-day rolling min)
     resistance_level: float  # detected resistance (20-day rolling max)
-    risk_reward_ratio: float  # |take_profit - current| / |stop_loss - current|
+    risk_reward_ratio: float | None  # |take_profit - current| / |stop_loss - current|
     sell_mode: bool = False  # True when DCF intrinsic < current price
-    # "LONG" | "SHORT" — drives the rendering layer's labels and the invariant
-    # gate. For a SHORT, the fields invert (``stop_loss`` sits ABOVE ``ideal_buy``,
-    # cover target below entry); making direction explicit lets the UI swap labels
-    # (开空 / 止盈下方 / 止损上方) and keeps risk/reward meaningful for a bear trade.
+    # "LONG" | "SHORT" | "NEUTRAL" — drives the rendering layer's labels and the
+    # invariant gate. For a SHORT, the fields invert (``stop_loss`` sits ABOVE
+    # ``ideal_buy``, cover target below entry); making direction explicit lets the
+    # UI swap labels (开空 / 止盈下方 / 止损上方) and keeps risk/reward meaningful
+    # for a bear trade. NEUTRAL = no tradeable direction (valuation unreliable),
+    # only support/resistance shown.
     direction: str = "LONG"
     invariant_warnings: list[str] = Field(default_factory=list)
 
@@ -271,4 +281,40 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
         sell_mode=sell_mode,
         direction=direction,
         invariant_warnings=invariant_warnings,
+    )
+
+
+def calculate_sniper_levels_only(req: SniperRequest) -> SniperPoints:
+    """Levels-only (NEUTRAL) sniper — support/resistance, NO directional trade.
+
+    Used when the upstream valuation synthesis declared itself unreliable: the
+    methods don't corroborate (e.g. DCF $136 vs comps $324, 2.4×), so the
+    headline target was withheld. Anchoring a LONG/SHORT to the single
+    non-defensible DCF leg would directly contradict that withholding —
+    exactly the internal inconsistency this gate exists to prevent.
+
+    Support / resistance are pure price-history facts (20-day rolling min/max),
+    independent of the DCF, so they remain honest to surface. Every trade-level
+    field is ``None`` and ``direction='NEUTRAL'``; the rendering layer shows the
+    two levels plus an explanatory note instead of a tradeable entry/stop/target.
+    """
+    prices = req.historical_prices
+    window = min(20, len(prices))
+    recent = prices[-window:]
+    return SniperPoints(
+        ideal_buy=None,
+        secondary_buy=None,
+        stop_loss=None,
+        take_profit=None,
+        position_size_pct=None,
+        safety_margin=None,
+        support_level=round(min(recent), 2),
+        resistance_level=round(max(recent), 2),
+        risk_reward_ratio=None,
+        sell_mode=False,
+        direction="NEUTRAL",
+        invariant_warnings=[
+            "方向性狙击位已隐去：估值方法未交叉验证（目标价不可靠），"
+            "无可锚定的可靠目标，仅保留支撑/阻力。"
+        ],
     )

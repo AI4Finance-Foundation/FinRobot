@@ -84,6 +84,7 @@ def compute_historical_band(
     yearly: list[YearlyFinancials],
     prices: list[PricePoint],
     shares_outstanding: float,
+    current_override: float | None = None,
 ) -> HistoricalBand:
     """Build the band + timeline + quantiles for a single metric.
 
@@ -91,6 +92,16 @@ def compute_historical_band(
     provider dicts; alignment between fiscal years and price dates is
     handled here (most recent fiscal year ≤ price date), and degenerate
     rows are dropped rather than raising — the UI shows what's available.
+
+    ``current_override``: when given, replaces the band's *current* multiple
+    with a caller-supplied value (B2). The historical samples here use the
+    trailing **annual** EBITDA at each price date (the only series available
+    without quarterly data), but the report's comps chapter reports the
+    **current** EV/EBITDA on **TTM** EBITDA. Passing the canonical TTM
+    multiple as ``current_override`` keeps the headline "current EV/EBITDA"
+    identical across chapters instead of showing two口径. The historical
+    quantiles/timeline stay annual-based, so we record a warning disclosing
+    the mixed basis rather than silently masking it.
     """
     warnings: list[str] = []
 
@@ -122,8 +133,23 @@ def compute_historical_band(
         warnings.append(f"{skipped_no_financial} 个 price 早于最早的 fiscal year — 已跳过")
 
     values = [v for _, v in samples]
-    current = samples[-1][1]  # last sample is the most recent price multiple
     timeline = _downsample(samples, _MAX_TIMELINE_POINTS)
+    if current_override is not None and current_override > 0:
+        # B2: use the caller's canonical TTM multiple as the headline current
+        # point (matches the comps chapter). Historical *quantiles* stay on the
+        # trailing-annual basis (``values`` untouched) — disclose the mixed基差
+        # rather than hide it. The timeline's last point is shifted to the same
+        # TTM value so the rendered "current" dot sits on the line end instead of
+        # floating off it; the historical shape is otherwise preserved.
+        current = current_override
+        if timeline:
+            timeline = [*timeline[:-1], (timeline[-1][0], current_override)]
+        warnings.append(
+            "current 点用 TTM EBITDA（与 comps 口径一致）；历史分位用各年报年度 EBITDA，"
+            "两者存在口径基差（无季度数据，无法逐点重建滚动 TTM）。"
+        )
+    else:
+        current = samples[-1][1]  # last sample is the most recent price multiple
 
     return HistoricalBand(
         metric=metric,

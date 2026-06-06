@@ -296,12 +296,17 @@ function SniperPanel({
   type Cell = { label: string; value: string; delta?: string; tone?: 'up' | 'down' }
   const cells: Cell[] = []
 
+  // NEUTRAL (levels-only): the valuation synthesis flagged itself unreliable, so
+  // the headline target was withheld. No directional trade may be anchored to it
+  // — every trade-level field is null and only support/resistance render, with an
+  // explicit note so the empty trade section never reads as a silent drop (B1).
+  const isNeutral = sniper.direction === 'NEUTRAL'
   // SHORT (SELL-rated) flips the trade structure: ideal_buy/secondary_buy are
   // SHORT entries, take_profit is the cover target BELOW entry, stop_loss is
   // ABOVE entry. Labels switch so a SELL report never reads as a long.
-  const isShort = sniper.direction === 'SHORT' || sniper.sell_mode === true
+  const isShort = !isNeutral && (sniper.direction === 'SHORT' || sniper.sell_mode === true)
 
-  if (sniper.ideal_buy !== undefined) {
+  if (sniper.ideal_buy != null) {
     cells.push({
       label: isShort
         ? t('chapter.technical.sniper.idealShort')
@@ -309,14 +314,14 @@ function SniperPanel({
       value: fmtPx(sniper.ideal_buy),
       tone: isShort ? undefined : 'up',
       delta:
-        !isShort && sniper.safety_margin !== undefined
+        !isShort && sniper.safety_margin != null
           ? t('chapter.technical.sniper.safetyMargin', {
               pct: (sniper.safety_margin * 100).toFixed(0),
             })
           : undefined,
     })
   }
-  if (sniper.secondary_buy !== undefined) {
+  if (sniper.secondary_buy != null) {
     cells.push({
       label: isShort
         ? t('chapter.technical.sniper.secondaryShort')
@@ -327,14 +332,14 @@ function SniperPanel({
         : t('chapter.technical.sniper.atSupport'),
     })
   }
-  if (sniper.stop_loss !== undefined) {
+  if (sniper.stop_loss != null) {
     cells.push({
       label: t('chapter.technical.sniper.stopLoss'),
       value: fmtPx(sniper.stop_loss),
       tone: 'down',
     })
   }
-  if (sniper.take_profit !== undefined) {
+  if (sniper.take_profit != null) {
     cells.push({
       label: isShort
         ? t('chapter.technical.sniper.coverTarget')
@@ -346,19 +351,19 @@ function SniperPanel({
         : t('chapter.technical.sniper.dcfTarget'),
     })
   }
-  if (sniper.support_level !== undefined) {
+  if (sniper.support_level != null) {
     cells.push({
       label: t('chapter.technical.sniper.support20d'),
       value: fmtPx(sniper.support_level),
     })
   }
-  if (sniper.resistance_level !== undefined) {
+  if (sniper.resistance_level != null) {
     cells.push({
       label: t('chapter.technical.sniper.resistance20d'),
       value: fmtPx(sniper.resistance_level),
     })
   }
-  if (sniper.risk_reward_ratio !== undefined) {
+  if (sniper.risk_reward_ratio != null) {
     const rr = sniper.risk_reward_ratio
     cells.push({
       label: t('chapter.technical.sniper.rrRatio'),
@@ -366,7 +371,7 @@ function SniperPanel({
       tone: rr >= 2 ? 'up' : rr >= 1 ? undefined : 'down',
     })
   }
-  if (sniper.position_size_pct !== undefined) {
+  if (sniper.position_size_pct != null) {
     cells.push({
       label: t('chapter.technical.sniper.suggestedSize'),
       value: `${sniper.position_size_pct.toFixed(1)}%`,
@@ -374,7 +379,16 @@ function SniperPanel({
     })
   }
 
-  return <KvGrid cells={cells} columns={4} />
+  return (
+    <div>
+      {isNeutral && (
+        <p style={mutedNote} data-testid="sniper-neutral-note">
+          {t('chapter.technical.sniper.withheldUnreliable')}
+        </p>
+      )}
+      <KvGrid cells={cells} columns={4} />
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------

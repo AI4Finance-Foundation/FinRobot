@@ -982,6 +982,10 @@ msgid "chapter.technical.sniper.dcfCover"
 msgstr "DCF cover"
 
 #. js-lingui-explicit-id
+msgid "chapter.technical.sniper.withheldUnreliable"
+msgstr "Directional sniper levels withheld: the valuation methods do not corroborate (DCF vs comps diverge too far — the headline target was withheld as REVIEW), so there is no defensible target to anchor a trade. Support / resistance below are shown for reference only."
+
+#. js-lingui-explicit-id
 msgid "chapter.technical.sniper.support20d"
 msgstr "Support (20d)"
 
@@ -3786,4 +3790,3 @@ msgstr "Checking…"
 #. js-lingui-explicit-id
 msgid "settings.updates.browserOnly"
 msgstr "Update checks are only available in the desktop app."
-

@@ -20,7 +20,12 @@ from __future__ import annotations
 
 import pytest
 
-from finrobot.engine.compute.operators.sniper import SniperPoints, SniperRequest, calculate_sniper_points
+from finrobot.engine.compute.operators.sniper import (
+    SniperPoints,
+    SniperRequest,
+    calculate_sniper_levels_only,
+    calculate_sniper_points,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -131,6 +136,8 @@ def test_sniper_short_mode_when_target_below_current():
     assert result.take_profit == pytest.approx(150.0, abs=0.01)
     assert result.stop_loss == pytest.approx(220.0, abs=0.01)
     # SHORT invariant: target < entry < stop
+    assert result.take_profit is not None and result.ideal_buy is not None
+    assert result.stop_loss is not None
     assert result.take_profit < result.ideal_buy < result.stop_loss
     # R/R = (current - cover) / (stop - current) = 50 / 20 = 2.50
     assert result.risk_reward_ratio == pytest.approx(2.50, abs=0.01)
@@ -199,6 +206,8 @@ def test_sniper_short_mode_tsla_2026_05_28_anchor() -> None:
     assert result.sell_mode is True
     assert result.direction == "SHORT"
     # SHORT invariant must hold, no exceptions.
+    assert result.take_profit is not None and result.ideal_buy is not None
+    assert result.stop_loss is not None
     assert result.take_profit < result.ideal_buy < result.stop_loss
     # Cover at the DCF thesis (target), NOT clamped up to 20-day support
     # (decision 2026-05-29: max(target, support) throttled the short).
@@ -207,6 +216,7 @@ def test_sniper_short_mode_tsla_2026_05_28_anchor() -> None:
     # is impossible post-fix because take_profit < current < stop_loss now;
     # exact R/R depends on the 20-day window, but always strictly higher
     # than the pre-fix value.
+    assert result.risk_reward_ratio is not None
     assert result.risk_reward_ratio > 0.20
 
 
@@ -397,6 +407,7 @@ def test_sniper_stop_loss_never_below_fifteen_pct():
             volatility_annual=0.0,
         )
     )
+    assert result.stop_loss is not None
     assert result.stop_loss >= 100.0 * 0.85 - 0.01
 
 
@@ -439,6 +450,8 @@ def test_sniper_short_invariant_target_below_entry_below_stop(
     )
     assert result.sell_mode is True
     assert result.direction == "SHORT"
+    assert result.take_profit is not None and result.ideal_buy is not None
+    assert result.stop_loss is not None
     assert result.take_profit < result.ideal_buy < result.stop_loss, (
         f"SHORT invariant violated: "
         f"take_profit={result.take_profit}, ideal_buy={result.ideal_buy}, "
@@ -544,10 +557,12 @@ def test_sniper_long_keeps_secondary_when_support_above_stop() -> None:
     assert result.direction == "LONG"
     assert result.support_level == pytest.approx(92.0, abs=0.01)
     # support sits above the stop here, so the secondary entry is retained.
+    assert result.stop_loss is not None
     assert result.stop_loss < result.support_level
     assert result.secondary_buy == pytest.approx(92.0, abs=0.01)
     # Coherent LONG ladder: stop < secondary <= take_profit.
     assert result.secondary_buy is not None
+    assert result.stop_loss is not None and result.take_profit is not None
     assert result.stop_loss < result.secondary_buy <= result.take_profit
 
 
@@ -562,6 +577,8 @@ def test_sniper_short_cover_is_dcf_target_not_throttled_to_support() -> None:
     )
     assert result.direction == "SHORT"
     assert result.take_profit == pytest.approx(70.0, abs=0.01)  # the DCF thesis
+    assert result.take_profit is not None and result.ideal_buy is not None
+    assert result.risk_reward_ratio is not None
     assert result.take_profit < result.ideal_buy  # not the degenerate cover==entry
     assert result.risk_reward_ratio > 0.0  # was exactly 0.0 pre-fix
 
@@ -629,6 +646,8 @@ def test_sniper_just_past_one_tick_still_ships() -> None:
     assert result.direction == "SHORT"
     # Coherent SHORT ladder on the shipped (rounded) values: cover below entry,
     # stop above entry, R/R strictly positive — none of the BUG-076 collapse.
+    assert result.take_profit is not None and result.ideal_buy is not None
+    assert result.stop_loss is not None and result.risk_reward_ratio is not None
     assert result.take_profit < result.ideal_buy
     assert result.stop_loss > result.ideal_buy
     assert result.risk_reward_ratio > 0.0
@@ -651,3 +670,73 @@ def test_sniper_safe_wrapper_catches_degenerate_target() -> None:
     )
     assert sniper is None
     assert any("sniper" in w.lower() for w in warnings)
+
+
+def test_levels_only_emits_no_directional_trade() -> None:
+    """NEUTRAL mode: support/resistance present, every trade-level field None.
+
+    Expected support/resistance are the min/max of the last-20 default window
+    (the 20-element fixture: min 140.0, max 160.0), derived by manual inspection
+    of the fixture list, not from the function under test.
+    """
+    result = calculate_sniper_levels_only(_req())
+    assert result.direction == "NEUTRAL"
+    assert result.support_level == 140.0
+    assert result.resistance_level == 160.0
+    # No tradeable direction may leak through.
+    assert result.ideal_buy is None
+    assert result.secondary_buy is None
+    assert result.stop_loss is None
+    assert result.take_profit is None
+    assert result.risk_reward_ratio is None
+    assert result.position_size_pct is None
+    assert result.sell_mode is False
+    assert any("已隐去" in w for w in result.invariant_warnings)
+
+
+def test_safe_sniper_unreliable_synthesis_returns_levels_only() -> None:
+    """B1: reliable=False must suppress the directional trade.
+
+    Same overvalued setup that would normally yield a SHORT (current >> target);
+    with reliable=False the wrapper must instead return a NEUTRAL levels-only
+    payload — no cover/stop anchored to the withheld DCF target.
+    """
+    from types import SimpleNamespace
+
+    from finrobot.engine.compute.coordinators.technical_payload import _safe_sniper
+
+    prices = [SimpleNamespace(close=p) for p in (300.0, 305.0, 310.0, 307.0, 312.0)]
+    warnings: list[str] = []
+    sniper = _safe_sniper(
+        ticker="AAPL",
+        current_price=307.34,
+        dcf_target=136.14,
+        prices=prices,
+        warnings=warnings,
+        reliable=False,
+    )
+    assert sniper is not None
+    assert sniper.direction == "NEUTRAL"
+    assert sniper.take_profit is None  # no cover anchored to the unreliable DCF
+    assert any("reliable" in w.lower() or "不可靠" in w for w in warnings)
+
+
+def test_safe_sniper_reliable_synthesis_keeps_directional_trade() -> None:
+    """B1 guard: reliable=True (default) preserves the existing SHORT behaviour."""
+    from types import SimpleNamespace
+
+    from finrobot.engine.compute.coordinators.technical_payload import _safe_sniper
+
+    prices = [SimpleNamespace(close=p) for p in (300.0, 305.0, 310.0, 307.0, 312.0)]
+    warnings: list[str] = []
+    sniper = _safe_sniper(
+        ticker="AAPL",
+        current_price=307.34,
+        dcf_target=136.14,
+        prices=prices,
+        warnings=warnings,
+        reliable=True,
+    )
+    assert sniper is not None
+    assert sniper.direction == "SHORT"
+    assert sniper.take_profit == 136.14

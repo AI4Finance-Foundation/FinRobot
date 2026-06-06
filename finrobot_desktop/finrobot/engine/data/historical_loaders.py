@@ -117,8 +117,16 @@ async def compute_bands_via_data_layer(
     metric: HistoricalMetricName,
     years: int,
     data_layer: DataLayer,
+    *,
+    current_override: float | None = None,
 ) -> HistoricalBand:
-    """End-to-end: fetch financials + price, hand off to the compute leaf."""
+    """End-to-end: fetch financials + price, hand off to the compute leaf.
+
+    ``current_override`` (B2): the canonical TTM multiple for the current point,
+    so the report's band and comps chapters agree on "current EV/EBITDA". When
+    None (e.g. the standalone /historical-bands route), the band stays purely on
+    trailing-annual EBITDA.
+    """
     yearly = await load_yearly_financials(ticker, data_layer, years=max(years, 5))
     prices = await load_price_history(ticker, data_layer, years=years)
     shares = extract_shares_from_yearly(yearly)
@@ -127,6 +135,7 @@ async def compute_bands_via_data_layer(
         yearly=[y for y, _ in yearly],
         prices=prices,
         shares_outstanding=shares or 0.0,
+        current_override=current_override,
     )
 
 

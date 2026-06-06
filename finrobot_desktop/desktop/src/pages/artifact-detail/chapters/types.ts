@@ -120,20 +120,23 @@ export interface MonteCarloShape {
 }
 
 export interface SniperShape {
-  ideal_buy?: number
-  secondary_buy?: number
-  stop_loss?: number
-  take_profit?: number
-  position_size_pct?: number
-  safety_margin?: number
+  // Trade-level fields are null in NEUTRAL (levels-only) mode — see `direction`.
+  ideal_buy?: number | null
+  secondary_buy?: number | null
+  stop_loss?: number | null
+  take_profit?: number | null
+  position_size_pct?: number | null
+  safety_margin?: number | null
   support_level?: number
   resistance_level?: number
-  risk_reward_ratio?: number
-  // "LONG" | "SHORT" — drives entry/exit labels. SHORT (SELL-rated) flips
-  // ideal_buy → short entry, take_profit → cover target (below entry),
-  // stop_loss → above entry. Absent on legacy artifacts (treat as LONG).
+  risk_reward_ratio?: number | null
+  // "LONG" | "SHORT" | "NEUTRAL" — drives entry/exit labels. SHORT (SELL-rated)
+  // flips ideal_buy → short entry, take_profit → cover target (below entry),
+  // stop_loss → above entry. NEUTRAL = valuation unreliable → no directional
+  // trade, only support/resistance. Absent on legacy artifacts (treat as LONG).
   direction?: string
   sell_mode?: boolean
+  invariant_warnings?: string[]
 }
 
 export interface HistoricalBandShape {

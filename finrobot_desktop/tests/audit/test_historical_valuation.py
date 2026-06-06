@@ -106,6 +106,44 @@ class TestEvEbitdaBand:
         assert band.sample_count == 3
         assert band.warnings == []
 
+    def test_current_override_replaces_current_and_discloses_basis(self) -> None:
+        """B2: a TTM current_override replaces the band's current point only.
+
+        Historical quantiles/timeline stay on the annual basis; a warning must
+        disclose the mixed口径 rather than silently swap it.
+        """
+        yearly = [_yearly(2023, ebitda=20), _yearly(2024, ebitda=25), _yearly(2025, ebitda=30)]
+        prices = [
+            _price(date(2024, 6, 1), 100.0),  # 50.0
+            _price(date(2025, 6, 1), 110.0),  # 44.0
+            _price(date(2026, 1, 1), 120.0),  # annual-basis current would be 40.0
+        ]
+        band = compute_historical_band(
+            metric="ev_ebitda",
+            yearly=yearly,
+            prices=prices,
+            shares_outstanding=10,
+            current_override=37.5,  # canonical TTM multiple from the comps chapter
+        )
+        assert band.current == 37.5  # overridden, not the annual 40.0
+        assert band.median == 44.0  # historical quantiles untouched (annual basis)
+        assert band.sample_count == 3
+        assert any("TTM" in w for w in band.warnings)
+
+    def test_current_override_ignored_when_non_positive(self) -> None:
+        """A zero/negative override is rejected — falls back to the annual current."""
+        yearly = [_yearly(2025, ebitda=30)]
+        prices = [_price(date(2026, 1, 1), 120.0)]  # (120*10)/30 = 40.0
+        band = compute_historical_band(
+            metric="ev_ebitda",
+            yearly=yearly,
+            prices=prices,
+            shares_outstanding=10,
+            current_override=0.0,
+        )
+        assert band.current == 40.0
+        assert band.warnings == []
+
     def test_net_debt_added_to_ev(self) -> None:
         yearly = [_yearly(2024, ebitda=10, debt=500)]
         prices = [_price(date(2025, 1, 1), 100.0)]

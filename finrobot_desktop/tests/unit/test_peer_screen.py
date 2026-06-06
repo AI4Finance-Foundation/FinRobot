@@ -99,3 +99,55 @@ def test_non_semiconductor_targets_do_not_require_candidate_profiles() -> None:
 
     assert result.tickers == ["PEP", "MNST", "KDP"]
     assert result.dropped_role == []
+
+
+def test_high_positive_pe_competitor_enters_set_loss_maker_does_not() -> None:
+    """touch-5 member gate is ``pe > 0`` only: AMD (trailing 156x) and ARM (399x)
+    are positive-but-high direct NVDA competitors — they belong IN the set for the
+    competitive landscape. INTC (trailing −165, loss) carries no earnings-multiple
+    information and is excluded. The NM cap that keeps a distorting multiple out of
+    the comps_pe MEDIAN lives downstream in multiples, NOT here (decoupling).
+
+    Live FMP 2026-06-06: AMD 156.5, ARM 398.76, INTC −165.28.
+    """
+    payload = {
+        "profile": {
+            "company_name": "NVIDIA Corporation",
+            "sector": "Technology",
+            "industry": "Semiconductors",
+            "market_cap": 4_900_000_000_000,
+            "description": "Provides GPUs and data center platforms for AI accelerated computing.",
+        },
+        "industry_screen": ["AVGO", "MU", "TXN", "AMD", "ARM", "INTC"],
+        "stock_peers": [],
+        "sector_screen": [],
+        "quotes": {
+            "AVGO": {"market_cap": 1_100_000_000_000, "pe": 38.0},
+            "MU": {"market_cap": 155_000_000_000, "pe": 20.0},
+            "TXN": {"market_cap": 170_000_000_000, "pe": 30.0},
+            "AMD": {"market_cap": 760_000_000_000, "pe": 156.5},
+            "ARM": {"market_cap": 365_000_000_000, "pe": 398.76},
+            "INTC": {"market_cap": 498_000_000_000, "pe": -165.28},
+        },
+        "profiles": {
+            t: {
+                "company_name": t,
+                "industry": "Semiconductors",
+                "description": "Designs, develops and supplies semiconductors and integrated circuits.",
+            }
+            for t in ("AVGO", "MU", "TXN", "AMD", "ARM", "INTC")
+        },
+    }
+
+    result = screen_peers(payload, "NVDA")
+
+    # AMD and ARM are positive-but-high → IN the set; INTC (loss) → out.
+    assert "AMD" in result.tickers
+    assert "ARM" in result.tickers
+    assert "INTC" not in result.tickers
+    # dropped_nm is loss-makers only now (not high-multiple names).
+    assert result.dropped_nm == ["INTC"]
+    assert "AMD" not in result.dropped_nm
+    assert "ARM" not in result.dropped_nm
+    # Still deterministic.
+    assert result == screen_peers(payload, "NVDA")

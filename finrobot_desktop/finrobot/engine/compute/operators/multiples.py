@@ -43,6 +43,29 @@ PEER_EV_REVENUE_SANITY_MAX: float = 100.0
 PEER_PE_SANITY_MIN: float = 1.0
 PEER_PE_SANITY_MAX: float = 300.0
 
+# Not-meaningful (NM) P/E cap — the BANKER-CONVENTION threshold, distinct from the
+# garbage/FX SANITY bounds above. A positive P/E above this is a real, computable
+# number (not an FX artifact, so it stays on the peer's row and ships in the comp
+# table for the competitive landscape) but carries no information about what a
+# mature target's earnings are worth: a 156x trailing print is a temporary earnings
+# trough, a 157x forward print is hyper-growth optionality. Such a multiple must
+# therefore be excluded from the MEDIAN — the number that drives comps_pe — while
+# the company stays in the SET. This is the touch-5 identity/multiple decoupling:
+# peer_screen's MEMBER gate widened to pe>0 (loss-makers still out, AMD's 156x
+# trailing now IN the set), and the NM cap moved here to the MEDIAN computation.
+#
+# Threshold calibration (live FMP, 2026-06-06, NVDA semiconductor universe):
+#   forward P/E ladder — AVGO 31.8, MU 14.5, TXN 36.9, AMD 62.5, MRVL 66.8 |  INTC
+#   91.8, ARM 157.2. The informative direct competitors (incl. AMD, the textbook
+#   NVDA comp whose 156x TRAILING masked a 62.5x FORWARD) all sit below 75; the two
+#   distorting names — INTC (loss-recovery turnaround, forward NI just turned
+#   positive) and ARM (hyper-growth) — sit above. 75 cleanly separates the two
+#   populations, so the same cap governs the trailing median, the core median, and
+#   the forward median. (The standalone validator's per-peer [1,300] SANITY check
+#   is a separate garbage/FX gate — AMD's 156x trailing is a sane number that
+#   passes it and stays on the row, only the NM cap keeps it out of the median.)
+PEER_PE_NM_CAP: float = 75.0
+
 # NOPAT core-earnings effective-tax band. Own rates outside this are degenerate
 # (tax holidays, credit/DTA releases — observed live: AMD 0.2%, AVGO 1.8% in the
 # NVDA peer set) and would distort NOPAT comparability, so such rows fall back to
@@ -263,7 +286,15 @@ def calculate_core_pe(comps: PeerComps) -> PeerComps:
     for peer in result.peers:
         _apply(peer)
 
-    core_vals = [p.core_pe_ratio for p in result.peers if p.core_pe_ratio is not None]
+    # Same NM cap as the trailing/forward medians: a peer kept in the set for the
+    # competitive landscape (widened member gate) whose core P/E is real but
+    # distorting (> NM cap) must not skew the core median that feeds the trailing
+    # comps_pe path. Loss-makers already produced core_pe_ratio None above.
+    core_vals = [
+        p.core_pe_ratio
+        for p in result.peers
+        if p.core_pe_ratio is not None and p.core_pe_ratio <= PEER_PE_NM_CAP
+    ]
     result.median_core_pe = median(core_vals) if core_vals else None
     return result
 
@@ -283,18 +314,25 @@ def calculate_peer_statistics(comps: PeerComps) -> PeerComps:
     total = len(result.peers)
 
     ev_ebitda_vals = [p.ev_ebitda for p in result.peers if p.ev_ebitda is not None]
-    pe_vals = [p.pe_ratio for p in result.peers if p.pe_ratio is not None]
+    # Trailing P/E median applies the NM cap (not just the SANITY floor): with the
+    # touch-5 widened member gate a real-but-distorting trailing print (AMD 156x)
+    # now sits IN the set and on the peer row, but it carries no information about
+    # fair value, so it must not skew the trailing median that feeds comps_pe. The
+    # peer stays for the competitive landscape; only its median contribution is NM.
+    pe_vals = [
+        p.pe_ratio
+        for p in result.peers
+        if p.pe_ratio is not None and PEER_PE_SANITY_MIN <= p.pe_ratio <= PEER_PE_NM_CAP
+    ]
     ev_revenue_vals = [p.ev_revenue for p in result.peers if p.ev_revenue is not None]
 
-    # Forward P/E is sanity-gated to the same absolute band as trailing P/E:
-    # a peer can stay in the SET for the competitive landscape, but a forward
-    # multiple outside [1, 300] carries no information about fair value and must
-    # not skew the median. A peer keeps its raw forward_pe for display; only the
-    # median excludes the out-of-band ones.
+    # Forward P/E median uses the SAME NM cap: AMD's 62.5x forward is informative
+    # and stays in; INTC's 91.8x (turnaround) and ARM's 157x (hyper-growth) are NM.
+    # A peer keeps its raw forward_pe for display; only the median excludes them.
     forward_pe_vals = [
         p.forward_pe
         for p in result.peers
-        if p.forward_pe is not None and PEER_PE_SANITY_MIN <= p.forward_pe <= PEER_PE_SANITY_MAX
+        if p.forward_pe is not None and PEER_PE_SANITY_MIN <= p.forward_pe <= PEER_PE_NM_CAP
     ]
 
     result.median_ev_ebitda = median(ev_ebitda_vals) if ev_ebitda_vals else None
@@ -314,7 +352,8 @@ def calculate_peer_statistics(comps: PeerComps) -> PeerComps:
     if pe_n < total:
         result.warnings.append(
             f"P/E computed on n={pe_n} of {total} peers"
-            f" — {total - pe_n} dropped due to data quality"
+            f" — {total - pe_n} excluded (loss-maker / NM trailing P/E above"
+            f" {PEER_PE_NM_CAP:.0f}x — kept in set, out of median)"
         )
     ev_revenue_n = len(ev_revenue_vals)
     if ev_revenue_n < total:
@@ -330,7 +369,8 @@ def calculate_peer_statistics(comps: PeerComps) -> PeerComps:
     if 0 < forward_pe_n < total:
         result.warnings.append(
             f"Forward P/E computed on n={forward_pe_n} of {total} peers"
-            f" — {total - forward_pe_n} lack USD-clean analyst consensus"
+            f" — {total - forward_pe_n} lack USD-clean analyst consensus or carry an"
+            f" NM forward P/E above {PEER_PE_NM_CAP:.0f}x (kept in set, out of median)"
         )
 
     return result

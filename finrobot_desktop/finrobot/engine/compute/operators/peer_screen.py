@@ -17,10 +17,18 @@ proximity without tiers turned MSFT's comp sheet into a semiconductor basket):
 
 Within each tier candidates must pass the eligibility screen:
   - market cap within [1/BAND, BAND]x of the target (no $5B "peer" for $3T)
-  - meaningful trailing P/E in (0, NM_CAP] — the banker convention that a
-    loss-maker or a hyper-growth 159x name carries no information about what a
-    mature target's earnings are worth (absolute band, NOT proximity to the
-    target's own multiple, so the screen cannot curve-fit the answer)
+  - positive trailing P/E (loss-makers carry no earnings-multiple information and
+    are not trading comps; a NEGATIVE P/E is excluded here)
+
+Note the MEMBER gate is only ``pe > 0`` — a positive-but-high trailing P/E (AMD
+at 156x, ARM at 399x, both textbook NVDA competitors) stays IN the set for the
+competitive landscape. The not-meaningful (NM) cap that keeps a distorting
+multiple out of the comps_pe MEDIAN lives downstream in
+``multiples.calculate_peer_statistics`` / ``calculate_core_pe`` (the touch-5
+identity/multiple decoupling): membership and median-eligibility are separate
+questions, so AMD can be a peer AND have its 156x trailing print excluded from
+the median while its 62.5x FORWARD print drives ``median_forward_pe``.
+
 then rank by |log(mcap / target_mcap)| ascending (ties: alphabetical), filling
 ``top_n`` slots tier by tier.
 """
@@ -37,9 +45,6 @@ PEER_SCREEN_TOP_N: Final[int] = 7
 
 PEER_SCREEN_MCAP_BAND: Final[float] = 20.0
 """Eligible market-cap band: peer must be within [1/20, 20]x of the target."""
-
-PEER_SCREEN_PE_NM_CAP: Final[float] = 75.0
-"""Trailing P/E above this (or ≤ 0 / missing) is NM — excluded from the sheet."""
 
 
 class PeerScreenResult(BaseModel):
@@ -58,7 +63,12 @@ class PeerScreenResult(BaseModel):
     re-derivable by hand instead of justified by prose."""
 
     dropped_nm: list[str]
-    """Eligible-by-size candidates excluded for a non-meaningful P/E."""
+    """Eligible-by-size candidates excluded for a non-positive (loss-maker) P/E.
+
+    The MEMBER gate is ``pe > 0`` only — a positive-but-high P/E (AMD 156x, ARM
+    399x) stays in the set; the NM cap that keeps a distorting multiple out of the
+    median lives downstream in ``multiples``. So this list is loss-makers, not
+    high-multiple names (touch-5 identity/multiple decoupling)."""
 
     dropped_role: list[str] = []
     """Candidates excluded because their value-chain role does not match the target.
@@ -192,7 +202,6 @@ def screen_peers(
     *,
     top_n: int = PEER_SCREEN_TOP_N,
     mcap_band: float = PEER_SCREEN_MCAP_BAND,
-    pe_nm_cap: float = PEER_SCREEN_PE_NM_CAP,
 ) -> PeerScreenResult:
     """Screen the raw PEER_CANDIDATES payload into a deterministic peer set.
 
@@ -252,7 +261,11 @@ def screen_peers(
         return mcap > 0 and 1.0 / mcap_band <= mcap / target_mcap <= mcap_band
 
     def meaningful(pe: float | None) -> bool:
-        return pe is not None and 0.0 < pe <= pe_nm_cap
+        # MEMBER gate only: pe > 0. A loss-maker carries no earnings-multiple
+        # information and is not a trading comp. A positive-but-high P/E stays IN
+        # the set — the NM cap that keeps a distorting multiple out of the comps_pe
+        # MEDIAN is applied downstream in multiples (touch-5 decoupling).
+        return pe is not None and pe > 0.0
 
     def role_ok(sym: str) -> bool:
         return _value_chain_compatible(target_profile, profiles.get(sym))
@@ -309,8 +322,9 @@ def screen_peers(
 
     rationale = (
         f"确定性筛选：候选池 {len(seen_pool)} 家 → 市值带 [{1 / mcap_band:.2g}x, "
-        f"{mcap_band:.0f}x] + 价值链角色一致 + P/E 有意义 (0, {pe_nm_cap:.0f}] 过滤后 "
-        f"{len(eligible_pool_pes)} 家（NM 剔除 {len(dropped_nm)} 家"
+        f"{mcap_band:.0f}x] + 价值链角色一致 + 正 P/E（成员门 pe>0，高倍数对手保留入集、"
+        f"其失真倍数在中位数处单独 NM）过滤后 "
+        f"{len(eligible_pool_pes)} 家（亏损剔除 {len(dropped_nm)} 家"
         f"{'：' + ', '.join(dropped_nm[:6]) if dropped_nm else ''}；"
         f"角色剔除 {len(dropped_role)} 家"
         f"{'：' + ', '.join(dropped_role[:6]) if dropped_role else ''}）→ "

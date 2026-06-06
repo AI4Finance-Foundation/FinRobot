@@ -303,6 +303,46 @@ def test_peer_statistics_median_forward_pe_gated():
     assert any("Forward P/E computed on n=2 of 4" in w for w in comps.warnings)
 
 
+def test_trailing_median_excludes_nm_high_pe_but_keeps_peer():
+    """touch-5: a real-but-distorting trailing P/E (AMD 156x) is kept in the SET
+    (widened member gate) but must NOT skew the trailing median. With NM cap 75:
+    P/E 156x is excluded from median_pe even though it is a sane [1,300] value on
+    the peer row. Median computed only over the in-band peers.
+
+    Setup: market_cap / net_income → P/E. A=20, B=30, C=156 (NM, > 75 cap).
+    """
+    from finrobot.engine.compute.operators.multiples import PEER_PE_NM_CAP
+
+    assert PEER_PE_NM_CAP == 75.0
+    a = calculate_multiples(_make_company("A", 100, 30, 25, 500))  # pe = 20
+    b = calculate_multiples(_make_company("B", 100, 30, 20, 600))  # pe = 30
+    c = calculate_multiples(_make_company("C", 100, 30, 5, 780))  # pe = 156 (NM)
+    assert c.pe_ratio == pytest.approx(156.0)  # still on the row (sane [1,300])
+    comps = PeerComps(target=_make_company("T", 100, 35, 12, 550), peers=[a, b, c])
+    comps = calculate_peer_statistics(comps)
+    # median of {20, 30} = 25 — AMD-like 156 NM'd out.
+    assert comps.median_pe == pytest.approx(25.0)
+    assert any("NM trailing P/E" in w and "n=2 of 3" in w for w in comps.warnings)
+
+
+def test_forward_median_nm_cap_keeps_amd_drops_intc_and_arm():
+    """touch-5 forward median NM cap (75) calibrated on live 2026-06-06 NVDA set:
+    AMD forward 62.5x is informative and stays IN; INTC 91.8x (turnaround) and ARM
+    157x (hyper-growth) are NM and excluded. AVGO/MU/TXN well below cap.
+    """
+    peers = [calculate_multiples(_make_company(t, 100, 30, 10, 500)) for t in "ABCDEF"]
+    peers[0].forward_pe = 31.84  # AVGO
+    peers[1].forward_pe = 14.51  # MU
+    peers[2].forward_pe = 36.86  # TXN
+    peers[3].forward_pe = 62.52  # AMD — in
+    peers[4].forward_pe = 91.75  # INTC — NM (> 75)
+    peers[5].forward_pe = 157.15  # ARM — NM (> 75)
+    comps = PeerComps(target=_make_company("T", 100, 35, 12, 550), peers=peers)
+    comps = calculate_peer_statistics(comps)
+    # median of {14.51, 31.84, 36.86, 62.52} = (31.84 + 36.86)/2 = 34.35
+    assert comps.median_forward_pe == pytest.approx(34.35)
+
+
 def test_peer_statistics_forward_pe_all_absent_is_none_no_warning():
     # The normal degraded path (no peer has forward consensus) yields None and must
     # NOT emit a sample-size warning — absence isn't a data-quality drop.
@@ -333,7 +373,16 @@ def test_peer_statistics_all_none_pe():
 # carries ~$27B of non-operating income (mostly a Q1 investment gain), so
 # as-reported comps_pe = peer_median_pe 51.83x × trailing EPS $6.59 = $341.58 —
 # built on contaminated, cross-sectionally inconsistent earnings. The NOPAT
-# caliber strips it: comps_pe = median_core_pe 48.975x × core EPS $5.6452 = $276.47.
+# caliber strips the non-operating income from the TARGET.
+#
+# Per-peer core P/E for this fixture (market_cap / NOPAT): AMD 223.7, AVGO 88.0,
+# TXN 48.97, QCOM 27.48, MU 45.05 (INTC None — negative NOPAT). touch-5 then NM's
+# the two real-but-distorting core multiples (AMD 223.7 — a degenerate-tax NOPAT;
+# AVGO 88.0 — both > the 75 NM cap) out of the MEDIAN while keeping the peers in
+# the set, so median_core_pe = median(48.97, 27.48, 45.05) = 45.05x (was 48.975x
+# before the NM cap, dragged up by AMD/AVGO). The main comps_pe path is now
+# forward; this core-trailing median is the fallback when no peer carries a
+# forward P/E.
 
 
 def _co_tax(ticker, revenue, op_income, net_income, market_cap, tax):
@@ -370,8 +419,10 @@ def _nvda_peer_comps() -> PeerComps:
 
 def test_core_pe_median_matches_live_baseline():
     comps = calculate_core_pe(_nvda_peer_comps())
-    # peer median of core P/E (INTC excluded — negative NOPAT)
-    assert comps.median_core_pe == pytest.approx(48.975, rel=1e-3)
+    # peer median of core P/E over the in-band (≤ 75 NM cap) peers: INTC excluded
+    # (negative NOPAT), AMD 223.7 and AVGO 88.0 NM'd out → median(TXN 48.97,
+    # QCOM 27.48, MU 45.05) = 45.05.
+    assert comps.median_core_pe == pytest.approx(45.0494, rel=1e-3)
 
 
 def test_core_pe_strips_non_operating_income_from_target():
@@ -444,6 +495,28 @@ def test_core_pe_excludes_negative_nopat_peer():
     intc = next(p for p in comps.peers if p.ticker == "INTC")
     assert intc.core_net_income < 0
     assert intc.core_pe_ratio is None
+
+
+def test_core_pe_median_excludes_nm_high_core_pe():
+    """touch-5: the core P/E median drops a real-but-NM core multiple (> 75 cap)
+    the same way the trailing/forward medians do, so an in-set high-multiple peer
+    does not skew median_core_pe. The peer keeps its core_pe_ratio on the row.
+
+    P (in-band) core P/E ≈ market_cap / NOPAT; H (high) core P/E > 75 → NM.
+    """
+    # P: op_income 20, tax 4 → rate 20%, NOPAT 16; mcap 400 → core_pe = 25.
+    # Q: op_income 20, tax 4 → NOPAT 16; mcap 480 → core_pe = 30.
+    # H: op_income 20, tax 4 → NOPAT 16; mcap 1280 → core_pe = 80 (> 75 NM).
+    p = _co_tax("P", 100, 20, 16, 400, 4.0)
+    q = _co_tax("Q", 100, 20, 16, 480, 4.0)
+    h = _co_tax("H", 100, 20, 16, 1280, 4.0)
+    comps = calculate_core_pe(
+        PeerComps(target=_co_tax("T", 100, 30, 24, 600, 6.0), peers=[p, q, h])
+    )
+    by = {c.ticker: c for c in comps.peers}
+    assert by["H"].core_pe_ratio == pytest.approx(80.0)  # still on the row
+    # median of {25, 30} = 27.5 — H's 80 NM'd out.
+    assert comps.median_core_pe == pytest.approx(27.5)
 
 
 def test_core_pe_all_degenerate_uses_statutory_fallback():

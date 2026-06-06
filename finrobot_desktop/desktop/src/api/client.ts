@@ -6,6 +6,9 @@ import { fetchWithTimeout } from './fetch'
 // Prod: Electron loads from file://, so we need the absolute backend URL.
 const BASE_URL = import.meta.env.DEV ? '' : 'http://127.0.0.1:8321'
 
+// The capability token is injected inside fetchWithTimeout (the single home),
+// so every typed api.* request carries it automatically — no openapi-fetch
+// middleware needed here.
 export const api = createClient<paths>({ baseUrl: BASE_URL, fetch: fetchWithTimeout })
 
 export { BASE_URL }

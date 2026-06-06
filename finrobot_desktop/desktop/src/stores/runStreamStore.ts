@@ -18,6 +18,7 @@
 
 import { create } from 'zustand'
 import { BASE_URL } from '../api/client'
+import { withCapabilityToken } from '../api/capability'
 import { fetchWithTimeout } from '../api/fetch'
 import { FetchHttpError } from '../utils/errorMessage'
 import { useUiPrefs } from '../i18n'
@@ -298,9 +299,12 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
     }
   }
 
-  function attachSse(runId: string, ticker: string): void {
+  async function attachSse(runId: string, ticker: string): Promise<void> {
     closeAndForget(ticker)
-    const es = new EventSource(`${BASE_URL}/api/runs/${runId}/events`)
+    // EventSource cannot set an Authorization header, so the capability token
+    // rides as ?token= (the backend accepts it there for SSE). No-op in browser dev.
+    const url = await withCapabilityToken(`${BASE_URL}/api/runs/${runId}/events`)
+    const es = new EventSource(url)
     sources.set(ticker, es)
 
     // Explicit per-event `addEventListener('<name>', …)` calls (not a loop) so
@@ -405,7 +409,7 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
         },
       }))
 
-      attachSse(run_id, ticker)
+      await attachSse(run_id, ticker)
       return run_id
     },
 

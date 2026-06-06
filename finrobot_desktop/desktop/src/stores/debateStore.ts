@@ -23,6 +23,7 @@
 import { create } from 'zustand'
 import { BASE_URL } from '../api/client'
 import { fetchWithTimeout } from '../api/fetch'
+import { withCapabilityToken } from '../api/capability'
 
 // ── Event shapes (from POST /api/debate response + SSE stream) ───────────────
 
@@ -132,9 +133,12 @@ export const useDebateStore = create<DebateStoreState>((set, get) => {
     })
   }
 
-  function attachSse(runId: string, key: string): void {
+  async function attachSse(runId: string, key: string): Promise<void> {
     closeAndForget(key)
-    const es = new EventSource(`${BASE_URL}/api/runs/${runId}/events`)
+    // EventSource cannot set an Authorization header → capability token rides
+    // as ?token= (no-op in browser dev). Mirrors runStreamStore.attachSse.
+    const url = await withCapabilityToken(`${BASE_URL}/api/runs/${runId}/events`)
+    const es = new EventSource(url)
     sources.set(key, es)
 
     es.addEventListener('debate.evidence', (e) => {
@@ -259,7 +263,7 @@ export const useDebateStore = create<DebateStoreState>((set, get) => {
         },
       }))
 
-      attachSse(run_id, key)
+      await attachSse(run_id, key)
     },
 
     reset: (ticker, artifactId) => {

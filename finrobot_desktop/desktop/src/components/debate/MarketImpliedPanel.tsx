@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Line, LineChart, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { BASE_URL } from '../../api/client'
+import { fetchWithTimeout } from '../../api/fetch'
 import { useI18n } from '../../i18n'
 import { CosmicTooltipShell } from '../charts/chartTooltip'
 
@@ -56,7 +57,7 @@ const AXIS_TICK = {
 } as const
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetchWithTimeout(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

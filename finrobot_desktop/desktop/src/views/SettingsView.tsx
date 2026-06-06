@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, BASE_URL } from '../api/client'
+import { fetchWithTimeout } from '../api/fetch'
 import { useToastStore } from '../stores/toastStore'
 import { mapErrorToUserMessage, FetchHttpError } from '../utils/errorMessage'
 import { useI18n, tSync } from '../i18n'
@@ -389,7 +390,7 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   // deliberate call. Deletes from the keychain, then rebuilds runtime settings.
   const clearSecretMutation = useMutation({
     mutationFn: async (field: string) => {
-      const resp = await fetch(`${BASE_URL}/api/settings/clear-secret`, {
+      const resp = await fetchWithTimeout(`${BASE_URL}/api/settings/clear-secret`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ field }),
@@ -1338,7 +1339,7 @@ function SecHoldingsSection({
   const { data: status } = useQuery<SecHoldingsStatusShape>({
     queryKey: ['sec-holdings-status'],
     queryFn: async () => {
-      const resp = await fetch(`${BASE_URL}/api/sec-holdings/status`)
+      const resp = await fetchWithTimeout(`${BASE_URL}/api/sec-holdings/status`)
       if (!resp.ok) throw new FetchHttpError(resp.status, resp.statusText)
       return (await resp.json()) as SecHoldingsStatusShape
     },
@@ -1347,7 +1348,9 @@ function SecHoldingsSection({
 
   const refreshMutation = useMutation({
     mutationFn: async () => {
-      const resp = await fetch(`${BASE_URL}/api/sec-holdings/refresh`, { method: 'POST' })
+      const resp = await fetchWithTimeout(`${BASE_URL}/api/sec-holdings/refresh`, {
+        method: 'POST',
+      })
       if (!resp.ok) throw new FetchHttpError(resp.status, resp.statusText)
       return (await resp.json()) as SecHoldingsStatusShape
     },

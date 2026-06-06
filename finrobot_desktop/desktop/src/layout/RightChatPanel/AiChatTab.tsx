@@ -20,7 +20,7 @@ import type { ToolResult } from '../../components/ToolCard'
 import { MarkdownLite } from '../../components/MarkdownLite'
 import { useI18n, useUiPrefs } from '../../i18n'
 import { BASE_URL, api } from '../../api/client'
-import { fetchWithTimeout } from '../../api/fetch'
+import { fetchWithTimeout, fetchBackendStream } from '../../api/fetch'
 import { IconClock } from '../../lib/icons'
 import { ContextBar } from '../AIPanel/ContextBar'
 
@@ -215,6 +215,9 @@ export function AiChatTab({
     () =>
       new DefaultChatTransport({
         api: `${BASE_URL}/chat`,
+        // Authenticate the LLM stream with the capability token (no timeout —
+        // the chat SSE runs 30-60s). Without this /chat 401s under enforced auth.
+        fetch: fetchBackendStream,
         body: () => {
           const { pathname } = window.location
           const store = useUiStore.getState()

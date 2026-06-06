@@ -642,6 +642,30 @@ msgid "report.computeWarnings"
 msgstr "计算警告"
 
 #. js-lingui-explicit-id
+msgid "report.audit.status.reviewOnly"
+msgstr "数字审计 · 待复核"
+
+#. js-lingui-explicit-id
+msgid "report.audit.status.unpublishable"
+msgstr "数字审计 · 不可发布"
+
+#. js-lingui-explicit-id
+msgid "report.audit.withheldNote"
+msgstr "部分核心数字未通过审计，评级与目标价已暂缓发布（评级置为「复核中」、目标价置为 N/A），核对下列字段后再下结论。"
+
+#. js-lingui-explicit-id
+msgid "report.audit.severity.blocked"
+msgstr "已拦截"
+
+#. js-lingui-explicit-id
+msgid "report.audit.severity.review"
+msgstr "待复核"
+
+#. js-lingui-explicit-id
+msgid "report.audit.severity.info"
+msgstr "提示"
+
+#. js-lingui-explicit-id
 msgid "chapter.financial.kv.revenueBase"
 msgstr "营收（基期）"
 

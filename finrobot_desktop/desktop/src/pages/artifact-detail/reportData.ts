@@ -9,6 +9,7 @@ import type {
   ArtifactStructured,
   CatalystAnalysisShape,
   DcfShape,
+  NumericAuditShape,
   OwnershipGovernanceShape,
   PeerCompsShape,
   TechnicalAnalysisShape,
@@ -57,6 +58,8 @@ export interface DerivedReportData {
   catalysts: CatalystAnalysisShape | null
   technical: TechnicalAnalysisShape | null
   ownership: OwnershipGovernanceShape | null
+  // Numeric-audit gate verdict. null on legacy artifacts (pre-gate) → no banner.
+  numericAudit: NumericAuditShape | null
   createdAt: string | null
   computeVersionStr: string | null
   reportLang: 'en' | 'zh'
@@ -88,6 +91,7 @@ export function deriveReportData(
   const technical = (structured.technical_analysis as TechnicalAnalysisShape | undefined) ?? null
   const ownership =
     (structured.ownership_governance as OwnershipGovernanceShape | undefined) ?? null
+  const numericAudit = (structured.numeric_audit as NumericAuditShape | undefined) ?? null
 
   const createdAt = meta.created_at ?? null
   const computeVersionStr = compute_version?.version ?? null
@@ -133,6 +137,7 @@ export function deriveReportData(
     catalysts,
     technical,
     ownership,
+    numericAudit,
     createdAt,
     computeVersionStr,
     reportLang,

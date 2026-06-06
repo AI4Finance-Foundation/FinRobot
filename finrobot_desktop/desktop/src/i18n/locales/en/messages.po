@@ -642,6 +642,30 @@ msgid "report.computeWarnings"
 msgstr "COMPUTE WARNINGS"
 
 #. js-lingui-explicit-id
+msgid "report.audit.status.reviewOnly"
+msgstr "Numeric Audit · Under Review"
+
+#. js-lingui-explicit-id
+msgid "report.audit.status.unpublishable"
+msgstr "Numeric Audit · Unpublishable"
+
+#. js-lingui-explicit-id
+msgid "report.audit.withheldNote"
+msgstr "Some core numbers failed the audit, so the rating and price target are withheld (rating set to Under Review, target set to N/A). Reconcile the fields below before drawing a conclusion."
+
+#. js-lingui-explicit-id
+msgid "report.audit.severity.blocked"
+msgstr "BLOCKED"
+
+#. js-lingui-explicit-id
+msgid "report.audit.severity.review"
+msgstr "REVIEW"
+
+#. js-lingui-explicit-id
+msgid "report.audit.severity.info"
+msgstr "INFO"
+
+#. js-lingui-explicit-id
 msgid "chapter.financial.kv.revenueBase"
 msgstr "Revenue (Base)"
 

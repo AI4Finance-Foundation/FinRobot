@@ -7,7 +7,8 @@ import { useI18n } from '../../../i18n'
 import { TermTip } from '../../../components/TermTip'
 import { formatCurrency, formatCurrencyCompact } from '../../../utils/format'
 import { Chapter, KvGrid, Narrative, SubChapter } from './ChapterBase'
-import type { DcfShape, ThesisShape } from './types'
+import { FieldCaveat, findingsFor } from './FieldCaveat'
+import type { DcfShape, NumericAuditShape, ThesisShape } from './types'
 
 interface ValuationMethodRange {
   method: string
@@ -57,6 +58,10 @@ interface ChapterValuationProps {
   // equity value (absolutes). Differ for foreign ADRs (BUG-030).
   quoteCurrency: string
   reportingCurrency: string
+  // Numeric-audit gate verdict — used to flag the EV cell when the EV family
+  // (enterprise_value / ev_ebitda / ev_revenue) is a category error (bank EV)
+  // or dimensionally mixed (cross-currency ratio). null on legacy artifacts.
+  numericAudit?: NumericAuditShape | null
 }
 
 export function ChapterValuation({
@@ -65,6 +70,7 @@ export function ChapterValuation({
   ticker,
   quoteCurrency,
   reportingCurrency,
+  numericAudit = null,
 }: ChapterValuationProps): React.ReactElement {
   const { t, locale } = useI18n()
   const overview = thesis?.valuation_overview ?? null
@@ -76,6 +82,11 @@ export function ChapterValuation({
   const ev = dcf?.enterprise_value ?? null
   const eq = dcf?.equity_value ?? null
   const mi = dcf?.market_implied ?? null
+
+  // EV-family fields the numeric-audit gate flags as a category error (bank EV)
+  // or dimensionally mixed (cross-currency). When any is flagged, the EV cell
+  // carries a hover caveat so the suspect number isn't read at face value.
+  const evFindings = findingsFor(numericAudit, ['enterprise_value', 'ev_ebitda', 'ev_revenue'])
 
   const { data: aggregate } = useValuationAggregate(ticker)
   const footballRows = (aggregate?.methods ?? []).map((m) => ({
@@ -157,7 +168,12 @@ export function ChapterValuation({
       } as Cell),
     ev !== null &&
       ({
-        label: <TermTip term="EV">{t('chapter.valuation.kv.enterpriseValue')}</TermTip>,
+        label: (
+          <>
+            <TermTip term="EV">{t('chapter.valuation.kv.enterpriseValue')}</TermTip>
+            <FieldCaveat findings={evFindings} />
+          </>
+        ),
         // Absolute IS/BS-caliber → reporting currency.
         value: formatCurrencyCompact(ev, reportingCurrency, locale),
       } as Cell),

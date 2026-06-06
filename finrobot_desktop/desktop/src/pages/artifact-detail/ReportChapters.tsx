@@ -12,6 +12,7 @@ import type { ArtifactSummaryV5 } from '../../types/v5'
 import { useI18n } from '../../i18n'
 import { deriveReportData } from './reportData'
 import {
+  ChapterAuditBanner,
   ChapterCover,
   ChapterThesis,
   ChapterCompanyOverview,
@@ -40,8 +41,15 @@ export function ReportChapters({
   // activates the report's own language, so this is naturally false there.
   const langMismatch = d.reportLang !== locale
 
+  // The numeric-audit findings are ALSO mirrored into outputs.warnings with a
+  // "[NUMERIC-AUDIT/…]" prefix (artifact/builders.py). The dedicated audit banner
+  // already renders them richly at the top, so strip them from the generic
+  // compute-warnings list at the bottom — otherwise every finding shows twice.
+  const computeWarnings = (d.outputs.warnings ?? []).filter((w) => !w.startsWith('[NUMERIC-AUDIT/'))
+
   return (
     <main style={{ minWidth: 0, padding: '12px 0 60px' }}>
+      <ChapterAuditBanner audit={d.numericAudit} />
       {langMismatch && (
         <div
           data-testid="report-lang-mismatch"
@@ -93,6 +101,7 @@ export function ReportChapters({
         ticker={d.symbol}
         quoteCurrency={d.quoteCurrency}
         reportingCurrency={d.reportingCurrency}
+        numericAudit={d.numericAudit}
       />
       <ChapterNews thesis={d.thesis} />
       <ChapterSensitivity dcf={d.dcf} quoteCurrency={d.quoteCurrency} />
@@ -114,7 +123,7 @@ export function ReportChapters({
         computeVersion={d.computeVersionStr}
       />
 
-      {(d.outputs.warnings && d.outputs.warnings.length > 0) ||
+      {computeWarnings.length > 0 ||
       (d.compute_version?.formula_warnings && d.compute_version.formula_warnings.length > 0) ? (
         <section
           data-testid="report-warnings"
@@ -139,7 +148,7 @@ export function ReportChapters({
             ⚠ {t('report.computeWarnings')}
           </div>
           <ul style={{ margin: 0, paddingLeft: 18 }}>
-            {(d.outputs.warnings ?? []).map((w, i) => (
+            {computeWarnings.map((w, i) => (
               <li key={`o-${i}`} style={{ marginBottom: 4 }}>
                 {w}
               </li>

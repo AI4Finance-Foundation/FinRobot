@@ -330,6 +330,39 @@ export interface CurrencyTagsShape {
   reporting_currency?: string
 }
 
+// ---------------------------------------------------------------------------
+// Numeric-audit gate (backend ArtifactAudit, finrobot/engine/models/numeric_claim.py).
+// One Finding = one audit verdict on one number. The artifact builder runs the
+// definitional verifiers over the finalized snapshot and ships the rollup here;
+// `withhold_valuation` already coerced recommendation→"REVIEW" / price_target→null
+// upstream, so the UI only RENDERS the verdict, it doesn't re-decide it.
+// ---------------------------------------------------------------------------
+
+/** Per-finding severity. `review` flags REVIEW_ONLY; `blocked_field` withholds
+ * that number (and any price target derived from it). `info` is advisory. */
+export type NumericAuditSeverity = 'info' | 'review' | 'blocked_field'
+
+/** Report-level rollup. `publishable` → render as-is (no banner). `review_only`
+ * → ship with a warning banner + REVIEW rating. `unpublishable` → core data
+ * unresolvable (critical-failure path). */
+export type NumericAuditStatus = 'publishable' | 'review_only' | 'unpublishable'
+
+export interface NumericAuditFinding {
+  /** Which number, e.g. "ev_ebitda" / "pe_ratio" / "enterprise_value". */
+  field_key: string
+  /** Stable rule id, e.g. "financial_sector_ev_meaningless". */
+  check: string
+  severity: NumericAuditSeverity
+  /** Human-readable reason carrying the actual numbers — drives the banner body. */
+  evidence: string
+}
+
+export interface NumericAuditShape {
+  findings?: NumericAuditFinding[]
+  artifact_status?: NumericAuditStatus
+  withhold_valuation?: boolean
+}
+
 export interface ArtifactStructured {
   thesis?: ThesisShape
   currency?: CurrencyTagsShape
@@ -340,4 +373,5 @@ export interface ArtifactStructured {
   ownership_governance?: OwnershipGovernanceShape
   sec_filings?: SecFilingsShape
   xbrl_facts_snapshot?: XbrlFactsSnapshotShape
+  numeric_audit?: NumericAuditShape
 }

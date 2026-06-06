@@ -36,4 +36,10 @@ export type {
   SecFilingShape,
   SecEvent8KShape,
   XbrlFactsSnapshotShape,
+  NumericAuditShape,
+  NumericAuditFinding,
+  NumericAuditSeverity,
+  NumericAuditStatus,
 } from './types'
+
+export { ChapterAuditBanner } from './ChapterAuditBanner'

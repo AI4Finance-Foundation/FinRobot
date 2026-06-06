@@ -8,7 +8,7 @@ import { render, screen, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { ChapterValuation } from './ChapterValuation'
-import type { DcfShape } from './types'
+import type { DcfShape, NumericAuditShape } from './types'
 
 // Charts hit nothing relevant to the KV cards; render them as no-ops so the
 // chapter mounts without canvas/Recharts noise.
@@ -35,7 +35,7 @@ const DCF: DcfShape = {
   inputs: { terminal_growth_rate: 0.025, tax_rate: 0.21, beta: 1.18 },
 }
 
-function renderChapter(dcf: DcfShape = DCF) {
+function renderChapter(dcf: DcfShape = DCF, numericAudit: NumericAuditShape | null = null) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
@@ -45,6 +45,7 @@ function renderChapter(dcf: DcfShape = DCF) {
         ticker="AAPL"
         quoteCurrency="USD"
         reportingCurrency="USD"
+        numericAudit={numericAudit}
       />
     </QueryClientProvider>,
   )
@@ -113,5 +114,35 @@ describe('ChapterValuation market-implied growth', () => {
   it('renders no implied-growth cell when the field is absent (legacy artifacts)', () => {
     renderChapter(DCF)
     expect(screen.queryByText(/市场隐含增长|Market-Implied Growth/)).not.toBeInTheDocument()
+  })
+})
+
+// The EV KvGrid cell carries a hover caveat when the numeric-audit gate flagged
+// an EV-family field (bank EV category error / cross-currency ratio). No flag ⇒
+// no marker, so clean reports are untouched.
+describe('ChapterValuation EV audit caveat', () => {
+  const EV_AUDIT: NumericAuditShape = {
+    artifact_status: 'review_only',
+    withhold_valuation: true,
+    findings: [
+      {
+        field_key: 'enterprise_value',
+        check: 'financial_sector_ev_meaningless',
+        severity: 'blocked_field',
+        evidence: 'JPM industry=banks: enterprise_value is a category error. Value on P/B, ROTCE.',
+      },
+    ],
+  }
+
+  it('shows the EV caveat marker (with evidence on hover) when EV is flagged', () => {
+    renderChapter(DCF, EV_AUDIT)
+    const caveat = screen.getByTestId('field-caveat')
+    expect(caveat).toBeInTheDocument()
+    expect(caveat.getAttribute('title')).toMatch(/category error/)
+  })
+
+  it('shows no EV caveat when the audit is clean / absent', () => {
+    renderChapter(DCF, null)
+    expect(screen.queryByTestId('field-caveat')).not.toBeInTheDocument()
   })
 })

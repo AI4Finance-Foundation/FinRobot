@@ -374,11 +374,28 @@ async def test_fetch_insider_flattens_transaction_activities() -> None:
     act2.expiration_date = None
     act2.footnote_ids = "F1"
     act2.footnotes_text = "Tornetta Decision Event"
+    # Activity 3: option exercise whose price_per_share is a FOOTNOTE MARKER
+    # ("[F1]") rather than a number — a real Form 4 shape. bare float("[F1]")
+    # used to raise ValueError and drop EVERY transaction; it must now parse to
+    # None and leave the other rows intact.
+    act3 = MagicMock()
+    act3.transaction_type = "exercise"
+    act3.code = "M"
+    act3.shares = 1000
+    act3.value = None
+    act3.price_per_share = "[F1]"
+    act3.security_type = "non-derivative"
+    act3.security_title = "Common Stock"
+    act3.underlying_security = ""
+    act3.exercise_date = None
+    act3.expiration_date = None
+    act3.footnote_ids = "F1"
+    act3.footnotes_text = "Exercise price disclosed in footnote"
 
     form4 = MagicMock()
     form4.insider_name = "Elon Musk"
     form4.position = "CEO"
-    form4.get_transaction_activities.return_value = [act1, act2]
+    form4.get_transaction_activities.return_value = [act1, act2, act3]
 
     f = MagicMock()
     f.filing_date = date.today() - timedelta(days=10)
@@ -390,12 +407,17 @@ async def test_fetch_insider_flattens_transaction_activities() -> None:
     c.get_filings.return_value = filings
 
     data, _ = p._fetch_insider(c, days=90)
-    assert len(data["transactions"]) == 2
+    # All 3 rows survive — the "[F1]" price no longer crashes the whole parse.
+    assert len(data["transactions"]) == 3
     # Forfeit row preserves price=None when price_per_share=0
     forfeit = next(t for t in data["transactions"] if t["code"] == "D")
     assert forfeit["shares"] == 96_000_000
     assert forfeit["price_per_share"] is None  # 0 coerced to None
     assert "Tornetta" in forfeit["footnotes_text"]
+    # Footnote-marker price → None (parse gap), not a crash.
+    exercise = next(t for t in data["transactions"] if t["code"] == "M")
+    assert exercise["price_per_share"] is None
+    assert exercise["shares"] == 1000
 
 
 @pytest.mark.asyncio
@@ -881,9 +903,9 @@ async def test_xbrl_concept_snapshot_net_income_dual_key() -> None:
     snapshot = xbrl_concept_snapshot(raw_xbrl)
 
     # No bare us-gaap:NetIncomeLoss key — both records are disambiguated
-    assert "us-gaap:NetIncomeLoss" not in snapshot, (
-        "bare NetIncomeLoss key must not exist; use :annual/:ttm suffixes"
-    )
+    assert (
+        "us-gaap:NetIncomeLoss" not in snapshot
+    ), "bare NetIncomeLoss key must not exist; use :annual/:ttm suffixes"
     assert "us-gaap:NetIncomeLoss:ttm" in snapshot
     assert "us-gaap:NetIncomeLoss:annual" in snapshot
 

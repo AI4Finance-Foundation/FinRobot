@@ -161,7 +161,7 @@ async def test_cross_validation_warnings_merged_into_financial_data():
 
 @pytest.mark.asyncio
 async def test_historical_metrics_injected_into_structured_context():
-    """execute_financial_data_step must populate historical_metrics and forecast."""
+    """execute_financial_data_step must populate historical_metrics."""
     norm_fin = normalize_financials(_financials_raw())
     norm_price = normalize_price(_price_raw())
     yearly = [
@@ -194,11 +194,14 @@ async def test_historical_metrics_injected_into_structured_context():
     structured_context: dict[str, object] = {}
     await execute_financial_data_step(mock_agent, mock_deps, "prompt", structured_context, "TEST")
 
-    # structured_context must now contain historical_metrics and forecast
-    assert "historical_metrics" in structured_context, (
-        f"Missing historical_metrics. Keys: {list(structured_context.keys())}"
-    )
-    from finrobot.engine.models.financial import HistoricalMetrics, ForecastResult
+    # structured_context must contain historical_metrics (consumed by the
+    # DCF / LBO / technical steps). The legacy "forecast" intermediate was dead
+    # (written, never read — a vestige of the removed chart layer) and has been
+    # dropped, so it must NOT reappear here.
+    assert (
+        "historical_metrics" in structured_context
+    ), f"Missing historical_metrics. Keys: {list(structured_context.keys())}"
+    from finrobot.engine.models.financial import HistoricalMetrics
 
     hm = structured_context["historical_metrics"]
     assert isinstance(hm, HistoricalMetrics)
@@ -209,12 +212,7 @@ async def test_historical_metrics_injected_into_structured_context():
     assert len(hm.capital_expenditure) == 5
     assert len(hm.depreciation_amortization) == 5
 
-    assert "forecast" in structured_context, (
-        f"Missing forecast. Keys: {list(structured_context.keys())}"
-    )
-    fc = structured_context["forecast"]
-    assert isinstance(fc, ForecastResult)
-    assert len(fc.years) == 3  # 3-year default forecast
+    assert "forecast" not in structured_context
 
 
 @pytest.mark.asyncio
@@ -255,3 +253,36 @@ async def test_no_duplicate_warnings_when_extractor_and_provider_share():
     # Cross-validation duplicate should not be added.
     debt_warnings = [w for w in fd.warnings if "total_debt" in w]
     assert len(debt_warnings) <= 2  # extractor + possibly provider, but no exact dupe
+
+
+@pytest.mark.asyncio
+async def test_enrich_company_forward_populates_row(monkeypatch):
+    """B-fix: the shared forward enricher sets forward_eps/forward_pe on a comps
+    row from FY1 consensus, and the usd_safe gate short-circuits foreign rows.
+
+    Regression for the gap where the comps target carried forward_eps=None even
+    though the comps_pe method consumed the target's forward EPS down a separate
+    path (so the driving number was untraceable on the target row).
+    """
+    from types import SimpleNamespace
+
+    from finrobot.engine.models.financial import CompanyFinancials
+    from finrobot.engine.pipelines import _helpers
+
+    fwd = SimpleNamespace(forward_eps=8.7514, forward_net_income=1.31e11)
+    monkeypatch.setattr(_helpers, "get_forward_financials", lambda **kw: fwd)
+    deps = SimpleNamespace(
+        data_layer=SimpleNamespace(fetch=AsyncMock(return_value=SimpleNamespace(data={})))
+    )
+
+    company = CompanyFinancials(ticker="AAPL", revenue=4.51e11, market_cap=4.5e12)
+    await _helpers._enrich_company_forward(company, deps, usd_safe=True)
+    assert company.forward_eps == 8.7514
+    assert company.forward_pe == pytest.approx(4.5e12 / 1.31e11)
+
+    # Foreign-listed (usd_safe=False): no fetch, fields left None — never mix a
+    # reporting-currency forward EPS with a USD price.
+    foreign = CompanyFinancials(ticker="TSM", revenue=1e11, market_cap=1e12)
+    await _helpers._enrich_company_forward(foreign, deps, usd_safe=False)
+    assert foreign.forward_eps is None
+    assert foreign.forward_pe is None

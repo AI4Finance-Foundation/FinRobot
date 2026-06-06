@@ -10,7 +10,6 @@ from typing import Any
 from pydantic_ai import Agent
 
 from finrobot.engine.compute.operators.peer_screen import screen_peers
-from finrobot.engine.compute.operators.data_processor import forecast_financials
 from finrobot.engine.compute.coordinators.extractor import (
     extract_company_financials,
     extract_financial_data,
@@ -40,10 +39,8 @@ from finrobot.engine.models.financial import (
     DCFResult,
     DDMResult,
     FinancialData,
-    ForecastResult,
     HistoricalMetrics,
     LBOResult,
-    MarginAssumptions,
     PeerComps,
     PeerSelection,
     StepOutput,
@@ -277,6 +274,38 @@ async def _deterministic_select_peers(deps: FinRobotDeps, ticker: str) -> PeerSe
     return PeerSelection(tickers=screen.tickers, rationale=screen.rationale)
 
 
+async def _enrich_company_forward(
+    company: CompanyFinancials, deps: FinRobotDeps, *, usd_safe: bool
+) -> None:
+    """Populate forward_eps / forward_pe (FY1 consensus) on a comps row, best-effort.
+
+    Shared by the peer rows (``_fetch_one_peer``) and the target
+    (``execute_peer_analysis``) so both sides of the comps table carry the same
+    forward口径 — previously only peers were enriched, leaving the target's
+    forward_eps/forward_pe None even though the comps_pe method consumes the
+    target's forward EPS (it just fetched it down a separate path, so the driving
+    number was never traceable on the target row).
+
+    Gated on ``usd_safe`` (computed by the caller BEFORE any USD normalization
+    mutates ``reporting_currency``): forward EPS is reporting-currency and the
+    comps math pairs it with a USD price, so a foreign-listed row leaves the
+    fields None and falls back to trailing rather than mix units. A fetch miss
+    is non-fatal — forward is an optional enrichment, never a drop reason.
+    """
+    if not usd_safe:
+        return
+    try:
+        _fwd_raw = await deps.data_layer.fetch(DataType.FORWARD_ESTIMATES, company.ticker)
+        _fwd = get_forward_financials(
+            ticker=company.ticker, yf_info=None, fmp_analyst_estimates=_fwd_raw.data
+        )
+        company.forward_eps = _fwd.forward_eps
+        if _fwd.forward_net_income and company.market_cap > 0:
+            company.forward_pe = company.market_cap / _fwd.forward_net_income
+    except (ProviderError, ValueError, KeyError, ArithmeticError) as _fwd_err:
+        logger.debug("forward P/E unavailable for %s: %s", company.ticker, _fwd_err)
+
+
 async def execute_peer_analysis(
     agent: Agent[Any, Any],
     deps: FinRobotDeps,
@@ -350,22 +379,11 @@ async def execute_peer_analysis(
             company = calculate_multiples(company)
             xbrl_result = await deps.data_layer.fetch(DataType.XBRL_FACTS, peer_ticker)
             company = override_company_with_xbrl(company, xbrl_result.data)
-            if forward_usd_safe:
-                # Forward is an OPTIONAL enrichment: its fetch failing must never
-                # drop a peer (unlike FINANCIALS above), so it gets its own guard
-                # and leaves forward_eps/forward_pe None on any miss.
-                try:
-                    _fwd_raw = await deps.data_layer.fetch(DataType.FORWARD_ESTIMATES, peer_ticker)
-                    _fwd = get_forward_financials(
-                        ticker=peer_ticker,
-                        yf_info=None,
-                        fmp_analyst_estimates=_fwd_raw.data,
-                    )
-                    company.forward_eps = _fwd.forward_eps
-                    if _fwd.forward_net_income and company.market_cap > 0:
-                        company.forward_pe = company.market_cap / _fwd.forward_net_income
-                except (ProviderError, ValueError, KeyError, ArithmeticError) as _fwd_err:
-                    logger.debug("forward P/E unavailable for %s: %s", peer_ticker, _fwd_err)
+            # Forward enrichment (shared with the target in execute_peer_analysis).
+            # forward_usd_safe is captured BEFORE normalize_peer_to_usd above, which
+            # rewrites reporting_currency to USD and would otherwise let a foreign
+            # peer wrongly pass the single-currency gate.
+            await _enrich_company_forward(company, deps, usd_safe=forward_usd_safe)
             return company
         except (ProviderError, ValueError, KeyError, ArithmeticError) as e:
             peer_drops[peer_ticker] = str(e)
@@ -429,6 +447,13 @@ async def execute_peer_analysis(
         xbrl_data=target_xbrl,
         fmp_api_key=getattr(deps.settings, "fmp_api_key", None),
     )
+    # Enrich the target with the SAME forward口径 as the peers (build_xbrl_aligned_company
+    # only does trailing). The single-currency gate uses target_fin's reported vs
+    # quote currency, captured here before any normalization — mirroring the comps_pe
+    # method's own gate. Closes the gap where the target row's forward_eps/forward_pe
+    # stayed None even though the comps_pe valuation consumes the target forward EPS.
+    target_usd_safe = target_fin.reporting_currency == target_fin.quote_currency
+    await _enrich_company_forward(target, deps, usd_safe=target_usd_safe)
 
     peer_comps = PeerComps(
         target=target,
@@ -487,8 +512,8 @@ async def execute_financial_data_step(
     Used by equity_research, dcf, lbo, comps pipelines.  Centralised here so
     changes to extraction logic propagate everywhere.
 
-    Also builds HistoricalMetrics and ForecastResult from multi-year data
-    and injects them into structured_context for chart generation.
+    Also builds HistoricalMetrics from multi-year data and injects it into
+    structured_context (consumed by the DCF/LBO/technical steps).
     """
     step_result = await agent.run(prompt, deps=deps)
     _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
@@ -523,12 +548,8 @@ async def execute_financial_data_step(
             len(hm.years),
             hm.years,
         )
-        forecast = _build_forecast(hm)
-        if forecast is not None:
-            structured_context["forecast"] = forecast
-            logger.info("ForecastResult built for %s: %d years", ticker, len(forecast.years))
     else:
-        logger.info("HistoricalMetrics not available for %s — charts will be limited", ticker)
+        logger.info("HistoricalMetrics not available for %s", ticker)
 
     logger.info(
         "structured_context keys after data_collection: %s",
@@ -553,8 +574,7 @@ async def _build_historical_metrics(deps: FinRobotDeps, ticker: str) -> Historic
     which crushed a profitable mega-cap's projected FCF to ~0 and produced a
     NEGATIVE implied price (META: −$22, failing the DCF validator every run).
     Consuming the same complete extractor as everyone else removes that path
-    split. Returns None when fewer than 2 usable years exist (caller skips
-    chart/forecast generation).
+    split. Returns None when fewer than 2 usable years exist.
     """
     try:
         hm = await fetch_historical_metrics(deps.data_layer, ticker, years=5)
@@ -569,30 +589,6 @@ async def _build_historical_metrics(deps: FinRobotDeps, ticker: str) -> Historic
         )
         return None
     return hm
-
-
-def _build_forecast(hm: HistoricalMetrics) -> ForecastResult | None:
-    """Build 3-year forecast from historical metrics with reasonable defaults."""
-    try:
-        # Use historical revenue growth trend, clamped to reasonable range
-        growth_rates = []
-        valid_growths = [g for g in hm.revenue_growth_yoy if g is not None]
-        if valid_growths:
-            avg_growth = sum(valid_growths) / len(valid_growths)
-            # Clamp to [-10%, +30%] and fade toward long-term average
-            base = max(-0.10, min(0.30, avg_growth))
-            growth_rates = [base, base * 0.9, base * 0.8]  # fade down
-        else:
-            growth_rates = [0.05, 0.04, 0.03]  # conservative defaults
-
-        return forecast_financials(
-            historical=hm,
-            revenue_growth_assumptions=growth_rates,
-            margin_assumptions=MarginAssumptions(),  # use historical averages
-        )
-    except (ValueError, ZeroDivisionError, TypeError) as e:
-        logger.warning("Failed to build ForecastResult: %s", e)
-        return None
 
 
 def build_sensitivity_ranges(

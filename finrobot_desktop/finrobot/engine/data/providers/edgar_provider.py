@@ -1055,7 +1055,15 @@ class EdgarToolsProvider(DataProvider):
                         # leg). An explicit 0 (forfeit's $0 value) is preserved.
                         "shares": _opt_float(getattr(act, "shares", None)),
                         "value": _opt_float(getattr(act, "value", None)),
-                        "price_per_share": (float(getattr(act, "price_per_share", 0) or 0) or None),
+                        # _opt_float (not bare float): Form 4 often carries a
+                        # footnote marker like "[F1]" in price_per_share instead of
+                        # a number; bare float("[F1]") raised ValueError and crashed
+                        # the WHOLE insider parse (every transaction lost). The
+                        # trailing ``or None`` preserves the original semantics that a
+                        # 0 price (forfeit / gift, code D) reads as "no price", not $0.
+                        "price_per_share": (
+                            _opt_float(getattr(act, "price_per_share", None)) or None
+                        ),
                         "security_type": getattr(act, "security_type", "") or "",
                         "security_title": getattr(act, "security_title", "") or "",
                         "underlying_security": (getattr(act, "underlying_security", "") or ""),

@@ -15,8 +15,6 @@ from finrobot.engine.models.financial import (
     ThesisResult,
     StepOutput,
     HistoricalMetrics,
-    ForecastAssumptions,
-    ForecastResult,
     CatalystEvent,
     ValuationMethod,
     ValuationSynthesis,
@@ -551,24 +549,6 @@ class TestHistoricalMetrics:
         )
         assert hm.ticker == "AAPL"
         assert len(hm.years) == 3
-
-
-class TestForecastResult:
-    def test_valid_construction(self):
-        fr = ForecastResult(
-            years=[2025, 2026, 2027],
-            revenue=[420e9, 445e9, 467e9],
-            ebitda=[140e9, 150e9, 158e9],
-            net_income=[100e9, 107e9, 112e9],
-            eps=[6.8, 7.2, 7.5],
-            assumptions=ForecastAssumptions(
-                revenue_growth_rates=[0.07, 0.06, 0.05],
-                gross_margin=0.46,
-                ebitda_margin=0.33,
-                sga_ratio=0.063,
-            ),
-        )
-        assert fr.assumptions.tax_rate == 0.21
 
 
 class TestCatalystEvent:

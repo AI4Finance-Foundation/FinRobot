@@ -583,41 +583,6 @@ class HistoricalMetrics(BaseModel):
     change_in_working_capital: list[float] = Field(default_factory=list)
 
 
-class MarginAssumptions(BaseModel):
-    """User-provided or default margin targets for forecasting."""
-
-    gross_margin_target: float | None = None
-    ebitda_margin_target: float | None = None
-    sga_ratio_target: float | None = None
-
-
-class ForecastAssumptions(BaseModel):
-    """Records exactly which assumptions were used in a forecast."""
-
-    revenue_growth_rates: list[float]
-    gross_margin: float
-    ebitda_margin: float
-    sga_ratio: float
-    tax_rate: float = Field(
-        default=0.21,
-        ge=0,
-        le=1.0,
-        description="Corporate tax rate. Default 0.21 (US federal). Override for non-US companies.",
-    )
-
-
-class ForecastResult(BaseModel):
-    """Deterministic 3-year financial forecast output."""
-
-    years: list[int]
-    revenue: list[float]
-    ebitda: list[float]
-    net_income: list[float]
-    eps: list[float]
-    assumptions: ForecastAssumptions
-    warnings: list[str] = Field(default_factory=list)
-
-
 class CatalystEvent(BaseModel):
     """Single catalyst event extracted by LLM from news."""
 

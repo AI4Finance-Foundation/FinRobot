@@ -22,13 +22,16 @@ bundled sidecar and never sets the env, behaves the same way.
 from __future__ import annotations
 
 import hmac
-import os
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
-CAPABILITY_TOKEN_ENV = "FINROBOT_CAPABILITY_TOKEN"
+# Env access lives in config.py (audit red-line: only config / secret_store may
+# read the process environment). CAPABILITY_TOKEN_ENV re-exported for tests.
+from finrobot.config import CAPABILITY_TOKEN_ENV, get_capability_token
+
+__all__ = ["CAPABILITY_TOKEN_ENV", "CapabilityAuthMiddleware"]
 
 # Unauthenticated paths. ``/health`` is polled by the Tauri shell's readiness
 # loop (a bare ureq GET with no token) before the WebView — and hence the
@@ -65,7 +68,7 @@ class CapabilityAuthMiddleware(BaseHTTPMiddleware):
     """
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        expected = os.environ.get(CAPABILITY_TOKEN_ENV)
+        expected = get_capability_token()
         if not expected:
             return await call_next(request)  # auth disabled (dev / tests)
 

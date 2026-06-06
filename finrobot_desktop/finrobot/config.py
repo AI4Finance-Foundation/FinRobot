@@ -385,3 +385,21 @@ def console_color_enabled(stream: Any) -> bool:
     """
     is_tty = bool(getattr(stream, "isatty", lambda: False)())
     return is_tty and os.environ.get("NO_COLOR", "") == ""
+
+
+# Per-launch capability token. Set by the Tauri shell on the sidecar's env (see
+# desktop/src-tauri); read here (not in auth.py) because config.py is the only
+# module — besides secret_store — allowed to touch os.environ (audit red-line).
+CAPABILITY_TOKEN_ENV = "FINROBOT_CAPABILITY_TOKEN"
+
+
+def get_capability_token() -> str | None:
+    """Return the per-launch capability token, or None when auth is disabled.
+
+    Read live from the environment on each call (not cached) so the desktop
+    sidecar — which receives it via env at spawn — enforces it, while the
+    browser dev loop and the test harness (no env) stay auth-free, and tests
+    can toggle enforcement with ``monkeypatch.setenv``.
+    """
+    token = os.environ.get(CAPABILITY_TOKEN_ENV)
+    return token or None

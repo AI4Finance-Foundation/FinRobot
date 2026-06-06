@@ -29,7 +29,10 @@ from finrobot.engine.compute.operators.xbrl_aligned_comps import (
     override_company_with_xbrl,
 )
 from finrobot.engine.data.interface import ProviderError
-from finrobot.engine.compute.operators.forward_estimates import get_forward_financials
+from finrobot.engine.compute.operators.forward_estimates import (
+    ForwardFinancials,
+    get_forward_financials,
+)
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import (
@@ -497,6 +500,18 @@ async def execute_financial_data_step(
     # merged into FinancialData.warnings inside extract_financial_data — no
     # further merging needed here.
 
+    # Target FY1 consensus (forward EPS) so build_valuation_synthesis can take
+    # aggregate_valuation's forward comps path (peer forward median P/E × target
+    # forward EPS) instead of the trailing fallback. Best-effort: a forward miss
+    # must never fail the data step — the synthesis just stays on trailing.
+    try:
+        _fwd_raw = await deps.data_layer.fetch(DataType.FORWARD_ESTIMATES, ticker)
+        structured_context["forward_financials"] = get_forward_financials(
+            ticker=ticker, yf_info=None, fmp_analyst_estimates=_fwd_raw.data
+        )
+    except (ProviderError, ValueError, KeyError, TypeError) as _fwd_err:
+        logger.debug("forward estimates unavailable for %s: %s", ticker, _fwd_err)
+
     # Build multi-year historical metrics + forecast for chart generation.
     # These are deterministic — no LLM call needed.
     # structured_context IS structured_results (same dict reference) so
@@ -664,6 +679,21 @@ def build_valuation_synthesis(
     elif isinstance(dcf, DCFResult):
         current_net_debt = dcf.inputs.net_debt
 
+    # Target forward EPS (FY1 consensus) → aggregate_valuation's forward comps
+    # path. Gated on a single-currency target: forward_eps is reporting-currency
+    # and the comps math pairs it with a USD price, so a foreign-listed target
+    # (reporting ccy ≠ quote ccy) would mix units — it falls back to the trailing
+    # comps path rather than publish a mixed-unit number. Forward provenance is
+    # left to the REST route; the pipeline only needs the number here.
+    forward_eps: float | None = None
+    fwd = structured_context.get("forward_financials")
+    if (
+        isinstance(fwd, ForwardFinancials)
+        and isinstance(financial_data, FinancialData)
+        and financial_data.reporting_currency == financial_data.quote_currency
+    ):
+        forward_eps = fwd.forward_eps
+
     agg = aggregate_valuation(
         ticker=ticker,
         current_price=current_price,
@@ -673,6 +703,7 @@ def build_valuation_synthesis(
         lbo=lbo if isinstance(lbo, LBOResult) else None,
         shares_outstanding=shares,
         current_net_debt=current_net_debt,
+        forward_eps=forward_eps,
     )
 
     if not agg.methods:

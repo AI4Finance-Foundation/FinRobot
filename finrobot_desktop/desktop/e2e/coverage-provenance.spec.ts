@@ -189,14 +189,12 @@ async function stub(page: import('@playwright/test').Page) {
   )
 }
 
-// The wall lands on the Needs Action triage lens, so clean names (AAPL/MSFT) are
-// hidden by default. Click the All segment when a test needs the full set.
-async function showAll(page: import('@playwright/test').Page) {
-  await page
-    .getByRole('button', { name: /全部|^All/ })
-    .first()
-    .click()
-  await page.waitForTimeout(120)
+// The wall now shows the whole universe by default — the Needs-Action triage
+// lens + "All" segment were removed (CoveragePage: "The whole universe, always").
+// Kept as a no-op so the layout/clip tests below read intention-clearly without
+// re-plumbing every call site.
+async function showAll(_page: import('@playwright/test').Page) {
+  // no-op: every card is already rendered
 }
 
 test('card wall renders with no horizontal overflow at 1600×1000', async ({ page }) => {
@@ -216,52 +214,36 @@ test('card wall renders with no horizontal overflow at 1600×1000', async ({ pag
   await page.screenshot({ path: 'e2e/_coverage-comfort.png' })
 })
 
-test('card sizes to content — never clips its actions row', async ({ page }) => {
+test('card sizes to content — never clips its bottom (footer) row', async ({ page }) => {
   await stub(page)
   await page.goto('/coverage')
   await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
-  await showAll(page)
 
   const card = page.getByTestId('coverage-card-AAPL')
   await expect(card).toBeVisible()
-  // minHeight floor, then sizes to content (a hard 244 cap used to slice the
-  // actions row off behind overflow:hidden).
-  const cardH = await card.evaluate((el) => el.getBoundingClientRect().height)
-  expect(cardH).toBeGreaterThanOrEqual(244)
 
-  // The run/open actions row must sit fully inside the card.
-  const runBtn = card.getByRole('button', { name: /Run research|运行/ })
-  await expect(runBtn).toBeVisible()
+  // The card sizes to its content and never clips its bottom row (status +
+  // report summary) behind overflow:hidden. The whole-card surface is the open
+  // affordance now — there is no inline run button — so we assert the footer,
+  // the lowest content row, sits fully inside the card box.
+  const footer = card.locator('.coverage-card__footer')
+  await expect(footer).toBeVisible()
   const cardBox = await card.boundingBox()
-  const runBox = await runBtn.boundingBox()
-  expect(cardBox && runBox).toBeTruthy()
-  expect(runBox!.y + runBox!.height).toBeLessThanOrEqual(cardBox!.y + cardBox!.height + 1)
+  const footerBox = await footer.boundingBox()
+  expect(cardBox && footerBox).toBeTruthy()
+  expect(footerBox!.y + footerBox!.height).toBeLessThanOrEqual(cardBox!.y + cardBox!.height + 1)
 
   await page.screenshot({ path: 'e2e/_coverage-comfort2.png' })
 })
 
-test('cards never overlap — every action button stays clickable', async ({ page }) => {
+test('cards never overlap — every card stays clickable', async ({ page }) => {
   await stub(page)
-  // Stub the batch-run endpoint so the click below resolves end-to-end.
-  await page.route('**/api/coverage/groups/*/runs', (r) =>
-    r.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        group_id: 'cov_demo',
-        pipeline_type: 'research',
-        runs: [{ ticker: 'AAPL', run_id: 'run-x' }],
-        skipped: [],
-      }),
-    }),
-  )
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/coverage')
   await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
-  await showAll(page)
 
   // No two cards overlap — a too-short grid row track once let a tall card bleed
-  // over the next row and cover its run/open buttons.
+  // over the next row and cover it.
   const overlaps = await page.getByTestId('coverage-card-grid').evaluate((grid) => {
     const rects = Array.from(grid.querySelectorAll('[data-ticker]')).map((c) =>
       c.getBoundingClientRect(),
@@ -284,66 +266,41 @@ test('cards never overlap — every action button stays clickable', async ({ pag
   })
   expect(overlaps).toBe(0)
 
-  // The run button is genuinely clickable — Playwright's click fails if the
-  // element is obscured (e.g. by an overlapping card).
+  // The card surface is the open affordance — it must be genuinely hittable, not
+  // obscured by an overlapping neighbor (Playwright's click fails if covered).
   const card = page.getByTestId('coverage-card-AAPL')
   await card.scrollIntoViewIfNeeded()
-  await card.getByRole('button', { name: /Run research|运行/ }).click()
+  await card.click({ trial: true })
 })
 
-test('clicking a card focuses it in the inspector', async ({ page }) => {
+test('clicking a card opens its detail route', async ({ page }) => {
   await stub(page)
   await page.goto('/coverage')
   await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
-  await showAll(page)
-  await expect(page.getByTestId('coverage-card-AAPL')).toBeVisible()
+  await expect(page.getByTestId('coverage-card-MSFT')).toBeVisible()
 
-  const inspector = page.getByTestId('coverage-inspector')
-  // Default focus = first visible card under the needs-action sort (NVDA: closed
-  // signal outranks the clean rows).
-  await expect(inspector.getByText('NVDA', { exact: true }).first()).toBeVisible()
-
-  // Click MSFT → inspector header follows.
+  // The whole card is the open affordance. The inline inspector panel was
+  // removed — opening a card now routes to /stocks/:ticker, where research runs
+  // and artifact history (the old inspector's Latest Report / History tabs) live.
   await page.getByTestId('coverage-card-MSFT').click()
-  await expect(inspector.getByText('MSFT', { exact: true }).first()).toBeVisible()
-
-  // Latest Report tab shows the at-run price (frozen) separate from live price.
-  await inspector
-    .getByRole('button', { name: /Latest Report|最新研报/ })
-    .first()
-    .click()
-  await expect(inspector.getByText(/At-run price|研报时价格/)).toBeVisible()
-
-  // History tab lists the real timeline.
-  await inspector
-    .getByRole('button', { name: /History|历史/ })
-    .first()
-    .click()
-  await expect(inspector.getByText('AI demand intact; valuation full')).toBeVisible()
-
-  await page.screenshot({ path: 'e2e/_coverage-inspector.png' })
+  await expect(page).toHaveURL(/\/stocks\/MSFT$/)
 })
 
-test('default landing is the Needs Action queue; All reveals the rest', async ({ page }) => {
+test('the whole universe renders by default — clean and flagged names alike', async ({ page }) => {
   await stub(page)
   await page.goto('/coverage')
   await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
 
-  // Landing view = Needs Action: 3 of 5 qualify (NVDA signal_closed, TSLA +
-  // GOOGL never_run). The clean names (AAPL, MSFT) are NOT shown until 'All'.
+  // No triage lens: every studied name is on the wall from first paint (clean
+  // AAPL/MSFT and flagged NVDA/TSLA/GOOGL together).
   await expect(page.getByTestId('coverage-card-NVDA')).toBeVisible()
-  await expect(page.getByTestId('coverage-card-AAPL')).toHaveCount(0)
-  await expect(page.getByTestId('coverage-card-MSFT')).toHaveCount(0)
+  await expect(page.getByTestId('coverage-card-AAPL')).toBeVisible()
+  await expect(page.getByTestId('coverage-card-MSFT')).toBeVisible()
 
   // A card number still carries provenance — hover the NVDA price popover.
   await page.getByTestId('coverage-card-NVDA').getByText('$1,024.50').hover()
   await page.waitForTimeout(350)
   await expect(page.getByRole('dialog').first()).toBeVisible()
-  await page.screenshot({ path: 'e2e/_coverage-needsaction.png' })
-
-  // Switch to All → the clean names appear.
-  await showAll(page)
-  await expect(page.getByTestId('coverage-card-AAPL')).toBeVisible()
 })
 
 // The redesign's load-bearing responsive guarantee: the card grid uses auto-fill
@@ -443,13 +400,11 @@ test('provenance popover escapes the card overflow (portaled, fully on-screen)',
   await page.screenshot({ path: 'e2e/_coverage-popover.png' })
 })
 
-test('many tickers: wall stays bounded + dock reachable, hero not squished (stacked)', async ({
-  page,
-}) => {
-  // 60-ticker group — the case that broke: in stacked mode an unbounded wall
-  // grew to ~10000px and shoved the inspector dock past it, and the hero got
-  // flex-shrunk to a sliver. The wall must scroll internally; the dock must sit
-  // right after it; the hero must keep its form.
+test('many tickers: the wall stays bounded and scrolls internally', async ({ page }) => {
+  // 60-ticker group — the case that broke: an unbounded wall grew to ~10000px
+  // and pushed everything below it off-screen. The wall must scroll INTERNALLY
+  // (bounded layout height, content overflowing its own box) so the page chrome
+  // stays put no matter how many names are studied.
   const bigOverview = {
     ...OVERVIEW,
     rows: Array.from({ length: 60 }, (_, i) =>
@@ -462,44 +417,17 @@ test('many tickers: wall stays bounded + dock reachable, hero not squished (stac
   await page.route('**/api/coverage/groups/*/overview**', (r) =>
     r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(bigOverview) }),
   )
-  await page.route('**/api/artifacts/by-ticker/*/timeline**', (r) =>
-    r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TIMELINE) }),
-  )
 
   await page.setViewportSize({ width: 760, height: 820 })
   await page.goto('/coverage')
-  await page.getByTestId('collapse-btn').first().click()
-  // The 60 seeded rows are clean (no needs-action) → show All before the wall
-  // populates (the default Needs Action queue would be empty for these).
-  await showAll(page)
   await expect(page.getByTestId('coverage-card-grid')).toBeVisible({ timeout: 8000 })
-  await page.waitForTimeout(250) // let the ResizeObserver settle the stacked layout
+  await page.waitForTimeout(250) // let the layout settle
 
-  // Stacked engaged: the inspector is a full-width dock, not the 300px side rail.
-  const dockW = await page.getByTestId('coverage-inspector').evaluate((el) => el.clientWidth)
-  expect(dockW).toBeGreaterThan(400)
-
-  // Hero keeps its form (not shrunk to a sliver).
-  const heroH = await page
-    .getByTestId('coverage-hero')
-    .evaluate((el) => el.getBoundingClientRect().height)
-  expect(heroH).toBeGreaterThan(180)
-
-  // The wall scrolls INTERNALLY — its layout height is bounded (not ~10000px),
-  // and its content overflows that box.
   const grid = page.getByTestId('coverage-card-grid')
   const gridClientH = await grid.evaluate((el) => el.clientHeight)
   const gridScrollH = await grid.evaluate((el) => el.scrollHeight)
   expect(gridClientH).toBeLessThan(900) // bounded, not the full 60-card stack
   expect(gridScrollH).toBeGreaterThan(gridClientH) // genuinely scrollable
-
-  // The inspector dock is right after the bounded wall — reachable, not pushed
-  // thousands of px down by 60 cards.
-  const dockTop = await page.getByTestId('coverage-inspector').evaluate((el) => {
-    el.scrollIntoView()
-    return el.getBoundingClientRect().top + window.scrollY
-  })
-  expect(dockTop).toBeLessThan(1600)
 
   await page.screenshot({ path: 'e2e/_coverage-many.png' })
 })

@@ -186,7 +186,11 @@ export const CoverageCard = memo(function CoverageCard({
               value={row.market_cap}
               source={row.sources?.market_cap ?? undefined}
               ticker={row.ticker}
-              format={(v) => `${ccy} ${formatCompactNumber(v, locale)}`}
+              // No per-metric currency prefix: it's uniform per card and already
+              // shown on the price line. Repeating "USD " here only widened the
+              // value until the compact unit (B/T) clipped to a stem at narrow
+              // 5-col widths — a clipped "B" reads as "I" (wrong unit).
+              format={(v) => formatCompactNumber(v, locale)}
             />,
           )}
         </Metric>
@@ -197,7 +201,7 @@ export const CoverageCard = memo(function CoverageCard({
               value={row.revenue_ttm}
               source={row.sources?.revenue_ttm ?? undefined}
               ticker={row.ticker}
-              format={(v) => `${ccy} ${formatCompactNumber(v, locale)}`}
+              format={(v) => formatCompactNumber(v, locale)}
             />,
           )}
         </Metric>

@@ -1,6 +1,7 @@
-// CoverageCardGrid — the workspace's main surface: a three-column wall of ticker
-// slabs. Three equal tracks match the coverage desk mental model: compare peers
-// side-by-side first, then scroll vertically through the studied universe.
+// CoverageCardGrid — the workspace's main surface: a five-column wall of ticker
+// slabs. Five equal tracks keep the cards compact so more of the studied universe
+// is visible above the fold before any scrolling; compare peers side-by-side
+// first, then scroll vertically for the rest.
 
 import { useI18n } from '../../i18n'
 import { CoverageCard } from './CoverageCard'
@@ -46,7 +47,7 @@ export function CoverageCardGrid({
       data-testid="coverage-card-grid"
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+        gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
         // Each row sizes to its tallest card's FULL content. Without this the
         // implicit rows defaulted to `auto`, which sized a minHeight:244 flex
         // card to 244 (not its ~330 content) — the card then overflowed its row

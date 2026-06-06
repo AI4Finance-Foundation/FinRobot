@@ -6029,9 +6029,9 @@ body.cursor-trail-on * {
   position: relative;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
-  gap: 20px;
-  min-height: 304px;
-  padding: 24px;
+  gap: 12px;
+  min-height: 218px;
+  padding: 16px 18px;
   box-sizing: border-box;
   cursor: pointer;
   overflow: hidden;
@@ -6167,9 +6167,9 @@ body.cursor-trail-on * {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 18px;
+  gap: 12px;
   min-width: 0;
-  padding: 14px 0 2px;
+  padding: 8px 0 2px;
   border-top: 1px solid var(--border-faint);
 }
 .coverage-card__price-block {
@@ -6191,7 +6191,7 @@ body.cursor-trail-on * {
 .coverage-card__price {
   color: var(--accent-amber);
   font-family: var(--font-mono);
-  font-size: 30px;
+  font-size: 24px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0;
@@ -6202,7 +6202,7 @@ body.cursor-trail-on * {
   font-size: 23px;
 }
 .coverage-card__change {
-  margin-top: 8px;
+  margin-top: 6px;
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
@@ -6243,9 +6243,9 @@ body.cursor-trail-on * {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-self: stretch;
-  column-gap: 26px;
-  row-gap: 16px;
-  padding: 18px 0;
+  column-gap: 18px;
+  row-gap: 10px;
+  padding: 10px 0;
   border-top: 1px solid var(--border-faint);
   border-bottom: 1px solid var(--border-faint);
 }
@@ -6278,7 +6278,7 @@ body.cursor-trail-on * {
   overflow: hidden;
   color: var(--accent-cyan);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   line-height: 1.1;
   letter-spacing: 0;

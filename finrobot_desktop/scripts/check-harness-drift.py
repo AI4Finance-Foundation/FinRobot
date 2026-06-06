@@ -2,8 +2,9 @@
 """Harness-drift sentinel.
 
 The AI coding harness (root CLAUDE.md ≡ AGENTS.md + the finagent-* sub-agents in
-.claude/agents/ and their .codex/agents/ mirrors) hard-codes file paths and
-references. When the codebase moves, those references silently rot: a grep against
+.claude/agents/ and their .codex/agents/ mirrors + the scripts/evolve.sh self-
+evolution loop) hard-codes file paths and module names that are fed verbatim to
+spawned agents. When the codebase moves, those references silently rot: a grep against
 a renamed directory emits a warning and returns nothing, so an agent pastes
 "no findings" and the red-line scan is dead. This script makes that rot loud.
 
@@ -32,6 +33,7 @@ HARNESS_FILES = [
     *sorted((ROOT / ".codex/agents").glob("*.toml")),
     ROOT / "CLAUDE.md",
     ROOT / "AGENTS.md",
+    ROOT / "scripts/evolve.sh",  # self-evolution loop hard-codes module paths -> rots the same way
 ]
 
 # Roots whose fully-qualified references we verify exist on disk.
@@ -40,7 +42,7 @@ PATH_ROOTS = ("finrobot/", "specs/", "docs/", "project-memory/", "tests/", "desk
 # stopping at whitespace, quotes, backticks, parens (half/full width) and template <...>.
 TOKEN_RE = re.compile(
     r"(?:" + "|".join(re.escape(r) for r in PATH_ROOTS) + r")"
-    r"[^\s`'\"，。、；：！？（）()<>|\[\]]+"
+    r"[^\s`'\"\\，。、；：！？（）()<>|\[\]]+"
 )
 
 

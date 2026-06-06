@@ -3398,6 +3398,22 @@ msgid "coverage.card.refreshing"
 msgstr "refreshing"
 
 #. js-lingui-explicit-id
+msgid "coverage.reason.run_failed"
+msgstr "Run failed"
+
+#. js-lingui-explicit-id
+msgid "coverage.reason.never_run"
+msgstr "Needs research"
+
+#. js-lingui-explicit-id
+msgid "coverage.reason.signal_closed"
+msgstr "Review thesis"
+
+#. js-lingui-explicit-id
+msgid "coverage.reason.warning"
+msgstr "Data flag"
+
+#. js-lingui-explicit-id
 msgid "coverage.card.reports"
 msgstr "{n} reports · latest {date}"
 

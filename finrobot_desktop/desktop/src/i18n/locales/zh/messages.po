@@ -3398,6 +3398,22 @@ msgid "coverage.card.refreshing"
 msgstr "刷新中"
 
 #. js-lingui-explicit-id
+msgid "coverage.reason.run_failed"
+msgstr "运行失败"
+
+#. js-lingui-explicit-id
+msgid "coverage.reason.never_run"
+msgstr "待研报"
+
+#. js-lingui-explicit-id
+msgid "coverage.reason.signal_closed"
+msgstr "结论待复核"
+
+#. js-lingui-explicit-id
+msgid "coverage.reason.warning"
+msgstr "数据告警"
+
+#. js-lingui-explicit-id
 msgid "coverage.card.reports"
 msgstr "{n} 份研报 · 最新 {date}"
 

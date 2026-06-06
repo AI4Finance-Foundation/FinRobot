@@ -45,18 +45,28 @@ function changeColor(v: number | null): string {
   return v > 0 ? 'var(--success)' : 'var(--danger)'
 }
 
-// The single most pressing line for the quality row: an in-flight run, a
-// failure, a refresh reason, a data warning — else "fresh". Tone drives the pill
-// color (cyan = ok/live, amber = attention). Never hover-only (cosmic spec).
+// The single most pressing line for the quality row: an in-flight run, a refresh
+// reason, a data warning — else "fresh". The pill shows a TERSE label (a full
+// reason sentence crammed in a pill just ellipsis-truncated to "覆盖池中但…");
+// the complete detail rides in the title tooltip. Tone drives the pill color
+// (cyan = ok/live, amber = attention). Never hover-only (cosmic spec).
 function cardStatus(
   row: CoverageRow,
   t: (k: string) => string,
-): { text: string; tone: 'ok' | 'warn' } {
-  if (row.run_status === 'running' || row.run_status === 'created')
-    return { text: t('coverage.running'), tone: 'ok' }
-  const { reasons } = coveragePriority(row)
-  if (reasons.length > 0) return { text: reasons[0], tone: 'warn' }
-  return { text: t('coverage.card.fresh'), tone: 'ok' }
+): { text: string; title: string; tone: 'ok' | 'warn' } {
+  if (row.run_status === 'running' || row.run_status === 'created') {
+    const running = t('coverage.running')
+    return { text: running, title: running, tone: 'ok' }
+  }
+  // needs_refresh is already in backend precedence order (run_failed first); its
+  // kind maps to a short pill label, its detail to the tooltip.
+  const reason = row.needs_refresh[0]
+  if (reason)
+    return { text: t(`coverage.reason.${reason.kind}`), title: reason.detail, tone: 'warn' }
+  if (row.warnings.length > 0)
+    return { text: t('coverage.reason.warning'), title: row.warnings[0], tone: 'warn' }
+  const fresh = t('coverage.card.fresh')
+  return { text: fresh, title: fresh, tone: 'ok' }
 }
 
 export const CoverageCard = memo(function CoverageCard({
@@ -234,7 +244,7 @@ export const CoverageCard = memo(function CoverageCard({
       <footer className="coverage-card__footer">
         <span
           className={`coverage-card__status coverage-card__status--${status.tone}`}
-          title={status.text}
+          title={status.title}
         >
           {status.text}
         </span>

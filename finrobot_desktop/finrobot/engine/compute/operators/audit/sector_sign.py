@@ -12,10 +12,10 @@ Two definitional defects the accounting-identity checks are blind to:
    valued on P/B, P/TBV, ROTCE, DDM.
 
    Classifier (probe 2026-06-06): FMP labels every financial ``sector="Financial
-   Services"`` — no discriminating power. The INDUSTRY string distinguishes:
-   ``Banks - Diversified`` (JPM), ``Insurance - Life`` (MET), ``Financial -
-   Capital Markets`` (GS) → suppress; ``Financial - Credit Services`` (Visa) and
-   ``Asset Management`` (BlackRock) are asset-light → EV IS meaningful, keep.
+   Services"`` — no discriminating power; the INDUSTRY string drives the call. See
+   ``_is_balance_sheet_financial`` for the calibrated boundary — only deposit-taking
+   banks and risk-carrying (non-broker) insurers are suppressed; payment networks,
+   asset managers, exchanges, advisory boutiques and insurance brokers keep EV.
 
 2. **Non-positive earnings make P/E NM by economics**, which is distinct from NM
    by missing data. ``multiples.calculate_multiples`` computes P/E only when
@@ -30,18 +30,37 @@ from __future__ import annotations
 from finrobot.engine.models.financial import FinancialData
 from finrobot.engine.models.numeric_claim import Finding
 
-# Industry tokens whose issuers are balance-sheet-funded financials: deposits /
-# float / wholesale funding are operating, and there is no clean EBITDA. Token
-# match on the FMP industry string naturally excludes "Credit Services" (payments)
-# and "Asset Management" (fee-based), which keep a meaningful EV.
-_EV_MEANINGLESS_INDUSTRY_TOKENS = ("bank", "insurance", "capital markets")
-
 
 def _is_balance_sheet_financial(industry: str | None) -> bool:
+    """True only for issuers whose ENTIRE industry bucket is balance-sheet-funded
+    (deposits / float / reserves are operating, no clean EBITDA): deposit-taking
+    banks and risk-carrying insurers. Deliberately conservative — a blocked_field
+    is a strong verdict, so a false-positive (withholding a valid EV) is worse than
+    a false-negative.
+
+    Probe 2026-06-06 calibrated the boundary:
+    - ``"bank"`` → all of "Banks - Diversified/Regional" (incl. foreign ADRs
+      HSBC/MUFG/ITUB) are deposit-takers. Clean token.
+    - ``"insurance"`` BUT NOT ``"broker"`` → "Insurance - Life/Diversified/P&C"
+      carry float/reserves; "Insurance - Brokers" (AON/MMC/AJG/BRO/WTW) are
+      asset-light fee businesses with a MEANINGFUL EV/EBITDA — must not suppress.
+    - "Financial - Capital Markets" is DELIBERATELY NOT suppressed: FMP lumps
+      balance-sheet investment banks (GS/MS) with asset-light advisory boutiques
+      (EVR/LAZ/PJT/MC/HLI) into one indistinguishable string, so suppressing it
+      would false-positive the boutiques. Keep EV for the whole bucket; a finer
+      split (needs a balance-sheet-leverage signal) is deferred to Plan 2.
+    Excluded by construction (EV meaningful, asset-light): "Financial - Credit
+    Services" (Visa/MA), "Asset Management" (BlackRock), "Financial - Data & Stock
+    Exchanges" (ICE/CME/NDAQ), all "REIT - *".
+    """
     if not industry:
         return False
     low = industry.lower()
-    return any(token in low for token in _EV_MEANINGLESS_INDUSTRY_TOKENS)
+    if "bank" in low:
+        return True
+    if "insurance" in low and "broker" not in low:
+        return True
+    return False
 
 
 def audit_sector_sign(fin: FinancialData) -> list[Finding]:

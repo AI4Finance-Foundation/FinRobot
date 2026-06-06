@@ -57,11 +57,29 @@ class TestFinancialSectorEvSuppression:
         )
         assert any(x.field_key == "enterprise_value" and x.severity == "blocked_field" for x in f)
 
-    def test_investment_bank_capital_markets_blocked(self):
-        f = audit_sector_sign(
-            _fd(ticker="GS", industry="Financial - Capital Markets", ev_ebitda=6.0)
+    def test_capital_markets_kept_mixed_bucket(self):
+        # FMP lumps balance-sheet-heavy investment banks (GS/MS) AND asset-light
+        # advisory boutiques (EVR/LAZ/PJT — EV/EBITDA IS meaningful) into one
+        # "Financial - Capital Markets" string (probe 2026-06-06). Indistinguishable
+        # → conservative: do NOT suppress (a false-positive withholds a valid number;
+        # GS/MS keeping a debatable EV is the lesser error). Finer split = Plan 2.
+        assert "financial_sector_ev_meaningless" not in _checks(
+            audit_sector_sign(
+                _fd(ticker="GS", industry="Financial - Capital Markets", ev_ebitda=6.0)
+            )
         )
-        assert "financial_sector_ev_meaningless" in _checks(f)
+        assert "financial_sector_ev_meaningless" not in _checks(
+            audit_sector_sign(
+                _fd(ticker="EVR", industry="Financial - Capital Markets", ev_ebitda=14.0)
+            )
+        )
+
+    def test_insurance_broker_ev_kept(self):
+        # AON / MMC / AJG / BRO / WTW: "Insurance - Brokers" — asset-light fee
+        # businesses, EV/EBITDA IS meaningful. The "insurance" token must NOT catch
+        # brokers (they carry no float/reserves).
+        f = audit_sector_sign(_fd(ticker="AON", industry="Insurance - Brokers", ev_ebitda=20.0))
+        assert "financial_sector_ev_meaningless" not in _checks(f)
 
     def test_payment_network_ev_kept(self):
         # Visa: "Financial - Credit Services" — asset-light, EV/EBITDA is meaningful.

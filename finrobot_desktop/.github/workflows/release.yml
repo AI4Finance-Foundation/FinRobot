@@ -38,6 +38,29 @@ jobs:
         working-directory: desktop
         run: npm ci
 
+      # Quality gate — run the SAME checks as the local 验证闸门 / CI on the exact
+      # commit being shipped, on the release runner itself (no cross-runner env
+      # drift between a green gate and the artifact). A red gate aborts the
+      # release before anything is frozen, bundled, or published.
+      - name: Quality gate — Python
+        run: |
+          uv sync --all-extras
+          uv run ruff check finrobot/
+          uv run ruff format --check finrobot/
+          uv run mypy finrobot/ --strict
+          uv run pytest tests/
+        env:
+          FINROBOT_MODEL_NAME: "test"
+          FINROBOT_DEEPSEEK_API_KEY: "test-key"
+
+      - name: Quality gate — Desktop
+        working-directory: desktop
+        run: |
+          npm run lint
+          npm run format:check
+          npm test
+          npm run build
+
       - name: Freeze Python sidecar
         # Must run before `tauri build` so binaries/finrobot-server-<triple>
         # exists for Tauri's externalBin matcher to bundle.

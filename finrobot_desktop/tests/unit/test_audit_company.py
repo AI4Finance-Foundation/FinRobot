@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from finrobot.engine.compute.operators.audit import audit_company
+from finrobot.engine.compute.operators.audit import audit_artifact, audit_company
 from finrobot.engine.models.financial import (
     FinancialData,
     IncomeStatement,
@@ -59,3 +59,31 @@ def test_collects_findings_from_multiple_verifiers():
     assert "financial_sector_ev_meaningless" in checks  # sector_sign
     assert "non_positive_earnings_pe_nm" in checks  # sector_sign
     assert "cross_currency_ratio" in checks  # currency_caliber
+
+
+class TestAuditArtifact:
+    def test_clean_company_publishable(self):
+        a = audit_artifact(_fd(industry="Software", ev_ebitda=18.0, pe_ratio=30.0))
+        assert a.artifact_status == "publishable"
+        assert a.withhold_valuation is False
+        assert a.findings == []
+
+    def test_blocked_field_review_only_and_withholds_valuation(self):
+        # Bank EV is a category error (blocked_field) → REVIEW_ONLY + withhold target.
+        a = audit_artifact(_fd(industry="Banks - Diversified", ev_ebitda=8.0))
+        assert a.artifact_status == "review_only"
+        assert a.withhold_valuation is True
+        assert any(f.severity == "blocked_field" for f in a.findings)
+
+    def test_review_only_does_not_withhold_valuation(self):
+        # Loss-maker P/E NM is review (advisory) — REVIEW_ONLY banner, but the
+        # DCF-based target is not auto-nuked (no blocked_field).
+        a = audit_artifact(_fd(industry="Software", net_income=-1e9))
+        assert a.artifact_status == "review_only"
+        assert a.withhold_valuation is False
+
+    def test_no_financial_data_publishable(self):
+        a = audit_artifact(None)
+        assert a.artifact_status == "publishable"
+        assert a.withhold_valuation is False
+        assert a.findings == []

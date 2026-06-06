@@ -388,7 +388,8 @@ def build_equity_research_artifact(
     deps: "FinRobotDeps",
 ) -> "Artifact":
     """Build an Artifact from a completed equity research pipeline result."""
-    from finrobot.engine.models.financial import DCFResult
+    from finrobot.engine.compute.operators.audit import audit_artifact
+    from finrobot.engine.models.financial import DCFResult, FinancialData
 
     data_source, fetched_at, raw_data = _extract_financial_data_dump(result, "data_collection")
     dcf = result.structured_data.get("financial_modeling")
@@ -457,6 +458,31 @@ def build_equity_research_artifact(
         k: thesis_dict[k] for k in _LLM_NARRATIVE_KEYS if k in thesis_dict
     }
 
+    # Numeric-audit gate (design doc §7, behavior A). Run the definitional verifiers
+    # over the finalized snapshot; surface findings as warnings + a structured block.
+    # On a blocked_field (a category-error or dimensionally-corrupt number — bank EV,
+    # mixed-currency multiple) withhold the rating + price target: a target built on
+    # an untrustworthy number must not be published. This runs in the artifact builder
+    # — the single sink every report mode converges on — so the gate is symmetric
+    # across Mode A/B without touching individual pipeline steps.
+    fin_snapshot = next(
+        (v for v in result.structured_data.values() if isinstance(v, FinancialData)),
+        None,
+    )
+    audit = audit_artifact(fin_snapshot)
+    structured_out["numeric_audit"] = audit.model_dump(mode="json")
+    audit_warnings = [
+        f"[NUMERIC-AUDIT/{f.severity}] {f.field_key} ({f.check}): {f.evidence}"
+        for f in audit.findings
+    ]
+    if audit.withhold_valuation:
+        thesis_out = structured_out.get("thesis")
+        if isinstance(thesis_out, dict):
+            thesis_out["recommendation"] = "REVIEW"
+            thesis_out["price_target"] = None
+        if "recommendation" in llm_narrative:
+            llm_narrative["recommendation"] = "REVIEW"
+
     return Artifact(
         id=_make_artifact_id(ticker, "equity_research"),
         ticker=ticker.upper(),
@@ -477,7 +503,7 @@ def build_equity_research_artifact(
             structured=structured_out,
             llm_narrative=llm_narrative,
             summary_text=result.format_summary()[:2000],
-            warnings=_collect_warnings(result),
+            warnings=_collect_warnings(result) + audit_warnings,
         ),
         meta=ArtifactMeta(
             created_at=_now(),

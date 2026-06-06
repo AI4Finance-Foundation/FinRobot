@@ -11,9 +11,9 @@ from __future__ import annotations
 from finrobot.engine.compute.operators.audit.currency_caliber import audit_currency_caliber
 from finrobot.engine.compute.operators.audit.sector_sign import audit_sector_sign
 from finrobot.engine.models.financial import FinancialData
-from finrobot.engine.models.numeric_claim import Finding
+from finrobot.engine.models.numeric_claim import ArtifactAudit, Finding
 
-__all__ = ["audit_company", "audit_currency_caliber", "audit_sector_sign"]
+__all__ = ["audit_artifact", "audit_company", "audit_currency_caliber", "audit_sector_sign"]
 
 
 def audit_company(fin: FinancialData) -> list[Finding]:
@@ -23,3 +23,24 @@ def audit_company(fin: FinancialData) -> list[Finding]:
     findings.extend(audit_sector_sign(fin))
     findings.extend(audit_currency_caliber(fin))
     return findings
+
+
+def audit_artifact(fin: FinancialData | None) -> ArtifactAudit:
+    """Roll a company's findings into a report-level verdict (design doc §7, A):
+
+    - any finding → ``review_only`` (the report ships with an audit banner);
+    - any ``blocked_field`` (category error / dimensionally-corrupt number) →
+      ``withhold_valuation`` so the rating is forced REVIEW and the price target
+      withheld — a target built on an untrustworthy number must not be published.
+
+    ``unpublishable`` is NOT produced here — that is the critical-data-failure path
+    (core price / identity / basic financials unresolvable), handled upstream.
+    """
+    findings = audit_company(fin) if fin is not None else []
+    has_blocked = any(f.severity == "blocked_field" for f in findings)
+    has_gating = any(f.severity in ("review", "blocked_field") for f in findings)
+    return ArtifactAudit(
+        findings=findings,
+        artifact_status="review_only" if has_gating else "publishable",
+        withhold_valuation=has_blocked,
+    )

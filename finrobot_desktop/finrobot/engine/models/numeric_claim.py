@@ -22,6 +22,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 Severity = Literal["info", "review", "blocked_field"]
 FieldStatus = Literal["pass", "review", "blocked_field"]
+# Report-level verdict (design doc §7, two-axis status). PUBLISHABLE: render as-is.
+# REVIEW_ONLY: report ships but rating forced REVIEW / price target may be withheld.
+# UNPUBLISHABLE: core price / identity / basic financials unresolvable — reserved
+# for the critical-data-failure path, not produced by the definitional verifiers.
+ArtifactStatus = Literal["publishable", "review_only", "unpublishable"]
 
 # Severity precedence for the rollup. Higher = stronger gate.
 _SEVERITY_RANK: dict[Severity, int] = {"info": 0, "review": 1, "blocked_field": 2}
@@ -74,3 +79,17 @@ class NumericClaim(BaseModel):
     @property
     def field_status(self) -> FieldStatus:
         return rollup_status(self.findings)
+
+
+class ArtifactAudit(BaseModel):
+    """Report-level numeric-audit verdict: the findings against a report's numbers
+    plus the rolled-up artifact status and whether the valuation (rating / price
+    target) must be withheld. Behavior A (design doc §7): a ``blocked_field`` (a
+    number that is a category error or dimensionally corrupt) withholds the target;
+    a ``review`` finding flags the report REVIEW_ONLY but leaves the target."""
+
+    model_config = ConfigDict(frozen=True)
+
+    findings: list[Finding] = Field(default_factory=list)
+    artifact_status: ArtifactStatus = "publishable"
+    withhold_valuation: bool = False

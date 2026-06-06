@@ -276,6 +276,169 @@ class TestFinnhubInterface:
         assert "financials" in caps
         assert "profile" in caps
 
+    def test_price_in_capabilities(self, provider):
+        assert "price" in provider.capabilities()
+
+
+def _finnhub_quote_response(price: float = 175.5) -> dict:
+    """Mock Finnhub /quote response (single object; arrays only on /stock/candle).
+
+    Finnhub field shape: c=current price, h/l/o=day high/low/open, pc=prev close,
+    t=unix timestamp.
+    """
+    return {
+        "c": price,
+        "d": 1.23,
+        "dp": 0.71,
+        "h": 176.4,
+        "l": 173.1,
+        "o": 174.0,
+        "pc": 174.27,
+        "t": 1_730_476_800,
+    }
+
+
+_CANDLE_DATES = ("2026-05-21", "2026-05-22", "2026-05-23")
+
+
+def _ts(iso_date: str) -> int:
+    from datetime import datetime, timezone
+
+    return int(datetime.fromisoformat(iso_date).replace(tzinfo=timezone.utc).timestamp())
+
+
+def _finnhub_candle_response(days: int = 3) -> dict:
+    """Mock Finnhub /stock/candle response — parallel arrays, oldest-first.
+
+    s='ok' on success; t are unix-second timestamps (derived from the calendar
+    dates so the decoded bar dates round-trip exactly); o/h/l/c/v are parallel.
+    """
+    base = [
+        (_CANDLE_DATES[0], 170.0, 172.5, 169.5, 172.0, 45_000_000),
+        (_CANDLE_DATES[1], 172.0, 174.5, 171.0, 174.0, 48_000_000),
+        (_CANDLE_DATES[2], 174.0, 176.0, 173.5, 175.0, 50_000_000),
+    ][:days]
+    return {
+        "s": "ok",
+        "t": [_ts(row[0]) for row in base],
+        "o": [row[1] for row in base],
+        "h": [row[2] for row in base],
+        "l": [row[3] for row in base],
+        "c": [row[4] for row in base],
+        "v": [row[5] for row in base],
+    }
+
+
+class TestFinnhubPrice:
+    """PRICE = the third live-quote leg (yfinance dead + no FMP key). Shape must
+    match YFinance/FMP _fetch_price: current_price + price_history + exchange."""
+
+    @pytest.mark.asyncio
+    async def test_fetch_price_returns_provider_agnostic_shape(self, provider):
+        responses = [
+            _mock_response(_finnhub_quote_response(price=175.5)),
+            _mock_response(_finnhub_profile_response()),
+            _mock_response(_finnhub_candle_response(days=3)),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "price")
+
+        assert isinstance(result, DataResult)
+        assert result.provider == "finnhub"
+        assert result.ticker == "AAPL"
+        assert result.data_type == "price"
+        assert result.data["current_price"] == 175.5
+        assert result.data["exchange"] == "NASDAQ"
+        history = result.data["price_history"]
+        # Oldest-first ordering — the 52w high/low window relies on it.
+        assert [p["date"] for p in history] == list(_CANDLE_DATES)
+        assert history[0]["close"] == 172.0
+        assert history[-1]["close"] == 175.0
+        # Every bar carries the full OHLCV contract (same keys as yfinance/FMP).
+        for bar in history:
+            assert set(bar.keys()) == {"date", "open", "high", "low", "close", "volume"}
+
+    @pytest.mark.asyncio
+    async def test_fetch_price_candle_403_degrades_to_quote_only(self, provider):
+        """/stock/candle is premium-only on the free tier (HTTP 403). Degrade to
+        a quote-only PRICE (live price, empty history) instead of 500ing — that's
+        the whole point of this leg for FMP-less free-tier users.
+
+        ``_get`` raises HTTPStatusError on a 4xx (it calls raise_for_status), so
+        the mock side_effect raises it directly for the candle call.
+        """
+        candle_403_resp = _mock_response({"error": "You don't have access."}, status_code=403)
+        candle_403 = httpx.HTTPStatusError("403", request=MagicMock(), response=candle_403_resp)
+        responses = [
+            _mock_response(_finnhub_quote_response(price=200.0)),
+            _mock_response(_finnhub_profile_response()),
+            candle_403,
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "price")
+        assert result.data["current_price"] == 200.0
+        assert result.data["exchange"] == "NASDAQ"
+        assert result.data["price_history"] == []
+
+    @pytest.mark.asyncio
+    async def test_fetch_price_candle_no_data_yields_empty_history(self, provider):
+        """s != 'ok' (no_data body, not an HTTP error) → empty history, live price kept."""
+        responses = [
+            _mock_response(_finnhub_quote_response(price=88.0)),
+            _mock_response(_finnhub_profile_response()),
+            _mock_response({"s": "no_data"}),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "price")
+        assert result.data["current_price"] == 88.0
+        assert result.data["price_history"] == []
+
+    @pytest.mark.asyncio
+    async def test_fetch_price_zero_quote_raises(self, provider):
+        """Finnhub returns c=0 for an unknown/delisted symbol — must raise so
+        DataLayer falls through, not stamp a fabricated $0 live price."""
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(return_value=_mock_response(_finnhub_quote_response(price=0.0))),
+        ):
+            with pytest.raises(ProviderError, match="no usable price"):
+                await provider.fetch("DELISTED", "price")
+
+    @pytest.mark.asyncio
+    async def test_fetch_price_normalizes_to_canonical_price(self, provider):
+        """End-to-end: the Finnhub PRICE result must normalize identically to the
+        other providers — current_price preserved, bars built, exchange carried."""
+        from finrobot.engine.data.normalize.price import normalize_price
+
+        responses = [
+            _mock_response(_finnhub_quote_response(price=175.5)),
+            _mock_response(_finnhub_profile_response()),
+            _mock_response(_finnhub_candle_response(days=3)),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "price")
+        norm = normalize_price(result)
+        assert norm.current_price == 175.5
+        assert norm.exchange == "NASDAQ"
+        assert len(norm.bars) == 3
+        assert norm.is_ohlc_complete is True
+
+    @pytest.mark.asyncio
+    async def test_fetch_price_candle_non_403_http_error_propagates(self, provider):
+        """A non-403 candle failure (e.g. 500) must NOT be swallowed — it should
+        surface as a ProviderError so a real outage isn't masked as empty history."""
+        candle_500_resp = _mock_response({"error": "server error"}, status_code=500)
+        candle_500 = httpx.HTTPStatusError("500", request=MagicMock(), response=candle_500_resp)
+        responses = [
+            _mock_response(_finnhub_quote_response(price=175.5)),
+            _mock_response(_finnhub_profile_response()),
+            candle_500,
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            with pytest.raises(ProviderError, match="API error"):
+                await provider.fetch("AAPL", "price")
+
 
 def _finnhub_news_response():
     return [

@@ -48,6 +48,7 @@ const READINESS_TIMEOUT_SECS: u64 = 90;
 /// - `/health` does not return 200 within `READINESS_TIMEOUT_SECS`.
 pub fn spawn_and_wait_for_ready(
     app: &AppHandle,
+    capability_token: &str,
 ) -> Result<tauri_plugin_shell::process::CommandChild, String> {
     // Pass our own PID so the sidecar self-terminates if this shell dies — see
     // the parent-death watchdog in finrobot/cli.py. Tauri kills the sidecar
@@ -59,6 +60,10 @@ pub fn spawn_and_wait_for_ready(
         .shell()
         .sidecar("finrobot-server")
         .map_err(|e| format!("sidecar not found: {e}"))?
+        // Hand the capability token to the server via env (never argv — argv is
+        // world-readable via `ps`). The middleware enforces it on every request;
+        // the readiness /health poll below stays exempt. See finrobot/auth.py.
+        .env("FINROBOT_CAPABILITY_TOKEN", capability_token)
         .args([
             "--host",
             "127.0.0.1",

@@ -29,6 +29,10 @@ tauri-plugin-fs = "2"
 tauri-plugin-os = "2"
 ureq = "2"
 tauri-plugin-process = "2"
+# Per-launch capability token (random, handed to the sidecar via env + to the
+# WebView via the capability_token command). v4 = random; getrandom is already
+# in the tree via tauri, so this adds no new transitive crate.
+uuid = { version = "1", features = ["v4"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"

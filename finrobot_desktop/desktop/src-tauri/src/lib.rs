@@ -26,6 +26,20 @@ use tauri_plugin_shell::process::CommandChild;
 #[derive(Default)]
 struct SidecarHandle(Mutex<Option<CommandChild>>);
 
+/// Per-launch capability token. Minted at startup, handed to the sidecar via
+/// FINROBOT_CAPABILITY_TOKEN and to the WebView via the `capability_token`
+/// command, so a *different* local process — which can reach loopback but
+/// cannot drive this WebView's IPC — cannot read /api/settings or burn quota.
+struct CapabilityToken(String);
+
+/// Return the per-launch capability token to the WebView. The IPC boundary is
+/// in-process: another OS process cannot inject into this WebView's JS to call
+/// it, which is exactly what makes the token a usable shared secret.
+#[tauri::command]
+fn capability_token(state: tauri::State<'_, CapabilityToken>) -> String {
+    state.0.clone()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -43,7 +57,16 @@ pub fn run() {
 
     builder
         .manage(SidecarHandle::default())
+        .invoke_handler(tauri::generate_handler![capability_token])
         .setup(|app| {
+            // Mint the per-launch capability token and expose it to the WebView
+            // (capability_token command). Done before the dev-backend branch so
+            // the command always resolves; only the spawned sidecar receives it
+            // via env — in the live-backend posture the external server runs
+            // auth-disabled (no env) and simply ignores any token the UI sends.
+            let token = uuid::Uuid::new_v4().simple().to_string();
+            app.manage(CapabilityToken(token.clone()));
+
             // Live-backend dev posture (see `dev.sh --app`): a `finrobot serve`
             // process from this machine's source tree is already running on :8321,
             // so backend edits take effect immediately. Skip the frozen PyInstaller
@@ -65,7 +88,8 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 match tauri::async_runtime::spawn_blocking({
                     let handle = handle.clone();
-                    move || sidecar::spawn_and_wait_for_ready(&handle)
+                    let token = token.clone();
+                    move || sidecar::spawn_and_wait_for_ready(&handle, &token)
                 })
                 .await
                 {

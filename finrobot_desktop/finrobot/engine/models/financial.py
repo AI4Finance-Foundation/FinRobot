@@ -311,6 +311,11 @@ class PeerComps(BaseModel):
     # valuation method pairs this with the target's core EPS so numerator and
     # denominator share one earnings caliber.
     median_core_pe: float | None = None
+    # Peer median of forward P/E (market_cap / FY1 consensus net income, set per
+    # peer in _fetch_one_peer). Sparser than trailing — only US issuers with
+    # analyst consensus contribute. Feeds the forward_comps valuation method,
+    # which pairs it with the target's forward EPS (one forward caliber both sides).
+    median_forward_pe: float | None = None
 
     # LLM-provided
     peer_justification: str = ""

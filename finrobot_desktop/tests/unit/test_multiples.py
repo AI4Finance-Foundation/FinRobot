@@ -281,6 +281,38 @@ def test_peer_statistics_excludes_none_pe():
     assert abs(comps.median_pe - 50.0) < 1e-9
 
 
+def test_peer_statistics_median_forward_pe_gated():
+    # forward_pe is set per-peer in _fetch_one_peer (not calculate_multiples). The
+    # statistics median must include only sane-band values: skip None (no consensus)
+    # and out-of-[1,300]-band (NM), and surface the effective sample size.
+    companies = [
+        calculate_multiples(_make_company("A", 100, 30, 10, 500)),
+        calculate_multiples(_make_company("B", 100, 30, 10, 500)),
+        calculate_multiples(_make_company("C", 100, 30, 10, 500)),
+        calculate_multiples(_make_company("D", 100, 30, 10, 500)),
+    ]
+    companies[0].forward_pe = 20.0
+    companies[1].forward_pe = 30.0
+    companies[2].forward_pe = None  # no analyst consensus → skipped
+    companies[3].forward_pe = 500.0  # outside [1, 300] sanity → NM, skipped
+    target = _make_company("T", 100, 35, 12, 550)
+    comps = PeerComps(target=target, peers=companies)
+    comps = calculate_peer_statistics(comps)
+    # median of {20, 30} = 25 (None and 500 excluded)
+    assert comps.median_forward_pe == 25.0
+    assert any("Forward P/E computed on n=2 of 4" in w for w in comps.warnings)
+
+
+def test_peer_statistics_forward_pe_all_absent_is_none_no_warning():
+    # The normal degraded path (no peer has forward consensus) yields None and must
+    # NOT emit a sample-size warning — absence isn't a data-quality drop.
+    companies = [calculate_multiples(_make_company(t, 100, 30, 10, 500)) for t in ("A", "B")]
+    comps = PeerComps(target=_make_company("T", 100, 35, 12, 550), peers=companies)
+    comps = calculate_peer_statistics(comps)
+    assert comps.median_forward_pe is None
+    assert not any("Forward P/E" in w for w in comps.warnings)
+
+
 def test_peer_statistics_all_none_pe():
     companies = [
         calculate_multiples(_make_company("A", 100, 30, -1, 500)),

@@ -286,11 +286,23 @@ def calculate_peer_statistics(comps: PeerComps) -> PeerComps:
     pe_vals = [p.pe_ratio for p in result.peers if p.pe_ratio is not None]
     ev_revenue_vals = [p.ev_revenue for p in result.peers if p.ev_revenue is not None]
 
+    # Forward P/E is sanity-gated to the same absolute band as trailing P/E:
+    # a peer can stay in the SET for the competitive landscape, but a forward
+    # multiple outside [1, 300] carries no information about fair value and must
+    # not skew the median. A peer keeps its raw forward_pe for display; only the
+    # median excludes the out-of-band ones.
+    forward_pe_vals = [
+        p.forward_pe
+        for p in result.peers
+        if p.forward_pe is not None and PEER_PE_SANITY_MIN <= p.forward_pe <= PEER_PE_SANITY_MAX
+    ]
+
     result.median_ev_ebitda = median(ev_ebitda_vals) if ev_ebitda_vals else None
     result.mean_ev_ebitda = mean(ev_ebitda_vals) if ev_ebitda_vals else None
     result.median_pe = median(pe_vals) if pe_vals else None
     result.mean_pe = mean(pe_vals) if pe_vals else None
     result.median_ev_revenue = median(ev_revenue_vals) if ev_revenue_vals else None
+    result.median_forward_pe = median(forward_pe_vals) if forward_pe_vals else None
 
     ev_ebitda_n = len(ev_ebitda_vals)
     if ev_ebitda_n < total:
@@ -309,6 +321,16 @@ def calculate_peer_statistics(comps: PeerComps) -> PeerComps:
         result.warnings.append(
             f"EV/Revenue computed on n={ev_revenue_n} of {total} peers"
             f" — {total - ev_revenue_n} dropped due to data quality"
+        )
+    # Forward is legitimately sparse (foreign peers + names without analyst
+    # consensus carry no forward P/E), so warn only when SOME but not all peers
+    # contributed — a fully-absent forward set is the normal degraded path, not a
+    # data-quality drop worth flagging.
+    forward_pe_n = len(forward_pe_vals)
+    if 0 < forward_pe_n < total:
+        result.warnings.append(
+            f"Forward P/E computed on n={forward_pe_n} of {total} peers"
+            f" — {total - forward_pe_n} lack USD-clean analyst consensus"
         )
 
     return result

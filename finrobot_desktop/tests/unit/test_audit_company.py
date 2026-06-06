@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from finrobot.engine.compute.operators.audit import audit_artifact, audit_company
 from finrobot.engine.models.financial import (
@@ -21,6 +21,7 @@ def _fd(
     quote_currency: str = "USD",
     ev_ebitda: float | None = None,
     pe_ratio: float | None = None,
+    ttm_ends: list[date] | None = None,
 ) -> FinancialData:
     return FinancialData(
         ticker="X",
@@ -36,6 +37,7 @@ def _fd(
         valuation=ValuationMetrics(ev_ebitda=ev_ebitda),
         reporting_currency=reporting_currency,
         quote_currency=quote_currency,
+        ttm_quarter_ends=ttm_ends or [],
     )
 
 
@@ -61,6 +63,19 @@ def test_collects_findings_from_multiple_verifiers():
     assert "cross_currency_ratio" in checks  # currency_caliber
 
 
+def test_collects_ttm_period_finding():
+    # A missing quarter (182-day gap) trips the family-4 verifier through audit_company.
+    findings = audit_company(
+        _fd(
+            industry="Software",
+            ev_ebitda=18.0,
+            pe_ratio=30.0,
+            ttm_ends=[date(2026, 3, 31), date(2025, 9, 30), date(2025, 6, 30), date(2025, 3, 31)],
+        )
+    )
+    assert "ttm_quarter_gap" in {f.check for f in findings}
+
+
 class TestAuditArtifact:
     def test_clean_company_publishable(self):
         a = audit_artifact(_fd(industry="Software", ev_ebitda=18.0, pe_ratio=30.0))
@@ -79,6 +94,35 @@ class TestAuditArtifact:
         # Loss-maker P/E NM is review (advisory) — REVIEW_ONLY banner, but the
         # DCF-based target is not auto-nuked (no blocked_field).
         a = audit_artifact(_fd(industry="Software", net_income=-1e9))
+        assert a.artifact_status == "review_only"
+        assert a.withhold_valuation is False
+
+    def test_ttm_quarter_gap_withholds_valuation(self):
+        # A broken TTM (missing quarter) corrupts every ratio → blocked_field →
+        # REVIEW_ONLY + withhold the target built on it.
+        a = audit_artifact(
+            _fd(
+                industry="Software",
+                ttm_ends=[
+                    date(2026, 3, 31),
+                    date(2025, 9, 30),
+                    date(2025, 6, 30),
+                    date(2025, 3, 31),
+                ],
+            )
+        )
+        assert a.artifact_status == "review_only"
+        assert a.withhold_valuation is True
+        assert any(f.check == "ttm_quarter_gap" for f in a.findings)
+
+    def test_incomplete_ttm_review_only_keeps_valuation(self):
+        # 3-quarter TTM is incomplete (review), not corrupt — banner, keep target.
+        a = audit_artifact(
+            _fd(
+                industry="Software",
+                ttm_ends=[date(2026, 3, 31), date(2025, 12, 31), date(2025, 9, 30)],
+            )
+        )
         assert a.artifact_status == "review_only"
         assert a.withhold_valuation is False
 

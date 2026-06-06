@@ -560,6 +560,11 @@ class FMPProvider(DataProvider):
             "sector": prof.get("sector"),
             "fiscal_year": latest.get("date") or latest.get("calendarYear"),
             "period_basis": "ttm",
+            # Quarter-end dates of the quarters summed into this TTM (numeric-audit
+            # family-4 non-overlap check). The single-year / historical path
+            # (_build_single_year_data) deliberately omits this — there are no
+            # constituent quarters to audit there.
+            "ttm_quarter_ends": [r.get("date") for r in income_rows if r.get("date")],
             # Currency tags drive cross-border peer FX normalization
             # (fx_normalize). Income-statement items are in reportedCurrency
             # (TWD for TSM, JPY for Toyota); the ADR quote is in profile.currency

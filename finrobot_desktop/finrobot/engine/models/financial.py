@@ -140,6 +140,15 @@ class FinancialData(BaseModel):
     # five-year history doesn't collapse to today's year five times.
     fiscal_period_end: date | None = None
 
+    # Quarter-end dates of the quarters summed into a TTM snapshot (FMP builds TTM
+    # = Σ latest 4 quarters). Carried so the numeric-audit family-4 verifier can
+    # assert the four quarters don't overlap/gap/duplicate — a silently wrong TTM
+    # corrupts every ratio (P/E, EV/EBITDA, margins) and the DCF growth it feeds.
+    # Empty on the yfinance / annual paths (no per-quarter rows) — the verifier
+    # then has nothing to audit and abstains. Optional → read-compatible with
+    # cached canonical payloads (BUG-038 precedent), so no schema-version bump.
+    ttm_quarter_ends: list[date] = Field(default_factory=list)
+
     income: IncomeStatement
     balance: BalanceSheet = Field(default_factory=BalanceSheet)
     market: MarketData

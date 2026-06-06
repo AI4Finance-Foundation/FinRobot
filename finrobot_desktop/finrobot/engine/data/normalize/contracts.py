@@ -222,6 +222,11 @@ class NormalizedFinancials(BaseModel):
     sector: str | None = None
     country: str | None = None
     beta: float | None = None
+    # Quarter-end dates of the quarters summed into a TTM snapshot (numeric-audit
+    # family-4 non-overlap check). Populated only on the FMP TTM path (Σ 4
+    # quarters); empty on yfinance / annual rows. Optional → read-compatible with
+    # cached canonical payloads (BUG-038 precedent), so no schema-version bump.
+    ttm_quarter_ends: list[date] = Field(default_factory=list)
 
     provenance: Provenance
     # Free-text warnings carried from the raw fetch (e.g. cross-provider

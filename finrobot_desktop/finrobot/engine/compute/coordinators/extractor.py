@@ -191,6 +191,10 @@ def extract_financial_data(
         company_name=fin.company_name or "",
         timestamp=fin.provenance.fetched_at,
         fiscal_period_end=fin.period_end,
+        # Carry the TTM constituent quarter-ends so audit.ttm_period can assert the
+        # four quarters don't overlap/gap (numeric-audit family-4). Empty on the
+        # yfinance / annual paths → the verifier abstains.
+        ttm_quarter_ends=fin.ttm_quarter_ends,
         income=IncomeStatement(
             revenue=revenue,
             # None ≠ 0: propagate a missing figure as None so the derived metric

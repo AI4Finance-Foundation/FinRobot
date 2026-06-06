@@ -11,6 +11,7 @@ from __future__ import annotations
 from finrobot.engine.compute.operators.audit.currency_caliber import audit_currency_caliber
 from finrobot.engine.compute.operators.audit.ev_bridge import audit_ev_bridge
 from finrobot.engine.compute.operators.audit.sector_sign import audit_sector_sign
+from finrobot.engine.compute.operators.audit.ttm_period import audit_ttm_period
 from finrobot.engine.models.financial import FinancialData
 from finrobot.engine.models.numeric_claim import ArtifactAudit, Finding
 
@@ -20,6 +21,7 @@ __all__ = [
     "audit_currency_caliber",
     "audit_ev_bridge",
     "audit_sector_sign",
+    "audit_ttm_period",
 ]
 
 
@@ -30,6 +32,7 @@ def audit_company(fin: FinancialData) -> list[Finding]:
     findings.extend(audit_sector_sign(fin))
     findings.extend(audit_currency_caliber(fin))
     findings.extend(audit_ev_bridge(fin))
+    findings.extend(audit_ttm_period(fin))
     return findings
 
 

@@ -5,7 +5,7 @@ over-wide price window (17 months → trimmed), ADR currency override,
 TTM lag exposure.
 """
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.contracts import (
@@ -155,6 +155,26 @@ def test_financials_carries_ebitda_components():
     assert fin.income_tax_expense == 1.511e9
     assert fin.interest_expense == 0.339e9
     assert fin.depreciation_amortization == 6.291e9
+
+
+def test_financials_carries_ttm_quarter_ends():
+    # The FMP TTM path carries the 4 quarter-end strings; normalize parses them to
+    # dates so the family-4 verifier can assert non-overlap. Bad/empty strings drop.
+    fin = normalize_financials(
+        _fin_result(
+            revenue=1e9,
+            date="2026-03-31",
+            period_basis="ttm",
+            ttm_quarter_ends=["2026-03-31", "2025-12-31", "", "2025-06-30"],
+        )
+    )
+    assert fin.ttm_quarter_ends == [date(2026, 3, 31), date(2025, 12, 31), date(2025, 6, 30)]
+
+
+def test_financials_no_ttm_quarter_ends_defaults_empty():
+    # yfinance / annual rows omit the field → empty list (verifier abstains).
+    fin = normalize_financials(_fin_result(revenue=1e9, date="2026-03-31"))
+    assert fin.ttm_quarter_ends == []
 
 
 def test_financials_missing_period_basis_is_degraded():

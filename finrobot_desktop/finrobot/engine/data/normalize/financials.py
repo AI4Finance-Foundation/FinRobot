@@ -126,5 +126,8 @@ def normalize_financials(result: DataResult) -> NormalizedFinancials:
         sector=data.get("sector"),
         country=country,
         beta=_f(data.get("beta")),
+        ttm_quarter_ends=[
+            d for d in (_parse_date(x) for x in (data.get("ttm_quarter_ends") or [])) if d
+        ],
         provenance=provenance,
     )

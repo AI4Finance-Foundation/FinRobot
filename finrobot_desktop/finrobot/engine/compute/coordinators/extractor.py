@@ -212,6 +212,10 @@ def extract_financial_data(
             # above; the stored balance must not fabricate a zero (N15/#10).
             total_debt=raw_debt,
             total_cash=raw_cash,
+            # EV-bridge completeness (numeric-audit family 3): carry preferred + NCI
+            # so audit.ev_bridge can flag an EV that omitted them. None ≠ 0.
+            preferred_stock=fin.preferred_stock,
+            noncontrolling_interest=fin.noncontrolling_interest,
         ),
         market=MarketData(
             market_cap=market_cap,

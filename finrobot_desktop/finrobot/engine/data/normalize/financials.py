@@ -106,6 +106,8 @@ def normalize_financials(result: DataResult) -> NormalizedFinancials:
         pe_ttm_lag_quarters=lag,
         total_debt=_f(data.get("total_debt")),
         total_cash=_f(data.get("total_cash")),
+        preferred_stock=_f(data.get("preferred_stock")),
+        noncontrolling_interest=_f(data.get("noncontrolling_interest")),
         depreciation_amortization=_f(data.get("depreciation_amortization")),
         rd_expense=_f(data.get("rd_expense")),
         sga_expense=_f(data.get("sga_expense")),

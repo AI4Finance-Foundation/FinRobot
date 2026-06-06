@@ -55,6 +55,17 @@ class BalanceSheet(BaseModel):
     total_cash: float | None = Field(
         default=None, description="Total cash in USD; None = not reported (≠ 0)"
     )
+    # EV bridge completeness (ADR — numeric-audit family 3): the textbook EV =
+    # market_cap + debt − cash OMITS these, so an issuer carrying preferred or
+    # minority interest has its EV understated and the omission is invisible to the
+    # market_cap+debt−cash identity (it still "balances"). Carried so audit.ev_bridge
+    # can flag the gap. None = not reported (≠ 0). Reporting-currency (FX-scaled).
+    preferred_stock: float | None = Field(
+        default=None, description="Preferred equity in reporting ccy; None = not reported"
+    )
+    noncontrolling_interest: float | None = Field(
+        default=None, description="Minority/NCI in reporting ccy; None = not reported"
+    )
 
 
 class MarketData(BaseModel):

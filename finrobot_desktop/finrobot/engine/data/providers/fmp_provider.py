@@ -442,6 +442,10 @@ class FMPProvider(DataProvider):
             # calculate_multiples only computes EV when both are present.
             "total_debt": _resolve_total_debt(bal),
             "total_cash": bal.get("cashAndCashEquivalents"),
+            # EV-bridge completeness (numeric-audit family 3): carry preferred +
+            # minority/NCI so the audit can flag an EV that omits them. None ≠ 0.
+            "preferred_stock": bal.get("preferredStock"),
+            "noncontrolling_interest": bal.get("minorityInterest"),
             "market_cap": mkt_cap,
             "shares_outstanding": shares,
             "pe_ratio": pe_ratio,
@@ -542,6 +546,10 @@ class FMPProvider(DataProvider):
             # calculate_multiples only computes EV when both are present.
             "total_debt": _resolve_total_debt(bal),
             "total_cash": bal.get("cashAndCashEquivalents"),
+            # EV-bridge completeness (numeric-audit family 3): carry preferred +
+            # minority/NCI so the audit can flag an EV that omits them. None ≠ 0.
+            "preferred_stock": bal.get("preferredStock"),
+            "noncontrolling_interest": bal.get("minorityInterest"),
             "market_cap": mkt_cap,
             "shares_outstanding": shares,
             "pe_ratio": pe_ratio,

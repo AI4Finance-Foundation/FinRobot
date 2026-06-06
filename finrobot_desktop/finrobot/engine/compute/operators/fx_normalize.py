@@ -251,6 +251,19 @@ def normalize_financialdata_to_usd(
         if financials.balance.total_cash is None
         else financials.balance.total_cash * reporting_rate
     )
+    # preferred stock + NCI are reporting-currency balance-sheet items (EV-bridge
+    # completeness, numeric-audit family 3). Scale with the other IS/BS lines; None
+    # stays None (a missing figure is not 0).
+    converted.balance.preferred_stock = (
+        None
+        if financials.balance.preferred_stock is None
+        else financials.balance.preferred_stock * reporting_rate
+    )
+    converted.balance.noncontrolling_interest = (
+        None
+        if financials.balance.noncontrolling_interest is None
+        else financials.balance.noncontrolling_interest * reporting_rate
+    )
 
     # ----- market quote (quote currency) ------------------------------------
     mkt = financials.market

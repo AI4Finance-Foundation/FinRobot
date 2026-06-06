@@ -195,6 +195,11 @@ class NormalizedFinancials(BaseModel):
     pe_ttm_lag_quarters: int | None = None  # >0 → UI annotates "TTM 截至 X，落后 N 季"
     total_debt: float | None = None
     total_cash: float | None = None
+    # EV-bridge completeness (numeric-audit family 3). New optional fields are
+    # read-compatible with cached canonical payloads (old entries → None), so the
+    # schema version is intentionally NOT bumped (same call as BUG-038/039/042).
+    preferred_stock: float | None = None
+    noncontrolling_interest: float | None = None
     depreciation_amortization: float | None = None
     rd_expense: float | None = None
     sga_expense: float | None = None

@@ -355,9 +355,7 @@ async def execute_peer_analysis(
                 # drop a peer (unlike FINANCIALS above), so it gets its own guard
                 # and leaves forward_eps/forward_pe None on any miss.
                 try:
-                    _fwd_raw = await deps.data_layer.fetch(
-                        DataType.FORWARD_ESTIMATES, peer_ticker
-                    )
+                    _fwd_raw = await deps.data_layer.fetch(DataType.FORWARD_ESTIMATES, peer_ticker)
                     _fwd = get_forward_financials(
                         ticker=peer_ticker,
                         yf_info=None,

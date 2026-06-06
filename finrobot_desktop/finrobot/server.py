@@ -16,6 +16,7 @@ from starlette.responses import JSONResponse, Response
 
 from pydantic_ai.ui.vercel_ai import VercelAIAdapter
 
+from finrobot.auth import CapabilityAuthMiddleware
 from finrobot.config import DATA_PROVIDER_SECRET_FIELDS, get_settings
 from finrobot.obs import bind_session, setup_logging
 from finrobot.obs.middleware import RequestTraceMiddleware
@@ -415,8 +416,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             logger.exception("TranscriptWriter shutdown error (session=%s)", writer.session_id)
 
 
-# WARNING: This server has no authentication. For local development only.
-# Do not expose to public network without adding auth middleware.
+# Request-level auth: a per-launch capability token (CapabilityAuthMiddleware,
+# wired below). Enforced only when the Tauri shell sets FINROBOT_CAPABILITY_TOKEN
+# on the sidecar; unset in the browser dev loop and tests, where the middleware
+# is a no-op. The server still binds loopback only — the token closes the
+# residual local-process vector that TrustedHost + CORS cannot (see auth.py).
 app = FastAPI(title="FinRobot", lifespan=lifespan)
 
 # Host-header allowlist for TrustedHostMiddleware (BUG-004, DNS-rebinding guard).
@@ -440,6 +444,11 @@ _ALLOWED_HOSTS = ["127.0.0.1", "localhost", "testserver", "test"]
 # CORS: allow Vite dev server origin (electron dev mode uses http://localhost:5173).
 # Production Electron loads from file:// so this has no effect on packaged builds.
 app.add_middleware(RequestTraceMiddleware)
+# Capability-token gate. Added after Trace / before CORS so the execution order
+# is TrustedHost → CORS → Auth → Trace → route: CORS handles the preflight and
+# decorates the 401 with CORS headers, and a rejected request never reaches
+# tracing or any route. No-op unless FINROBOT_CAPABILITY_TOKEN is set (auth.py).
+app.add_middleware(CapabilityAuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],

@@ -8,7 +8,7 @@ from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from finrobot.obs.filters import TraceFilter
+from finrobot.obs.filters import RedactSecretsFilter, TraceFilter
 from finrobot.obs.formatters import HumanFormatter, JsonFormatter
 
 if TYPE_CHECKING:
@@ -46,12 +46,16 @@ def setup_logging(
     root.setLevel(settings.log_level.upper())
 
     trace = TraceFilter()
+    # Handler-level (not logger-level) so it also scrubs records propagated up
+    # from uvicorn.access — whose full request line carries the ?token= secret.
+    redact = RedactSecretsFilter()
 
     from finrobot.config import console_color_enabled
 
     console = logging.StreamHandler(stream=sys.stderr)
     console.setFormatter(HumanFormatter(color=console_color_enabled(sys.stderr)))
     console.addFilter(trace)
+    console.addFilter(redact)
     root.addHandler(console)
 
     if settings.log_to_file:
@@ -66,6 +70,7 @@ def setup_logging(
             )
             file_handler.setFormatter(JsonFormatter())
             file_handler.addFilter(trace)
+            file_handler.addFilter(redact)
             root.addHandler(file_handler)
         except OSError:
             logging.getLogger(__name__).warning(

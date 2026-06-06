@@ -92,17 +92,17 @@ class TestCreateLeadAgent:
         specs = iter_pipeline_specs()
         assert specs, "registry returned no pipeline specs"
         for spec in specs:
-            assert spec.tool_name in tools, (
-                f"pipeline spec {spec.key!r} has no registered tool {spec.tool_name!r}"
-            )
+            assert (
+                spec.tool_name in tools
+            ), f"pipeline spec {spec.key!r} has no registered tool {spec.tool_name!r}"
             tool = tools[spec.tool_name]
-            assert tool.description and tool.description.strip(), (
-                f"tool {spec.tool_name!r} has an empty description"
-            )
+            assert (
+                tool.description and tool.description.strip()
+            ), f"tool {spec.tool_name!r} has an empty description"
             # Carried verbatim from the spec (which holds the original docstring).
-            assert tool.description == spec.tool_description, (
-                f"tool {spec.tool_name!r} description drifted from its spec"
-            )
+            assert (
+                tool.description == spec.tool_description
+            ), f"tool {spec.tool_name!r} description drifted from its spec"
 
     def test_ic_memo_spec_maps_to_hyphenless_tool_name(self):
         """The 'ic-memo' key has a hyphen; its tool name must be run_ic_memo
@@ -255,3 +255,40 @@ class TestQueryFinancialDataErrorHandling:
         out = await fn(ctx, "###", "price")
         assert isinstance(out, str)
         assert "Invalid ticker" in out
+
+
+class TestPipelineToolLocale:
+    """The chat orchestrator must thread the request's UI locale into the
+    pipeline as the report-body language; non-chat callers (no locale) keep the
+    settings.language fallback unchanged."""
+
+    class _FakeResult:
+        artifact_id = "art-1"
+
+        def format_summary(self) -> str:
+            return "ok"
+
+    class _RecordingPipeline:
+        def __init__(self) -> None:
+            self.seen_lang: str | None = "UNSET"
+
+        async def execute(self, deps, ticker, lang=None, **kwargs):  # noqa: ANN001
+            self.seen_lang = lang
+            return TestPipelineToolLocale._FakeResult()
+
+    async def test_request_locale_threaded_as_lang(self):
+        from finrobot.engine.orchestrator import _run_pipeline_tool
+
+        deps = FinRobotDeps(data_layer=FakeDataLayer(), settings=_settings(), request_locale="zh")
+        pipe = self._RecordingPipeline()
+        out = await _run_pipeline_tool(_run_context(deps), "AAPL", pipe)  # type: ignore[arg-type]
+        assert pipe.seen_lang == "zh"
+        assert out["artifact_id"] == "art-1"
+
+    async def test_no_locale_falls_back_to_none(self):
+        from finrobot.engine.orchestrator import _run_pipeline_tool
+
+        deps = FinRobotDeps(data_layer=FakeDataLayer(), settings=_settings())
+        pipe = self._RecordingPipeline()
+        await _run_pipeline_tool(_run_context(deps), "AAPL", pipe)  # type: ignore[arg-type]
+        assert pipe.seen_lang is None

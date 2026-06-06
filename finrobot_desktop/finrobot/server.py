@@ -4,6 +4,7 @@ import logging
 from collections import OrderedDict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -771,8 +772,13 @@ async def _chat_impl(
     # Per-request instructions layered on top of instructions.md: UI locale +
     # ContextBar bundle. None when the client sends neither (back-compat).
     runtime_instructions = _build_runtime_instructions(locale, context_bundle)
+    # Per-request deps copy carrying the UI locale so the orchestrator's pipeline
+    # tool generates the report body in the user's language (shallow replace —
+    # shares data_layer / semaphore / settings, mutates nothing). None locale →
+    # request_locale stays None → pipeline falls back to settings.language.
+    request_deps = replace(request.app.state.deps, request_locale=locale)
     native_stream = adapter.run_stream_native(
-        deps=request.app.state.deps,
+        deps=request_deps,
         instructions=runtime_instructions,
     )
     instrumented_stream = _intercept_native_events(native_stream, writer)

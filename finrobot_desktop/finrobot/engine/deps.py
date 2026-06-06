@@ -25,3 +25,10 @@ class FinRobotDeps:
     Pipeline.execute acquires it for the whole run so concurrent pipelines stay
     bounded (BUG-017). None = no cap — used by single-invocation CLI/SDK
     processes where there is nothing to contend with."""
+    request_locale: str | None = None
+    """UI locale of the request that drives a chat-triggered pipeline. The chat
+    path injects it per-request (dataclasses.replace) so the orchestrator tool
+    can pass it as ``lang`` to ``Pipeline.execute`` — without this, conversation-
+    triggered reports ignore the UI locale and fall back to ``settings.language``
+    (the REST/Coverage path already threads ``language`` directly). None = no
+    per-request locale → settings fallback (CLI/SDK/REST)."""

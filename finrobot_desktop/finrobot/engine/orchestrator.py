@@ -35,7 +35,10 @@ async def _run_pipeline_tool(
         norm = validate_ticker(ticker)
     except ValueError:
         return f"Invalid ticker symbol: {ticker}"
-    result = await pipeline.execute(ctx.deps, norm)
+    # Thread the chat request's UI locale (set per-request on deps) so the
+    # generated report body matches the user's language. None → settings
+    # fallback, identical to the old behaviour for any non-chat caller.
+    result = await pipeline.execute(ctx.deps, norm, lang=ctx.deps.request_locale)
     return {
         "summary": result.format_summary(),
         "artifact_id": result.artifact_id,

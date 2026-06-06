@@ -45,6 +45,19 @@ def test_cross_validate_revenue_discrepancy():
     assert "15%" in warnings[0]  # threshold mentioned
 
 
+def test_cross_validate_ignores_total_cash_and_total_debt():
+    """total_cash / total_debt are NOT cross-validated (removed 2026-06-06).
+
+    Live FMP-vs-yfinance probe showed total_cash diverging 75% purely because
+    yfinance bundles short-term investments (cash + ST inv) vs FMP's cash &
+    equivalents — a caliber difference, not a data error. A large divergence on
+    either must produce NO warning so the false alarm stays dead.
+    """
+    p = _result("fmp", {"total_cash": 13_237_000_000, "total_debt": 12_814_000_000})
+    s = _result("yfinance", {"total_cash": 53_172_000_000, "total_debt": 25_000_000_000})
+    assert cross_validate(p, s) == []
+
+
 def test_cross_validate_margin_discrepancy():
     """Gross margin differs by 15pp → warning generated (> 10pp threshold)."""
     p = _result("fmp", {"gross_margin": 0.40})

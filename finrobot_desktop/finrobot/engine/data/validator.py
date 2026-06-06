@@ -8,8 +8,7 @@ primary DataResult and surfaced to the LLM via to_context_string().
 Thresholds (conservative, chosen so TTM vs. latest-fiscal-year differences
 don't trip the validator for most companies):
 
-- revenue / net_income / total_debt / total_cash: 15% relative
-  (covers one quarter of timing drift).
+- revenue / net_income: 15% relative (covers one quarter of timing drift).
 - market_cap: 5% relative (real-time vs. delayed should still be close).
 - gross_margin / operating_margin: 10 percentage-point absolute.
 
@@ -17,8 +16,17 @@ EBITDA is deliberately NOT cross-validated: the FMP path reports operating-calib
 EBITDA (EBIT + D&A, our own derivation) while yfinance returns reported-caliber
 ``info.ebitda`` (NI + tax + interest + D&A). Comparing the two at a 15% threshold
 is apples-to-oranges — it falsely "agrees" for cash-rich firms and falsely alarms
-elsewhere, adding no real cross-source signal. revenue / net_income are as-reported
-in both providers and remain the genuine like-for-like checks.
+elsewhere, adding no real cross-source signal.
+
+total_debt / total_cash are likewise NOT cross-validated (removed 2026-06-06): a
+live FMP-vs-yfinance probe showed total_cash diverging 75% (NVDA) / 55% (AMD) /
+24% (KO) purely because yfinance's ``total_cash`` bundles short-term investments
+(cash + ST investments) while FMP reports cash & equivalents — a definition
+difference, not a data error. total_debt mixes balance-sheet period conventions
+the same way. Neither is arbitrated downstream (SEC XBRL has no ``total_debt`` /
+``total_cash`` concept), so comparing them emitted only false alarms. revenue /
+net_income are as-reported in both providers and remain the genuine like-for-like
+checks.
 
 Only applies to data_type == "financials". Price and news have different
 field structures and are not cross-validated here.
@@ -40,12 +48,12 @@ logger = logging.getLogger(__name__)
 # field -> relative tolerance (as a fraction)
 _RELATIVE_FIELDS: dict[str, float] = {
     "revenue": 0.15,
-    # ebitda intentionally omitted — FMP (operating caliber) vs yfinance (reported
-    # caliber) are different definitions; see module docstring.
+    # ebitda / total_debt / total_cash intentionally omitted — different calibers
+    # across providers (operating-vs-reported EBITDA; cash&equiv-vs-cash+ST-inv;
+    # balance-sheet period conventions). Cross-checking them only false-alarms and
+    # none is arbitrated downstream. See module docstring.
     "net_income": 0.15,
     "market_cap": 0.05,
-    "total_debt": 0.15,
-    "total_cash": 0.15,
 }
 
 # KEY fundamentals that drive valuation (DCF numerator / comps base). An

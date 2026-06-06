@@ -27,7 +27,8 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.spline.design; font-src 'self' data:; media-src 'self' blob: https://*.spline.design; connect-src 'self' http://127.0.0.1:8321 https://*.spline.design https://unpkg.com; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+      "devCsp": null
     }
   },
   "bundle": {

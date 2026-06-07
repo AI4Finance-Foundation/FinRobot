@@ -98,6 +98,11 @@ class UpdateGroupRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     description: str | None = None
 
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, v: str | None) -> str | None:
+        return _clean_group_name(v) if v is not None else None
+
 
 class AddMembersRequest(BaseModel):
     tickers: list[str] = Field(min_length=1)

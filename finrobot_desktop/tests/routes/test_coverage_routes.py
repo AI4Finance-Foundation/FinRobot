@@ -224,6 +224,12 @@ async def test_patch_and_delete_group(client: AsyncClient) -> None:
     assert (await client.delete(f"/api/coverage/groups/{gid}")).status_code == 404
 
 
+async def test_patch_group_rejects_blank_name(client: AsyncClient) -> None:
+    gid = (await client.post("/api/coverage/groups", json={"name": "Old"})).json()["id"]
+    r = await client.patch(f"/api/coverage/groups/{gid}", json={"name": "   "})
+    assert r.status_code == 422
+
+
 async def test_overview_assembles_rows(client: AsyncClient) -> None:
     gid = (await client.post("/api/coverage/groups", json={"name": "G"})).json()["id"]
     await client.post(f"/api/coverage/groups/{gid}/members", json={"tickers": ["AAPL"]})

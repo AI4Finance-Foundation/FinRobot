@@ -1,7 +1,7 @@
-// Coverage Desk API — typed request functions for /api/coverage/* and
-// /api/compare. Hand-written interfaces (not generated schema.d.ts) mirror the
-// backend Pydantic models, matching the established inline-type pattern for
-// endpoints newer than the last `npm run generate:api` (see VersionDiffBanner).
+// Coverage Desk API — typed request functions for /api/coverage/*. Hand-written
+// interfaces (not generated schema.d.ts) mirror the backend Pydantic models,
+// matching the established inline-type pattern for endpoints newer than the last
+// `npm run generate:api` (see VersionDiffBanner).
 
 import { BASE_URL } from './client'
 import { fetchWithTimeout } from './fetch'
@@ -9,7 +9,7 @@ import { FetchHttpError } from '../utils/errorMessage'
 import { extractErrorDetail } from './errors'
 import type { NumberSource } from '../components/SourcedNumber'
 
-// ── Types (mirror finrobot/coverage/models.py + compute/compare.py) ──────────
+// ── Types (mirror finrobot/coverage/models.py) ───────────────────────────────
 
 export interface CoverageMember {
   ticker: string
@@ -44,6 +44,24 @@ export interface NeedsRefreshReason {
 export type SignalStatus = 'hit' | 'watching' | 'failed'
 export type RunStatus = 'created' | 'running' | 'completed' | 'failed'
 
+// What the LIVE price implies, re-solved from the ticker's latest stored DCF
+// (mirrors MarketImpliedNature in finrobot/engine/models/financial.py). A
+// per-name classification, NOT a cross-name implied-growth ranking — the reverse
+// solver fits a flat constant while the forward DCF decays, so a cross-name gap
+// would rank growth-curve steepness, not expectation stretch.
+export type MarketImpliedKind = 'fundamental' | 'option_value' | 'near_ceiling'
+
+export interface MarketImpliedNature {
+  kind: MarketImpliedKind
+  // Constant annual revenue growth the live price implies (fundamental only).
+  implied_growth: number | null
+  implied_wacc: number | null
+  horizon_years: number
+  // Ceiling context for the unreachable paths (option_value / near_ceiling).
+  growth_ceiling: number | null
+  ceiling_price: number | null
+}
+
 // Per-cell provenance for the numeric columns (mirrors CoverageRowSources in
 // finrobot/coverage/models.py). Each slot feeds a <SourcedNumber> popover; a
 // null slot (degraded fetch) renders the bare value.
@@ -55,6 +73,7 @@ export interface CoverageRowSources {
   ev_ebitda: NumberSource | null
   pe: NumberSource | null
   upside_to_target_live: NumberSource | null
+  market_implied: NumberSource | null
 }
 
 export interface CoverageRow {
@@ -84,6 +103,9 @@ export interface CoverageRow {
   latest_at: string | null
   run_status: RunStatus | null
   run_error: string | null
+  // What the live price implies vs the name's stored DCF — null when the ticker
+  // has no DCF, no live price, or on the cache-only first paint.
+  market_implied: MarketImpliedNature | null
   // The market cells came from a cache snapshot past its freshness TTL — real
   // last-known numbers (rendered with their price_as_of age), NOT pending. The
   // card shows them with a "refreshing" affordance, never a blank shimmer; a
@@ -105,31 +127,6 @@ export interface CoverageOverview {
   // first paint). Market cells are last-known snapshots; per-row market_stale
   // flags the ones past TTL. The client revalidates via a refresh=true pass.
   cache_only: boolean
-}
-
-export interface CompanyValuation {
-  ticker: string
-  company_name: string
-  current_price: number | null
-  implied_price: number | null
-  upside_pct: number | null
-  wacc: number | null
-  terminal_growth: number | null
-  ev_ebitda: number | null
-  pe_ratio: number | null
-  // Vintage/provenance of the DCF this row's implied_price + WACC came from.
-  // current_price is live, but these numbers are only as fresh as dcf_as_of —
-  // a comparison can mix today's run with a weeks-old stored artifact, so the
-  // table discloses each row's date. null = computed live (no stored artifact).
-  dcf_as_of: string | null
-  dcf_artifact_id: string | null
-  warnings: string[]
-  error: string | null
-}
-
-export interface ComparisonResult {
-  companies: CompanyValuation[]
-  generated_at: string
 }
 
 // ── Requests ─────────────────────────────────────────────────────────────────
@@ -170,7 +167,4 @@ export const coverageApi = {
     const suffix = refresh ? '?refresh=true' : ''
     return req<CoverageOverview>(`/api/coverage/groups/${id}/overview${suffix}`)
   },
-
-  compare: (tickers: string[]) =>
-    req<ComparisonResult>(`/api/compare?tickers=${encodeURIComponent(tickers.join(','))}`),
 }

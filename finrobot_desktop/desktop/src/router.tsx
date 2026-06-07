@@ -14,7 +14,6 @@ import { lazy, Suspense, useEffect } from 'react'
 import { AppShell } from './layout/AppShell'
 import { CoveragePage } from './pages/CoveragePage'
 import { ResearchPage } from './pages/ResearchPage'
-import { ComparePage } from './pages/ComparePage'
 import { StockWorkspace } from './views/StockWorkspace'
 
 // Lazy-routed: ArtifactDetailPage pulls 13 chapter components + the 4-panel
@@ -91,7 +90,6 @@ export const router = createBrowserRouter([
       // Research is the search-first homepage; Coverage is the archive desk.
       { path: 'research', element: <ResearchPage /> },
       { path: 'coverage', element: <CoveragePage /> },
-      { path: 'compare', element: <ComparePage /> },
 
       // The old /stocks landing retired into Research; the per-ticker
       // drill-down (StockWorkspace) and report detail keep their routes.

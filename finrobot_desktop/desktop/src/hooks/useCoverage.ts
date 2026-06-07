@@ -1,6 +1,6 @@
 // useCoverage — TanStack Query hooks over the surfaced Coverage API. Server
-// state (system group / overview / compare) lives here; local sort density lives
-// in coverageStore. Opening a ticker auto-enrols it into Studied Tickers.
+// state (system group / overview) lives here; local sort density lives in
+// coverageStore. Opening a ticker auto-enrols it into Studied Tickers.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -8,13 +8,11 @@ import {
   type CoverageGroupSummary,
   type CoverageGroupDetail,
   type CoverageOverview,
-  type ComparisonResult,
 } from '../api/coverage'
 
 const KEYS = {
   groups: ['coverage', 'groups'] as const,
   overview: (id: string) => ['coverage', 'overview', id] as const,
-  compare: (tickers: string[]) => ['coverage', 'compare', tickers.join(',')] as const,
 }
 
 export function useCoverageGroups() {
@@ -85,16 +83,6 @@ export function useCoverageOverview(groupId: string | null): CoverageOverviewSta
     marketError: !fresh.data && fresh.isError && !!cached.data,
     refetch: () => void fresh.refetch(),
   }
-}
-
-export function useCompare(tickers: string[], enabled: boolean) {
-  return useQuery<ComparisonResult>({
-    queryKey: KEYS.compare(tickers),
-    queryFn: () => coverageApi.compare(tickers),
-    enabled: enabled && tickers.length >= 2,
-    staleTime: 30_000,
-    refetchOnWindowFocus: false,
-  })
 }
 
 /**

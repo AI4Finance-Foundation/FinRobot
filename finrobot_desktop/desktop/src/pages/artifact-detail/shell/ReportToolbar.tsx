@@ -7,7 +7,6 @@
 // switching lives in the right-rail Version Timeline (click a version → its
 // report); What-if assumption editing lives in the right rail too.
 
-import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTickerPrice } from '../../../hooks/useTickerData'
 import { useHistoryBack } from '../../../hooks/useHistoryBack'
@@ -15,7 +14,6 @@ import { useRunStreamStore } from '../../../stores/runStreamStore'
 import { useToastStore } from '../../../stores/toastStore'
 import { useI18n } from '../../../i18n'
 import { mapErrorToUserMessage } from '../../../utils/errorMessage'
-import { CompareTargetPicker } from '../../../components/CompareTargetPicker'
 
 interface ReportToolbarProps {
   ticker: string
@@ -45,7 +43,6 @@ export function ReportToolbar({
   const startRun = useRunStreamStore((s) => s.startRun)
   const addToast = useToastStore((s) => s.addToast)
   const { t } = useI18n()
-  const [pickerOpen, setPickerOpen] = useState(false)
 
   const livePrice = priceData?.current_price ?? null
   const changePct = priceData?.change_pct ?? null
@@ -187,22 +184,6 @@ export function ReportToolbar({
       )}
 
       <span style={{ flex: 1, minWidth: 8 }} />
-
-      {/* Compare — in-context entry into /compare (UX-010). The picker reuses
-          /api/search (same endpoint the command palette calls) to name a second
-          ticker, so the user no longer has to detour back to /coverage and
-          multi-select. Anchored relative so the popover drops under the button. */}
-      <span style={{ position: 'relative', display: 'inline-flex' }}>
-        <ToolbarButton
-          onClick={() => setPickerOpen((v) => !v)}
-          title={t('compare.addEntryTitle', { ticker })}
-        >
-          ⇄ {t('compare.addEntry')}
-        </ToolbarButton>
-        {pickerOpen && (
-          <CompareTargetPicker currentTicker={ticker} onClose={() => setPickerOpen(false)} />
-        )}
-      </span>
 
       {/* Export HTML — page-faithful mirror (see handleExportHtml): same DOM,
           theme, charts, continuous scroll. The single export path. */}

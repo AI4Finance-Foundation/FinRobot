@@ -27,6 +27,7 @@ function row(over: Partial<CoverageRow>): CoverageRow {
     latest_at: null,
     run_status: null,
     run_error: null,
+    market_implied: null,
     market_stale: false,
     needs_refresh: [],
     warnings: [],
@@ -38,6 +39,7 @@ function row(over: Partial<CoverageRow>): CoverageRow {
       ev_ebitda: null,
       pe: null,
       upside_to_target_live: null,
+      market_implied: null,
     },
     ...over,
   }

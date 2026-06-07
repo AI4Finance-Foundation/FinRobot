@@ -73,7 +73,7 @@ const SettingsIcon = (
 
 // The three top-level product doors (router.tsx: "Research, Coverage, and
 // Settings"). Research owns the per-ticker workspace (/stocks/:ticker);
-// Coverage owns the compare view; Settings is standalone.
+// Settings is standalone.
 const DOORS: NavDoor[] = [
   {
     labelKey: 'nav.research',
@@ -84,7 +84,7 @@ const DOORS: NavDoor[] = [
   {
     labelKey: 'nav.coverage',
     path: '/coverage',
-    activePaths: ['/coverage', '/compare'],
+    activePaths: ['/coverage'],
     icon: CoverageIcon,
   },
   {

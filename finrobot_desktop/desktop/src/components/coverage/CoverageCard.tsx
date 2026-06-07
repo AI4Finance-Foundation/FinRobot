@@ -10,7 +10,7 @@
 // in the inspector; on the dense card the column header carries that meaning.
 
 import { memo } from 'react'
-import { useI18n } from '../../i18n'
+import { useI18n, type Locale } from '../../i18n'
 import {
   formatAge,
   formatCompactNumber,
@@ -21,7 +21,7 @@ import {
 } from '../../utils/format'
 import { SourcedNumber } from '../SourcedNumber'
 import { coveragePriority } from './coveragePriority'
-import type { CoverageRow } from '../../api/coverage'
+import type { CoverageRow, MarketImpliedNature } from '../../api/coverage'
 import type { CoverageDensity } from '../../stores/coverageStore'
 
 interface Props {
@@ -111,6 +111,12 @@ export const CoverageCard = memo(function CoverageCard({
       : row.artifact_count > 0
         ? t('coverage.card.modelOnly', { n: row.artifact_count })
         : t('coverage.card.noReports')
+
+  // What the live price implies vs the name's stored DCF — the reverse-DCF
+  // "expectations" read. Per-name classification, deliberately NOT a cross-name
+  // implied-growth ranking (the flat-constant solve vs the DCF's decay schedule
+  // makes a cross-name gap rank curve-steepness, not expectation stretch).
+  const impliedView = impliedNatureView(row.market_implied, ccy, locale, t)
 
   return (
     <article
@@ -241,6 +247,43 @@ export const CoverageCard = memo(function CoverageCard({
         </Metric>
       </div>
 
+      {!showShimmer && impliedView && (
+        <div
+          className="coverage-card__implied"
+          title={impliedView.title}
+          style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            justifyContent: 'space-between',
+            gap: 8,
+            marginTop: 2,
+            paddingTop: 8,
+            borderTop: '1px solid var(--border-faint)',
+          }}
+        >
+          <span
+            style={{
+              fontSize: 10,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: 'var(--text-muted)',
+            }}
+          >
+            {t('coverage.implied.label')}
+          </span>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 12,
+              fontWeight: 600,
+              color: impliedView.tone,
+            }}
+          >
+            {impliedView.text}
+          </span>
+        </div>
+      )}
+
       <footer className="coverage-card__footer">
         <span
           className={`coverage-card__status coverage-card__status--${status.tone}`}
@@ -267,6 +310,43 @@ function Metric({
       <span className="coverage-card__metric-value">{children}</span>
     </div>
   )
+}
+
+// The card's reverse-DCF "expectations" line. Returns null when there's nothing
+// honest to say (no DCF, or fundamental with no solved growth). option_value /
+// near_ceiling are the load-bearing signals; fundamental is per-name context.
+function impliedNatureView(
+  nat: MarketImpliedNature | null,
+  ccy: string,
+  locale: Locale,
+  t: (k: string, p?: Record<string, string | number>) => string,
+): { text: string; title: string; tone: string } | null {
+  if (!nat) return null
+  if (nat.kind === 'option_value') {
+    const ceiling = nat.growth_ceiling != null ? formatPercent(nat.growth_ceiling, locale, 0) : '—'
+    const price = nat.ceiling_price != null ? formatCurrency(nat.ceiling_price, ccy, locale) : '—'
+    return {
+      text: t('coverage.implied.optionValue'),
+      title: t('coverage.implied.optionValueTitle', { ceiling, price }),
+      tone: 'var(--danger)',
+    }
+  }
+  if (nat.kind === 'near_ceiling') {
+    return {
+      text: t('coverage.implied.nearCeiling'),
+      title: t('coverage.implied.nearCeilingTitle'),
+      tone: 'var(--warning)',
+    }
+  }
+  // fundamental — only informative when an implied growth actually solved (the
+  // below-bracket-floor edge leaves it null; render nothing rather than "—").
+  if (nat.implied_growth == null) return null
+  const g = formatPercent(nat.implied_growth, locale, 1)
+  return {
+    text: t('coverage.implied.fundamental', { g }),
+    title: t('coverage.implied.fundamentalTitle', { g, n: nat.horizon_years }),
+    tone: 'var(--text-secondary)',
+  }
 }
 
 function Shimmer(): React.ReactElement {

@@ -3410,6 +3410,34 @@ msgid "coverage.card.fresh"
 msgstr "fresh"
 
 #. js-lingui-explicit-id
+msgid "coverage.implied.label"
+msgstr "Mkt implied"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.fundamental"
+msgstr "{g}/yr priced in"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.fundamentalTitle"
+msgstr "Live price implies ~{g}/yr revenue growth over {n}y (reverse-DCF from the latest stored model, re-solved at the live price). Per-name context, not a cross-name ranking."
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.optionValue"
+msgstr "✕ Option-value"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.optionValueTitle"
+msgstr "No growth up to {ceiling}/yr reaches the live price (even then only {price}) — priced on optionality a DCF cannot model, and it holds at a plausibly lower WACC."
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.nearCeiling"
+msgstr "⚠ Near-ceiling"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.nearCeilingTitle"
+msgstr "Unreachable at this name's own WACC, but a plausibly lower WACC explains the price — WACC-sensitive, so not asserted as option-value."
+
+#. js-lingui-explicit-id
 msgid "coverage.card.refreshing"
 msgstr "refreshing"
 

@@ -3410,6 +3410,34 @@ msgid "coverage.card.fresh"
 msgstr "数据新鲜"
 
 #. js-lingui-explicit-id
+msgid "coverage.implied.label"
+msgstr "市场隐含"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.fundamental"
+msgstr "隐含 {g}/yr"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.fundamentalTitle"
+msgstr "现价隐含约 {g}/yr 营收增速(over {n}y),由最新存量 DCF 按现价反推。仅作单名上下文,不用于跨名排名。"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.optionValue"
+msgstr "✕ 期权价"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.optionValueTitle"
+msgstr "增速到 {ceiling}/yr 都够不着现价(即便如此也只值 {price})——市场在为 DCF 无法建模的期权价值定价,且在更低的合理 WACC 下仍成立。"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.nearCeiling"
+msgstr "⚠ 临界"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.nearCeilingTitle"
+msgstr "在该名自身 WACC 下不可达,但更低的合理 WACC 能解释现价——对 WACC 敏感,故不断言为期权价。"
+
+#. js-lingui-explicit-id
 msgid "coverage.card.refreshing"
 msgstr "刷新中"
 

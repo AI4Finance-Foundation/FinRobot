@@ -17,7 +17,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from finrobot.engine.models.financial import DCFInputs
-from finrobot.routes.compute import router as compute_router
+from finrobot.routes.compute import DcfSensitivityRequest, router as compute_router
 
 
 def _inputs() -> DCFInputs:
@@ -119,6 +119,43 @@ def test_empty_range_is_rejected(client: TestClient) -> None:
             "inputs": _inputs().model_dump(mode="json"),
             "wacc_range": [],
             "tg_range": [0.02],
+        },
+    )
+    assert resp.status_code == 422, resp.text
+
+
+@pytest.mark.parametrize(
+    ("wacc_range", "tg_range"),
+    [
+        ([float("nan")], [0.02]),
+        ([float("inf")], [0.02]),
+        ([0.09], [float("-inf")]),
+        ([0.09], [float("nan")]),
+    ],
+)
+def test_nonfinite_axis_values_are_rejected(wacc_range: list[float], tg_range: list[float]) -> None:
+    with pytest.raises(ValueError):
+        DcfSensitivityRequest(inputs=_inputs(), wacc_range=wacc_range, tg_range=tg_range)
+
+
+@pytest.mark.parametrize(
+    ("wacc_range", "tg_range"),
+    [
+        ([-0.01], [0.02]),
+        ([0.51], [0.02]),
+        ([0.09], [-0.06]),
+        ([0.09], [0.11]),
+    ],
+)
+def test_axis_values_outside_contract_are_rejected(
+    client: TestClient, wacc_range: list[float], tg_range: list[float]
+) -> None:
+    resp = client.post(
+        "/api/compute/dcf-sensitivity",
+        json={
+            "inputs": _inputs().model_dump(mode="json"),
+            "wacc_range": wacc_range,
+            "tg_range": tg_range,
         },
     )
     assert resp.status_code == 422, resp.text

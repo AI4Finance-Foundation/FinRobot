@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -75,10 +75,14 @@ class WaccResponse(BaseModel):
     wacc: float
 
 
+DcfWaccAxis = Annotated[float, Field(ge=0, le=0.50, allow_inf_nan=False)]
+DcfTerminalGrowthAxis = Annotated[float, Field(ge=-0.05, le=0.10, allow_inf_nan=False)]
+
+
 class DcfSensitivityRequest(BaseModel):
     inputs: DCFInputs
-    wacc_range: list[float] = Field(min_length=1, max_length=25)
-    tg_range: list[float] = Field(min_length=1, max_length=25)
+    wacc_range: list[DcfWaccAxis] = Field(min_length=1, max_length=25)
+    tg_range: list[DcfTerminalGrowthAxis] = Field(min_length=1, max_length=25)
 
 
 class DcfSensitivityResult(BaseModel):

@@ -15,7 +15,7 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 from starlette.requests import Request
 
@@ -67,7 +67,7 @@ async def list_artifacts(
     ticker: str | None = None,
     type: ArtifactType | None = None,
     archived: bool = False,
-    limit: int = 100,
+    limit: int = Query(100, ge=1, le=500),
 ) -> list[ArtifactSummary]:
     """List artifact summaries, optionally filtered by ticker and/or type.
 

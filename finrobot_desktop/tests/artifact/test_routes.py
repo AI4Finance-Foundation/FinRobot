@@ -116,6 +116,10 @@ class TestListArtifacts:
         assert resp.status_code == 200
         assert len(resp.json()) == 1
 
+    def test_rejects_negative_limit(self, client: TestClient) -> None:
+        resp = client.get("/api/artifacts?limit=-1")
+        assert resp.status_code == 422
+
 
 class TestGetArtifact:
     def test_returns_full_artifact(

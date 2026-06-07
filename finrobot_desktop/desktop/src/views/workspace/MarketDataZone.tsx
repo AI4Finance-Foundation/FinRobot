@@ -17,6 +17,7 @@ import {
 } from '../../hooks/useTickerData'
 import { useTickerSentiment, type SentimentSnapshot } from '../../hooks/useTickerSentiment'
 import { useI18n, tSync } from '../../i18n'
+import { degradedLabel } from './degradedLabel'
 import { PriceTrendChart } from '../../components/charts/PriceTrendChart'
 
 interface MarketDataZoneProps {
@@ -682,20 +683,6 @@ function CardError({
 function providerTag(src: string | null | undefined): string | undefined {
   if (!src) return undefined
   return src.split(':')[0]
-}
-
-// Degradation flags from the backend normalization layer (ADR-0004). Surfaced
-// so a fallback (close-only history, stale TTM, inferred currency) is visible.
-// i18n key suffix per flag; the human label resolves via t() at render.
-const DEGRADED_KEYS: Record<string, string> = {
-  close_only: 'closeOnly',
-  ttm_lag: 'ttmLag',
-  ccy_inferred: 'ccyInferred',
-}
-
-function degradedLabel(t: (k: string) => string, flag: string): string {
-  const suffix = DEGRADED_KEYS[flag]
-  return suffix ? t(`workspace.market.degraded.${suffix}`) : flag
 }
 
 function ProvenanceFootnote({

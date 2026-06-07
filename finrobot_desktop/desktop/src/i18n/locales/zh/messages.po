@@ -2346,6 +2346,22 @@ msgid "workspace.market.degraded.ccyInferred"
 msgstr "币种推断 · 非财报直接标注"
 
 #. js-lingui-explicit-id
+msgid "workspace.market.degraded.priceFallbackClose"
+msgstr "价格为最新收盘 · 休市或仅收盘价源"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.periodBasisUnknown"
+msgstr "报告期未确认 · 按 TTM 处理"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.circuitOpen"
+msgstr "{provider} 源跳过 · 熔断冷却中"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.providerDivergence"
+msgstr "{field} 跨源不一致 · 已标交叉校验"
+
+#. js-lingui-explicit-id
 msgid "workspace.market.trend.uptrend"
 msgstr "↑ 多头排列"
 

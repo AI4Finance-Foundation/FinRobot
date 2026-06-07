@@ -2346,6 +2346,22 @@ msgid "workspace.market.degraded.ccyInferred"
 msgstr "Currency inferred · not stated directly in filings"
 
 #. js-lingui-explicit-id
+msgid "workspace.market.degraded.priceFallbackClose"
+msgstr "Price is last close · market closed or close-only feed"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.periodBasisUnknown"
+msgstr "Reporting period unconfirmed · assumed TTM"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.circuitOpen"
+msgstr "{provider} source skipped · circuit-breaker cooldown"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.providerDivergence"
+msgstr "{field} differs across sources · cross-check flagged"
+
+#. js-lingui-explicit-id
 msgid "workspace.market.trend.uptrend"
 msgstr "↑ Uptrend"
 

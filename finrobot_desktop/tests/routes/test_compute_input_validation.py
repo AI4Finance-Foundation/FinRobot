@@ -19,6 +19,45 @@ def client() -> TestClient:
     return TestClient(app)
 
 
+def _dcf_payload() -> dict[str, object]:
+    return {
+        "revenue_base": 1_000_000_000,
+        "revenue_growth_rates": [0.05, 0.04, 0.03, 0.03, 0.02],
+        "ebitda_margin": 0.30,
+        "capex_pct_revenue": 0.04,
+        "nwc_pct_revenue": 0.02,
+        "da_pct_revenue": 0.03,
+        "tax_rate": 0.21,
+        "risk_free_rate": 0.04,
+        "beta": 1.1,
+        "equity_risk_premium": 0.055,
+        "cost_of_debt": 0.05,
+        "debt_ratio": 0.20,
+        "terminal_growth_rate": 0.025,
+        "shares_outstanding": 100_000_000,
+        "net_debt": 50_000_000,
+    }
+
+
+def test_compute_dcf_maps_gordon_model_value_error_to_422(client: TestClient) -> None:
+    payload = _dcf_payload()
+    payload.update(
+        {
+            "risk_free_rate": 0.0,
+            "beta": 0.0,
+            "equity_risk_premium": 0.0,
+            "cost_of_debt": 0.0,
+            "debt_ratio": 0.0,
+            "terminal_growth_rate": 0.05,
+        }
+    )
+
+    resp = client.post("/api/compute/dcf", json=payload)
+
+    assert resp.status_code == 422, resp.text
+    assert "Terminal growth rate" in resp.json()["detail"]
+
+
 def test_dcf_seed_request_normalizes_ticker() -> None:
     assert DcfSeedRequest(ticker=" nvda ").ticker == "NVDA"
 

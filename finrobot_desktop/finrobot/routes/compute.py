@@ -215,7 +215,10 @@ async def compute_wacc(request: WaccRequest) -> WaccResponse:
 
 @router.post("/dcf", response_model=DCFResult)
 async def compute_dcf(inputs: DCFInputs) -> DCFResult:
-    return calculate_dcf(inputs)
+    try:
+        return calculate_dcf(inputs)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 async def _seed_dcf_inputs_for_ticker(

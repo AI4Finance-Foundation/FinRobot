@@ -5,7 +5,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from starlette.requests import Request
 
 from finrobot.engine.compute.operators.dcf import (
@@ -27,6 +27,7 @@ from finrobot.engine.compute.operators.sniper import (
     calculate_sniper_points,
 )
 from finrobot.engine.compute.operators.wacc import calculate_wacc
+from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.models.financial import (
     DCFInputs,
     DCFResult,
@@ -109,6 +110,11 @@ class DcfSeedRequest(BaseModel):
     )
     mid_year: bool = False
     include_reverse: bool = True
+
+    @field_validator("ticker")
+    @classmethod
+    def _validate_ticker(cls, value: str) -> str:
+        return validate_ticker(value)
 
 
 class DcfSeedResponse(BaseModel):
@@ -283,7 +289,7 @@ async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedRes
     from finrobot.engine.pipelines._helpers import build_sensitivity_ranges
 
     deps = request.app.state.deps
-    ticker = body.ticker.upper()
+    ticker = body.ticker
 
     financial_data, dcf_inputs = await _seed_dcf_inputs_for_ticker(deps, ticker)
     dcf_inputs = apply_growth_scale_override(dcf_inputs, body.growth_scale_override)

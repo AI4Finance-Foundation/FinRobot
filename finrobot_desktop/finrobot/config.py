@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, Field, PrivateAttr, field_validator
 from pydantic_ai.models import Model
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 ProviderKind = Literal["openai-compatible", "anthropic", "test"]
+LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 
 class ProviderConfig(BaseModel):
@@ -161,7 +162,7 @@ class FinRobotSettings(BaseSettings):
     # Infrastructure
     cache_db_path: str = ""  # resolved at runtime by paths.default_data_cache_db_path()
     skills_dir: str = ""  # resolved at runtime by paths.default_skills_dir() (bundle-aware)
-    log_level: str = "INFO"
+    log_level: LogLevel = "INFO"
     log_to_file: bool = True
     log_retention_days: int = Field(default=7, ge=0)
     peer_sticky_max_age_days: int = Field(
@@ -221,6 +222,13 @@ class FinRobotSettings(BaseSettings):
             env_prefixes = os.environ.get("FINROBOT_BACKTEST_STRATEGY_MODULE_PREFIXES")
             if env_prefixes:
                 object.__setattr__(self, "backtest_strategy_module_prefixes", env_prefixes)
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _normalize_log_level(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().upper()
+        return value
 
     @property
     def providers(self) -> list[ProviderConfig]:

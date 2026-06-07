@@ -8,13 +8,14 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from starlette.requests import Request
 
 from finrobot.config import (
     BUILTIN_PROVIDERS,
     DATA_PROVIDER_SECRET_FIELDS,
     FinRobotSettings,
+    LogLevel,
     ProviderConfig,
 )
 from finrobot.secret_store import SecretStorageMode
@@ -116,7 +117,7 @@ class SettingsUpdate(BaseModel):
     sec_user_agent: str | None = None
     sec_identity_dismissed_at: datetime | None = None
     sec_holdings_auto_refresh: bool | None = None
-    log_level: str | None = None
+    log_level: LogLevel | None = None
     log_to_file: bool | None = None
     log_retention_days: int | None = Field(default=None, ge=0)
 
@@ -128,6 +129,13 @@ class SettingsUpdate(BaseModel):
     finnhub_api_key: str | None = Field(default=None, repr=False)
     alpha_vantage_api_key: str | None = Field(default=None, repr=False)
     adanos_api_key: str | None = Field(default=None, repr=False)
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _normalize_log_level(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return value.strip().upper()
+        return value
 
 
 class ClearSecretRequest(BaseModel):

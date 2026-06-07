@@ -279,3 +279,13 @@ def test_logging_defaults() -> None:
 def test_log_retention_days_rejects_negative_values() -> None:
     with pytest.raises(ValueError):
         get_settings(log_retention_days=-1)
+
+
+def test_log_level_normalizes_to_uppercase() -> None:
+    settings = get_settings(log_level="debug")
+    assert settings.log_level == "DEBUG"
+
+
+def test_log_level_rejects_unknown_values() -> None:
+    with pytest.raises(ValueError):
+        get_settings(log_level="TRACE")

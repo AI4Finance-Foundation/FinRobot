@@ -691,6 +691,38 @@ async def test_settings_update_logging_fields_reapplies_logging(
     assert calls == [("DEBUG", True)]
 
 
+@pytest.mark.asyncio
+async def test_settings_update_normalizes_log_level(tmp_path: Path, monkeypatch: Any) -> None:
+    app = _make_app(tmp_path)
+
+    async def _fake_replace(request: Any, candidate: Any) -> None:
+        request.app.state.deps.settings = candidate
+
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", _fake_replace)
+    calls: list[Any] = []
+    monkeypatch.setattr(
+        "finrobot.obs.setup_logging",
+        lambda candidate, *, force=False: calls.append((candidate.log_level, force)),
+    )
+
+    async with _client(app) as c:
+        resp = await c.put("/api/settings", json={"log_level": " debug "})
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["log_level"] == "DEBUG"
+    assert calls == [("DEBUG", True)]
+    content = json.loads((tmp_path / "settings.json").read_text())
+    assert content["log_level"] == "DEBUG"
+
+
+@pytest.mark.asyncio
+async def test_settings_update_rejects_unknown_log_level(tmp_path: Path) -> None:
+    app = _make_app(tmp_path)
+    async with _client(app) as c:
+        resp = await c.put("/api/settings", json={"log_level": "TRACE"})
+    assert resp.status_code == 422
+
+
 # ---------------------------------------------------------------------------
 # BUG-005 — PUT must NOT delete a secret on an empty value; clearing is explicit
 # ---------------------------------------------------------------------------

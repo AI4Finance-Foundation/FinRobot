@@ -2,7 +2,13 @@
 
 import pytest
 from finrobot.engine.models.financial import ValuationMethod
-from finrobot.engine.compute.operators.valuation_synthesis import synthesize_valuations
+from finrobot.engine.compute.operators.valuation_synthesis import (
+    VERDICT_BUY_THRESHOLD,
+    VERDICT_SELL_THRESHOLD,
+    resolve_canonical_thesis,
+    synthesize_valuations,
+    verdict_from_upside,
+)
 
 
 class TestSynthesizeValuations:
@@ -269,3 +275,116 @@ class TestSynthesizeValuations:
         ]
         result = synthesize_valuations(methods, current_price=200.0)
         assert result.reliable is True
+
+
+class TestVerdictFromUpside:
+    """The Buy/Hold/Sell band classifier (±15% around fair value)."""
+
+    def test_buy_at_and_above_threshold(self):
+        assert verdict_from_upside(VERDICT_BUY_THRESHOLD) == "BUY"
+        assert verdict_from_upside(0.30) == "BUY"
+
+    def test_hold_inside_band(self):
+        assert verdict_from_upside(0.0) == "HOLD"
+        assert verdict_from_upside(VERDICT_BUY_THRESHOLD - 0.001) == "HOLD"
+        assert verdict_from_upside(VERDICT_SELL_THRESHOLD + 0.001) == "HOLD"
+
+    def test_sell_at_and_below_threshold(self):
+        assert verdict_from_upside(VERDICT_SELL_THRESHOLD) == "SELL"
+        assert verdict_from_upside(-0.40) == "SELL"
+
+
+class TestResolveCanonicalThesis:
+    """Pure unit tests for the headline target/verdict decision tree.
+
+    These exercise the SAME data-health gates that
+    test_equity_research_pipeline.py covers through the async ``_execute_thesis``
+    shell (mock_agent + mock_deps), but directly on the pure operator — the
+    payoff of extracting the decision out of the orchestration layer.
+    """
+
+    def test_non_synthesis_input_yields_empty_canonical(self):
+        """Any non-ValuationSynthesis value (missing key, wrong type) → nothing
+        published, no gate tripped."""
+        for bad in (None, {"not": "a synthesis"}, "STRING"):
+            canonical = resolve_canonical_thesis(bad, "AAPL")
+            assert canonical.target is None
+            assert canonical.verdict is None
+            assert canonical.basis is None
+            assert canonical.upside is None
+            assert canonical.gate_failed is False
+
+    def test_multi_method_converge_publishes_weighted_target(self):
+        """≥2 corroborating methods → weighted target + a HOLD (upside 6.7% < 15%)."""
+        methods = [
+            ValuationMethod(name="DCF", low=210, mid=245, high=290, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="EV/EBITDA", low=220, mid=250, high=280, confidence=0.3, source="Comps"
+            ),
+            ValuationMethod(name="P/E", low=210, mid=240, high=260, confidence=0.2, source="PE"),
+        ]
+        vs = synthesize_valuations(methods, current_price=230.0)
+        canonical = resolve_canonical_thesis(vs, "AAPL")
+        assert canonical.target == pytest.approx(245.5, abs=0.01)
+        assert canonical.verdict == "HOLD"
+        assert canonical.gate_failed is False
+        assert canonical.basis is not None and "Method-weighted average of 3" in canonical.basis
+
+    def test_multi_method_strong_upside_is_buy(self):
+        """Same converge path, upside 22.8% ≥ 15% → BUY."""
+        methods = [
+            ValuationMethod(name="DCF", low=260, mid=280, high=300, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="Comps", low=265, mid=285, high=305, confidence=0.5, source="Comps"
+            ),
+        ]
+        vs = synthesize_valuations(methods, current_price=230.0)
+        canonical = resolve_canonical_thesis(vs, "AAPL")
+        assert canonical.target == pytest.approx(282.5, abs=0.01)
+        assert canonical.verdict == "BUY"
+        assert canonical.gate_failed is False
+
+    def test_reliability_gate_withholds_target(self):
+        """2.57x method disagreement (MSFT 2026-06-05) → REVIEW, target withheld."""
+        methods = [
+            ValuationMethod(
+                name="dcf", low=151.72, mid=189.65, high=227.58, confidence=0.85, source="DCF"
+            ),
+            ValuationMethod(
+                name="comps_pe", low=438.58, mid=487.31, high=536.04, confidence=0.55, source="PE"
+            ),
+        ]
+        vs = synthesize_valuations(methods, current_price=425.0)
+        canonical = resolve_canonical_thesis(vs, "MSFT")
+        assert canonical.gate_failed is True
+        assert canonical.verdict == "REVIEW"
+        assert canonical.target is None
+        assert canonical.basis is not None
+        assert canonical.basis.startswith("DATA-HEALTH GATE: target withheld.")
+
+    def test_single_method_in_band_publishes_its_mid(self):
+        """Lone method whose mid sits inside the [0.25x, 4x] band → that mid is
+        the canonical target (banks legitimately run comps-only)."""
+        vs = synthesize_valuations(
+            [ValuationMethod(name="DCF", low=270, mid=300, high=330, confidence=1.0, source="DCF")],
+            current_price=240.0,
+        )
+        canonical = resolve_canonical_thesis(vs, "JPM")
+        assert canonical.target == pytest.approx(300.0, abs=0.01)
+        assert canonical.verdict == "BUY"  # upside 25% ≥ 15%
+        assert canonical.gate_failed is False
+        assert canonical.basis is not None and "Single valuation method" in canonical.basis
+
+    def test_single_method_out_of_band_withholds_target(self):
+        """Lone method 0.05x the market (the TSLA 'SELL $20.38' bug) → REVIEW,
+        target withheld — a single uncorroborated method this far from the
+        market must not stamp a headline."""
+        vs = synthesize_valuations(
+            [ValuationMethod(name="DCF", low=15, mid=20.38, high=26, confidence=1.0, source="DCF")],
+            current_price=418.45,
+        )
+        canonical = resolve_canonical_thesis(vs, "TSLA")
+        assert canonical.gate_failed is True
+        assert canonical.verdict == "REVIEW"
+        assert canonical.target is None
+        assert canonical.basis is not None and "Only one valuation method" in canonical.basis

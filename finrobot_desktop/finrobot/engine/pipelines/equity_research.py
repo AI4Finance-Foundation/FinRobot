@@ -38,7 +38,9 @@ from finrobot.engine.compute.operators.dcf import (
 )
 from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
 from finrobot.engine.compute.operators.valuation_synthesis import (
-    MARKET_DIVERGENCE_RATIO_K,
+    VERDICT_BUY_THRESHOLD,
+    VERDICT_SELL_THRESHOLD,
+    resolve_canonical_thesis,
 )
 from finrobot.engine.compute.coordinators.extractor import normalize_financials_to_usd
 from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
@@ -697,24 +699,6 @@ async def _execute_technical_analysis(
     return StepOutput(text=" ".join(summary_parts), structured=payload)
 
 
-# Recommendation thresholds — applied to ValuationSynthesis.upside_downside.
-# Source: sell-side equity-research convention (±15% bands around fair value
-# are the standard separators between Buy / Hold / Sell on the Street). The
-# numbers travel into both the LLM prompt (so the narrative is consistent)
-# and the post-run override (so the contract holds even if the LLM drifts).
-_VERDICT_BUY_THRESHOLD = 0.15
-_VERDICT_SELL_THRESHOLD = -0.15
-
-
-def _verdict_from_upside(upside: float) -> str:
-    """Deterministic Buy/Hold/Sell from synthesis upside vs current price."""
-    if upside >= _VERDICT_BUY_THRESHOLD:
-        return "BUY"
-    if upside <= _VERDICT_SELL_THRESHOLD:
-        return "SELL"
-    return "HOLD"
-
-
 # Matches a $-prefixed dollar figure: $276, $276.43, $1,234.50, $280.
 # Group 1 is the numeric body (with optional thousands separators / decimals).
 _DOLLAR_RE = re.compile(r"\$\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)")
@@ -888,102 +872,18 @@ async def _execute_thesis(
     # So we (a) inject canonical values into the prompt for a consistent
     # narrative and (b) force-override the fields after the run, so even a
     # non-cooperative LLM can't desync the contract.
+    # The canonical headline (target / verdict / basis / gate state) is resolved
+    # by a PURE operator — same ValuationSynthesis always yields the same numbers,
+    # independently unit-tested in test_valuation_synthesis.py without standing up
+    # an LLM. The async work here is only to narrate it (inject below) and enforce
+    # it (override after the run).
     vs = structured_context.get("valuation_synthesis")
-    canonical_target: float | None = None
-    canonical_basis: str | None = None
-    canonical_verdict: str | None = None
-    canonical_upside: float | None = None
-    # Data-health gate: when the synthesis flags itself unreliable, we publish
-    # NO headline target/verdict. Two orthogonal triggers (see
-    # ValuationSynthesis.reliable): (a) methods deviate > 50% from each other
-    # (the 2026-05-28 TSLA artifact: "DCF deviates 54% from median"), or (b) the
-    # methods agree with each other but the weighted target sits > 75% off the
-    # market price (the 2026-06-05 TSLA screenshot: DCF $11.80 + Comps $25.54
-    # corroborate at $17.20 yet land 96% below the $418 market — the market
-    # prices option value the cash-flow models can't see). REVIEW is the honest
-    # verdict; the narrative LLM is told to explain the data-health gap instead
-    # of inventing conviction.
-    gate_failed = isinstance(vs, ValuationSynthesis) and not vs.reliable
-    if gate_failed:
-        canonical_verdict = "REVIEW"
-        canonical_target = None
-        assert isinstance(vs, ValuationSynthesis)
-        spread_detail = "; ".join(vs.warnings) if vs.warnings else "method spread exceeded gate"
-        canonical_basis = f"DATA-HEALTH GATE: target withheld. {spread_detail}"
-        logger.warning(
-            "Equity-research data-health gate TRIPPED — verdict forced to REVIEW, "
-            "target withheld. Detail: %s",
-            spread_detail,
-        )
-    elif isinstance(vs, ValuationSynthesis) and vs.weighted_price is not None:
-        # Only inject an authoritative target when ≥2 methods converge.
-        # Single-method synthesis has weighted_price=None (no cross-check).
-        canonical_target = round(vs.weighted_price, 2)
-        canonical_upside = vs.upside_downside
-        canonical_verdict = (
-            _verdict_from_upside(canonical_upside) if canonical_upside is not None else None
-        )
-        method_breakdown = ", ".join(
-            f"{m.name}=${m.mid:.2f}(wt={m.confidence:.2f})" for m in vs.methods
-        )
-        canonical_basis = (
-            f"Method-weighted average of {len(vs.methods)} valuation methods "
-            f"(wt = data-quality weight, NOT prediction accuracy): "
-            f"{method_breakdown} → ${canonical_target:.2f}"
-        )
-    elif isinstance(vs, ValuationSynthesis) and vs.methods and vs.current_price > 0:
-        # Single-method synthesis (weighted_price=None — no cross-check). The LLM
-        # must NOT be left free to invent a headline number here: the 2026-06-05
-        # TSLA live artifact fell through this branch when comps died (all-EV
-        # peer set, P/E n=0 of 6) and the LLM stamped "SELL $20.38" on a 0.05x
-        # model/market ratio — bypassing every data-health gate. Apply the SAME
-        # calibration band the multi-method market-divergence gate uses to the
-        # lone method's mid:
-        #   · in-band  → publish it as the canonical target with an explicit
-        #     single-method / no-cross-check caveat (banks legitimately run
-        #     comps-only; forcing REVIEW would end coverage of every financial)
-        #   · out-of-band → trip the data-health gate: REVIEW, target withheld,
-        #     narrative explains via the market-implied check.
-        only = vs.methods[0]
-        ratio = only.mid / vs.current_price
-        if ratio > MARKET_DIVERGENCE_RATIO_K or ratio < 1.0 / MARKET_DIVERGENCE_RATIO_K:
-            gate_failed = True
-            canonical_verdict = "REVIEW"
-            canonical_target = None
-            canonical_basis = (
-                f"DATA-HEALTH GATE: target withheld. Only one valuation method "
-                f"({only.name}) resolved — no cross-check — and its mid "
-                f"${only.mid:.2f} is {ratio:.2g}x the ${vs.current_price:.2f} market "
-                f"price, outside the [{1.0 / MARKET_DIVERGENCE_RATIO_K:.2g}x, "
-                f"{MARKET_DIVERGENCE_RATIO_K:.2g}x] calibration band. A single "
-                f"uncorroborated method this far from the market must not set a "
-                f"headline target/verdict."
-            )
-            logger.warning(
-                "Equity-research single-method gate TRIPPED for %s — %s mid $%.2f "
-                "is %.2gx market $%.2f. Verdict forced to REVIEW, target withheld.",
-                ticker,
-                only.name,
-                only.mid,
-                ratio,
-                vs.current_price,
-            )
-        else:
-            canonical_target = round(only.mid, 2)
-            canonical_upside = (only.mid - vs.current_price) / vs.current_price
-            canonical_verdict = _verdict_from_upside(canonical_upside)
-            canonical_basis = (
-                f"Single valuation method ({only.name}=${only.mid:.2f}, "
-                f"wt={only.confidence:.2f}) — no cross-check available; treat with "
-                f"wider uncertainty than a multi-method synthesis."
-            )
-    elif isinstance(vs, ValuationSynthesis):
-        logger.warning(
-            "ValuationSynthesis has %d method(s), current_price=%s — no authoritative "
-            "price target injected",
-            len(vs.methods),
-            vs.current_price,
-        )
+    canonical = resolve_canonical_thesis(vs, ticker)
+    canonical_target = canonical.target
+    canonical_basis = canonical.basis
+    canonical_verdict = canonical.verdict
+    canonical_upside = canonical.upside
+    gate_failed = canonical.gate_failed
 
     # Reverse-DCF reality check, threaded into the thesis as an AUTHORITATIVE
     # computed number (the LLM cites it, never invents it). It is the single most
@@ -1067,8 +967,8 @@ async def _execute_thesis(
             f"Derivation: {canonical_basis}; implied upside vs current price = {upside_str}.\n"
             f"Your `price_target` field MUST equal the authoritative number above. "
             f"Your `recommendation` field MUST equal the authoritative verdict above "
-            f"(derived from upside thresholds: BUY ≥ +{int(_VERDICT_BUY_THRESHOLD * 100)}%, "
-            f"SELL ≤ {int(_VERDICT_SELL_THRESHOLD * 100)}%, else HOLD). "
+            f"(derived from upside thresholds: BUY ≥ +{int(VERDICT_BUY_THRESHOLD * 100)}%, "
+            f"SELL ≤ {int(VERDICT_SELL_THRESHOLD * 100)}%, else HOLD). "
             f"Your `price_target_basis` MUST cite that this is the method-weighted average "
             f"synthesis of the listed methods (do NOT write 'X% confidence' — the wt= values "
             f"are data-quality weights, not prediction probabilities). "

@@ -152,3 +152,19 @@ async def test_sentiment_normalises_ticker_uppercase_and_strips_dollar() -> None
         r = await client.get("/api/sentiment/$nvda")
     assert r.status_code == 200
     assert r.json()["ticker"] == "NVDA"
+
+
+@pytest.mark.asyncio
+async def test_sentiment_rejects_empty_dollar_ticker() -> None:
+    app = _app([_AdanosLike()])
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/sentiment/$")
+    assert r.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_sentiment_rejects_invalid_ticker_characters() -> None:
+    app = _app([_AdanosLike()])
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/sentiment/苹果")
+    assert r.status_code == 422

@@ -13,12 +13,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from starlette.requests import Request
 
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
+from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.data.types import DataType
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,10 @@ async def get_sentiment(
     and shows a "configure Adanos" link, per the v5 cold-start rules.
     """
     data_layer = _data_layer(request)
-    ticker = ticker.upper().lstrip("$")
+    try:
+        ticker = validate_ticker(ticker.lstrip("$"))
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     if data_layer is None or not _has_sentiment_provider(data_layer):
         return SentimentSnapshot(

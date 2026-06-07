@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Any
 
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from finrobot.engine.models.financial import DCFInputs
 
@@ -52,6 +52,13 @@ class MonteCarloRequest(BaseModel):
     wacc_std: float = Field(default=0.01, ge=0, le=0.05)
     terminal_growth_std: float = Field(default=0.005, ge=0, le=0.02)
     mid_year: bool = Field(default=False)
+
+    @field_validator("n_simulations")
+    @classmethod
+    def _validate_even_simulation_count(cls, value: int) -> int:
+        if value % 2:
+            raise ValueError("n_simulations must be even for antithetic variates.")
+        return value
 
 
 def run_monte_carlo(
@@ -105,6 +112,9 @@ def run_monte_carlo(
     Raises:
         ValueError: If fewer than 100 valid simulations complete.
     """
+    if n_simulations % 2:
+        raise ValueError("n_simulations must be even for antithetic variates.")
+
     rng = np.random.default_rng(seed)
     n = n_simulations
     n_years = len(inputs.revenue_growth_rates)

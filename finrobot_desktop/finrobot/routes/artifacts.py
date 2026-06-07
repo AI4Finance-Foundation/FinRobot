@@ -97,7 +97,7 @@ async def list_artifacts(
 async def ticker_timeline(
     ticker: str,
     request: Request,
-    limit: int = 50,
+    limit: int = Query(50, ge=1, le=1000),
 ) -> list[ArtifactSummary]:
     """Return all artifacts for a ticker, newest first.
 

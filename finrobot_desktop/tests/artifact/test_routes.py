@@ -315,3 +315,7 @@ class TestTimeline:
         items = resp.json()
         assert items[0]["id"] == "art_late_TSLA"
         assert items[1]["id"] == "art_early_TSLA"
+
+    def test_timeline_rejects_negative_limit(self, client: TestClient) -> None:
+        resp = client.get("/api/artifacts/by-ticker/TSLA/timeline?limit=-1")
+        assert resp.status_code == 422

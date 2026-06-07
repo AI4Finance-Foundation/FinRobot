@@ -9,6 +9,7 @@ import pytest
 
 from finrobot.artifact.models import ArtifactSummary
 from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.normalize.contracts import NormalizedPrice, Provenance
 from finrobot.engine.data.types import DataType
 from finrobot.routes._artifact_signal import attach_signals
 
@@ -61,6 +62,20 @@ class _StubDataLayer:
             ticker=ticker,
             data_type=DataType.PRICE,
             timestamp=NOW,
+        )
+
+    async def fetch_canonical(
+        self, data_type: DataType | str, ticker: str, **_: object
+    ) -> NormalizedPrice:
+        if DataType(data_type) != DataType.PRICE:
+            raise ValueError(f"unsupported canonical type: {data_type}")
+        raw = await self.fetch(DataType.PRICE, ticker)
+        price = raw.data.get("current_price", 0.0)
+        return NormalizedPrice(
+            ticker=ticker,
+            current_price=float(price or 0.0),
+            bars=[],
+            provenance=Provenance(provider="stub", as_of=NOW, fetched_at=NOW),
         )
 
 
@@ -145,6 +160,19 @@ class _ConcurrencyTrackingLayer:
             ticker=ticker,
             data_type=DataType.PRICE,
             timestamp=NOW,
+        )
+
+    async def fetch_canonical(
+        self, data_type: DataType | str, ticker: str, **_: object
+    ) -> NormalizedPrice:
+        if DataType(data_type) != DataType.PRICE:
+            raise ValueError(f"unsupported canonical type: {data_type}")
+        raw = await self.fetch(DataType.PRICE, ticker)
+        return NormalizedPrice(
+            ticker=ticker,
+            current_price=float(raw.data["current_price"]),
+            bars=[],
+            provenance=Provenance(provider="stub", as_of=NOW, fetched_at=NOW),
         )
 
 

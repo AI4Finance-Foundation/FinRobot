@@ -12,7 +12,7 @@ stays provider-agnostic; this module owns the data-layer translation.
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Literal
 
 from finrobot.engine.primitives.historical_valuation import (
@@ -72,32 +72,35 @@ async def load_yearly_financials(
 
 
 async def load_price_history(ticker: str, data_layer: DataLayer, years: int) -> list[PricePoint]:
-    """Pull `years` of (date, close) points from DataType.PRICE."""
+    """Pull `years` of adjusted daily (date, close) PRICE_RANGE points.
+
+    ``NormalizedPrice`` deliberately keeps only the trailing 52-week dashboard
+    window. Historical valuation bands need caller-sized multi-year samples, so
+    they must use the explicit PRICE_RANGE door.
+    """
+    if years <= 0:
+        return []
+    if not hasattr(data_layer, "fetch_price_range"):
+        return []
+
+    end = datetime.now(tz=timezone.utc).date()
+    start = _same_day_years_ago(end, years)
+    end_exclusive = end + timedelta(days=1)
     try:
-        result = await data_layer.fetch(DataType.PRICE, ticker)
+        bars = await data_layer.fetch_price_range(
+            ticker, start.isoformat(), end_exclusive.isoformat()
+        )
     except (ProviderError, ValueError, KeyError) as exc:
         logger.info("price history fetch failed for %s: %s", ticker, exc)
         return []
-    history = result.data.get("price_history") if isinstance(result.data, dict) else None
-    if not isinstance(history, list):
-        return []
 
-    cutoff = date(datetime.now(tz=timezone.utc).year - years, 1, 1)
     points: list[PricePoint] = []
-    for row in history:
-        if not isinstance(row, dict):
+    for bar in bars:
+        if bar.date < start:
             continue
-        d = _parse_date(row.get("date"))
-        if d is None or d < cutoff:
+        if bar.close <= 0:
             continue
-        close = row.get("close")
-        try:
-            close_f = float(close) if close is not None else None
-        except (TypeError, ValueError):
-            continue
-        if close_f is None or close_f <= 0:
-            continue
-        points.append(PricePoint(sample_date=d, close=close_f))
+        points.append(PricePoint(sample_date=bar.date, close=bar.close))
     points.sort(key=lambda p: p.sample_date)
     return points
 
@@ -194,3 +197,10 @@ def _parse_date(raw: Any) -> date | None:
         return date.fromisoformat(raw[:10])
     except ValueError:
         return None
+
+
+def _same_day_years_ago(day: date, years: int) -> date:
+    try:
+        return day.replace(year=day.year - years)
+    except ValueError:
+        return day.replace(year=day.year - years, month=2, day=28)

@@ -2362,6 +2362,10 @@ msgid "workspace.market.degraded.providerDivergence"
 msgstr "{field} differs across sources · cross-check flagged"
 
 #. js-lingui-explicit-id
+msgid "workspace.market.degraded.priceDivergence"
+msgstr "{field} differs across quote sources · review live price"
+
+#. js-lingui-explicit-id
 msgid "workspace.market.trend.uptrend"
 msgstr "↑ Uptrend"
 

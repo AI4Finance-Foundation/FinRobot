@@ -5,6 +5,13 @@ from pydantic_ai import Agent
 from pydantic_ai.models.test import TestModel
 
 from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.normalize.contracts import (
+    NormalizedFinancials,
+    NormalizedPrice,
+    PriceBar,
+    Provenance,
+)
+from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.pipelines.dcf import create_dcf_pipeline
 
@@ -40,6 +47,38 @@ class FakeDataLayer:
             ticker=ticker,
             data_type=data_type,
             timestamp=datetime.now(tz=timezone.utc),
+        )
+
+    async def fetch_canonical(
+        self, data_type: DataType | str, ticker: str, **kwargs
+    ) -> NormalizedFinancials | NormalizedPrice:
+        now = datetime.now(tz=timezone.utc)
+        provenance = Provenance(provider="fake", as_of=now, fetched_at=now)
+        if DataType(data_type) == DataType.PRICE:
+            return NormalizedPrice(
+                ticker=ticker,
+                current_price=180.0,
+                bars=[
+                    PriceBar(date=now.date(), close=170.0),
+                    PriceBar(date=now.date(), close=180.0),
+                    PriceBar(date=now.date(), close=190.0),
+                ],
+                provenance=provenance,
+            )
+        return NormalizedFinancials(
+            ticker=ticker,
+            reporting_currency="USD",
+            quote_currency="USD",
+            as_of=now,
+            revenue=385_000_000_000.0,
+            ebitda=130_000_000_000.0,
+            net_income=100_000_000_000.0,
+            market_cap=2_800_000_000_000.0,
+            total_debt=110_000_000_000.0,
+            total_cash=60_000_000_000.0,
+            shares_outstanding=15_500_000_000.0,
+            current_price=180.0,
+            provenance=provenance,
         )
 
 

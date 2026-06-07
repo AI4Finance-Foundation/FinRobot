@@ -14,6 +14,7 @@ import pytest
 from finrobot.engine.data.cache import DataCache
 from finrobot.engine.data.interface import DataProvider, DataResult
 from finrobot.engine.data.layer import DataLayer
+from finrobot.engine.data.normalize.contracts import degraded_price_divergence
 from finrobot.engine.data.types import DataType
 from finrobot.engine.data.validator import cross_validate_price
 
@@ -137,6 +138,7 @@ async def test_fetch_price_flags_cross_source_divergence(cache) -> None:
     assert result.provider == "fmp"  # primary still wins
     assert secondary.quote_calls == 1  # second provider probed via QUOTE only
     assert any("Price discrepancy" in w for w in result.warnings)
+    assert result.price_field_divergences == ["current_price"]
 
 
 async def test_fetch_price_silent_when_sources_agree(cache) -> None:
@@ -156,3 +158,16 @@ async def test_fetch_price_survives_secondary_quote_failure(cache) -> None:
     result = await layer.fetch_price("AAPL")  # must not raise
     assert result.data["current_price"] == 311.23
     assert not any("Price discrepancy" in w for w in result.warnings)
+
+
+async def test_fetch_canonical_price_uses_validated_price_path(cache) -> None:
+    primary = _StubProvider("fmp", [DataType.PRICE, DataType.QUOTE], 311.23)
+    secondary = _StubProvider("yfinance", [DataType.PRICE, DataType.QUOTE], 155.60)
+    layer = DataLayer([primary, secondary], cache)
+
+    result = await layer.fetch_canonical(DataType.PRICE, "AAPL")
+
+    assert result.provenance.provider == "fmp"
+    assert secondary.quote_calls == 1
+    assert any("Price discrepancy" in w for w in result.warnings)
+    assert degraded_price_divergence("current_price") in result.provenance.degraded

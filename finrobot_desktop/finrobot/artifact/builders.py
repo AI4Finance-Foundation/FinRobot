@@ -108,6 +108,17 @@ def _extract_financial_data_dump(
     return "unknown", _now(), {}
 
 
+def _extract_financial_data(result: "PipelineResult", *step_names: str) -> Any | None:
+    """Return the first FinancialData structured output from named steps."""
+    from finrobot.engine.models.financial import FinancialData
+
+    for name in step_names:
+        val = result.structured_data.get(name)
+        if isinstance(val, FinancialData):
+            return val
+    return None
+
+
 def _safe_dump(obj: Any) -> dict[str, Any]:
     """Dump a Pydantic model or return empty dict on failure."""
     if obj is None:
@@ -121,6 +132,73 @@ def _safe_dump(obj: Any) -> dict[str, Any]:
     if isinstance(obj, dict):
         return obj
     return {}
+
+
+def _numeric_audit_warnings(audit: Any) -> list[str]:
+    return [
+        f"[NUMERIC-AUDIT/{f.severity}] {f.field_key} ({f.check}): {f.evidence}"
+        for f in audit.findings
+    ]
+
+
+def _attach_numeric_audit(
+    structured_out: dict[str, Any],
+    result: "PipelineResult",
+    deps: Any,
+    *financial_step_names: str,
+    withhold_keys: tuple[str, ...] = (),
+) -> list[str]:
+    """Attach numeric audit to any valuation artifact.
+
+    Returns warning strings to append to ArtifactOutputs.warnings. For standalone
+    valuation artifacts, a blocked audit can null direct per-share target fields
+    so downstream aggregate parsers hide the row instead of republishing a target
+    whose input snapshot failed a definitional gate.
+    """
+
+    from finrobot.engine.compute.operators.audit import audit_artifact
+
+    fin_snapshot = _extract_financial_data(result, *financial_step_names)
+    audit = audit_artifact(fin_snapshot)
+    audit_payload = audit.model_dump(mode="json")
+    capability_warnings = _data_capability_warnings(deps)
+    if capability_warnings:
+        audit_payload["artifact_status"] = "review_only"
+        audit_payload["data_capability"] = {
+            "artifact_status": "review_only",
+            "reasons": capability_warnings,
+        }
+    structured_out["numeric_audit"] = audit_payload
+    if audit.withhold_valuation and withhold_keys:
+        structured_out["valuation_withheld"] = True
+        structured_out["withheld_reason"] = "numeric_audit_blocked_field"
+        for key in withhold_keys:
+            if key in structured_out:
+                structured_out[key] = None
+    return _numeric_audit_warnings(audit) + capability_warnings
+
+
+def _data_capability_warnings(deps: Any) -> list[str]:
+    settings = getattr(deps, "settings", None)
+    if settings is None or not hasattr(settings, "fmp_api_key"):
+        return []
+    if getattr(settings, "fmp_api_key", ""):
+        return []
+    return [
+        "[DATA-CAPABILITY/review] FMP API key unavailable — financial statements "
+        "fall back to non-cross-validated sources; D&A, earnings surprises, and "
+        "provider cross-checks may be incomplete. Artifact is REVIEW_ONLY."
+    ]
+
+
+def _summary_text(result: "PipelineResult", structured_out: dict[str, Any], deps: Any) -> str:
+    audit = structured_out.get("numeric_audit")
+    if isinstance(audit, dict) and audit.get("withhold_valuation") is True:
+        lang = getattr(getattr(deps, "settings", None), "language", "en")
+        if lang == "zh":
+            return "估值已被数字审计闸门隐藏；请查看 numeric_audit 与 warnings。"
+        return "Valuation withheld by numeric audit; see numeric_audit and warnings."
+    return result.format_summary()[:2000]
 
 
 def _make_base_compute_version(
@@ -169,6 +247,14 @@ def build_dcf_artifact(
 
     if isinstance(dcf, DCFResult):
         assumptions_params = _safe_dump(dcf.inputs)
+    structured_out = _safe_dump(dcf)
+    audit_warnings = _attach_numeric_audit(
+        structured_out,
+        result,
+        deps,
+        "historical_data",
+        withhold_keys=("implied_price",),
+    )
 
     return Artifact(
         id=_make_artifact_id(ticker, "dcf"),
@@ -182,9 +268,9 @@ def build_dcf_artifact(
         assumptions=ArtifactAssumptions(parameters=assumptions_params),
         compute_version=_make_base_compute_version(formula_id, formula_warnings),
         outputs=ArtifactOutputs(
-            structured=_safe_dump(dcf),
-            summary_text=result.format_summary()[:2000],
-            warnings=_collect_warnings(result),
+            structured=structured_out,
+            summary_text=_summary_text(result, structured_out, deps),
+            warnings=_collect_warnings(result) + audit_warnings,
         ),
         meta=ArtifactMeta(
             created_at=_now(),
@@ -216,6 +302,8 @@ def build_lbo_artifact(
             formula_warnings.append(lbo_result.irr_formula_warning)
         if lbo_result.capital_structure_warning:
             formula_warnings.append(lbo_result.capital_structure_warning)
+    structured_out = _safe_dump(lbo_result)
+    audit_warnings = _attach_numeric_audit(structured_out, result, deps, "data_collection")
 
     return Artifact(
         id=_make_artifact_id(ticker, "lbo"),
@@ -231,9 +319,9 @@ def build_lbo_artifact(
         ),
         compute_version=_make_base_compute_version("lbo_v1", formula_warnings),
         outputs=ArtifactOutputs(
-            structured=_safe_dump(lbo_result),
-            summary_text=result.format_summary()[:2000],
-            warnings=_collect_warnings(result),
+            structured=structured_out,
+            summary_text=_summary_text(result, structured_out, deps),
+            warnings=_collect_warnings(result) + audit_warnings,
         ),
         meta=ArtifactMeta(
             created_at=_now(),
@@ -262,6 +350,8 @@ def build_comps_artifact(
     cross_tickers: list[str] = []
     if isinstance(peer_comps, PeerComps):
         cross_tickers = [p.ticker for p in peer_comps.peers]
+    structured_out = _safe_dump(peer_comps)
+    audit_warnings = _attach_numeric_audit(structured_out, result, deps, "target_data")
 
     return Artifact(
         id=_make_artifact_id(ticker, "comps"),
@@ -276,9 +366,9 @@ def build_comps_artifact(
         assumptions=ArtifactAssumptions(parameters={"peers": cross_tickers}),
         compute_version=_make_base_compute_version("comps_multiples_v1"),
         outputs=ArtifactOutputs(
-            structured=_safe_dump(peer_comps),
-            summary_text=result.format_summary()[:2000],
-            warnings=_collect_warnings(result),
+            structured=structured_out,
+            summary_text=_summary_text(result, structured_out, deps),
+            warnings=_collect_warnings(result) + audit_warnings,
         ),
         meta=ArtifactMeta(
             created_at=_now(),
@@ -303,6 +393,14 @@ def build_ddm_artifact(
     data_source, fetched_at, raw_data = _extract_financial_data_dump(result, "historical_data")
     ddm_inputs = result.structured_data.get("ddm_params")
     ddm_result = result.structured_data.get("ddm_calc")
+    structured_out = _safe_dump(ddm_result) if isinstance(ddm_result, DDMResult) else {}
+    audit_warnings = _attach_numeric_audit(
+        structured_out,
+        result,
+        deps,
+        "historical_data",
+        withhold_keys=("equity_value_per_share",),
+    )
 
     return Artifact(
         id=_make_artifact_id(ticker, "ddm"),
@@ -318,9 +416,9 @@ def build_ddm_artifact(
         ),
         compute_version=_make_base_compute_version("ddm_gordon_growth_v1"),
         outputs=ArtifactOutputs(
-            structured=_safe_dump(ddm_result) if isinstance(ddm_result, DDMResult) else {},
-            summary_text=result.format_summary()[:2000],
-            warnings=_collect_warnings(result),
+            structured=structured_out,
+            summary_text=_summary_text(result, structured_out, deps),
+            warnings=_collect_warnings(result) + audit_warnings,
         ),
         meta=ArtifactMeta(
             created_at=_now(),
@@ -470,11 +568,16 @@ def build_equity_research_artifact(
         None,
     )
     audit = audit_artifact(fin_snapshot)
-    structured_out["numeric_audit"] = audit.model_dump(mode="json")
-    audit_warnings = [
-        f"[NUMERIC-AUDIT/{f.severity}] {f.field_key} ({f.check}): {f.evidence}"
-        for f in audit.findings
-    ]
+    audit_payload = audit.model_dump(mode="json")
+    capability_warnings = _data_capability_warnings(deps)
+    if capability_warnings:
+        audit_payload["artifact_status"] = "review_only"
+        audit_payload["data_capability"] = {
+            "artifact_status": "review_only",
+            "reasons": capability_warnings,
+        }
+    structured_out["numeric_audit"] = audit_payload
+    audit_warnings = _numeric_audit_warnings(audit) + capability_warnings
     if audit.withhold_valuation:
         thesis_out = structured_out.get("thesis")
         if isinstance(thesis_out, dict):
@@ -502,7 +605,7 @@ def build_equity_research_artifact(
         outputs=ArtifactOutputs(
             structured=structured_out,
             llm_narrative=llm_narrative,
-            summary_text=result.format_summary()[:2000],
+            summary_text=_summary_text(result, structured_out, deps),
             warnings=_collect_warnings(result) + audit_warnings,
         ),
         meta=ArtifactMeta(

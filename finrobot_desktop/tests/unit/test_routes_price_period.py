@@ -16,6 +16,7 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 from unittest.mock import patch, AsyncMock
 
+from finrobot.engine.data.cache import raw_slot_key
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.types import DataType
 from finrobot.routes.data import _compute_session_state
@@ -98,6 +99,7 @@ async def test_price_endpoint_reuses_provider_price_cache_for_default_period(app
             ticker="NVDA",
             data_type=DataType.PRICE,
             timestamp=datetime(2026, 5, 27, 12, 0, tzinfo=timezone.utc),
+            warnings=["Price discrepancy: fmp 212.60 vs yfinance 200.00"],
         ),
     )
 
@@ -116,6 +118,7 @@ async def test_price_endpoint_reuses_provider_price_cache_for_default_period(app
     assert payload["change"] == pytest.approx(12.6)
     assert payload["change_pct"] == pytest.approx(6.3)
     assert payload["data_source"] == "yfinance:provider-cache"
+    assert any("Price discrepancy" in w for w in payload["warnings"])
     # Regression: the provider-cache fast path bypasses fetch_price_history, so
     # technicals must be backfilled at the _enrich choke point — not only on the
     # fetch path. Two bars is too short for a snapshot, but the key must exist.
@@ -245,8 +248,9 @@ async def test_price_endpoint_returns_stale_provider_cache_when_yfinance_is_rate
         """
         UPDATE cache
         SET cached_at = '2026-05-27T00:00:00+00:00'
-        WHERE data_type = 'price' AND ticker = 'NVDA'
-        """
+        WHERE data_type = ? AND ticker = 'NVDA'
+        """,
+        (raw_slot_key(DataType.PRICE),),
     )
     await conn.commit()
 

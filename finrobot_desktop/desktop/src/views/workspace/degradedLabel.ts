@@ -29,6 +29,8 @@ export function degradedLabel(t: Translate, flag: string): string {
       return t('workspace.market.degraded.circuitOpen', { provider: detail.toUpperCase() })
     if (kind === 'provider_divergence')
       return t('workspace.market.degraded.providerDivergence', { field: detail })
+    if (kind === 'price_divergence')
+      return t('workspace.market.degraded.priceDivergence', { field: detail })
   }
 
   // Unknown marker — show it raw rather than swallow it (still visible, just not pretty).

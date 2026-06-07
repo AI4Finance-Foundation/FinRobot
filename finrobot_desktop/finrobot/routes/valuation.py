@@ -218,13 +218,12 @@ async def _current_price(ticker: str, data_layer: DataLayer | None) -> float | N
     if data_layer is None:
         return None
     try:
-        result = await data_layer.fetch(DataType.PRICE, ticker)
+        result = await data_layer.fetch_canonical(DataType.PRICE, ticker)
     except (ProviderError, ValueError, KeyError) as exc:
         logger.info("current_price fetch failed for %s: %s", ticker, exc)
         return None
-    raw = result.data.get("current_price") if isinstance(result.data, dict) else None
     try:
-        price = float(raw) if raw is not None else None
+        price = float(result.current_price) if result.current_price is not None else None
     except (TypeError, ValueError):
         return None
     return price if price and price > 0 else None

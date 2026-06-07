@@ -7,10 +7,13 @@ withholds the rating + price target. A clean report renders byte-identically.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any, cast
 
-from finrobot.artifact.builders import build_equity_research_artifact
+from finrobot.artifact.builders import build_dcf_artifact, build_equity_research_artifact
 from finrobot.engine.models.financial import (
+    DCFInputs,
+    DCFResult,
     FinancialData,
     IncomeStatement,
     MarketData,
@@ -46,7 +49,7 @@ def _fd(
 
 def _result(fd: FinancialData, *, recommendation: str = "BUY", price_target: float | None = 100.0):
     return PipelineResult(
-        steps={"data_collection": "ok", "thesis": "ok"},
+        steps={"data_collection": "ok", "thesis": "Price target $100"},
         structured_data={
             "data_collection": fd,
             "thesis": {
@@ -55,6 +58,41 @@ def _result(fd: FinancialData, *, recommendation: str = "BUY", price_target: flo
                 "tagline": "t",
             },
         },
+    )
+
+
+def _dcf_result() -> DCFResult:
+    inputs = DCFInputs(
+        revenue_base=100e9,
+        revenue_growth_rates=[0.03, 0.03, 0.02, 0.02, 0.02],
+        ebitda_margin=0.30,
+        capex_pct_revenue=0.04,
+        nwc_pct_revenue=0.01,
+        tax_rate=0.21,
+        risk_free_rate=0.04,
+        beta=1.0,
+        equity_risk_premium=0.055,
+        cost_of_debt=0.05,
+        debt_ratio=0.20,
+        terminal_growth_rate=0.025,
+        shares_outstanding=5e9,
+        net_debt=10e9,
+        da_pct_revenue=0.03,
+    )
+    return DCFResult(
+        cost_of_equity=0.095,
+        wacc=0.082,
+        projection_years=5,
+        projected_revenue=[103e9, 106e9, 108e9, 110e9, 112e9],
+        projected_ebitda=[30e9] * 5,
+        projected_fcf=[10e9] * 5,
+        terminal_value=200e9,
+        pv_terminal=150e9,
+        pv_fcf_total=40e9,
+        enterprise_value=190e9,
+        equity_value=180e9,
+        implied_price=120.0,
+        inputs=inputs,
     )
 
 
@@ -86,6 +124,8 @@ def test_bank_ev_blocks_field_and_withholds_valuation():
     assert art.outputs.structured["thesis"]["recommendation"] == "REVIEW"
     assert art.outputs.structured["thesis"]["price_target"] is None
     assert art.outputs.llm_narrative["recommendation"] == "REVIEW"
+    assert "$100" not in art.outputs.summary_text
+    assert "Valuation withheld" in art.outputs.summary_text
 
 
 def test_loss_maker_review_only_keeps_target():
@@ -102,3 +142,55 @@ def test_no_financial_data_publishable():
     result = PipelineResult(steps={"data_collection": "ok"}, structured_data={})
     art = build_equity_research_artifact(result, "AAPL", cast(Any, None))
     assert art.outputs.structured["numeric_audit"]["artifact_status"] == "publishable"
+
+
+def test_standalone_dcf_carries_numeric_audit_when_clean():
+    result = PipelineResult(
+        steps={"historical_data": "ok", "dcf_calc": "ok"},
+        structured_data={
+            "historical_data": _fd(industry="Software", ev_ebitda=18.0),
+            "dcf_calc": _dcf_result(),
+        },
+    )
+    art = build_dcf_artifact(result, "X", cast(Any, None))
+
+    assert art.outputs.structured["numeric_audit"]["artifact_status"] == "publishable"
+    assert art.outputs.structured["implied_price"] == 120.0
+
+
+def test_missing_fmp_key_marks_valuation_artifact_review_only():
+    result = PipelineResult(
+        steps={"historical_data": "ok", "dcf_calc": "ok"},
+        structured_data={
+            "historical_data": _fd(industry="Software", ev_ebitda=18.0),
+            "dcf_calc": _dcf_result(),
+        },
+    )
+    deps = SimpleNamespace(settings=SimpleNamespace(fmp_api_key="", language="en"))
+    art = build_dcf_artifact(result, "X", cast(Any, deps))
+
+    audit = art.outputs.structured["numeric_audit"]
+    assert audit["artifact_status"] == "review_only"
+    assert audit["data_capability"]["artifact_status"] == "review_only"
+    assert audit["findings"] == []
+    assert any("DATA-CAPABILITY" in w for w in art.outputs.warnings)
+    assert art.outputs.structured["implied_price"] == 120.0
+
+
+def test_standalone_dcf_blocks_direct_target_when_audit_withholds():
+    result = PipelineResult(
+        steps={"historical_data": "ok", "dcf_calc": "DCF implies $120 per share"},
+        structured_data={
+            "historical_data": _fd(ticker="JPM", industry="Banks - Diversified", ev_ebitda=8.0),
+            "dcf_calc": _dcf_result(),
+        },
+    )
+    art = build_dcf_artifact(result, "JPM", cast(Any, None))
+
+    assert art.outputs.structured["numeric_audit"]["artifact_status"] == "review_only"
+    assert art.outputs.structured["numeric_audit"]["withhold_valuation"] is True
+    assert art.outputs.structured["valuation_withheld"] is True
+    assert art.outputs.structured["implied_price"] is None
+    assert "$120" not in art.outputs.summary_text
+    assert "Valuation withheld" in art.outputs.summary_text
+    assert any("financial_sector_ev_meaningless" in w for w in art.outputs.warnings)

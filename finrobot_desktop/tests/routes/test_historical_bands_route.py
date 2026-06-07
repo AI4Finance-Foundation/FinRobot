@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict
 
 from finrobot.engine.data.cache import DataCache
 from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.normalize.contracts import NormalizedPrice, PriceBar, Provenance
 from finrobot.engine.data.types import DataType
 from finrobot.routes.valuation import router
 
@@ -61,6 +62,7 @@ class _StubDataLayer:
         self._cache = DataCache(db_path=cache_db)
         self.fetch_calls: list[tuple[str, str]] = []
         self.fetch_historical_calls: list[tuple[str, str, int]] = []
+        self.fetch_price_range_calls: list[tuple[str, str, str]] = []
 
     @property
     def cache(self) -> DataCache:
@@ -73,6 +75,30 @@ class _StubDataLayer:
         return DataResult(
             data={}, provider="stub", ticker=ticker, data_type=DataType(data_type), timestamp=NOW
         )
+
+    async def fetch_canonical(
+        self, data_type: DataType | str, ticker: str, **_: object
+    ) -> NormalizedPrice:
+        if DataType(data_type) != DataType.PRICE:
+            raise ValueError(f"unsupported canonical type: {data_type}")
+        raw = await self.fetch(DataType.PRICE, ticker)
+        bars = [
+            PriceBar(date=date.fromisoformat(str(row["date"])), close=float(row["close"]))
+            for row in raw.data["price_history"]
+        ]
+        return NormalizedPrice(
+            ticker=ticker,
+            current_price=float(raw.data["current_price"]),
+            bars=bars,
+            provenance=Provenance(provider="stub", as_of=NOW, fetched_at=NOW),
+        )
+
+    async def fetch_price_range(self, ticker: str, start: str, end: str) -> list[PriceBar]:
+        self.fetch_price_range_calls.append((ticker, start, end))
+        return [
+            PriceBar(date=date.fromisoformat(str(row["date"])), close=float(row["close"]))
+            for row in _price_result(60).data["price_history"]
+        ]
 
     async def fetch_historical(
         self, data_type: DataType | str, ticker: str, years: int = 5, **_: object
@@ -115,11 +141,11 @@ async def test_historical_bands_endpoint_cached_so_second_call_skips_fetch(tmp_p
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
         await client.get("/api/valuation/historical-bands/NVDA?metric=ev_ebitda&years=3")
         first_history = len(layer.fetch_historical_calls)
-        first_price = len(layer.fetch_calls)
+        first_price = len(layer.fetch_price_range_calls)
         await client.get("/api/valuation/historical-bands/NVDA?metric=ev_ebitda&years=3")
     # Second call must NOT trigger fetch_historical or fetch — cache hit.
     assert len(layer.fetch_historical_calls) == first_history
-    assert len(layer.fetch_calls) == first_price
+    assert len(layer.fetch_price_range_calls) == first_price
 
 
 @pytest.mark.asyncio

@@ -162,6 +162,26 @@ def _render_structured_prompt_value(value: object) -> str:
     return f"{rendered[:_PROMPT_MAX_STRUCTURED_CHARS]}\n... [structured item truncated {omitted} chars]"
 
 
+def _data_type_or_none(data_type: str | DataType) -> DataType | None:
+    try:
+        return DataType(data_type)
+    except ValueError:
+        return None
+
+
+def _canonical_context_string(data_type: DataType, value: object) -> str:
+    """Render normalized PRICE / FINANCIALS for prompt use.
+
+    The pipeline step prompt is a rendering port over the deterministic data
+    contract; it must not see raw provider dicts for the two numeric bedrock
+    payloads. The JSON below includes provenance/degraded markers, currencies,
+    period basis, and warnings exactly as the canonical DTO exposes them.
+    """
+
+    rendered = _render_structured_prompt_value(value)
+    return f"[canonical] {data_type.value} (normalized contract)\n```json\n{rendered}\n```"
+
+
 class ProgressCallback(Protocol):
     """Called at start/end of each pipeline step and on every retry.
 
@@ -732,10 +752,14 @@ class Pipeline:
         parts = []
         for data_type in required_data:
             try:
-                result = await deps.data_layer.fetch(data_type, ticker)
-                parts.append(
-                    _truncate_for_prompt(result.to_context_string(), _PROMPT_MAX_STEP_DATA_CHARS)
-                )
+                canonical_type = _data_type_or_none(data_type)
+                if canonical_type in (DataType.FINANCIALS, DataType.PRICE):
+                    normalized = await deps.data_layer.fetch_canonical(canonical_type, ticker)
+                    rendered = _canonical_context_string(canonical_type, normalized)
+                else:
+                    result = await deps.data_layer.fetch(data_type, ticker)
+                    rendered = result.to_context_string()
+                parts.append(_truncate_for_prompt(rendered, _PROMPT_MAX_STEP_DATA_CHARS))
             except (ProviderError, ValueError, KeyError) as e:
                 logger.warning(f"Failed to fetch {data_type} for {ticker}: {e}")
                 parts.append(f"[{data_type}: data unavailable \u2014 {e}]")

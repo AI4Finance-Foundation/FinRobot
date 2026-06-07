@@ -15,6 +15,13 @@ from pydantic_ai.exceptions import AgentRunError
 from pydantic_ai.models.test import TestModel
 
 from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.normalize.contracts import (
+    NormalizedFinancials,
+    NormalizedPrice,
+    PriceBar,
+    Provenance,
+)
+from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import StepOutput
 from finrobot.engine.pipelines.base import (
     Pipeline,
@@ -42,6 +49,28 @@ class FakeDataLayer:
             ticker=ticker,
             data_type=data_type,
             timestamp=datetime.now(tz=timezone.utc),
+        )
+
+    async def fetch_canonical(self, data_type: str | DataType, ticker: str, **kwargs):
+        now = datetime.now(tz=timezone.utc)
+        provenance = Provenance(provider="fake", as_of=now, fetched_at=now)
+        if DataType(data_type) == DataType.PRICE:
+            return NormalizedPrice(
+                ticker=ticker,
+                quote_currency="USD",
+                current_price=150.0,
+                bars=[PriceBar(date=now.date(), close=150.0, high=151.0, low=149.0)],
+                is_ohlc_complete=True,
+                provenance=provenance,
+            )
+        return NormalizedFinancials(
+            ticker=ticker,
+            reporting_currency="USD",
+            quote_currency="USD",
+            as_of=now,
+            revenue=1_000.0,
+            ebitda=500.0,
+            provenance=provenance,
         )
 
 
@@ -192,6 +221,29 @@ class TestGatherData:
         result = await _run_pipeline(pipeline)
         assert "data_step" in result.steps
 
+    async def test_financials_required_data_uses_canonical_contract_in_prompt(self):
+        captured_prompts: list[str] = []
+
+        async def capture_fn(agent, deps, prompt, structured_context, ticker):
+            captured_prompts.append(prompt)
+            return "ok"
+
+        step = PipelineStep(
+            name="data_step",
+            agent=MagicMock(),
+            required_data=["financials"],
+            validator=TextValidator(validate_is_non_empty),
+            executor=capture_fn,
+        )
+        pipeline = Pipeline(steps=[step])
+
+        await pipeline.execute(FakeDeps(), "AAPL")
+
+        assert len(captured_prompts) == 1
+        prompt = captured_prompts[0]
+        assert "[canonical] financials (normalized contract)" in prompt
+        assert "[fake] AAPL / financials" not in prompt
+
     async def test_gather_data_uses_previous_results_when_required_data_empty(self):
         steps = [
             _make_step("s1", output="first step output"),
@@ -255,9 +307,9 @@ class TestGatherData:
         ]
         assert len(step_a_line) == 1, f"Expected one compact line for step_a, got: {step_a_line}"
         # D6 fix: the compact line should contain actual text content
-        assert "step output text" in step_a_line[0], (
-            f"Step_a compact line missing text snippet: {step_a_line[0]}"
-        )
+        assert (
+            "step output text" in step_a_line[0]
+        ), f"Step_a compact line missing text snippet: {step_a_line[0]}"
 
 
 class TestPipelineLogging:
@@ -932,7 +984,7 @@ async def test_step_data_is_truncated_to_cap():
     step = PipelineStep(
         name="data_step",
         agent=_make_agent("ok"),
-        required_data=["financials"],
+        required_data=["news"],
         validator=TextValidator(validate_is_non_empty),
         executor=capture_executor,
     )

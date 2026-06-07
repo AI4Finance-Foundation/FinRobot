@@ -2362,6 +2362,10 @@ msgid "workspace.market.degraded.providerDivergence"
 msgstr "{field} 跨源不一致 · 已标交叉校验"
 
 #. js-lingui-explicit-id
+msgid "workspace.market.degraded.priceDivergence"
+msgstr "{field} 行情源不一致 · 需复核实时报价"
+
+#. js-lingui-explicit-id
 msgid "workspace.market.trend.uptrend"
 msgstr "↑ 多头排列"
 

@@ -336,8 +336,10 @@ async def _provider_price_cache_payload(
     history_raw = raw.get("history") or raw.get("price_history") or []
     history = history_raw if isinstance(history_raw, list) else []
     change, change_pct = _price_change_from_history(history)
+    warnings = list(cached.data.warnings)
     warnings_raw = raw.get("warnings", [])
-    warnings = list(warnings_raw) if isinstance(warnings_raw, list) else []
+    if isinstance(warnings_raw, list):
+        warnings.extend(w for w in warnings_raw if w not in warnings)
     if warning is not None:
         warnings.insert(0, warning)
     payload = {

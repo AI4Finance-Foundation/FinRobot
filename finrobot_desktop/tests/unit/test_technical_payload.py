@@ -16,6 +16,8 @@ from finrobot.engine.compute.coordinators.technical_payload import (
     build_technical_analysis,
 )
 from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.normalize.contracts import NormalizedPrice, PriceBar, Provenance
+from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import DCFInputs
 
 
@@ -49,10 +51,7 @@ class _StubDataLayer:
 
     async def fetch(self, data_type: str, ticker: str) -> DataResult:
         if data_type == "price" and self.with_price:
-            history = [
-                {"date": f"2025-{m:02d}-01", "close": 150.0 + m}
-                for m in range(1, 13)
-            ]
+            history = [{"date": f"2025-{m:02d}-01", "close": 150.0 + m} for m in range(1, 13)]
             return DataResult(
                 data={"current_price": 162.0, "price_history": history},
                 provider="stub",
@@ -67,6 +66,42 @@ class _StubDataLayer:
             data_type=data_type,
             timestamp=datetime.now(tz=timezone.utc),
         )
+
+    async def fetch_canonical(self, data_type: DataType | str, ticker: str) -> NormalizedPrice:
+        if DataType(data_type) != DataType.PRICE:
+            raise ValueError(f"unsupported canonical type: {data_type}")
+        raw = await self.fetch(DataType.PRICE.value, ticker)
+        timestamp = raw.timestamp
+        if not self.with_price:
+            return NormalizedPrice(
+                ticker=ticker,
+                current_price=0.0,
+                bars=[],
+                provenance=Provenance(provider="stub", as_of=timestamp, fetched_at=timestamp),
+            )
+        bars = [
+            PriceBar(
+                date=datetime.fromisoformat(str(row["date"])).date(), close=float(row["close"])
+            )
+            for row in raw.data["price_history"]
+        ]
+        return NormalizedPrice(
+            ticker=ticker,
+            current_price=float(raw.data["current_price"]),
+            bars=bars,
+            provenance=Provenance(provider="stub", as_of=timestamp, fetched_at=timestamp),
+        )
+
+    async def fetch_price_range(self, ticker: str, start: str, end: str) -> list[PriceBar]:
+        if not self.with_price:
+            return []
+        raw = await self.fetch(DataType.PRICE.value, ticker)
+        return [
+            PriceBar(
+                date=datetime.fromisoformat(str(row["date"])).date(), close=float(row["close"])
+            )
+            for row in raw.data["price_history"]
+        ]
 
     async def fetch_historical(self, data_type: str, ticker: str, years: int) -> list[DataResult]:
         if not self.with_history:
@@ -262,9 +297,9 @@ async def test_historical_bands_warnings_passthrough_from_band():
     assert payload.historical_bands is None
     # Compute layer emits its own diagnostics; at least one warning must be present.
     # The stub has no shares_outstanding → "shares_outstanding 不可得" path fires first.
-    assert len(payload.warnings) >= 1, (
-        f"Expected >=1 warning from band compute layer, got: {payload.warnings}"
-    )
+    assert (
+        len(payload.warnings) >= 1
+    ), f"Expected >=1 warning from band compute layer, got: {payload.warnings}"
     # The warning must NOT be the generic fallback (it should be the compute layer's own text).
     # Any non-empty band.warnings from compute_historical_band are now passed through verbatim.
     assert not all(w == "historical_bands skipped: no valid samples" for w in payload.warnings)

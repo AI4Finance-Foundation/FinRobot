@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from finrobot.engine.data.cache import DataCache
+from finrobot.engine.data.cache import DataCache, raw_slot_key
 from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.provider_health import ProviderHealth
@@ -12,6 +12,7 @@ from finrobot.engine.data.normalize.contracts import (
     DEGRADED_CIRCUIT_OPEN_PREFIX,
     DEGRADED_PROVIDER_DIVERGENCE_PREFIX,
     degraded_circuit_open,
+    degraded_price_divergence,
     degraded_provider_divergence,
 )
 from finrobot.engine.data.types import DataType
@@ -484,9 +485,9 @@ class TestCrossValidationIntegration:
         layer = DataLayer([p1, p2, p3], cache)
         result = await layer.fetch("financials", "TEST")
         assert p3.fetch_called == 1, "Third provider was not called"
-        assert any("p3" in w for w in result.warnings), (
-            f"Third provider discrepancy not in warnings: {result.warnings}"
-        )
+        assert any(
+            "p3" in w for w in result.warnings
+        ), f"Third provider discrepancy not in warnings: {result.warnings}"
 
     async def test_empty_secondary_skipped_tries_next_provider(self, cache):
         """D5: empty secondary data → warning added, next provider tried."""
@@ -583,9 +584,9 @@ class TestCircuitOpenProvenance:
 
         normalized = await layer.fetch_canonical(DataType.FINANCIALS, "AAPL")
         expected_marker = degraded_circuit_open("fmp")
-        assert expected_marker in normalized.provenance.degraded, (
-            f"Expected '{expected_marker}' in degraded={normalized.provenance.degraded}"
-        )
+        assert (
+            expected_marker in normalized.provenance.degraded
+        ), f"Expected '{expected_marker}' in degraded={normalized.provenance.degraded}"
         assert expected_marker.startswith(DEGRADED_CIRCUIT_OPEN_PREFIX)
 
 
@@ -786,6 +787,45 @@ class TestFetchHistorical:
 
         assert results == []
 
+    @pytest.mark.asyncio
+    async def test_fetch_historical_all_fail_returns_stale_cache(self, cache, tmp_path):
+        import aiosqlite
+        from datetime import timedelta
+
+        historical = DataResult(
+            data={
+                "yearly_data": [
+                    {"revenue": 100.0, "fiscal_year": "2025-12-31"},
+                    {"revenue": 110.0, "fiscal_year": "2024-12-31"},
+                ]
+            },
+            provider="fmp",
+            ticker="AAPL",
+            data_type=DataType.FINANCIALS,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        cache_key = "AAPL:historical:financials:5"
+        await cache.set(DataType.HISTORICAL, cache_key, historical)
+        old_time = (datetime.now(tz=timezone.utc) - timedelta(days=2)).isoformat()
+        async with aiosqlite.connect(str(tmp_path / "layer_test.db")) as conn:
+            await conn.execute(
+                "UPDATE cache SET cached_at = ? WHERE data_type = ? AND ticker = ?",
+                (old_time, raw_slot_key(DataType.HISTORICAL), cache_key),
+            )
+            await conn.commit()
+
+        failing = MagicMock(spec=DataProvider)
+        failing.name = "failing"
+        failing.capabilities.return_value = ["financials"]
+        failing.fetch = AsyncMock(side_effect=ProviderError("down"))
+
+        layer = DataLayer(providers=[failing], cache=cache)
+        results = await layer.fetch_historical("financials", "AAPL", years=5)
+
+        assert len(results) == 2
+        assert results[0].data["revenue"] == 100.0
+        assert any("Historical data sources failed" in w for w in results[0].warnings)
+
 
 # ---------------------------------------------------------------------------
 # 门一 Step 3/4: fetch_quote + fetch_price PROPAGATE provider failure
@@ -877,6 +917,39 @@ class TestFetchCanonical:
         assert out.current_price == 175.0
         assert out.provenance.provider == "mock"
         assert out.provenance.from_cache is False
+
+    async def test_price_divergence_stamps_structured_degraded_marker(self, cache):
+        class PriceProvider(MockProvider):
+            def __init__(self, name_: str, price: float):
+                super().__init__(
+                    name_,
+                    ["price", "quote"],
+                    result=DataResult(
+                        data={"current_price": price, "price": price, "price_history": []},
+                        provider=name_,
+                        ticker="AAPL",
+                        data_type="price",
+                        timestamp=datetime.now(tz=timezone.utc),
+                    ),
+                )
+
+        layer = DataLayer([PriceProvider("fmp", 100.0), PriceProvider("yfinance", 50.0)], cache)
+
+        out = await layer.fetch_canonical("price", "AAPL")
+
+        assert degraded_price_divergence("current_price") in out.provenance.degraded
+
+    async def test_price_circuit_open_propagates_to_provenance_degraded(self, cache):
+        health = ProviderHealth(failure_threshold=1, base_cooldown_s=600)
+        health.record_failure("fmp", rate_limited=True)
+        fmp = MockProvider("fmp", ["price"], result=_price_result(provider="fmp"))
+        yfinance = MockProvider("yfinance", ["price"], result=_price_result(provider="yfinance"))
+        layer = DataLayer([fmp, yfinance], cache, health=health)
+
+        out = await layer.fetch_canonical("price", "AAPL")
+
+        assert out.provenance.provider == "yfinance"
+        assert degraded_circuit_open("fmp") in out.provenance.degraded
 
     async def test_financials_returns_normalized_financials(self, cache):
         r = DataResult(

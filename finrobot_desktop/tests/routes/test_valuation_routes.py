@@ -20,7 +20,12 @@ from finrobot.artifact.models import (
 )
 from finrobot.artifact.store import ArtifactStore
 from finrobot.engine.data.interface import DataResult
-from finrobot.engine.data.normalize.contracts import NormalizedFinancials, Provenance
+from finrobot.engine.data.normalize.contracts import (
+    NormalizedFinancials,
+    NormalizedPrice,
+    PriceBar,
+    Provenance,
+)
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import (
     CompanyFinancials,
@@ -70,7 +75,14 @@ class _StubDataLayer:
 
     async def fetch_canonical(
         self, data_type: DataType | str, ticker: str, **_: object
-    ) -> NormalizedFinancials:
+    ) -> NormalizedFinancials | NormalizedPrice:
+        if DataType(data_type) == DataType.PRICE:
+            return NormalizedPrice(
+                ticker=ticker,
+                current_price=876.42,
+                bars=[PriceBar(date=NOW.date(), close=876.42)],
+                provenance=Provenance(provider="stub", as_of=NOW, fetched_at=NOW),
+            )
         return NormalizedFinancials(
             ticker=ticker,
             reporting_currency=self._reporting_currency,

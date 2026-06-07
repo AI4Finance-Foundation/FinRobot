@@ -37,6 +37,12 @@ describe('degradedLabel', () => {
     expect(label).not.toContain('provider_divergence:revenue')
   })
 
+  it('interpolates the field for price_divergence', () => {
+    const label = degradedLabel(tSync, 'price_divergence:current_price')
+    expect(label).toContain('current_price')
+    expect(label).not.toContain('price_divergence:current_price')
+  })
+
   it('falls back to the raw flag for a genuinely unknown marker', () => {
     expect(degradedLabel(tSync, 'totally_unknown_marker')).toBe('totally_unknown_marker')
   })

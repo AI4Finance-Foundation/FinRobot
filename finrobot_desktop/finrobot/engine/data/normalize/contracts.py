@@ -25,13 +25,17 @@ from pydantic import BaseModel, ConfigDict, Field
 # v2: added NormalizedFinancials.operating_cash_flow / capital_expenditure (TTM)
 # so the cashflow analysis reports a real OCF−CapEx FCF; old v1 canonicals lack
 # these and would serve None, so bump to refetch.
+# v3: PRICE canonical now flows through the validated fetch_price() path, and
+# audit-critical EV / TTM fields are treated as semantic cache shape changes.
+# Old v2 payloads may lack price cross-source warnings and optional audit fields,
+# which changes publication safety even when Pydantic can deserialize them.
 # NOT bumped for the revenue/market_cap float→(float | None) change (BUG-038/039/042):
 # old v2 payloads store these as floats, which deserialize cleanly into the wider
 # type, and every downstream consumer collapses a stale fabricated 0.0 and a fresh
 # None onto the same path (``if not revenue: raise`` / ``_fmt_num`` → "N/A"), so no
 # cached entry can surface a wrong number. Bumping would only invalidate valid
 # caches for a semantically identical result.
-CANONICAL_CONTRACT_VERSION = 2
+CANONICAL_CONTRACT_VERSION = 3
 
 # Degradation markers carried in ``Provenance.degraded``. Surfaced to the UI so
 # a fallback is visible rather than silent.
@@ -41,6 +45,10 @@ DEGRADED_CCY_INFERRED = "ccy_inferred"  # reporting currency inferred, not provi
 # provider gave no real-time current_price; using the latest bar's close as a
 # stand-in. Lets the UI avoid claiming a stale close is a live "实时" quote.
 DEGRADED_PRICE_FALLBACK_CLOSE = "price_fallback_close"
+# Two live quote sources disagreed beyond tolerance on the current price. The
+# primary value still flows as a flagged number; downstream publish gates can
+# inspect the field-suffixed marker instead of parsing warning prose.
+DEGRADED_PRICE_DIVERGENCE_PREFIX = "price_divergence"
 # Two providers disagreed beyond tolerance on a KEY financials field
 # (revenue / net_income). The primary (FMP) value still flows — analysts prefer
 # a flagged number over no number — but this STRUCTURED marker lets dcf_seed /
@@ -67,6 +75,13 @@ def degraded_provider_divergence(field: str) -> str:
     """Structured ``Provenance.degraded`` marker for a cross-provider KEY-field
     divergence, e.g. ``provider_divergence:revenue``."""
     return f"{DEGRADED_PROVIDER_DIVERGENCE_PREFIX}:{field}"
+
+
+def degraded_price_divergence(field: str) -> str:
+    """Structured ``Provenance.degraded`` marker for a cross-source PRICE
+    discrepancy, e.g. ``price_divergence:current_price``."""
+
+    return f"{DEGRADED_PRICE_DIVERGENCE_PREFIX}:{field}"
 
 
 class Provenance(BaseModel):

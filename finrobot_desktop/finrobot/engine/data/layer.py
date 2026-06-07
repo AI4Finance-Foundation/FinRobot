@@ -20,6 +20,7 @@ from finrobot.engine.data.normalize import (
 from finrobot.engine.data.types import DataType
 from finrobot.engine.data.normalize.contracts import (
     degraded_circuit_open,
+    degraded_price_divergence,
     degraded_provider_divergence,
 )
 from finrobot.engine.data.validator import (
@@ -287,7 +288,11 @@ class DataLayer:
         if cached is not None and not cached.is_stale:
             return self._deserialize_canonical(data_type, cached.payload_json, from_cache=True)
 
-        raw = await self.fetch(data_type, ticker, **kwargs)
+        raw = (
+            await self.fetch_price(ticker)
+            if data_type == DataType.PRICE
+            else await self.fetch(data_type, ticker, **kwargs)
+        )
         if raw.provider == "none":
             # All providers failed and no cache — never normalize+cache an
             # all-zero fabrication (报错一个数字砸招牌). Surface like fetch_price.
@@ -311,6 +316,10 @@ class DataLayer:
         # PRICE never populates key_field_divergences.
         for field in raw.key_field_divergences:
             marker = degraded_provider_divergence(field)
+            if marker not in normalized.provenance.degraded:
+                normalized.provenance.degraded.append(marker)
+        for field in raw.price_field_divergences:
+            marker = degraded_price_divergence(field)
             if marker not in normalized.provenance.degraded:
                 normalized.provenance.degraded.append(marker)
         for provider_name in raw.circuit_open_providers:
@@ -385,6 +394,10 @@ class DataLayer:
         # I7: same normalisation as fetch() — canonical enum for all
         # downstream comparisons and provider capability lookups.
         data_type = DataType(data_type)
+        cache_key = f"{ticker}:historical:{data_type.value}:{years}"
+        cached = await self._cache.get(DataType.HISTORICAL, cache_key)
+        if cached is not None and not cached.is_stale:
+            return self._split_yearly(cached.data)
 
         for provider in self._providers:
             if data_type not in provider.capabilities():
@@ -401,7 +414,19 @@ class DataLayer:
                 )
                 continue
             self._health.record_success(provider.name)
+            await self._cache.set(DataType.HISTORICAL, cache_key, result)
             return self._split_yearly(result)
+
+        if cached is not None:
+            stale_warning = (
+                f"Historical data sources failed; showing cached {years}y data "
+                f"for {ticker}/{data_type}."
+            )
+            logger.warning(stale_warning)
+            stale = cached.data.model_copy(
+                update={"warnings": [stale_warning, *cached.data.warnings]}
+            )
+            return self._split_yearly(stale)
 
         msg = f"Historical data unavailable for {ticker}/{data_type}: all providers failed."
         logger.error(msg)
@@ -505,10 +530,12 @@ class DataLayer:
         if cached is not None and not cached.is_stale:
             return cached.data
         last_error: ProviderError | None = None
+        circuit_open: list[str] = []
         for provider in self._providers:
             if DataType.PRICE not in provider.capabilities():
                 continue
             if self._health_gated(provider):
+                circuit_open.append(provider.name)
                 continue
             try:
                 result = await provider.fetch(ticker, DataType.PRICE)
@@ -530,7 +557,17 @@ class DataLayer:
             if price_warns:
                 for w in price_warns:
                     logger.warning(w)
-                result = result.model_copy(update={"warnings": list(result.warnings) + price_warns})
+                result = result.model_copy(
+                    update={
+                        "warnings": list(result.warnings) + price_warns,
+                        "price_field_divergences": [
+                            *result.price_field_divergences,
+                            "current_price",
+                        ],
+                    }
+                )
+            if circuit_open:
+                result = result.model_copy(update={"circuit_open_providers": circuit_open})
             await self._cache.set(DataType.PRICE, ticker, result)
             return result
         if cached is not None:

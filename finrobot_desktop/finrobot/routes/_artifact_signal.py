@@ -98,15 +98,12 @@ async def _fetch_quotes(tickers: Iterable[str], data_layer: DataLayer) -> dict[s
 
     async def _one(ticker: str) -> float | None:
         try:
-            result = await data_layer.fetch(DataType.PRICE, ticker)
+            result = await data_layer.fetch_canonical(DataType.PRICE, ticker)
         except (ProviderError, ValueError, KeyError) as exc:
             logger.info("price fetch failed for %s while attaching signals: %s", ticker, exc)
             return None
-        raw = result.data.get("current_price") if isinstance(result.data, dict) else None
-        if raw is None:
-            return None
         try:
-            price = float(raw)
+            price = float(result.current_price)
         except (TypeError, ValueError):
             return None
         return price if price > 0 else None

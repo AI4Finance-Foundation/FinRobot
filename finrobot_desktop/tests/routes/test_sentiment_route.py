@@ -150,6 +150,40 @@ async def test_sentiment_drops_nonfinite_snapshot_numbers() -> None:
 
 
 @pytest.mark.asyncio
+async def test_sentiment_drops_invalid_activity_values() -> None:
+    app = _app(
+        [
+            _AdanosLike(
+                data={
+                    "sources": [
+                        {
+                            "label": "Reddit",
+                            "bullish_pct": 70.0,
+                            "activity_label": "Mentions",
+                            "activity_value": float("nan"),
+                            "has_data": True,
+                        },
+                        {
+                            "label": "X.com",
+                            "bullish_pct": 65.0,
+                            "activity_label": "Mentions",
+                            "activity_value": -1,
+                            "has_data": True,
+                        },
+                    ],
+                }
+            )
+        ]
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/sentiment/NVDA?days=7")
+
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert [source["activity_value"] for source in body["sources"]] == [None, None]
+
+
+@pytest.mark.asyncio
 async def test_sentiment_returns_unavailable_when_provider_missing() -> None:
     # No SENTIMENT provider registered → endpoint must NOT 500.
     app = _app([])

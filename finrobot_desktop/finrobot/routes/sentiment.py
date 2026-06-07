@@ -147,7 +147,7 @@ def _source(item: Any) -> SentimentSource:
         has_data=bool(item.get("has_data", False)),
         bullish_pct=_coerce_finite_float(item.get("bullish_pct")),
         activity_label=str(item.get("activity_label") or "Mentions"),
-        activity_value=int(activity_value) if isinstance(activity_value, (int, float)) else None,
+        activity_value=_coerce_activity_value(activity_value),
     )
 
 
@@ -159,3 +159,10 @@ def _coerce_finite_float(v: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return value if math.isfinite(value) else None
+
+
+def _coerce_activity_value(v: Any) -> int | None:
+    value = _coerce_finite_float(v)
+    if value is None or value < 0:
+        return None
+    return int(value)

@@ -41,7 +41,6 @@ class TestLooksLikeTicker:
         assert _looks_like_ticker("/dcf AAPL") is False
 
 
-
 class TestMatches:
     def test_case_insensitive_match(self) -> None:
         assert _matches("apple", "Apple Inc") is True
@@ -53,8 +52,7 @@ class TestMatches:
         assert _matches("aapl", "Technology", "AAPL", "DCF report") is True
 
     def test_empty_query(self) -> None:
-        # Empty string matches everything (substring of anything)
-        assert _matches("", "any text") is True
+        assert _matches("", "any text") is False
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +95,6 @@ async def test_search_ticker_aapl(client: AsyncClient) -> None:
     assert results[0]["action"] == "navigate:/stocks/AAPL"
 
 
-
 async def test_search_natural_language_no_match(client: AsyncClient) -> None:
     """Free text that doesn't match any artifacts or sessions returns empty results."""
     async with client as c:
@@ -112,6 +109,12 @@ async def test_search_natural_language_no_match(client: AsyncClient) -> None:
 async def test_search_empty_string_returns_422(client: AsyncClient) -> None:
     async with client as c:
         resp = await c.get("/api/search?q=")
+    assert resp.status_code == 422
+
+
+async def test_search_whitespace_string_returns_422(client: AsyncClient) -> None:
+    async with client as c:
+        resp = await c.get("/api/search?q=%20%20%20")
     assert resp.status_code == 422
 
 
@@ -183,5 +186,3 @@ async def test_search_artifact_without_ticker_is_dropped() -> None:
         resp = await c.get("/api/search?q=generic")
     artifact_results = [r for r in resp.json()["results"] if r["kind"] == "artifact"]
     assert artifact_results == []
-
-

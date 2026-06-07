@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from finrobot.engine.data.ticker import validate_ticker
@@ -61,6 +61,8 @@ def _looks_like_ticker(q: str) -> bool:
 def _matches(q: str, *fields: str) -> bool:
     """Case-insensitive substring match across any of the given fields."""
     ql = q.lower()
+    if not ql:
+        return False
     return any(ql in (field or "").lower() for field in fields)
 
 
@@ -85,6 +87,8 @@ async def search(
         ``SearchResponse`` with results sorted by descending score.
     """
     q_stripped = q.strip()
+    if not q_stripped:
+        raise HTTPException(status_code=422, detail="q must contain a non-whitespace character")
     results: list[SearchResult] = []
 
     # Branch 1: ticker pattern

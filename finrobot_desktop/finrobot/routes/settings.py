@@ -152,7 +152,7 @@ def _normalize_custom_providers(providers: list[ProviderConfig]) -> list[Provide
     seen: set[str] = set()
     normalized: list[ProviderConfig] = []
     for provider in providers:
-        pid = provider.id.strip()
+        pid = provider.id.strip().lower()
         if not pid:
             raise HTTPException(status_code=400, detail="Provider id must not be empty.")
         if ":" in pid:

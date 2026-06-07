@@ -118,7 +118,7 @@ class SettingsUpdate(BaseModel):
     sec_holdings_auto_refresh: bool | None = None
     log_level: str | None = None
     log_to_file: bool | None = None
-    log_retention_days: int | None = None
+    log_retention_days: int | None = Field(default=None, ge=0)
 
     # LLM provider API keys keyed by provider id ({"deepseek": "sk-…"}). Written
     # to the keychain under provider_key:<id>. A blank value is "no change", not

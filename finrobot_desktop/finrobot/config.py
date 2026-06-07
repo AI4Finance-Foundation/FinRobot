@@ -163,7 +163,7 @@ class FinRobotSettings(BaseSettings):
     skills_dir: str = ""  # resolved at runtime by paths.default_skills_dir() (bundle-aware)
     log_level: str = "INFO"
     log_to_file: bool = True
-    log_retention_days: int = 7
+    log_retention_days: int = Field(default=7, ge=0)
     peer_sticky_max_age_days: int = Field(
         default=7,
         ge=0,

@@ -658,6 +658,14 @@ async def test_settings_update_logging_fields(tmp_path: Path, monkeypatch: Any) 
 
 
 @pytest.mark.asyncio
+async def test_settings_update_rejects_negative_log_retention_days(tmp_path: Path) -> None:
+    app = _make_app(tmp_path)
+    async with _client(app) as c:
+        resp = await c.put("/api/settings", json={"log_retention_days": -1})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_settings_update_logging_fields_reapplies_logging(
     tmp_path: Path, monkeypatch: Any
 ) -> None:

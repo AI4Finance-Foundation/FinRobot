@@ -274,3 +274,8 @@ def test_logging_defaults() -> None:
     assert s.log_to_file is True
     assert s.log_retention_days == 7
     assert s.log_level == "INFO"
+
+
+def test_log_retention_days_rejects_negative_values() -> None:
+    with pytest.raises(ValueError):
+        get_settings(log_retention_days=-1)

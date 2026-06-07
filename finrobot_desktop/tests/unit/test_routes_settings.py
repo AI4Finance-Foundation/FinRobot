@@ -505,6 +505,44 @@ async def test_put_writes_provider_key_to_keychain(tmp_path: Path, monkeypatch: 
     secret_store.delete.assert_not_awaited()
 
 
+@pytest.mark.asyncio
+async def test_put_writes_provider_key_under_normalized_id(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    secret_store = AsyncMock()
+    secret_store.has = AsyncMock(return_value=False)
+    secret_store.get = AsyncMock(return_value=None)
+    secret_store.set = AsyncMock()
+    secret_store.delete = AsyncMock()
+    app = _make_app(tmp_path, secret_store=secret_store)
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
+
+    async with _client(app) as c:
+        resp = await c.put("/api/settings", json={"provider_keys": {" Anthropic ": "sk-new"}})
+
+    assert resp.status_code == 200, resp.text
+    secret_store.set.assert_awaited_with("provider_key:anthropic", "sk-new")
+    secret_store.delete.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_put_rejects_unknown_provider_key(tmp_path: Path, monkeypatch: Any) -> None:
+    secret_store = AsyncMock()
+    secret_store.has = AsyncMock(return_value=False)
+    secret_store.get = AsyncMock(return_value=None)
+    secret_store.set = AsyncMock()
+    secret_store.delete = AsyncMock()
+    app = _make_app(tmp_path, secret_store=secret_store)
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
+
+    async with _client(app) as c:
+        resp = await c.put("/api/settings", json={"provider_keys": {"ghost": "sk-ghost"}})
+
+    assert resp.status_code == 400
+    assert "ghost" in resp.json()["detail"]
+    secret_store.set.assert_not_awaited()
+
+
 # ---------------------------------------------------------------------------
 # 2026-05-27 EdgarTools migration: sec_identity_dismissed_at field round-trip
 # ---------------------------------------------------------------------------

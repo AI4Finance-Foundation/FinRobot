@@ -41,6 +41,18 @@ def _provider_key_name(provider_id: str) -> str:
     return f"{_PROVIDER_KEY_PREFIX}{provider_id}"
 
 
+def _normalize_provider_key_updates(provider_keys: dict[str, str] | None) -> dict[str, str]:
+    updates: dict[str, str] = {}
+    for raw_provider_id, value in (provider_keys or {}).items():
+        provider_id = raw_provider_id.strip().lower()
+        if not provider_id:
+            raise HTTPException(status_code=400, detail="Provider key id must not be empty.")
+        if provider_id in updates:
+            raise HTTPException(status_code=400, detail=f"Duplicate provider key '{provider_id}'.")
+        updates[provider_id] = value
+    return updates
+
+
 # Non-secret fields are written into ``~/.finrobot/settings.json`` only when
 # the user explicitly changes them. A field the user never touched stays out
 # of settings.json so it keeps resolving to the built-in default — we only
@@ -202,7 +214,7 @@ async def put_settings_route(update: SettingsUpdate, request: Request) -> Settin
 
     non_secret_updates = {k: v for k, v in payload.items() if k in _NON_SECRET_FIELDS}
     data_secret_updates = {k: v for k, v in payload.items() if k in _DATA_SECRET_FIELDS}
-    provider_key_updates = update.provider_keys or {}
+    provider_key_updates = _normalize_provider_key_updates(update.provider_keys)
 
     # Reject malformed / colliding custom providers before they reach the registry.
     custom_providers: list[ProviderConfig] | None = None
@@ -230,6 +242,13 @@ async def put_settings_route(update: SettingsUpdate, request: Request) -> Settin
     if custom_providers is not None:
         candidate_update["custom_providers"] = custom_providers
     candidate = current.model_copy(update=candidate_update)
+    provider_ids = {provider.id for provider in candidate.providers}
+    unknown_provider_keys = sorted(set(provider_key_updates) - provider_ids)
+    if unknown_provider_keys:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown provider key id(s): {', '.join(unknown_provider_keys)}.",
+        )
 
     # LLM provider key merge — same no-wipe semantics, for every provider in the
     # candidate registry: incoming -> stored keychain -> current runtime value.

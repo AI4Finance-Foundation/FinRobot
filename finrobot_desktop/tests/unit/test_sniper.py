@@ -354,6 +354,17 @@ def test_sniper_rejects_negative_historical_price():
         )
 
 
+@pytest.mark.parametrize("bad_price", [float("nan"), float("inf"), float("-inf")])
+def test_sniper_rejects_nonfinite_historical_price(bad_price: float) -> None:
+    with pytest.raises(ValueError, match="finite"):
+        SniperRequest(
+            ticker="BAD",
+            current_price=100.0,
+            dcf_target=150.0,
+            historical_prices=[100.0, bad_price, 100.0],
+        )
+
+
 # ---------------------------------------------------------------------------
 # 8. Validation: current_price <= 0 rejected
 # ---------------------------------------------------------------------------

@@ -12,6 +12,7 @@ Score range: prices in same currency as inputs.
 from __future__ import annotations
 
 import statistics
+import math
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -26,8 +27,8 @@ class SniperRequest(BaseModel):
     @model_validator(mode="after")
     def _prices_positive(self) -> "SniperRequest":
         for p in self.historical_prices:
-            if p <= 0:
-                raise ValueError("All historical prices must be positive")
+            if not math.isfinite(p) or p <= 0:
+                raise ValueError("All historical prices must be finite and positive")
         return self
 
 

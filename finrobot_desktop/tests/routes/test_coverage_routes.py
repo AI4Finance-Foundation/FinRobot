@@ -154,6 +154,11 @@ async def test_create_get_and_list_group(client: AsyncClient) -> None:
     assert "Studied Tickers" not in names
 
 
+async def test_create_group_rejects_blank_name(client: AsyncClient) -> None:
+    r = await client.post("/api/coverage/groups", json={"name": "   "})
+    assert r.status_code == 422
+
+
 async def test_state_d_seeds_studied_tickers_on_first_visit(client: AsyncClient) -> None:
     # No groups yet, but the artifact store has AAPL → first list seeds it.
     r = await client.get("/api/coverage/groups")

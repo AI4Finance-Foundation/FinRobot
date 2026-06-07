@@ -74,12 +74,24 @@ def _clean_tickers(raw: list[str]) -> list[str]:
     return cleaned
 
 
+def _clean_group_name(raw: str) -> str:
+    name = raw.strip()
+    if not name:
+        raise ValueError("Coverage group name must not be blank")
+    return name
+
+
 # ── Request bodies ───────────────────────────────────────────────────────────
 
 
 class CreateGroupRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
     description: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, v: str) -> str:
+        return _clean_group_name(v)
 
 
 class UpdateGroupRequest(BaseModel):

@@ -76,6 +76,13 @@ async def test_update_group_name_and_description(store: CoverageStore) -> None:
     assert updated.updated_at >= g.updated_at
 
 
+async def test_update_group_can_clear_description(store: CoverageStore) -> None:
+    g = await store.create_group("Old", "old desc")
+    updated = await store.update_group(g.id, description=None, update_description=True)
+    assert updated is not None
+    assert updated.description is None
+
+
 async def test_update_missing_group_returns_none(store: CoverageStore) -> None:
     assert await store.update_group("cov_nope", name="x") is None
 

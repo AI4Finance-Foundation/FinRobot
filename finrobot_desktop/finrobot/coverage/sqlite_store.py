@@ -267,20 +267,23 @@ class CoverageStore:
         *,
         name: str | None = None,
         description: str | None = None,
+        update_description: bool = False,
     ) -> CoverageGroupDetail | None:
-        if name is None and description is None:
+        if name is None and not update_description:
             return await self.get_group(group_id)
         conn = await self._conn_ready()
-        async with conn.execute(
-            """
-            UPDATE coverage_groups SET
-                name = COALESCE(?, name),
-                description = COALESCE(?, description),
-                updated_at = ?
-            WHERE id = ?
-            """,
-            (name, description, _iso(_now()), group_id),
-        ) as cur:
+        assignments: list[str] = []
+        params: list[Any] = []
+        if name is not None:
+            assignments.append("name = ?")
+            params.append(name)
+        if update_description:
+            assignments.append("description = ?")
+            params.append(description)
+        assignments.append("updated_at = ?")
+        params.extend([_iso(_now()), group_id])
+        sql = f"UPDATE coverage_groups SET {', '.join(assignments)} WHERE id = ?"
+        async with conn.execute(sql, params) as cur:
             if cur.rowcount == 0:
                 return None
         await conn.commit()

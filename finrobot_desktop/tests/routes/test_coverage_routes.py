@@ -213,10 +213,20 @@ async def test_studied_auto_add_rejects_junk_ticker(client: AsyncClient) -> None
 
 
 async def test_patch_and_delete_group(client: AsyncClient) -> None:
-    gid = (await client.post("/api/coverage/groups", json={"name": "Old"})).json()["id"]
-    r = await client.patch(f"/api/coverage/groups/{gid}", json={"name": "New"})
+    gid = (
+        await client.post(
+            "/api/coverage/groups",
+            json={"name": "Old", "description": "keep me"},
+        )
+    ).json()["id"]
+    r = await client.patch(f"/api/coverage/groups/{gid}", json={"name": "  New  "})
     assert r.status_code == 200
     assert r.json()["name"] == "New"
+    assert r.json()["description"] == "keep me"
+
+    r = await client.patch(f"/api/coverage/groups/{gid}", json={"description": None})
+    assert r.status_code == 200
+    assert r.json()["description"] is None
 
     r = await client.delete(f"/api/coverage/groups/{gid}")
     assert r.status_code == 204

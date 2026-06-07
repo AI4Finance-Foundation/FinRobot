@@ -239,6 +239,7 @@ async def update_group(
         group_id,
         name=body.name.strip() if body.name else None,
         description=body.description,
+        update_description="description" in body.model_fields_set,
     )
     if updated is None:
         raise HTTPException(status_code=404, detail=f"Coverage group not found: {group_id}")

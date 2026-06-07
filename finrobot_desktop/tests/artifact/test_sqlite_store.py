@@ -264,6 +264,12 @@ async def test_archive_stale_marks_old(store: SqliteArtifactStore) -> None:
 
 
 @pytest.mark.asyncio
+async def test_archive_stale_rejects_negative_hours(store: SqliteArtifactStore) -> None:
+    with pytest.raises(ValueError, match="hours must be >= 0"):
+        await store.archive_stale(hours=-1)
+
+
+@pytest.mark.asyncio
 async def test_archive_stale_is_set_based_no_payload_rewrite(
     store: SqliteArtifactStore,
 ) -> None:

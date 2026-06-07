@@ -541,6 +541,8 @@ class SqliteArtifactStore:
         order, and the cutoff is rendered the same way for an apples-to-apples
         string compare.
         """
+        if hours < 0:
+            raise ValueError(f"hours must be >= 0, got {hours}")
         conn = await self._conn_ready()
         cutoff_iso = (_now() - timedelta(hours=hours)).isoformat()
         cur = await conn.execute(

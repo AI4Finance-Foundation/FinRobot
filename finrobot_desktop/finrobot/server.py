@@ -31,7 +31,6 @@ from finrobot.paths import SETTINGS_JSON, ensure_home
 from finrobot.audit.transcript import TranscriptWriter, is_valid_session_id
 from finrobot.routes.artifacts import router as artifacts_router
 from finrobot.routes.chat_sessions import router as chat_sessions_router
-from finrobot.routes.compare import router as compare_router
 from finrobot.routes.compute import router as compute_router
 from finrobot.routes.coverage import router as coverage_router
 from finrobot.routes.dashboard import router as dashboard_router
@@ -469,7 +468,6 @@ app.include_router(runs_router)
 app.include_router(artifacts_router)
 app.include_router(chat_sessions_router)
 app.include_router(coverage_router)
-app.include_router(compare_router)
 app.include_router(dashboard_router)
 app.include_router(search_router, prefix="/api/search", tags=["search"])
 app.include_router(valuation_router)

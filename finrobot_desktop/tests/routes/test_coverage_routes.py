@@ -101,6 +101,11 @@ class _StubArtifactStore:
         flat.sort(key=lambda s: s.created_at, reverse=True)
         return flat[:limit]
 
+    async def get(self, artifact_id: str):
+        # No artifact bodies in these route tests → the market-implied re-solve
+        # finds no DCF and leaves market_implied None (not exercised here).
+        return None
+
 
 class _StubDataLayer:
     async def fetch_canonical(self, data_type, ticker, **_):

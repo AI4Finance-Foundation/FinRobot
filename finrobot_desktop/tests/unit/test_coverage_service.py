@@ -107,8 +107,15 @@ def _price(ticker: str = "AAPL", current: float = 200.0):
 
 
 class _StubArtifactStore:
-    def __init__(self, by_ticker: dict[str, list[ArtifactSummary]]) -> None:
+    def __init__(
+        self,
+        by_ticker: dict[str, list[ArtifactSummary]],
+        artifacts: dict[str, object] | None = None,
+    ) -> None:
         self._by_ticker = {k.upper(): v for k, v in by_ticker.items()}
+        # id → artifact body (for .get); a name with no body returns None, so the
+        # market-implied re-solve degrades to leaving market_implied None.
+        self._artifacts = artifacts or {}
 
     async def list_by_ticker(
         self, ticker=None, type=None, include_archived=False, limit=100
@@ -119,6 +126,9 @@ class _StubArtifactStore:
             flat = list(self._by_ticker.get(ticker.upper(), []))
         flat.sort(key=lambda s: s.created_at, reverse=True)
         return flat[:limit]
+
+    async def get(self, artifact_id: str) -> object | None:
+        return self._artifacts.get(artifact_id)
 
 
 class _StubDataLayer:
@@ -147,7 +157,9 @@ class _StubDataLayer:
     async def read_canonical_cached(self, data_type, ticker, **_):
         if self._cached is not None and ticker.upper() not in self._cached:
             return None
-        norm = _price(ticker, current=self._current) if data_type == DataType.PRICE else _fin(ticker)
+        norm = (
+            _price(ticker, current=self._current) if data_type == DataType.PRICE else _fin(ticker)
+        )
         return norm, self._cache_stale
 
 
@@ -250,6 +262,62 @@ async def test_overview_happy_path_fields() -> None:
     assert row.upside_to_target_live == pytest.approx((240 - 200) / 200)
     assert row.signal in {"hit", "watching", "failed"}
     assert ov.partial is False
+
+
+async def test_overview_populates_market_implied_nature_from_latest_dcf() -> None:
+    """When a ticker has a DCF-bearing artifact, the network overview re-solves
+    the reverse-DCF against the LIVE price and stamps the row's valuation nature
+    + provenance. A live price far above any plausible growth → option_value."""
+    from types import SimpleNamespace
+
+    from finrobot.engine.compute.operators.dcf import calculate_dcf
+    from finrobot.engine.models.financial import DCFInputs
+
+    inputs = DCFInputs(
+        revenue_base=100_000_000_000,
+        revenue_growth_rates=[0.05] * 5,
+        ebitda_margin=0.35,
+        capex_pct_revenue=0.05,
+        nwc_pct_revenue=0.02,
+        tax_rate=0.21,
+        risk_free_rate=0.04,
+        beta=1.2,
+        equity_risk_premium=0.05,
+        cost_of_debt=0.04,
+        debt_ratio=0.1,
+        terminal_growth_rate=0.025,
+        shares_outstanding=1_000_000_000,
+        net_debt=10_000_000_000,
+    )
+    dcf = calculate_dcf(inputs)
+    body = SimpleNamespace(outputs=SimpleNamespace(structured={"dcf_calc": dcf.model_dump()}))
+    store = _StubArtifactStore({"AAPL": [_summary()]}, artifacts={"art_1": body})
+
+    ov = await build_overview(
+        _group("AAPL"),
+        artifact_store=store,  # type: ignore[arg-type]
+        data_layer=_StubDataLayer(current=100_000.0),  # type: ignore[arg-type]
+        now=NOW,
+    )
+    (row,) = ov.rows
+    assert row.market_implied is not None
+    assert row.market_implied.kind == "option_value"
+    assert row.market_implied.ceiling_price is not None
+    # Traceable to the artifact the DCF inputs came from.
+    assert row.sources.market_implied is not None
+    assert row.sources.market_implied.artifact_id == "art_1"
+
+
+async def test_overview_market_implied_none_without_dcf() -> None:
+    """No retrievable DCF artifact → market_implied stays None, never fabricated."""
+    store = _StubArtifactStore({"AAPL": [_summary(verdict="BUY")]})  # summary only, no body
+    ov = await build_overview(
+        _group("AAPL"),
+        artifact_store=store,  # type: ignore[arg-type]
+        data_layer=_StubDataLayer(current=200.0),  # type: ignore[arg-type]
+        now=NOW,
+    )
+    assert ov.rows[0].market_implied is None
 
 
 async def test_research_fields_ignore_newer_non_thesis_artifact() -> None:

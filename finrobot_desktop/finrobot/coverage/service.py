@@ -36,11 +36,7 @@ from finrobot.coverage.models import (
     NumberSource,
 )
 from finrobot.coverage.sqlite_store import CoverageStore
-from finrobot.engine.compute.operators.compare import (
-    CompanyValuation,
-    ComparisonResult,
-    build_company_valuation,
-)
+from finrobot.engine.compute.operators.dcf import classify_market_implied_nature
 from finrobot.engine.compute.coordinators.extractor import extract_financial_data
 from finrobot.engine.compute.operators.signal import Signal, compute_signal
 from finrobot.engine.data.normalize.contracts import (
@@ -210,6 +206,13 @@ async def _assemble_row(
             await _apply_market_fields(row, ticker, data_layer, cache_only=False)
     else:
         await _apply_market_fields(row, ticker, data_layer, cache_only=False)
+
+    # 2.5 Reverse-DCF nature — what the LIVE price implies, re-solved from the
+    # name's latest stored DCF inputs. Needs the artifact body + a live price, so
+    # it's skipped on the instant cache-only first paint (the network revalidate
+    # fills it). Cheap once here: pure arithmetic over persisted DCFInputs.
+    if not cache_only and row.price is not None and row.price > 0:
+        await _apply_market_implied(row, ticker, summaries, artifact_store, row.price)
 
     # 3. Live run state (in-flight batch run / failed attempt).
     if latest_run is not None:
@@ -544,77 +547,49 @@ async def ensure_studied_membership(
     return detail
 
 
-# ── Compare (H1) ─────────────────────────────────────────────────────────────
+# ── Reverse-DCF nature (latest stored DCF per ticker) ────────────────────────
 
 
-async def build_comparison(
-    tickers: list[str],
-    *,
-    artifact_store: ArtifactStore,
-    data_layer: DataLayer,
-) -> ComparisonResult:
-    """Side-by-side DCF comparison, assembled from each ticker's latest DCF
-    artifact + live market fields.
-
-    The expensive DCF *generation* is NOT done here — it runs through the
-    async batch-run path (one DCF run per ticker). This function is a fast,
-    LLM-free assembly over already-stored results (H1: the GET runs no
-    pipeline, so it can't time out). A ticker with no DCF artifact comes back
-    as a ``CompanyValuation`` carrying an error → the UI prompts "run DCF
-    first". upside uses the **live** current price (to-fair-value-from-today),
-    consistent with the Coverage Table.
-    """
-    companies = await asyncio.gather(
-        *(_compare_one(t, artifact_store=artifact_store, data_layer=data_layer) for t in tickers)
-    )
-    return ComparisonResult(companies=list(companies))
-
-
-async def _compare_one(
+async def _apply_market_implied(
+    row: CoverageRow,
     ticker: str,
-    *,
+    summaries: list[ArtifactSummary],
     artifact_store: ArtifactStore,
-    data_layer: DataLayer,
-) -> CompanyValuation:
-    ticker = ticker.upper()
-    found = await _latest_dcf_result(artifact_store, ticker)
-    if found is None:
-        return CompanyValuation(ticker=ticker, error="尚未运行 DCF——先对该 ticker 运行 DCF 再对比")
-    dcf = found.dcf
-    company_name = ""
-    current_price: float | None = None
-    ev_ebitda: float | None = None
-    pe_ratio: float | None = None
-    warnings: list[str] = []
+    live_price: float,
+) -> None:
+    """Classify what the live price implies, from the name's latest stored DCF.
+
+    Re-solves the reverse-DCF against the **live** price: the artifact's stored
+    ``market_implied`` was frozen at its run-time price, so it's stale the moment
+    the price moves — and a stale expectations read is worse than none. Cheap
+    here (pure arithmetic over the persisted ``DCFInputs``, one artifact read).
+    Degrades to leaving ``market_implied`` None on any failure — never raises.
+
+    Reuses the ``summaries`` already fetched for the research columns (non-archived,
+    newest-first): re-solving from a superseded/archived DCF's inputs would be a
+    misleading "current expectations" read, so a name whose only DCF is archived
+    correctly gets no nature rather than a stale one.
+    """
     try:
-        fin_norm = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
-        price_norm = await data_layer.fetch_canonical(DataType.PRICE, ticker)
-        fd = extract_financial_data(fin_norm, price_norm)
-        company_name = fd.company_name
-        current_price = fd.market.current_price
-        ev_ebitda = fd.valuation.ev_ebitda
-        pe_ratio = fd.market.pe_ratio
-        warnings = list(fd.warnings)
-    except _MARKET_DEGRADABLE as exc:
-        # DCF (implied price, WACC) still compares fine without live market —
-        # only current_price-relative upside degrades. Surface, don't drop.
-        warnings = [f"{ticker} 实时市场数据获取失败：{exc}"]
-    # Provenance: the DCF this row compares may be stale or archived. current_price
-    # is live but implied_price/WACC are frozen at dcf_as_of — disclose it so the
-    # user can see which rows are today's vs weeks-old, and never compares against
-    # an archived (superseded) valuation unknowingly.
-    if found.archived:
-        warnings.append(f"{ticker} 的 DCF 来自已归档（被新版本取代）的研究——结论可能已过时")
-    return build_company_valuation(
-        ticker=ticker,
-        company_name=company_name,
-        current_price=current_price,
-        dcf_result=dcf,
-        ev_ebitda=ev_ebitda,
-        pe_ratio=pe_ratio,
-        warnings=warnings,
-        dcf_as_of=found.created_at.isoformat(),
-        dcf_artifact_id=found.artifact_id,
+        found = await _latest_dcf_result(artifact_store, summaries)
+    except (sqlite3.Error, RuntimeError, OSError) as exc:
+        row.warnings.append(f"{ticker} 隐含增长读取失败：{exc}")
+        return
+    if found is None:
+        return
+    dcf = found.dcf
+    try:
+        row.market_implied = classify_market_implied_nature(
+            dcf.inputs, live_price, horizon_years=dcf.projection_years
+        )
+    except (ValueError, ZeroDivisionError) as exc:
+        row.warnings.append(f"{ticker} 隐含增长反推失败：{exc}")
+        return
+    row.sources.market_implied = NumberSource(
+        formula_id="market_implied_nature",
+        as_of=found.created_at,
+        artifact_id=found.artifact_id,
+        formula_warning="现价反推；DCF 假设取自该 vintage 的存量模型",
     )
 
 
@@ -623,23 +598,23 @@ class _LatestDcf:
     """A reconstructed DCF plus the provenance of the artifact it came from.
 
     Carries the source artifact's ``created_at`` (vintage) and ``id`` so the
-    Compare assembly can stamp each row — a comparison that mixes a freshly-run
-    DCF with a three-week-old stored one must disclose which is which.
+    reverse-DCF read can stamp the row — a live implied-growth number is only as
+    fresh as the DCF inputs it re-solves from, and the user must be able to trace
+    which run produced them.
     """
 
     dcf: DCFResult
     created_at: datetime
     artifact_id: str
-    archived: bool
 
 
-async def _latest_dcf_result(artifact_store: ArtifactStore, ticker: str) -> _LatestDcf | None:
-    """Reconstruct the most recent DCFResult for a ticker from its stored
-    artifacts, together with that artifact's vintage (created_at) and id. Walks
-    newest-first across DCF-bearing types; returns the first that parses. (Same
-    reconstruction as routes/valuation._parse_dcf, scoped to the single latest
-    DCF rather than latest-of-each-type.)"""
-    summaries = await artifact_store.list_by_ticker(ticker=ticker, include_archived=True, limit=200)
+async def _latest_dcf_result(
+    artifact_store: ArtifactStore, summaries: list[ArtifactSummary]
+) -> _LatestDcf | None:
+    """Reconstruct the most recent DCFResult from already-fetched ``summaries``
+    (newest-first), together with that artifact's vintage (created_at) and id.
+    Walks DCF-bearing types; returns the first that parses. (Same reconstruction
+    as routes/valuation._parse_dcf, scoped to the single latest DCF.)"""
     for summary in summaries:  # newest first
         if summary.type not in _DCF_BEARING_TYPES:
             continue
@@ -653,12 +628,13 @@ async def _latest_dcf_result(artifact_store: ArtifactStore, ticker: str) -> _Lat
                 try:
                     dcf = DCFResult.model_validate(candidate)
                 except (TypeError, ValueError) as exc:
-                    logger.debug("DCFResult parse failed for %s at %s: %s", ticker, key, exc)
+                    logger.debug(
+                        "DCFResult parse failed for %s at %s: %s", summary.ticker, key, exc
+                    )
                     continue
                 return _LatestDcf(
                     dcf=dcf,
                     created_at=summary.created_at,
                     artifact_id=summary.id,
-                    archived=summary.archived,
                 )
     return None

@@ -450,6 +450,56 @@ class MarketImpliedCheck(BaseModel):
     growth (TSLA: $65 ceiling vs $418 market)."""
 
 
+class MarketImpliedNature(BaseModel):
+    """Per-name valuation *nature*, re-solved against the LIVE price — the honest
+    cross-name read for the Coverage desk.
+
+    A cross-name *ranking* by implied-growth gap was deliberately rejected: the
+    reverse solver fits a FLAT constant growth while the forward DCF projects a
+    DECAYING schedule, so a single implied-growth scalar sits systematically
+    below the decay-base anchor by an amount that scales with the name's growth
+    tier — ranking by that gap ranks "whose growth curve is steepest", not
+    "whose expectation is most stretched". What *does* survive that critique is a
+    per-name **classification**, which is what this carries:
+
+    * ``fundamental`` — the live price IS explainable by some growth in the
+      solver bracket. ``implied_growth`` is the constant annual revenue growth
+      the price implies, shown as per-name context (NOT a sortable cross-name
+      number — see above).
+    * ``option_value`` — no growth in the bracket reaches the price AND that
+      verdict survives the most favourable plausible WACC (a band lower). The
+      market is pricing optionality no cash-flow model can capture (TSLA-type).
+      The robust, deterministic *exclusion* signal — and the moat: a generic LLM
+      cannot reproduce it.
+    * ``near_ceiling`` — unreachable at the name's own WACC, but a plausibly
+      lower WACC rescues it into the solvable range. Flagged WACC-sensitive
+      rather than asserting optionality, because the verdict would silently flip
+      with the discount-rate assumption (and an unsourceable flip is exactly the
+      kind of number this product refuses to ship).
+
+    All fields are COMPUTED (deterministic reverse-DCF), never LLM-narrated.
+    """
+
+    kind: Literal["fundamental", "option_value", "near_ceiling"]
+    implied_growth: float | None = None
+    """Constant annual revenue growth the live price implies (``fundamental``
+    only; None on the unreachable paths and when the price sits below even the
+    bracket floor)."""
+    implied_wacc: float | None = None
+    """Discount rate the live price implies under the seeded growth schedule —
+    surfaced so the growth read isn't mistaken for assumption-free (a high-beta
+    name shows higher implied growth partly via its own higher WACC)."""
+    horizon_years: int
+    """Explicit window the implied growth is solved over (the source DCF's own
+    ``projection_years``), so the number is anchored to a stated horizon."""
+    growth_ceiling: float | None = None
+    """The solver's max growth tried (``option_value``/``near_ceiling`` only) —
+    for the narrative "even {ceiling:.0%} growth implies only ${ceiling_price}"."""
+    ceiling_price: float | None = None
+    """Implied price at ``growth_ceiling`` — how far the live price sits beyond
+    any plausible growth. ``option_value``/``near_ceiling`` only."""
+
+
 class DCFResult(BaseModel):
     """DCF valuation output. All numbers computed by code, not LLM."""
 

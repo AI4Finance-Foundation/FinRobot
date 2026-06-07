@@ -26,6 +26,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from finrobot.engine.models.financial import MarketImpliedNature
+
 
 # ── Persistence ────────────────────────────────────────────────────────────
 
@@ -123,6 +125,7 @@ class CoverageRowSources(BaseModel):
     ev_ebitda: NumberSource | None = None
     pe: NumberSource | None = None
     upside_to_target_live: NumberSource | None = None
+    market_implied: NumberSource | None = None
 
 
 class CoverageRow(BaseModel):
@@ -169,6 +172,14 @@ class CoverageRow(BaseModel):
     latest_artifact_id: str | None = None
     latest_type: str | None = None
     latest_at: datetime | None = None
+
+    # Reverse-DCF valuation nature — what the LIVE price implies, re-solved from
+    # the name's latest stored DCF inputs. A per-name classification
+    # (fundamental / option_value / near_ceiling), NOT a cross-name implied-growth
+    # ranking (see MarketImpliedNature for why that was rejected). None when the
+    # ticker has no DCF artifact, no live price, or on the instant cache-only
+    # first paint (it needs the artifact body; the network revalidate fills it).
+    market_implied: MarketImpliedNature | None = None
 
     # Live run state for this ticker (latest run in the run store), distinct
     # from the research artifacts above: a batch run may be in flight or have

@@ -1,6 +1,11 @@
 from typing import Any
 
-from finrobot.engine.models.financial import DCFInputs, DCFResult, MarketImpliedCheck
+from finrobot.engine.models.financial import (
+    DCFInputs,
+    DCFResult,
+    MarketImpliedCheck,
+    MarketImpliedNature,
+)
 from finrobot.engine.compute.operators.wacc import calculate_wacc
 
 
@@ -252,6 +257,81 @@ def market_implied_check(
         growth_unreachable=unreachable,
         growth_ceiling=hi_growth if unreachable else None,
         ceiling_price=ceiling_price if unreachable else None,
+    )
+
+
+# An "option-value" verdict (no growth in the bracket explains the price) is
+# only asserted if it survives the most FAVOURABLE plausible WACC — one this
+# much lower. A lower discount rate raises the reachable ceiling, so if a WACC
+# this far below the name's own CAPM rate rescues the price into the solvable
+# range, the unreachability is a discount-rate artifact (near_ceiling), not
+# robust optionality. 2pp ≈ the routine estimation error in beta / ERP, so it's
+# the honest "could a reasonable analyst's WACC explain this?" test.
+_WACC_SENSITIVITY_BAND = 0.02
+
+
+def classify_market_implied_nature(
+    inputs: DCFInputs,
+    current_price: float,
+    horizon_years: int,
+    growth_bracket: tuple[float, float] = (-0.10, 0.50),
+) -> MarketImpliedNature:
+    """Classify what the LIVE price says about a name, re-solved from scratch.
+
+    Composes :func:`market_implied_check` with a one-sided WACC-robustness test
+    so the option-value verdict is never a silent function of the discount-rate
+    assumption. See :class:`MarketImpliedNature` for why this is a per-name
+    *classification* and not a cross-name implied-growth ranking.
+
+    Pure: no I/O. ``current_price`` is the caller's live price; ``inputs`` and
+    ``horizon_years`` come from the name's own stored DCF (so the implied growth
+    is anchored to the same window the forward DCF used).
+    """
+    base = market_implied_check(inputs, current_price, horizon_years, growth_bracket)
+    if not base.growth_unreachable:
+        # Reachable (or below the bracket floor — implied_growth None but not the
+        # high-side option-value signal). Carry the per-name implied growth as
+        # context; do NOT promote it to a cross-name rank.
+        return MarketImpliedNature(
+            kind="fundamental",
+            implied_growth=base.implied_growth,
+            implied_wacc=base.implied_wacc,
+            horizon_years=horizon_years,
+        )
+
+    # Unreachable at the name's own WACC. Re-solve at the most favourable
+    # plausible WACC (a band lower); if that rescues the price, the verdict is
+    # WACC-sensitive, not robust optionality.
+    _, own_wacc = calculate_wacc(
+        inputs.risk_free_rate,
+        inputs.beta,
+        inputs.equity_risk_premium,
+        inputs.cost_of_debt,
+        inputs.tax_rate,
+        inputs.debt_ratio,
+    )
+    favorable = own_wacc - _WACC_SENSITIVITY_BAND
+    robust = True
+    # The Gordon model needs WACC > terminal growth; only probe a lower WACC if
+    # there's room. With no room (WACC already near terminal growth) we can't
+    # rescue it, so the unreachability stands.
+    if favorable > inputs.terminal_growth_rate + 0.005:
+        rescue = solve_for_implied_growth(
+            inputs,
+            current_price,
+            horizon_years=horizon_years,
+            bracket=growth_bracket,
+            wacc_override=favorable,
+        )
+        if rescue.get("implied_growth") is not None:
+            robust = False
+
+    return MarketImpliedNature(
+        kind="option_value" if robust else "near_ceiling",
+        horizon_years=horizon_years,
+        implied_wacc=base.implied_wacc,
+        growth_ceiling=base.growth_ceiling,
+        ceiling_price=base.ceiling_price,
     )
 
 

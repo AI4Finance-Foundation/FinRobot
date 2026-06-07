@@ -13,6 +13,8 @@ from abc import ABC, abstractmethod
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from finrobot.engine.data.ticker import validate_ticker
+
 
 class BacktestConfig(BaseModel):
     """Configuration for a backtest run."""
@@ -38,6 +40,11 @@ class BacktestConfig(BaseModel):
         except ValueError:
             raise ValueError(f"Date must be YYYY-MM-DD format, got '{v}'") from None
         return v
+
+    @field_validator("ticker")
+    @classmethod
+    def _validate_ticker(cls, v: str) -> str:
+        return validate_ticker(v)
 
     @field_validator("initial_cash")
     @classmethod

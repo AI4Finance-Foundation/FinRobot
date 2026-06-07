@@ -23,6 +23,23 @@ class TestBacktestConfig:
         assert config.ticker == "AAPL"
         assert config.initial_cash == 100_000.0
 
+    def test_ticker_is_normalized(self) -> None:
+        config = BacktestConfig(
+            ticker=" brk.b ",
+            start_date="2023-01-01",
+            end_date="2024-01-01",
+        )
+        assert config.ticker == "BRK.B"
+
+    @pytest.mark.parametrize("ticker", ["苹果", "AAPL;DROP", "$"])
+    def test_invalid_ticker_rejected(self, ticker: str) -> None:
+        with pytest.raises(ValueError, match="Invalid ticker"):
+            BacktestConfig(
+                ticker=ticker,
+                start_date="2023-01-01",
+                end_date="2024-01-01",
+            )
+
     def test_invalid_date_format(self) -> None:
         with pytest.raises(ValueError, match="YYYY-MM-DD"):
             BacktestConfig(

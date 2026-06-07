@@ -5,7 +5,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from starlette.requests import Request
 
 from finrobot.engine.compute.operators.dcf import (
@@ -503,6 +503,12 @@ class DcfEquivalenceLineRequest(BaseModel):
     @classmethod
     def _validate_ticker(cls, value: str) -> str:
         return validate_ticker(value)
+
+    @model_validator(mode="after")
+    def _validate_growth_bounds(self) -> DcfEquivalenceLineRequest:
+        if self.growth_hi <= self.growth_lo:
+            raise ValueError("growth_hi must be greater than growth_lo.")
+        return self
 
 
 class DcfEquivalencePoint(BaseModel):

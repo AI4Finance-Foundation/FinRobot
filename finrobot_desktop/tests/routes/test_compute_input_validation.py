@@ -50,6 +50,19 @@ def test_compute_ticker_requests_accept_twelve_character_symbols() -> None:
     assert DcfEquivalenceLineRequest(ticker=ticker).ticker == ticker
 
 
+def test_dcf_equivalence_line_rejects_flat_growth_range() -> None:
+    with pytest.raises(ValueError, match="growth_hi"):
+        DcfEquivalenceLineRequest(ticker="NVDA", growth_lo=0.2, growth_hi=0.2)
+
+
+def test_dcf_equivalence_line_rejects_reversed_growth_range(client: TestClient) -> None:
+    resp = client.post(
+        "/api/compute/dcf-equivalence-line",
+        json={"ticker": "NVDA", "growth_lo": 0.5, "growth_hi": 0.2},
+    )
+    assert resp.status_code == 422, resp.text
+
+
 @pytest.mark.parametrize("ticker", ["苹果", "AAPL;DROP", "$"])
 def test_dcf_equivalence_line_rejects_invalid_ticker(client: TestClient, ticker: str) -> None:
     resp = client.post("/api/compute/dcf-equivalence-line", json={"ticker": ticker})

@@ -167,12 +167,17 @@ def _normalize_custom_providers(providers: list[ProviderConfig]) -> list[Provide
         if pid in seen:
             raise HTTPException(status_code=400, detail=f"Duplicate provider id '{pid}'.")
         seen.add(pid)
+        label = provider.label.strip()
+        if not label:
+            raise HTTPException(
+                status_code=400, detail=f"Provider '{pid}' label must not be empty."
+            )
         if provider.kind == "openai-compatible" and not (provider.base_url or "").strip():
             raise HTTPException(
                 status_code=400,
                 detail=f"Provider '{pid}' (openai-compatible) requires a base_url.",
             )
-        normalized.append(provider.model_copy(update={"id": pid}))
+        normalized.append(provider.model_copy(update={"id": pid, "label": label}))
     return normalized
 
 

@@ -399,6 +399,54 @@ async def test_put_lowercases_custom_provider_id_before_persisting(
 
 
 @pytest.mark.asyncio
+async def test_put_strips_custom_provider_label_before_persisting(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    app = _make_app(tmp_path)
+
+    async def _fake_replace(request: Any, candidate: Any) -> None:
+        request.app.state.deps.settings = candidate
+
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", _fake_replace)
+
+    custom = [
+        {
+            "id": "myhost",
+            "label": " My vLLM ",
+            "kind": "openai-compatible",
+            "base_url": "https://h/v1",
+            "models": ["local-7b"],
+        }
+    ]
+    async with _client(app) as c:
+        resp = await c.put("/api/settings", json={"custom_providers": custom})
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["custom_providers"][0]["label"] == "My vLLM"
+    content = json.loads((tmp_path / "settings.json").read_text())
+    assert content["custom_providers"][0]["label"] == "My vLLM"
+
+
+@pytest.mark.asyncio
+async def test_put_rejects_blank_custom_provider_label(tmp_path: Path, monkeypatch: Any) -> None:
+    app = _make_app(tmp_path)
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
+    bad = [
+        {
+            "id": "myhost",
+            "label": "   ",
+            "kind": "openai-compatible",
+            "base_url": "https://h/v1",
+        }
+    ]
+    async with _client(app) as c:
+        resp = await c.put("/api/settings", json={"custom_providers": bad})
+
+    assert resp.status_code == 400
+    assert "label" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
 async def test_put_rejects_custom_provider_shadowing_builtin(
     tmp_path: Path, monkeypatch: Any
 ) -> None:

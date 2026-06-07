@@ -57,6 +57,16 @@ class TestBacktestConfig:
                 initial_cash=-1000,
             )
 
+    @pytest.mark.parametrize("initial_cash", [float("nan"), float("inf"), float("-inf")])
+    def test_nonfinite_cash_rejected(self, initial_cash: float) -> None:
+        with pytest.raises(ValueError, match="positive"):
+            BacktestConfig(
+                ticker="AAPL",
+                start_date="2023-01-01",
+                end_date="2024-01-01",
+                initial_cash=initial_cash,
+            )
+
     def test_custom_strategy(self) -> None:
         config = BacktestConfig(
             ticker="MSFT",
@@ -98,6 +108,16 @@ class TestBacktestConfig:
             risk_free_rate=0.05,
         )
         assert config.risk_free_rate == pytest.approx(0.05)
+
+    @pytest.mark.parametrize("risk_free_rate", [-2.0, 2.0, float("nan"), float("inf")])
+    def test_risk_free_rate_outside_contract_rejected(self, risk_free_rate: float) -> None:
+        with pytest.raises(ValueError):
+            BacktestConfig(
+                ticker="AAPL",
+                start_date="2023-01-01",
+                end_date="2024-01-01",
+                risk_free_rate=risk_free_rate,
+            )
 
 
 class TestBacktestResult:

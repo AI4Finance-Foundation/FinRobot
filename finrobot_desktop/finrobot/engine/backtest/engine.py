@@ -9,6 +9,7 @@ backtesting library (BackTrader, Zipline, vectorbt).
 
 from __future__ import annotations
 
+import math
 from abc import ABC, abstractmethod
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -27,6 +28,9 @@ class BacktestConfig(BaseModel):
     initial_cash: float = 100_000.0
     risk_free_rate: float = Field(
         default=0.04,
+        ge=0,
+        le=0.15,
+        allow_inf_nan=False,
         description="Annual risk-free rate for Sharpe ratio calculation",
     )
 
@@ -49,7 +53,7 @@ class BacktestConfig(BaseModel):
     @field_validator("initial_cash")
     @classmethod
     def _validate_cash(cls, v: float) -> float:
-        if v <= 0:
+        if not math.isfinite(v) or v <= 0:
             raise ValueError(f"initial_cash must be positive, got {v}")
         return v
 

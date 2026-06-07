@@ -499,6 +499,11 @@ class DcfEquivalenceLineRequest(BaseModel):
     steps: int = Field(default=13, ge=3, le=40)
     mid_year: bool = False
 
+    @field_validator("ticker")
+    @classmethod
+    def _validate_ticker(cls, value: str) -> str:
+        return validate_ticker(value)
+
 
 class DcfEquivalencePoint(BaseModel):
     growth: float
@@ -569,7 +574,7 @@ async def compute_dcf_equivalence_line(
     WACC-slider drag (debounced client-side).
     """
     deps = request.app.state.deps
-    ticker = body.ticker.upper()
+    ticker = body.ticker
 
     financial_data, dcf_inputs = await _seed_dcf_inputs_for_ticker(deps, ticker)
     target_price = body.target_price or financial_data.market.current_price

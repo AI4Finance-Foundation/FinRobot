@@ -121,6 +121,12 @@ class TestListArtifacts:
         assert resp.status_code == 422
 
 
+class TestStudiedTickers:
+    def test_rejects_negative_limit(self, client: TestClient) -> None:
+        resp = client.get("/api/artifacts/studied-tickers?limit=-1")
+        assert resp.status_code == 422
+
+
 class TestGetArtifact:
     def test_returns_full_artifact(
         self, client: TestClient, store: ArtifactStore, sample_artifact: Artifact

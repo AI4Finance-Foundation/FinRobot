@@ -129,7 +129,7 @@ async def ticker_timeline(
 async def studied_tickers(
     request: Request,
     include_archived: bool = False,
-    limit: int = 100,
+    limit: int = Query(100, ge=1, le=500),
 ) -> StudiedTickersResponse:
     """Return every ticker the user has ever run analysis on, with metadata.
 

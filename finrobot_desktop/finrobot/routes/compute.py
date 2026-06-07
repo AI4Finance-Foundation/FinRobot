@@ -185,6 +185,11 @@ class LboSeedRequest(BaseModel):
     exit_ev_ebitda: float | None = Field(default=None, gt=0, le=30)
     leverage_multiple: float | None = Field(default=None, ge=0, le=20)
 
+    @field_validator("ticker")
+    @classmethod
+    def _validate_ticker(cls, value: str) -> str:
+        return validate_ticker(value)
+
 
 class LboSeedResponse(BaseModel):
     """Bundled LBO output. inputs.assumption_provenance carries the per-field
@@ -626,7 +631,7 @@ async def compute_lbo_seed(body: LboSeedRequest, request: Request) -> LboSeedRes
     from finrobot.engine.models.financial import HistoricalMetrics
 
     deps: FinRobotDeps = request.app.state.deps
-    ticker = body.ticker.upper()
+    ticker = body.ticker
 
     _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
     _price = await deps.data_layer.fetch_canonical(DataType.PRICE, ticker)

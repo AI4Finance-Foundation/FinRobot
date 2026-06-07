@@ -236,6 +236,12 @@ export interface paths {
      *
      *     Pipeline: fetch_news -> classify_news (LLM) -> extract_catalysts -> rank.
      *
+     *     The classify step is a slow (~11–18s) LLM round-trip with no provider cache
+     *     of its own, so the assembled list is cached (DataType.CATALYST, 30 min,
+     *     keyed by min_importance). Warm loads skip the whole pipeline; only a cold
+     *     load (or a stale cache) pays the LLM cost. Caching also stabilises the
+     *     calendar — classification is non-deterministic run-to-run.
+     *
      *     Args:
      *         ticker: Stock ticker symbol.
      *         min_importance: Minimum news importance to become a catalyst (1-5).
@@ -909,14 +915,21 @@ export interface paths {
     }
     /**
      * Group Overview
-     * @description Assembled Coverage Table for a group (60s L1 cache; ``refresh=true`` bypasses).
+     * @description Assembled Coverage Table for a group.
      *
      *     Needs the data layer + artifact store; per-ticker fetch failures degrade
      *     individual rows (``partial=true``) rather than failing the request.
      *
-     *     ``fast=true`` returns the skeleton (research + run state only, no market
-     *     fan-out) so the client paints the table instantly on cold start, then
-     *     backfills with a full fetch. The two phases are cached separately.
+     *     Two modes, both 60s L1-cached under distinct keys (stale-while-revalidate):
+     *
+     *     * ``refresh=false`` (default) — **instant first paint**: market cells read
+     *       from the canonical cache (allow-stale), NO network. ~ms at any N (measured
+     *       5ms/6t, 4ms/100t). Rows past their TTL carry ``market_stale=true``; cold
+     *       rows leave market ``None``. This is what the desk opens with — no more
+     *       waiting on the cold provider fan-out (6.6s/6t, >180s/100t).
+     *     * ``refresh=true`` — **network revalidate**: bounded per-ticker fan-out
+     *       repopulates the canonical cache and returns fresh numbers. The client
+     *       fires this in the background after the instant paint, then swaps it in.
      */
     get: operations['group_overview_api_coverage_groups__group_id__overview_get']
     put?: never
@@ -947,26 +960,6 @@ export interface paths {
      *     invalidated so an in-flight / failed run shows on next render.
      */
     post: operations['batch_run_api_coverage_groups__group_id__runs_post']
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/compare': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /**
-     * Compare
-     * @description Compare DCF valuation across 2–10 tickers (comma-separated).
-     */
-    get: operations['compare_api_compare_get']
-    put?: never
-    post?: never
     delete?: never
     options?: never
     head?: never
@@ -1482,7 +1475,7 @@ export interface components {
       target_date?: string | null
       /**
        * Signal
-       * @description Lazy-computed realised-vs-target signal (hit / watching / failed) — never persisted. Route handlers call finrobot.engine.compute.signal.compute_signal at list time using a fresh quote. None when any of entry_price / target_price / current_price are unavailable. DO NOT confuse with `verdict` — signal is the post-trade outcome, verdict is the LLM's pre-trade BUY/HOLD/SELL call.
+       * @description Lazy-computed realised-vs-target signal (hit / watching / failed) — never persisted. Route handlers call finrobot.engine.compute.operators.signal.compute_signal at list time using a fresh quote. None when any of entry_price / target_price / current_price are unavailable. DO NOT confuse with `verdict` — signal is the post-trade outcome, verdict is the LLM's pre-trade BUY/HOLD/SELL call.
        */
       signal?: ('hit' | 'watching' | 'failed') | null
       /**
@@ -1560,16 +1553,24 @@ export interface components {
     BalanceSheet: {
       /**
        * Total Debt
-       * @description Total debt in USD
-       * @default 0
+       * @description Total debt in USD; None = not reported (≠ 0)
        */
-      total_debt: number
+      total_debt?: number | null
       /**
        * Total Cash
-       * @description Total cash in USD
-       * @default 0
+       * @description Total cash in USD; None = not reported (≠ 0)
        */
-      total_cash: number
+      total_cash?: number | null
+      /**
+       * Preferred Stock
+       * @description Preferred equity in reporting ccy; None = not reported
+       */
+      preferred_stock?: number | null
+      /**
+       * Noncontrolling Interest
+       * @description Minority/NCI in reporting ccy; None = not reported
+       */
+      noncontrolling_interest?: number | null
     }
     /** BatchRunItem */
     BatchRunItem: {
@@ -1650,55 +1651,13 @@ export interface components {
       /** Field */
       field: string
     }
-    /**
-     * CompanyValuation
-     * @description Summary valuation metrics for one company in a comparison.
-     */
-    CompanyValuation: {
-      /** Ticker */
-      ticker: string
-      /**
-       * Company Name
-       * @default
-       */
-      company_name: string
-      /** Current Price */
-      current_price?: number | null
-      /** Implied Price */
-      implied_price?: number | null
-      /** Upside Pct */
-      upside_pct?: number | null
-      /** Wacc */
-      wacc?: number | null
-      /** Terminal Growth */
-      terminal_growth?: number | null
-      /** Ev Ebitda */
-      ev_ebitda?: number | null
-      /** Pe Ratio */
-      pe_ratio?: number | null
-      dcf_result?: components['schemas']['DCFResult'] | null
-      /**
-       * Dcf As Of
-       * @description ISO-8601 timestamp the underlying DCF artifact was generated (provenance / vintage). implied_price, WACC and the DCF-derived upside are only as fresh as this. None when the DCF was computed live in this call (no stored artifact) or is unavailable.
-       */
-      dcf_as_of?: string | null
-      /**
-       * Dcf Artifact Id
-       * @description Source DCF artifact id, for deep-linking to the run that produced these numbers.
-       */
-      dcf_artifact_id?: string | null
-      /** Warnings */
-      warnings?: string[]
-      /** Error */
-      error?: string | null
-    }
     /** ComparabilityFlag */
     ComparabilityFlag: {
       /**
        * Kind
        * @enum {string}
        */
-      kind: 'formula' | 'data_source' | 'period'
+      kind: 'formula' | 'data_source' | 'period' | 'peer_set'
       /** Message Zh */
       message_zh: string
       /** Message En */
@@ -1708,16 +1667,6 @@ export interface components {
        * @default false
        */
       blocks_attribution: boolean
-    }
-    /**
-     * ComparisonResult
-     * @description Side-by-side comparison of multiple companies.
-     */
-    ComparisonResult: {
-      /** Companies */
-      companies: components['schemas']['CompanyValuation'][]
-      /** Generated At */
-      generated_at?: string
     }
     /**
      * CoverageGroupDetail
@@ -1822,10 +1771,10 @@ export interface components {
        */
       partial: boolean
       /**
-       * Fast
+       * Cache Only
        * @default false
        */
-      fast: boolean
+      cache_only: boolean
     }
     /**
      * CoverageRow
@@ -1886,10 +1835,16 @@ export interface components {
       latest_type?: string | null
       /** Latest At */
       latest_at?: string | null
+      market_implied?: components['schemas']['MarketImpliedNature'] | null
       /** Run Status */
       run_status?: string | null
       /** Run Error */
       run_error?: string | null
+      /**
+       * Market Stale
+       * @default false
+       */
+      market_stale: boolean
       /** Needs Refresh */
       needs_refresh?: components['schemas']['NeedsRefreshReason'][]
       /** Warnings */
@@ -1913,6 +1868,7 @@ export interface components {
       ev_ebitda?: components['schemas']['NumberSource'] | null
       pe?: components['schemas']['NumberSource'] | null
       upside_to_target_live?: components['schemas']['NumberSource'] | null
+      market_implied?: components['schemas']['NumberSource'] | null
     }
     /** CreateGroupRequest */
     CreateGroupRequest: {
@@ -2065,6 +2021,7 @@ export interface components {
       sensitivity_table?: {
         [key: string]: unknown
       } | null
+      market_implied?: components['schemas']['MarketImpliedCheck'] | null
       inputs: components['schemas']['DCFInputs']
     }
     /** DataFootnote */
@@ -2429,6 +2386,8 @@ export interface components {
       timestamp: string
       /** Fiscal Period End */
       fiscal_period_end?: string | null
+      /** Ttm Quarter Ends */
+      ttm_quarter_ends?: string[]
       income: components['schemas']['IncomeStatement']
       balance?: components['schemas']['BalanceSheet']
       market: components['schemas']['MarketData']
@@ -2882,6 +2841,85 @@ export interface components {
       sector?: string | null
       /** Beta */
       beta?: number | null
+    }
+    /**
+     * MarketImpliedCheck
+     * @description Reverse-DCF reality check: what the CURRENT market price implies.
+     *
+     *     The forward DCF answers "given my assumptions, what is it worth?". This
+     *     inverts it: "given the market's price, what constant growth (or discount
+     *     rate) is the market implicitly pricing in?" — a Damodaran-style sanity
+     *     check. It is the honest companion to a fair-value point: a DCF mid 60% below
+     *     market is meaningless on its own, but "the market is pricing in 23%/yr
+     *     growth — plausible?" is a checkable, user-understandable statement.
+     *
+     *     All fields are COMPUTED (deterministic reverse-DCF), never LLM-narrated.
+     *     Scalars only (no baked prose) so the bilingual UI renders the localized
+     *     sentence and the thesis LLM cites the numbers in the report's language.
+     */
+    MarketImpliedCheck: {
+      /** Horizon Years */
+      horizon_years: number
+      /** Implied Growth */
+      implied_growth?: number | null
+      /** Implied Wacc */
+      implied_wacc?: number | null
+      /**
+       * Growth Unreachable
+       * @default false
+       */
+      growth_unreachable: boolean
+      /** Growth Ceiling */
+      growth_ceiling?: number | null
+      /** Ceiling Price */
+      ceiling_price?: number | null
+    }
+    /**
+     * MarketImpliedNature
+     * @description Per-name valuation *nature*, re-solved against the LIVE price — the honest
+     *     cross-name read for the Coverage desk.
+     *
+     *     A cross-name *ranking* by implied-growth gap was deliberately rejected: the
+     *     reverse solver fits a FLAT constant growth while the forward DCF projects a
+     *     DECAYING schedule, so a single implied-growth scalar sits systematically
+     *     below the decay-base anchor by an amount that scales with the name's growth
+     *     tier — ranking by that gap ranks "whose growth curve is steepest", not
+     *     "whose expectation is most stretched". What *does* survive that critique is a
+     *     per-name **classification**, which is what this carries:
+     *
+     *     * ``fundamental`` — the live price IS explainable by some growth in the
+     *       solver bracket. ``implied_growth`` is the constant annual revenue growth
+     *       the price implies, shown as per-name context (NOT a sortable cross-name
+     *       number — see above).
+     *     * ``option_value`` — no growth in the bracket reaches the price AND that
+     *       verdict survives the most favourable plausible WACC (a band lower). The
+     *       market is pricing optionality no cash-flow model can capture (TSLA-type).
+     *       The robust, deterministic *exclusion* signal — and the moat: a generic LLM
+     *       cannot reproduce it.
+     *     * ``near_ceiling`` — unreachable at the name's own WACC, but a plausibly
+     *       lower WACC rescues it into the solvable range. Flagged WACC-sensitive
+     *       rather than asserting optionality, because the verdict would silently flip
+     *       with the discount-rate assumption (and an unsourceable flip is exactly the
+     *       kind of number this product refuses to ship).
+     *
+     *     All fields are COMPUTED (deterministic reverse-DCF), never LLM-narrated.
+     */
+    MarketImpliedNature: {
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'fundamental' | 'option_value' | 'near_ceiling'
+      /** Implied Growth */
+      implied_growth?: number | null
+      /** Implied Wacc */
+      implied_wacc?: number | null
+      /** Horizon Years */
+      horizon_years: number
+      /** Growth Ceiling */
+      growth_ceiling?: number | null
+      /** Ceiling Price */
+      ceiling_price?: number | null
     }
     /**
      * MonteCarloRequest
@@ -3626,6 +3664,12 @@ export interface components {
       methods: components['schemas']['ValuationMethodRange'][]
       /** Warnings */
       warnings?: string[]
+      /** Forward Fiscal Period */
+      forward_fiscal_period?: string | null
+      /** Forward Confidence */
+      forward_confidence?: string | null
+      /** Forward Source */
+      forward_source?: string | null
     }
     /**
      * ValuationMethodRange
@@ -3652,7 +3696,10 @@ export interface components {
       mid: number
       /** High */
       high: number
-      /** Confidence */
+      /**
+       * Confidence
+       * @description Method weight in the confidence-weighted price synthesis (NOT prediction accuracy). Used internally as the weight in weighted_price = Σ(mid×wt)/Σ(wt). Does not represent a probability of the target being correct.
+       */
       confidence: number
       /**
        * Source
@@ -5066,7 +5113,6 @@ export interface operations {
     parameters: {
       query?: {
         refresh?: boolean
-        fast?: boolean
       }
       header?: never
       path: {
@@ -5118,37 +5164,6 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['BatchRunResponse']
-        }
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
-      }
-    }
-  }
-  compare_api_compare_get: {
-    parameters: {
-      query: {
-        tickers: string
-      }
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['ComparisonResult']
         }
       }
       /** @description Validation Error */

@@ -11,6 +11,7 @@ to settings).
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -118,8 +119,8 @@ def _has_sentiment_provider(data_layer: DataLayer) -> bool:
 def _to_snapshot(
     ticker: str, days: int, raw: dict[str, Any], warnings: list[str]
 ) -> SentimentSnapshot:
-    bullish = raw.get("bullish_avg")
-    bearish = (100.0 - float(bullish)) if isinstance(bullish, (int, float)) else None
+    bullish = _coerce_finite_float(raw.get("bullish_avg"))
+    bearish = (100.0 - bullish) if bullish is not None else None
     sources_raw_value = raw.get("sources")
     sources_raw: list[Any] = sources_raw_value if isinstance(sources_raw_value, list) else []
     sources = [_source(item) for item in sources_raw]
@@ -128,9 +129,9 @@ def _to_snapshot(
         days=days,
         available=True,
         coverage=raw.get("coverage"),
-        bullish_pct=float(bullish) if isinstance(bullish, (int, float)) else None,
+        bullish_pct=bullish,
         bearish_pct=bearish,
-        average_buzz=raw.get("average_buzz"),
+        average_buzz=_coerce_finite_float(raw.get("average_buzz")),
         source_alignment=raw.get("source_alignment"),
         sources=sources,
         warnings=warnings,
@@ -144,16 +145,17 @@ def _source(item: Any) -> SentimentSource:
     return SentimentSource(
         platform=str(item.get("platform") or item.get("label") or "unknown"),
         has_data=bool(item.get("has_data", False)),
-        bullish_pct=_coerce_float(item.get("bullish_pct")),
+        bullish_pct=_coerce_finite_float(item.get("bullish_pct")),
         activity_label=str(item.get("activity_label") or "Mentions"),
         activity_value=int(activity_value) if isinstance(activity_value, (int, float)) else None,
     )
 
 
-def _coerce_float(v: Any) -> float | None:
+def _coerce_finite_float(v: Any) -> float | None:
     if v is None:
         return None
     try:
-        return float(v)
+        value = float(v)
     except (TypeError, ValueError):
         return None
+    return value if math.isfinite(value) else None

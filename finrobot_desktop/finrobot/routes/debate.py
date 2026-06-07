@@ -22,12 +22,13 @@ from typing import Any, cast
 
 import httpx
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from pydantic_ai import UnexpectedModelBehavior
 from pydantic_ai.exceptions import AgentRunError
 from starlette.requests import Request
 
 from finrobot.engine.data.interface import ProviderError
+from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.debate.agents import build_debate_agents
 from finrobot.engine.debate.evidence import build_evidence_set
 from finrobot.engine.debate.service import run_debate
@@ -42,8 +43,13 @@ router = APIRouter(prefix="/api/debate", tags=["debate"])
 class DebateRequest(BaseModel):
     # Reject empty/oversized input at validation time (422) rather than storing a
     # malformed run — same constraint as the compute routes (BUG-032 / BUG-040).
-    ticker: str = Field(min_length=1, max_length=10)
+    ticker: str = Field(min_length=1, max_length=12)
     artifact_id: str = Field(min_length=1)
+
+    @field_validator("ticker")
+    @classmethod
+    def _validate_ticker(cls, value: str) -> str:
+        return validate_ticker(value)
 
 
 class DebateResponse(BaseModel):

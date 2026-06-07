@@ -43,6 +43,13 @@ def test_dcf_equivalence_line_request_normalizes_ticker() -> None:
     assert DcfEquivalenceLineRequest(ticker=" nvda ").ticker == "NVDA"
 
 
+def test_compute_ticker_requests_accept_twelve_character_symbols() -> None:
+    ticker = "ABCDEFGHIJKL"
+    assert DcfSeedRequest(ticker=ticker).ticker == ticker
+    assert LboSeedRequest(ticker=ticker).ticker == ticker
+    assert DcfEquivalenceLineRequest(ticker=ticker).ticker == ticker
+
+
 @pytest.mark.parametrize("ticker", ["苹果", "AAPL;DROP", "$"])
 def test_dcf_equivalence_line_rejects_invalid_ticker(client: TestClient, ticker: str) -> None:
     resp = client.post("/api/compute/dcf-equivalence-line", json={"ticker": ticker})

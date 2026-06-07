@@ -32,7 +32,7 @@ from finrobot.engine.debate.models import (
     SideCase,
     Verdict,
 )
-from finrobot.routes.debate import router
+from finrobot.routes.debate import DebateRequest, router
 
 _UTC = timezone.utc
 _NOW = datetime(2026, 6, 1, tzinfo=_UTC)
@@ -190,6 +190,17 @@ async def test_empty_artifact_id_rejected_422() -> None:
     app = _make_app(artifact=None)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
         resp = await client.post("/api/debate", json={"ticker": "AAPL", "artifact_id": ""})
+    assert resp.status_code == 422, resp.text
+
+
+def test_debate_request_accepts_twelve_character_ticker() -> None:
+    assert DebateRequest(ticker="abcdefghijkl", artifact_id="art-1").ticker == "ABCDEFGHIJKL"
+
+
+async def test_invalid_debate_ticker_rejected_422() -> None:
+    app = _make_app(artifact=None)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        resp = await client.post("/api/debate", json={"ticker": "苹果", "artifact_id": "art-1"})
     assert resp.status_code == 422, resp.text
 
 

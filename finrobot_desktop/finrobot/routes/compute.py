@@ -95,7 +95,7 @@ class DcfSeedRequest(BaseModel):
     then runs calculate_dcf + sensitivity + reverse DCF in one shot.
     """
 
-    ticker: str = Field(min_length=1, max_length=10)
+    ticker: str = Field(min_length=1, max_length=12)
     wacc_override: float | None = Field(default=None, ge=0, le=0.50)
     tg_override: float | None = Field(default=None, ge=-0.05, le=0.10)
     growth_scale_override: float | None = Field(
@@ -179,7 +179,7 @@ class LboSeedRequest(BaseModel):
     14 hardcoded LBO parameters per ticker.
     """
 
-    ticker: str = Field(min_length=1, max_length=10)
+    ticker: str = Field(min_length=1, max_length=12)
     holding_period_years: int | None = Field(default=None, ge=1, le=10)
     entry_ev_ebitda: float | None = Field(default=None, gt=0, le=30)
     exit_ev_ebitda: float | None = Field(default=None, gt=0, le=30)
@@ -486,7 +486,7 @@ class DcfEquivalenceLineRequest(BaseModel):
     the whole line (exposing the third axis).
     """
 
-    ticker: str = Field(min_length=1, max_length=10)
+    ticker: str = Field(min_length=1, max_length=12)
     target_price: float | None = Field(
         default=None, gt=0, description="Defaults to current market price when omitted."
     )

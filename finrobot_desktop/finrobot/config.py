@@ -261,6 +261,25 @@ class FinRobotSettings(BaseSettings):
         """The configured API key for a provider id, or None."""
         return self._provider_keys.get(provider_id) or None
 
+    @staticmethod
+    def _parse_model_name(name: str) -> tuple[str, str]:
+        provider_id, sep, model_id = name.partition(":")
+        provider_id = provider_id.strip()
+        model_id = model_id.strip()
+        if not provider_id:
+            raise ValueError(
+                f"Invalid model_name '{name}'. Format: provider:model_id "
+                f"(e.g. anthropic:claude-sonnet-4-6)"
+            )
+        if provider_id == "test" and not sep:
+            return provider_id, "test"
+        if not sep or not model_id:
+            raise ValueError(
+                f"Invalid model_name '{name}'. Model id must not be empty. "
+                f"Format: provider:model_id (e.g. anthropic:claude-sonnet-4-6)"
+            )
+        return provider_id, model_id
+
     def validate_runtime_config(self) -> None:
         """Fail fast if the model configuration is incoherent.
 
@@ -289,7 +308,7 @@ class FinRobotSettings(BaseSettings):
                 stacklevel=2,
             )
         name = self.model_name
-        provider_id, _, _model_id = name.partition(":")
+        provider_id, _model_id = self._parse_model_name(name)
         if provider_id == "test":
             return  # built-in test harness provider — no key required
         cfg = self.provider_by_id(provider_id)
@@ -323,7 +342,7 @@ class FinRobotSettings(BaseSettings):
                 ``self.model_name`` (the global default).
         """
         name = model_name or self.model_name  # e.g. "openai:gpt-4o"
-        provider_id, _, model_id = name.partition(":")
+        provider_id, model_id = self._parse_model_name(name)
 
         if provider_id == "test":
             from pydantic_ai.models.test import TestModel

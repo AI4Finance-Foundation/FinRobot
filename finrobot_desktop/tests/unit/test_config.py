@@ -171,6 +171,11 @@ class TestCreateModel:
         with pytest.raises(ValueError, match="Unknown provider 'unknown'"):
             s.create_model()
 
+    def test_empty_model_id_raises(self):
+        s = get_settings(model_name="openai:", provider_keys={"openai": "sk-test"})
+        with pytest.raises(ValueError, match="Model id must not be empty"):
+            s.create_model()
+
     def test_does_not_pollute_environ(self, monkeypatch):
         import os
 
@@ -199,6 +204,15 @@ class TestValidateRuntimeConfig:
     def test_unknown_provider_raises_value_error(self):
         s = get_settings(model_name="bogus:model-x", fmp_api_key="fmp-test-key")
         with pytest.raises(ValueError, match="Unknown provider 'bogus'"):
+            s.validate_runtime_config()
+
+    def test_empty_model_id_raises_value_error(self):
+        s = get_settings(
+            model_name="openai:",
+            provider_keys={"openai": "sk-x"},
+            fmp_api_key="fmp-test-key",
+        )
+        with pytest.raises(ValueError, match="Model id must not be empty"):
             s.validate_runtime_config()
 
     def test_missing_llm_api_key_raises_value_error(self):

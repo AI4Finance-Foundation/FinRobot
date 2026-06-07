@@ -313,6 +313,8 @@ class SqliteArtifactStore:
         rows (an empty group has no track record). ``ticker=None`` and
         ``tickers=None`` keep the global-page behavior unchanged.
         """
+        if limit < 1:
+            raise ValueError(f"limit must be >= 1, got {limit}")
         conn = await self._conn_ready()
         where: list[str] = []
         params: list[Any] = []

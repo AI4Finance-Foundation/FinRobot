@@ -101,6 +101,14 @@ async def test_list_by_ticker_sorted_desc(store: SqliteArtifactStore) -> None:
 
 
 @pytest.mark.asyncio
+async def test_list_by_ticker_rejects_non_positive_limit(store: SqliteArtifactStore) -> None:
+    with pytest.raises(ValueError, match="limit must be >= 1"):
+        await store.list_by_ticker(ticker="AAPL", limit=0)
+    with pytest.raises(ValueError, match="limit must be >= 1"):
+        await store.list_by_ticker(ticker="AAPL", limit=-1)
+
+
+@pytest.mark.asyncio
 async def test_list_all_tickers(store: SqliteArtifactStore) -> None:
     await store.save(_make_artifact(id="art_a", ticker="AAPL"))
     await store.save(_make_artifact(id="art_m", ticker="MSFT"))

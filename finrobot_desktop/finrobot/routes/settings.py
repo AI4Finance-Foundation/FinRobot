@@ -142,14 +142,15 @@ class ClearSecretRequest(BaseModel):
     field: str
 
 
-def _validate_custom_providers(providers: list[ProviderConfig]) -> None:
-    """Reject custom providers that would corrupt the registry.
+def _normalize_custom_providers(providers: list[ProviderConfig]) -> list[ProviderConfig]:
+    """Return custom providers in the persisted registry shape.
 
     A custom provider must have a non-empty id that does not shadow a built-in
     or duplicate another custom one, and an ``openai-compatible`` provider needs
     a base_url (there is no canonical endpoint to fall back to). Raises HTTP 400.
     """
     seen: set[str] = set()
+    normalized: list[ProviderConfig] = []
     for provider in providers:
         pid = provider.id.strip()
         if not pid:
@@ -171,6 +172,8 @@ def _validate_custom_providers(providers: list[ProviderConfig]) -> None:
                 status_code=400,
                 detail=f"Provider '{pid}' (openai-compatible) requires a base_url.",
             )
+        normalized.append(provider.model_copy(update={"id": pid}))
+    return normalized
 
 
 @router.get("", response_model=SettingsResponse)
@@ -189,8 +192,10 @@ async def put_settings_route(update: SettingsUpdate, request: Request) -> Settin
     provider_key_updates = update.provider_keys or {}
 
     # Reject malformed / colliding custom providers before they reach the registry.
+    custom_providers: list[ProviderConfig] | None = None
     if update.custom_providers is not None:
-        _validate_custom_providers(update.custom_providers)
+        custom_providers = _normalize_custom_providers(update.custom_providers)
+        non_secret_updates["custom_providers"] = [p.model_dump() for p in custom_providers]
 
     # DataProvider secret merge: a falsy incoming value (absent OR empty string)
     # means "no change" — fall back to the stored keychain value, then the current
@@ -209,8 +214,8 @@ async def put_settings_route(update: SettingsUpdate, request: Request) -> Settin
     # Build the candidate. model_copy does NOT coerce dict -> ProviderConfig, so
     # pass the parsed objects from ``update`` rather than the dumped payload.
     candidate_update: dict[str, Any] = {**non_secret_updates, **data_secret_merge}
-    if update.custom_providers is not None:
-        candidate_update["custom_providers"] = update.custom_providers
+    if custom_providers is not None:
+        candidate_update["custom_providers"] = custom_providers
     candidate = current.model_copy(update=candidate_update)
 
     # LLM provider key merge — same no-wipe semantics, for every provider in the

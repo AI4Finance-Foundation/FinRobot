@@ -45,13 +45,9 @@ async def _seed_session(
     user_text: str,
 ) -> None:
     writer = TranscriptWriter(session_id)
-    await writer.log_session_start(
-        user_id="local", model=model, ticker=ticker, locale=locale
-    )
+    await writer.log_session_start(user_id="local", model=model, ticker=ticker, locale=locale)
     if ticker or locale:
-        await writer.log_context(
-            {"ticker": ticker, "locale": locale, "route": f"/stocks/{ticker}"}
-        )
+        await writer.log_context({"ticker": ticker, "locale": locale, "route": f"/stocks/{ticker}"})
     await writer.log_user_message(user_text)
     await writer.log_assistant_text("answer body")
 
@@ -59,12 +55,8 @@ async def _seed_session(
 async def test_list_sessions_returns_summaries_newest_first(
     _sessions_dir: Path, client: TestClient
 ) -> None:
-    await _seed_session(
-        "sess-aapl", model="m1", ticker="AAPL", locale="en", user_text="AAPL DCF?"
-    )
-    await _seed_session(
-        "sess-nvda", model="m2", ticker="NVDA", locale="zh", user_text="英伟达估值"
-    )
+    await _seed_session("sess-aapl", model="m1", ticker="AAPL", locale="en", user_text="AAPL DCF?")
+    await _seed_session("sess-nvda", model="m2", ticker="NVDA", locale="zh", user_text="英伟达估值")
 
     resp = client.get("/api/chat/sessions")
     assert resp.status_code == 200
@@ -81,15 +73,9 @@ async def test_list_sessions_returns_summaries_newest_first(
     assert by_id["sess-nvda"]["model"] == "m2"
 
 
-async def test_list_sessions_ticker_filter(
-    _sessions_dir: Path, client: TestClient
-) -> None:
-    await _seed_session(
-        "sess-aapl", model="m1", ticker="AAPL", locale="en", user_text="q1"
-    )
-    await _seed_session(
-        "sess-nvda", model="m2", ticker="NVDA", locale="en", user_text="q2"
-    )
+async def test_list_sessions_ticker_filter(_sessions_dir: Path, client: TestClient) -> None:
+    await _seed_session("sess-aapl", model="m1", ticker="AAPL", locale="en", user_text="q1")
+    await _seed_session("sess-nvda", model="m2", ticker="NVDA", locale="en", user_text="q2")
 
     # Case-insensitive filter.
     resp = client.get("/api/chat/sessions", params={"ticker": "aapl"})
@@ -99,21 +85,15 @@ async def test_list_sessions_ticker_filter(
     assert sessions[0]["session_id"] == "sess-aapl"
 
 
-async def test_list_sessions_empty_when_no_dir(
-    _sessions_dir: Path, client: TestClient
-) -> None:
+async def test_list_sessions_empty_when_no_dir(_sessions_dir: Path, client: TestClient) -> None:
     # No transcripts written → empty list (dir may not even exist yet).
     resp = client.get("/api/chat/sessions")
     assert resp.status_code == 200
     assert resp.json()["sessions"] == []
 
 
-async def test_load_session_transcript(
-    _sessions_dir: Path, client: TestClient
-) -> None:
-    await _seed_session(
-        "sess-load", model="m1", ticker="AAPL", locale="zh", user_text="问题"
-    )
+async def test_load_session_transcript(_sessions_dir: Path, client: TestClient) -> None:
+    await _seed_session("sess-load", model="m1", ticker="AAPL", locale="zh", user_text="问题")
 
     resp = client.get("/api/chat/sessions/sess-load")
     assert resp.status_code == 200
@@ -137,3 +117,40 @@ async def test_load_session_transcript(
 def test_load_missing_session_404(_sessions_dir: Path, client: TestClient) -> None:
     resp = client.get("/api/chat/sessions/does-not-exist")
     assert resp.status_code == 404
+
+
+async def test_delete_session_removes_file_and_second_delete_404(
+    _sessions_dir: Path, client: TestClient
+) -> None:
+    await _seed_session("sess-del", model="m1", ticker="AAPL", locale="en", user_text="delete me")
+    session_file = _sessions_dir / "sess-del.jsonl"
+    assert session_file.exists()
+
+    resp = client.delete("/api/chat/sessions/sess-del")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "deleted", "session_id": "sess-del"}
+    assert not session_file.exists()
+
+    # Idempotent: a second delete of the now-gone session is a clean 404.
+    resp_again = client.delete("/api/chat/sessions/sess-del")
+    assert resp_again.status_code == 404
+
+
+def test_delete_missing_session_404(_sessions_dir: Path, client: TestClient) -> None:
+    resp = client.delete("/api/chat/sessions/never-existed")
+    assert resp.status_code == 404
+
+
+def test_delete_rejects_path_traversal_id(_sessions_dir: Path, client: TestClient) -> None:
+    # A traversal stem is gated at the edge by is_valid_session_id → 404, and
+    # must never unlink a file outside the sessions dir (BUG-089). Plant a file
+    # one level up that a naive join would target, and prove it survives.
+    outside = _sessions_dir.parent / "victim.jsonl"
+    outside.write_text("keep me", encoding="utf-8")
+
+    # URL-encoded so the path segment reaches the handler as the raw stem
+    # rather than being collapsed by the HTTP client's path normalisation.
+    resp = client.delete("/api/chat/sessions/..%2Fvictim")
+    assert resp.status_code == 404
+    assert outside.exists()
+    assert outside.read_text(encoding="utf-8") == "keep me"

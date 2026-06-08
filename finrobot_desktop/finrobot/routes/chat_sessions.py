@@ -8,8 +8,9 @@ no reader, so past sessions were invisible to the desktop UI
 prior sessions.
 
 Endpoints:
-    GET /api/chat/sessions            — list session summaries (optional ?ticker=)
-    GET /api/chat/sessions/{id}       — load a session's full transcript
+    GET    /api/chat/sessions          — list session summaries (optional ?ticker=)
+    GET    /api/chat/sessions/{id}     — load a session's full transcript
+    DELETE /api/chat/sessions/{id}     — permanently delete a session's transcript
 """
 
 from __future__ import annotations
@@ -19,7 +20,12 @@ import logging
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
-from finrobot.audit.persistence import list_sessions, load_session_transcript
+from finrobot.audit.persistence import (
+    delete_session,
+    list_sessions,
+    load_session_transcript,
+)
+from finrobot.audit.transcript import is_valid_session_id
 
 logger = logging.getLogger(__name__)
 
@@ -114,3 +120,27 @@ def get_chat_session_transcript(session_id: str) -> SessionTranscriptResponse:
             )
         )
     return SessionTranscriptResponse(session_id=session_id, events=typed)
+
+
+@router.delete("/sessions/{session_id}")
+def delete_chat_session(session_id: str) -> dict[str, str]:
+    """Permanently delete one session's on-disk transcript.
+
+    The ``session_id`` becomes the stem of ``<sessions>/<session_id>.jsonl``, so
+    a traversal stem (``../..``) is gated at the edge with
+    :func:`is_valid_session_id` (reject → 404, never a 500 or an unlink outside
+    the sessions dir — BUG-089). ``delete_session`` re-checks containment via
+    ``resolve()`` as defense-in-depth.
+
+    Returns:
+        ``{"status": "deleted", "session_id": session_id}`` on success.
+
+    Raises:
+        404: If the ``session_id`` is malformed, or no transcript exists on disk
+            (never started, already deleted, or evicted).
+    """
+    if not is_valid_session_id(session_id):
+        raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+    if not delete_session(session_id):
+        raise HTTPException(status_code=404, detail=f"Session not found: {session_id}")
+    return {"status": "deleted", "session_id": session_id}

@@ -165,6 +165,40 @@ def _summarize_session_file(path: Path) -> SessionSummary | None:
     )
 
 
+def delete_session(session_id: str, base_dir: Path | None = None) -> bool:
+    """Delete a session's ``.jsonl`` file from disk.
+
+    Uses the same traversal-safe path resolution as the read side
+    (:func:`_session_path` → :func:`_safe_session_path`), so a malicious stem
+    (``../`` / absolute / separator) whose resolved path escapes the sessions
+    dir is rejected before any unlink — a delete can never touch an
+    attacker-chosen file outside the sessions dir (BUG-089).
+
+    Args:
+        session_id: The session identifier (stem of the ``.jsonl`` filename).
+        base_dir: Override the default session directory.
+
+    Returns:
+        ``True`` if the file existed and was deleted; ``False`` if it did not
+        exist, if ``session_id`` is unsafe (traversal stem), or if the unlink
+        failed with an ``OSError`` — mirroring the read side, which logs and
+        degrades rather than 500-ing the caller.
+    """
+    try:
+        path = _session_path(session_id, base_dir)
+    except ValueError:
+        logger.warning("Rejected unsafe session_id for delete: %r", session_id)
+        return False
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        return False
+    except OSError as exc:
+        logger.warning("Failed to delete session file %s: %s", path, exc)
+        return False
+    return True
+
+
 def load_session_transcript(
     session_id: str,
     base_dir: Path | None = None,

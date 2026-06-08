@@ -334,6 +334,12 @@ async def _apply_market_fields(
     """
     price_norm = None
     fin_norm = None
+    # ``market_stale`` means "our cache row is past its refetch TTL" (cache.py
+    # cached_at age), NOT "the quote is from an old trading session". A Friday
+    # close read Monday pre-market is therefore fresh — correctly: there is no
+    # newer print until the next open, and we refetched within the PRICE TTL.
+    # Whether that price is a live intraday quote vs a settled close is the
+    # orthogonal calendar/clock-aware ``session_state`` (set further below).
     if cache_only:
         price_hit = await data_layer.read_canonical_cached(DataType.PRICE, ticker)
         if price_hit is not None:

@@ -215,6 +215,45 @@ def test_extract_minor_share_noise_keeps_reported_count():
     # 15.3e9 vs 15e9 implied = 2% — under threshold → keep reported.
     fd = extract_financial_data(_make_fin(shares_outstanding=15.3e9), _make_price())
     assert fd.market.shares_outstanding == pytest.approx(15.3e9, rel=1e-6)
+
+
+def test_extract_marks_market_cap_to_live_price():
+    """The provider market_cap can ride a cache-stale profile snapshot that lags
+    the live quote (FMP profile mktCap froze at the prior close while the quote
+    moved intraday). Since shares is forced onto current_price's basis, the cap
+    must be too — market_cap = shares × current_price — else market_cap / P/E /
+    EV-EBITDA read ~the day's move below the live price beside them (regression
+    2026-06-09: AAPL ~+2%, MU ~+10% on up days)."""
+    stale_cap = 15e9 * 196.0  # provider froze ~2% below the live 200 quote
+    fin = _make_fin(market_cap=stale_cap, shares_outstanding=15e9)
+    provider_pe = fin.pe_ratio
+    fd = extract_financial_data(fin, _make_price())  # current_price = 200
+    live_cap = 15e9 * 200.0
+    assert fd.market.market_cap == pytest.approx(live_cap, rel=1e-9)
+    assert fd.market.market_cap != pytest.approx(stale_cap, rel=1e-6)
+    assert fd.market.market_cap == pytest.approx(fd.market.shares_outstanding * 200.0, rel=1e-9)
+    # P/E tracks the live cap (scaled by the same ratio), preserving provider basis.
+    if provider_pe is not None:
+        assert fd.market.pe_ratio == pytest.approx(provider_pe * (live_cap / stale_cap), rel=1e-9)
+
+
+def test_extract_live_cap_flows_into_ev():
+    """EV / EV-EBITDA rebuild from the live cap, not the stale provider cap."""
+    stale_cap = 15e9 * 196.0
+    fd = extract_financial_data(
+        _make_fin(market_cap=stale_cap, shares_outstanding=15e9, total_debt=0, total_cash=0),
+        _make_price(),
+    )
+    # zero net debt → EV == live market_cap == shares × current_price
+    assert fd.valuation.enterprise_value == pytest.approx(15e9 * 200.0, rel=1e-9)
+
+
+def test_extract_market_cap_noop_when_shares_derived():
+    """Degraded path (no independent share count): shares = market_cap/price, so
+    shares × price recovers the provider cap unchanged — mark-to-live never
+    fabricates a different cap when there's no real share count to mark with."""
+    fd = extract_financial_data(_make_fin(shares_outstanding=None), _make_price())
+    assert fd.market.market_cap == pytest.approx(3e12, rel=1e-9)  # provider cap, unchanged
     assert not any("diverges" in w for w in fd.warnings)
 
 

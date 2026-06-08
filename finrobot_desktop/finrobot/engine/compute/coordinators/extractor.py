@@ -111,38 +111,7 @@ def extract_financial_data(
     total_debt = raw_debt if raw_debt is not None else 0
     total_cash = raw_cash if raw_cash is not None else 0
 
-    # --- N15: consistent EV handling ---
-    # Only compute EV when both total_debt and total_cash are available.
-    # Matches prompts.py behavior: no defaulting missing components to 0.
-    ev: float | None = None
-    ev_ebitda: float | None = None
-    ev_ebitda_reported: float | None = None
-    ev_revenue: float | None = None
-
-    if raw_debt is not None and raw_cash is not None:
-        ev = calculate_ev(market_cap, total_debt, total_cash)
-        ev_ebitda = ev / ebitda_operating if (ebitda_operating and ebitda_operating > 0) else None
-        ev_ebitda_reported = (
-            ev / ebitda_reported if (ebitda_reported and ebitda_reported > 0) else None
-        )
-        ev_revenue = ev / revenue if revenue > 0 else None
-    else:
-        missing_ev_parts = []
-        if raw_debt is None:
-            missing_ev_parts.append("total_debt")
-        if raw_cash is None:
-            missing_ev_parts.append("total_cash")
-        warnings.append(
-            f"{', '.join(missing_ev_parts)} not available from provider — "
-            "EV and EV-based multiples (EV/EBITDA, EV/Revenue) cannot be computed"
-        )
-        field_warnings.setdefault("ev_ebitda", []).append(FIELD_WARN_EV_MISSING_NET_DEBT)
-
-    # 52w high/low from the canonical (windowed to trailing 52 weeks, intraday
-    # high/low when present, close fallback otherwise).
-    high_52w = price.fifty_two_week_high()
-    low_52w = price.fifty_two_week_low()
-
+    # --- current_price: the authoritative market basis (live quote) ---
     current_price = price.current_price or fin.current_price
     if not current_price or current_price <= 0:
         raise ValueError(
@@ -184,6 +153,58 @@ def extract_financial_data(
         field_warnings.setdefault("pe", []).append(FIELD_WARN_SHARES_DERIVED)
     else:
         shares = reported_shares
+
+    # --- mark market_cap to the live price basis ---
+    # The provider market_cap rides a cached profile snapshot that can lag
+    # current_price (FMP profile mktCap froze at the prior close while the quote
+    # moved intraday), leaving market_cap / P/E / EV-EBITDA ~the day's move below
+    # the live price shown right beside them. `shares` is already forced onto
+    # current_price's basis above, so shares × current_price is the coherent live
+    # cap, and EV / P/E rebuild from it below. When `shares` was DERIVED (degraded
+    # or single-class fallback = market_cap/current_price) this recovers the
+    # provider cap unchanged — a no-op on those paths (regression 2026-06-09:
+    # KO/TSM +0.00%, AAPL +1.84%, MU +9.95% on a +10% day; shares × price == FMP
+    # live marketCap to 0.00% across the basket).
+    mc_reported = market_cap
+    market_cap = shares * current_price
+    mc_ratio = market_cap / mc_reported if mc_reported else 1.0
+
+    # --- N15: consistent EV handling ---
+    # Only compute EV when both total_debt and total_cash are available.
+    # Matches prompts.py behavior: no defaulting missing components to 0.
+    ev: float | None = None
+    ev_ebitda: float | None = None
+    ev_ebitda_reported: float | None = None
+    ev_revenue: float | None = None
+
+    if raw_debt is not None and raw_cash is not None:
+        ev = calculate_ev(market_cap, total_debt, total_cash)
+        ev_ebitda = ev / ebitda_operating if (ebitda_operating and ebitda_operating > 0) else None
+        ev_ebitda_reported = (
+            ev / ebitda_reported if (ebitda_reported and ebitda_reported > 0) else None
+        )
+        ev_revenue = ev / revenue if revenue > 0 else None
+    else:
+        missing_ev_parts = []
+        if raw_debt is None:
+            missing_ev_parts.append("total_debt")
+        if raw_cash is None:
+            missing_ev_parts.append("total_cash")
+        warnings.append(
+            f"{', '.join(missing_ev_parts)} not available from provider — "
+            "EV and EV-based multiples (EV/EBITDA, EV/Revenue) cannot be computed"
+        )
+        field_warnings.setdefault("ev_ebitda", []).append(FIELD_WARN_EV_MISSING_NET_DEBT)
+
+    # 52w high/low from the canonical (windowed to trailing 52 weeks, intraday
+    # high/low when present, close fallback otherwise).
+    high_52w = price.fifty_two_week_high()
+    low_52w = price.fifty_two_week_low()
+
+    # P/E marked to the live cap: scale the provider's ratio (= mc_reported /
+    # net_income) by the mark-to-live adjustment so it tracks the live cap while
+    # preserving the provider's None semantics (ADR / cross-currency → None).
+    pe_ratio = fin.pe_ratio * mc_ratio if fin.pe_ratio is not None else None
 
     # Carry any warnings that arrived on the canonical objects (e.g. cross-validate
     # discrepancies forwarded from raw fetch).
@@ -233,7 +254,7 @@ def extract_financial_data(
             market_cap=market_cap,
             shares_outstanding=shares,
             current_price=current_price,
-            pe_ratio=fin.pe_ratio,
+            pe_ratio=pe_ratio,
             price_52w_high=high_52w,
             price_52w_low=low_52w,
             industry=fin.industry,

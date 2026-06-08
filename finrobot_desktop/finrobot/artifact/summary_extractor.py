@@ -6,10 +6,11 @@ ArtifactMeta / ArtifactInputs are needed, the data is already there:
 
 - `entry_price` lives in ArtifactInputs.raw_data under the FinancialData
   dump path `market.current_price` (the quote snapshot at fetch time).
-- `target_price` lives in ArtifactOutputs.structured. Each pipeline puts it
-  in a slightly different place — equity_research has it under
-  `thesis.price_target`, dcf/ddm/lbo/comps store an `implied_price`. We
-  honour each known shape and fall back to None.
+- `target_price` lives in ArtifactOutputs.structured. Each pipeline puts it in
+  a slightly different place — equity_research has it under `thesis.price_target`;
+  plain dcf dumps a top-level `implied_price`; plain ddm dumps a top-level
+  `equity_value_per_share` (DDMResult has no `implied_price` field). lbo / comps
+  carry no per-share headline. We honour each known shape and fall back to None.
 - `target_date` is unset by every current pipeline, so we default to
   created_at + 365 days whenever a target_price is available. Pipelines can
   override later by writing `structured["thesis"]["target_date"]`.
@@ -60,16 +61,13 @@ def extract_target_price(artifact: "Artifact") -> float | None:
                 return v
         return None
 
-    # Single-method valuation pipelines (plain dcf / ddm) surface an
-    # implied_price directly and carry no thesis / data-health gate.
-    for nest in ("dcf_calc", "ddm_calc"):
-        nested = structured.get(nest)
-        if isinstance(nested, dict):
-            if (v := _coerce_positive_float(nested.get("implied_price"))) is not None:
-                return v
-
-    # Plain DCF / LBO artifacts dump the result at the top of structured.
-    for key in ("implied_price", "target_price"):
+    # Single-method valuation artifacts dump the result model FLAT at the top of
+    # structured (builders.py `_safe_dump(result)`) — never nested. Plain DCF
+    # surfaces `implied_price`; plain DDM's per-share headline is
+    # `equity_value_per_share` (DDMResult carries no `implied_price`). The earlier
+    # `dcf_calc`/`ddm_calc` nested read matched no builder output, so every DDM
+    # target silently extracted as None.
+    for key in ("implied_price", "target_price", "equity_value_per_share"):
         if (v := _coerce_positive_float(structured.get(key))) is not None:
             return v
 

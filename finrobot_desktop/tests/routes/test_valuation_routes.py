@@ -146,7 +146,9 @@ def _dcf_artifact() -> Artifact:
         inputs=ArtifactInputs(data_source="yfinance", data_fetched_at=NOW, raw_data={}),
         assumptions=ArtifactAssumptions(parameters={}),
         compute_version=ArtifactComputeVersion(version="0.1.0", formula_id="dcf"),
-        outputs=ArtifactOutputs(structured={"dcf_calc": dcf.model_dump(mode="json")}),
+        # build_dcf_artifact dumps DCFResult FLAT at the top of structured (no
+        # `dcf_calc` nest — that key only named the pipeline step).
+        outputs=ArtifactOutputs(structured=dcf.model_dump(mode="json")),
         meta=ArtifactMeta(created_at=NOW, source="pipeline:dcf"),
     )
 

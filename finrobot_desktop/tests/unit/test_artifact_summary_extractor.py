@@ -67,12 +67,20 @@ def test_target_price_from_equity_research_thesis_block() -> None:
     assert extract_target_price(art) == 920.0
 
 
-def test_target_price_from_dcf_implied_price_nested() -> None:
-    art = _artifact(
-        structured={"dcf_calc": {"implied_price": 185.4}},
-        type_="dcf",
-    )
+def test_target_price_from_dcf_top_level_implied_price() -> None:
+    # build_dcf_artifact dumps DCFResult FLAT (`_safe_dump(dcf)`); implied_price
+    # sits at the top of structured, never under a `dcf_calc` nest.
+    art = _artifact(structured={"implied_price": 185.4}, type_="dcf")
     assert extract_target_price(art) == 185.4
+
+
+def test_target_price_from_ddm_equity_value_per_share() -> None:
+    # Regression (Q5): DDMResult has no `implied_price` — its per-share headline
+    # is `equity_value_per_share`, dumped FLAT by build_ddm_artifact. The old
+    # `ddm_calc.implied_price` read matched no real artifact, so every DDM target
+    # extracted as None and never reached the coverage list / signal lamp.
+    art = _artifact(structured={"equity_value_per_share": 142.5}, type_="ddm")
+    assert extract_target_price(art) == 142.5
 
 
 def test_target_price_withheld_when_data_health_gate_nulls_thesis() -> None:

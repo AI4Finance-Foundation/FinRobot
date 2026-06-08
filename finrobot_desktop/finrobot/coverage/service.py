@@ -78,11 +78,10 @@ _MARKET_DEGRADABLE = (
 _SYSTEM_GROUP_NAME = "Studied Tickers"
 _SYSTEM_GROUP_DESC = "打开过的股票自动进这里；可改名、删 ticker 或删除整组。"
 
-# Artifact types that embed a DCF result, and the structured keys it may sit
-# under (equity_research nests it under financial_modeling; dcf at dcf_calc;
-# ic_memo at dcf_result). Mirrors routes/valuation.py's reconstruction.
+# Artifact types that embed a DCF result. equity_research nests it under
+# `financial_modeling`, ic_memo under `dcf_result`, and a plain dcf artifact
+# dumps DCFResult FLAT at the top of structured. Mirrors routes/valuation._parse_dcf.
 _DCF_BEARING_TYPES = ("dcf", "equity_research", "ic_memo")
-_DCF_STRUCTURED_KEYS = ("dcf_calc", "financial_modeling", "dcf_result")
 
 
 def _now() -> datetime:
@@ -675,15 +674,19 @@ async def _latest_dcf_result(
         if artifact is None or artifact.outputs is None:
             continue
         structured = artifact.outputs.structured
-        for key in _DCF_STRUCTURED_KEYS:
-            candidate = structured.get(key)
+        # Nests first (equity_research → financial_modeling, ic_memo → dcf_result),
+        # then the flat top-level for a plain dcf artifact. No `dcf_calc` — that key
+        # only named the pipeline step, never an artifact field.
+        for candidate in (
+            structured.get("financial_modeling"),
+            structured.get("dcf_result"),
+            structured,
+        ):
             if isinstance(candidate, dict):
                 try:
                     dcf = DCFResult.model_validate(candidate)
                 except (TypeError, ValueError) as exc:
-                    logger.debug(
-                        "DCFResult parse failed for %s at %s: %s", summary.ticker, key, exc
-                    )
+                    logger.debug("DCFResult parse failed for %s: %s", summary.ticker, exc)
                     continue
                 return _LatestDcf(
                     dcf=dcf,

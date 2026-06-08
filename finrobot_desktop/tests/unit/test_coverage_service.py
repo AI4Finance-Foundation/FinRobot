@@ -290,7 +290,11 @@ async def test_overview_populates_market_implied_nature_from_latest_dcf() -> Non
         net_debt=10_000_000_000,
     )
     dcf = calculate_dcf(inputs)
-    body = SimpleNamespace(outputs=SimpleNamespace(structured={"dcf_calc": dcf.model_dump()}))
+    # _summary() defaults to type=equity_research, which nests its DCF under
+    # `financial_modeling` (a plain dcf artifact would instead dump it FLAT).
+    body = SimpleNamespace(
+        outputs=SimpleNamespace(structured={"financial_modeling": dcf.model_dump()})
+    )
     store = _StubArtifactStore({"AAPL": [_summary()]}, artifacts={"art_1": body})
 
     ov = await build_overview(

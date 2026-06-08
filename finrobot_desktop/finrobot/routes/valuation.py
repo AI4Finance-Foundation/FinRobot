@@ -254,15 +254,21 @@ def _parse_dcf(latest: dict[str, Artifact]) -> DCFResult | None:
     if artifact is None:
         return None
     structured = artifact.outputs.structured
-    # equity_research nests DCF under financial_modeling; dcf pipeline stores at dcf_calc;
-    # ic_memo stores at dcf_result. Try each in order.
-    for key in ("dcf_calc", "financial_modeling", "dcf_result"):
-        candidate = structured.get(key)
+    # equity_research nests DCF under `financial_modeling`; ic_memo under
+    # `dcf_result`; a plain dcf artifact dumps DCFResult FLAT at the top of
+    # structured (no `dcf_calc` nest — that key only ever named the pipeline STEP,
+    # so the old `dcf_calc` lookup silently dropped every plain-dcf DCFResult).
+    # Try the nests first, then the flat top-level.
+    for candidate in (
+        structured.get("financial_modeling"),
+        structured.get("dcf_result"),
+        structured,
+    ):
         if isinstance(candidate, dict):
             try:
                 return DCFResult.model_validate(candidate)
             except (TypeError, ValueError) as exc:
-                logger.debug("DCFResult parse failed at %s: %s", key, exc)
+                logger.debug("DCFResult parse failed: %s", exc)
                 continue
     return None
 
@@ -287,13 +293,15 @@ def _parse_ddm(latest: dict[str, Artifact]) -> DDMResult | None:
     artifact = latest.get("ddm")
     if artifact is None:
         return None
-    candidate = artifact.outputs.structured.get("ddm_calc")
-    if isinstance(candidate, dict):
-        try:
-            return DDMResult.model_validate(candidate)
-        except (TypeError, ValueError) as exc:
-            logger.debug("DDMResult parse failed: %s", exc)
-    return None
+    # build_ddm_artifact dumps DDMResult FLAT at the top of structured — there is
+    # no `ddm_calc` nest (that key only ever named the pipeline STEP), so the old
+    # `structured.get("ddm_calc")` matched nothing and every DDM method silently
+    # dropped out of the valuation reconstruction / football field.
+    try:
+        return DDMResult.model_validate(artifact.outputs.structured)
+    except (TypeError, ValueError) as exc:
+        logger.debug("DDMResult parse failed: %s", exc)
+        return None
 
 
 def _parse_lbo(latest: dict[str, Artifact]) -> LBOResult | None:

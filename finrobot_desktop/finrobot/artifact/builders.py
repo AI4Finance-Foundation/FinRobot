@@ -134,6 +134,27 @@ def _safe_dump(obj: Any) -> dict[str, Any]:
     return {}
 
 
+def _forward_estimates_provenance(forward: Any) -> dict[str, Any] | None:
+    """Slim forward-estimate provenance for the artifact (fiscal year / source /
+    confidence). The forward NUMBERS already ride inside valuation_synthesis; this
+    is only what the report needs to frozenly label + footnote the forward comps
+    row, so it must be the snapshot's provenance, not a later live refetch.
+
+    ``ForwardFinancials`` is a frozen dataclass (no ``model_dump``), so read by
+    attribute. Returns ``None`` unless a real forward estimate landed — gated on
+    ``fiscal_period`` so the yfinance/unavailable degrade doesn't persist an empty
+    provenance block.
+    """
+    fiscal_period = getattr(forward, "fiscal_period", None)
+    if forward is None or fiscal_period is None:
+        return None
+    return {
+        "fiscal_period": str(fiscal_period),
+        "source": str(getattr(forward, "source", "") or "") or None,
+        "confidence": str(getattr(forward, "confidence", "") or "") or None,
+    }
+
+
 def _numeric_audit_warnings(audit: Any) -> list[str]:
     return [
         f"[NUMERIC-AUDIT/{f.severity}] {f.field_key} ({f.check}): {f.evidence}"
@@ -530,6 +551,17 @@ def build_equity_research_artifact(
     ownership = result.structured_data.get("ownership_governance_analysis")
     if ownership is not None:
         structured_out["ownership_governance"] = _safe_dump(ownership)
+
+    # Forward-estimate provenance (FY1 consensus the comps-forward path used).
+    # The numbers themselves already ride inside valuation_synthesis.methods; we
+    # persist ONLY the provenance — which fiscal year, what source, how confident
+    # — so the report can frozenly label the forward comps row ("FY2026E") and
+    # footnote its source WITHOUT a live /api/valuation/aggregate refetch.
+    forward_estimates = _forward_estimates_provenance(
+        result.structured_data.get("forward_financials")
+    )
+    if forward_estimates is not None:
+        structured_out["forward_estimates"] = forward_estimates
 
     # Surface the two currency tags so the report chapters can label every
     # amount in its true currency instead of a hardcoded '$' (BUG-030). They

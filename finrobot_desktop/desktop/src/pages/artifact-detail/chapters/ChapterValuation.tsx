@@ -5,7 +5,13 @@ import { TermTip } from '../../../components/TermTip'
 import { formatCurrency, formatCurrencyCompact } from '../../../utils/format'
 import { Chapter, KvGrid, Narrative, SubChapter } from './ChapterBase'
 import { FieldCaveat, findingsFor } from './FieldCaveat'
-import type { DcfShape, NumericAuditShape, ThesisShape, ValuationSynthesisShape } from './types'
+import type {
+  DcfShape,
+  ForwardEstimatesShape,
+  NumericAuditShape,
+  ThesisShape,
+  ValuationSynthesisShape,
+} from './types'
 
 interface ChapterValuationProps {
   dcf: DcfShape | null
@@ -15,6 +21,10 @@ interface ChapterValuationProps {
   // re-fetching /api/valuation/aggregate live, so the football field's current
   // price can never disagree with the cover/narrative (the price-split bug).
   valuationSynthesis: ValuationSynthesisShape | null
+  // Frozen forward-estimate provenance (FY year / source / confidence) — labels
+  // the forward comps row + footnotes its source from the snapshot, not a live
+  // refetch. null when no forward estimate landed at generation.
+  forwardEstimates: ForwardEstimatesShape | null
   // quote → DCF implied price & price target (per-share); reporting → EV &
   // equity value (absolutes). Differ for foreign ADRs (BUG-030).
   quoteCurrency: string
@@ -29,6 +39,7 @@ export function ChapterValuation({
   dcf,
   thesis,
   valuationSynthesis,
+  forwardEstimates,
   quoteCurrency,
   reportingCurrency,
   numericAudit = null,
@@ -206,11 +217,29 @@ export function ChapterValuation({
             data={footballRows}
             title={t('chapter.valuation.football.title')}
             currentPrice={valuationSynthesis?.current_price ?? undefined}
-            // Forward fiscal period is not part of the frozen synthesis (the
-            // method `source` string already carries the forward caliber); the
-            // FY-year suffix is a live-aggregate embellishment we no longer add.
-            forwardFiscalPeriod={null}
+            // Forward fiscal year (e.g. "FY2026E") for the forward comps row,
+            // read from the FROZEN provenance the artifact persisted — not a live
+            // aggregate refetch.
+            forwardFiscalPeriod={forwardEstimates?.fiscal_period ?? null}
           />
+          {forwardEstimates?.source && (
+            <p
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                color: 'var(--text-muted)',
+                marginTop: 8,
+                lineHeight: 1.5,
+              }}
+            >
+              {t('chapter.valuation.forwardEstimates')}: {forwardEstimates.source}
+              {forwardEstimates.confidence && (
+                <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>
+                  · {forwardEstimates.confidence}
+                </span>
+              )}
+            </p>
+          )}
         </SubChapter>
       )}
 

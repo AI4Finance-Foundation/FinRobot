@@ -10,6 +10,7 @@ import type {
   CatalystAnalysisShape,
   DcfShape,
   NumericAuditShape,
+  ForwardEstimatesShape,
   OwnershipGovernanceShape,
   PeerCompsShape,
   TechnicalAnalysisShape,
@@ -61,6 +62,10 @@ export interface DerivedReportData {
   // instead of re-fetching /api/valuation/aggregate live, so the football field
   // can never contradict the cover/narrative price (the BUG this freezing fixes).
   valuationSynthesis: ValuationSynthesisShape | null
+  // Frozen forward-estimate provenance (FY year / source / confidence) so the
+  // football field can label the forward comps row + footnote its source from
+  // the snapshot, not a live refetch. null when no forward estimate landed.
+  forwardEstimates: ForwardEstimatesShape | null
   catalysts: CatalystAnalysisShape | null
   technical: TechnicalAnalysisShape | null
   ownership: OwnershipGovernanceShape | null
@@ -107,6 +112,8 @@ export function deriveReportData(
   const peers = (structured.peer_analysis as PeerCompsShape | undefined) ?? null
   const valuationSynthesis =
     (structured.valuation_synthesis as ValuationSynthesisShape | undefined) ?? null
+  const forwardEstimates =
+    (structured.forward_estimates as ForwardEstimatesShape | undefined) ?? null
   const catalysts = (structured.catalyst_analysis as CatalystAnalysisShape | undefined) ?? null
   const technical = (structured.technical_analysis as TechnicalAnalysisShape | undefined) ?? null
   const ownership =
@@ -172,6 +179,7 @@ export function deriveReportData(
     dcf,
     peers,
     valuationSynthesis,
+    forwardEstimates,
     catalysts,
     technical,
     ownership,

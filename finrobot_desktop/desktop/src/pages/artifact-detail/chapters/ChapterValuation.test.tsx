@@ -7,7 +7,12 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
 import { ChapterValuation } from './ChapterValuation'
-import type { DcfShape, NumericAuditShape, ValuationSynthesisShape } from './types'
+import type {
+  DcfShape,
+  ForwardEstimatesShape,
+  NumericAuditShape,
+  ValuationSynthesisShape,
+} from './types'
 
 // Capture the props the football field receives so we can assert the report
 // feeds it the FROZEN snapshot price + method rows — never a live refetch
@@ -33,12 +38,14 @@ function renderChapter(
   dcf: DcfShape = DCF,
   numericAudit: NumericAuditShape | null = null,
   valuationSynthesis: ValuationSynthesisShape | null = null,
+  forwardEstimates: ForwardEstimatesShape | null = null,
 ) {
   return render(
     <ChapterValuation
       dcf={dcf}
       thesis={null}
       valuationSynthesis={valuationSynthesis}
+      forwardEstimates={forwardEstimates}
       quoteCurrency="USD"
       reportingCurrency="USD"
       numericAudit={numericAudit}
@@ -190,5 +197,20 @@ describe('ChapterValuation frozen football field', () => {
     footballProps.mockClear()
     renderChapter(DCF, null, null)
     expect(footballProps).not.toHaveBeenCalled()
+  })
+
+  it('passes the frozen forward fiscal period + renders the source footnote', () => {
+    footballProps.mockClear()
+    renderChapter(DCF, null, SYNTHESIS, {
+      fiscal_period: '2026-09-30',
+      source: 'FMP /v3/analyst-estimates (FY1 consensus)',
+      confidence: 'high',
+    })
+    const props = footballProps.mock.calls.at(-1)![0] as Record<string, unknown>
+    // FY tag comes from the frozen provenance, not a live aggregate refetch.
+    expect(props.forwardFiscalPeriod).toBe('2026-09-30')
+    // Footnote cites the frozen source + confidence.
+    expect(screen.getByText(/FMP \/v3\/analyst-estimates/)).toBeInTheDocument()
+    expect(screen.getByText(/high/)).toBeInTheDocument()
   })
 })

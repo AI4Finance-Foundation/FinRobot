@@ -395,12 +395,24 @@ export interface ValuationSynthesisShape {
   reliable?: boolean
 }
 
+// Frozen forward-estimate provenance (builders.py persists this slim block at
+// generation). The forward NUMBERS live in valuation_synthesis.methods; this is
+// only what the football field / footnote need to label the forward comps row
+// ("FY2026E") and cite its source WITHOUT a live aggregate refetch.
+export interface ForwardEstimatesShape {
+  /** Forecast fiscal-year-end the forward EPS/EBITDA/FCF belong to (e.g. "2026-09-30"). */
+  fiscal_period?: string | null
+  source?: string | null
+  confidence?: string | null
+}
+
 export interface ArtifactStructured {
   thesis?: ThesisShape
   currency?: CurrencyTagsShape
   financial_modeling?: DcfShape
   peer_analysis?: PeerCompsShape
   valuation_synthesis?: ValuationSynthesisShape
+  forward_estimates?: ForwardEstimatesShape
   catalyst_analysis?: CatalystAnalysisShape
   technical_analysis?: TechnicalAnalysisShape
   ownership_governance?: OwnershipGovernanceShape

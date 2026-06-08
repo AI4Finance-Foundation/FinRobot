@@ -99,6 +99,7 @@ export function ReportChapters({
         dcf={d.dcf}
         thesis={d.thesis}
         valuationSynthesis={d.valuationSynthesis}
+        forwardEstimates={d.forwardEstimates}
         quoteCurrency={d.quoteCurrency}
         reportingCurrency={d.reportingCurrency}
         numericAudit={d.numericAudit}

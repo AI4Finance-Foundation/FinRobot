@@ -20,6 +20,7 @@ export type {
   DcfShape,
   ValuationMethodShape,
   ValuationSynthesisShape,
+  ForwardEstimatesShape,
   CatalystAnalysisShape,
   CatalystEventShape,
   PeerCompsShape,

@@ -97,7 +97,14 @@ class BatchRunResponse(BaseModel):
 # Keyed by (group_id, cache_only) — the instant cache-only paint and the
 # network-revalidated table are distinct payloads, cached independently.
 _OVERVIEW_CACHE: dict[tuple[str, bool], tuple[float, CoverageOverview]] = {}
-_OVERVIEW_TTL_S = 60.0
+# Distinct TTLs per mode. The instant cache-only paint is cheap and reopened
+# constantly → a generous 60s dedup. The network-revalidate path backs the
+# manual "刷新" button, so it must feel live during market hours: a short 5s
+# window still folds React's double-fire and a mashed button, while the
+# provider itself is shielded by DataLayer single-flight + the calendar no-op
+# (a closed-market refresh costs zero provider calls regardless of this TTL).
+_OVERVIEW_TTL_CACHEONLY_S = 60.0
+_OVERVIEW_TTL_REFRESH_S = 5.0
 
 
 def _invalidate(group_id: str) -> None:
@@ -195,8 +202,9 @@ async def group_overview(
     now_ts = time.time()
     cache_only = not refresh
     key = (group_id, cache_only)
+    ttl = _OVERVIEW_TTL_CACHEONLY_S if cache_only else _OVERVIEW_TTL_REFRESH_S
     cached = _OVERVIEW_CACHE.get(key)
-    if cached and now_ts - cached[0] < _OVERVIEW_TTL_S:
+    if cached and now_ts - cached[0] < ttl:
         return cached[1]
 
     group = await store.get_group(group_id)

@@ -1629,18 +1629,6 @@ msgstr ""
 #~ msgstr "computing…"
 
 #. js-lingui-explicit-id
-#~ msgid "report.statusBar.chapter"
-#~ msgstr "Chapter"
-
-#. js-lingui-explicit-id
-#~ msgid "report.statusBar.backToTop"
-#~ msgstr "Back to top"
-
-#. js-lingui-explicit-id
-#~ msgid "report.statusBar.backToTopShort"
-#~ msgstr "Top"
-
-#. js-lingui-explicit-id
 #~ msgid "chapter.financial.subheading.eps"
 #~ msgstr "Earnings per Share (EPS) Trend"
 
@@ -3819,3 +3807,23 @@ msgstr ""
 #. js-lingui-explicit-id
 #~ msgid "settings.updates.browserOnly"
 #~ msgstr "Update checks are only available in the desktop app."
+
+#. js-lingui-explicit-id
+#~ msgid "coverage.refresh.button"
+#~ msgstr "Refresh"
+
+#. js-lingui-explicit-id
+#~ msgid "coverage.refresh.refreshing"
+#~ msgstr "Refreshing…"
+
+#. js-lingui-explicit-id
+#~ msgid "coverage.refresh.upToDate"
+#~ msgstr "Up to date · market closed"
+
+#. js-lingui-explicit-id
+#~ msgid "coverage.refresh.updated"
+#~ msgstr "Updated"
+
+#. js-lingui-explicit-id
+#~ msgid "coverage.refresh.aria"
+#~ msgstr "Refresh market data"

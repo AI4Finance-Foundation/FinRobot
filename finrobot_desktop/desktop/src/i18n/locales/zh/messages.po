@@ -1629,18 +1629,6 @@ msgstr ""
 #~ msgstr "计算中…"
 
 #. js-lingui-explicit-id
-#~ msgid "report.statusBar.chapter"
-#~ msgstr "章节"
-
-#. js-lingui-explicit-id
-#~ msgid "report.statusBar.backToTop"
-#~ msgstr "回到顶部"
-
-#. js-lingui-explicit-id
-#~ msgid "report.statusBar.backToTopShort"
-#~ msgstr "回顶"
-
-#. js-lingui-explicit-id
 #~ msgid "chapter.financial.subheading.eps"
 #~ msgstr "每股收益（EPS）趋势"
 
@@ -3819,3 +3807,23 @@ msgstr ""
 #. js-lingui-explicit-id
 #~ msgid "settings.updates.browserOnly"
 #~ msgstr "更新检查仅在桌面 App 中可用。"
+
+#. js-lingui-explicit-id
+#~ msgid "coverage.refresh.button"
+#~ msgstr "刷新"
+
+#. js-lingui-explicit-id
+#~ msgid "coverage.refresh.refreshing"
+#~ msgstr "刷新中…"
+
+#. js-lingui-explicit-id
+#~ msgid "coverage.refresh.upToDate"
+#~ msgstr "已是最新收盘"
+
+#. js-lingui-explicit-id
+#~ msgid "coverage.refresh.updated"
+#~ msgstr "已更新"
+
+#. js-lingui-explicit-id
+#~ msgid "coverage.refresh.aria"
+#~ msgstr "刷新行情数据"

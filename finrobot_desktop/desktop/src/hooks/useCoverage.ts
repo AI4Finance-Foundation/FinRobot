@@ -37,9 +37,18 @@ export interface CoverageOverviewState {
    *  are the last-known snapshot (possibly stale), not fresh. The page surfaces a
    *  retry affordance wired to refetch() (BUG-032). */
   marketError: boolean
-  /** Re-run the network revalidate — used by the error-state retry (BUG-051) and
-   *  the market-degraded retry bar (BUG-032). */
+  /** Re-run the network revalidate — used by the error-state retry (BUG-051),
+   *  the market-degraded retry bar (BUG-032), and the manual 刷新 button. */
   refetch: () => void
+  /** A network revalidate is fetching right now — the initial background pass OR
+   *  a manual refresh. Unlike ``marketPending`` (which only covers the FIRST
+   *  paint, gated on ``!fresh.data``), this stays true through every manual
+   *  refetch, so the 刷新 button can show its in-flight state on repeat clicks. */
+  refreshing: boolean
+  /** The last network refresh made ZERO price provider calls — every row was a
+   *  closed-market calendar no-op (already at its latest settled close). Lets the
+   *  button confirm "已是最新收盘" instead of implying it pulled live quotes. */
+  refreshNoop: boolean
 }
 
 /**
@@ -82,6 +91,8 @@ export function useCoverageOverview(groupId: string | null): CoverageOverviewSta
     // numbers are last-known, not fresh. Drives the degraded retry bar.
     marketError: !fresh.data && fresh.isError && !!cached.data,
     refetch: () => void fresh.refetch(),
+    refreshing: fresh.isFetching,
+    refreshNoop: data?.refresh_noop ?? false,
   }
 }
 

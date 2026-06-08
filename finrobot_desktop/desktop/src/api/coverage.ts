@@ -132,6 +132,11 @@ export interface CoverageOverview {
   // first paint). Market cells are last-known snapshots; per-row market_stale
   // flags the ones past TTL. The client revalidates via a refresh=true pass.
   cache_only: boolean
+  // True when a network refresh made ZERO price provider calls because every
+  // row's market is closed and already at its latest settled close (the calendar
+  // no-op). Lets the refresh button confirm "已是最新收盘" instead of implying it
+  // pulled live quotes. Always false on the cache-only paint.
+  refresh_noop: boolean
 }
 
 // ── Requests ─────────────────────────────────────────────────────────────────

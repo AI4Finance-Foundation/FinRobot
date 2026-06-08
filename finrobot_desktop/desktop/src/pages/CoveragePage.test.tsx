@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -15,6 +15,8 @@ const hooks = {
     marketPending: false,
     marketError: false,
     refetch: vi.fn(),
+    refreshing: false,
+    refreshNoop: false,
   },
 }
 
@@ -46,6 +48,8 @@ describe('CoveragePage error states (BUG-051)', () => {
       marketPending: false,
       marketError: false,
       refetch: vi.fn(),
+      refreshing: false,
+      refreshNoop: false,
     }
   })
 
@@ -71,8 +75,47 @@ describe('CoveragePage error states (BUG-051)', () => {
       marketPending: false,
       marketError: false,
       refetch: vi.fn(),
+      refreshing: false,
+      refreshNoop: false,
     }
     renderPage()
     expect(screen.getByTestId('coverage-error')).toBeInTheDocument()
+  })
+})
+
+describe('CoveragePage refresh control', () => {
+  beforeEach(() => {
+    hooks.groups = {
+      data: [{ id: 'g1', name: 'Studied Tickers', member_count: 1, is_system: true }],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    }
+    hooks.overview = {
+      data: {
+        group_id: 'g1',
+        group_name: 'Studied Tickers',
+        rows: [],
+        generated_at: '2026-06-08T09:00:00Z',
+        partial: false,
+        cache_only: false,
+        refresh_noop: false,
+      },
+      isLoading: false,
+      isError: false,
+      marketPending: false,
+      marketError: false,
+      refetch: vi.fn(),
+      refreshing: false,
+      refreshNoop: false,
+    }
+  })
+
+  it('renders the refresh button and re-runs the revalidate on click', () => {
+    renderPage()
+    const btn = screen.getByTestId('coverage-refresh-btn')
+    expect(btn).toHaveTextContent('Refresh')
+    fireEvent.click(btn)
+    expect(hooks.overview.refetch).toHaveBeenCalledTimes(1)
   })
 })

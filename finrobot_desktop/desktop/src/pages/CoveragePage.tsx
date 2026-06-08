@@ -104,6 +104,27 @@ export function CoveragePage(): React.ReactElement {
         padding: '20px 24px',
       }}
     >
+      {/* Header rail — just the manual refresh control, right-aligned (the page
+          stays chrome-light: no sort/triage controls, the user cut those). The
+          button re-runs the network revalidate; backend single-flight + the
+          calendar no-op make a closed-market refresh free, so it can't be
+          abused. */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          marginBottom: 14,
+          flexShrink: 0,
+        }}
+      >
+        <CoverageRefreshControl
+          refreshing={overviewQuery.refreshing}
+          noop={overviewQuery.refreshNoop}
+          onRefresh={() => overviewQuery.refetch()}
+        />
+      </div>
+
       {/* Market-degraded retry bar (BUG-032): the table is alive (cache-only
           paint) but the network revalidate failed, so the numbers are last-known
           (possibly stale), not fresh. Offer a retry on the revalidate query and
@@ -145,6 +166,120 @@ export function CoveragePage(): React.ReactElement {
           />
         )}
       </div>
+    </div>
+  )
+}
+
+// Manual refresh control. Re-runs the network revalidate and confirms the
+// outcome inline: "Refreshing…" while in flight, then a transient "Up to date ·
+// market closed" (the calendar no-op — closed market, already at the latest
+// settled close, zero provider calls) or "Updated" (live numbers pulled). The
+// confirmation only fires for a USER click (clickedRef), so the initial
+// background revalidate doesn't flash one. No timezone math here: the no-op
+// verdict is decided server-side against each exchange's clock.
+function CoverageRefreshControl({
+  refreshing,
+  noop,
+  onRefresh,
+}: {
+  refreshing: boolean
+  noop: boolean
+  onRefresh: () => void
+}): React.ReactElement {
+  const { t } = useI18n()
+  const clickedRef = useRef(false)
+  const prevRefreshing = useRef(refreshing)
+  const [outcome, setOutcome] = useState<'upToDate' | 'updated' | null>(null)
+
+  // A refresh the user triggered just finished → confirm its outcome briefly.
+  useEffect(() => {
+    if (prevRefreshing.current && !refreshing && clickedRef.current) {
+      clickedRef.current = false
+      setOutcome(noop ? 'upToDate' : 'updated')
+    }
+    prevRefreshing.current = refreshing
+  }, [refreshing, noop])
+
+  // Auto-clear the transient confirmation.
+  useEffect(() => {
+    if (!outcome) return
+    const id = window.setTimeout(() => setOutcome(null), 2600)
+    return () => window.clearTimeout(id)
+  }, [outcome])
+
+  const handleClick = () => {
+    if (refreshing) return
+    setOutcome(null)
+    clickedRef.current = true
+    onRefresh()
+  }
+
+  const statusText = refreshing
+    ? t('coverage.refresh.refreshing')
+    : outcome === 'upToDate'
+      ? t('coverage.refresh.upToDate')
+      : outcome === 'updated'
+        ? t('coverage.refresh.updated')
+        : null
+
+  return (
+    <div data-testid="coverage-refresh" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      {statusText && (
+        <span
+          data-testid="coverage-refresh-status"
+          aria-live="polite"
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            letterSpacing: '0.02em',
+            color: outcome === 'updated' ? 'var(--accent-cyan)' : 'var(--text-muted)',
+          }}
+        >
+          {statusText}
+        </span>
+      )}
+      <button
+        type="button"
+        data-testid="coverage-refresh-btn"
+        onClick={handleClick}
+        disabled={refreshing}
+        aria-label={t('coverage.refresh.aria')}
+        className="coverage-hover-btn"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 7,
+          padding: '6px 13px',
+          borderRadius: 'var(--radius-pill)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11.5,
+          fontWeight: 500,
+          letterSpacing: '0.04em',
+          background: 'var(--bg-card-overlay)',
+          color: 'var(--text-secondary)',
+          border: '1px solid var(--border-soft)',
+          cursor: refreshing ? 'default' : 'pointer',
+          opacity: refreshing ? 0.6 : 1,
+        }}
+      >
+        <svg
+          width="13"
+          height="13"
+          viewBox="0 0 14 14"
+          fill="none"
+          aria-hidden="true"
+          style={refreshing ? { animation: 'spin 0.8s linear infinite' } : undefined}
+        >
+          <path
+            d="M12.4 7a5.4 5.4 0 1 1-1.55-3.8M12.5 1.4V4H9.9"
+            stroke="currentColor"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+        {t('coverage.refresh.button')}
+      </button>
     </div>
   )
 }

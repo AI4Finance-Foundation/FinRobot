@@ -88,7 +88,11 @@ export const CoverageCard = memo(function CoverageCard({
   // hint instead of a blank shimmer.
   const isCold = row.price == null
   const showShimmer = marketPending && isCold
-  const refreshing = marketPending && !isCold
+  // A closed market has nothing to refresh — its close won't move until the next
+  // session. Never pulse "refreshing" over it (the lie that made the card read as
+  // live). Only a live / undetermined session shows the in-flight affordance.
+  const isClosed = row.session_state === 'closed'
+  const refreshing = marketPending && !isCold && !isClosed
   const mc = (node: React.ReactNode): React.ReactNode => (showShimmer ? <Shimmer /> : node)
 
   // EV/EBITDA when computable, else P/E — one slot, label follows the value.
@@ -99,6 +103,11 @@ export const CoverageCard = memo(function CoverageCard({
 
   const provider = row.sources?.price?.provider ?? null
   const asOf = row.price_as_of ? formatAge(row.price_as_of) : ccy
+  // Closed market: show the settled session's DATE, not a live "Nh ago" age.
+  // Slice the ISO date (UTC) rather than formatDate (viewer-local): a US 16:00 ET
+  // close is 20:00Z, which the viewer's local tz can roll to the next calendar
+  // day — exactly the local-date drift the server-side session_state avoids.
+  const closeDate = row.price_as_of ? row.price_as_of.slice(0, 10) : null
   const company = row.company?.trim()
   const companyLabel =
     company && company.toUpperCase() !== row.ticker.toUpperCase() ? company : null
@@ -176,7 +185,12 @@ export const CoverageCard = memo(function CoverageCard({
               row.change_pct_1d == null ? (
                 <span style={{ color: 'var(--text-dim)' }}>—</span>
               ) : (
-                `${row.change_pct_1d > 0 ? '+' : ''}${row.change_pct_1d.toFixed(2)}% · 1D`
+                // Closed: the move belongs to the last session, not "today" —
+                // label it with that session's MM-DD so "· 1D" can't misread as
+                // an intraday change when the market's been shut since Friday.
+                `${row.change_pct_1d > 0 ? '+' : ''}${row.change_pct_1d.toFixed(2)}% · ${
+                  isClosed && closeDate ? closeDate.slice(5) : '1D'
+                }`
               ),
             )}
           </div>
@@ -184,12 +198,20 @@ export const CoverageCard = memo(function CoverageCard({
         <span
           className="coverage-card__provider"
           data-refreshing={refreshing ? 'true' : undefined}
+          data-session={isClosed ? 'closed' : undefined}
           // A past-TTL snapshot that isn't currently revalidating: tint the
-          // as-of so the last-known age reads as "stale", not live.
-          data-stale={row.market_stale && !refreshing ? 'true' : undefined}
+          // as-of so the last-known age reads as "stale", not live. A closed
+          // market carries its own (amber, static) treatment via data-session.
+          data-stale={row.market_stale && !refreshing && !isClosed ? 'true' : undefined}
           title={provider ?? undefined}
         >
-          {provider ? `${provider} · ${asOf}` : asOf}
+          {isClosed
+            ? `${provider ? `${provider} · ` : ''}${t('coverage.card.closed', {
+                date: closeDate ?? '—',
+              })}`
+            : provider
+              ? `${provider} · ${asOf}`
+              : asOf}
           {refreshing && ` · ${t('coverage.card.refreshing')}`}
         </span>
       </section>

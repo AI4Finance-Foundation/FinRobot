@@ -3377,6 +3377,10 @@ msgstr ""
 #~ msgstr "刷新中"
 
 #. js-lingui-explicit-id
+#~ msgid "coverage.card.closed"
+#~ msgstr "收盘 · {date}"
+
+#. js-lingui-explicit-id
 #~ msgid "coverage.reason.run_failed"
 #~ msgstr "运行失败"
 

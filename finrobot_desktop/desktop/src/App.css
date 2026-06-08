@@ -5733,6 +5733,15 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   animation: cosmic-pulse-dot 1.6s ease-in-out infinite;
 }
 
+/* Settled-state sibling of cosmic-pulse-dot: same dot, no pulse. For a closed
+   market / terminal value where a live pulse would be a freshness lie. */
+.cosmic-dot-static {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
 /* ── Pipeline active step ripple ─────────────────────────────── */
 .cosmic-pulse-ring {
   position: relative;
@@ -6267,25 +6276,22 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   letter-spacing: 0;
   white-space: nowrap;
 }
-/* Background revalidate in flight on a row that already shows its last-known
-   snapshot: a gentle pulse signals "updating", distinct from a cold shimmer. */
+/* Background revalidate in flight (only on a LIVE session — a closed market has
+   nothing to refresh). A static neon glow signals "updating" without a >1s
+   persistent animation (cosmic spec); the affordance lives only while in-flight. */
 .coverage-card__provider[data-refreshing='true'] {
   color: var(--accent);
-  animation: coverage-provider-pulse 1.4s ease-in-out infinite;
+  text-shadow: 0 0 8px var(--accent-glow);
+}
+/* Market closed (weekend / after-hours / holiday): the close is a settled
+   terminal value — static amber, never the live/refreshing treatment. */
+.coverage-card__provider[data-session='closed'] {
+  color: var(--accent-amber);
 }
 /* Last-known snapshot past its TTL (not currently revalidating): the as-of age
    reads as stale rather than live. */
 .coverage-card__provider[data-stale='true'] {
   color: var(--accent-amber);
-}
-@keyframes coverage-provider-pulse {
-  0%,
-  100% {
-    opacity: 0.55;
-  }
-  50% {
-    opacity: 1;
-  }
 }
 .coverage-card__metrics {
   display: grid;

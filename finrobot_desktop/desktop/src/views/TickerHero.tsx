@@ -94,7 +94,10 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
             }}
           >
             <span
-              className="cosmic-pulse-dot"
+              // Closed market → static dot (the close won't move); only a live
+              // session pulses. Avoids a >1s persistent animation over a settled
+              // value (cosmic spec) and the "looks live" lie.
+              className={isClosed ? 'cosmic-dot-static' : 'cosmic-pulse-dot'}
               style={{ marginRight: 6, background: pillDotColor }}
             />
             {pillLabel} · {formatExchange(price?.exchange)}

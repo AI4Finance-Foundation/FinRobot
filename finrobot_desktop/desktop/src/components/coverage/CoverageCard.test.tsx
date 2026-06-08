@@ -19,6 +19,7 @@ function row(over: Partial<CoverageRow>): CoverageRow {
     price: 200,
     change_pct_1d: null,
     price_as_of: null,
+    session_state: null,
     market_cap: null,
     revenue_ttm: null,
     ev_ebitda: null,
@@ -121,5 +122,58 @@ describe('CoverageCard market-implied line', () => {
       true,
     )
     expect(screen.queryByText(/Option-value/)).not.toBeInTheDocument()
+  })
+})
+
+describe('CoverageCard freshness / session affordance', () => {
+  function renderC(over: Partial<CoverageRow>, marketPending = false): HTMLElement {
+    const { container } = render(
+      <MemoryRouter>
+        <CoverageCard
+          row={row(over)}
+          density="comfort"
+          marketPending={marketPending}
+          onOpen={vi.fn()}
+        />
+      </MemoryRouter>,
+    )
+    return container.querySelector('.coverage-card__provider') as HTMLElement
+  }
+
+  it('a CLOSED market shows a static "Close · date", never the refreshing pulse', () => {
+    const el = renderC(
+      { session_state: 'closed', price_as_of: '2026-06-05T20:00:00Z' },
+      true, // revalidate in flight — must NOT pulse over a settled close
+    )
+    expect(el.textContent).toContain('Close · 2026-06-05')
+    expect(el.textContent).not.toContain('refreshing')
+    expect(el.getAttribute('data-session')).toBe('closed')
+    expect(el.getAttribute('data-refreshing')).toBeNull()
+  })
+
+  it('a LIVE market revalidating shows the refreshing affordance', () => {
+    const el = renderC({ session_state: 'live', price_as_of: '2026-06-08T15:00:00Z' }, true)
+    expect(el.getAttribute('data-refreshing')).toBe('true')
+    expect(el.textContent).toContain('refreshing')
+    expect(el.getAttribute('data-session')).toBeNull()
+  })
+
+  it('a CLOSED market labels the 1D change with the session date, not "1D"', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <CoverageCard
+          row={row({
+            session_state: 'closed',
+            change_pct_1d: -6.56,
+            price_as_of: '2026-06-05T20:00:00Z',
+          })}
+          density="comfort"
+          onOpen={vi.fn()}
+        />
+      </MemoryRouter>,
+    )
+    const change = container.querySelector('.coverage-card__change') as HTMLElement
+    expect(change.textContent).toContain('-6.56% · 06-05')
+    expect(change.textContent).not.toContain('1D')
   })
 })

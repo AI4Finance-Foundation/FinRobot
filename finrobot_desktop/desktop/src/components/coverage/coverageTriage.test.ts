@@ -11,6 +11,7 @@ function row(over: Partial<CoverageRow>): CoverageRow {
     price: null,
     change_pct_1d: null,
     price_as_of: null,
+    session_state: null,
     market_cap: null,
     revenue_ttm: null,
     ev_ebitda: null,

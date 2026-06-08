@@ -3377,6 +3377,10 @@ msgstr ""
 #~ msgstr "refreshing"
 
 #. js-lingui-explicit-id
+#~ msgid "coverage.card.closed"
+#~ msgstr "Close · {date}"
+
+#. js-lingui-explicit-id
 #~ msgid "coverage.reason.run_failed"
 #~ msgstr "Run failed"
 

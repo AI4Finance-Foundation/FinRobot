@@ -82,6 +82,11 @@ export interface CoverageRow {
   price: number | null
   change_pct_1d: number | null
   price_as_of: string | null
+  // Whether `price` is a live intraday quote, a session close (weekend / after-
+  // hours / holiday), or undeterminable — classified server-side at read time
+  // against the exchange clock. Drives the card's freshness affordance: a closed
+  // market shows a static "Close · date", never a "refreshing"/live pulse.
+  session_state: 'live' | 'closed' | 'unknown' | null
   market_cap: number | null
   revenue_ttm: number | null
   ev_ebitda: number | null

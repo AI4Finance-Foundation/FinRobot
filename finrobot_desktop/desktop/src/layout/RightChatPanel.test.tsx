@@ -101,6 +101,70 @@ vi.mock('../stores/toastStore', () => ({
 }))
 
 // ──────────────────────────────────────────────────────────────
+// Mock useChatSessions — the chat panel's session server-state. Tests drive
+// the chat UI, not the sessions REST integration, so we control the hook's
+// return and capture the callbacks (new / switch / delete) the panel wires.
+// onSwitch is invoked so the panel's "clear input on session change" runs.
+// ──────────────────────────────────────────────────────────────
+import type { ChatSessionSummary } from '../hooks/useChatSessions'
+
+interface MockSessionsControls {
+  sessions: ChatSessionSummary[]
+  activeSessionId: string
+  seedMessages: UIMessage[] | undefined
+  seedLoading: boolean
+  deletingId: string | null
+  onSwitch: (() => void) | undefined
+  newSession: ReturnType<typeof vi.fn>
+  switchSession: ReturnType<typeof vi.fn>
+  deleteSession: ReturnType<typeof vi.fn>
+}
+
+const mockSessions: MockSessionsControls = {
+  sessions: [],
+  activeSessionId: 'sess-active',
+  seedMessages: [],
+  seedLoading: false,
+  deletingId: null,
+  onSwitch: undefined,
+  newSession: vi.fn(),
+  switchSession: vi.fn(),
+  deleteSession: vi.fn(),
+}
+
+vi.mock('../hooks/useChatSessions', () => ({
+  useChatSessions: (onSwitch?: () => void) => {
+    mockSessions.onSwitch = onSwitch
+    return {
+      sessions: mockSessions.sessions,
+      sessionsLoading: false,
+      sessionsError: false,
+      activeSessionId: mockSessions.activeSessionId,
+      seedMessages: mockSessions.seedMessages,
+      seedLoading: mockSessions.seedLoading,
+      newSession: mockSessions.newSession,
+      switchSession: mockSessions.switchSession,
+      deleteSession: mockSessions.deleteSession,
+      deletingId: mockSessions.deletingId,
+    }
+  },
+}))
+
+function makeSessionSummary(over: Partial<ChatSessionSummary> = {}): ChatSessionSummary {
+  return {
+    session_id: `s-${Math.random()}`,
+    title: 'Untitled',
+    created_at: new Date().toISOString(),
+    last_active_at: new Date().toISOString(),
+    turn_count: 1,
+    model: 'anthropic:claude-sonnet-4-6',
+    user_id: 'local',
+    ticker: null,
+    ...over,
+  }
+}
+
+// ──────────────────────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────────────────────
 
@@ -249,6 +313,16 @@ beforeEach(() => {
   mockChatControls.regenerate.mockReset()
   mockChatControls.clearError.mockReset()
   mockAddToast.mockReset()
+
+  mockSessions.sessions = []
+  mockSessions.activeSessionId = 'sess-active'
+  mockSessions.seedMessages = []
+  mockSessions.seedLoading = false
+  mockSessions.deletingId = null
+  mockSessions.onSwitch = undefined
+  mockSessions.newSession.mockReset()
+  mockSessions.switchSession.mockReset()
+  mockSessions.deleteSession.mockReset()
 })
 
 afterEach(() => {
@@ -765,11 +839,24 @@ describe('RightChatPanel — new session', () => {
     expect(screen.getByTestId('new-session-btn')).toBeInTheDocument()
   })
 
-  it('clicking new session clears input', () => {
+  it('clicking new session starts a fresh session (non-destructive — does not clear the list)', () => {
+    renderPanel()
+    fireEvent.click(screen.getByTestId('new-session-btn'))
+    // The panel delegates to useChatSessions.newSession (mints a new id +
+    // switches); it never deletes or overwrites existing sessions.
+    expect(mockSessions.newSession).toHaveBeenCalledOnce()
+    expect(mockSessions.deleteSession).not.toHaveBeenCalled()
+  })
+
+  it('switching session (onSwitch) clears the pending input', () => {
     renderPanel()
     const input = screen.getByTestId('chat-input') as HTMLTextAreaElement
     fireEvent.change(input, { target: { value: '之前的消息' } })
-    fireEvent.click(screen.getByTestId('new-session-btn'))
+    // The panel hands useChatSessions an onSwitch that resets transient input;
+    // invoking it (as a real new/switch would) must clear the box.
+    act(() => {
+      mockSessions.onSwitch?.()
+    })
     expect(input.value).toBe('')
   })
 })
@@ -861,13 +948,85 @@ describe('RightChatPanel — honest suggestion chips (046)', () => {
 // Tests: history entry point (BUG-20260602-045)
 // ──────────────────────────────────────────────────────────────
 
-describe('RightChatPanel — history entry point (045)', () => {
-  it('renders a history button that opens the history drawer', () => {
+describe('RightChatPanel — sessions drawer (multi-session management)', () => {
+  it('the header clock button opens the sessions drawer', () => {
     renderPanel()
     const btn = screen.getByTestId('history-btn')
     expect(btn).toBeInTheDocument()
     fireEvent.click(btn)
-    expect(screen.getByTestId('history-drawer')).toBeInTheDocument()
+    expect(screen.getByTestId('sessions-drawer')).toBeInTheDocument()
+  })
+
+  it('shows an empty state when there are no sessions', () => {
+    mockSessions.sessions = []
+    renderPanel()
+    fireEvent.click(screen.getByTestId('history-btn'))
+    expect(screen.getByTestId('sessions-empty')).toBeInTheDocument()
+  })
+
+  it('lists sessions and highlights the active one', () => {
+    mockSessions.activeSessionId = 'sess-b'
+    mockSessions.sessions = [
+      makeSessionSummary({ session_id: 'sess-a', title: 'AAPL deep dive', ticker: 'AAPL' }),
+      makeSessionSummary({ session_id: 'sess-b', title: 'NVDA thesis', ticker: 'NVDA' }),
+    ]
+    renderPanel()
+    fireEvent.click(screen.getByTestId('history-btn'))
+
+    expect(screen.getByText('AAPL deep dive')).toBeInTheDocument()
+    expect(screen.getByText('NVDA thesis')).toBeInTheDocument()
+
+    const rows = screen.getAllByTestId('session-row')
+    const activeRow = rows.find((r) => r.getAttribute('data-active') === 'true')
+    expect(activeRow).toBeTruthy()
+    expect(within(activeRow as HTMLElement).getByText('NVDA thesis')).toBeInTheDocument()
+  })
+
+  it('clicking a session row switches to it (resume) and closes the drawer', () => {
+    mockSessions.sessions = [makeSessionSummary({ session_id: 'sess-a', title: 'AAPL deep dive' })]
+    renderPanel()
+    fireEvent.click(screen.getByTestId('history-btn'))
+    fireEvent.click(screen.getByText('AAPL deep dive'))
+
+    expect(mockSessions.switchSession).toHaveBeenCalledWith('sess-a')
+    // Drawer closes after switching.
+    expect(screen.queryByTestId('sessions-drawer')).not.toBeInTheDocument()
+  })
+
+  it('the in-drawer "New chat" button starts a new session and closes the drawer', () => {
+    mockSessions.sessions = [makeSessionSummary({ title: 'old' })]
+    renderPanel()
+    fireEvent.click(screen.getByTestId('history-btn'))
+    fireEvent.click(screen.getByTestId('sessions-new-btn'))
+
+    expect(mockSessions.newSession).toHaveBeenCalledOnce()
+    expect(screen.queryByTestId('sessions-drawer')).not.toBeInTheDocument()
+  })
+
+  it('delete requires a two-step inline confirm (no accidental delete)', () => {
+    mockSessions.sessions = [makeSessionSummary({ session_id: 'sess-del', title: 'to delete' })]
+    renderPanel()
+    fireEvent.click(screen.getByTestId('history-btn'))
+
+    // First click only reveals the confirm affordance — nothing deleted yet.
+    fireEvent.click(screen.getByTestId('session-delete-btn'))
+    expect(mockSessions.deleteSession).not.toHaveBeenCalled()
+    expect(screen.getByTestId('session-confirm-delete')).toBeInTheDocument()
+
+    // Confirm → delete fires with the right id.
+    fireEvent.click(screen.getByTestId('session-confirm-delete'))
+    expect(mockSessions.deleteSession).toHaveBeenCalledWith('sess-del')
+  })
+
+  it('cancelling the delete confirm does not delete', () => {
+    mockSessions.sessions = [makeSessionSummary({ session_id: 'sess-keep', title: 'keep me' })]
+    renderPanel()
+    fireEvent.click(screen.getByTestId('history-btn'))
+    fireEvent.click(screen.getByTestId('session-delete-btn'))
+    fireEvent.click(screen.getByTestId('session-cancel-delete'))
+
+    expect(mockSessions.deleteSession).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('session-confirm-delete')).not.toBeInTheDocument()
   })
 })
 

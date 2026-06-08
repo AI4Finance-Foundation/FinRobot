@@ -20,9 +20,12 @@ import type { ToolResult } from '../../components/ToolCard'
 import { MarkdownLite } from '../../components/MarkdownLite'
 import { useI18n, useUiPrefs } from '../../i18n'
 import { BASE_URL, api } from '../../api/client'
-import { fetchWithTimeout, fetchBackendStream } from '../../api/fetch'
+import { fetchBackendStream } from '../../api/fetch'
 import { IconClock } from '../../lib/icons'
 import { ContextBar } from '../AIPanel/ContextBar'
+import { useChatSessions } from '../../hooks/useChatSessions'
+import { SessionsDrawer } from './SessionsDrawer'
+import { CoverageTriageStrip } from './CoverageTriageStrip'
 
 // ──────────────────────────────────────────────────────────────
 // Constants
@@ -162,25 +165,28 @@ export function AiChatTab({
   const isExpanded = expandedProp !== undefined ? expandedProp : storeOpen
   const handleToggle = onToggleProp !== undefined ? onToggleProp : toggleAiPanel
 
-  // Per-ticker session map so switching ticker preserves prior conversations.
-  const sessionMapRef = useRef<Map<string, string>>(new Map())
-  const sessionKey = ticker ?? '__explore__'
-  const getOrCreateSession = useCallback((key: string): string => {
-    const map = sessionMapRef.current
-    let id = map.get(key)
-    if (!id) {
-      id = crypto.randomUUID()
-      map.set(key, id)
-    }
-    return id
-  }, [])
-
-  const [sessionId, setSessionId] = useState<string>(() => getOrCreateSession(sessionKey))
   const [inputText, setInputText] = useState('')
 
-  // History drawer (BUG-20260602-045): past sessions are written to disk but
-  // had no UI to reopen them. This drawer lists them via /api/chat/sessions.
-  const [historyOpen, setHistoryOpen] = useState(false)
+  // Sessions drawer — list / switch / delete past conversations.
+  const [sessionsOpen, setSessionsOpen] = useState(false)
+
+  // Chat sessions as first-class objects: persistent, switchable, resumable,
+  // deletable, and DECOUPLED from ticker (navigating to another stock no longer
+  // switches the conversation). The active session id drives `useChat`; its
+  // transcript is re-seeded so a switched/reloaded session can keep chatting.
+  // onSwitch clears transient input so a fresh/switched session starts clean.
+  const {
+    sessions,
+    sessionsLoading,
+    sessionsError,
+    activeSessionId,
+    seedMessages,
+    seedLoading,
+    newSession,
+    switchSession,
+    deleteSession,
+    deletingId,
+  } = useChatSessions(useCallback(() => setInputText(''), []))
 
   // Track unread for collapsed state
   const [unreadCount, setUnreadCount] = useState(0)
@@ -245,26 +251,47 @@ export function AiChatTab({
     [ticker, configuredModel],
   )
 
-  const { messages, status, error, sendMessage, stop, regenerate, clearError } = useChat({
-    id: sessionId,
-    transport,
-    onError(err) {
-      const msg = err.message ?? ''
-      if (msg.includes('context') || msg.includes('token')) {
-        addToast({ type: 'error', title: t('chat.error.context') })
-      } else if (msg.includes('503') || msg.includes('Service Unavailable')) {
-        addToast({ type: 'error', title: t('chat.error.unavailable') })
-      } else {
-        addToast({
-          type: 'error',
-          title: t('chat.error.generic'),
-          description: msg || undefined,
-        })
-      }
-    },
-  })
+  const { messages, status, error, sendMessage, stop, regenerate, clearError, setMessages } =
+    useChat({
+      // Per-session Chat instance: changing the id rebinds useChat to that
+      // conversation. The transcript-derived seed is re-applied via the effect
+      // below (the transcript resolves async after the id flips).
+      id: activeSessionId,
+      messages: seedMessages ?? [],
+      transport,
+      onError(err) {
+        const msg = err.message ?? ''
+        if (msg.includes('context') || msg.includes('token')) {
+          addToast({ type: 'error', title: t('chat.error.context') })
+        } else if (msg.includes('503') || msg.includes('Service Unavailable')) {
+          addToast({ type: 'error', title: t('chat.error.unavailable') })
+        } else {
+          addToast({
+            type: 'error',
+            title: t('chat.error.generic'),
+            description: msg || undefined,
+          })
+        }
+      },
+    })
 
   const isLoading = status === 'submitted' || status === 'streaming'
+
+  // ── Seed the chat from the active session's transcript ───────────────────
+  // useChat recreates its Chat when `id` flips, but the transcript that seeds it
+  // resolves asynchronously *after* the flip — so the initial `messages` is
+  // empty for one render. Re-apply the rebuilt messages once they arrive, ONCE
+  // per session (a ref guard), and never mid-stream (would clobber live tokens).
+  // This covers switch (resume), reload (restored active id), and new (empty
+  // transcript → seeds an empty conversation).
+  const seededSessionRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (seedMessages === undefined) return // transcript still loading
+    if (isLoading) return // never overwrite an in-flight stream
+    if (seededSessionRef.current === activeSessionId) return // already seeded
+    seededSessionRef.current = activeSessionId
+    setMessages(seedMessages)
+  }, [activeSessionId, seedMessages, isLoading, setMessages])
 
   // ── AI-generated artifact → invalidate the same read models the REST run
   // path refreshes ─────────────────────────────────────────────────────────
@@ -309,11 +336,10 @@ export function AiChatTab({
     }
   }, [messages, ticker, queryClient])
 
-  // Ticker change → switch session.
-  useEffect(() => {
-    setSessionId(getOrCreateSession(sessionKey))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionKey])
+  // NOTE: sessions are deliberately decoupled from ticker — navigating to
+  // another stock no longer switches or destroys the conversation. The live
+  // per-turn ticker still reaches the backend via the transport context_bundle
+  // (see `body` thunk above); only session *identity* is independent now.
 
   // Track unread when panel is collapsed
   useEffect(() => {
@@ -358,13 +384,6 @@ export function AiChatTab({
       setInputText('')
     }
   }, [pendingChatPrompt, consumePendingPrompt, isLoading, sendMessage, clearError])
-
-  const startNewSession = useCallback(() => {
-    const id = crypto.randomUUID()
-    sessionMapRef.current.set(sessionKey, id)
-    setSessionId(id)
-    setInputText('')
-  }, [sessionKey])
 
   // ── Resize handle ───────────────────────────────────────────
   const panelRef = useRef<HTMLElement>(null)
@@ -423,7 +442,7 @@ export function AiChatTab({
           lastSeenMessageCountRef.current = messages.filter((m) => m.role === 'assistant').length
         }}
         unreadCount={unreadCount}
-        onNewSession={startNewSession}
+        onNewSession={newSession}
       />
     )
   }
@@ -441,18 +460,33 @@ export function AiChatTab({
       <AiPanelHeader
         modelLabel={modelLabel(configuredModel, settings?.providers)}
         onToggle={handleToggle}
-        onNewSession={startNewSession}
-        onOpenHistory={() => setHistoryOpen(true)}
+        onNewSession={newSession}
+        onOpenHistory={() => setSessionsOpen(true)}
         ticker={ticker}
       />
 
-      {historyOpen && <HistoryDrawer ticker={ticker} onClose={() => setHistoryOpen(false)} />}
+      {sessionsOpen && (
+        <SessionsDrawer
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          loading={sessionsLoading}
+          error={sessionsError}
+          deletingId={deletingId}
+          onSwitch={switchSession}
+          onNew={newSession}
+          onDelete={deleteSession}
+          onClose={() => setSessionsOpen(false)}
+        />
+      )}
 
       <ContextBar />
+
+      <CoverageTriageStrip defaultCollapsed={messages.length > 0} />
 
       <MessageList
         messages={messages}
         isLoading={isLoading}
+        restoring={seedLoading}
         ticker={ticker}
         onExample={setInputText}
       />
@@ -471,256 +505,6 @@ export function AiChatTab({
       />
     </div>
   )
-}
-
-// ──────────────────────────────────────────────────────────────
-// HistoryDrawer — past chat sessions (BUG-20260602-045)
-//
-// Chat transcripts are side-logged to disk by /chat but had no read path. This
-// drawer lists them via GET /api/chat/sessions (filtered to the current ticker
-// when one is focused) and renders a selected session's transcript read-only
-// via GET /api/chat/sessions/{id}. Modest by design: list + view, no editing.
-// ──────────────────────────────────────────────────────────────
-
-interface SessionSummary {
-  session_id: string
-  title: string
-  created_at: string
-  last_active_at: string
-  turn_count: number
-  model: string
-  user_id: string
-  ticker: string | null
-}
-
-interface TranscriptEvent {
-  timestamp: string
-  session_id: string
-  event: string
-  data: Record<string, unknown>
-}
-
-async function fetchSessions(ticker: string | undefined): Promise<SessionSummary[]> {
-  const qs = ticker ? `?ticker=${encodeURIComponent(ticker)}` : ''
-  const res = await fetchWithTimeout(`${BASE_URL}/api/chat/sessions${qs}`)
-  if (!res.ok) throw new Error(`sessions ${res.status}`)
-  const body = (await res.json()) as { sessions: SessionSummary[] }
-  return body.sessions
-}
-
-async function fetchTranscript(sessionId: string): Promise<TranscriptEvent[]> {
-  const res = await fetchWithTimeout(
-    `${BASE_URL}/api/chat/sessions/${encodeURIComponent(sessionId)}`,
-  )
-  if (!res.ok) throw new Error(`transcript ${res.status}`)
-  const body = (await res.json()) as { events: TranscriptEvent[] }
-  return body.events
-}
-
-function HistoryDrawer({
-  ticker,
-  onClose,
-}: {
-  ticker: string | undefined
-  onClose: () => void
-}): React.ReactElement {
-  const { locale } = useI18n()
-  const zh = locale === 'zh'
-  const [selected, setSelected] = useState<string | null>(null)
-
-  const {
-    data: sessions,
-    isLoading,
-    isError,
-  } = useQuery({
-    queryKey: ['chat-sessions', ticker ?? null],
-    queryFn: () => fetchSessions(ticker),
-    staleTime: 0,
-  })
-
-  const { data: transcript } = useQuery({
-    queryKey: ['chat-transcript', selected],
-    queryFn: () => fetchTranscript(selected as string),
-    enabled: selected != null,
-  })
-
-  const emptyStyle: React.CSSProperties = {
-    padding: '16px 12px',
-    fontSize: '11px',
-    color: 'var(--text-3)',
-    textAlign: 'center',
-  }
-
-  return (
-    <div
-      data-testid="history-drawer"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        maxHeight: '50%',
-        minHeight: 0,
-        borderBottom: '1px solid var(--line-bright)',
-        background: 'var(--bg-2)',
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          padding: '6px 10px',
-          borderBottom: '1px solid var(--line)',
-        }}
-      >
-        <span
-          style={{
-            flex: 1,
-            fontSize: '11px',
-            fontWeight: 600,
-            color: 'var(--text-2)',
-            letterSpacing: '0.04em',
-          }}
-        >
-          {selected ? (zh ? '查看会话' : 'Viewing session') : zh ? '历史会话' : 'Chat history'}
-        </span>
-        {selected && (
-          <button
-            className="ai-icon-btn"
-            onClick={() => setSelected(null)}
-            type="button"
-            title={zh ? '返回列表' : 'Back to list'}
-          >
-            ←
-          </button>
-        )}
-        <button
-          data-testid="history-close-btn"
-          className="ai-icon-btn"
-          onClick={onClose}
-          type="button"
-          title={zh ? '关闭' : 'Close'}
-        >
-          ×
-        </button>
-      </div>
-
-      <div style={{ overflowY: 'auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {selected ? (
-          <HistoryTranscript events={transcript ?? []} locale={locale} />
-        ) : isLoading ? (
-          <div style={emptyStyle}>{zh ? '加载中…' : 'Loading…'}</div>
-        ) : isError ? (
-          <div style={emptyStyle}>{zh ? '无法加载历史会话。' : 'Could not load chat history.'}</div>
-        ) : !sessions || sessions.length === 0 ? (
-          <div data-testid="history-empty" style={emptyStyle}>
-            {zh
-              ? '还没有历史会话。在右侧开始对话后会出现在这里。'
-              : 'No past sessions yet. Conversations you have here will show up in this list.'}
-          </div>
-        ) : (
-          <ul style={{ listStyle: 'none', margin: 0, padding: '4px' }}>
-            {sessions.map((s) => (
-              <li key={s.session_id}>
-                <button
-                  onClick={() => setSelected(s.session_id)}
-                  type="button"
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '2px',
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '7px 8px',
-                    background: 'transparent',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    color: 'var(--text-1)',
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: '12px',
-                      color: 'var(--text-1)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {s.title}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: '10px',
-                      color: 'var(--text-3)',
-                      fontFamily: 'var(--font-mono)',
-                    }}
-                  >
-                    {s.ticker ? `${s.ticker} · ` : ''}
-                    {zh
-                      ? `${s.turn_count} 轮对话`
-                      : `${s.turn_count} ${s.turn_count === 1 ? 'turn' : 'turns'}`}
-                    {' · '}
-                    {formatHistoryDate(s.last_active_at, locale)}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function HistoryTranscript({
-  events,
-  locale,
-}: {
-  events: TranscriptEvent[]
-  locale: string
-}): React.ReactElement {
-  const turns = events.filter((e) => e.event === 'user_msg' || e.event === 'assistant_text')
-  if (turns.length === 0) {
-    return (
-      <div
-        style={{
-          padding: '16px 12px',
-          fontSize: '11px',
-          color: 'var(--text-3)',
-          textAlign: 'center',
-        }}
-      >
-        {locale === 'zh' ? '该会话没有可显示的消息。' : 'No messages in this session.'}
-      </div>
-    )
-  }
-  return (
-    <div className="ai-messages" style={{ flex: 1 }}>
-      {turns.map((e, i) => {
-        const isUser = e.event === 'user_msg'
-        const text = typeof e.data.text === 'string' ? e.data.text : ''
-        return (
-          <div key={i} className={`msg ${isUser ? 'user' : 'agent'}`}>
-            <div className="msg-head">{isUser ? 'USER' : '● FINROBOT'}</div>
-            <div className="msg-body">{isUser ? text : <MarkdownLite text={text} />}</div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function formatHistoryDate(iso: string, locale: string): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleString(locale === 'zh' ? 'zh-CN' : 'en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -798,11 +582,11 @@ function AiPanelHeader({
         {modelLabel}
       </span>
 
-      {/* History — past sessions */}
+      {/* Sessions — list / switch / delete past conversations */}
       <button
         data-testid="history-btn"
         onClick={onOpenHistory}
-        title={locale === 'zh' ? '历史会话' : 'Chat history'}
+        title={locale === 'zh' ? '会话' : 'Sessions'}
         className="ai-icon-btn"
         type="button"
       >
@@ -842,6 +626,9 @@ function AiPanelHeader({
 interface MessageListProps {
   messages: UIMessage[]
   isLoading: boolean
+  /** True while a switched/reloaded session's transcript is being restored —
+   * suppresses the empty-state so it doesn't flash "start chatting" mid-resume. */
+  restoring: boolean
   ticker: string | undefined
   onExample: (prompt: string) => void
 }
@@ -849,6 +636,7 @@ interface MessageListProps {
 function MessageList({
   messages,
   isLoading,
+  restoring,
   ticker,
   onExample,
 }: MessageListProps): React.ReactElement {
@@ -858,6 +646,18 @@ function MessageList({
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  if (messages.length === 0 && restoring) {
+    return (
+      <div
+        data-testid="message-list-restoring"
+        className="ai-messages"
+        style={{ justifyContent: 'center', alignItems: 'center' }}
+      >
+        <div style={{ fontSize: '11px', color: 'var(--text-3)' }}>{t('common.loading')}</div>
+      </div>
+    )
+  }
 
   if (messages.length === 0 && !isLoading) {
     const examples = ticker

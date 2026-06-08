@@ -1,18 +1,21 @@
 // Sticky top toolbar for the 13-chapter research report view.
 //
 // Single-row, Finder-style (Spacedrive-inspired): one ← back arrow that returns
-// to wherever the user came from, the ticker label, a quote strip with live
-// price / change / distance to target, and Export / Re-run actions. The chrome
+// to wherever the user came from, the ticker label, a quote strip with the
+// SNAPSHOT price / "as of" date / distance to target, and Export / Re-run
+// actions. The price is the report's frozen data-fetch snapshot — NOT a live
+// quote — so the toolbar matches the frozen report body (cover, football field,
+// technical chapter). Live quotes belong to the workspace dashboard. The chrome
 // lives in one 48px row so the chapter content gets the screen height. Version
 // switching lives in the right-rail Version Timeline (click a version → its
 // report); What-if assumption editing lives in the right rail too.
 
 import { useNavigate } from 'react-router-dom'
-import { useTickerPrice } from '../../../hooks/useTickerData'
 import { useHistoryBack } from '../../../hooks/useHistoryBack'
 import { useRunStreamStore } from '../../../stores/runStreamStore'
 import { useToastStore } from '../../../stores/toastStore'
 import { useI18n } from '../../../i18n'
+import { formatDate } from '../../../utils/format'
 import { mapErrorToUserMessage } from '../../../utils/errorMessage'
 
 interface ReportToolbarProps {
@@ -20,6 +23,11 @@ interface ReportToolbarProps {
   artifactId: string
   reportType: string
   targetPrice: number | null
+  /** The report's frozen data-fetch snapshot quote + when it was taken. The
+      toolbar renders THIS, never a live refetch, so the price (and distance to
+      target) can't drift away from the frozen report body. */
+  snapshotPrice: number | null
+  snapshotAsOf: string | null
   /** Export the report as a self-contained interactive HTML. Owned by
       ArtifactDetailPage (it holds the artifact + the query cache to inline). */
   onExportHtml: () => void
@@ -32,6 +40,8 @@ export function ReportToolbar({
   artifactId,
   reportType,
   targetPrice,
+  snapshotPrice,
+  snapshotAsOf,
   onExportHtml,
   onOpenIcDebate,
 }: ReportToolbarProps): React.ReactElement {
@@ -39,17 +49,15 @@ export function ReportToolbar({
   // Back = return to wherever the user opened the report from. Falls back to the
   // ticker workspace on a cold-start / deep link, the report's natural parent.
   const goBack = useHistoryBack(`/stocks/${ticker}`)
-  const { data: priceData } = useTickerPrice(ticker)
   const startRun = useRunStreamStore((s) => s.startRun)
   const addToast = useToastStore((s) => s.addToast)
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
 
-  const livePrice = priceData?.current_price ?? null
-  const changePct = priceData?.change_pct ?? null
-  const isUp = typeof changePct === 'number' && changePct >= 0
+  // Distance to target is measured from the SNAPSHOT price (the price the target
+  // was set against), so it reconciles with the cover's upside — not a live gap.
   const distancePct =
-    livePrice !== null && targetPrice !== null && livePrice > 0
-      ? ((targetPrice - livePrice) / livePrice) * 100
+    snapshotPrice !== null && targetPrice !== null && snapshotPrice > 0
+      ? ((targetPrice - snapshotPrice) / snapshotPrice) * 100
       : null
 
   // Map artifact type → pipeline_type accepted by POST /api/runs.
@@ -144,27 +152,23 @@ export function ReportToolbar({
         {ticker}
       </span>
 
-      {/* Quote strip — only renders if we have live price data. Keeps the
-          row from looking empty pre-fetch but doesn't reserve space. */}
-      {typeof livePrice === 'number' && (
-        <div style={quoteStripStyle}>
-          <span style={quotePriceStyle}>${livePrice.toFixed(2)}</span>
-          {typeof changePct === 'number' && (
+      {/* Quote strip — the frozen snapshot price + when it was taken + distance
+          to target. No live change% chip: a snapshot has no intraday delta, and
+          showing one would re-introduce a live number into a point-in-time
+          report. Only renders when the artifact carries a snapshot price. */}
+      {typeof snapshotPrice === 'number' && (
+        <div style={quoteStripStyle} data-testid="report-snapshot-quote">
+          <span style={quotePriceStyle}>${snapshotPrice.toFixed(2)}</span>
+          {snapshotAsOf && (
             <span
               style={{
                 ...quoteChipStyle,
-                background: isUp
-                  ? 'color-mix(in srgb, var(--success) 14%, transparent)'
-                  : 'color-mix(in srgb, var(--danger) 14%, transparent)',
-                color: isUp ? 'var(--success)' : 'var(--danger)',
-                border: `1px solid ${
-                  isUp
-                    ? 'color-mix(in srgb, var(--success) 32%, transparent)'
-                    : 'color-mix(in srgb, var(--danger) 32%, transparent)'
-                }`,
+                color: 'var(--text-muted)',
+                background: 'var(--wash-white-04)',
+                border: '1px solid var(--border-faint)',
               }}
             >
-              {isUp ? '↑' : '↓'} {Math.abs(changePct).toFixed(2)}%
+              {t('sourced.asOf')} {formatDate(snapshotAsOf, locale, 'short')}
             </span>
           )}
           {distancePct !== null && (

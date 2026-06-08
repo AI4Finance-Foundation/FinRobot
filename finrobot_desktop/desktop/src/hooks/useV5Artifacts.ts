@@ -6,7 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
 import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../api/fetch'
 import { FetchHttpError } from '../utils/errorMessage'
-import type { ArtifactSummaryV5, ValuationAggregate } from '../types/v5'
+import type { ArtifactSummaryV5 } from '../types/v5'
 
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const resp = await fetchWithTimeout(url, { signal }, HEAVY_API_TIMEOUT_MS)
@@ -77,17 +77,5 @@ export function useArtifactDetail(artifactId: string | null | undefined) {
     staleTime: Infinity, // artifacts are immutable once written
     refetchOnMount: false,
     retry: 1,
-  })
-}
-
-/** Football Field aggregation (PR2 endpoint). */
-export function useValuationAggregate(ticker: string) {
-  return useQuery<ValuationAggregate, Error>({
-    queryKey: ['valuation-aggregate', ticker],
-    queryFn: ({ signal }) =>
-      getJson<ValuationAggregate>(`${BASE_URL}/api/valuation/aggregate/${ticker}`, signal),
-    enabled: !!ticker,
-    staleTime: 60_000,
-    refetchOnMount: false,
   })
 }

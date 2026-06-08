@@ -5,27 +5,21 @@
 
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { ChapterValuation } from './ChapterValuation'
-import type { DcfShape, NumericAuditShape } from './types'
+import type { DcfShape, NumericAuditShape, ValuationSynthesisShape } from './types'
 
-// Charts hit nothing relevant to the KV cards; render them as no-ops so the
-// chapter mounts without canvas/Recharts noise.
-vi.mock('../../../components/charts/FootballField', () => ({ default: () => null }))
-vi.mock('../../../components/charts/WaterfallChart', () => ({ default: () => null }))
-
-// The valuation-aggregate query is enabled by ticker; stub fetch so it resolves
-// to an empty payload instead of hitting the network.
-vi.mock('../../../api/fetch', () => ({
-  HEAVY_API_TIMEOUT_MS: 1000,
-  fetchWithTimeout: () =>
-    Promise.resolve({
-      ok: true,
-      json: () =>
-        Promise.resolve({ ticker: 'AAPL', current_price: null, methods: [], warnings: [] }),
-    }),
+// Capture the props the football field receives so we can assert the report
+// feeds it the FROZEN snapshot price + method rows — never a live refetch
+// (the price-split bug this chapter's rewrite fixes). WaterfallChart is noise.
+const footballProps = vi.fn()
+vi.mock('../../../components/charts/FootballField', () => ({
+  default: (props: Record<string, unknown>) => {
+    footballProps(props)
+    return null
+  },
 }))
+vi.mock('../../../components/charts/WaterfallChart', () => ({ default: () => null }))
 
 const DCF: DcfShape = {
   wacc: 0.0852,
@@ -35,19 +29,20 @@ const DCF: DcfShape = {
   inputs: { terminal_growth_rate: 0.025, tax_rate: 0.21, beta: 1.18 },
 }
 
-function renderChapter(dcf: DcfShape = DCF, numericAudit: NumericAuditShape | null = null) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+function renderChapter(
+  dcf: DcfShape = DCF,
+  numericAudit: NumericAuditShape | null = null,
+  valuationSynthesis: ValuationSynthesisShape | null = null,
+) {
   return render(
-    <QueryClientProvider client={qc}>
-      <ChapterValuation
-        dcf={dcf}
-        thesis={null}
-        ticker="AAPL"
-        quoteCurrency="USD"
-        reportingCurrency="USD"
-        numericAudit={numericAudit}
-      />
-    </QueryClientProvider>,
+    <ChapterValuation
+      dcf={dcf}
+      thesis={null}
+      valuationSynthesis={valuationSynthesis}
+      quoteCurrency="USD"
+      reportingCurrency="USD"
+      numericAudit={numericAudit}
+    />,
   )
 }
 
@@ -144,5 +139,56 @@ describe('ChapterValuation EV audit caveat', () => {
   it('shows no EV caveat when the audit is clean / absent', () => {
     renderChapter(DCF, null)
     expect(screen.queryByTestId('field-caveat')).not.toBeInTheDocument()
+  })
+})
+
+// The football field MUST render from the frozen valuation_synthesis (the
+// snapshot the report's target was computed against), never a live refetch —
+// otherwise the football "current" price drifts away from the cover/narrative
+// price (the reported bug: narrative $307.34 vs football $312).
+describe('ChapterValuation frozen football field', () => {
+  const SYNTHESIS: ValuationSynthesisShape = {
+    current_price: 307.34,
+    weighted_price: 174.14,
+    upside_downside: -0.4334,
+    reliable: true,
+    methods: [
+      {
+        name: 'dcf',
+        low: 108.94,
+        mid: 136.18,
+        high: 163.41,
+        confidence: 0.85,
+        source: 'implied_price ± 20%',
+      },
+      {
+        name: 'comps_pe',
+        low: 193.02,
+        mid: 214.47,
+        high: 235.92,
+        confidence: 0.8,
+        source: 'peer_median_forward_pe × forward_eps',
+      },
+    ],
+  }
+
+  it('feeds the football field the frozen snapshot price + method rows', () => {
+    footballProps.mockClear()
+    renderChapter(DCF, null, SYNTHESIS)
+    expect(footballProps).toHaveBeenCalled()
+    const props = footballProps.mock.calls.at(-1)![0] as Record<string, unknown>
+    // Snapshot price flows straight through — no live quote anywhere.
+    expect(props.currentPrice).toBe(307.34)
+    // Method `name` (dcf / comps_pe) becomes the football row `method` key.
+    expect(props.data).toEqual([
+      expect.objectContaining({ method: 'dcf', mid: 136.18 }),
+      expect.objectContaining({ method: 'comps_pe', mid: 214.47 }),
+    ])
+  })
+
+  it('renders no football field when the artifact carries no synthesis', () => {
+    footballProps.mockClear()
+    renderChapter(DCF, null, null)
+    expect(footballProps).not.toHaveBeenCalled()
   })
 })

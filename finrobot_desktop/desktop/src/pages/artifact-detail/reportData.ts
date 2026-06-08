@@ -14,6 +14,7 @@ import type {
   PeerCompsShape,
   TechnicalAnalysisShape,
   ThesisShape,
+  ValuationSynthesisShape,
 } from './chapters'
 import { formatDate } from '../../utils/format'
 import type { Locale } from '../../i18n'
@@ -55,9 +56,26 @@ export interface DerivedReportData {
   thesis: ThesisShape | null
   dcf: DcfShape | null
   peers: PeerCompsShape | null
+  // Frozen football-field data (per-method ranges + the snapshot price the whole
+  // report is anchored to). Persisted at generation; the report renders this
+  // instead of re-fetching /api/valuation/aggregate live, so the football field
+  // can never contradict the cover/narrative price (the BUG this freezing fixes).
+  valuationSynthesis: ValuationSynthesisShape | null
   catalysts: CatalystAnalysisShape | null
   technical: TechnicalAnalysisShape | null
   ownership: OwnershipGovernanceShape | null
+  // The single canonical SNAPSHOT quote every report surface uses (football
+  // field, technical chapter, toolbar). Anchored to valuation_synthesis.current_price
+  // (what the target was computed from), falling back to the raw FinancialData
+  // dump. NEVER a live refetch — the report is a point-in-time artifact.
+  snapshotPrice: number | null
+  /** Raw 5Y provider beta at snapshot (distinct from the Blume-adjusted WACC β
+   *  in dcf.inputs.beta — the latter shrinks this 2/3·β+1/3·1 toward 1.0). */
+  snapshotBeta: number | null
+  snapshot52wHigh: number | null
+  snapshot52wLow: number | null
+  /** When the underlying market data was fetched — the report's "as of" stamp. */
+  snapshotAsOf: string | null
   // Numeric-audit gate verdict. null on legacy artifacts (pre-gate) → no banner.
   numericAudit: NumericAuditShape | null
   createdAt: string | null
@@ -87,11 +105,30 @@ export function deriveReportData(
   const thesis = (structured.thesis as ThesisShape | undefined) ?? null
   const dcf = (structured.financial_modeling as DcfShape | undefined) ?? null
   const peers = (structured.peer_analysis as PeerCompsShape | undefined) ?? null
+  const valuationSynthesis =
+    (structured.valuation_synthesis as ValuationSynthesisShape | undefined) ?? null
   const catalysts = (structured.catalyst_analysis as CatalystAnalysisShape | undefined) ?? null
   const technical = (structured.technical_analysis as TechnicalAnalysisShape | undefined) ?? null
   const ownership =
     (structured.ownership_governance as OwnershipGovernanceShape | undefined) ?? null
   const numericAudit = (structured.numeric_audit as NumericAuditShape | undefined) ?? null
+
+  // Frozen snapshot quote — the ONE price/beta/52w the whole report renders, so
+  // no surface re-fetches live and contradicts the cover. raw_data.market is the
+  // FinancialData dump captured at fetch time (summary_extractor.py); the price
+  // prefers valuation_synthesis.current_price (the value the target was computed
+  // against) and falls back to the market dump.
+  const marketSnap = ((inputs.raw_data ?? {}) as Record<string, unknown>)['market']
+  const market = (
+    typeof marketSnap === 'object' && marketSnap !== null ? marketSnap : {}
+  ) as Record<string, unknown>
+  const num = (v: unknown): number | null =>
+    typeof v === 'number' && Number.isFinite(v) ? v : null
+  const snapshotPrice = valuationSynthesis?.current_price ?? num(market['current_price'])
+  const snapshotBeta = num(market['beta'])
+  const snapshot52wHigh = num(market['price_52w_high'])
+  const snapshot52wLow = num(market['price_52w_low'])
+  const snapshotAsOf = inputs.data_fetched_at ?? null
 
   const createdAt = meta.created_at ?? null
   const computeVersionStr = compute_version?.version ?? null
@@ -134,10 +171,16 @@ export function deriveReportData(
     thesis,
     dcf,
     peers,
+    valuationSynthesis,
     catalysts,
     technical,
     ownership,
     numericAudit,
+    snapshotPrice,
+    snapshotBeta,
+    snapshot52wHigh,
+    snapshot52wLow,
+    snapshotAsOf,
     createdAt,
     computeVersionStr,
     reportLang,

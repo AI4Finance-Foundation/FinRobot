@@ -1,11 +1,15 @@
-// Chapter 09 — Technical & Advanced Analysis. Live price chip plus three
+// Chapter 09 — Technical & Advanced Analysis. Snapshot price chip plus three
 // quant overlays baked into the equity_research artifact:
 //   - Monte Carlo distribution (inline SVG histogram + percentile markers)
 //   - Sniper levels (KvGrid of buy/stop/target + R/R)
 //   - Historical EV/EBITDA bands (inline SVG timeline + P25/median/P75/P90)
+//
+// Price / 52w / beta are the FROZEN data-fetch snapshot (the same snapshot the
+// valuation used), NOT a live refetch — a research report is a point-in-time
+// artifact, so its "current price" is the one the analysis was written against.
+// Live market data lives in the workspace dashboard, not the report.
 
 import { Chapter, KvGrid, SubChapter } from './ChapterBase'
-import { useTickerPrice, useTickerFinancials } from '../../../hooks/useTickerData'
 import { useI18n } from '../../../i18n'
 import { formatCurrency } from '../../../utils/format'
 import type {
@@ -16,27 +20,34 @@ import type {
 } from './types'
 
 interface ChapterTechnicalProps {
-  ticker: string
   technical: TechnicalAnalysisShape | null
   // Every amount in this chapter is a per-share price (current/52w/MC/sniper)
   // → quote currency (BUG-030).
   quoteCurrency: string
+  // Frozen data-fetch snapshot — the report's anchor price, raw 5Y beta, and 52w
+  // range. `snapshotBeta` is the raw provider regression beta; the Valuation
+  // chapter's β is this same beta Blume-adjusted toward 1.0 for WACC (so the two
+  // legitimately differ — see the β glossary).
+  snapshotPrice: number | null
+  snapshotBeta: number | null
+  snapshot52wHigh: number | null
+  snapshot52wLow: number | null
 }
 
 export function ChapterTechnical({
-  ticker,
   technical,
   quoteCurrency,
+  snapshotPrice,
+  snapshotBeta,
+  snapshot52wHigh,
+  snapshot52wLow,
 }: ChapterTechnicalProps): React.ReactElement {
   const { t, locale } = useI18n()
   const fmtPx = (v: number): string => formatCurrency(v, quoteCurrency, locale, 2)
-  const { data: price } = useTickerPrice(ticker)
-  const { data: fin } = useTickerFinancials(ticker)
-  const current = price?.current_price ?? null
-  const changePct = price?.change_pct ?? null
-  const high52 = fin?.market?.price_52w_high ?? null
-  const low52 = fin?.market?.price_52w_low ?? null
-  const beta = fin?.market?.beta ?? null
+  const current = snapshotPrice
+  const high52 = snapshot52wHigh
+  const low52 = snapshot52wLow
+  const beta = snapshotBeta
   const range52Position =
     current !== null && high52 !== null && low52 !== null && high52 > low52
       ? ((current - low52) / (high52 - low52)) * 100
@@ -44,13 +55,10 @@ export function ChapterTechnical({
 
   const cells = [
     current !== null && {
+      // Frozen snapshot price — no intraday change% (that's a live-quote field);
+      // the report's "as of" stamp lives in the toolbar.
       label: t('chapter.technical.kv.currentPrice'),
       value: fmtPx(current),
-      tone: typeof changePct === 'number' && changePct >= 0 ? ('up' as const) : ('down' as const),
-      delta:
-        typeof changePct === 'number'
-          ? `${changePct >= 0 ? '+' : ''}${changePct.toFixed(2)}%`
-          : undefined,
     },
     low52 !== null && { label: t('chapter.technical.kv.low52w'), value: fmtPx(low52) },
     high52 !== null && { label: t('chapter.technical.kv.high52w'), value: fmtPx(high52) },

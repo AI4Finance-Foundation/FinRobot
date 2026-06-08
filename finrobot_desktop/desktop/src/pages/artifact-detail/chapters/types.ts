@@ -363,11 +363,44 @@ export interface NumericAuditShape {
   withhold_valuation?: boolean
 }
 
+// ---------------------------------------------------------------------------
+// Frozen valuation synthesis — the football-field data, computed at generation
+// against the SNAPSHOT price and persisted into the artifact (builders.py).
+// Mirrors finrobot.engine.models.financial.ValuationSynthesis. The report MUST
+// render the football field from THIS (not a live /api/valuation/aggregate
+// refetch) so every price in the report is the one snapshot the narrative and
+// the cover target were written against — reproducible + internally consistent.
+// `current_price` is the generation-time quote; `methods[].name` is the method
+// key (dcf / comps_pe / ev_ebitda / …) the FootballField maps to a label.
+// ---------------------------------------------------------------------------
+
+export interface ValuationMethodShape {
+  name: string
+  low: number
+  mid: number
+  high: number
+  confidence: number
+  source: string
+  assumptions?: string | null
+}
+
+export interface ValuationSynthesisShape {
+  methods: ValuationMethodShape[]
+  weighted_price?: number | null
+  /** The quote the whole report is anchored to — frozen at data-fetch time. */
+  current_price: number
+  upside_downside?: number | null
+  outlier_methods?: string[]
+  warnings?: string[]
+  reliable?: boolean
+}
+
 export interface ArtifactStructured {
   thesis?: ThesisShape
   currency?: CurrencyTagsShape
   financial_modeling?: DcfShape
   peer_analysis?: PeerCompsShape
+  valuation_synthesis?: ValuationSynthesisShape
   catalyst_analysis?: CatalystAnalysisShape
   technical_analysis?: TechnicalAnalysisShape
   ownership_governance?: OwnershipGovernanceShape

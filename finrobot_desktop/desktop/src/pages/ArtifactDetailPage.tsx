@@ -30,7 +30,6 @@ import { missingExportBlocksMessage } from '../export/reportExportQueries'
 import { ReportToolbar } from './artifact-detail/shell/ReportToolbar'
 import { ReportTOC } from './artifact-detail/shell/ReportTOC'
 import { ReportRightRail } from './artifact-detail/shell/ReportRightRail'
-import { ReportStatusBar } from './artifact-detail/shell/ReportStatusBar'
 import { ReportChapters } from './artifact-detail/ReportChapters'
 import { CompactArtifactViewer } from './artifact-detail/CompactArtifactViewer'
 import { deriveReportData } from './artifact-detail/reportData'
@@ -157,7 +156,11 @@ export function ArtifactDetailPage(): React.ReactElement {
   // the single source of truth shared with the standalone export viewer. For
   // non-research artifacts only `versionLabel`/`createdAt` are meaningful (the
   // 13-chapter shapes resolve to null) — the body renders via CompactArtifactViewer.
-  const { thesis, dcf, createdAt, versionLabel } = deriveReportData(data, timeline ?? [], locale)
+  const { thesis, dcf, createdAt, versionLabel, snapshotPrice, snapshotAsOf } = deriveReportData(
+    data,
+    timeline ?? [],
+    locale,
+  )
 
   const parentArtifactId =
     (data as unknown as { meta?: { parent_artifact_id?: string | null } }).meta
@@ -245,6 +248,8 @@ export function ArtifactDetailPage(): React.ReactElement {
               artifactId={artifactId}
               reportType={data.type}
               targetPrice={null}
+              snapshotPrice={snapshotPrice}
+              snapshotAsOf={snapshotAsOf}
               onExportHtml={handleExportHtml}
             />
           </div>
@@ -286,6 +291,8 @@ export function ArtifactDetailPage(): React.ReactElement {
             artifactId={artifactId}
             reportType={data.type}
             targetPrice={thesis?.price_target ?? null}
+            snapshotPrice={snapshotPrice}
+            snapshotAsOf={snapshotAsOf}
             onExportHtml={handleExportHtml}
             onOpenIcDebate={
               data.type === 'equity_research'
@@ -322,10 +329,6 @@ export function ArtifactDetailPage(): React.ReactElement {
           originalImpliedPrice={dcf?.implied_price ?? null}
         />
       </div>
-
-      <ReportStatusBar
-        entries={allChapterLabels(locale).map((c) => ({ id: c.id, num: c.num, title: c.title }))}
-      />
     </div>
   )
 }

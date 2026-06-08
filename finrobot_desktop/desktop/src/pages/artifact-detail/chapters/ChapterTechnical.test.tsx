@@ -1,32 +1,34 @@
 // Vitest coverage for chapter 09 (Technical & Advanced Analysis).
-// The chapter now reads its 3 quant overlays from the persisted artifact
-// payload rather than firing on-demand compute calls.
+// The chapter reads its 3 quant overlays AND its price/52w/beta from the frozen
+// artifact snapshot (props), not live hooks — a report is a point-in-time
+// artifact, so nothing here refetches a live quote.
 
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
-vi.mock('../../../hooks/useTickerData', () => ({
-  useTickerPrice: vi.fn(() => ({ data: { current_price: 162.0, change_pct: 1.5 } })),
-  useTickerFinancials: vi.fn(() => ({
-    data: {
-      market: { price_52w_high: 180, price_52w_low: 110, beta: 1.2 },
-    },
-  })),
-}))
-
-// Import after the mocks so the module picks up the mocked hooks.
 import { ChapterTechnical } from './ChapterTechnical'
 import type { TechnicalAnalysisShape } from './types'
 
 function renderChapter(technical: TechnicalAnalysisShape | null) {
-  return render(<ChapterTechnical ticker="AAPL" technical={technical} quoteCurrency="USD" />)
+  return render(
+    <ChapterTechnical
+      technical={technical}
+      quoteCurrency="USD"
+      snapshotPrice={162.0}
+      snapshotBeta={1.2}
+      snapshot52wHigh={180}
+      snapshot52wLow={110}
+    />,
+  )
 }
 
-beforeEach(() => {
-  vi.clearAllMocks()
-})
-
 describe('ChapterTechnical', () => {
+  it('renders the frozen snapshot price + raw 5Y beta from props (no live refetch)', () => {
+    renderChapter(null)
+    expect(screen.getByText('$162.00')).toBeInTheDocument()
+    expect(screen.getByText('1.20')).toBeInTheDocument()
+  })
+
   it('renders cold state when the artifact carries no technical payload', () => {
     renderChapter(null)
     expect(screen.getByTestId('technical-cold-state')).toBeInTheDocument()

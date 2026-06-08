@@ -128,10 +128,19 @@ export default function FootballField({
     return ((v - domainMin) / domainSpan) * 100
   }
 
+  // Axis ticks + per-method range labels round ≥$100 to whole dollars for a
+  // legible scale. The CURRENT-price reference is the number the report
+  // reconciles against (cover/narrative/technical all cite it to the cent), so
+  // it always shows 2 decimals — otherwise "$307" here vs "$307.34" in the prose
+  // reads as a discrepancy when it is the same value.
   function fmtPrice(v: number): string {
     if (Math.abs(v) >= 1000) return `$${Math.round(v).toLocaleString()}`
     if (Math.abs(v) >= 100) return `$${v.toFixed(0)}`
     return `$${v.toFixed(2)}`
+  }
+
+  function fmtCurrent(v: number): string {
+    return `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   }
 
   return (
@@ -140,7 +149,7 @@ export default function FootballField({
         <span className="card-title">{title}</span>
         {cp !== null && (
           <span className="card-badge">
-            {t('chart.footballField.current')} {fmtPrice(cp)}
+            {t('chart.footballField.current')} {fmtCurrent(cp)}
             {isOffScale && (
               <span style={{ marginLeft: 8, color: 'var(--warning)' }}>
                 · {t('chart.footballField.offScaleBadge')}
@@ -352,7 +361,7 @@ export default function FootballField({
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {t('chart.footballField.current')} {fmtPrice(cp)}
+                  {t('chart.footballField.current')} {fmtCurrent(cp)}
                 </span>
               </>
             )}

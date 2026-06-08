@@ -1,10 +1,11 @@
 // The read models the exported <ReportChapters> render from. The standalone
-// HTML export is supposed to be deterministic — same artifact ⇒ same file — but
-// the chapters still call LIVE data hooks at render time:
-//   - ChapterValuation       → ['valuation-aggregate', ticker]
+// HTML export is supposed to be deterministic — same artifact ⇒ same file. The
+// valuation/price/beta surfaces are now FROZEN (rendered from the artifact's
+// persisted valuation_synthesis + raw_data.market snapshot, no live hooks), so
+// they need no prefetch. What remains are the two chapters that still pull
+// slow-changing reference data live at render time:
 //   - ChapterFinancialAnalysis → ['historical', ticker]   (useHistoricalData)
 //   - ChapterFinancialData    → ['earnings-calls', ticker]
-//   - ChapterTechnical        → ['ticker-price', ticker] + ['ticker-financials', ticker]
 // In the offline viewer those hooks resolve PURELY from the dehydrated cache
 // (refetch disabled). So whatever isn't in the live cache at export time is
 // silently missing from the file — its completeness ends up depending on scroll
@@ -13,15 +14,13 @@
 // This module is the single list of {queryKey, queryFn} to seed the cache with
 // BEFORE dehydrate, so the snapshot is always complete. The queryKey + URL of
 // each entry MIRRORS the chapter hook it backs (kept in sync deliberately); the
-// fetch primitives (fetchJsonOrThrowHttp / fetchWithTimeout) are reused, not
-// re-implemented.
+// fetch primitive (fetchWithTimeout) is reused, not re-implemented.
 
 import type { QueryClient } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
 import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../api/fetch'
-import { fetchJsonOrThrowHttp } from '../hooks/useTickerData'
 
-export type ReportExportBlockId = 'valuation' | 'historical' | 'earnings' | 'price' | 'financials'
+export type ReportExportBlockId = 'historical' | 'earnings'
 
 export interface ReportExportQuery {
   /** Stable id for failure reporting (which block could not be prefetched). */
@@ -44,12 +43,6 @@ async function fetchHeavyJson(url: string): Promise<unknown> {
 export function reportExportQueries(ticker: string): ReportExportQuery[] {
   return [
     {
-      // ChapterValuation — useValuationAggregate
-      id: 'valuation',
-      queryKey: ['valuation-aggregate', ticker],
-      queryFn: () => fetchHeavyJson(`${BASE_URL}/api/valuation/aggregate/${ticker}`),
-    },
-    {
       // ChapterFinancialAnalysis — useHistoricalData
       id: 'historical',
       queryKey: ['historical', ticker],
@@ -60,18 +53,6 @@ export function reportExportQueries(ticker: string): ReportExportQuery[] {
       id: 'earnings',
       queryKey: ['earnings-calls', ticker],
       queryFn: () => fetchHeavyJson(`${BASE_URL}/api/data/${ticker}/earnings-calls?limit=8`),
-    },
-    {
-      // ChapterTechnical — useTickerPrice
-      id: 'price',
-      queryKey: ['ticker-price', ticker],
-      queryFn: () => fetchJsonOrThrowHttp(`${BASE_URL}/api/data/${ticker}/price`),
-    },
-    {
-      // ChapterTechnical — useTickerFinancials
-      id: 'financials',
-      queryKey: ['ticker-financials', ticker],
-      queryFn: () => fetchJsonOrThrowHttp(`${BASE_URL}/api/data/${ticker}/financials`),
     },
   ]
 }
@@ -110,11 +91,8 @@ export async function prepareReportExport(
 }
 
 const BLOCK_LABELS: Record<ReportExportBlockId, { zh: string; en: string }> = {
-  valuation: { zh: '估值区间（football field）', en: 'valuation range (football field)' },
   historical: { zh: '历史财务趋势图', en: 'historical financial charts' },
   earnings: { zh: '财报电话会逐字稿', en: 'earnings call transcripts' },
-  price: { zh: '技术面现价 / 涨跌', en: 'technical current price / change' },
-  financials: { zh: '技术面 52 周 / Beta', en: 'technical 52w / beta' },
 }
 
 /** Human-readable "these blocks couldn't be prefetched" line for the export toast. */

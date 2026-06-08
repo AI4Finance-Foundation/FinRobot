@@ -7,28 +7,22 @@ import {
 } from './reportExportQueries'
 
 // BUG-20260602-028: the exported HTML renders <ReportChapters> against a frozen,
-// refetch-disabled cache, so the export must seed EVERY chapter read model
-// before dehydrating — otherwise the offline file is missing whatever the user
-// hadn't scrolled into view. These tests pin that the export path prefetches the
-// exact chapter query keys into the cache even when it starts COLD.
+// refetch-disabled cache, so the export must seed every STILL-LIVE chapter read
+// model before dehydrating — otherwise the offline file is missing whatever the
+// user hadn't scrolled into view. The valuation/price/beta surfaces are now
+// FROZEN (rendered from the persisted artifact, no live hooks), so only the two
+// slow-changing reference-data chapters remain to prefetch.
 
 const TICKER = 'AAPL'
 
 // queryKey + URL each chapter hook actually uses (kept in sync with the chapters).
 const EXPECTED = [
-  {
-    id: 'valuation',
-    key: ['valuation-aggregate', TICKER],
-    url: `/api/valuation/aggregate/${TICKER}`,
-  },
   { id: 'historical', key: ['historical', TICKER], url: `/api/data/${TICKER}/historical` },
   {
     id: 'earnings',
     key: ['earnings-calls', TICKER],
     url: `/api/data/${TICKER}/earnings-calls?limit=8`,
   },
-  { id: 'price', key: ['ticker-price', TICKER], url: `/api/data/${TICKER}/price` },
-  { id: 'financials', key: ['ticker-financials', TICKER], url: `/api/data/${TICKER}/financials` },
 ] as const
 
 function jsonResponse(body: unknown): Response {
@@ -39,13 +33,20 @@ function jsonResponse(body: unknown): Response {
 }
 
 describe('reportExportQueries — read-model registry', () => {
-  it('lists every chapter read model with the chapter hook key + url', () => {
+  it('lists every still-live chapter read model with the chapter hook key + url', () => {
     const queries = reportExportQueries(TICKER)
     expect(queries.map((q) => q.id)).toEqual(EXPECTED.map((e) => e.id))
     for (const e of EXPECTED) {
       const q = queries.find((x) => x.id === e.id)
       expect(q?.queryKey).toEqual(e.key)
     }
+  })
+
+  it('does NOT prefetch the now-frozen valuation / price / financials surfaces', () => {
+    const ids = reportExportQueries(TICKER).map((q) => String(q.id))
+    expect(ids).not.toContain('valuation')
+    expect(ids).not.toContain('price')
+    expect(ids).not.toContain('financials')
   })
 })
 
@@ -88,10 +89,10 @@ describe('prepareReportExport — deterministic export seeding (BUG-028)', () =>
 
   it('reports which blocks failed without aborting the export', async () => {
     const fetchMock = vi.mocked(globalThis.fetch)
-    // Earnings + valuation endpoints fail; the rest succeed.
+    // Earnings endpoint fails; historical succeeds.
     fetchMock.mockImplementation((input) => {
       const url = String(input)
-      if (url.includes('earnings-calls') || url.includes('valuation/aggregate')) {
+      if (url.includes('earnings-calls')) {
         return Promise.resolve(new Response('upstream down', { status: 502 }))
       }
       return Promise.resolve(jsonResponse({ url }))
@@ -100,24 +101,22 @@ describe('prepareReportExport — deterministic export seeding (BUG-028)', () =>
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const missing = await prepareReportExport(qc, TICKER)
 
-    expect(missing.sort()).toEqual(['earnings', 'valuation'])
+    expect(missing).toEqual(['earnings'])
 
-    // The surviving blocks are still seeded for the export.
+    // The surviving block is still seeded for the export.
     const snapshot = dehydrate(qc)
     const seededKeys = snapshot.queries.map((q) => JSON.stringify(q.queryKey))
     expect(seededKeys).toContain(JSON.stringify(['historical', TICKER]))
-    expect(seededKeys).toContain(JSON.stringify(['ticker-price', TICKER]))
-    expect(seededKeys).toContain(JSON.stringify(['ticker-financials', TICKER]))
   })
 })
 
 describe('missingExportBlocksMessage', () => {
   it('names the missing sections per locale', () => {
-    const zh = missingExportBlocksMessage(['earnings', 'valuation'], 'zh')
+    const zh = missingExportBlocksMessage(['earnings'], 'zh')
     expect(zh).toContain('缺失')
     expect(zh).toContain('财报电话会逐字稿')
-    const en = missingExportBlocksMessage(['price'], 'en')
+    const en = missingExportBlocksMessage(['historical'], 'en')
     expect(en).toContain('Missing')
-    expect(en).toContain('current price')
+    expect(en).toContain('historical financial charts')
   })
 })

@@ -98,7 +98,7 @@ export function ReportChapters({
       <ChapterValuation
         dcf={d.dcf}
         thesis={d.thesis}
-        ticker={d.symbol}
+        valuationSynthesis={d.valuationSynthesis}
         quoteCurrency={d.quoteCurrency}
         reportingCurrency={d.reportingCurrency}
         numericAudit={d.numericAudit}
@@ -106,7 +106,14 @@ export function ReportChapters({
       <ChapterNews thesis={d.thesis} />
       <ChapterSensitivity dcf={d.dcf} quoteCurrency={d.quoteCurrency} />
       <ChapterCatalysts catalysts={d.catalysts} thesis={d.thesis} />
-      <ChapterTechnical ticker={d.symbol} technical={d.technical} quoteCurrency={d.quoteCurrency} />
+      <ChapterTechnical
+        technical={d.technical}
+        quoteCurrency={d.quoteCurrency}
+        snapshotPrice={d.snapshotPrice}
+        snapshotBeta={d.snapshotBeta}
+        snapshot52wHigh={d.snapshot52wHigh}
+        snapshot52wLow={d.snapshot52wLow}
+      />
       <ChapterCompetitive peers={d.peers} thesis={d.thesis} />
       <ChapterFinancialData
         rawData={d.inputs.raw_data ?? null}

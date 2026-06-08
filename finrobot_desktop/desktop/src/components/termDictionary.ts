@@ -215,13 +215,13 @@ const TERMS: Record<string, LocalizedTerm> = {
   beta: {
     zh: {
       short:
-        'Beta(β)——个股相对大盘的系统性风险系数,β>1 波动大于市场;CAPM 用它求股权成本,进而影响 WACC。',
-      ask: '请解释 Beta(β):怎么估计、levered 与 unlevered 的区别,以及它如何进入 CAPM 和 WACC。',
+        'Beta(β)——个股相对大盘的系统性风险系数,β>1 波动大于市场;CAPM 用它求股权成本,进而影响 WACC。估值用的是 Blume 调整后的 β(原始 5 年回归 β 经 2/3·β+1/3·1 向 1.0 收敛,得到更稳的前瞻 β),所以它比技术面那栏的原始 5 年 β 略低——两者是不同口径,不是对不上。',
+      ask: '请解释 Beta(β):怎么估计、levered 与 unlevered 的区别、Blume 调整为何让 WACC 用的 β 与原始 5 年 β 不同,以及它如何进入 CAPM 和 WACC。',
     },
     en: {
       short:
-        'Beta (β) — a stock’s systematic risk versus the market; β>1 means more volatile than the market. CAPM uses it to derive the cost of equity, feeding WACC.',
-      ask: 'Explain Beta: how it is estimated, levered vs unlevered, and how it enters CAPM and WACC.',
+        'Beta (β) — a stock’s systematic risk versus the market; β>1 means more volatile than the market. CAPM uses it to derive the cost of equity, feeding WACC. The valuation uses the Blume-adjusted β (the raw 5Y regression beta shrunk 2/3·β+1/3·1 toward 1.0 for a steadier forward estimate), so it reads a touch lower than the raw 5Y beta in the technicals — different calibers, not a mismatch.',
+      ask: 'Explain Beta: how it is estimated, levered vs unlevered, why the Blume adjustment makes the WACC beta differ from the raw 5Y beta, and how it enters CAPM and WACC.',
     },
   },
   targetPrice: {

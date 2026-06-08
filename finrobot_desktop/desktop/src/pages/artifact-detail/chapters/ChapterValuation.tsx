@@ -1,59 +1,20 @@
-import { useQuery } from '@tanstack/react-query'
 import FootballField from '../../../components/charts/FootballField'
 import WaterfallChart from '../../../components/charts/WaterfallChart'
-import { BASE_URL } from '../../../api/client'
-import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../../../api/fetch'
 import { useI18n } from '../../../i18n'
 import { TermTip } from '../../../components/TermTip'
 import { formatCurrency, formatCurrencyCompact } from '../../../utils/format'
 import { Chapter, KvGrid, Narrative, SubChapter } from './ChapterBase'
 import { FieldCaveat, findingsFor } from './FieldCaveat'
-import type { DcfShape, NumericAuditShape, ThesisShape } from './types'
-
-interface ValuationMethodRange {
-  method: string
-  method_type: string
-  low: number
-  mid: number
-  high: number
-  confidence: number
-  source: string
-  warnings: string[]
-}
-
-interface ValuationAggregate {
-  ticker: string
-  current_price: number | null
-  methods: ValuationMethodRange[]
-  warnings: string[]
-  forward_fiscal_period: string | null
-  forward_confidence: string | null
-  forward_source: string | null
-}
-
-function useValuationAggregate(ticker: string | null | undefined) {
-  return useQuery<ValuationAggregate, Error>({
-    queryKey: ['valuation-aggregate', ticker],
-    queryFn: async () => {
-      const resp = await fetchWithTimeout(
-        `${BASE_URL}/api/valuation/aggregate/${ticker}`,
-        {},
-        HEAVY_API_TIMEOUT_MS,
-      )
-      if (!resp.ok) throw new Error(`${resp.status}`)
-      return (await resp.json()) as ValuationAggregate
-    },
-    enabled: !!ticker,
-    staleTime: 10 * 60_000,
-    refetchOnMount: false,
-    retry: 0,
-  })
-}
+import type { DcfShape, NumericAuditShape, ThesisShape, ValuationSynthesisShape } from './types'
 
 interface ChapterValuationProps {
   dcf: DcfShape | null
   thesis: ThesisShape | null
-  ticker: string
+  // Frozen football-field data: per-method ranges + the SNAPSHOT price the report
+  // is anchored to. The report renders THIS (persisted at generation) instead of
+  // re-fetching /api/valuation/aggregate live, so the football field's current
+  // price can never disagree with the cover/narrative (the price-split bug).
+  valuationSynthesis: ValuationSynthesisShape | null
   // quote → DCF implied price & price target (per-share); reporting → EV &
   // equity value (absolutes). Differ for foreign ADRs (BUG-030).
   quoteCurrency: string
@@ -67,7 +28,7 @@ interface ChapterValuationProps {
 export function ChapterValuation({
   dcf,
   thesis,
-  ticker,
+  valuationSynthesis,
   quoteCurrency,
   reportingCurrency,
   numericAudit = null,
@@ -88,15 +49,17 @@ export function ChapterValuation({
   // carries a hover caveat so the suspect number isn't read at face value.
   const evFindings = findingsFor(numericAudit, ['enterprise_value', 'ev_ebitda', 'ev_revenue'])
 
-  const { data: aggregate } = useValuationAggregate(ticker)
-  const footballRows = (aggregate?.methods ?? []).map((m) => ({
-    method: m.method,
+  // Football rows come from the frozen valuation_synthesis (persisted at
+  // generation against the snapshot price), NOT a live aggregate refetch.
+  // `name` is the method key (dcf / comps_pe / …); FootballField maps it to a
+  // label. The `source` caliber string (e.g. "peer_median_core_pe × core_eps")
+  // lets FootballField label the comps row so the target reconciles with the
+  // comps table.
+  const footballRows = (valuationSynthesis?.methods ?? []).map((m) => ({
+    method: m.name,
     low: m.low,
     mid: m.mid,
     high: m.high,
-    // Caliber/source string from valuation_aggregator (e.g. "peer_median_core_pe
-    // × core_eps（NOPAT 核心盈利口径…）"). FootballField uses it to label the comps
-    // row by its actual caliber so the target reconciles with the comps table.
     source: m.source,
   }))
 
@@ -242,27 +205,12 @@ export function ChapterValuation({
           <FootballField
             data={footballRows}
             title={t('chapter.valuation.football.title')}
-            currentPrice={aggregate?.current_price ?? undefined}
-            forwardFiscalPeriod={aggregate?.forward_fiscal_period}
+            currentPrice={valuationSynthesis?.current_price ?? undefined}
+            // Forward fiscal period is not part of the frozen synthesis (the
+            // method `source` string already carries the forward caliber); the
+            // FY-year suffix is a live-aggregate embellishment we no longer add.
+            forwardFiscalPeriod={null}
           />
-          {aggregate?.forward_source && (
-            <p
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 11,
-                color: 'var(--text-muted)',
-                marginTop: 8,
-                lineHeight: 1.5,
-              }}
-            >
-              {t('chapter.valuation.forwardEstimates')}: {aggregate.forward_source}
-              {aggregate.forward_confidence && (
-                <span style={{ marginLeft: 8, color: 'var(--text-dim)' }}>
-                  · {aggregate.forward_confidence}
-                </span>
-              )}
-            </p>
-          )}
         </SubChapter>
       )}
 

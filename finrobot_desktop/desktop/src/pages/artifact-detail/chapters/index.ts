@@ -18,6 +18,8 @@ export type {
   ArtifactStructured,
   ThesisShape,
   DcfShape,
+  ValuationMethodShape,
+  ValuationSynthesisShape,
   CatalystAnalysisShape,
   CatalystEventShape,
   PeerCompsShape,

@@ -44,6 +44,7 @@ from finrobot.engine.data.normalize.contracts import (
     DEGRADED_TTM_LAG,
     Provenance,
 )
+from finrobot.engine.data.normalize.session import compute_session_state
 from finrobot.engine.models.financial import (
     FIELD_WARN_EV_MISSING_NET_DEBT,
     FIELD_WARN_SHARES_DERIVED,
@@ -357,6 +358,14 @@ async def _apply_market_fields(
         row.price = price_norm.current_price
         _, row.change_pct_1d = price_norm.latest_session_change()
         row.price_as_of = prov.as_of
+        # Live vs session-close, classified at read time against the exchange
+        # clock (time-varying → never cached). The card uses this to avoid
+        # pulsing "refreshing" over a closed-market close that won't move.
+        row.session_state = compute_session_state(
+            prov.as_of.isoformat(),
+            ticker=ticker,
+            exchange=price_norm.exchange,
+        )
         row.currency = price_norm.quote_currency
         _extend_unique(row.warnings, price_norm.warnings)
         # close_only caveats the price itself (we're showing last close, not a

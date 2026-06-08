@@ -96,6 +96,10 @@ async def fetch_price_history(data_layer: DataLayer, ticker: str) -> dict[str, A
         "current_price": price.current_price,
         "change": change,
         "change_pct": change_pct,
+        # Observation time from the canonical provenance (quote timestamp →
+        # session close chain), so the /price freshness pill matches the Coverage
+        # card and reads a real age. The route's _stamp_as_of leaves this as-is.
+        "as_of": price.provenance.as_of.isoformat(),
         # market_cap / company_name are enriched by the route from the
         # financials cache; the PRICE canonical doesn't carry them.
         "market_cap": None,

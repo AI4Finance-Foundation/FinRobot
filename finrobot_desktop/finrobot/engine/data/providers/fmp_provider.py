@@ -666,6 +666,11 @@ class FMPProvider(DataProvider):
                 "current_price": float(current_price),
                 "price_history": price_history,
                 "exchange": exchange,
+                # Authoritative observation instant of the quote (unix epoch
+                # seconds). normalize_price stamps Provenance.as_of from this so a
+                # closed-market last-close reads as the real 16:00 ET close, not
+                # the bar date's midnight (~20h stale-overstatement otherwise).
+                "quote_timestamp": quote.get("timestamp"),
             },
             provider=self.name,
             ticker=ticker,

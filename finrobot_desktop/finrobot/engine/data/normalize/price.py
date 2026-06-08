@@ -2,8 +2,10 @@
 
 Trims to the trailing 52 calendar weeks, builds typed bars, detects whether the
 feed carries intraday OHLC (close-only feeds get a ``close_only`` degraded
-marker), and stamps provenance whose ``as_of`` is the latest bar's date — the
-data's semantic time, so the freshness pill can't claim "实时" over a stale close.
+marker), and stamps provenance whose ``as_of`` is the quote's authoritative
+observation instant (provider ``quote_timestamp``) — falling back to the latest
+bar's SESSION CLOSE, never its midnight — so the freshness pill reports a real
+age instead of overstating it by the hours from midnight to the close (~20h).
 """
 
 from __future__ import annotations
@@ -15,10 +17,12 @@ from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.contracts import (
     DEGRADED_CLOSE_ONLY,
     DEGRADED_PRICE_FALLBACK_CLOSE,
+    DEGRADED_QUOTE_TS_MISSING,
     NormalizedPrice,
     PriceBar,
     Provenance,
 )
+from finrobot.engine.data.normalize.session import derive_price_as_of
 from finrobot.engine.data.normalize.window import bar_date, trim_to_trailing_window
 
 
@@ -32,6 +36,10 @@ def _f(v: Any) -> float | None:
 
 
 def _date_to_dt(d: date) -> datetime:
+    """A bare date → UTC midnight. The honest ``as_of`` for an accounting
+    period_end (a calendar boundary, not a clock instant) — reused by
+    ``normalize_financials``. Price ``as_of`` does NOT use this: a quote belongs
+    to its trade instant / session close, not midnight (see ``derive_price_as_of``)."""
     return datetime.combine(d, time.min, tzinfo=timezone.utc)
 
 
@@ -77,7 +85,18 @@ def normalize_price(result: DataResult) -> NormalizedPrice:
         # UI freshness pill won't present a stale close as a live "实时" quote.
         degraded.append(DEGRADED_PRICE_FALLBACK_CLOSE)
 
-    as_of = _date_to_dt(bars[-1].date) if bars else result.timestamp
+    as_of, as_of_approximate = derive_price_as_of(
+        data.get("quote_timestamp"),
+        bars[-1].date if bars else None,
+        ticker=result.ticker,
+        exchange=data.get("exchange"),
+        fetched_at=result.timestamp,
+    )
+    if as_of_approximate and bars:
+        # Provider gave no quote timestamp; as_of was inferred from the bar's
+        # session close. The number is real — only its observation time is
+        # accurate to the session, not the minute.
+        degraded.append(DEGRADED_QUOTE_TS_MISSING)
     provenance = Provenance(
         provider=result.provider,
         as_of=as_of,

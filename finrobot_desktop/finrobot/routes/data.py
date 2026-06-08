@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, time
+from datetime import date, datetime
 from typing import Any, cast
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, HTTPException
 from pydantic import ValidationError
@@ -24,6 +23,7 @@ from finrobot.engine.compute.coordinators.news import fetch_news
 from finrobot.engine.data.cache import cached_fetch
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
+from finrobot.engine.data.normalize.session import compute_session_state, derive_price_as_of
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.earnings_call import EarningsCallList, EarningsCallTranscript
 from finrobot.engine.models.financial import (
@@ -350,6 +350,7 @@ async def _provider_price_cache_payload(
         "market_cap": raw.get("market_cap"),
         "company_name": raw.get("company_name"),
         "exchange": raw.get("exchange"),
+        "quote_timestamp": raw.get("quote_timestamp"),
         "next_earnings_date": raw.get("next_earnings_date"),
         "history": history,
         "fetched_at": cached.data.timestamp.isoformat(),
@@ -374,7 +375,7 @@ async def _enrich_price_payload_from_financial_cache(
     here, so this is the one place to set them.
     """
     _stamp_as_of(payload)
-    payload["session_state"] = _compute_session_state(
+    payload["session_state"] = compute_session_state(
         payload.get("as_of"),
         ticker=payload.get("ticker") or ticker,
         exchange=payload.get("exchange"),
@@ -408,127 +409,35 @@ async def _enrich_price_payload_from_financial_cache(
 
 
 def _stamp_as_of(payload: dict[str, Any]) -> None:
-    """Set ``payload['as_of']`` to the latest price bar's date when absent.
+    """Set ``payload['as_of']`` to the price's observation time when absent.
 
-    This is the semantic time of the data (the session the price represents),
-    which the freshness pill reads — distinct from ``fetched_at`` (fetch time).
+    Mirrors ``normalize_price`` via the shared ``derive_price_as_of`` chain
+    (quote timestamp → session close → bar date), so the ``/price`` route and the
+    Coverage card never disagree on a price's age. Distinct from ``fetched_at``
+    (the fetch wall-clock). When the provider gave a quote timestamp this stamps
+    the real trade instant; otherwise it falls back to the bar's session close —
+    never the bar date's midnight (which overstated age by ~20h).
     """
     if payload.get("as_of"):
         return
     hist = payload.get("history") or payload.get("price_history")
+    last_bar_date: date | None = None
     if isinstance(hist, list) and hist and isinstance(hist[-1], dict):
-        last_date = hist[-1].get("date")
-        if last_date:
-            payload["as_of"] = last_date
-
-
-class _MarketSession:
-    """Regular-session window for one exchange, in that exchange's timezone."""
-
-    __slots__ = ("tz", "open", "close")
-
-    def __init__(self, tz: str, open_: time, close: time) -> None:
-        self.tz = ZoneInfo(tz)
-        self.open = open_
-        self.close = close
-
-
-# Map yfinance ticker suffix → exchange regular session. US (no suffix) is the
-# fallback for US-listed names. Each window is in the exchange's local timezone;
-# lunch breaks (HK/CN/JP) are folded into a continuous span here — half-days and
-# lunch-break minutes can over-report "live", an acceptable minimal-fix tradeoff
-# (see BUG-081 note). Markets we can't map fall through to "unknown" rather than
-# falsely claiming "closed" on a real intraday quote.
-_US_SESSION = _MarketSession("America/New_York", time(9, 30), time(16, 0))
-_SESSION_BY_SUFFIX: dict[str, _MarketSession] = {
-    "HK": _MarketSession("Asia/Hong_Kong", time(9, 30), time(16, 0)),
-    "SS": _MarketSession("Asia/Shanghai", time(9, 30), time(15, 0)),
-    "SZ": _MarketSession("Asia/Shanghai", time(9, 30), time(15, 0)),
-    "T": _MarketSession("Asia/Tokyo", time(9, 0), time(15, 0)),
-    "L": _MarketSession("Europe/London", time(8, 0), time(16, 30)),
-    "PA": _MarketSession("Europe/Paris", time(9, 0), time(17, 30)),
-    "DE": _MarketSession("Europe/Berlin", time(9, 0), time(17, 30)),
-    "TO": _MarketSession("America/Toronto", time(9, 30), time(16, 0)),
-    "AX": _MarketSession("Australia/Sydney", time(10, 0), time(16, 0)),
-    "KS": _MarketSession("Asia/Seoul", time(9, 0), time(15, 30)),
-    "KQ": _MarketSession("Asia/Seoul", time(9, 0), time(15, 30)),
-    "TW": _MarketSession("Asia/Taipei", time(9, 0), time(13, 30)),
-    "NS": _MarketSession("Asia/Kolkata", time(9, 15), time(15, 30)),
-    "BO": _MarketSession("Asia/Kolkata", time(9, 15), time(15, 30)),
-    "SI": _MarketSession("Asia/Singapore", time(9, 0), time(17, 0)),
-}
-
-# US exchange codes (yfinance/FMP) — used when a ticker carries no suffix but
-# the provider reports an exchange, to confirm a US session vs. fall to unknown.
-_US_EXCHANGE_CODES = frozenset(
-    {"NMS", "NYQ", "NGM", "NCM", "NASDAQ", "NYSE", "AMEX", "PCX", "BATS", "ASE"}
-)
-
-
-def _resolve_market_session(ticker: str | None, exchange: str | None) -> _MarketSession | None:
-    """Pick the exchange session for ``ticker``, or ``None`` when undeterminable.
-
-    Resolution order: yfinance ticker suffix (``.HK`` / ``.SS`` / …) → US for a
-    suffix-less ticker carrying a known US exchange code → US for a suffix-less
-    ticker with no exchange hint (the common US case). Returns ``None`` for a
-    suffix we don't map, so the caller can honestly say "unknown" instead of
-    asserting a US session for a foreign listing.
-    """
-    if ticker:
-        _, dot, suffix = ticker.rpartition(".")
-        if dot:
-            return _SESSION_BY_SUFFIX.get(suffix.upper())  # unmapped suffix → None
-    # No dotted suffix: a local listing or a US name.
-    if exchange and exchange.upper() not in _US_EXCHANGE_CODES:
-        # Provider names a non-US exchange we don't recognize — don't fake US.
-        return None
-    return _US_SESSION
-
-
-def _compute_session_state(
-    as_of: str | None,
-    *,
-    ticker: str | None = None,
-    exchange: str | None = None,
-    now: datetime | None = None,
-) -> str:
-    """Classify ``current_price`` as a live intraday quote or a session close.
-
-    Returns ``"live"`` only when the resolving exchange's regular session is in
-    progress AND today's bar is present; ``"closed"`` when the session is over
-    or no today-bar exists; and ``"unknown"`` when the market can't be resolved
-    (an unmapped foreign suffix / unrecognized non-US exchange) — never falsely
-    "closed" on a real foreign intraday quote (BUG-081).
-
-    Computed in the *resolving* exchange's timezone (not always ET): a HK/A-share/
-    JP intraday quote sits in ET overnight, so the prior US-only logic stamped it
-    "closed" and the freshness pill showed a live quote as a prior-day close.
-    Resolving per-ticker fixes that; the US path (suffix-less ticker) is unchanged.
-
-    The client can't derive session state from ``as_of`` alone — its notion of
-    "today" is the viewer's local date, which drifts from the exchange date.
-
-    Holidays need no calendar: on a market holiday there is no bar for today, so
-    ``as_of < today`` → ``"closed"``. Not modeled: half-day early closes and
-    lunch-break minutes read ``"live"`` (continuous-span sessions). Pre/post-market
-    quotes report ``"closed"`` (only the regular session counts as live).
-    """
-    if not as_of:
-        return "closed"
-    try:
-        as_of_date = date.fromisoformat(as_of[:10])
-    except ValueError:
-        return "closed"
-    session = _resolve_market_session(ticker, exchange)
-    if session is None:
-        return "unknown"
-    now_local = now.astimezone(session.tz) if now else datetime.now(tz=session.tz)
-    in_regular_session = (
-        now_local.weekday() < 5 and session.open <= now_local.time() < session.close
+        raw = hist[-1].get("date")
+        if isinstance(raw, str) and raw:
+            try:
+                last_bar_date = date.fromisoformat(raw[:10])
+            except ValueError:
+                last_bar_date = None
+    if payload.get("quote_timestamp") is None and last_bar_date is None:
+        return
+    as_of, _ = derive_price_as_of(
+        payload.get("quote_timestamp"),
+        last_bar_date,
+        ticker=payload.get("ticker"),
+        exchange=payload.get("exchange"),
     )
-    if in_regular_session and as_of_date >= now_local.date():
-        return "live"
-    return "closed"
+    payload["as_of"] = as_of.isoformat()
 
 
 def _price_change_from_history(history: list[Any]) -> tuple[float | None, float | None]:

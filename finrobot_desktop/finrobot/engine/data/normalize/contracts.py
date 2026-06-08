@@ -45,6 +45,11 @@ DEGRADED_CCY_INFERRED = "ccy_inferred"  # reporting currency inferred, not provi
 # provider gave no real-time current_price; using the latest bar's close as a
 # stand-in. Lets the UI avoid claiming a stale close is a live "实时" quote.
 DEGRADED_PRICE_FALLBACK_CLOSE = "price_fallback_close"
+# provider gave no quote timestamp, so ``as_of`` was inferred from the last bar's
+# session close instead of the authoritative trade instant — age is accurate to
+# the session, not the minute. Distinct from a missing PRICE: the number is real,
+# only its observation time is approximate.
+DEGRADED_QUOTE_TS_MISSING = "quote_ts_missing"
 # Two live quote sources disagreed beyond tolerance on the current price. The
 # primary value still flows as a flagged number; downstream publish gates can
 # inspect the field-suffixed marker instead of parsing warning prose.

@@ -488,6 +488,10 @@ class YFinanceProvider(DataProvider):
                 "current_price": current_price,
                 "price_history": price_history,
                 "exchange": exchange,
+                # Authoritative observation instant (unix epoch seconds). Same key
+                # as the FMP path (Mode A/B symmetry) so normalize_price stamps
+                # Provenance.as_of from one provider-agnostic chain.
+                "quote_timestamp": info.get("regularMarketTime"),
             },
             provider=self.name,
             ticker=ticker,

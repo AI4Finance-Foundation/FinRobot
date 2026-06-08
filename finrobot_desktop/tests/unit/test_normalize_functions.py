@@ -13,6 +13,7 @@ from finrobot.engine.data.normalize.contracts import (
     DEGRADED_CLOSE_ONLY,
     DEGRADED_PERIOD_BASIS_UNKNOWN,
     DEGRADED_PRICE_FALLBACK_CLOSE,
+    DEGRADED_QUOTE_TS_MISSING,
     DEGRADED_TTM_LAG,
 )
 from finrobot.engine.data.normalize.financials import normalize_financials
@@ -21,11 +22,11 @@ from finrobot.engine.data.normalize.price import normalize_price
 FETCH = datetime(2026, 5, 28, 3, 21, tzinfo=timezone.utc)
 
 
-def _price_result(history, provider="fmp", **data) -> DataResult:
+def _price_result(history, provider="fmp", timestamp=FETCH, **data) -> DataResult:
     base = {"price_history": history}
     base.update(data)
     return DataResult(
-        data=base, provider=provider, ticker="TSLA", data_type="price", timestamp=FETCH
+        data=base, provider=provider, ticker="TSLA", data_type="price", timestamp=timestamp
     )
 
 
@@ -40,15 +41,75 @@ def test_price_ohlc_complete_keeps_intraday():
         {"date": "2025-06-01", "close": 300.0, "high": 305.0, "low": 295.0},
         {"date": "2026-05-27", "close": 440.0, "high": 450.0, "low": 430.0},
     ]
-    p = normalize_price(_price_result(hist, provider="yfinance", current_price=440.36))
+    # Both providers emit a quote timestamp; as_of binds to that real observation
+    # instant (here the 16:00 ET close = 20:00 UTC), not the bar-date midnight.
+    quote_ts = int(datetime(2026, 5, 27, 20, 0, tzinfo=timezone.utc).timestamp())
+    p = normalize_price(
+        _price_result(hist, provider="yfinance", current_price=440.36, quote_timestamp=quote_ts)
+    )
     assert p.is_ohlc_complete is True
     assert p.provenance.degraded == []
     assert p.fifty_two_week_high() == 450.0
     assert p.fifty_two_week_low() == 295.0
     assert p.current_price == 440.36
-    # as_of is the latest bar date, NOT the fetch wall-clock — drives the pill
-    assert p.provenance.as_of.date().isoformat() == "2026-05-27"
+    # as_of is the quote's observation instant, NOT the fetch wall-clock — drives
+    # the freshness pill.
+    assert p.provenance.as_of == datetime(2026, 5, 27, 20, 0, tzinfo=timezone.utc)
     assert p.provenance.fetched_at == FETCH
+
+
+def test_price_as_of_uses_quote_timestamp_not_bar_midnight():
+    """External baseline (this session's FMP probe): a Friday close carries a quote
+    timestamp of 2026-06-05T20:00:00Z (16:00 ET). The freshness age must read 60h
+    at Monday 08:00Z — NOT 80h, which the old bar-date-midnight stamping produced."""
+    hist = [
+        {"date": "2026-06-04", "close": 415.0, "high": 420.0, "low": 410.0},
+        {"date": "2026-06-05", "close": 391.0, "high": 400.0, "low": 388.0},
+    ]
+    quote_ts = 1780689600  # 2026-06-05T20:00:00Z, the real close instant
+    p = normalize_price(
+        _price_result(hist, provider="fmp", current_price=391.0, quote_timestamp=quote_ts)
+    )
+    assert p.provenance.as_of == datetime(2026, 6, 5, 20, 0, tzinfo=timezone.utc)
+    assert DEGRADED_QUOTE_TS_MISSING not in p.provenance.degraded
+    now = datetime(2026, 6, 8, 8, 0, tzinfo=timezone.utc)  # Monday pre-market
+    age_h = (now - p.provenance.as_of).total_seconds() / 3600
+    assert age_h == 60.0  # not 80.0 (the midnight-stamping bug)
+
+
+def test_price_as_of_falls_back_to_session_close_not_midnight():
+    """No quote timestamp → as_of is the bar's SESSION CLOSE (16:00 ET = 20:00Z),
+    not its midnight, and the approximation is flagged."""
+    hist = [
+        {"date": "2026-06-04", "close": 415.0, "high": 420.0, "low": 410.0},
+        {"date": "2026-06-05", "close": 391.0, "high": 400.0, "low": 388.0},
+    ]
+    monday = datetime(2026, 6, 8, 8, 0, tzinfo=timezone.utc)  # fetch after the bar
+    p = normalize_price(
+        _price_result(hist, provider="fmp", timestamp=monday, current_price=391.0)  # no ts
+    )
+    assert p.provenance.as_of == datetime(2026, 6, 5, 20, 0, tzinfo=timezone.utc)
+    assert DEGRADED_QUOTE_TS_MISSING in p.provenance.degraded
+
+
+def test_price_as_of_mode_ab_symmetry():
+    """Same quote timestamp via either provider → identical as_of (Mode A/B)."""
+    hist = [
+        {"date": "2026-06-04", "close": 415.0, "high": 420.0, "low": 410.0},
+        {"date": "2026-06-05", "close": 391.0, "high": 400.0, "low": 388.0},
+    ]
+    quote_ts = 1780689600
+    fmp = normalize_price(
+        _price_result(hist, provider="fmp", current_price=391.0, quote_timestamp=quote_ts)
+    )
+    yf = normalize_price(
+        _price_result(hist, provider="yfinance", current_price=391.0, quote_timestamp=quote_ts)
+    )
+    assert (
+        fmp.provenance.as_of
+        == yf.provenance.as_of
+        == datetime(2026, 6, 5, 20, 0, tzinfo=timezone.utc)
+    )
 
 
 def test_price_close_only_is_degraded():

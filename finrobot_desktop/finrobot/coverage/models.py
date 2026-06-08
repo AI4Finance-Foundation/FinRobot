@@ -23,6 +23,7 @@ report's figure.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -145,6 +146,12 @@ class CoverageRow(BaseModel):
     price: float | None = None
     change_pct_1d: float | None = None
     price_as_of: datetime | None = None
+    session_state: Literal["live", "closed", "unknown"] | None = None
+    """Whether ``price`` is a live intraday quote, a session close (weekend /
+    after-hours / holiday), or undeterminable — recomputed server-side at read
+    time against the exchange clock (NOT cached: session phase is time-varying).
+    Drives the card's freshness affordance: a closed-market close renders
+    statically, never with a "refreshing"/live pulse over a number that won't move."""
     market_cap: float | None = None
 
     # Fundamentals / valuation — from FinancialData (TTM caliber)

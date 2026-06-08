@@ -19,7 +19,7 @@ from unittest.mock import patch, AsyncMock
 from finrobot.engine.data.cache import raw_slot_key
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.types import DataType
-from finrobot.routes.data import _compute_session_state
+from finrobot.engine.data.normalize.session import compute_session_state
 
 
 @pytest.mark.asyncio
@@ -357,7 +357,7 @@ async def test_price_endpoint_returns_fetched_at(app_with_deps):
 # ── Session-state classification ───────────────────────────────────────────
 #
 # Regression for the cross-timezone freshness bug: the pill must NOT derive
-# session state from the viewer's local date. _compute_session_state decides
+# session state from the viewer's local date. compute_session_state decides
 # live-vs-closed in America/New_York so a viewer east of ET (e.g. China, UTC+8)
 # can't see a live US quote mislabeled "收盘" once the session runs past their
 # local midnight (ET 12:00–16:00 = CN 00:00–04:00).
@@ -368,54 +368,54 @@ _ET = ZoneInfo("America/New_York")
 def test_session_live_during_regular_hours_with_today_bar():
     # Wed 2026-05-27 13:00 ET — regular session, today's bar present.
     now = datetime(2026, 5, 27, 13, 0, tzinfo=_ET)
-    assert _compute_session_state("2026-05-27", now=now) == "live"
+    assert compute_session_state("2026-05-27", now=now) == "live"
 
 
 def test_session_live_at_china_midnight_window_is_not_mislabeled_closed():
     # The exact bug: ET 13:00 Wed == CN 01:00 Thu. Viewer-local date is already
     # "tomorrow" but the US session is live → backend must say live.
     now = datetime(2026, 5, 27, 13, 0, tzinfo=_ET)
-    assert _compute_session_state("2026-05-27", now=now) == "live"
+    assert compute_session_state("2026-05-27", now=now) == "live"
 
 
 def test_session_closed_before_open():
     now = datetime(2026, 5, 27, 9, 0, tzinfo=_ET)
-    assert _compute_session_state("2026-05-26", now=now) == "closed"
+    assert compute_session_state("2026-05-26", now=now) == "closed"
 
 
 def test_session_closed_after_close():
     now = datetime(2026, 5, 27, 16, 30, tzinfo=_ET)
-    assert _compute_session_state("2026-05-27", now=now) == "closed"
+    assert compute_session_state("2026-05-27", now=now) == "closed"
 
 
 def test_session_closed_on_weekend():
     # Sat 2026-05-30 13:00 ET — within clock window but not a trading day.
     now = datetime(2026, 5, 30, 13, 0, tzinfo=_ET)
-    assert _compute_session_state("2026-05-29", now=now) == "closed"
+    assert compute_session_state("2026-05-29", now=now) == "closed"
 
 
 def test_session_closed_on_holiday_via_missing_today_bar():
     # Clock is inside regular hours, but no bar for today (holiday) → as_of is a
     # prior day → closed. No holiday calendar needed.
     now = datetime(2026, 5, 27, 13, 0, tzinfo=_ET)
-    assert _compute_session_state("2026-05-25", now=now) == "closed"
+    assert compute_session_state("2026-05-25", now=now) == "closed"
 
 
 def test_session_closed_at_exact_close_boundary():
     now = datetime(2026, 5, 27, 16, 0, tzinfo=_ET)
-    assert _compute_session_state("2026-05-27", now=now) == "closed"
+    assert compute_session_state("2026-05-27", now=now) == "closed"
 
 
 def test_session_closed_when_as_of_missing_or_garbage():
     now = datetime(2026, 5, 27, 13, 0, tzinfo=_ET)
-    assert _compute_session_state(None, now=now) == "closed"
-    assert _compute_session_state("not-a-date", now=now) == "closed"
+    assert compute_session_state(None, now=now) == "closed"
+    assert compute_session_state("not-a-date", now=now) == "closed"
 
 
 def test_session_state_accepts_timestamp_as_of():
     # Defensive: if as_of ever carries a time component, only the date counts.
     now = datetime(2026, 5, 27, 13, 0, tzinfo=_ET)
-    assert _compute_session_state("2026-05-27T00:00:00Z", now=now) == "live"
+    assert compute_session_state("2026-05-27T00:00:00Z", now=now) == "live"
 
 
 # ── BUG-081: market/exchange-aware session state ───────────────────────────
@@ -433,50 +433,48 @@ _JST = ZoneInfo("Asia/Tokyo")
 def test_session_us_path_unchanged_for_suffixless_ticker():
     # Regression guard: AAPL (no suffix) still resolves to the US session.
     now = datetime(2026, 5, 27, 13, 0, tzinfo=_ET)
-    assert _compute_session_state("2026-05-27", ticker="AAPL", now=now) == "live"
+    assert compute_session_state("2026-05-27", ticker="AAPL", now=now) == "live"
 
 
 def test_session_hk_intraday_is_live_not_closed():
     # 0700.HK at 10:00 HKT Wed == 22:00 ET Tue — the exact bug window. Must be
     # "live" in HK local time, not "closed" from a US-ET lens.
     now = datetime(2026, 5, 27, 10, 0, tzinfo=_HKT)
-    assert _compute_session_state("2026-05-27", ticker="0700.HK", now=now) == "live"
+    assert compute_session_state("2026-05-27", ticker="0700.HK", now=now) == "live"
     # Same instant, computed against the US default, would (wrongly) be "closed".
-    assert _compute_session_state("2026-05-27", ticker="AAPL", now=now) == "closed"
+    assert compute_session_state("2026-05-27", ticker="AAPL", now=now) == "closed"
 
 
 def test_session_ashare_intraday_is_live():
     # 600519.SS at 14:00 CST — within the 09:30–15:00 Shanghai session.
     now = datetime(2026, 5, 27, 14, 0, tzinfo=_CST)
-    assert _compute_session_state("2026-05-27", ticker="600519.SS", now=now) == "live"
+    assert compute_session_state("2026-05-27", ticker="600519.SS", now=now) == "live"
     # After the 15:00 Shanghai close → closed.
     after = datetime(2026, 5, 27, 15, 30, tzinfo=_CST)
-    assert _compute_session_state("2026-05-27", ticker="600519.SZ", now=after) == "closed"
+    assert compute_session_state("2026-05-27", ticker="600519.SZ", now=after) == "closed"
 
 
 def test_session_japan_intraday_is_live():
     # 7203.T at 11:00 JST — within the 09:00–15:00 Tokyo session.
     now = datetime(2026, 5, 27, 11, 0, tzinfo=_JST)
-    assert _compute_session_state("2026-05-27", ticker="7203.T", now=now) == "live"
+    assert compute_session_state("2026-05-27", ticker="7203.T", now=now) == "live"
 
 
 def test_session_unknown_for_unmapped_suffix():
     # An exchange suffix we don't map must NOT be faked as US "closed" — return
     # "unknown" so the UI can't lie about a foreign quote.
     now = datetime(2026, 5, 27, 13, 0, tzinfo=_ET)
-    assert _compute_session_state("2026-05-27", ticker="ABC.XYZ", now=now) == "unknown"
+    assert compute_session_state("2026-05-27", ticker="ABC.XYZ", now=now) == "unknown"
 
 
 def test_session_unknown_for_unrecognized_nonus_exchange_without_suffix():
     # Suffix-less ticker but provider reports a non-US exchange code → unknown,
     # not a fabricated US session.
     now = datetime(2026, 5, 27, 13, 0, tzinfo=_ET)
-    assert (
-        _compute_session_state("2026-05-27", ticker="FOO", exchange="XETRA", now=now) == "unknown"
-    )
+    assert compute_session_state("2026-05-27", ticker="FOO", exchange="XETRA", now=now) == "unknown"
 
 
 def test_session_us_exchange_code_resolves_to_us():
     # Suffix-less ticker carrying a known US exchange code → US session.
     now = datetime(2026, 5, 27, 13, 0, tzinfo=_ET)
-    assert _compute_session_state("2026-05-27", ticker="MSFT", exchange="NMS", now=now) == "live"
+    assert compute_session_state("2026-05-27", ticker="MSFT", exchange="NMS", now=now) == "live"

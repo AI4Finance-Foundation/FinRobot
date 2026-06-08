@@ -63,6 +63,22 @@ _RELIABILITY_RATIO_K = 2.0
 # single tunable knob; drop to 3 for a stricter gate.)
 MARKET_DIVERGENCE_RATIO_K = 4.0
 
+# Single-method market-divergence circuit breaker — TIGHTER than the multi-method
+# band above. A lone surviving method (DCF dropped out, only comps left) has NO
+# internal cross-check: the market price is its ONLY second opinion. So it is held
+# to the same 2x corroboration limit two methods must clear against each other
+# (_RELIABILITY_RATIO_K) — a single method that disagrees with the market by > 2x
+# does not corroborate, full stop, and its mid must not become a headline target.
+#
+# Why not reuse the 4x multi-method band: 4x is the budget for a *corroborated*
+# point estimate (≥2 methods agree with each other, all sit far from market =
+# market option value the models can't see). One uncorroborated method that lands
+# 2-4x off the market is far more likely the model being wrong than the market
+# being wrong — e.g. the MU 2026-06-07 artifact, where a lone comps_pe applied a
+# peer GROWTH forward P/E (36.9x) to a memory cyclical's PEAK forward EPS ($58.9)
+# and printed $2172 = 2.5x the $864 market, shipped as a confident +151% BUY.
+SINGLE_METHOD_DIVERGENCE_RATIO_K = 2.0
+
 
 def synthesize_valuations(
     methods: list[ValuationMethod], current_price: float
@@ -314,17 +330,22 @@ def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
         # must NOT be left free to invent a headline number here: the 2026-06-05
         # TSLA live artifact fell through this branch when comps died (all-EV
         # peer set, P/E n=0 of 6) and the LLM stamped "SELL $20.38" on a 0.05x
-        # model/market ratio — bypassing every data-health gate. Apply the SAME
-        # calibration band the multi-method market-divergence gate uses to the
-        # lone method's mid:
+        # model/market ratio — bypassing every data-health gate. Gate the lone
+        # method's mid against the market — its ONLY available cross-check — using
+        # the TIGHTER single-method band (2x corroboration limit, not the 4x
+        # multi-method band; see SINGLE_METHOD_DIVERGENCE_RATIO_K):
         #   · in-band  → publish it as the canonical target with an explicit
         #     single-method / no-cross-check caveat (banks legitimately run
         #     comps-only; forcing REVIEW would end coverage of every financial)
         #   · out-of-band → trip the data-health gate: REVIEW, target withheld,
-        #     narrative explains via the market-implied check.
+        #     narrative explains via the market-implied check. This is the gate
+        #     the MU 2026-06-07 comps_pe ($2172 = 2.5x market) must trip.
         only = vs.methods[0]
         ratio = only.mid / vs.current_price
-        if ratio > MARKET_DIVERGENCE_RATIO_K or ratio < 1.0 / MARKET_DIVERGENCE_RATIO_K:
+        if (
+            ratio > SINGLE_METHOD_DIVERGENCE_RATIO_K
+            or ratio < 1.0 / SINGLE_METHOD_DIVERGENCE_RATIO_K
+        ):
             gate_failed = True
             canonical_verdict = "REVIEW"
             canonical_target = None
@@ -332,10 +353,10 @@ def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
                 f"DATA-HEALTH GATE: target withheld. Only one valuation method "
                 f"({only.name}) resolved — no cross-check — and its mid "
                 f"${only.mid:.2f} is {ratio:.2g}x the ${vs.current_price:.2f} market "
-                f"price, outside the [{1.0 / MARKET_DIVERGENCE_RATIO_K:.2g}x, "
-                f"{MARKET_DIVERGENCE_RATIO_K:.2g}x] calibration band. A single "
-                f"uncorroborated method this far from the market must not set a "
-                f"headline target/verdict."
+                f"price, outside the [{1.0 / SINGLE_METHOD_DIVERGENCE_RATIO_K:.2g}x, "
+                f"{SINGLE_METHOD_DIVERGENCE_RATIO_K:.2g}x] single-method corroboration "
+                f"band (the market is its only cross-check). A single uncorroborated "
+                f"method this far from the market must not set a headline target/verdict."
             )
             logger.warning(
                 "Equity-research single-method gate TRIPPED for %s — %s mid $%.2f "

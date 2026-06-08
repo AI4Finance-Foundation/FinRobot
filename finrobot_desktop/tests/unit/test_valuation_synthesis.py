@@ -388,3 +388,51 @@ class TestResolveCanonicalThesis:
         assert canonical.verdict == "REVIEW"
         assert canonical.target is None
         assert canonical.basis is not None and "Only one valuation method" in canonical.basis
+
+    def test_single_method_2_5x_market_withholds_target_mu(self):
+        """The 2026-06-07 MU bug: DCF died (non-positive terminal-year FCF on a
+        memory cyclical at peak), leaving a lone comps_pe at $2172 — 2.5x the
+        $864 market — which shipped as a confident +151% BUY. A single
+        uncorroborated method's only cross-check is the market; a 2.5x divergence
+        is past the 2x corroboration limit (the same bar a 2-method disagreement
+        must clear), so the gate now withholds the headline → REVIEW. This is the
+        single-method analogue of the MSFT 2.57x method-vs-method gate."""
+        vs = synthesize_valuations(
+            [
+                ValuationMethod(
+                    name="comps_pe",
+                    low=1954.85,
+                    mid=2172.06,
+                    high=2389.26,
+                    confidence=0.8,
+                    source="PE",
+                )
+            ],
+            current_price=864.01,
+        )
+        canonical = resolve_canonical_thesis(vs, "MU")
+        assert canonical.gate_failed is True
+        assert canonical.verdict == "REVIEW"
+        assert canonical.target is None
+        assert canonical.basis is not None and "Only one valuation method" in canonical.basis
+        # The withheld basis must cite the ratio against the market, not invent a target.
+        assert "2.5x" in canonical.basis and "$864.01" in canonical.basis
+
+    def test_single_method_just_under_2x_still_publishes(self):
+        """Boundary lock for the single-method band: a lone method at 1.8x the
+        market (under the 2x corroboration limit) is a real call, not an
+        uncorroboratable outlier — it still publishes its mid. Banks legitimately
+        run comps-only; sub-2x divergence must not be gated."""
+        vs = synthesize_valuations(
+            [
+                ValuationMethod(
+                    name="comps_pe", low=160, mid=180, high=200, confidence=1.0, source="PE"
+                )
+            ],
+            current_price=100.0,
+        )
+        canonical = resolve_canonical_thesis(vs, "XYZ")
+        assert canonical.gate_failed is False
+        assert canonical.target == pytest.approx(180.0, abs=0.01)
+        assert canonical.verdict == "BUY"
+        assert canonical.basis is not None and "Single valuation method" in canonical.basis

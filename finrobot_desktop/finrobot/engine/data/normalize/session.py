@@ -18,7 +18,7 @@ Two responsibilities, kept orthogonal on purpose:
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Literal
 from zoneinfo import ZoneInfo
 
@@ -225,3 +225,73 @@ def compute_session_state(
     if in_regular_session and as_of_date >= now_local.date():
         return "live"
     return "closed"
+
+
+def _coerce_as_of_dt(value: str | datetime) -> datetime | None:
+    """Coerce a provenance ``as_of`` (ISO string or datetime) to a UTC datetime."""
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, str):
+        s = value.strip()
+        if not s:
+            return None
+        try:
+            dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    return None
+
+
+def has_newer_session_since(
+    as_of: str | datetime,
+    *,
+    ticker: str | None = None,
+    exchange: str | None = None,
+    now: datetime | None = None,
+) -> bool | None:
+    """Is there a regular-session close newer than ``as_of`` settled as of ``now``?
+
+    The calendar gate for rate-safe refresh. Returns:
+
+    * ``True``  — the market is live now, OR a newer settled close exists → a
+      provider refetch can yield something new.
+    * ``False`` — the market is closed and ``as_of`` already is (≥) the latest
+      settled regular-session close → refetching is a guaranteed no-op (a close
+      print is immutable until the next open), so the caller may skip the network.
+    * ``None``  — the exchange can't be resolved (unmapped foreign suffix /
+      unknown non-US exchange) → the caller must NOT assume closed; refetch.
+
+    Safety is asymmetric, which is the whole design: a false *positive* ("newer"
+    on a holiday when there is none) costs one wasted fetch that returns the same
+    number — harmless. A false *negative* ("no-op" while the session is live)
+    would show a stale price — forbidden. The only hard guarantee needed is
+    "never ``False`` while the session is live", which rides on the same
+    in-session test as :func:`compute_session_state`. That guarantee holds
+    WITHOUT a trading calendar: a holiday degrades to a harmless false positive
+    (nominal session window, no bar → refetch → unchanged ``as_of``), never a
+    false negative — so no ``pandas-market-calendars`` dependency is needed.
+    """
+    session = _resolve_market_session(ticker, exchange)
+    if session is None:
+        return None
+    as_of_dt = _coerce_as_of_dt(as_of)
+    if as_of_dt is None:
+        return True  # untrustworthy as_of → fetch (single-flight bounds the cost)
+    now_local = now.astimezone(session.tz) if now else datetime.now(tz=session.tz)
+    # Live regular session → a newer print is always possible; no as_of compare.
+    if now_local.weekday() < 5 and session.open <= now_local.time() < session.close:
+        return True
+    # Closed: pin the most recent regular session whose close has already passed.
+    if now_local.weekday() < 5 and now_local.time() >= session.close:
+        last_session_date = now_local.date()  # today's close has settled
+    else:
+        # Weekend, or a weekday before its open → walk back to the prior weekday.
+        d = now_local.date() - timedelta(days=1)
+        while d.weekday() >= 5:
+            d -= timedelta(days=1)
+        last_session_date = d
+    last_close = session_close_dt(last_session_date, ticker=ticker, exchange=exchange)
+    if last_close is None:
+        return None
+    return as_of_dt < last_close

@@ -33,6 +33,18 @@ import { CoverageTriageStrip } from './CoverageTriageStrip'
 
 const MAX_INPUT_LENGTH = 20_000
 
+// True only for a genuine LLM context-window overflow, matched on the specific
+// phrases providers actually emit — NOT the bare substrings "context"/"token".
+// A 422 from /chat echoes the request body (which carries our `context_bundle`),
+// and auth failures mention the "capability token"; matching bare "context" or
+// "token" mislabeled those protocol/auth errors as "Conversation too long"
+// (a one-line message that triggered four 422 retries, all misreported).
+const CONTEXT_OVERFLOW_RE =
+  /context[_ ]length|maximum context|context window|prompt is too long|reduce the length/i
+function isContextOverflowError(message: string): boolean {
+  return CONTEXT_OVERFLOW_RE.test(message)
+}
+
 // ──────────────────────────────────────────────────────────────
 // Context-aware suggestion chips per route
 // ──────────────────────────────────────────────────────────────
@@ -261,7 +273,7 @@ export function AiChatTab({
       transport,
       onError(err) {
         const msg = err.message ?? ''
-        if (msg.includes('context') || msg.includes('token')) {
+        if (isContextOverflowError(msg)) {
           addToast({ type: 'error', title: t('chat.error.context') })
         } else if (msg.includes('503') || msg.includes('Service Unavailable')) {
           addToast({ type: 'error', title: t('chat.error.unavailable') })
@@ -490,7 +502,12 @@ export function AiChatTab({
 
       <CoverageTriageStrip defaultCollapsed={messages.length > 0} />
 
-      <MessageList messages={messages} isLoading={isLoading} restoring={seedLoading} />
+      <MessageList
+        messages={messages}
+        isLoading={isLoading}
+        status={status}
+        restoring={seedLoading}
+      />
 
       {routeChips.length > 0 && <SuggestionChips chips={routeChips} onSelect={setInputText} />}
 
@@ -637,12 +654,21 @@ function AiPanelHeader({
 interface MessageListProps {
   messages: UIMessage[]
   isLoading: boolean
+  /** The raw useChat status — drives the real-state phase of the status line
+   * ('submitted' = TTFT wait → Requesting; 'streaming' = phase derived from the
+   * last assistant message's parts). */
+  status: ChatStatus
   /** True while a switched/reloaded session's transcript is being restored —
    * suppresses the empty-state so it doesn't flash "start chatting" mid-resume. */
   restoring: boolean
 }
 
-function MessageList({ messages, isLoading, restoring }: MessageListProps): React.ReactElement {
+function MessageList({
+  messages,
+  isLoading,
+  status,
+  restoring,
+}: MessageListProps): React.ReactElement {
   const bottomRef = useRef<HTMLDivElement>(null)
   const { t } = useI18n()
 
@@ -709,7 +735,7 @@ function MessageList({ messages, isLoading, restoring }: MessageListProps): Reac
         <MessageBubble key={message.id} message={message} />
       ))}
 
-      {isLoading && <ThinkingIndicator />}
+      {isLoading && <StatusIndicator status={status} messages={messages} />}
 
       <div ref={bottomRef} />
     </div>
@@ -895,41 +921,145 @@ function ReasoningCollapsible({ text }: { text: string }): React.ReactElement {
   )
 }
 
-function ThinkingIndicator(): React.ReactElement {
+// ──────────────────────────────────────────────────────────────
+// StatusIndicator — REAL streaming status (replaces the old fake 3-dot
+// blinker). Aligned to how Claude Code drives its waiting indicator: a phase
+// derived from actual stream state, a real elapsed-seconds counter, and a
+// stall detector (no new content for >3s with no tool running ⇒ honest red
+// "is it stuck?" signal). No random verb words, no token counts, no shimmer.
+//
+//   submitted                         → Requesting…   (TTFT — nothing back yet)
+//   streaming + tool running          → Running {tool}…
+//   streaming + reasoning, no text    → Thinking…
+//   streaming + text present          → Responding…   (the text itself shows;
+//                                                       the line stays subtle)
+//   streaming, nothing yet            → Thinking…
+// ──────────────────────────────────────────────────────────────
+
+type ChatStatus = 'submitted' | 'streaming' | 'ready' | 'error'
+
+const STALL_MS = 3000
+
+type Phase =
+  | { kind: 'requesting' }
+  | { kind: 'thinking' }
+  | { kind: 'responding' }
+  | { kind: 'tool'; toolName: string }
+
+/** Derive the live phase from the raw status + the last assistant message's
+ * parts. Pure so it can be unit-tested without timers. */
+function derivePhase(status: ChatStatus, messages: UIMessage[]): Phase {
+  if (status === 'submitted') return { kind: 'requesting' }
+
+  // status === 'streaming' (the indicator only renders while isLoading)
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
+  const parts = lastAssistant?.parts ?? []
+
+  // A tool whose output hasn't landed yet is the most concrete in-flight signal.
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i]
+    if (!isToolUIPart(part)) continue
+    const anyPart = part as DynamicToolUIPart
+    if (anyPart.state === 'input-streaming' || anyPart.state === 'input-available') {
+      return { kind: 'tool', toolName: anyPart.toolName ?? part.type.replace(/^tool-/, '') }
+    }
+  }
+
+  const hasText = parts.some((p) => isTextUIPart(p) && p.text.length > 0)
+  if (hasText) return { kind: 'responding' }
+
+  const hasReasoning = parts.some((p) => isReasoningUIPart(p) && (p.text ?? '').length > 0)
+  if (hasReasoning) return { kind: 'thinking' }
+
+  return { kind: 'thinking' }
+}
+
+/** A signature of the last assistant message's content. Grows whenever the
+ * model emits more text/reasoning or a tool part changes state — i.e. exactly
+ * when "new content arrived". Drives the stall detector's lastContentChange. */
+function contentSignature(status: ChatStatus, messages: UIMessage[]): string {
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant')
+  const parts = lastAssistant?.parts ?? []
+  let textLen = 0
+  let reasoningLen = 0
+  const toolStates: string[] = []
+  for (const part of parts) {
+    if (isTextUIPart(part)) textLen += part.text.length
+    else if (isReasoningUIPart(part)) reasoningLen += (part.text ?? '').length
+    else if (isToolUIPart(part)) toolStates.push((part as DynamicToolUIPart).state ?? '')
+  }
+  return `${status}|${messages.length}|${textLen}|${reasoningLen}|${toolStates.join(',')}`
+}
+
+function StatusIndicator({
+  status,
+  messages,
+}: {
+  status: ChatStatus
+  messages: UIMessage[]
+}): React.ReactElement {
+  const { t } = useI18n()
+
+  // Turn start = mount (the indicator only mounts while isLoading is true, and
+  // unmounts when it flips false, so mount/unmount == the turn boundary and the
+  // elapsed counter resets per turn for free).
+  const turnStart = useRef(Date.now())
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    // Tick at 500ms so the stall flips red close to the ~3s threshold (a 1s
+    // cadence would only catch it at 4s); the elapsed counter still floors to
+    // whole seconds, so the displayed number ticks once per second.
+    const id = setInterval(() => setNow(Date.now()), 500)
+    return () => clearInterval(id)
+  }, [])
+
+  const phase = derivePhase(status, messages)
+
+  // Stall detector: track when content last grew; if no growth for >3s AND no
+  // tool is in flight, surface the honest red "still waiting" affordance. A
+  // running tool legitimately produces no chat content for a while, so it
+  // suppresses the stall flag.
+  const sig = contentSignature(status, messages)
+  const lastContentChange = useRef(Date.now())
+  const lastSig = useRef(sig)
+  if (lastSig.current !== sig) {
+    lastSig.current = sig
+    lastContentChange.current = Date.now()
+  }
+  const toolRunning = phase.kind === 'tool'
+  const stalled = !toolRunning && now - lastContentChange.current > STALL_MS
+
+  const elapsed = Math.max(0, Math.floor((now - turnStart.current) / 1000))
+
+  let label: string
+  switch (phase.kind) {
+    case 'requesting':
+      label = t('chat.status.requesting')
+      break
+    case 'tool':
+      label = t('chat.status.running', { tool: phase.toolName })
+      break
+    case 'responding':
+      label = t('chat.status.responding')
+      break
+    case 'thinking':
+    default:
+      label = t('chat.thinking')
+      break
+  }
+
   return (
     <div data-testid="thinking-indicator" className="msg agent">
       <div className="msg-head">● FINROBOT</div>
-      <div className="msg-body" style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-        <span
-          style={{
-            display: 'inline-block',
-            width: '6px',
-            height: '6px',
-            borderRadius: '50%',
-            background: 'var(--accent)',
-            animation: 'blink 1s 0ms infinite',
-          }}
-        />
-        <span
-          style={{
-            display: 'inline-block',
-            width: '6px',
-            height: '6px',
-            borderRadius: '50%',
-            background: 'var(--accent)',
-            animation: 'blink 1s 150ms infinite',
-          }}
-        />
-        <span
-          style={{
-            display: 'inline-block',
-            width: '6px',
-            height: '6px',
-            borderRadius: '50%',
-            background: 'var(--accent)',
-            animation: 'blink 1s 300ms infinite',
-          }}
-        />
+      <div
+        data-testid="status-line"
+        data-phase={phase.kind}
+        data-stalled={stalled ? 'true' : 'false'}
+        className={`ai-status${stalled ? ' stalled' : ''}`}
+      >
+        <span className="ai-status-dot" aria-hidden="true" />
+        <span className="ai-status-label">{stalled ? t('chat.status.stalled') : label}</span>
+        <span className="ai-status-elapsed">{elapsed}s</span>
       </div>
     </div>
   )
@@ -1000,7 +1130,7 @@ function AiInputArea({
           }}
         >
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {error.message.includes('context') || error.message.includes('token')
+            {isContextOverflowError(error.message)
               ? t('chat.error.context')
               : t('chat.error.generic')}
           </span>

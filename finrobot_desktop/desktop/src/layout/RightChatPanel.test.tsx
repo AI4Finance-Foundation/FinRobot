@@ -526,6 +526,117 @@ describe('RightChatPanel — loading / stop', () => {
 })
 
 // ──────────────────────────────────────────────────────────────
+// Tests: StatusIndicator — REAL streaming status (phase + elapsed + stall),
+// CC-aligned. Phase is derived from status + the last assistant message's
+// parts; the elapsed counter and stall→red run on real timers.
+// ──────────────────────────────────────────────────────────────
+
+describe('RightChatPanel — status indicator (real phase)', () => {
+  it("status==='submitted' reads Requesting (TTFT wait)", async () => {
+    mockChatControls.setStatus('submitted')
+    renderPanel()
+    await waitFor(() => {
+      const line = screen.getByTestId('status-line')
+      expect(line).toHaveAttribute('data-phase', 'requesting')
+    })
+    expect(screen.getByTestId('status-line')).toHaveTextContent('Requesting…')
+  })
+
+  it('streaming with a running tool reads Running {tool}', async () => {
+    mockChatControls.setStatus('streaming')
+    mockChatControls.setMessages([
+      makeToolCallMessage('call_run', 'run_dcf_valuation', 'input-available'),
+    ])
+    renderPanel()
+    await waitFor(() => {
+      const line = screen.getByTestId('status-line')
+      expect(line).toHaveAttribute('data-phase', 'tool')
+    })
+    expect(screen.getByTestId('status-line')).toHaveTextContent('Running run_dcf_valuation…')
+  })
+
+  it('streaming with text present reads Responding', async () => {
+    mockChatControls.setStatus('streaming')
+    mockChatControls.setMessages([makeAssistantMessage('partial answer…')])
+    renderPanel()
+    await waitFor(() => {
+      const line = screen.getByTestId('status-line')
+      expect(line).toHaveAttribute('data-phase', 'responding')
+    })
+    expect(screen.getByTestId('status-line')).toHaveTextContent('Responding…')
+  })
+
+  it('streaming with only a reasoning part reads Thinking', async () => {
+    mockChatControls.setStatus('streaming')
+    mockChatControls.setMessages([
+      {
+        id: 'asst-reasoning',
+        role: 'assistant',
+        parts: [{ type: 'reasoning', text: 'weighing the comps…' } as UIMessage['parts'][0]],
+      },
+    ])
+    renderPanel()
+    await waitFor(() => {
+      const line = screen.getByTestId('status-line')
+      expect(line).toHaveAttribute('data-phase', 'thinking')
+    })
+    expect(screen.getByTestId('status-line')).toHaveTextContent('Thinking…')
+  })
+
+  it('renders a real elapsed-seconds counter that ticks', async () => {
+    vi.useFakeTimers()
+    try {
+      mockChatControls.setStatus('streaming')
+      mockChatControls.setMessages([makeAssistantMessage('partial…')])
+      renderPanel()
+      expect(screen.getByTestId('status-line')).toHaveTextContent('0s')
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000)
+      })
+      expect(screen.getByTestId('status-line')).toHaveTextContent('2s')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('turns red (stalled) after >3s with no new content and no tool running', async () => {
+    vi.useFakeTimers()
+    try {
+      mockChatControls.setStatus('streaming')
+      mockChatControls.setMessages([makeAssistantMessage('stuck here')])
+      renderPanel()
+      const line = screen.getByTestId('status-line')
+      expect(line).toHaveAttribute('data-stalled', 'false')
+      // 4 interval ticks (now = baseline+4000) cross the 3000ms stall threshold.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(4200)
+      })
+      expect(screen.getByTestId('status-line')).toHaveAttribute('data-stalled', 'true')
+      expect(screen.getByTestId('status-line')).toHaveTextContent('still waiting…')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does NOT stall while a tool is running (long tool calls are legit)', async () => {
+    vi.useFakeTimers()
+    try {
+      mockChatControls.setStatus('streaming')
+      mockChatControls.setMessages([
+        makeToolCallMessage('call_slow', 'run_equity_research', 'input-available'),
+      ])
+      renderPanel()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000)
+      })
+      expect(screen.getByTestId('status-line')).toHaveAttribute('data-stalled', 'false')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+// ──────────────────────────────────────────────────────────────
 // Tests: streaming text rendering
 // ──────────────────────────────────────────────────────────────
 
@@ -727,13 +838,32 @@ describe('RightChatPanel — exception paths', () => {
     })
   })
 
-  it('[EP4] shows context-too-long message when error contains "token"', async () => {
+  it('[EP4] shows context-too-long message for a real provider overflow error', async () => {
     mockChatControls.setMessages([makeUserMessage('q')])
-    mockChatControls.setError(new Error('token limit exceeded'))
+    mockChatControls.setError(new Error("This model's maximum context length is 8192 tokens"))
     renderPanel()
     await waitFor(() => {
       expect(screen.getByText(/Conversation too long/)).toBeInTheDocument()
     })
+  })
+
+  it('[EP4b] does NOT mislabel a 422 protocol error (echoes "context_bundle") as too-long', async () => {
+    // Regression: the backend's 422 validation body echoes the request `input`,
+    // which carries our `context_bundle` field. A bare substring match on
+    // "context"/"token" misread that protocol/auth error as "Conversation too
+    // long" — one short message, four 422 retries, all mislabeled.
+    mockChatControls.setMessages([makeUserMessage('q')])
+    mockChatControls.setError(
+      new Error(
+        '[{"type":"union_tag_not_found","msg":"Unable to extract tag using discriminator \'trigger\'","input":{"context_bundle":{"route":"/research"}}}]',
+      ),
+    )
+    renderPanel()
+    await waitFor(() => {
+      expect(screen.getByTestId('error-banner')).toBeInTheDocument()
+    })
+    expect(screen.queryByText(/Conversation too long/)).not.toBeInTheDocument()
+    expect(screen.getByText(/Request failed/)).toBeInTheDocument()
   })
 
   it('[EP5] send button disabled for empty message', () => {

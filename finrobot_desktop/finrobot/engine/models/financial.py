@@ -404,6 +404,21 @@ class DCFInputs(BaseModel):
     shares_outstanding: float = Field(gt=0)
     net_debt: float = Field(description="Total debt - cash. Negative if net cash.")
 
+    currency: str = Field(
+        default="USD",
+        description=(
+            "ISO 4217 quote currency of the per-share / equity outputs "
+            "(``implied_price`` is ``equity_value / shares_outstanding``, a market "
+            "quote, so it follows ``FinancialData.quote_currency`` — TWD for TSM, "
+            "EUR for SAP). Threaded by ``seed_dcf_inputs`` from the financials "
+            "snapshot; ``calculate_dcf`` passes it through to ``DCFResult`` so the "
+            "artifact carries a real currency tag and the diff formatter never "
+            "has to assume USD. Defaults to USD so direct callers and "
+            "JSON-round-tripped legacy artifacts (no ``currency`` key) still "
+            "validate — same read-compat precedent as ``ttm_quarter_ends``."
+        ),
+    )
+
     assumption_provenance: dict[str, str] = Field(
         default_factory=dict,
         description="Maps assumption field names to their reasoning/source",
@@ -522,6 +537,13 @@ class DCFResult(BaseModel):
     enterprise_value: float
     equity_value: float
     implied_price: float
+
+    # ISO 4217 quote currency of implied_price / equity_value, threaded from
+    # DCFInputs.currency (← FinancialData.quote_currency). Lets the artifact
+    # carry a real currency tag so the semantic-diff formatter stamps the right
+    # symbol for non-USD issuers instead of assuming "$". Defaults to USD for
+    # read-compat with legacy artifacts that predate the field.
+    currency: str = "USD"
 
     # Sensitivity
     sensitivity_table: dict[str, Any] | None = None

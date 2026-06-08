@@ -47,6 +47,23 @@ def test_dcf_deterministic():
     assert r1.enterprise_value == r2.enterprise_value
 
 
+def test_currency_passthrough_is_pure_metadata():
+    """``currency`` is a passthrough tag: it must reach DCFResult unchanged and
+    must NOT perturb any computed number. A non-USD tag produces byte-identical
+    arithmetic to the default — the value is metadata, not an input to the math."""
+    usd = calculate_dcf(_make_inputs())
+    twd = calculate_dcf(_make_inputs(currency="TWD"))
+    assert usd.currency == "USD"  # default threads through
+    assert twd.currency == "TWD"  # explicit tag threads through
+    # Every computed field is identical regardless of the currency tag.
+    assert twd.implied_price == usd.implied_price
+    assert twd.wacc == usd.wacc
+    assert twd.enterprise_value == usd.enterprise_value
+    assert twd.equity_value == usd.equity_value
+    assert twd.terminal_value == usd.terminal_value
+    assert twd.projected_fcf == usd.projected_fcf
+
+
 def test_wacc_override():
     inputs = _make_inputs()
     result = calculate_dcf(inputs, wacc_override=0.12)

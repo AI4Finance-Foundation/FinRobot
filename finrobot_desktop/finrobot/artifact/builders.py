@@ -192,8 +192,12 @@ def _data_capability_warnings(deps: Any) -> list[str]:
 
 
 def _summary_text(result: "PipelineResult", structured_out: dict[str, Any], deps: Any) -> str:
-    audit = structured_out.get("numeric_audit")
-    if isinstance(audit, dict) and audit.get("withhold_valuation") is True:
+    # Single source of truth: only claim "withheld" when a target number was
+    # ACTUALLY nulled (``valuation_withheld`` set by _attach_numeric_audit or the
+    # equity_research block). A blocked-field audit verdict alone is NOT enough —
+    # comps/lbo may flag-but-publish, and announcing "withheld" while the numbers
+    # still ship in ``structured`` would contradict the published data.
+    if structured_out.get("valuation_withheld") is True:
         lang = getattr(getattr(deps, "settings", None), "language", "en")
         if lang == "zh":
             return "估值已被数字审计闸门隐藏；请查看 numeric_audit 与 warnings。"
@@ -303,7 +307,13 @@ def build_lbo_artifact(
         if lbo_result.capital_structure_warning:
             formula_warnings.append(lbo_result.capital_structure_warning)
     structured_out = _safe_dump(lbo_result)
-    audit_warnings = _attach_numeric_audit(structured_out, result, deps, "data_collection")
+    # LBO returns (IRR/MOIC) are entirely derived from the target's EBITDA, so a
+    # dimensionally-corrupt target (blocked_field) makes the headline returns
+    # untrustworthy — withhold them like DCF withholds implied_price. The ev/equity
+    # breakdown stays visible (with the audit banner) for transparency.
+    audit_warnings = _attach_numeric_audit(
+        structured_out, result, deps, "data_collection", withhold_keys=("irr", "moic")
+    )
 
     return Artifact(
         id=_make_artifact_id(ticker, "lbo"),
@@ -579,6 +589,8 @@ def build_equity_research_artifact(
     structured_out["numeric_audit"] = audit_payload
     audit_warnings = _numeric_audit_warnings(audit) + capability_warnings
     if audit.withhold_valuation:
+        structured_out["valuation_withheld"] = True
+        structured_out["withheld_reason"] = "numeric_audit_blocked_field"
         thesis_out = structured_out.get("thesis")
         if isinstance(thesis_out, dict):
             thesis_out["recommendation"] = "REVIEW"

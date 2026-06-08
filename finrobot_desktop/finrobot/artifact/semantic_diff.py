@@ -210,11 +210,15 @@ def _revenue_cagr(inputs_dump: dict[str, Any] | None) -> float | None:
 def _resolve_currency(a: Artifact, b: Artifact) -> tuple[str | None, bool]:
     """Resolve the quote currency for per-share/absolute formatting.
 
-    Today's artifacts don't carry a currency tag in the DCF path (it lives on
-    CompanyFinancials, which isn't persisted). We look for an explicit tag first
-    (forward-compatible for非美股 in 阶段3); absent that, we fall back to USD and
-    report ``assumed=True`` so the UI can disclose the assumption rather than
-    silently stamp "$". Disclosed assumption ≠ fabricated number.
+    Post-2026-06 artifacts carry a real tag: ``DCFInputs.currency`` is threaded
+    from ``FinancialData.quote_currency`` through ``seed_dcf_inputs`` →
+    ``calculate_dcf`` → ``DCFResult``, so the dump exposes the issuer's true
+    quote currency (TWD for TSM, EUR for SAP) and we return ``assumed=False``.
+    The raw ``quote_currency``/``currency`` keys are a secondary source for
+    non-DCF inputs. Only a *legacy* artifact that predates the threaded field
+    falls through to USD with ``assumed=True`` — a disclosed assumption the UI
+    surfaces, never a silently-stamped "$". Disclosed assumption ≠ fabricated
+    number.
     """
     for art in (b, a):  # prefer the newer artifact's tag
         inp = _dcf_inputs_dump(art)

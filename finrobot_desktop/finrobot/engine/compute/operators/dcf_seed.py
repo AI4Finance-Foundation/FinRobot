@@ -504,6 +504,10 @@ def seed_dcf_inputs(
         terminal_growth_rate=terminal_growth_rate,
         shares_outstanding=shares_outstanding,
         net_debt=net_debt,
+        # implied_price is a per-share market quote → quote_currency (TWD for
+        # TSM, EUR for SAP), not reporting_currency. Carried so the artifact
+        # tags its outputs and the diff formatter never assumes USD.
+        currency=financials.quote_currency,
         assumption_provenance=prov,
     )
 

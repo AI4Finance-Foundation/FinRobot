@@ -27,7 +27,7 @@ from finrobot.engine.models.financial import DCFInputs
 UTC = timezone.utc
 
 
-def _inputs(beta: float = 1.1, tax_rate: float = 0.21) -> DCFInputs:
+def _inputs(beta: float = 1.1, tax_rate: float = 0.21, currency: str = "USD") -> DCFInputs:
     return DCFInputs(
         revenue_base=394_000_000_000,
         revenue_growth_rates=[0.06, 0.05, 0.04, 0.03, 0.02],
@@ -44,6 +44,7 @@ def _inputs(beta: float = 1.1, tax_rate: float = 0.21) -> DCFInputs:
         terminal_growth_rate=0.025,
         shares_outstanding=15_500_000_000,
         net_debt=-50_000_000_000,
+        currency=currency,
     )
 
 
@@ -330,9 +331,43 @@ class TestMixedTzFetchedAt:
 
 
 class TestDataFootnote:
-    def test_currency_assumed_when_artifact_carries_no_tag(self) -> None:
+    def test_usd_tag_is_real_not_assumed(self) -> None:
+        # DCFInputs now carries a threaded ``currency`` (← FinancialData.
+        # quote_currency, default USD), so a normally-built artifact has a REAL
+        # tag — the footnote reports the genuine currency, not a disclosed
+        # assumption.
         a = _equity_artifact("art_v1", _inputs(), recommendation="BUY", current_price=170.0)
         b = _equity_artifact("art_v2", _inputs(beta=1.3), recommendation="BUY", current_price=170.0)
+        fn = build_semantic_delta(a, b).data_footnote
+        assert fn.currency == "USD"
+        assert fn.currency_assumed is False
+
+    def test_non_usd_currency_threads_into_footnote(self) -> None:
+        # A foreign issuer's quote currency (e.g. TWD for a TSM-style ADR) is
+        # threaded seed→inputs→result→artifact, so the diff formatter stamps the
+        # real currency instead of assuming USD.
+        a = _equity_artifact(
+            "art_v1", _inputs(currency="TWD"), recommendation="BUY", current_price=170.0
+        )
+        b = _equity_artifact(
+            "art_v2",
+            _inputs(beta=1.3, currency="TWD"),
+            recommendation="BUY",
+            current_price=170.0,
+        )
+        fn = build_semantic_delta(a, b).data_footnote
+        assert fn.currency == "TWD"
+        assert fn.currency_assumed is False
+
+    def test_legacy_artifact_without_tag_falls_back_to_disclosed_usd(self) -> None:
+        # A pre-field (legacy) artifact whose parameters dump lacks ``currency``
+        # still falls back to USD with ``assumed=True`` — a disclosed assumption
+        # the UI surfaces, never a silently-stamped "$".
+        a = _equity_artifact("art_v1", _inputs(), recommendation="BUY", current_price=170.0)
+        b = _equity_artifact("art_v2", _inputs(beta=1.3), recommendation="BUY", current_price=170.0)
+        for art in (a, b):
+            assert isinstance(art.assumptions.parameters, dict)
+            art.assumptions.parameters.pop("currency", None)
         fn = build_semantic_delta(a, b).data_footnote
         assert fn.currency == "USD"
         assert fn.currency_assumed is True

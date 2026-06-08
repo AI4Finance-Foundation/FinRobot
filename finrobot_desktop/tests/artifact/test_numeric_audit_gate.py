@@ -10,13 +10,22 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any, cast
 
-from finrobot.artifact.builders import build_dcf_artifact, build_equity_research_artifact
+from finrobot.artifact.builders import (
+    build_comps_artifact,
+    build_dcf_artifact,
+    build_equity_research_artifact,
+    build_lbo_artifact,
+)
 from finrobot.engine.models.financial import (
+    CompanyFinancials,
     DCFInputs,
     DCFResult,
     FinancialData,
     IncomeStatement,
+    LBOResult,
+    LBOYear,
     MarketData,
+    PeerComps,
     ValuationMetrics,
 )
 from finrobot.engine.pipelines.base import PipelineResult
@@ -193,4 +202,118 @@ def test_standalone_dcf_blocks_direct_target_when_audit_withholds():
     assert art.outputs.structured["implied_price"] is None
     assert "$120" not in art.outputs.summary_text
     assert "Valuation withheld" in art.outputs.summary_text
+    assert any("financial_sector_ev_meaningless" in w for w in art.outputs.warnings)
+
+
+# ---------------------------------------------------------------------------
+# Standalone LBO / Comps: the gate must never claim "withheld" while the numbers
+# still ship. LBO returns (IRR/MOIC) are fully target-derived → withhold them on
+# a blocked_field. Comps has no single target price to null (the peer medians are
+# not invalidated by a target-only blocked_field) → flag-but-publish, and the
+# summary must stay honest rather than announce a withhold that never happened.
+# ---------------------------------------------------------------------------
+
+
+def _lbo_result() -> LBOResult:
+    schedule = [
+        LBOYear(
+            year=i,
+            revenue=100,
+            ebitda=30,
+            da=4,
+            ebit=26,
+            interest_expense=8,
+            ebt=18,
+            taxes=4,
+            net_income=14,
+            capex=4,
+            delta_nwc=1,
+            fcf=15,
+            mandatory_amort=2,
+            cash_sweep_amount=10,
+            total_debt_paydown=12,
+            ending_debt=max(0, 150 - 12 * i),
+        )
+        for i in range(1, 6)
+    ]
+    return LBOResult(
+        entry_ev=300,
+        entry_debt=150,
+        entry_equity=150,
+        schedule=schedule,
+        exit_ebitda=40,
+        exit_ev=480,
+        exit_equity=400,
+        moic=2.67,
+        irr=0.21,
+    )
+
+
+def _peer_comps() -> PeerComps:
+    target = CompanyFinancials(
+        ticker="X", revenue=100e9, ebitda=30e9, net_income=20e9, market_cap=500e9
+    )
+    peer = CompanyFinancials(
+        ticker="P", revenue=80e9, ebitda=24e9, net_income=16e9, market_cap=400e9
+    )
+    return PeerComps(target=target, peers=[peer], median_pe=20.0, warnings=[])
+
+
+def _lbo_pipeline_result(fd: FinancialData) -> PipelineResult:
+    return PipelineResult(
+        steps={"data_collection": "ok", "lbo_calculation": "LBO implies 0.21 IRR"},
+        structured_data={"data_collection": fd, "lbo_calculation": _lbo_result()},
+    )
+
+
+def _comps_pipeline_result(fd: FinancialData) -> PipelineResult:
+    return PipelineResult(
+        steps={"target_data": "ok", "statistical_bench": "Comps median P/E 20x"},
+        structured_data={"target_data": fd, "statistical_bench": _peer_comps()},
+    )
+
+
+def test_standalone_lbo_clean_publishes_returns():
+    art = build_lbo_artifact(
+        _lbo_pipeline_result(_fd(industry="Software", ev_ebitda=18.0)), "X", cast(Any, None)
+    )
+    assert art.outputs.structured["numeric_audit"]["withhold_valuation"] is False
+    assert art.outputs.structured["irr"] == 0.21
+    assert art.outputs.structured["moic"] == 2.67
+    assert "valuation_withheld" not in art.outputs.structured
+    assert "Valuation withheld" not in art.outputs.summary_text
+
+
+def test_standalone_lbo_withholds_returns_when_audit_blocks():
+    art = build_lbo_artifact(
+        _lbo_pipeline_result(_fd(ticker="JPM", industry="Banks - Diversified", ev_ebitda=8.0)),
+        "JPM",
+        cast(Any, None),
+    )
+    assert art.outputs.structured["numeric_audit"]["withhold_valuation"] is True
+    assert art.outputs.structured["valuation_withheld"] is True
+    # The headline returns are nulled — a return built on a corrupt target EBITDA
+    # must not be published — but the ev/equity breakdown stays visible.
+    assert art.outputs.structured["irr"] is None
+    assert art.outputs.structured["moic"] is None
+    assert art.outputs.structured["entry_ev"] == 300
+    assert "Valuation withheld" in art.outputs.summary_text
+    assert any("financial_sector_ev_meaningless" in w for w in art.outputs.warnings)
+
+
+def test_standalone_comps_flags_but_does_not_claim_withheld():
+    # Regression: a blocked_field made withhold_valuation True, but comps passes no
+    # withhold_keys, so nothing is nulled. The summary must NOT lie about a withhold,
+    # and the peer medians (not invalidated by a target-only blocked_field) ship.
+    art = build_comps_artifact(
+        _comps_pipeline_result(_fd(ticker="JPM", industry="Banks - Diversified", ev_ebitda=8.0)),
+        "JPM",
+        cast(Any, None),
+    )
+    audit = art.outputs.structured["numeric_audit"]
+    assert audit["withhold_valuation"] is True  # the audit still records the block
+    assert audit["artifact_status"] == "review_only"
+    assert "valuation_withheld" not in art.outputs.structured  # nothing was withheld
+    assert art.outputs.structured["median_pe"] == 20.0  # medians still published
+    assert "Valuation withheld" not in art.outputs.summary_text  # summary stays honest
     assert any("financial_sector_ev_meaningless" in w for w in art.outputs.warnings)

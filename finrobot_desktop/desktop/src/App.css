@@ -115,40 +115,49 @@
   ); /* cyan 0.12 — live/fresh pill + active-filter fill */
   --bg-card-50: rgba(13, 16, 24, 0.5); /* bg-card at 50% — list-item / chip overlay */
 
-  /* ── AI assistant panel — a DELIBERATELY DISTINCT layer ──────────
-     The app shell is near-black graphite (#06070c center) carrying the
-     COOL cyan/blue *data* identity (live pills, sparklines, signals).
-     The chat panel is the app's other half: a WARM violet *console* that
-     floats OVER the workspace, so the two never read as one surface. It
-     is violet-tinted + lifted + opaque, with a glowing violet left edge
-     and a drop shadow cast onto the workspace. Cyan stays reserved for
-     live data; the panel's signature colour is --aip-accent (violet).
+  /* ── AI assistant panel — same cool family as the workspace, lifted ──
+     The app shell + data desk are a cool blue-slate near-black. The chat
+     panel is NOT a warm-violet console bolted on (that read as two stitched
+     products); it's the SAME cool surface raised ONE brightness notch and
+     floated over the workspace. The "raised layer" read comes from a slate
+     edge + left drop shadow, NOT a glow wash; internal hierarchy comes from
+     cards / borders / whitespace. Violet is spent in exactly ONE place — the
+     presence orb (--aip-orb) — as a single brand dab; every other "this is
+     the assistant" accent is blue (--aip-accent), so the panel reads as one
+     product with the data desk.
      (oklch is banned — renders green in some WebViews — so all hex/rgba.) */
-  --aipanel-bg: linear-gradient(180deg, #1d1834 0%, #15101f 100%);
-  --aipanel-glow-top: rgba(139, 92, 246, 0.22); /* top inner radial lift */
-  --aipanel-edge: rgba(139, 92, 246, 0.5); /* glowing violet left border */
+  --aipanel-bg: linear-gradient(180deg, #11151f 0%, #0b0e16 100%);
+  --aipanel-edge: rgba(148, 163, 184, 0.16); /* subtle slate left border */
   --aipanel-edge-shadow: rgba(2, 4, 10, 0.55); /* left shadow onto workspace */
-  --aipanel-grid: rgba(150, 125, 225, 0.055); /* faint ambient grid lines */
-  --aipanel-surface: rgba(52, 44, 82, 0.5); /* needs / tool / session cards */
-  --aipanel-surface-hover: rgba(64, 54, 98, 0.6);
-  --aipanel-surface-2: rgba(22, 18, 38, 0.85); /* input inner / deeper sub */
-  --aipanel-line: rgba(170, 150, 230, 0.16); /* hairline on panel */
-  --aipanel-line-strong: rgba(160, 130, 235, 0.32); /* card border on panel */
-  --aipanel-user-bubble: linear-gradient(180deg, #4f63d8 0%, #5b46c8 100%);
-  --aipanel-user-edge: rgba(120, 130, 240, 0.55);
+  --aipanel-grid: rgba(148, 163, 184, 0.04); /* faint ambient grid lines */
+  --aipanel-surface: rgba(30, 38, 54, 0.5); /* needs / tool / session cards */
+  --aipanel-surface-hover: rgba(38, 48, 68, 0.6);
+  --aipanel-surface-2: rgba(10, 13, 20, 0.85); /* input inner / deeper sub */
+  --aipanel-line: rgba(148, 163, 184, 0.14); /* hairline on panel */
+  --aipanel-line-strong: rgba(148, 163, 184, 0.26); /* card border on panel */
+  --aipanel-user-bubble: linear-gradient(180deg, #3b82f6 0%, #2c6fe0 100%);
+  --aipanel-user-edge: rgba(96, 140, 240, 0.5);
 
   /* The panel's SIGNATURE accent — one knob for everything that says
-     "this is the assistant" (presence orb, FinRobot wordmark, agent reply
-     rail, code, list bullets, input focus ring, caret, send). Violet, to
-     contrast the cyan data desk. Re-theming the panel = swapping these. */
-  --aip-accent: #a78bfa; /* violet-300 — legible on the dark violet panel */
-  --aip-accent-glow: rgba(139, 92, 246, 0.5);
-  --aip-accent-soft: rgba(139, 92, 246, 0.15);
-  --aip-rail: rgba(139, 92, 246, 0.5); /* agent reply left rail */
-  --aip-send: linear-gradient(135deg, var(--secondary), var(--violet-deep));
-  /* Triage strip shell ("Needs your eyes") — violet-tinted so it tracks the
-     panel surface instead of reading as a stray blue card. */
-  --aipanel-strip: linear-gradient(180deg, rgba(60, 48, 96, 0.5), rgba(44, 34, 74, 0.42));
+     "this is the assistant" (FinRobot wordmark, agent reply rail, code,
+     list bullets, input focus ring, caret, send, status dot). Blue, the
+     same cool family as the data desk, so the panel reads as one product
+     with the workspace — NOT a violet bolt-on. Re-theme = swap these. */
+  --aip-accent: #60a5fa; /* blue-400 — legible on the dark cool panel */
+  --aip-accent-glow: rgba(59, 130, 246, 0.5);
+  --aip-accent-soft: rgba(59, 130, 246, 0.15);
+  --aip-rail: rgba(59, 130, 246, 0.5); /* agent reply left rail */
+  --aip-send: linear-gradient(135deg, var(--primary), var(--blue-dim));
+
+  /* The lone violet dab — the presence orb ONLY (.ai-presence). Keeping
+     purple here and nowhere else makes the orb the panel's single brand
+     accent against the otherwise-blue surface. */
+  --aip-orb: #a78bfa; /* violet-300 */
+  --aip-orb-glow: rgba(139, 92, 246, 0.5);
+  --aip-orb-soft: rgba(139, 92, 246, 0.18);
+  /* Triage strip shell ("Needs your eyes") — cool-tinted so it tracks the
+     panel surface as a raised card, not a stray warm panel. */
+  --aipanel-strip: linear-gradient(180deg, rgba(30, 38, 54, 0.5), rgba(22, 28, 42, 0.42));
 
   /* ── Pure-black scrims & elevation shadows ───────────────────────
      Modal/command-palette backdrops and drop shadows are neutral black,
@@ -4822,8 +4831,9 @@ select.settings-input {
 
 .ai-panel {
   width: 0;
-  background:
-    radial-gradient(130% 42% at 50% 0%, var(--aipanel-glow-top), transparent 62%), var(--aipanel-bg);
+  /* Flat cool surface — no diffuse glow wash. The panel reads as a raised
+     layer via the slate edge + left drop shadow below, not a colour bloom. */
+  background: var(--aipanel-bg);
   border-left: 1px solid var(--aipanel-edge);
   /* Cast a shadow LEFT onto the workspace so the panel reads as a raised
      layer, never blending into the page behind it. */
@@ -5007,20 +5017,20 @@ select.settings-input {
   background: radial-gradient(
     circle at 38% 32%,
     var(--text-on-primary),
-    var(--aip-accent) 40%,
+    var(--aip-orb) 40%,
     var(--secondary) 80%,
     transparent
   );
   box-shadow:
-    0 0 12px var(--aip-accent-glow),
+    0 0 12px var(--aip-orb-glow),
     0 0 22px var(--secondary-soft);
 }
 .ai-presence .halo {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 1.5px solid var(--aip-accent-soft);
-  box-shadow: inset 0 0 12px var(--aip-accent-soft);
+  border: 1.5px solid var(--aip-orb-soft);
+  box-shadow: inset 0 0 12px var(--aip-orb-soft);
 }
 /* Only while the model is actually streaming do we animate — a slow,
    spec-legal pulse (≤1.6s live signal), never a persistent loop. */
@@ -5387,7 +5397,7 @@ select.settings-input {
 
 /* AI 状态行 — REAL streaming status (phase label + live dot + elapsed seconds).
    Replaces the old fake 3-dot blinker; complements the per-tool ToolCard state.
-   Live = violet panel accent; stalled (>3s no new content, no tool running) =
+   Live = blue panel accent; stalled (>3s no new content, no tool running) =
    honest red. Mono elapsed counter, right-aligned. */
 .ai-status {
   display: flex;

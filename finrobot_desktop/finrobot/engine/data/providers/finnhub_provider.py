@@ -11,7 +11,17 @@ from finrobot.engine.data.interface import DataProvider, DataResult, ProviderErr
 from finrobot.engine.data.types import DataType
 
 _BASE_URL = "https://finnhub.io/api/v1"
-_SUPPORTED = [DataType.FINANCIALS, DataType.PRICE, DataType.PROFILE, DataType.NEWS]
+# Finnhub serves PROFILE / PRICE / NEWS only. It does NOT serve FINANCIALS:
+# its /stock/financials-reported parser matched bare us-gaap concept names
+# ("Revenues", "NetIncomeLoss") while the API returns them namespace-prefixed
+# ("us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax", ...), so it
+# produced all-None fundamentals for every issuer — it never once worked.
+# Fundamentals are owned by FMP (primary, normalised TTM) + yfinance (secondary,
+# same TTM caliber for cross-validation). Finnhub's SEC-annual caliber would also
+# mismatch FMP's TTM and inject false cross-validation divergences. Removed
+# 2026-06-08 (option B). Authoritative SEC-XBRL fundamentals belong to
+# EdgarToolsProvider (real XBRL concept resolution), not a hand-rolled matcher.
+_SUPPORTED = [DataType.PRICE, DataType.PROFILE, DataType.NEWS]
 _TIMEOUT = 15.0
 _MIN_INTERVAL = 1.1  # Finnhub free tier: 60 req/min → 1 req/sec; 1.1s adds 10% buffer
 # Trailing calendar window for the candle (daily OHLC) fetch. 52 weeks + cushion
@@ -23,8 +33,9 @@ _PRICE_HISTORY_DAYS = 372
 class FinnhubProvider(DataProvider):
     """DataProvider backed by Finnhub API.
 
-    Provides company profiles, basic financials, and SEC-reported data.
-    API key required — get one at https://finnhub.io/
+    Provides company profiles, live quotes + daily OHLC candles, and company
+    news. API key required — get one at https://finnhub.io/ (60 req/min free).
+    Does NOT serve FINANCIALS (see ``_SUPPORTED`` note).
     """
 
     def __init__(self, api_key: str) -> None:
@@ -41,31 +52,13 @@ class FinnhubProvider(DataProvider):
     def capabilities(self) -> list[str | DataType]:
         return list(_SUPPORTED)
 
-    @property
-    def financials_fields(self) -> set[str]:
-        return {
-            "revenue",
-            "ebitda",
-            "net_income",
-            "market_cap",
-            "shares_outstanding",
-            "gross_margin",
-            "operating_margin",
-            "depreciation_amortization",
-            "total_debt",
-            "total_cash",
-        }
-
     async def fetch(self, ticker: str, data_type: str | DataType, **kwargs: Any) -> DataResult:
         if data_type not in _SUPPORTED:
             raise ProviderError(
                 f"data_type '{data_type}' is not supported by Finnhub. Supported: {_SUPPORTED}"
             )
         try:
-            if data_type == DataType.FINANCIALS:
-                years = kwargs.get("years")
-                data = await self._fetch_financials(ticker, years=years)
-            elif data_type == DataType.PRICE:
+            if data_type == DataType.PRICE:
                 data = await self._fetch_price(ticker)
             elif data_type == DataType.PROFILE:
                 data = await self._fetch_profile(ticker)
@@ -96,92 +89,6 @@ class FinnhubProvider(DataProvider):
             data_type=data_type,
             timestamp=datetime.now(tz=timezone.utc),
         )
-
-    async def _fetch_financials(self, ticker: str, *, years: int | None = None) -> dict[str, Any]:
-        profile = (await self._get("/stock/profile2", params={"symbol": ticker})).json()
-
-        reported = (
-            await self._get(
-                "/stock/financials-reported",
-                params={"symbol": ticker, "freq": "annual"},
-            )
-        ).json()
-
-        filings = reported.get("data", [])
-
-        if years is not None and years > 1:
-            parsed = [self._parse_filing(filing, profile) for filing in filings[:years]]
-            return {"yearly_data": parsed}
-
-        # Single-year (default): return flat dict
-        latest = filings[0] if filings else {}
-        return self._parse_filing(latest, profile)
-
-    @staticmethod
-    def _parse_filing(filing: dict[str, Any], profile: dict[str, Any]) -> dict[str, Any]:
-        """Parse a single Finnhub SEC filing into a normalized dict."""
-        report = filing.get("report", {})
-
-        def _find_concept(section: str, concept: str) -> float | None:
-            items = report.get(section, [])
-            for item in items:
-                if item.get("concept") == concept:
-                    val: Any = item.get("value")
-                    return float(val) if val is not None else None
-            return None
-
-        mkt_cap_millions = profile.get("marketCapitalization")
-        shares_millions = profile.get("shareOutstanding")
-
-        revenue = _find_concept("ic", "Revenues")
-        net_income = _find_concept("ic", "NetIncomeLoss")
-        da = _find_concept("ic", "DepreciationAndAmortization")
-        operating_income = _find_concept("ic", "OperatingIncomeLoss")
-        cogs = _find_concept("ic", "CostOfGoodsAndServicesSold")
-        total_debt = _find_concept("bs", "LongTermDebt")
-        # EV cash caliber = cash & equivalents + short-term investments, matching
-        # the FMP and yfinance paths so EV nets near-cash marketable securities (no
-        # path divergence). Finnhub tags ST investments under one of several
-        # us-gaap concepts; sum whichever it reports, else fall back to cash-only.
-        cash_equivalents = _find_concept("bs", "CashAndCashEquivalentsAtCarryingValue")
-        short_term_investments = (
-            _find_concept("bs", "ShortTermInvestments")
-            or _find_concept("bs", "MarketableSecuritiesCurrent")
-            or _find_concept("bs", "AvailableForSaleSecuritiesDebtSecuritiesCurrent")
-        )
-        if cash_equivalents is None:
-            total_cash = None
-        elif short_term_investments is None:
-            total_cash = cash_equivalents
-        else:
-            total_cash = cash_equivalents + short_term_investments
-
-        return {
-            "revenue": revenue,
-            "ebitda": (
-                operating_income + da if (operating_income is not None and da is not None) else None
-            ),
-            "net_income": net_income,
-            "depreciation_amortization": da,
-            "total_debt": total_debt,
-            "total_cash": total_cash,
-            "market_cap": mkt_cap_millions * 1_000_000 if mkt_cap_millions else None,
-            "shares_outstanding": shares_millions * 1_000_000 if shares_millions else None,
-            "gross_margin": ((revenue - cogs) / revenue if revenue and cogs is not None else None),
-            "operating_margin": (
-                operating_income / revenue if revenue and operating_income is not None else None
-            ),
-            "current_price": None,
-            "company_name": profile.get("name"),
-            "industry": profile.get("finnhubIndustry"),
-            # This source pulls freq=annual SEC filings — tag it so normalize
-            # doesn't default period_basis to "ttm" and stamp as_of to the fetch
-            # wall-clock. Without these a 12-month-old 10-K is mislabeled a fresh
-            # TTM snapshot. ``endDate`` is the fiscal-period end (the semantic
-            # date the freshness pill / ttm-lag read).
-            "period_basis": "annual",
-            "fiscal_year": filing.get("endDate") or filing.get("filedDate"),
-        }
 
     async def _fetch_price(self, ticker: str) -> dict[str, Any]:
         """Current price (/quote) + 1y daily OHLC (/stock/candle) + exchange.

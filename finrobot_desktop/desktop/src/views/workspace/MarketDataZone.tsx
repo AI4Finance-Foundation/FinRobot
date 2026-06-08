@@ -1,10 +1,14 @@
-// Left column of the workspace dashboard. Surfaces live market data
-// that exists independently of any AI research run — quote snapshot,
-// price trend, financials, catalyst calendar, earnings calls, news.
+// Live market-data surfaces for the workspace dashboard (/stocks/:ticker),
+// independent of any AI research run — kept refreshing from yfinance / SEC /
+// FMP / Adanos whether or not a pipeline has run on this ticker.
 //
-// Lives at /stocks/:ticker. Everything here keeps refreshing from
-// yfinance / SEC / FMP regardless of whether the user has ever run a
-// research pipeline on this ticker.
+// Two exports, placed differently by StockWorkspace:
+//   • MarketDataZone   — LEFT column of the top grid: quote snapshot, price
+//                        trend, financials TTM (pure financial cards).
+//   • MarketEventsZone — FULL-WIDTH band below the grid: catalyst calendar +
+//                        retail sentiment (event / 舆情 surfaces, width-hungry).
+// Split so the long left rail no longer outruns the AI column (trailing
+// whitespace) and event/sentiment lives in its own full-width 2-up row.
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -37,13 +41,6 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
     error: finErr,
     refetch: refetchFin,
   } = useTickerFinancials(ticker)
-  const {
-    data: catalysts,
-    isError: catalystsError,
-    error: catalystsErr,
-    refetch: refetchCatalysts,
-  } = useTickerCatalysts(ticker)
-  const { data: sentiment } = useTickerSentiment(ticker)
   const { t } = useI18n()
 
   return (
@@ -62,7 +59,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
                 { label: t('workspace.market.marketCap'), value: fmtMc(fin?.market?.market_cap) },
                 { label: 'P/E (TTM)', value: fmt(fin?.market?.pe_ratio, 1) },
                 {
-                  label: 'EV/EBITDA',
+                  label: 'EV/EBITDA (op)',
                   value: fmt(fin?.valuation?.ev_ebitda, 1),
                   sub:
                     typeof fin?.valuation?.ev_ebitda_reported === 'number'
@@ -91,7 +88,11 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
           <CardError status={priceErr?.status} onRetry={() => void refetchPrice()} />
         ) : (
           <>
-            <PriceTrendChart points={price?.history ?? null} />
+            <PriceTrendChart
+              points={price?.history ?? null}
+              currentPrice={price?.current_price}
+              sessionState={price?.session_state}
+            />
             <TechnicalsStrip tech={price?.technicals} />
           </>
         )}
@@ -107,7 +108,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
               cells={[
                 { label: t('workspace.market.revenueTtm'), value: fmtMc(fin?.income?.revenue) },
                 {
-                  label: 'EBITDA',
+                  label: 'EBITDA (op)',
                   value: fmtMc(fin?.income?.ebitda),
                   sub:
                     typeof fin?.valuation?.ebitda_reported === 'number'
@@ -134,86 +135,171 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
           </>
         )}
       </MktCard>
-
-      {/* Catalyst calendar */}
-      <MktCard title={t('workspace.market.catalystCalendar')}>
-        {catalystsError ? (
-          <CardError
-            message={t('workspace.market.catalystError')}
-            status={catalystsErr?.status}
-            onRetry={() => void refetchCatalysts()}
-          />
-        ) : catalysts && catalysts.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {catalysts.slice(0, 5).map((c, i) => (
-              <div
-                key={`${i}-${c.headline ?? 'event'}`}
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr auto auto',
-                  gap: 10,
-                  alignItems: 'center',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 11.5,
-                  padding: '7px 10px',
-                  background: 'var(--bg-card-50)',
-                  borderRadius: 6,
-                }}
-              >
-                <span
-                  style={{
-                    color: 'var(--text-secondary)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {c.headline ?? t('workspace.market.unnamedEvent')}
-                </span>
-                <span
-                  style={{
-                    color:
-                      c.sentiment === 'positive'
-                        ? 'var(--success)'
-                        : c.sentiment === 'negative'
-                          ? 'var(--danger)'
-                          : 'var(--text-muted)',
-                    fontSize: 10.5,
-                  }}
-                >
-                  {c.category ?? '—'}
-                </span>
-                <span style={{ color: 'var(--accent-amber)', fontSize: 10.5 }}>
-                  {typeof c.impact_score === 'number' ? `★ ${c.impact_score}` : ''}
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <Empty>{t('workspace.market.noCatalysts')}</Empty>
-        )}
-      </MktCard>
-
-      {/* Retail sentiment (Adanos: Reddit / X.com / Polymarket) */}
-      <MktCard title={t('workspace.market.sentiment')}>
-        <SentimentCard snapshot={sentiment} />
-      </MktCard>
     </section>
   )
 }
 
-// Renders the Adanos retail-sentiment aggregate. Three states:
-//   • loading (snapshot undefined) → muted placeholder
-//   • available=false → "未配置 Adanos · 去设置 →" CTA to /settings (matches the
-//     route's documented cold-start empty state in sentiment.py)
-//   • available=true → coverage + bull/bear split (涨绿跌红) + buzz + per-source rows
-const ALIGNMENT_KEYS = new Set(['aligned', 'split', 'no_data'])
-
-function SentimentCard({ snapshot }: { snapshot?: SentimentSnapshot }): React.ReactElement {
+// Market events + retail舆情, rendered as a FULL-WIDTH band below the
+// 2-column [MarketData | AIZone] grid (see StockWorkspace). Catalyst calendar
+// and retail sentiment are event / sentiment surfaces — different in kind from
+// the pure financial snapshot above — and they're width-hungry (long headlines,
+// per-platform rows), so they read better spanning the page in their own 2-up
+// grid than crammed into the narrow left rail (which also left the AI column
+// trailing whitespace). Still "Non-AI": live widgets, not the research report.
+export function MarketEventsZone({ ticker }: MarketDataZoneProps): React.ReactElement {
+  const {
+    data: catalysts,
+    isError: catalystsError,
+    error: catalystsErr,
+    isPending: catalystsPending,
+    refetch: refetchCatalysts,
+  } = useTickerCatalysts(ticker)
+  const {
+    data: sentiment,
+    isPending: sentimentPending,
+    isError: sentimentError,
+    refetch: refetchSentiment,
+  } = useTickerSentiment(ticker)
   const { t } = useI18n()
 
-  if (!snapshot) {
-    return <Empty>{tSync('common.loading')}</Empty>
+  return (
+    <section
+      data-testid="market-events-zone"
+      style={{
+        marginTop: 24,
+        paddingTop: 24,
+        borderTop: '1px solid var(--border-faint)',
+      }}
+    >
+      {/* Orienting label — the band sits below the AI column, so without it a
+          reader scrolling down can't tell these are live data widgets vs report
+          output. Mirrors the MarketDataZone "· Non-AI" framing. */}
+      <div
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10.5,
+          color: 'var(--text-muted)',
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          marginBottom: 12,
+        }}
+      >
+        {t('workspace.market.eventsZoneHeader')}
+      </div>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+          gap: 24,
+          alignItems: 'start',
+        }}
+      >
+        {/* Catalyst calendar */}
+        <MktCard title={t('workspace.market.catalystCalendar')}>
+          {catalystsError ? (
+            <CardError
+              message={t('workspace.market.catalystError')}
+              status={catalystsErr?.status}
+              onRetry={() => void refetchCatalysts()}
+            />
+          ) : catalystsPending ? (
+            <CatalystSkeleton />
+          ) : catalysts && catalysts.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {catalysts.slice(0, 5).map((c, i) => (
+                <div
+                  key={`${i}-${c.headline ?? 'event'}`}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto auto',
+                    gap: 10,
+                    alignItems: 'center',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 11.5,
+                    padding: '7px 10px',
+                    background: 'var(--bg-card-50)',
+                    borderRadius: 6,
+                  }}
+                >
+                  <span
+                    style={{
+                      color: 'var(--text-secondary)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {c.headline ?? t('workspace.market.unnamedEvent')}
+                  </span>
+                  <span
+                    style={{
+                      color:
+                        c.sentiment === 'positive'
+                          ? 'var(--success)'
+                          : c.sentiment === 'negative'
+                            ? 'var(--danger)'
+                            : 'var(--text-muted)',
+                      fontSize: 10.5,
+                    }}
+                  >
+                    {c.category ?? '—'}
+                  </span>
+                  <span style={{ color: 'var(--accent-amber)', fontSize: 10.5 }}>
+                    {typeof c.impact_score === 'number' ? `★ ${c.impact_score}` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Empty>{t('workspace.market.noCatalysts')}</Empty>
+          )}
+        </MktCard>
+
+        {/* Retail sentiment (Adanos: Reddit / X.com / Polymarket) */}
+        <MktCard title={t('workspace.market.sentiment')}>
+          <SentimentCard
+            snapshot={sentiment}
+            isPending={sentimentPending}
+            isError={sentimentError}
+            onRetry={() => void refetchSentiment()}
+          />
+        </MktCard>
+      </div>
+    </section>
+  )
+}
+
+// Renders the Adanos retail-sentiment aggregate. Distinct states that must NOT
+// be conflated (the bug was a transient failure rendering as "not configured"):
+//   • loading (fetch in flight)       → skeleton, never an empty verdict
+//   • transport error / provider_error → "source unavailable · retry" (the key
+//     IS configured — do NOT tell the user to go add one)
+//   • available=false, unconfigured   → "未配置 Adanos · 去设置 →" CTA to /settings
+//   • available=true                  → coverage + bull/bear split (涨绿跌红) + buzz + rows
+const ALIGNMENT_KEYS = new Set(['aligned', 'split', 'no_data'])
+
+function SentimentCard({
+  snapshot,
+  isPending,
+  isError,
+  onRetry,
+}: {
+  snapshot?: SentimentSnapshot
+  isPending: boolean
+  isError: boolean
+  onRetry: () => void
+}): React.ReactElement {
+  const { t } = useI18n()
+
+  if (isPending) {
+    return <SentimentSkeleton />
+  }
+
+  // Transport failure (network/timeout/non-2xx) OR the backend reached Adanos
+  // but the call failed (reason='provider_error'). The key is configured — show
+  // a retry, never the "go configure" CTA, which would be a lie.
+  if (isError || !snapshot || snapshot.reason === 'provider_error') {
+    return <CardError onRetry={onRetry} />
   }
 
   if (!snapshot.available) {
@@ -620,6 +706,90 @@ function Empty({ children }: { children: React.ReactNode }): React.ReactElement 
     >
       {children}
     </p>
+  )
+}
+
+// Loading skeleton for the catalyst calendar. The endpoint runs ~12s
+// server-side (news → LLM classify → rank); without this, the empty-state copy
+// ("No recent events") rendered during the wait, which reads as "this stock has
+// no catalysts" rather than "still loading" — the exact confusion reported. The
+// shimmer rows mirror the real event-row layout so the card doesn't reflow when
+// data lands. The shared `.skeleton` utility is near-invisible on these dark
+// cards, so the bar paints a visible muted gradient (color-mix over var tokens)
+// swept by the global `shimmer` keyframe (App.css).
+function SkelBar({
+  height,
+  width,
+  radius = 'var(--r-sm)',
+}: {
+  height: number
+  width: number | string
+  radius?: number | string
+}): React.ReactElement {
+  return (
+    <span
+      style={{
+        display: 'block',
+        height,
+        width,
+        borderRadius: radius,
+        background:
+          'linear-gradient(90deg, color-mix(in srgb, var(--text-muted) 16%, transparent) 25%, ' +
+          'color-mix(in srgb, var(--text-secondary) 34%, transparent) 50%, ' +
+          'color-mix(in srgb, var(--text-muted) 16%, transparent) 75%)',
+        backgroundSize: '200% 100%',
+        animation: 'shimmer 1.4s ease-in-out infinite',
+      }}
+    />
+  )
+}
+
+function CatalystSkeleton(): React.ReactElement {
+  return (
+    <div
+      data-testid="catalyst-skeleton"
+      aria-busy="true"
+      style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+    >
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div
+          key={i}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr auto auto',
+            gap: 10,
+            alignItems: 'center',
+            padding: '7px 10px',
+            background: 'var(--bg-card-50)',
+            borderRadius: 6,
+          }}
+        >
+          <SkelBar height={11} width={`${72 - i * 7}%`} />
+          <SkelBar height={10} width={56} />
+          <SkelBar height={10} width={18} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Loading skeleton for the retail-sentiment card — a split-bar placeholder + the
+// three per-platform rows, so a slow Adanos round-trip shows "loading" instead
+// of momentarily flashing the "not configured" CTA.
+function SentimentSkeleton(): React.ReactElement {
+  return (
+    <div
+      data-testid="sentiment-skeleton"
+      aria-busy="true"
+      style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
+    >
+      <SkelBar height={8} width="100%" radius={999} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {[0, 1, 2].map((i) => (
+          <SkelBar key={i} height={28} width="100%" radius={6} />
+        ))}
+      </div>
+    </div>
   )
 }
 

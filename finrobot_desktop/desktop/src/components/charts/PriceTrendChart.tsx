@@ -2,29 +2,27 @@
 //
 // A Recharts area chart you can read numbers off — hover for date +
 // close (+ OHLC / volume when the provider carries them), a price Y-axis,
-// dashed period high/low reference lines, and a current-price dot. Matches the
-// house chart conventions (CHART_TOOLTIP tokens + JetBrains Mono) used by the
-// statement charts in this directory.
+// and a last-close dot. (No high/low reference lines: the 52W intraday range
+// lives in the TechnicalsStrip range bar below — see note at the chart body.)
+// Matches the house chart conventions (CHART_TOOLTIP tokens + JetBrains Mono)
+// used by the statement charts in this directory.
 //
 // The deeper multi-range / candlestick view belongs in the report's
 // "技术与高阶分析" chapter; this card stays a compact dashboard read.
 
-import {
-  Area,
-  AreaChart,
-  ReferenceDot,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { Area, AreaChart, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { PricePoint } from '../../hooks/useTickerData'
 import { useI18n } from '../../i18n'
 import { CosmicTooltipShell } from './chartTooltip'
 
 interface Props {
   points: PricePoint[] | null
+  /** Live quote + session state for the right-edge readout. When the session is
+   *  live the last daily bar is still forming and its "close" lags this quote, so
+   *  the readout shows `currentPrice` (== the header) labeled "Latest" instead of
+   *  a misleading "Last close". Omitted ⇒ falls back to the last bar's close. */
+  currentPrice?: number | null
+  sessionState?: string | null
 }
 
 const AXIS_TICK = {
@@ -108,7 +106,7 @@ function ChartTooltip({
   )
 }
 
-export function PriceTrendChart({ points }: Props): React.ReactElement {
+export function PriceTrendChart({ points, currentPrice, sessionState }: Props): React.ReactElement {
   const { t } = useI18n()
   if (!points || points.length < 2) {
     return (
@@ -125,9 +123,16 @@ export function PriceTrendChart({ points }: Props): React.ReactElement {
   const pad = (max - min) * 0.08 || 1
   const last = data[data.length - 1]
   const first = closes[0]
+  // During a live session the last daily bar is still forming, and the provider's
+  // historical-chart endpoint lags the real-time quote — so its "close" disagrees
+  // with the header price (the reported "two different prices"). When live, show
+  // the live quote (== header) labeled "Latest"; only call it "Last close" once
+  // the session is closed and the bar is a real settled close.
+  const live = sessionState === 'live' && typeof currentPrice === 'number'
+  const endVal = live ? currentPrice : last.close
   // Guard first===0 (provider halt/sparse day): mirrors the backend prev==0
   // guards (contracts.py trailing_1y_return_pct / routes/data.py:429). null → '—'.
-  const pct = first > 0 ? ((last.close - first) / first) * 100 : null
+  const pct = first > 0 ? ((endVal - first) / first) * 100 : null
   const up = pct !== null && pct >= 0
 
   const spanDays = Math.round(
@@ -164,30 +169,11 @@ export function PriceTrendChart({ points }: Props): React.ReactElement {
             tickCount={4}
           />
           <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'var(--border-glow)' }} />
-          <ReferenceLine
-            y={max}
-            stroke="var(--text-dim)"
-            strokeDasharray="3 3"
-            label={{
-              value: `H ${fmtPrice(max)}`,
-              position: 'insideTopLeft',
-              fill: 'var(--text-muted)',
-              fontSize: 10,
-              fontFamily: 'var(--font-mono)',
-            }}
-          />
-          <ReferenceLine
-            y={min}
-            stroke="var(--text-dim)"
-            strokeDasharray="3 3"
-            label={{
-              value: `L ${fmtPrice(min)}`,
-              position: 'insideBottomLeft',
-              fill: 'var(--text-muted)',
-              fontSize: 10,
-              fontFamily: 'var(--font-mono)',
-            }}
-          />
+          {/* No high/low reference lines here on purpose. They marked the
+              windowed daily-CLOSE extremes, which read as a second "52W high/low"
+              clashing with the TechnicalsStrip range bar below — that bar carries
+              the authoritative 52-week INTRADAY range (matching the quote
+              snapshot). One high/low caliber on the page, not two. */}
           <Area
             type="monotone"
             dataKey="close"
@@ -219,8 +205,8 @@ export function PriceTrendChart({ points }: Props): React.ReactElement {
         }}
       >
         <span>
-          {spanLabel} {t('chart.priceTrend.trend')} · {t('chart.priceTrend.last')}{' '}
-          {fmtPrice(last.close)}
+          {spanLabel} {t('chart.priceTrend.trend')} ·{' '}
+          {t(live ? 'chart.priceTrend.latest' : 'chart.priceTrend.last')} {fmtPrice(endVal)}
         </span>
         <span
           style={{

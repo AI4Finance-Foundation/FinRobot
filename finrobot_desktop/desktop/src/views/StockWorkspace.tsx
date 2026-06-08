@@ -28,7 +28,7 @@ import { FetchHttpError, mapErrorToUserMessage } from '../utils/errorMessage'
 import { TickerNotFoundView } from './workspace/TickerNotFoundView'
 import { WorkspaceBackBar } from './workspace/WorkspaceBackBar'
 import { TickerHero } from './TickerHero'
-import { MarketDataZone } from './workspace/MarketDataZone'
+import { MarketDataZone, MarketEventsZone } from './workspace/MarketDataZone'
 import { AIZone } from './workspace/AIZone'
 import { useI18n } from '../i18n'
 
@@ -191,6 +191,10 @@ export function StockWorkspace(): React.ReactElement {
             alignItems: 'start',
           }}
         >
+          {/* Top row: pure financial cards (left) vs AI verdict + chapters
+              (right) — comparable heights, so neither column trails the other
+              in whitespace. Event / sentiment surfaces moved to the full-width
+              band below (MarketEventsZone). */}
           <MarketDataZone ticker={symbol} />
           {/* PipelineProgressPanel is rendered inside AIZone — it shares
               the AI column's visual real estate (cold / running / hot are
@@ -198,6 +202,9 @@ export function StockWorkspace(): React.ReactElement {
               top of MarketDataZone where it stole vertical room. */}
           <AIZone ticker={symbol} />
         </div>
+
+        {/* Full-width: catalyst calendar + retail sentiment, side by side. */}
+        <MarketEventsZone ticker={symbol} />
       </main>
     </div>
   )

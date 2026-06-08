@@ -653,7 +653,7 @@ async def test_pipeline_logs_structured_data_type(caplog):
     mock_deps = MagicMock()
     mock_deps.skill_runtime = None
 
-    with caplog.at_level(logging.INFO, logger="finrobot.engine.pipelines.base"):
+    with caplog.at_level(logging.INFO, logger="finrobot.engine.pipelines.runner"):
         await pipeline.execute(mock_deps, "AAPL")
 
     log_messages = " ".join(caplog.messages)

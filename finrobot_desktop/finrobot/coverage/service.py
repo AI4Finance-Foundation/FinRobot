@@ -44,7 +44,10 @@ from finrobot.engine.data.normalize.contracts import (
     DEGRADED_TTM_LAG,
     Provenance,
 )
-from finrobot.engine.data.normalize.session import compute_session_state
+from finrobot.engine.data.normalize.session import (
+    compute_session_state,
+    has_newer_session_since,
+)
 from finrobot.engine.models.financial import (
     FIELD_WARN_EV_MISSING_NET_DEBT,
     FIELD_WARN_SHARES_DERIVED,
@@ -163,6 +166,11 @@ async def build_overview(
         )
     )
     partial = any(r.warnings for r in rows)
+    # A network refresh that touched no provider for ANY row's price — every row
+    # was a closed-market calendar no-op. Drives the client's "已是最新收盘"
+    # confirmation. False on the cache-only paint and whenever a single row was
+    # fetched (cold, live, or a newer session had settled).
+    refresh_noop = not cache_only and bool(rows) and all(r.market_refresh_noop for r in rows)
     return CoverageOverview(
         group_id=group.id,
         group_name=group.name,
@@ -170,6 +178,7 @@ async def build_overview(
         generated_at=now,
         partial=partial,
         cache_only=cache_only,
+        refresh_noop=refresh_noop,
     )
 
 
@@ -201,12 +210,12 @@ async def _assemble_row(
     # network path is throttled by the shared semaphore so a big group can't
     # saturate the provider chain.
     if cache_only:
-        await _apply_market_fields(row, ticker, data_layer, cache_only=True)
+        await _apply_market_fields(row, ticker, data_layer, now=now, cache_only=True)
     elif market_sem is not None:
         async with market_sem:
-            await _apply_market_fields(row, ticker, data_layer, cache_only=False)
+            await _apply_market_fields(row, ticker, data_layer, now=now, cache_only=False)
     else:
-        await _apply_market_fields(row, ticker, data_layer, cache_only=False)
+        await _apply_market_fields(row, ticker, data_layer, now=now, cache_only=False)
 
     # 2.5 Reverse-DCF nature — what the LIVE price implies, re-solved from the
     # name's latest stored DCF inputs. Needs the artifact body + a live price, so
@@ -318,7 +327,12 @@ def _source(
 
 
 async def _apply_market_fields(
-    row: CoverageRow, ticker: str, data_layer: DataLayer, *, cache_only: bool = False
+    row: CoverageRow,
+    ticker: str,
+    data_layer: DataLayer,
+    *,
+    now: datetime,
+    cache_only: bool = False,
 ) -> None:
     """Price / 1D / market cap / TTM revenue / EV-EBITDA / P/E.
 
@@ -350,10 +364,33 @@ async def _apply_market_fields(
             fin_norm, fin_stale = fin_hit
             row.market_stale = row.market_stale or fin_stale
     else:
-        try:
-            price_norm = await data_layer.fetch_canonical(DataType.PRICE, ticker)
-        except _MARKET_DEGRADABLE as exc:
-            row.warnings.append(f"{ticker} 行情获取失败：{exc}")
+        # Calendar-aware no-op (the rate-limit shield): if the market is closed
+        # and the cached snapshot is already the latest settled close, a refetch
+        # is provably futile — the close print is immutable until the next open —
+        # so serve the cache and skip the provider. ``has_newer_session_since``
+        # returns False ONLY when it can prove no newer session exists; True (live
+        # / a newer close has settled) and None (unresolvable exchange) fall
+        # through to a real fetch. Closed markets are ~70% of the week → that
+        # fraction of refreshes costs zero provider calls.
+        price_hit = await data_layer.read_canonical_cached(DataType.PRICE, ticker)
+        if price_hit is not None:
+            cached_price, _ = price_hit
+            if (
+                has_newer_session_since(
+                    cached_price.provenance.as_of,
+                    ticker=ticker,
+                    exchange=cached_price.exchange,
+                    now=now,
+                )
+                is False
+            ):
+                price_norm = cached_price
+                row.market_refresh_noop = True
+        if price_norm is None:
+            try:
+                price_norm = await data_layer.fetch_canonical(DataType.PRICE, ticker)
+            except _MARKET_DEGRADABLE as exc:
+                row.warnings.append(f"{ticker} 行情获取失败：{exc}")
         try:
             fin_norm = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
         except _MARKET_DEGRADABLE as exc:
@@ -371,6 +408,7 @@ async def _apply_market_fields(
             prov.as_of.isoformat(),
             ticker=ticker,
             exchange=price_norm.exchange,
+            now=now,
         )
         row.currency = price_norm.quote_currency
         _extend_unique(row.warnings, price_norm.warnings)

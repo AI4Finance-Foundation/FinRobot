@@ -483,6 +483,9 @@ async def test_overview_field_warnings_land_on_the_right_cell() -> None:
                 return _price(ticker)
             return _fin(ticker, total_debt=None)
 
+        async def read_canonical_cached(self, data_type, ticker, **_):
+            return None  # cold → refresh path falls through to fetch_canonical
+
     ov = await build_overview(
         _group("AAPL"),
         artifact_store=_StubArtifactStore({"AAPL": [_summary()]}),  # type: ignore[arg-type]
@@ -703,3 +706,107 @@ async def test_get_or_create_system_group_finds_preexisting(
     detail = await store.get_or_create_system_group("Studied Tickers", "desc")
     assert detail.id == seeded.id
     assert [m.ticker for m in detail.members] == ["GOOG"]
+
+
+# ── calendar-aware refresh no-op (rate-limit shield) ──────────────────────────
+
+FRI_CLOSE_TS = 1780689600  # 2026-06-05T20:00:00Z (Fri 16:00 ET) — latest settled close
+MON_PREMARKET = datetime(2026, 6, 8, 8, 0, tzinfo=UTC)  # Mon 04:00 ET — market closed
+MON_INSESSION = datetime(2026, 6, 8, 14, 30, tzinfo=UTC)  # Mon 10:30 ET — market open
+
+
+def _price_at(ticker: str, as_of_ts: int, current: float = 200.0):
+    """A canonical price whose ``as_of`` is pinned to ``as_of_ts`` (quote instant)."""
+    return normalize_price(
+        DataResult(
+            data={
+                "current_price": current,
+                "price_history": [{"date": "2026-06-05", "close": current}],
+                "quote_timestamp": as_of_ts,
+            },
+            provider="yfinance",
+            ticker=ticker,
+            data_type="price",
+            timestamp=NOW,
+        )
+    )
+
+
+class _CountingLayer:
+    """Serves a Friday-close cached snapshot and records every provider fetch.
+
+    ``cold`` tickers have no cached snapshot (read returns None) so the refresh
+    path must fetch them — used to exercise the mixed no-op/fetch aggregation."""
+
+    def __init__(self, *, as_of_ts: int = FRI_CLOSE_TS, cold: set[str] | None = None) -> None:
+        self._as_of_ts = as_of_ts
+        self._cold = {t.upper() for t in (cold or set())}
+        self.fetch_calls: list[tuple[object, str]] = []
+
+    async def read_canonical_cached(self, data_type, ticker, **_):
+        if ticker.upper() in self._cold:
+            return None
+        if data_type == DataType.PRICE:
+            return _price_at(ticker, self._as_of_ts), False
+        return _fin(ticker), False
+
+    async def fetch_canonical(self, data_type, ticker, **_):
+        self.fetch_calls.append((data_type, ticker.upper()))
+        if data_type == DataType.PRICE:
+            return _price_at(ticker, self._as_of_ts)
+        return _fin(ticker)
+
+
+async def test_refresh_noop_when_closed_and_at_latest_close() -> None:
+    """Closed market + cache already at the latest settled close → a refresh makes
+    ZERO price provider calls, serves cache, and flags overview.refresh_noop."""
+    layer = _CountingLayer()
+    ov = await build_overview(
+        _group("AAPL"),
+        artifact_store=_StubArtifactStore({"AAPL": [_summary()]}),  # type: ignore[arg-type]
+        data_layer=layer,  # type: ignore[arg-type]
+        now=MON_PREMARKET,
+    )
+    assert ov.cache_only is False  # this is the network refresh path
+    assert ov.refresh_noop is True
+    assert (DataType.PRICE, "AAPL") not in layer.fetch_calls  # no price provider call
+    (row,) = ov.rows
+    assert row.price == 200.0  # served from the cached snapshot
+    assert row.market_refresh_noop is True
+    assert row.session_state == "closed"
+
+
+async def test_refresh_fetches_when_market_live() -> None:
+    """Mid-session a refresh must hit the provider (the price moves) → not a no-op."""
+    layer = _CountingLayer()
+    ov = await build_overview(
+        _group("AAPL"),
+        artifact_store=_StubArtifactStore({"AAPL": [_summary()]}),  # type: ignore[arg-type]
+        data_layer=layer,  # type: ignore[arg-type]
+        now=MON_INSESSION,
+    )
+    assert ov.refresh_noop is False
+    assert (DataType.PRICE, "AAPL") in layer.fetch_calls  # provider WAS called
+
+
+async def test_refresh_noop_false_when_any_row_was_fetched() -> None:
+    """Mixed group: a closed-and-current row (no-op) + a cold row (must fetch) →
+    refresh_noop is False; only the cold ticker hits the price provider."""
+
+    layer = _CountingLayer(cold={"MSFT"})  # MSFT has no cache → must fetch
+    ov = await build_overview(
+        _group("AAPL", "MSFT"),
+        artifact_store=_StubArtifactStore({}),  # type: ignore[arg-type]
+        data_layer=layer,  # type: ignore[arg-type]
+        now=MON_PREMARKET,
+    )
+    assert ov.refresh_noop is False
+    assert (DataType.PRICE, "MSFT") in layer.fetch_calls  # cold ticker fetched
+    assert (DataType.PRICE, "AAPL") not in layer.fetch_calls  # closed+current → no-op
+
+
+def test_refresh_noop_not_serialized_per_row() -> None:
+    """market_refresh_noop is an internal aggregation signal — never in the wire
+    payload (the client reads the overview-level refresh_noop)."""
+    dumped = CoverageRow(ticker="AAPL", market_refresh_noop=True).model_dump()
+    assert "market_refresh_noop" not in dumped

@@ -203,6 +203,13 @@ class CoverageRow(BaseModel):
     rather than a blank shimmer. ``False`` means either fresh-from-cache or a
     cold row whose market is genuinely absent (None → shimmer)."""
 
+    market_refresh_noop: bool = Field(default=False, exclude=True)
+    """Internal (not serialized): on a network refresh, the price was served from
+    cache WITHOUT a provider call because the market is closed and the snapshot is
+    already the latest settled close (``has_newer_session_since`` proved no newer
+    session exists). Aggregated into :attr:`CoverageOverview.refresh_noop` so the
+    client can say "已是最新收盘" instead of implying it fetched live."""
+
     needs_refresh: list[NeedsRefreshReason] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 
@@ -229,3 +236,10 @@ class CoverageOverview(BaseModel):
     last-known snapshots; per-row :attr:`CoverageRow.market_stale` flags the ones
     past their TTL. The client revalidates in the background via a
     ``refresh=true`` (network) pass. ``False`` = a fresh network-backed table."""
+    refresh_noop: bool = False
+    """True when a network refresh (``cache_only=False``) made ZERO provider calls
+    for prices because every row's market is closed and already at its latest
+    settled close (the calendar no-op — see ``has_newer_session_since``). The
+    client shows "已是最新收盘" rather than implying it pulled live quotes. Always
+    ``False`` on the instant cache-only paint and whenever any row was fetched
+    (cold, live, or a newer session had settled)."""

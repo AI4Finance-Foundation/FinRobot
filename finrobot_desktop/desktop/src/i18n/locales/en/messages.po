@@ -109,6 +109,22 @@ msgstr ""
 #~ msgstr "Thinking…"
 
 #. js-lingui-explicit-id
+#~ msgid "chat.status.requesting"
+#~ msgstr "Requesting…"
+
+#. js-lingui-explicit-id
+#~ msgid "chat.status.responding"
+#~ msgstr "Responding…"
+
+#. js-lingui-explicit-id
+#~ msgid "chat.status.running"
+#~ msgstr "Running {tool}…"
+
+#. js-lingui-explicit-id
+#~ msgid "chat.status.stalled"
+#~ msgstr "still waiting…"
+
+#. js-lingui-explicit-id
 #~ msgid "chat.ticker.switched"
 #~ msgstr "Switched to {ticker} — previous chat saved to Library"
 

@@ -5385,6 +5385,47 @@ select.settings-input {
   }
 }
 
+/* AI 状态行 — REAL streaming status (phase label + live dot + elapsed seconds).
+   Replaces the old fake 3-dot blinker; complements the per-tool ToolCard state.
+   Live = violet panel accent; stalled (>3s no new content, no tool running) =
+   honest red. Mono elapsed counter, right-aligned. */
+.ai-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.ai-status-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--aip-accent);
+  box-shadow: 0 0 7px var(--aip-accent-glow);
+  animation: blink 1s infinite;
+}
+.ai-status-label {
+  letter-spacing: 0.01em;
+}
+.ai-status-elapsed {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* Stalled — the single most honest "is it stuck?" signal: static red, no
+   animation (persistent state per the no->1s-decoration rule). */
+.ai-status.stalled {
+  color: var(--danger);
+}
+.ai-status.stalled .ai-status-dot {
+  background: var(--danger);
+  box-shadow: 0 0 7px var(--danger-glow);
+  animation: none;
+}
+
 /* AI 输入区 */
 .ai-input-wrap {
   position: relative;

@@ -109,6 +109,22 @@ msgstr ""
 #~ msgstr "思考中…"
 
 #. js-lingui-explicit-id
+#~ msgid "chat.status.requesting"
+#~ msgstr "请求中…"
+
+#. js-lingui-explicit-id
+#~ msgid "chat.status.responding"
+#~ msgstr "回复中…"
+
+#. js-lingui-explicit-id
+#~ msgid "chat.status.running"
+#~ msgstr "运行 {tool}…"
+
+#. js-lingui-explicit-id
+#~ msgid "chat.status.stalled"
+#~ msgstr "仍在等待…"
+
+#. js-lingui-explicit-id
 #~ msgid "chat.ticker.switched"
 #~ msgstr "已切到 {ticker} — 旧对话已保存到资料库"
 

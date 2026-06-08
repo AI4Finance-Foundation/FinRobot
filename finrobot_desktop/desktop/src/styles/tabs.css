@@ -80,7 +80,7 @@
 }
 .empty-state-card .btn-primary {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--text-on-primary);
   border: none;
   padding: 10px 20px;
   border-radius: var(--r-md);
@@ -296,7 +296,7 @@
 }
 
 .quick-analysis-result--error {
-  border-color: var(--negative, #e05c5c);
+  border-color: var(--negative);
 }
 
 .quick-analysis-result-title {
@@ -317,7 +317,7 @@
 .quick-analysis-error-text {
   margin: 0;
   font-size: 0.82rem;
-  color: var(--negative, #e05c5c);
+  color: var(--negative);
 }
 
 .quick-analysis-content {

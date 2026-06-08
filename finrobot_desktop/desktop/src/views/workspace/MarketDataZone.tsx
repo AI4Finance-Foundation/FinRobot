@@ -505,7 +505,7 @@ function MktCard({
         borderRadius: 'var(--radius-md)',
         padding: '14px 16px',
         marginBottom: 12,
-        boxShadow: hover ? '0 8px 32px rgba(59,130,246,0.12)' : 'none',
+        boxShadow: hover ? '0 8px 32px var(--primary-soft)' : 'none',
         transition: 'border-color 0.2s, box-shadow 0.2s',
       }}
     >
@@ -662,7 +662,7 @@ function CardError({
           fontFamily: 'var(--font-mono)',
           fontSize: 10.5,
           color: 'var(--danger)',
-          background: 'rgba(220,38,38,0.12)',
+          background: 'var(--negative-bg)',
           border: '1px solid var(--danger)',
           borderRadius: 4,
           padding: '4px 12px',

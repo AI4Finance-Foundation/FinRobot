@@ -64,7 +64,7 @@ export function Chapter({
             fontSize: 13,
             color: 'var(--secondary)',
             letterSpacing: '2px',
-            textShadow: '0 0 12px rgba(139, 92, 246, 0.5)',
+            textShadow: '0 0 12px color-mix(in srgb, var(--secondary) 50%, transparent)',
           }}
         >
           {num}

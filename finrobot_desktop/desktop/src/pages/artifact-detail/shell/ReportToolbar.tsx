@@ -120,7 +120,7 @@ export function ReportToolbar({
         style={backBtnStyle}
         onMouseEnter={(e) => {
           e.currentTarget.style.color = 'var(--text-primary)'
-          e.currentTarget.style.background = 'rgba(255,255,255,0.04)'
+          e.currentTarget.style.background = 'var(--wash-white-04)'
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.color = 'var(--text-secondary)'

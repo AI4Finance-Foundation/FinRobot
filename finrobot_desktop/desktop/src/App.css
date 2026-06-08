@@ -38,7 +38,7 @@
   /* ── Dual rail brand ─────────────────────────────────────────── */
   --primary: #3b82f6;
   --primary-soft: rgba(59, 130, 246, 0.12);
-  --text-on-primary: #ffffff; /* legible text on the primary/secondary gradient fill */
+  --text-on-primary: #ffffff; /* legible white text on any saturated fill (primary/secondary gradient, accent button, count badge) */
   --text-on-warning: #1a1207; /* dark text on an amber/warning fill */
   --bg-input: rgba(13, 16, 24, 0.78); /* translucent input field surface */
   --scrim: rgba(5, 5, 13, 0.78); /* modal/overlay backdrop scrim */
@@ -113,6 +113,87 @@
     0.12
   ); /* cyan 0.12 — live/fresh pill + active-filter fill */
   --bg-card-50: rgba(13, 16, 24, 0.5); /* bg-card at 50% — list-item / chip overlay */
+
+  /* ── Pure-black scrims & elevation shadows ───────────────────────
+     Modal/command-palette backdrops and drop shadows are neutral black,
+     deliberately not tinted by the --scrim cosmic hue. Tokenized so no
+     `rgba(0,0,0,…)` literal survives in component rules. */
+  --scrim-black-45: rgba(0, 0, 0, 0.45); /* cmd-palette backdrop */
+  --scrim-black-60: rgba(0, 0, 0, 0.6); /* modal backdrop */
+  --shadow-drop-18: rgba(0, 0, 0, 0.18); /* term-tip floating card */
+  --shadow-drop-30: rgba(0, 0, 0, 0.3); /* tooltip drop shadow */
+  --shadow-drop-40: rgba(0, 0, 0, 0.4); /* dropdown menu drop shadow */
+
+  /* ── White hover washes (neutral lift on inert surfaces) ─────────
+     A faint white overlay used for zebra stripes / row & button hover.
+     Distinct from --secondary-hover (slate-tinted); these stay neutral. */
+  --wash-white-015: rgba(255, 255, 255, 0.015); /* zebra stripe */
+  --wash-white-03: rgba(255, 255, 255, 0.03); /* chart-mode btn hover */
+  --wash-white-04: rgba(255, 255, 255, 0.04); /* time-range / toolbar btn hover */
+
+  /* ── Legacy panel surface (#0f0f22 — the original cosmic --bg-card
+     before the graphite redesign). Still used by chart tooltips and a
+     few report panels that want the warmer violet-black card; tokenized
+     so the literal `rgba(15,15,34,…)` is centralized, not scattered. */
+  --surface-panel-40: rgba(15, 15, 34, 0.4);
+  --surface-panel-50: rgba(15, 15, 34, 0.5);
+  --surface-panel-55: rgba(15, 15, 34, 0.55);
+  --surface-panel-60: rgba(15, 15, 34, 0.6);
+  --surface-panel-92: rgba(15, 15, 34, 0.92); /* chart tooltip shell */
+
+  /* ── Starfield (cosmic-stars background dots). Whites and two cool
+     blue-whites; decorative, outside the text/accent ramps. */
+  --star-white-85: rgba(255, 255, 255, 0.85);
+  --star-white-70: rgba(255, 255, 255, 0.7);
+  --star-white-60: rgba(255, 255, 255, 0.6);
+  --star-white-40: rgba(255, 255, 255, 0.4);
+  --star-blue-pale: rgba(180, 200, 255, 0.55);
+  --star-blue-ice: rgba(200, 220, 255, 0.55);
+
+  /* ── Verdict-badge text-on-fill. Near-black tints matched to each
+     verdict hue so the BUY/HOLD/SELL label reads on its solid badge. */
+  --text-on-success: #04140a; /* dark green-black on BUY green */
+  --text-on-danger: #1f0303; /* dark red-black on SELL red */
+  /* --text-on-warning (#1a1207) already declared above for amber fills. */
+  --warning-glow-strong: rgba(217, 119, 6, 0.45); /* HOLD badge halo (0.45, matches success/danger glow) */
+  --provenance-hint: #7a8299; /* muted slate for provenance hint lines */
+
+  /* ── Legacy off-palette accent ramps ─────────────────────────────
+     These shades pre-date the cosmic palette and do NOT match the
+     canonical --primary/--success/--warning/--danger hues. They are
+     preserved verbatim (exact appearance) but centralized here so every
+     usage points at one source; future work should unify them onto the
+     canonical tokens (tracked as a palette-consistency follow-up). */
+  /* blue-400 #60a5fa — Monte-Carlo run button, source-api badge, indicator toggle */
+  --legacy-blue-08: rgba(96, 165, 250, 0.08);
+  --legacy-blue-10: rgba(96, 165, 250, 0.1);
+  --legacy-blue-14: rgba(96, 165, 250, 0.14);
+  --legacy-blue-25: rgba(96, 165, 250, 0.25);
+  --legacy-blue-30: rgba(96, 165, 250, 0.3);
+  --legacy-blue-40: rgba(96, 165, 250, 0.4);
+  /* emerald #10b981 — pipeline-step / heatmap-positive / source-calc / beat rows */
+  --legacy-green-04: rgba(16, 185, 129, 0.04);
+  --legacy-green-08: rgba(16, 185, 129, 0.08);
+  --legacy-green-10: rgba(16, 185, 129, 0.1);
+  --legacy-green-18: rgba(16, 185, 129, 0.18);
+  --legacy-green-25: rgba(16, 185, 129, 0.25);
+  --legacy-green-30: rgba(16, 185, 129, 0.3);
+  --legacy-green-40: rgba(16, 185, 129, 0.4);
+  /* red-400 #f87171 — heatmap-negative / miss rows / error-msg border */
+  --legacy-red-04: rgba(248, 113, 113, 0.04);
+  --legacy-red-08: rgba(248, 113, 113, 0.08);
+  --legacy-red-15: rgba(248, 113, 113, 0.15);
+  --legacy-red-20: rgba(248, 113, 113, 0.2);
+  --legacy-red-25: rgba(248, 113, 113, 0.25);
+  /* amber-400 #fbbf24 — heatmap-mid / source-llm / warning-banner css */
+  --legacy-amber-06: rgba(251, 191, 36, 0.06);
+  --legacy-amber-10: rgba(251, 191, 36, 0.1);
+  --legacy-amber-12: rgba(251, 191, 36, 0.12);
+  --legacy-amber-15: rgba(251, 191, 36, 0.15);
+  /* orange #f5a623 — About-page hover wash */
+  --legacy-orange-04: rgba(245, 166, 35, 0.04);
+  --legacy-orange-06: rgba(245, 166, 35, 0.06);
+  --legacy-orange-08: rgba(245, 166, 35, 0.08);
 
   /* ── Translucent backgrounds for sticky bars (titlebar / report
      toolbar / status bar / overlays). Same hue as --bg-deep with the
@@ -194,6 +275,8 @@
   /* Neutral white hairline for data grids (KvGrid cell dividers) — distinct
      from the glow border family, which would tint the gridlines. */
   --border-grid: rgba(255, 255, 255, 0.08);
+  /* Even fainter white hairline for in-table row dividers (half of --border-grid). */
+  --border-hairline: rgba(255, 255, 255, 0.04);
 
   --text-0: var(--text-primary);
   --text-1: var(--text-primary);
@@ -413,7 +496,7 @@ body {
 
 /* Zebra striping + hover */
 .fin-table tbody tr:nth-child(even) {
-  background: rgba(255, 255, 255, 0.015);
+  background: var(--wash-white-015);
 }
 .fin-table tbody tr {
   transition: background 0.12s;
@@ -424,16 +507,16 @@ body {
 
 /* Beat/miss row tinting */
 .fin-table tbody tr.row-beat {
-  background: rgba(16, 185, 129, 0.04);
+  background: var(--legacy-green-04);
 }
 .fin-table tbody tr.row-beat:hover {
-  background: rgba(16, 185, 129, 0.08);
+  background: var(--legacy-green-08);
 }
 .fin-table tbody tr.row-miss {
-  background: rgba(248, 113, 113, 0.04);
+  background: var(--legacy-red-04);
 }
 .fin-table tbody tr.row-miss:hover {
-  background: rgba(248, 113, 113, 0.08);
+  background: var(--legacy-red-08);
 }
 
 /* Multi-column data table variant (used in summaries) */
@@ -542,7 +625,7 @@ body {
 
 /* Timeline color by status */
 .step.done::before {
-  background: rgba(16, 185, 129, 0.25);
+  background: var(--legacy-green-25);
 }
 .step.active::before {
   background: linear-gradient(to bottom, var(--accent-dim), var(--border-subtle));
@@ -586,10 +669,10 @@ body {
 @keyframes pulse-ring {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 30%, transparent);
   }
   50% {
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0);
+    box-shadow: 0 0 0 4px transparent;
   }
 }
 
@@ -791,7 +874,7 @@ input[type='range']::-moz-range-thumb {
 }
 .provenance-hint {
   font-size: 0.7rem;
-  color: #7a8299;
+  color: var(--provenance-hint);
   font-style: italic;
   display: block;
   margin-top: 2px;
@@ -1121,28 +1204,28 @@ input[type='range']::-moz-range-thumb {
 
 /* heatmap color classes */
 .hm-5 {
-  background: rgba(16, 185, 129, 0.3);
+  background: var(--legacy-green-30);
 }
 .hm-4 {
-  background: rgba(16, 185, 129, 0.18);
+  background: var(--legacy-green-18);
 }
 .hm-3 {
-  background: rgba(16, 185, 129, 0.08);
+  background: var(--legacy-green-08);
 }
 .hm-2 {
-  background: rgba(251, 191, 36, 0.06);
+  background: var(--legacy-amber-06);
 }
 .hm-1 {
-  background: rgba(251, 191, 36, 0.12);
+  background: var(--legacy-amber-12);
 }
 .hm-0 {
-  background: rgba(248, 113, 113, 0.08);
+  background: var(--legacy-red-08);
 }
 .hm--1 {
-  background: rgba(248, 113, 113, 0.15);
+  background: var(--legacy-red-15);
 }
 .hm--2 {
-  background: rgba(248, 113, 113, 0.25);
+  background: var(--legacy-red-25);
 }
 
 /* ═══════════════════════════
@@ -1153,8 +1236,8 @@ input[type='range']::-moz-range-thumb {
   align-items: flex-start;
   gap: var(--sp-3);
   padding: var(--sp-3) var(--sp-4);
-  background: rgba(251, 191, 36, 0.06);
-  border: 1px solid rgba(251, 191, 36, 0.15);
+  background: var(--legacy-amber-06);
+  border: 1px solid var(--legacy-amber-15);
   border-radius: var(--r-md);
   font-size: 0.78rem;
   color: var(--warning);
@@ -1213,16 +1296,16 @@ input[type='range']::-moz-range-thumb {
 
 .btn-primary {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--text-on-primary);
   border-color: var(--accent);
   font-weight: 600;
-  box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  box-shadow: 0 0 0 0 transparent;
 }
 .btn-primary:hover {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
-  color: #ffffff;
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+  color: var(--text-on-primary);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--primary) 20%, transparent);
 }
 .btn-primary:disabled {
   opacity: 0.45;
@@ -1238,15 +1321,15 @@ input[type='range']::-moz-range-thumb {
   border-radius: var(--r-md);
   border: none;
   background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
-  color: #ffffff;
+  color: var(--text-on-primary);
   cursor: pointer;
   transition: all 0.2s;
   letter-spacing: 0.01em;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.25);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 25%, transparent);
 }
 .btn-run:hover {
   filter: brightness(1.1);
-  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.35);
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--primary) 35%, transparent);
 }
 .btn-run:active {
   transform: scale(0.98);
@@ -1381,8 +1464,8 @@ select.input-field {
   height: 100%;
   overflow-y: auto;
   background:
-    radial-gradient(120% 60% at 12% -8%, rgba(59, 130, 246, 0.1), transparent 60%),
-    radial-gradient(120% 60% at 100% 0%, rgba(139, 92, 246, 0.1), transparent 55%);
+    radial-gradient(120% 60% at 12% -8%, color-mix(in srgb, var(--primary) 10%, transparent), transparent 60%),
+    radial-gradient(120% 60% at 100% 0%, var(--secondary-soft), transparent 55%);
 }
 .settings-frame {
   max-width: 1040px;
@@ -1809,7 +1892,7 @@ select.settings-input {
 .settings-btn.is-primary {
   background: linear-gradient(135deg, var(--primary), var(--secondary));
   border: none;
-  color: #fff;
+  color: var(--text-on-primary);
 }
 .settings-btn.is-primary:hover {
   filter: brightness(1.08);
@@ -1921,7 +2004,7 @@ select.settings-input {
 .error-msg {
   color: var(--negative);
   background: var(--negative-bg);
-  border: 1px solid rgba(248, 113, 113, 0.2);
+  border: 1px solid var(--legacy-red-20);
   border-radius: var(--r-md);
   padding: var(--sp-3) var(--sp-4);
   font-size: 0.82rem;
@@ -1934,7 +2017,7 @@ select.settings-input {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--scrim-black-45);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   display: flex;
@@ -2148,7 +2231,7 @@ select.settings-input {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--scrim-black-60);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
@@ -2370,7 +2453,7 @@ select.settings-input {
   height: 8px;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 6px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--primary) 30%, transparent);
   transform: translateX(-50%);
 }
 
@@ -2397,7 +2480,7 @@ select.settings-input {
 }
 .time-range-btn:hover {
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--wash-white-04);
 }
 .time-range-btn.active {
   color: var(--accent);
@@ -2453,15 +2536,15 @@ select.settings-input {
 }
 .source-api {
   color: var(--info);
-  background: rgba(96, 165, 250, 0.1);
+  background: var(--legacy-blue-10);
 }
 .source-calc {
   color: var(--positive);
-  background: rgba(16, 185, 129, 0.1);
+  background: var(--legacy-green-10);
 }
 .source-llm {
   color: var(--warning);
-  background: rgba(251, 191, 36, 0.1);
+  background: var(--legacy-amber-10);
 }
 
 /* CSS tooltip for source badges */
@@ -2488,7 +2571,7 @@ select.settings-input {
     opacity 0.15s,
     transform 0.15s;
   z-index: 10;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px var(--shadow-drop-30);
 }
 .source-badge::before {
   content: '';
@@ -2856,8 +2939,8 @@ select.settings-input {
   height: 500px;
   background: radial-gradient(
     circle,
-    rgba(59, 130, 246, 0.06) 0%,
-    rgba(139, 92, 246, 0.03) 40%,
+    color-mix(in srgb, var(--primary) 6%, transparent) 0%,
+    color-mix(in srgb, var(--secondary) 3%, transparent) 40%,
     transparent 70%
   );
   pointer-events: none;
@@ -3044,7 +3127,7 @@ select.settings-input {
     transform: scale(1.3);
   }
   50% {
-    box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+    box-shadow: 0 0 12px var(--legacy-green-40);
   }
   100% {
     transform: scale(1);
@@ -3079,7 +3162,7 @@ select.settings-input {
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, var(--positive) 0%, rgba(16, 185, 129, 0.1) 100%);
+  background: linear-gradient(90deg, var(--positive) 0%, var(--legacy-green-10) 100%);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
   animation: done-bar-in 0.5s ease-out both;
 }
@@ -3166,8 +3249,8 @@ select.settings-input {
   align-items: center;
   gap: var(--sp-2);
   padding: var(--sp-2) var(--sp-3);
-  background: rgba(96, 165, 250, 0.08);
-  border: 1px solid rgba(96, 165, 250, 0.25);
+  background: var(--legacy-blue-08);
+  border: 1px solid var(--legacy-blue-25);
   border-radius: var(--r-md);
   color: var(--chart-1);
   font-size: 0.78rem;
@@ -3178,8 +3261,8 @@ select.settings-input {
     border-color 0.15s;
 }
 .mc-run-btn:hover:not(:disabled) {
-  background: rgba(96, 165, 250, 0.14);
-  border-color: rgba(96, 165, 250, 0.4);
+  background: var(--legacy-blue-14);
+  border-color: var(--legacy-blue-40);
 }
 .mc-run-btn:disabled {
   opacity: 0.5;
@@ -3188,7 +3271,7 @@ select.settings-input {
 .mc-run-btn .spinner {
   width: 14px;
   height: 14px;
-  border: 2px solid rgba(96, 165, 250, 0.3);
+  border: 2px solid var(--legacy-blue-30);
   border-top-color: var(--chart-1);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -3614,7 +3697,7 @@ select.settings-input {
 }
 .chart-mode-btn:hover {
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--wash-white-03);
 }
 .chart-mode-btn.active {
   color: var(--accent);
@@ -3652,8 +3735,8 @@ select.settings-input {
 }
 .indicator-toggle-btn.active {
   color: var(--info);
-  background: rgba(96, 165, 250, 0.1);
-  border-color: rgba(96, 165, 250, 0.3);
+  background: var(--legacy-blue-10);
+  border-color: var(--legacy-blue-30);
 }
 
 /* ═══════════════════════════════════════════════
@@ -4014,7 +4097,7 @@ select.settings-input {
   font-family: 'JetBrains Mono', monospace;
   font-size: 9px;
   background: var(--accent);
-  color: #ffffff;
+  color: var(--text-on-primary);
   padding: 1px 5px;
   border-radius: 6px;
   font-weight: 700;
@@ -4699,7 +4782,7 @@ select.settings-input {
   height: 14px;
   border-radius: 50%;
   background: var(--red);
-  color: #fff;
+  color: var(--text-on-primary);
   font-size: 9px;
   font-weight: 700;
   display: flex;
@@ -4740,7 +4823,7 @@ select.settings-input {
 .ai-chip:hover {
   border-color: var(--accent);
   color: var(--accent);
-  background: var(--accent-dim, rgba(59, 130, 246, 0.1));
+  background: var(--accent-dim);
 }
 
 .ai-header {
@@ -4759,7 +4842,7 @@ select.settings-input {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ffffff;
+  color: var(--text-on-primary);
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 800;
@@ -4876,7 +4959,7 @@ select.settings-input {
   border: 1px solid var(--line-bright);
   border-radius: 6px;
   min-width: 200px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px var(--shadow-drop-40);
   padding: 4px 0;
   overflow: hidden;
 }
@@ -5099,7 +5182,7 @@ select.settings-input {
 }
 .send {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--text-on-primary);
   border: none;
   padding: 6px 14px;
   border-radius: var(--r-sm);
@@ -5169,7 +5252,7 @@ select.settings-input {
   height: 16px;
   border-radius: 50%;
   background: var(--red);
-  color: #fff;
+  color: var(--text-on-primary);
   font-size: 10px;
   font-weight: 700;
   display: flex;
@@ -5185,7 +5268,7 @@ select.settings-input {
   border: 1px solid var(--line-bright);
   border-radius: 6px;
   min-width: 140px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px var(--shadow-drop-40);
   overflow: hidden;
 }
 .ai-icon-menu-item {
@@ -5280,7 +5363,7 @@ select.settings-input {
 
 .about-method-card--active {
   border-color: var(--accent);
-  background: rgba(245, 166, 35, 0.04);
+  background: var(--legacy-orange-04);
 }
 
 .about-method-header {
@@ -5353,7 +5436,7 @@ select.settings-input {
 .about-copy-btn:hover {
   color: var(--text-0);
   border-color: var(--accent);
-  background: rgba(245, 166, 35, 0.08);
+  background: var(--legacy-orange-08);
 }
 
 /* Desktop current badge */
@@ -5393,7 +5476,7 @@ select.settings-input {
 .about-link-btn:hover {
   color: var(--text-0);
   border-color: var(--accent);
-  background: rgba(245, 166, 35, 0.06);
+  background: var(--legacy-orange-06);
 }
 
 .about-link-btn.about-link-primary {
@@ -5438,11 +5521,11 @@ select.settings-input {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(1.5px 1.5px at 20% 30%, rgba(255, 255, 255, 0.85), transparent 60%),
-    radial-gradient(1.5px 1.5px at 80% 70%, rgba(255, 255, 255, 0.7), transparent 60%),
-    radial-gradient(1px 1px at 50% 50%, rgba(180, 200, 255, 0.55), transparent 60%),
-    radial-gradient(1px 1px at 35% 80%, rgba(255, 255, 255, 0.6), transparent 60%),
-    radial-gradient(1.5px 1.5px at 65% 25%, rgba(200, 220, 255, 0.55), transparent 60%);
+    radial-gradient(1.5px 1.5px at 20% 30%, var(--star-white-85), transparent 60%),
+    radial-gradient(1.5px 1.5px at 80% 70%, var(--star-white-70), transparent 60%),
+    radial-gradient(1px 1px at 50% 50%, var(--star-blue-pale), transparent 60%),
+    radial-gradient(1px 1px at 35% 80%, var(--star-white-60), transparent 60%),
+    radial-gradient(1.5px 1.5px at 65% 25%, var(--star-blue-ice), transparent 60%);
   background-size:
     600px 600px,
     750px 750px,
@@ -5454,9 +5537,9 @@ select.settings-input {
 }
 .cosmic-stars.cosmic-stars-fast {
   background:
-    radial-gradient(1px 1px at 15% 60%, rgba(34, 211, 238, 0.6), transparent 60%),
-    radial-gradient(1px 1px at 75% 35%, rgba(139, 92, 246, 0.5), transparent 60%),
-    radial-gradient(1px 1px at 45% 20%, rgba(255, 255, 255, 0.4), transparent 60%);
+    radial-gradient(1px 1px at 15% 60%, color-mix(in srgb, var(--accent-cyan) 60%, transparent), transparent 60%),
+    radial-gradient(1px 1px at 75% 35%, color-mix(in srgb, var(--secondary) 50%, transparent), transparent 60%),
+    radial-gradient(1px 1px at 45% 20%, var(--star-white-40), transparent 60%);
   background-size:
     480px 480px,
     600px 600px,
@@ -5536,17 +5619,17 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
 }
 .cosmic-badge.cosmic-badge-buy {
   background: var(--success);
-  color: #04140a;
+  color: var(--text-on-success);
   box-shadow: 0 0 32px var(--success-glow);
 }
 .cosmic-badge.cosmic-badge-hold {
   background: var(--warning);
-  color: #1a0f02;
-  box-shadow: 0 0 32px rgba(217, 119, 6, 0.45);
+  color: var(--text-on-warning);
+  box-shadow: 0 0 32px var(--warning-glow-strong);
 }
 .cosmic-badge.cosmic-badge-sell {
   background: var(--danger);
-  color: #1f0303;
+  color: var(--text-on-danger);
   box-shadow: 0 0 32px var(--danger-glow);
 }
 
@@ -5666,9 +5749,9 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   letter-spacing: 3px;
   color: var(--accent-cyan);
   padding: 4px 10px;
-  border: 1px solid rgba(34, 211, 238, 0.4);
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 40%, transparent);
   border-radius: var(--radius-sm);
-  box-shadow: inset 0 0 12px rgba(34, 211, 238, 0.15);
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--accent-cyan) 15%, transparent);
 }
 .cosmic-group-header .group-title {
   font-family: var(--font-display);

@@ -255,8 +255,8 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
         <div
           data-testid="ai-zone-error"
           style={{
-            background: 'rgba(220,38,38,0.06)',
-            border: '1px solid rgba(220,38,38,0.22)',
+            background: 'color-mix(in srgb, var(--danger) 6%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--danger) 22%, transparent)',
             borderRadius: 'var(--radius-md)',
             padding: '24px 20px',
             textAlign: 'center',
@@ -288,7 +288,7 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
             onClick={handleRetry}
             style={{
               padding: '8px 18px',
-              background: 'rgba(220,38,38,0.12)',
+              background: 'var(--negative-bg)',
               border: '1px solid var(--danger)',
               borderRadius: 6,
               color: 'var(--danger)',

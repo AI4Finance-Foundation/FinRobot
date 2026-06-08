@@ -138,7 +138,7 @@ export function ReportStatusBar({ entries }: ReportStatusBarProps): React.ReactE
           width: `${progressPct}%`,
           background: 'linear-gradient(90deg, var(--primary), var(--secondary))',
           transition: 'width 0.12s linear',
-          boxShadow: '0 0 8px rgba(59,130,246,0.5)',
+          boxShadow: '0 0 8px color-mix(in srgb, var(--primary) 50%, transparent)',
         }}
       />
 

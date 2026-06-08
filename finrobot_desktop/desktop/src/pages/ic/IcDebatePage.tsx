@@ -285,7 +285,7 @@ function StartPanel({ ticker, artifactId, onStart, onViewReport }: StartPanelPro
   return (
     <div
       style={{
-        background: 'rgba(15,15,34,0.6)',
+        background: 'var(--surface-panel-60)',
         backdropFilter: 'blur(12px)',
         border: '1px solid var(--border-soft)',
         borderRadius: 'var(--radius-lg)',

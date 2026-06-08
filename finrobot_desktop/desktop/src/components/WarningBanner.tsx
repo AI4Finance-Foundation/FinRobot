@@ -116,14 +116,16 @@ const TONE_STYLES: Record<
   }
 > = {
   warn: {
-    bg: 'rgba(217, 119, 6, 0.06)',
-    border: 'rgba(217, 119, 6, 0.32)',
+    bg: 'color-mix(in srgb, var(--warning) 6%, transparent)',
+    border: 'color-mix(in srgb, var(--warning) 32%, transparent)',
     accent: 'var(--warning)',
     text: 'var(--text-secondary)',
   },
   danger: {
-    bg: 'rgba(239, 68, 68, 0.08)',
-    border: 'rgba(239, 68, 68, 0.4)',
+    // bg/border tint the same --danger hue as the accent (was off-palette
+    // red-500 #ef4444; aligned to the canonical --danger #dc2626).
+    bg: 'color-mix(in srgb, var(--danger) 8%, transparent)',
+    border: 'color-mix(in srgb, var(--danger) 40%, transparent)',
     accent: 'var(--danger)',
     text: 'var(--text-secondary)',
   },

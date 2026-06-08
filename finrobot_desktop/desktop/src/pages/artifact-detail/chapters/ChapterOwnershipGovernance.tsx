@@ -658,7 +658,7 @@ const tdStyle: CSSProperties = {
   padding: '10px 14px',
   fontSize: 12,
   color: 'var(--text-secondary)',
-  borderBottom: '1px solid rgba(255,255,255,0.04)',
+  borderBottom: '1px solid var(--border-hairline)',
 }
 
 const emptyChapterCallout: CSSProperties = {

@@ -43,7 +43,7 @@ export interface CosmicLegendProps {
 }
 
 const TOOLTIP_SHELL: CSSProperties = {
-  background: 'rgba(15, 15, 34, 0.92)',
+  background: 'var(--surface-panel-92)',
   backdropFilter: 'blur(12px)',
   WebkitBackdropFilter: 'blur(12px)',
   border: '1px solid var(--border-glow)',

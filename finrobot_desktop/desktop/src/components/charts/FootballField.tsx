@@ -271,7 +271,7 @@ export default function FootballField({
                         'linear-gradient(90deg, color-mix(in srgb, var(--primary) 35%, transparent), color-mix(in srgb, var(--secondary) 55%, transparent))',
                       border: '1px solid color-mix(in srgb, var(--secondary) 55%, transparent)',
                       borderRadius: 4,
-                      boxShadow: '0 0 18px rgba(59,130,246,0.18)',
+                      boxShadow: '0 0 18px color-mix(in srgb, var(--primary) 18%, transparent)',
                     }}
                   />
                   {/* Low tick */}

@@ -7,7 +7,7 @@ body {
   height: auto !important;
   overflow: auto !important;
   margin: 0;
-  background: var(--bg-void, #0a0a0f);
+  background: var(--bg-void);
 }
 
 .report-export-shell {

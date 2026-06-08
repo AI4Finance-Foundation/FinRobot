@@ -86,7 +86,7 @@ export function TermTip({ term, children }: Props): React.ReactElement {
               border: '1px solid var(--border)',
               borderRadius: 'var(--r-md)',
               padding: '10px 12px',
-              boxShadow: '0 6px 24px rgba(0,0,0,0.18)',
+              boxShadow: '0 6px 24px var(--shadow-drop-18)',
               fontFamily: 'var(--font-ui)',
               fontSize: 12,
               lineHeight: 1.55,

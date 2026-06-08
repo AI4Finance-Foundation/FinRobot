@@ -95,7 +95,9 @@ export function ReportTOC({ entries }: ReportTOCProps): React.ReactElement {
               background: isActive
                 ? 'color-mix(in srgb, var(--secondary) 8%, transparent)'
                 : 'transparent',
-              boxShadow: isActive ? '-1px 0 12px rgba(139, 92, 246, 0.3)' : 'none',
+              boxShadow: isActive
+                ? '-1px 0 12px color-mix(in srgb, var(--secondary) 30%, transparent)'
+                : 'none',
               transition: 'all 0.18s',
               marginRight: 8,
               borderRadius: '0 5px 5px 0',

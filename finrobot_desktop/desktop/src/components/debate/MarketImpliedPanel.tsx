@@ -154,7 +154,7 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
         margin: '0 0 24px',
         border: '1px solid var(--border-soft)',
         borderRadius: 'var(--radius-md)',
-        background: 'rgba(15,15,34,0.5)',
+        background: 'var(--surface-panel-50)',
         backdropFilter: 'blur(12px)',
         overflow: 'hidden',
       }}

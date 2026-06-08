@@ -80,7 +80,7 @@ export function ChapterCover({
             fontSize: 56,
             letterSpacing: 5,
             color: 'var(--text-primary)',
-            textShadow: '0 0 28px rgba(59, 130, 246, 0.4)',
+            textShadow: '0 0 28px color-mix(in srgb, var(--primary) 40%, transparent)',
             lineHeight: 1,
           }}
         >
@@ -192,7 +192,7 @@ export function ChapterCover({
             color: 'var(--accent-cyan)',
             lineHeight: 1.5,
             maxWidth: 720,
-            textShadow: '0 0 12px rgba(34, 211, 238, 0.2)',
+            textShadow: '0 0 12px var(--accent-cyan-glow-soft)',
           }}
         >
           "{thesis.tagline}"

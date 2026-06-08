@@ -133,7 +133,7 @@ export function ToolCard({
             <span
               className="shrink-0 rounded px-1.5 py-0.5 text-xs"
               style={{
-                backgroundColor: 'rgba(52,211,153,0.12)',
+                backgroundColor: 'var(--positive-bg)',
                 color: 'var(--positive)',
               }}
             >

@@ -41,7 +41,7 @@ export function TickerNotFoundView({ ticker }: Props): React.ReactElement {
             letterSpacing: '4px',
             color: 'var(--text-primary)',
             marginBottom: 20,
-            textShadow: '0 0 24px rgba(220,38,38,0.25)',
+            textShadow: '0 0 24px color-mix(in srgb, var(--danger) 25%, transparent)',
           }}
         >
           {t('ticker.notFound.title', { ticker })}

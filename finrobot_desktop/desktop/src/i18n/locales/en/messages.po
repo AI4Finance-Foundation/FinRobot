@@ -902,7 +902,11 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "chart.priceTrend.last"
-#~ msgstr "Last"
+#~ msgstr "Last close"
+
+#. js-lingui-explicit-id
+#~ msgid "chart.priceTrend.latest"
+#~ msgstr "Latest"
 
 #. js-lingui-explicit-id
 #~ msgid "chapter.valuation.target12m"
@@ -2326,15 +2330,15 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "workspace.market.streetCaliber"
-#~ msgstr "Street {v}"
+#~ msgstr "Reported {v}"
 
 #. js-lingui-explicit-id
 #~ msgid "workspace.market.evEbitdaCaliber"
-#~ msgstr "Primary = operating EV/EBITDA (EBITDA = EBIT + D&A). EV is net of cash, so interest income is excluded. Street = net income + tax + interest + D&A, includes interest income — used by most retail sources."
+#~ msgstr "Primary = operating EV/EBITDA (EBITDA = EBIT + D&A). EV is net of cash, so interest income is excluded. Reported = net income + tax + interest + D&A, includes interest income — the caliber most retail aggregators quote, not analyst consensus."
 
 #. js-lingui-explicit-id
 #~ msgid "workspace.market.ebitdaCaliber"
-#~ msgstr "Primary = operating EBITDA (EBIT + D&A). Street = net income + tax + interest + D&A, includes interest income."
+#~ msgstr "Primary = operating EBITDA (EBIT + D&A). Reported = net income + tax + interest + D&A — the caliber retail aggregators quote; includes non-operating income, so it runs above the operating figure. Not analyst (Street) consensus."
 
 #. js-lingui-explicit-id
 #~ msgid "workspace.market.unnamedEvent"
@@ -2442,7 +2446,11 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "workspace.market.sentimentDesc"
-#~ msgstr "Retail bull/bear lean and buzz across Reddit / X.com / Polymarket (Adanos aggregate)."
+#~ msgstr "Retail bull/bear lean and buzz across Reddit / X.com / Polymarket (Adanos). Headline split is an unweighted average across covered platforms."
+
+#. js-lingui-explicit-id
+#~ msgid "workspace.market.eventsZoneHeader"
+#~ msgstr "Market Events & Sentiment · Non-AI"
 
 #. js-lingui-explicit-id
 #~ msgid "workspace.market.sentimentUnconfigured"

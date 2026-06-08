@@ -902,7 +902,11 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "chart.priceTrend.last"
-#~ msgstr "现价"
+#~ msgstr "最新收盘"
+
+#. js-lingui-explicit-id
+#~ msgid "chart.priceTrend.latest"
+#~ msgstr "最新"
 
 #. js-lingui-explicit-id
 #~ msgid "chapter.valuation.target12m"
@@ -2326,15 +2330,15 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "workspace.market.streetCaliber"
-#~ msgstr "街口径 {v}"
+#~ msgstr "报告口径 {v}"
 
 #. js-lingui-explicit-id
 #~ msgid "workspace.market.evEbitdaCaliber"
-#~ msgstr "主显=营业口径 EV/EBITDA（EBITDA=EBIT+D&A）。EV 已扣现金，故不计利息收入。街口径=净利+税+利息+D&A，含利息收入，多数零售源用这个。"
+#~ msgstr "主显=营业口径 EV/EBITDA（EBITDA=EBIT+D&A）。EV 已扣现金，故不计利息收入。报告口径=净利+税+利息+D&A，含利息收入，多数零售聚合站用这个——不是卖方一致预期。"
 
 #. js-lingui-explicit-id
 #~ msgid "workspace.market.ebitdaCaliber"
-#~ msgstr "主显=营业口径 EBITDA（EBIT+D&A）。街口径=净利+税+利息+D&A，含利息收入。"
+#~ msgstr "主显=营业口径 EBITDA（EBIT+D&A）。报告口径=净利+税+利息+D&A，含非营业收入，故高于营业口径；不是卖方一致预期(Street)。"
 
 #. js-lingui-explicit-id
 #~ msgid "workspace.market.unnamedEvent"
@@ -2442,7 +2446,11 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "workspace.market.sentimentDesc"
-#~ msgstr "Reddit / X.com / Polymarket 散户讨论的多空倾向与热度（Adanos 聚合）。"
+#~ msgstr "Reddit / X.com / Polymarket 散户讨论的多空倾向与热度（Adanos）。多空占比为各覆盖平台的等权平均。"
+
+#. js-lingui-explicit-id
+#~ msgid "workspace.market.eventsZoneHeader"
+#~ msgstr "市场事件 / 舆情 · Non-AI"
 
 #. js-lingui-explicit-id
 #~ msgid "workspace.market.sentimentUnconfigured"

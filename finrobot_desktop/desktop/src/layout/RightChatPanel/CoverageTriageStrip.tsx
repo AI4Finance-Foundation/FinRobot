@@ -17,7 +17,7 @@
 // emphasis is a STATIC neon box-shadow halo; no animation, no spinner. Numbers
 // render in var(--font-mono).
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCoverageGroups, useCoverageOverview } from '../../hooks/useCoverage'
 import { useUiStore } from '../../stores/uiStore'
@@ -90,6 +90,16 @@ export function CoverageTriageStrip({
   const { locale } = useI18n()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
+  // The parent flips defaultCollapsed to true the moment a conversation starts
+  // (messages.length > 0). useState only reads a prop at mount, so without this
+  // the strip stays expanded through the whole chat and keeps shoving the thread
+  // down (the bug). Sync on the 0↔1 boundary: auto-collapse when a conversation
+  // begins, re-expand on a fresh/empty session. defaultCollapsed is constant
+  // while messages stay non-empty, so this fires ONLY at the transition — a
+  // manual expand mid-conversation is preserved, never re-collapsed every turn.
+  useEffect(() => {
+    setCollapsed(defaultCollapsed)
+  }, [defaultCollapsed])
 
   // Same queryKey as the Coverage page (TanStack dedupes — zero extra request).
   // The system "Studied Tickers" group is the analyst's working universe.

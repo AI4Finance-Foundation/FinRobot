@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import sqlite3
 from collections import OrderedDict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -44,6 +45,8 @@ from finrobot.routes.settings import load_non_secret_settings
 from finrobot.routes.settings import router as settings_router
 from finrobot.routes.sentiment import router as sentiment_router
 from finrobot.routes.valuation import router as valuation_router
+from finrobot.coverage.prompt import format_coverage_snapshot
+from finrobot.coverage.service import build_overview
 from finrobot.coverage.sqlite_store import CoverageStore
 from finrobot.ratelimit import RunRateLimiter
 from finrobot.run_store import RunStore
@@ -54,6 +57,21 @@ logger = logging.getLogger(__name__)
 # Max pipelines executing at once across the whole app (Coverage Phase 2/M4c).
 # 4 balances batch throughput against provider/LLM rate limits on a desktop box.
 _MAX_CONCURRENT_RUNS = 4
+
+# Concrete failure modes the per-turn watchlist snapshot degrades on (it is a
+# pure prompt augmentation — never let it break a chat turn). Mirrors the
+# project convention of enumerating modes instead of bare `except Exception:`
+# (dashboard._QUOTE_BATCH_DEGRADABLE). build_overview already degrades per-row,
+# so these cover the store/db/loop-level faults that escape it:
+# get_system_group's aiosqlite read, a wedged worker, loop teardown, OS errors.
+_COVERAGE_SNAPSHOT_DEGRADABLE = (
+    sqlite3.Error,
+    RuntimeError,
+    OSError,
+    ValueError,
+    TypeError,
+    AttributeError,
+)
 
 
 async def hydrate_settings_from_secrets(settings: Any, secret_store: SecretStore) -> Any:
@@ -169,11 +187,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # un-gated path that bypasses the shared pool.
     run_semaphore = asyncio.Semaphore(_MAX_CONCURRENT_RUNS)
 
+    # Coverage Desk store — the user's research coverage universe (groups +
+    # members). Own aiosqlite db at ~/.finrobot/coverage.db; the overview
+    # orchestration above it reuses artifact_store + data_layer (ADR-0012).
+    # Built BEFORE deps and carried on FinRobotDeps so the chat orchestrator's
+    # query_coverage_universe tool reaches the SAME instance the REST coverage
+    # routes use (app.state.coverage_store below is this exact object — never a
+    # second connection to the same db file).
+    coverage_store = CoverageStore()
+
     deps = FinRobotDeps(
         data_layer=data_layer,
         settings=settings,
         skill_runtime=registry,
         artifact_store=artifact_store,
+        coverage_store=coverage_store,
         run_semaphore=run_semaphore,
     )
 
@@ -218,10 +246,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except (OSError, RuntimeError):
         logger.exception("run_events prune on startup failed")
     app.state.artifact_store = artifact_store
-    # Coverage Desk store — the user's research coverage universe (groups +
-    # members). Own aiosqlite db at ~/.finrobot/coverage.db; the overview
-    # orchestration above it reuses artifact_store + data_layer (ADR-0012).
-    app.state.coverage_store = CoverageStore()
+    # Reuse the SAME CoverageStore built above (carried on deps) — a second
+    # CoverageStore() here would open a duplicate connection to coverage.db and
+    # leave the chat tool reading a different handle than the REST routes.
+    app.state.coverage_store = coverage_store
     # Bounded LRU dict for transcript writers.  Using OrderedDict lets us
     # evict the least-recently-used entry in O(1) when the cap is reached.
     # TranscriptWriter is open-on-write (no persistent file handle), so
@@ -529,14 +557,23 @@ _LOCALE_NAMES = {"zh": "Chinese (简体中文)", "en": "English"}
 
 
 def _build_runtime_instructions(
-    locale: str | None, context_bundle: dict[str, Any] | None
+    locale: str | None,
+    context_bundle: dict[str, Any] | None,
+    *,
+    coverage_block: str | None = None,
 ) -> str | None:
     """Compose per-request instructions from the UI locale + ContextBar bundle.
 
     Returned as a single string layered on top of the agent's static
-    ``instructions.md`` via ``run_stream_native(instructions=...)``. Both inputs
-    are optional — back-compat clients that send neither get ``None`` and the
+    ``instructions.md`` via ``run_stream_native(instructions=...)``. All inputs
+    are optional — back-compat clients that send none get ``None`` and the
     agent behaves exactly as before (BUG-20260602-038/048).
+
+    ``coverage_block`` is the per-turn watchlist snapshot (the user's Studied
+    Tickers projected by ``coverage.prompt.format_coverage_snapshot``). It is injected every
+    turn so the assistant can answer portfolio-level questions and surface
+    pre-computed movers without a tool call; absent (None) when there is no
+    watchlist or its assembly failed.
     """
     lines: list[str] = []
 
@@ -554,6 +591,9 @@ def _build_runtime_instructions(
                 "Active UI context the user is looking at (use it to ground your "
                 "answer; do not invent details that are not present):\n" + ctx_lines
             )
+
+    if coverage_block:
+        lines.append(coverage_block)
 
     return "\n\n".join(lines) if lines else None
 
@@ -716,6 +756,58 @@ async def _intercept_native_events(
         yield event
 
 
+async def _build_coverage_snapshot_block(request: Request) -> str | None:
+    """Assemble the per-turn watchlist snapshot for the chat system context.
+
+    Reads the user's system ``Studied Tickers`` group and projects it through
+    ``build_overview(cache_only=True)`` — the instant, network-free first paint
+    (local SQLite, ~ms at any N), so injecting it never adds chat latency or
+    fires a provider call. The block carries deterministically pre-computed
+    movers (see :func:`finrobot.coverage.prompt.format_coverage_snapshot`).
+
+    Best-effort by contract: the entire path is guarded so a missing store /
+    absent group / empty membership / assembly error yields ``None`` and the
+    conversation proceeds with no watchlist context (back-compat). It never
+    raises into the chat handler.
+    """
+    state = request.app.state
+    coverage_store: CoverageStore | None = getattr(state, "coverage_store", None)
+    deps: FinRobotDeps | None = getattr(state, "deps", None)
+    run_store = getattr(state, "run_store", None)
+    # deps carries the only typed handles we need (data_layer, settings); guarding
+    # on it (not a getattr-derived Any) is what lets the settings read below stay
+    # type-safe. artifact_store comes off deps too, falling back to app.state for
+    # the test harnesses that set it there without a full deps.
+    if coverage_store is None or deps is None:
+        return None
+    artifact_store = deps.artifact_store or getattr(state, "artifact_store", None)
+    if artifact_store is None:
+        return None
+    try:
+        group = await coverage_store.get_system_group()
+        if group is None or not group.members:
+            return None
+        overview = await build_overview(
+            group,
+            artifact_store=artifact_store,
+            data_layer=deps.data_layer,
+            run_store=run_store,
+            cache_only=True,
+        )
+        threshold = deps.settings.coverage_anomaly_change_threshold
+        return format_coverage_snapshot(overview, change_threshold=threshold)
+    except _COVERAGE_SNAPSHOT_DEGRADABLE:
+        # Watchlist context is a pure augmentation — never let its assembly
+        # break a chat turn. Logged at INFO (not exception) because a cold /
+        # absent Coverage Desk is an ordinary state, not an error to page on.
+        # We enumerate the concrete failure modes rather than bare-excepting
+        # (project convention, mirroring dashboard._QUOTE_BATCH_DEGRADABLE):
+        # build_overview already degrades per-row, so what reaches here is a
+        # store/db/loop-level fault, not a per-ticker fetch miss.
+        logger.info("Coverage snapshot for chat context unavailable", exc_info=True)
+        return None
+
+
 async def _chat_impl(
     request: Request,
     body_json: dict[str, Any],
@@ -767,9 +859,17 @@ async def _chat_impl(
             status_code=422,
         )
 
+    # Per-turn watchlist snapshot: the user's Studied Tickers + deterministically
+    # pre-computed movers, injected into the system context so the assistant is
+    # watchlist-aware without a tool call. Fully best-effort — any failure (no
+    # coverage store, no system group, assembly error) leaves coverage_block None
+    # and the conversation proceeds exactly as before (back-compat).
+    coverage_block = await _build_coverage_snapshot_block(request)
     # Per-request instructions layered on top of instructions.md: UI locale +
-    # ContextBar bundle. None when the client sends neither (back-compat).
-    runtime_instructions = _build_runtime_instructions(locale, context_bundle)
+    # ContextBar bundle + watchlist snapshot. None when none apply (back-compat).
+    runtime_instructions = _build_runtime_instructions(
+        locale, context_bundle, coverage_block=coverage_block
+    )
     # Per-request deps copy carrying the UI locale so the orchestrator's pipeline
     # tool generates the report body in the user's language (shallow replace —
     # shares data_layer / semaphore / settings, mutates nothing). None locale →

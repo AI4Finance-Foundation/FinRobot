@@ -6,6 +6,8 @@ from typing import Any
 from pydantic_ai import Agent, ModelRetry, RunContext
 
 from finrobot.config import FinRobotSettings
+from finrobot.coverage.prompt import format_coverage_for_tool
+from finrobot.coverage.service import build_overview
 from finrobot.engine.agents.factory import create_sub_agents
 from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.data.types import DataType
@@ -116,6 +118,42 @@ def create_lead_agent(
             ) from exc
         result = await ctx.deps.data_layer.fetch(dt, norm)
         return result.to_context_string()
+
+    @agent.tool
+    async def query_coverage_universe(ctx: RunContext[FinRobotDeps], refresh: bool = False) -> str:
+        """List the user's watchlist (Studied Tickers) with each name's live snapshot.
+
+        Most watchlist questions are already answerable from the "User's watchlist"
+        block in your system context — it is injected EVERY turn. Call this tool
+        only when you need data NOT in that block, or when the user explicitly asks
+        for fresh/live numbers.
+
+        refresh=False (default): instant, reads the local cache — cheap, but the
+        prices may be the same last-known snapshot already in your context.
+        refresh=True: triggers a live provider fetch for every name — SLOW; use it
+        ONLY when the user explicitly wants real-time prices.
+
+        Returns one compact line per name (ticker / price / 1d% / verdict / live
+        upside / signal). Caliber: ``upside`` uses a LIVE-price denominator
+        ((target − price) / price) — it is NOT the report's entry-based upside;
+        never conflate them.
+        """
+        store = ctx.deps.coverage_store
+        if store is None or ctx.deps.artifact_store is None:
+            return (
+                "The watchlist isn't available in this session (no Coverage Desk is "
+                "wired up). Ask the user for a ticker and use query_financial_data."
+            )
+        group = await store.get_system_group()
+        if group is None or not group.members:
+            return "The user's watchlist is empty — no Studied Tickers yet."
+        overview = await build_overview(
+            group,
+            artifact_store=ctx.deps.artifact_store,
+            data_layer=ctx.deps.data_layer,
+            cache_only=not refresh,
+        )
+        return format_coverage_for_tool(overview)
 
     @agent.tool
     async def activate_skill(ctx: RunContext[FinRobotDeps], skill_id: str) -> str:

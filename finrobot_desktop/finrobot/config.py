@@ -178,6 +178,22 @@ class FinRobotSettings(BaseSettings):
     # Only affects LLM-generated text — deterministic calculations are unchanged.
     language: str = Field(default="en", pattern=r"^(en|zh)$")
 
+    # Coverage watchlist anomaly threshold — a 1-day move whose magnitude meets
+    # or exceeds this is pre-flagged (deterministically, in Python) in the chat
+    # snapshot the LLM sees, so the assistant calls out the move rather than
+    # judging "big" itself. UNIT = percentage POINTS, matching
+    # ``CoverageRow.change_pct_1d`` (NormalizedPrices.latest_session_change
+    # returns ``change / prev_close * 100`` — e.g. 3.0 == ±3 %). 3 % is a ~2σ
+    # daily move for a typical large-cap, the desk's "worth a glance" bar.
+    coverage_anomaly_change_threshold: float = Field(
+        default=3.0,
+        gt=0,
+        description=(
+            "Absolute 1-day % move (in percentage points) at/above which a "
+            "watchlist name is pre-flagged as a mover in the chat snapshot."
+        ),
+    )
+
     # Backtest: dynamic ``module:ClassName`` strategy loading is OFF by default
     # (BUG-063). The built-in registry ("sma_crossover") always resolves without
     # any import. To load a custom Strategy class via "your.module:ClassName",

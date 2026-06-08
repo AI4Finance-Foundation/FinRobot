@@ -10,6 +10,7 @@ from finrobot.engine.skills.registry import SkillRegistry
 
 if TYPE_CHECKING:
     from finrobot.artifact.store import ArtifactStore
+    from finrobot.coverage.sqlite_store import CoverageStore
 
 
 @dataclass
@@ -19,6 +20,12 @@ class FinRobotDeps:
     skill_runtime: SkillRegistry | None = None
     artifact_store: "ArtifactStore | None" = None
     """Artifact store for persisting computational snapshots. None = disabled."""
+    coverage_store: "CoverageStore | None" = None
+    """The user's Coverage Desk store (groups + members), injected per-app so the
+    chat orchestrator's ``query_coverage_universe`` tool can assemble the live
+    watchlist overview on demand. None = a single-invocation CLI/SDK process with
+    no Coverage Desk wired up — the tool then returns a friendly "not available"
+    message instead of raising, so non-chat callers stay unaffected."""
     run_semaphore: asyncio.Semaphore | None = None
     """App-wide concurrency cap shared by EVERY caller that runs a pipeline
     through these deps (chat orchestrator, REST runs, Coverage batch). When set,

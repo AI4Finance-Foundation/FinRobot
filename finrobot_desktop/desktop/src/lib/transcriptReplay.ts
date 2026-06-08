@@ -43,8 +43,12 @@ export interface TranscriptEvent {
 type AssistantPart = UIMessagePart<UIDataTypes, UITools>
 
 /** A UIMessage carrying the originating event timestamp so MessageBubble can
- * show a real time instead of "now" (it reads a root `createdAt`). */
-type ReplayMessage = UIMessage & { createdAt?: string }
+ * show a real time instead of "now". The timestamp lives in the Vercel AI SDK's
+ * typed `metadata` slot — NOT a root field. A root extra (the old `createdAt`)
+ * is echoed verbatim by DefaultChatTransport on the next send and rejected by
+ * the backend's strict UIMessage schema (`extra='forbid'`), 422-ing every
+ * follow-up in a resumed session. `metadata` is a defined field, so it passes. */
+type ReplayMessage = UIMessage & { metadata?: { createdAt?: string } }
 
 function isNonEmptyString(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0
@@ -143,7 +147,7 @@ export function reconstructMessages(events: TranscriptEvent[]): UIMessage[] {
       id: `replay-asst-${seq++}`,
       role: 'assistant',
       parts: [],
-      createdAt: timestamp,
+      metadata: { createdAt: timestamp },
     }
     messages.push(msg)
     current = msg
@@ -159,7 +163,7 @@ export function reconstructMessages(events: TranscriptEvent[]): UIMessage[] {
           id: `replay-user-${seq++}`,
           role: 'user',
           parts: [{ type: 'text', text }],
-          createdAt: e.timestamp,
+          metadata: { createdAt: e.timestamp },
         }
         messages.push(msg)
         break

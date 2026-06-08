@@ -149,8 +149,14 @@ describe('reconstructMessages', () => {
     }
   })
 
-  it('carries the event timestamp onto the message (createdAt) for honest times', () => {
+  it('carries the event timestamp in metadata.createdAt for honest times', () => {
+    // metadata (not a root field) — a root extra is rejected by the backend's
+    // strict UIMessage schema and 422s the next send in a resumed session.
     const out = reconstructMessages([evt('user_msg', { text: 'hi' }, '2026-06-08T12:34:00Z')])
-    expect((out[0] as { createdAt?: string }).createdAt).toBe('2026-06-08T12:34:00Z')
+    expect((out[0] as { metadata?: { createdAt?: string } }).metadata?.createdAt).toBe(
+      '2026-06-08T12:34:00Z',
+    )
+    // No off-spec root field leaks onto the wire.
+    expect('createdAt' in out[0]).toBe(false)
   })
 })

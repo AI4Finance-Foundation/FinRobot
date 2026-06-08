@@ -751,15 +751,17 @@ function MessageList({
 
 function MessageBubble({ message }: { message: UIMessage }): React.ReactElement {
   const isUser = message.role === 'user'
-  // Read the SDK-supplied createdAt instead of new Date() — the latter
+  // Read the replay-supplied timestamp instead of new Date() — the latter
   // re-runs on every render so all historical messages would show "now".
-  // The ai SDK v1 UIMessage type stopped surfacing `createdAt` at the
-  // root and moved per-message extras into the typed `metadata` slot.
-  // useChat() doesn't parameterise metadata, so the field is reachable
-  // only via a narrowed read. Old messages persisted before any sender
-  // populated this will be undefined; formatMessageTime drops them
-  // rather than fabricating "now".
-  const createdAt = (message as UIMessage & { createdAt?: string | Date | undefined }).createdAt
+  // The timestamp lives in the Vercel AI SDK's typed `metadata` slot, NOT a
+  // root field: a root extra is echoed back by DefaultChatTransport on the
+  // next send and rejected by the backend's strict UIMessage schema (422 on
+  // every follow-up in a resumed session — see transcriptReplay.ts).
+  // useChat() doesn't parameterise metadata, so the field is reachable only
+  // via a narrowed read. Live-stream messages carry no metadata; their time
+  // is undefined and formatMessageTime drops it rather than fabricating "now".
+  const createdAt = (message as UIMessage & { metadata?: { createdAt?: string | Date } }).metadata
+    ?.createdAt
   const timeStr = formatMessageTime(createdAt)
 
   return (

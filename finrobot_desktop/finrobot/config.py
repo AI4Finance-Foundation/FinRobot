@@ -14,9 +14,19 @@ from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 logger = logging.getLogger(__name__)
 
 
-# LLM streams run 30-60s+; the read/total budget must cover a slow first token
-# plus a long generation. connect stays short so a dead proxy fails fast.
-_LLM_TIMEOUT = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0)
+# httpx `read` is the per-chunk GAP timeout (max wait between received chunks),
+# NOT the total-generation budget — a streaming response resets it on every
+# chunk. So it only ever fires on time-to-first-token or a mid-stream STALL;
+# continuous token streams (sub-second gaps) and long report generations are
+# unaffected, and a long chat tool call runs *between* separate OpenAI calls, not
+# within one read. The old 300s made a stalled connection (common through the
+# user's flaky Clash proxy — silently-dropped sockets, see keepalive below) hang
+# for a full 5 minutes before failing over to the non-streaming fallback, which
+# read as "still waiting…" forever. 120s bounds that stall while still leaving
+# generous headroom for a slow first token (gpt-4o first-byte is ~1-4s warm; a
+# reasoning model with a long silent think phase would need this raised).
+# connect stays short so a dead proxy fails fast.
+_LLM_TIMEOUT = httpx.Timeout(connect=10.0, read=120.0, write=30.0, pool=10.0)
 
 # One shared httpx.AsyncClient reused process-wide for every LLM provider —
 # mirrors how Claude Code keeps a single shared dispatcher with a warm
@@ -24,8 +34,15 @@ _LLM_TIMEOUT = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0)
 # Clash proxy the OpenAI handshake costs ~3.3s and is otherwise paid on EVERY
 # turn, because httpx's default keepalive_expiry=5s drops the idle socket
 # during the tens-of-seconds gap between turns. Raising keepalive_expiry to
-# 300s (undici-like generosity) keeps the socket alive across normal turn gaps
-# so it gets reused — first-byte drops from ~4.4s to ~1.2s on a warm connection.
+# 90s keeps the socket alive across normal turn gaps (read→type→send is well
+# under that) so it gets reused — first-byte drops from ~4.4s to ~1.2s on a warm
+# connection. It is deliberately NOT the old 300s: through the flaky Clash proxy
+# a socket idle for minutes is likely already dead, and httpx would blindly reuse
+# it and then block on the read timeout above before discovering the corpse —
+# turning a warm-pool optimisation into a stall. 90s bounds that staleness window
+# to roughly one human turn-gap while keeping the warm-reuse win during an active
+# back-and-forth. (A socket that dies mid-window still stalls until the read
+# timeout, then errors and is dropped from the pool — not reused again.)
 #
 # trust_env defaults to True, so httpx honours HTTP_PROXY/HTTPS_PROXY/NO_PROXY
 # from the environment — the same proxy the rest of the process uses.
@@ -49,7 +66,7 @@ def _shared_llm_http_client() -> httpx.AsyncClient:
             limits=httpx.Limits(
                 max_keepalive_connections=20,
                 max_connections=100,
-                keepalive_expiry=300.0,
+                keepalive_expiry=90.0,
             ),
         )
     return _llm_http_client

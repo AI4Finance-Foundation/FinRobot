@@ -185,11 +185,17 @@ class TestCreateModel:
         assert os.environ.get("OPENAI_API_KEY") is None
 
     def test_shared_llm_http_client_is_warm_and_proxy_aware(self):
-        """The shared LLM client keeps the proxied TLS socket warm across turns.
+        """The shared LLM client keeps the proxied TLS socket warm across turns
+        while bounding stalls on a flaky proxy.
 
-        Guards the TTFT fix: a long keepalive_expiry (vs httpx's default 5s, which
+        Guards the TTFT fix: a keepalive_expiry well above httpx's default 5s (which
         drops the idle socket between turns and forces a ~3.3s re-handshake) and
-        trust_env=True so HTTP(S)_PROXY from the environment is honoured.
+        trust_env=True so HTTP(S)_PROXY from the environment is honoured. Also
+        guards the stall-ceiling fix: keepalive and read are deliberately NOT 300s
+        — through a flaky Clash proxy a long-idle socket is likely dead and httpx
+        would reuse it then block on `read` before noticing, so both are bounded so
+        a stalled turn fails over in ~2min instead of hanging 5min as "still
+        waiting…".
         """
         import httpx
 
@@ -199,10 +205,13 @@ class TestCreateModel:
         assert isinstance(client, httpx.AsyncClient)
         # trust_env defaults to True -> httpx reads HTTP_PROXY/HTTPS_PROXY/NO_PROXY.
         assert client.trust_env is True
-        # The connection pool stays alive long enough to survive normal turn gaps.
+        # Warm across normal turn gaps, but not so long a dead proxy socket lingers.
         pool = client._transport._pool
-        assert pool._keepalive_expiry == 300.0
+        assert pool._keepalive_expiry == 90.0
         assert pool._max_keepalive_connections == 20
+        # read is the per-chunk GAP ceiling (not total generation) — bounds a stall.
+        assert client.timeout.read == 120.0
+        assert client.timeout.connect == 10.0
 
     def test_passes_shared_http_client_to_provider(self, monkeypatch):
         """create_model hands the process-wide shared client to the LLM provider,

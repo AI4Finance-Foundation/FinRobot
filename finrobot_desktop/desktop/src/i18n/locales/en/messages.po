@@ -1193,10 +1193,6 @@ msgstr ""
 #~ msgstr "CEO Pay Ratio"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.kv.peerPercentile"
-#~ msgstr "Peer Percentile"
-
-#. js-lingui-explicit-id
 #~ msgid "chapter.ownership.tx.sale"
 #~ msgstr "Sale"
 

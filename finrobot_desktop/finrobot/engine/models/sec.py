@@ -269,8 +269,6 @@ class ProxyCompensation(BaseModel):
     ceo_total_compensation: float | None = None  # USD
     ceo_yoy_change_pct: float | None = None  # percentage units (e.g. 18.4 → 18.4%)
     ceo_pay_ratio: int | None = None  # CEO total / median employee total
-    top5_neo_total_compensation: float | None = None  # sum of top-5 NEO comp
-    peer_percentile: int | None = None  # 1..100
     provenance: FilingProvenance
 
 

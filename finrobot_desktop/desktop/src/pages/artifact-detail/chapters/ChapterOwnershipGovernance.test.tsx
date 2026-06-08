@@ -117,7 +117,6 @@ describe('ChapterOwnershipGovernance', () => {
       ceo_total_compensation: 63_209_845,
       ceo_yoy_change_pct: 18.4,
       ceo_pay_ratio: 1447,
-      peer_percentile: 92,
       provenance: baseProv('DEF 14A'),
     }
     const ownership: OwnershipGovernanceShape = {
@@ -128,7 +127,6 @@ describe('ChapterOwnershipGovernance', () => {
     render(wrap(<ChapterOwnershipGovernance ownership={ownership} reportingCurrency="USD" />))
     expect(screen.getByText('Tim Cook')).toBeInTheDocument()
     expect(screen.getByText('1447:1')).toBeInTheDocument()
-    expect(screen.getByText('92th')).toBeInTheDocument()
   })
 
   it('does not render stale proxy payloads with title-as-name and revenue-sized comp', () => {

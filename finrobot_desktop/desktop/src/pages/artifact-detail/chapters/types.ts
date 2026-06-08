@@ -240,8 +240,6 @@ export interface ProxyCompensationShape {
   ceo_total_compensation?: number | null
   ceo_yoy_change_pct?: number | null
   ceo_pay_ratio?: number | null
-  top5_neo_total_compensation?: number | null
-  peer_percentile?: number | null
   provenance: FilingProvenanceShape
 }
 

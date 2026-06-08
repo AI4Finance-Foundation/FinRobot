@@ -1193,10 +1193,6 @@ msgstr ""
 #~ msgstr "CEO/员工薪酬比"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.kv.peerPercentile"
-#~ msgstr "同业分位"
-
-#. js-lingui-explicit-id
 #~ msgid "chapter.ownership.tx.sale"
 #~ msgstr "卖出"
 

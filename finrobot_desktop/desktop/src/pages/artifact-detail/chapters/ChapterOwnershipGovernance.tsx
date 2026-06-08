@@ -446,17 +446,10 @@ function CompensationGrid({
           ? `${comp.ceo_pay_ratio}:1`
           : '—',
     },
-    {
-      label: t('chapter.ownership.kv.peerPercentile'),
-      value:
-        comp.peer_percentile !== null && comp.peer_percentile !== undefined
-          ? `${comp.peer_percentile}th`
-          : '—',
-    },
   ]
   return (
     <>
-      <KvGrid cells={cells} columns={4} />
+      <KvGrid cells={cells} columns={3} />
       <p style={kvFooter}>
         <ProvenanceLink prov={makeProvenance(comp)} locale={locale} t={t}>
           {t('chapter.ownership.source.def14a', { date: formatDate(comp.filing_date, locale) })}

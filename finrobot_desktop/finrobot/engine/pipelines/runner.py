@@ -15,6 +15,7 @@ import httpx
 from pydantic import BaseModel
 from pydantic_ai.exceptions import AgentRunError
 
+from finrobot.artifact.contract import enforce_artifact_contract
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import StepOutput
@@ -337,6 +338,13 @@ class Pipeline:
                 # only the fallback when the chain is absent (legacy / fresh runs).
                 if source_artifact_id is not None:
                     artifact.meta.parent_artifact_id = source_artifact_id
+                # Output-contract total gate: the single persist boundary every
+                # artifact type converges on. Whole-artifact invariants the
+                # upstream fragment gates are structurally blind to (headline
+                # upside band, narrative malformation). Pure, zero-I/O, degrades
+                # in place (withhold/REVIEW) and never raises — same "log, don't
+                # blank the run" contract as the persist try-block below.
+                artifact = enforce_artifact_contract(artifact)
                 artifact_id = await _artifact_store.save(artifact)
                 pipeline_result.artifact_id = artifact_id
                 logger.info("Artifact persisted: %s", artifact_id)

@@ -70,4 +70,59 @@ describe('ChapterAuditBanner', () => {
     // Left accent border resolves to the danger token in the unpublishable path.
     expect(banner.style.borderLeft).toContain('var(--danger)')
   })
+
+  // ── Output-contract findings (ArtifactContract, step 1b) ───────────────────
+
+  it('exposes the #report-audit-banner anchor so the cover can jump to it', () => {
+    render(<ChapterAuditBanner audit={REVIEW_AUDIT} />)
+    expect(screen.getByTestId('report-audit-banner').id).toBe('report-audit-banner')
+  })
+
+  it('renders output-contract findings (clause id + evidence) alongside numeric ones', () => {
+    render(
+      <ChapterAuditBanner
+        audit={REVIEW_AUDIT}
+        contractFindings={[
+          {
+            clause: 'C1',
+            evidence:
+              'headline target 2172.00 is 2.5x the entry price 864.00, outside the single-method corroboration band [0.5x, 2x]',
+          },
+        ]}
+      />,
+    )
+    // Numeric findings (2) + contract findings (1) all render as rows.
+    expect(screen.getAllByTestId('report-audit-finding')).toHaveLength(3)
+    expect(screen.getByText('OUTPUT-CONTRACT/C1')).toBeInTheDocument()
+    expect(screen.getByText(/single-method corroboration band/)).toBeInTheDocument()
+  })
+
+  it('renders for a contract withhold even when the numeric-audit block is absent', () => {
+    // The contract can withhold on a clean snapshot (MU $2172): no numeric
+    // findings, audit may even be null — the banner must still surface the reason.
+    render(
+      <ChapterAuditBanner
+        audit={null}
+        contractFindings={[
+          {
+            clause: 'C2',
+            evidence: "malformed amount '$2172.062.06' (two decimal points) in narrative",
+          },
+        ]}
+      />,
+    )
+    expect(screen.getByTestId('report-audit-banner')).toBeInTheDocument()
+    expect(screen.getByText('OUTPUT-CONTRACT/C2')).toBeInTheDocument()
+    expect(screen.getByText(/\$2172\.062\.06/)).toBeInTheDocument()
+  })
+
+  it('stays zero-footprint when publishable AND no contract findings', () => {
+    const { container } = render(
+      <ChapterAuditBanner
+        audit={{ artifact_status: 'publishable', findings: [] }}
+        contractFindings={[]}
+      />,
+    )
+    expect(container.firstChild).toBeNull()
+  })
 })

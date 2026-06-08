@@ -29,15 +29,32 @@ function severityTone(severity: NumericAuditSeverity): string {
 
 export function ChapterAuditBanner({
   audit,
+  contractFindings = [],
 }: {
   audit: NumericAuditShape | null
+  /** Output-contract evidence parsed from outputs.warnings (`[CONTRACT/Cn] …`).
+   * The contract can withhold on a CLEAN snapshot (MU $2172 — zero numeric
+   * findings), so these surface the reason the numeric audit never saw. */
+  contractFindings?: { clause: string; evidence: string }[]
 }): React.ReactElement | null {
   const { t } = useI18n()
   const status = audit?.artifact_status ?? 'publishable'
-  // Zero-footprint on a clean report.
-  if (!audit || status === 'publishable') return null
+  // Zero-footprint on a clean report — but a contract withhold can fire even when
+  // the numeric snapshot is clean (publishable / no audit block), so the contract
+  // findings alone are enough to raise the banner.
+  if ((!audit || status === 'publishable') && contractFindings.length === 0) return null
 
-  const findings: NumericAuditFinding[] = audit.findings ?? []
+  // Output-contract findings render as first-class rows beside the numeric-audit
+  // ones — same Finding shape, distinguished by the OUTPUT-CONTRACT/ field-key.
+  const findings: NumericAuditFinding[] = [
+    ...(audit?.findings ?? []),
+    ...contractFindings.map((c) => ({
+      field_key: `OUTPUT-CONTRACT/${c.clause}`,
+      check: 'output_contract',
+      severity: 'blocked_field' as const,
+      evidence: c.evidence,
+    })),
+  ]
   const accent = statusAccent(status)
 
   const statusLabel =
@@ -47,10 +64,12 @@ export function ChapterAuditBanner({
 
   return (
     <section
+      id="report-audit-banner"
       data-testid="report-audit-banner"
       role="alert"
       style={{
         margin: '12px 0 24px',
+        scrollMarginTop: 84,
         padding: '18px 20px',
         background: `linear-gradient(160deg, color-mix(in srgb, ${accent} 10%, transparent), color-mix(in srgb, ${accent} 3%, transparent))`,
         border: `1px solid color-mix(in srgb, ${accent} 45%, transparent)`,
@@ -73,7 +92,7 @@ export function ChapterAuditBanner({
         </span>
       </div>
 
-      {audit.withhold_valuation && (
+      {audit?.withhold_valuation && (
         <p
           style={{
             margin: '6px 0 0',

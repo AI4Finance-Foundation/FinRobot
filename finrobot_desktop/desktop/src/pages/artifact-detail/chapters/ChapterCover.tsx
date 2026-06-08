@@ -16,6 +16,12 @@ interface ChapterCoverProps {
   reportType: string
   versionNumber: number | null
   totalVersions: number
+  /** Output-contract withhold reason (the first `[CONTRACT/Cn]` evidence string).
+   * When present on a REVIEW cover, shown as a one-liner with a jump to the audit
+   * banner — so "why was the target withheld" is answered at a glance, not buried.
+   * Null when not withheld, or when the REVIEW came from an upstream gate with no
+   * contract evidence (the audit banner still explains those below). */
+  withheldReason?: string | null
 }
 
 export function ChapterCover({
@@ -27,6 +33,7 @@ export function ChapterCover({
   reportType,
   versionNumber,
   totalVersions,
+  withheldReason = null,
 }: ChapterCoverProps): React.ReactElement {
   const { locale, t } = useI18n()
   const verdict = (thesis?.recommendation ?? '').toUpperCase()
@@ -158,6 +165,55 @@ export function ChapterCover({
           )
         )}
       </div>
+
+      {verdict === 'REVIEW' && withheldReason && (
+        <a
+          href="#report-audit-banner"
+          data-testid="cover-withheld-reason"
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 9,
+            marginTop: 16,
+            padding: '11px 14px',
+            maxWidth: 760,
+            background: 'color-mix(in srgb, var(--warning) 8%, transparent)',
+            border: '1px solid color-mix(in srgb, var(--warning) 34%, transparent)',
+            borderRadius: 'var(--radius-sm)',
+            textDecoration: 'none',
+          }}
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--warning)"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+            style={{ flexShrink: 0, marginTop: 1 }}
+          >
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <span
+            style={{
+              fontFamily: 'var(--font-body)',
+              fontSize: 12.5,
+              lineHeight: 1.55,
+              color: 'var(--text-secondary)',
+            }}
+          >
+            {withheldReason}
+            <span style={{ color: 'var(--warning)', whiteSpace: 'nowrap', fontWeight: 500 }}>
+              {' ↓'}
+            </span>
+          </span>
+        </a>
+      )}
 
       <div
         style={{

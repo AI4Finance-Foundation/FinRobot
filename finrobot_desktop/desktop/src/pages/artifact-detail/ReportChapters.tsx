@@ -41,15 +41,28 @@ export function ReportChapters({
   // activates the report's own language, so this is naturally false there.
   const langMismatch = d.reportLang !== locale
 
-  // The numeric-audit findings are ALSO mirrored into outputs.warnings with a
-  // "[NUMERIC-AUDIT/…]" prefix (artifact/builders.py). The dedicated audit banner
-  // already renders them richly at the top, so strip them from the generic
-  // compute-warnings list at the bottom — otherwise every finding shows twice.
-  const computeWarnings = (d.outputs.warnings ?? []).filter((w) => !w.startsWith('[NUMERIC-AUDIT/'))
+  // The numeric-audit findings are mirrored into outputs.warnings with a
+  // "[NUMERIC-AUDIT/…]" prefix (artifact/builders.py); the output contract adds
+  // "[CONTRACT/Cn] …" evidence the same way (artifact/contract.py). Both render
+  // richly in the audit banner, so strip them from the generic compute-warnings
+  // list at the bottom — otherwise every finding shows twice.
+  const allWarnings = d.outputs.warnings ?? []
+  const computeWarnings = allWarnings.filter(
+    (w) => !w.startsWith('[NUMERIC-AUDIT/') && !w.startsWith('[CONTRACT/'),
+  )
+  // Parse the hard-clause contract evidence ("[CONTRACT/C1] …"). The "/note" (soft
+  // clause) and "/withheld" (provenance stamp) variants carry a slash after the
+  // tag and are deliberately excluded — only per-clause evidence drives the UI.
+  const contractFindings = allWarnings
+    .map((w) => /^\[CONTRACT\/(C\d+)\]\s(.+)$/.exec(w))
+    .filter((m): m is RegExpExecArray => m !== null)
+    .map((m) => ({ clause: m[1], evidence: m[2] }))
+  // The cover one-liner = the first clause's evidence (verdict is already REVIEW).
+  const withheldReason = contractFindings[0]?.evidence ?? null
 
   return (
     <main style={{ minWidth: 0, padding: '12px 0 60px' }}>
-      <ChapterAuditBanner audit={d.numericAudit} />
+      <ChapterAuditBanner audit={d.numericAudit} contractFindings={contractFindings} />
       {langMismatch && (
         <div
           data-testid="report-lang-mismatch"
@@ -86,6 +99,7 @@ export function ReportChapters({
         reportType={artifact.type}
         versionNumber={d.versionNumber}
         totalVersions={d.totalVersions}
+        withheldReason={withheldReason}
       />
       <ChapterThesis thesis={d.thesis} />
       <ChapterCompanyOverview thesis={d.thesis} />

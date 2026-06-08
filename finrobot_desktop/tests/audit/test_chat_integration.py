@@ -275,6 +275,27 @@ async def test_chat_records_locale_and_ticker_in_session_start(
     assert start["data"]["locale"] == "zh"
 
 
+async def test_chat_session_start_model_comes_from_settings_not_body(
+    _reset_transcript_dir: Path,
+) -> None:
+    """session_start records the model from authoritative settings (= what the
+    user picked / the agent runs), never the client's ``model`` field — which
+    raced the /api/settings fetch and stamped a bogus "unknown" into the audit
+    trail (BUG-20260608). ``_post_chat`` configures settings.model_name="test"."""
+    session_id = "model-from-settings"
+    await _post_chat(
+        {
+            "id": session_id,
+            "model": "unknown",  # client echo — must be ignored
+            "messages": [{"role": "user", "parts": [{"type": "text", "text": "hi"}]}],
+        }
+    )
+    events = _read_events(_reset_transcript_dir, session_id)
+    start = next(e for e in events if e["event"] == "session_start")
+    assert start["data"]["model"] == "test"
+    assert start["data"]["model"] != "unknown"
+
+
 async def test_chat_records_context_bundle_event(_reset_transcript_dir: Path) -> None:
     """A ``context_bundle`` in the body is written as a ``context`` event."""
     session_id = "ctx-bundle"

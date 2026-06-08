@@ -252,15 +252,18 @@ export function AiChatTab({
             pinned,
             ...(selected ? { selected_text: selected } : {}),
           }
+          // No `model` field: the backend records the model from its own
+          // authoritative settings (= what the user picked, = what the agent
+          // runs), so a client echo here is dead weight that only raced the
+          // /api/settings fetch and stamped "unknown" into the transcript.
           return {
             ticker: ticker ?? null,
-            model: configuredModel ?? 'unknown',
             locale: useUiPrefs.getState().locale,
             context_bundle,
           }
         },
       }),
-    [ticker, configuredModel],
+    [ticker],
   )
 
   const { messages, status, error, sendMessage, stop, regenerate, clearError, setMessages } =

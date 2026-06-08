@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import sqlite3
+import uuid
 from collections import OrderedDict
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -14,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from starlette.responses import JSONResponse, Response, StreamingResponse
 
 from pydantic_ai.ui.vercel_ai import VercelAIAdapter
 
@@ -641,7 +642,7 @@ _TRANSCRIPT_WRITERS_MAX = 256
 async def _get_or_create_writer(
     app_state: Any,
     session_id: str,
-    model_hint: str,
+    model: str,
     ticker: str | None = None,
     locale: str | None = None,
 ) -> TranscriptWriter:
@@ -665,9 +666,7 @@ async def _get_or_create_writer(
 
     writer = TranscriptWriter(session_id)
     try:
-        await writer.log_session_start(
-            user_id="local", model=model_hint, ticker=ticker, locale=locale
-        )
+        await writer.log_session_start(user_id="local", model=model, ticker=ticker, locale=locale)
     except OSError:
         logger.exception("TranscriptWriter: failed to write session_start for %s", session_id)
 
@@ -683,6 +682,7 @@ async def _get_or_create_writer(
 async def _intercept_native_events(
     native_stream: AsyncIterator[Any],
     writer: TranscriptWriter,
+    tool_state: dict[str, bool] | None = None,
 ) -> AsyncIterator[Any]:
     """Pass-through wrapper that mirrors pydantic_ai native events to the transcript.
 
@@ -693,6 +693,11 @@ async def _intercept_native_events(
 
     Uses ``PartEndEvent`` (not ``PartStartEvent``) for text so we log the
     complete text of each part in one write instead of streaming deltas.
+
+    ``tool_state`` (when provided) gets ``tool_executed=True`` set the moment a
+    ``FunctionToolCallEvent`` is seen, so the non-streaming fallback in
+    :func:`_stream_with_fallback` can refuse to re-run a turn that already
+    executed a tool (matching Claude Code's no-double-exec guard).
     """
     from pydantic_ai.messages import (
         FunctionToolCallEvent,
@@ -716,6 +721,8 @@ async def _intercept_native_events(
 
         # --- tool call ---
         elif isinstance(event, FunctionToolCallEvent):
+            if tool_state is not None:
+                tool_state["tool_executed"] = True
             part = event.part
             try:
                 args = part.args_as_dict() if hasattr(part, "args_as_dict") else {}
@@ -754,6 +761,196 @@ async def _intercept_native_events(
                 logger.exception("TranscriptWriter: failed to log tool_result")
 
         yield event
+
+
+# Vercel AI data-stream frames that carry no model output of their own — the
+# turn-control envelope plus the error frame. ``transform_stream`` is resilient:
+# a mid-stream model/proxy failure is caught inside it and surfaces as an
+# ``error`` frame wrapped in this envelope (verified empirically), never as a
+# raised exception out of the chunk stream. So an "empty / failed stream" looks,
+# at this layer, like a chunk stream whose frames are ALL in this set. We hold
+# them back until the first frame *outside* this set (real content:
+# text-* / reasoning-* / tool-input-* / tool-output-* / file) appears; if none
+# ever does, we discard the envelope and emit the non-streaming fallback instead
+# — so the desktop never sees a bare ``error``/empty turn when a one-shot retry
+# can produce the answer. Holding the preamble keeps the happy path
+# byte-for-byte (frames are replayed in order the instant content arrives).
+_VERCEL_NON_CONTENT_TYPES = frozenset(
+    {"start", "start-step", "finish-step", "finish", "done", "error"}
+)
+
+
+async def _emit_nonstreaming_fallback(
+    agent: Any,
+    *,
+    message_history: list[Any],
+    deferred_tool_results: Any,
+    instructions: Any,
+    deps: Any,
+    encoder: Any,
+    writer: TranscriptWriter,
+) -> AsyncIterator[str]:
+    """Run a single non-streaming ``agent.run`` and emit it as one Vercel AI message.
+
+    Mirrors how Claude Code recovers from an empty/failed stream: re-issue the
+    *same* request once in non-streaming mode and surface the whole result as a
+    single assistant text message. Emits exactly the frame sequence a one-text
+    streaming turn would have produced::
+
+        start → start-step → text-start → text-delta(full text) → text-end
+              → finish-step → finish → [DONE]
+
+    so the desktop ``@ai-sdk/react`` client renders it identically. The
+    transcript side-log is preserved by logging the assistant text here (the
+    streaming interceptor never ran for this turn).
+    """
+    from pydantic_ai.ui.vercel_ai._event_stream import _FINISH_REASON_MAP
+    from pydantic_ai.ui.vercel_ai.response_types import (
+        DoneChunk,
+        FinishChunk,
+        FinishReason,
+        FinishStepChunk,
+        StartChunk,
+        StartStepChunk,
+        TextDeltaChunk,
+        TextEndChunk,
+        TextStartChunk,
+    )
+
+    result = await agent.run(
+        message_history=message_history,
+        deferred_tool_results=deferred_tool_results,
+        deps=deps,
+        instructions=instructions,
+    )
+    text = str(result.output)
+
+    # Side-log the assistant text so the fallback path keeps an audit trail —
+    # the native-event interceptor (_intercept_native_events) never saw output.
+    try:
+        await writer.log_assistant_text(text)
+    except OSError:
+        logger.exception("TranscriptWriter: failed to log assistant_text (fallback)")
+
+    # Map the pydantic_ai finish reason to the Vercel AI vocabulary, reusing the
+    # adapter's own map (mirrors VercelAIEventStream.handle_run_result). Unknown
+    # → 'other'; absent → 'stop' (a clean non-streaming turn that finished).
+    pydantic_reason = result.response.finish_reason
+    finish_reason: FinishReason = (
+        _FINISH_REASON_MAP.get(pydantic_reason, "other") if pydantic_reason else "stop"
+    )
+
+    message_id = uuid.uuid4().hex
+    chunks: list[Any] = [
+        StartChunk(),
+        StartStepChunk(),
+        TextStartChunk(id=message_id),
+    ]
+    if text:
+        chunks.append(TextDeltaChunk(id=message_id, delta=text))
+    chunks.extend(
+        [
+            TextEndChunk(id=message_id),
+            FinishStepChunk(),
+            FinishChunk(finish_reason=finish_reason),
+            DoneChunk(),
+        ]
+    )
+    for chunk in chunks:
+        yield encoder.encode_event(chunk)
+
+
+async def _stream_with_fallback(
+    *,
+    event_stream: AsyncIterator[Any],
+    encoder: Any,
+    agent: Any,
+    message_history: list[Any],
+    deferred_tool_results: Any,
+    instructions: Any,
+    deps: Any,
+    writer: TranscriptWriter,
+    tool_state: dict[str, bool],
+) -> AsyncIterator[str]:
+    """Encode the streaming turn, with a one-shot non-streaming fallback.
+
+    Faithful to Claude Code's single fallback: try streaming first; if the
+    stream fails mid-flight OR ends without producing any usable content, and
+    no tool has executed yet this turn, re-issue the same request once in
+    non-streaming mode and emit the whole result as one message.
+
+    Implementation: hold back every non-content envelope frame
+    (``_VERCEL_NON_CONTENT_TYPES`` — start/start-step/finish*/done/error) until
+    the first *content* frame appears. While only envelope frames have arrived
+    nothing meaningful has reached the client, so an empty/failed turn (whose
+    chunk stream is entirely envelope, ending in ``error`` or just ``finish``)
+    can be cleanly discarded and replaced by the fallback. The instant a content
+    frame arrives we commit — replay the held envelope in order, then stream the
+    rest live (happy path byte-for-byte). Once committed (or once a tool ran) we
+    never fall back, matching CC's guard against double-rendering / re-executing
+    tools.
+    """
+    held: list[Any] = []
+    committed = False
+
+    def _tool_ran() -> bool:
+        return tool_state.get("tool_executed", False)
+
+    async def _fallback() -> AsyncIterator[str]:
+        async for encoded in _emit_nonstreaming_fallback(
+            agent,
+            message_history=message_history,
+            deferred_tool_results=deferred_tool_results,
+            instructions=instructions,
+            deps=deps,
+            encoder=encoder,
+            writer=writer,
+        ):
+            yield encoded
+
+    # No try/except around the loop: VercelAIEventStream.transform_stream is
+    # contractually resilient — it catches the model/proxy failure internally
+    # and surfaces it as an ``error`` frame inside the control envelope (verified
+    # empirically), so the chunk stream never raises out here. A failed turn is
+    # therefore detected exactly like an empty one: the envelope ends without any
+    # content frame. (A bare ``except Exception`` is also banned in finrobot/.)
+    async for chunk in event_stream:
+        if committed:
+            yield encoder.encode_event(chunk)
+            continue
+
+        if getattr(chunk, "type", None) in _VERCEL_NON_CONTENT_TYPES:
+            # Buffer the envelope; replayed in order the instant content arrives,
+            # so the happy path stays byte-for-byte. An error frame lands here
+            # too — held, not forwarded — so a failed turn can be swapped for the
+            # fallback rather than shown to the user as an error.
+            held.append(chunk)
+            continue
+
+        # First content frame. Commit to the streaming turn: flush the held
+        # envelope, then this frame, then stream the remainder live.
+        committed = True
+        for held_chunk in held:
+            yield encoder.encode_event(held_chunk)
+        held.clear()
+        yield encoder.encode_event(chunk)
+
+    if committed:
+        # Stream produced usable content and ended cleanly — nothing to do.
+        return
+
+    # No content frame ever arrived: the turn is empty or errored. Fall back
+    # unless a tool executed this turn (CC guard against re-running tools).
+    if _tool_ran():
+        # A tool ran but the model emitted no text — replay the held envelope so
+        # the client still sees a well-formed, terminated stream. No fallback.
+        for held_chunk in held:
+            yield encoder.encode_event(held_chunk)
+        return
+
+    logger.warning("Chat stream produced no output; using non-streaming fallback")
+    async for encoded in _fallback():
+        yield encoded
 
 
 async def _build_coverage_snapshot_block(request: Request) -> str | None:
@@ -812,14 +1009,14 @@ async def _chat_impl(
     request: Request,
     body_json: dict[str, Any],
     session_id: str,
-    model_hint: str,
+    model: str,
     ticker: str | None = None,
     locale: str | None = None,
     context_bundle: dict[str, Any] | None = None,
 ) -> Response:
     # Log the user's latest message before streaming begins.
     writer = await _get_or_create_writer(
-        request.app.state, session_id, model_hint, ticker=ticker, locale=locale
+        request.app.state, session_id, model, ticker=ticker, locale=locale
     )
 
     # Record the ContextBar bundle for this turn so the audit trail shows the
@@ -879,9 +1076,43 @@ async def _chat_impl(
         deps=request_deps,
         instructions=runtime_instructions,
     )
-    instrumented_stream = _intercept_native_events(native_stream, writer)
+    # tool_state lets the interceptor flag mid-stream tool execution; the
+    # fallback consults it to honour CC's no-double-exec guard.
+    tool_state: dict[str, bool] = {}
+    instrumented_stream = _intercept_native_events(native_stream, writer, tool_state)
     event_stream = adapter.transform_stream(instrumented_stream)
-    return adapter.streaming_response(event_stream)
+
+    # Non-streaming fallback (matches Claude Code): if the stream above fails
+    # before any output or yields nothing usable — and no tool ran — re-issue
+    # the SAME request once via agent.run and emit it as a single message.
+    # run_stream_native prepends adapter.messages and adds deferred results /
+    # the frontend toolset; we mirror that here so the fallback run is identical
+    # to the streamed one. Vercel's adapter exposes no frontend toolset and
+    # FinRobotDeps is not a StateHandler, so messages + deferred results are the
+    # only adapter-derived inputs (the toolset assert keeps us honest if that
+    # ever changes upstream).
+    assert adapter.toolset is None, "fallback path does not handle frontend toolsets"
+    fallback_history = list(adapter.messages)
+    fallback_deferred = adapter.deferred_tool_results
+    # One encoder instance for both held happy-path frames and fallback frames;
+    # it is stateless w.r.t. the transform_stream encoder (just chunk.encode).
+    encoder = adapter.build_event_stream()
+    encoded_stream = _stream_with_fallback(
+        event_stream=event_stream,
+        encoder=encoder,
+        agent=request.app.state.agent,
+        message_history=fallback_history,
+        deferred_tool_results=fallback_deferred,
+        instructions=runtime_instructions,
+        deps=request_deps,
+        writer=writer,
+        tool_state=tool_state,
+    )
+    return StreamingResponse(
+        encoded_stream,
+        headers=encoder.response_headers,
+        media_type=encoder.content_type,
+    )
 
 
 @app.post("/chat")
@@ -934,7 +1165,14 @@ async def chat(request: Request) -> Response:
     if not is_valid_session_id(session_id):
         logger.warning("Rejected unsafe chat session_id %r — falling back to 'default'", session_id)
         session_id = "default"
-    model_hint: str = str(body_json.get("model") or "unknown")
+    # Record the model the user actually selected in Settings — the same value
+    # app.state.agent runs and the read-only chat badge shows — read from the
+    # authoritative runtime settings, NOT the client's `model` field. The client
+    # echo raced the /api/settings fetch and stamped a bogus "unknown" into the
+    # audit trail before settings loaded. Traceability must reflect the real
+    # model, never a client guess; _replace_runtime_settings keeps deps.settings
+    # and the agent in lockstep, so this never drifts from what actually ran.
+    model = request.app.state.deps.settings.model_name
 
     # Optional context fields — older clients omit these and the chat behaves
     # exactly as before (BUG-20260602-038/048).
@@ -953,7 +1191,7 @@ async def chat(request: Request) -> Response:
             request,
             body_json,
             session_id,
-            model_hint,
+            model,
             ticker=ticker,
             locale=locale,
             context_bundle=context_bundle,

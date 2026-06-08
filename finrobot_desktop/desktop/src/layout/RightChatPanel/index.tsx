@@ -1,8 +1,8 @@
 // RightChatPanel — cosmic Stage A AI chat surface.
 //
-// Owns the outer aside, expand/collapse state, width resize, and a
-// header row that just hosts the collapse button. The body is always
-// AiChatTab (per-ticker conversational AI).
+// Owns the outer aside, expand/collapse state, and width resize. The body
+// is always AiChatTab (per-ticker conversational AI), which renders the
+// single panel header (logo, model badge, history, new-session, close).
 //
 // AppShell imports this as `RightChatPanel`; existing tests importing
 // `./RightChatPanel` resolve via this file thanks to directory
@@ -110,51 +110,7 @@ export function RightChatPanel({
         <div className="aipanel-resize-handle" onMouseDown={onResizeMouseDown} />
       )}
 
-      {isExpanded && (
-        <>
-          {/* Header row — title + collapse */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: '10px 12px 8px',
-              gap: 8,
-              borderBottom: '1px solid var(--border-faint)',
-            }}
-          >
-            <span
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 11,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: 'var(--primary)',
-              }}
-            >
-              {t('chatpanel.assistant')}
-            </span>
-            <span style={{ flex: 1 }} />
-            <button
-              type="button"
-              data-testid="collapse-btn"
-              onClick={handleToggle}
-              title={t('chatpanel.collapse.shortcut')}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--text-muted)',
-                cursor: 'pointer',
-                fontSize: 16,
-                padding: '4px 8px',
-              }}
-            >
-              ×
-            </button>
-          </div>
-
-          <AiChatTab />
-        </>
-      )}
+      {isExpanded && <AiChatTab />}
     </aside>
   )
 }

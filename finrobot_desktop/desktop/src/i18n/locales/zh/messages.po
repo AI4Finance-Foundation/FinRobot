@@ -1750,7 +1750,7 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "settings.fmp.hint"
-#~ msgstr "完整准确性所需 — 在 financialmodelingprep.com 免费注册"
+#~ msgstr "完整准确性所需 — 有免费额度"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.finnhub.label"
@@ -1787,6 +1787,10 @@ msgstr ""
 #. js-lingui-explicit-id
 #~ msgid "settings.alphaVantage.hint"
 #~ msgstr "启用：新闻情绪增强（用于新闻流）"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.apiKey.getKey"
+#~ msgstr "申请密钥"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.sec.label"

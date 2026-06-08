@@ -7,11 +7,23 @@ import { mapErrorToUserMessage, FetchHttpError } from '../utils/errorMessage'
 import { useI18n, tSync } from '../i18n'
 import { useUpdaterStore } from '../stores/updaterStore'
 import { currentAppVersion } from '../lib/updater'
-import { isTauri } from '../lib/tauri'
+import { isTauri, openExternal } from '../lib/tauri'
 
 interface Props {
   onComplete: () => void
 }
+
+/** Where a user signs up for each data-source API key. Shown as a "Get a key"
+ * link next to every provider's hint so an analyst never has to guess where to
+ * register. FMP's page sits behind Cloudflare bot-protection (server fetches
+ * 403), so it isn't HTTP-reachable from CI — verified the other three return
+ * 200 and confirmed FMP's register path against their docs. */
+const DATA_SOURCE_SIGNUP_URLS = {
+  fmp: 'https://site.financialmodelingprep.com/register',
+  finnhub: 'https://finnhub.io/register',
+  adanos: 'https://adanos.org/register',
+  alphaVantage: 'https://www.alphavantage.co/support/#api-key',
+} as const
 
 // ─── SEC identity validation (mirrors edgar_provider._is_valid_identity) ──────
 
@@ -644,6 +656,23 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       </div>
     )
   }
+  /** Trailing "· Get a key ↗" link appended to a data-source hint. Opens the
+   * provider's signup page in the system browser (Tauri shell / window.open). */
+  const renderSignupLink = (url: string): React.ReactElement => (
+    <>
+      {' · '}
+      <a
+        className="settings-hint-link"
+        href={url}
+        onClick={(e) => {
+          e.preventDefault()
+          void openExternal(url)
+        }}
+      >
+        {t('settings.apiKey.getKey')} ↗
+      </a>
+    </>
+  )
   const handleSecAgentChange = (v: string) => {
     setSecUserAgent(v)
     scheduleStandardSave({ sec_user_agent: v })
@@ -1078,7 +1107,10 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                     onChange={handleFmpKeyChange}
                     placeholder={fmpConfigured ? '••••••••' : t('settings.fmp.placeholder')}
                   />
-                  <p className="settings-hint">{t('settings.fmp.hint')}</p>
+                  <p className="settings-hint">
+                    {t('settings.fmp.hint')}
+                    {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.fmp)}
+                  </p>
                   {renderDataTestRow('fmp', 'fmp_api_key', fmpKey)}
                 </div>
 
@@ -1108,7 +1140,10 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                     onChange={handleFinnhubKeyChange}
                     placeholder={finnhubConfigured ? '••••••••' : t('settings.finnhub.placeholder')}
                   />
-                  <p className="settings-hint">{t('settings.finnhub.hint')}</p>
+                  <p className="settings-hint">
+                    {t('settings.finnhub.hint')}
+                    {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.finnhub)}
+                  </p>
                   {renderDataTestRow('finnhub', 'finnhub_api_key', finnhubKey)}
                 </div>
 
@@ -1138,7 +1173,10 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                     onChange={handleAdanosKeyChange}
                     placeholder={adanosConfigured ? '••••••••' : t('settings.adanos.placeholder')}
                   />
-                  <p className="settings-hint">{t('settings.adanos.hint')}</p>
+                  <p className="settings-hint">
+                    {t('settings.adanos.hint')}
+                    {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.adanos)}
+                  </p>
                   {renderDataTestRow('adanos', 'adanos_api_key', adanosKey)}
                 </div>
 
@@ -1170,7 +1208,10 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                       alphaVantageConfigured ? '••••••••' : t('settings.alphaVantage.placeholder')
                     }
                   />
-                  <p className="settings-hint">{t('settings.alphaVantage.hint')}</p>
+                  <p className="settings-hint">
+                    {t('settings.alphaVantage.hint')}
+                    {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.alphaVantage)}
+                  </p>
                   {renderDataTestRow('alpha_vantage', 'alpha_vantage_api_key', alphaVantageKey)}
                 </div>
 

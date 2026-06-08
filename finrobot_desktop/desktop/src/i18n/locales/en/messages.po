@@ -1750,7 +1750,7 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "settings.fmp.hint"
-#~ msgstr "Required for full accuracy — sign up free at financialmodelingprep.com"
+#~ msgstr "Required for full accuracy — free tier available"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.finnhub.label"
@@ -1787,6 +1787,10 @@ msgstr ""
 #. js-lingui-explicit-id
 #~ msgid "settings.alphaVantage.hint"
 #~ msgstr "Enables: news sentiment enrichment for the news feed"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.apiKey.getKey"
+#~ msgstr "Get a key"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.sec.label"

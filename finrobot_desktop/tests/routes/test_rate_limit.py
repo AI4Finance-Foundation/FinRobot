@@ -160,6 +160,10 @@ async def coverage_client(monkeypatch: pytest.MonkeyPatch, tmp_path):
     app.include_router(coverage_router)
     app.state.startup_error = None
     store = CoverageStore(db_path=tmp_path / "coverage.db")
+    # Coverage Desk has no create-group route — the single Studied Tickers
+    # workspace is the only group. Seed it directly so the batch-run tests have
+    # a target gid (they exercise the rate limiter, not group creation).
+    group = await store.get_or_create_system_group("Studied Tickers")
     app.state.coverage_store = store
     app.state.run_store = SimpleNamespace()
     app.state.run_tasks = {}
@@ -183,12 +187,13 @@ async def coverage_client(monkeypatch: pytest.MonkeyPatch, tmp_path):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         ac._app = app  # type: ignore[attr-defined]
+        ac._gid = group.id  # type: ignore[attr-defined]  # seeded Studied Tickers group
         yield ac
     await store.close()
 
 
 async def test_coverage_batch_over_budget_returns_429(coverage_client: AsyncClient) -> None:
-    gid = (await coverage_client.post("/api/coverage/groups", json={"name": "Mag7"})).json()["id"]
+    gid = coverage_client._gid  # type: ignore[attr-defined]
     # Bucket = 5 tokens; a 6-ticker batch is charged 6 atomically → 429, and
     # because the charge is atomic NO run is spawned.
     r = await coverage_client.post(
@@ -200,7 +205,7 @@ async def test_coverage_batch_over_budget_returns_429(coverage_client: AsyncClie
 
 
 async def test_coverage_batch_within_budget_runs(coverage_client: AsyncClient) -> None:
-    gid = (await coverage_client.post("/api/coverage/groups", json={"name": "Mag7"})).json()["id"]
+    gid = coverage_client._gid  # type: ignore[attr-defined]
     # A 5-ticker batch exactly fits the 5-token bucket → all spawned.
     r = await coverage_client.post(
         f"/api/coverage/groups/{gid}/runs",

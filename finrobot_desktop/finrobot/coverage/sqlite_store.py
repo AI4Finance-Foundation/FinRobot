@@ -138,33 +138,6 @@ class CoverageStore:
 
     # ── Groups ───────────────────────────────────────────────────────────────
 
-    async def create_group(
-        self,
-        name: str,
-        description: str | None = None,
-        *,
-        is_system: bool = False,
-    ) -> CoverageGroup:
-        conn = await self._conn_ready()
-        group_id = f"cov_{uuid.uuid4().hex[:12]}"
-        now = _now()
-        await conn.execute(
-            """
-            INSERT INTO coverage_groups (id, name, description, is_system, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (group_id, name, description, 1 if is_system else 0, _iso(now), _iso(now)),
-        )
-        await conn.commit()
-        return CoverageGroup(
-            id=group_id,
-            name=name,
-            description=description,
-            is_system=is_system,
-            created_at=now,
-            updated_at=now,
-        )
-
     async def get_or_create_system_group(
         self,
         name: str,
@@ -261,42 +234,6 @@ class CoverageStore:
         members = await self.list_members(group_id)
         return CoverageGroupDetail(**group.model_dump(), members=members)
 
-    async def update_group(
-        self,
-        group_id: str,
-        *,
-        name: str | None = None,
-        description: str | None = None,
-        update_description: bool = False,
-    ) -> CoverageGroupDetail | None:
-        if name is None and not update_description:
-            return await self.get_group(group_id)
-        conn = await self._conn_ready()
-        assignments: list[str] = []
-        params: list[Any] = []
-        if name is not None:
-            assignments.append("name = ?")
-            params.append(name)
-        if update_description:
-            assignments.append("description = ?")
-            params.append(description)
-        assignments.append("updated_at = ?")
-        params.extend([_iso(_now()), group_id])
-        sql = f"UPDATE coverage_groups SET {', '.join(assignments)} WHERE id = ?"
-        async with conn.execute(sql, params) as cur:
-            if cur.rowcount == 0:
-                return None
-        await conn.commit()
-        return await self.get_group(group_id)
-
-    async def delete_group(self, group_id: str) -> bool:
-        conn = await self._conn_ready()
-        await conn.execute("DELETE FROM coverage_members WHERE group_id = ?", (group_id,))
-        async with conn.execute("DELETE FROM coverage_groups WHERE id = ?", (group_id,)) as cur:
-            deleted = cur.rowcount > 0
-        await conn.commit()
-        return deleted
-
     # ── Members ────────────────────────────────────────────────────────────────
 
     async def list_members(self, group_id: str) -> list[CoverageMember]:
@@ -343,21 +280,6 @@ class CoverageStore:
             )
         await conn.commit()
         return await self.get_group(group_id)
-
-    async def remove_member(self, group_id: str, ticker: str) -> bool:
-        conn = await self._conn_ready()
-        async with conn.execute(
-            "DELETE FROM coverage_members WHERE group_id = ? AND ticker = ?",
-            (group_id, ticker.strip().upper()),
-        ) as cur:
-            removed = cur.rowcount > 0
-        if removed:
-            await conn.execute(
-                "UPDATE coverage_groups SET updated_at = ? WHERE id = ?",
-                (_iso(_now()), group_id),
-            )
-        await conn.commit()
-        return removed
 
     async def close(self) -> None:
         if self._conn is not None:

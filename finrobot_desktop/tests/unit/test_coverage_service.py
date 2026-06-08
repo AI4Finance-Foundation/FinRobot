@@ -614,7 +614,9 @@ async def test_ensure_system_group_seeds_from_artifacts(store: CoverageStore) ->
 
 
 async def test_ensure_system_group_noop_when_groups_exist(store: CoverageStore) -> None:
-    await store.create_group("Existing")
+    # The Studied Tickers workspace already exists → the State-D backfill is a
+    # no-op (it never undoes the user's existing universe).
+    await store.get_or_create_system_group("Studied Tickers")
     art = _StubArtifactStore({"AAPL": [_summary()]})
     assert await ensure_system_group(store, art) is None  # type: ignore[arg-type]
     assert await store.count_groups() == 1  # nothing seeded
@@ -645,15 +647,14 @@ async def test_studied_membership_is_idempotent(store: CoverageStore) -> None:
 
 async def test_studied_membership_reuses_existing_system_group(store: CoverageStore) -> None:
     # State-D already seeded the system group; auto-add must target it, not
-    # create a second one — even with a hand-built group also present.
-    await store.create_group("Mag7")
-    seeded = await store.create_group("Studied Tickers", is_system=True)
+    # create a second one.
+    seeded = await store.get_or_create_system_group("Studied Tickers")
     await store.add_members(seeded.id, ["MSFT"])
     detail = await ensure_studied_membership(store, "NVDA")
     assert detail.id == seeded.id
     assert sorted(m.ticker for m in detail.members) == ["MSFT", "NVDA"]
-    # No third group spawned.
-    assert await store.count_groups() == 2
+    # No second group spawned.
+    assert await store.count_groups() == 1
 
 
 # ── BUG-088: cold-start concurrent find-or-create must not duplicate ──────────
@@ -697,7 +698,7 @@ async def test_get_or_create_system_group_finds_preexisting(
 ) -> None:
     """If a system group already exists (e.g. State-D seed), get_or_create
     resolves to it rather than spawning a duplicate."""
-    seeded = await store.create_group("Studied Tickers", is_system=True)
+    seeded = await store.get_or_create_system_group("Studied Tickers", "desc")
     await store.add_members(seeded.id, ["GOOG"])
     detail = await store.get_or_create_system_group("Studied Tickers", "desc")
     assert detail.id == seeded.id

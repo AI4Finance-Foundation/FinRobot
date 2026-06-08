@@ -3,6 +3,12 @@
 Real CoverageStore (tmp db) behind a FastAPI app; artifact store + data layer
 are stubbed at their method surface. Canonical market inputs go through the
 real ``normalize_*`` path so the overview exercises ``extract_financial_data``.
+
+Coverage Desk is a single ``Studied Tickers`` workspace — there is no
+multi-group management HTTP surface (create / rename / delete / generic member
+edit were removed). The group is born by opening a ticker
+(``POST /studied-tickers/members``); these tests seed it that way and add any
+further members straight through the store.
 """
 
 from __future__ import annotations
@@ -136,27 +142,23 @@ async def client(tmp_path: Path):
     await run_store.close()
 
 
-async def test_create_get_and_list_group(client: AsyncClient) -> None:
-    r = await client.post("/api/coverage/groups", json={"name": "Mag7", "description": "tech"})
-    assert r.status_code == 201
-    gid = r.json()["id"]
-    assert r.json()["name"] == "Mag7"
+async def _seed_studied_group(client: AsyncClient, *tickers: str) -> str:
+    """Create the Studied Tickers workspace (via the only creation route) and
+    load it with ``tickers``, returning the group id.
 
-    r = await client.get(f"/api/coverage/groups/{gid}")
-    assert r.status_code == 200
-    assert r.json()["members"] == []
-
-    r = await client.get("/api/coverage/groups")
-    assert r.status_code == 200
-    # A real group now exists → system-group seeding does NOT fire.
-    names = [g["name"] for g in r.json()]
-    assert "Mag7" in names
-    assert "Studied Tickers" not in names
-
-
-async def test_create_group_rejects_blank_name(client: AsyncClient) -> None:
-    r = await client.post("/api/coverage/groups", json={"name": "   "})
-    assert r.status_code == 422
+    The first ticker is enrolled through ``POST /studied-tickers/members`` (the
+    product path that births the group); any extras go straight through the
+    store, since the desk has no batch member-add HTTP surface.
+    """
+    first, *rest = tickers or ("AAPL",)
+    body = (
+        await client.post("/api/coverage/studied-tickers/members", json={"ticker": first})
+    ).json()
+    gid: str = body["id"]
+    if rest:
+        store: CoverageStore = client._app.state.coverage_store  # type: ignore[attr-defined]
+        await store.add_members(gid, list(rest))
+    return gid
 
 
 async def test_state_d_seeds_studied_tickers_on_first_visit(client: AsyncClient) -> None:
@@ -168,27 +170,6 @@ async def test_state_d_seeds_studied_tickers_on_first_visit(client: AsyncClient)
     assert groups[0]["name"] == "Studied Tickers"
     assert groups[0]["is_system"] is True
     assert groups[0]["member_count"] == 1
-
-
-async def test_add_and_remove_members(client: AsyncClient) -> None:
-    gid = (await client.post("/api/coverage/groups", json={"name": "AI"})).json()["id"]
-
-    r = await client.post(f"/api/coverage/groups/{gid}/members", json={"tickers": ["nvda", "amd"]})
-    assert r.status_code == 200
-    assert sorted(m["ticker"] for m in r.json()["members"]) == ["AMD", "NVDA"]
-
-    r = await client.request("DELETE", f"/api/coverage/groups/{gid}/members/amd")
-    assert r.status_code == 200
-    assert [m["ticker"] for m in r.json()["members"]] == ["NVDA"]
-
-    # removing a ticker that isn't a member → 404
-    r = await client.request("DELETE", f"/api/coverage/groups/{gid}/members/tsla")
-    assert r.status_code == 404
-
-
-async def test_add_members_to_missing_group_404(client: AsyncClient) -> None:
-    r = await client.post("/api/coverage/groups/cov_nope/members", json={"tickers": ["AAPL"]})
-    assert r.status_code == 404
 
 
 async def test_studied_auto_add_creates_and_is_idempotent(client: AsyncClient) -> None:
@@ -212,37 +193,8 @@ async def test_studied_auto_add_rejects_junk_ticker(client: AsyncClient) -> None
     assert r.status_code == 422
 
 
-async def test_patch_and_delete_group(client: AsyncClient) -> None:
-    gid = (
-        await client.post(
-            "/api/coverage/groups",
-            json={"name": "Old", "description": "keep me"},
-        )
-    ).json()["id"]
-    r = await client.patch(f"/api/coverage/groups/{gid}", json={"name": "  New  "})
-    assert r.status_code == 200
-    assert r.json()["name"] == "New"
-    assert r.json()["description"] == "keep me"
-
-    r = await client.patch(f"/api/coverage/groups/{gid}", json={"description": None})
-    assert r.status_code == 200
-    assert r.json()["description"] is None
-
-    r = await client.delete(f"/api/coverage/groups/{gid}")
-    assert r.status_code == 204
-    assert (await client.get(f"/api/coverage/groups/{gid}")).status_code == 404
-    assert (await client.delete(f"/api/coverage/groups/{gid}")).status_code == 404
-
-
-async def test_patch_group_rejects_blank_name(client: AsyncClient) -> None:
-    gid = (await client.post("/api/coverage/groups", json={"name": "Old"})).json()["id"]
-    r = await client.patch(f"/api/coverage/groups/{gid}", json={"name": "   "})
-    assert r.status_code == 422
-
-
 async def test_overview_assembles_rows(client: AsyncClient) -> None:
-    gid = (await client.post("/api/coverage/groups", json={"name": "G"})).json()["id"]
-    await client.post(f"/api/coverage/groups/{gid}/members", json={"tickers": ["AAPL"]})
+    gid = await _seed_studied_group(client, "AAPL")
 
     r = await client.get(f"/api/coverage/groups/{gid}/overview")
     assert r.status_code == 200
@@ -265,8 +217,7 @@ async def test_overview_missing_group_404(client: AsyncClient) -> None:
 
 
 async def test_overview_surfaces_failed_run(client: AsyncClient) -> None:
-    gid = (await client.post("/api/coverage/groups", json={"name": "G"})).json()["id"]
-    await client.post(f"/api/coverage/groups/{gid}/members", json={"tickers": ["AAPL"]})
+    gid = await _seed_studied_group(client, "AAPL")
 
     run_store: RunStore = client._app.state.run_store  # type: ignore[attr-defined]
     rec = await run_store.create_run("dcf", "AAPL")
@@ -280,7 +231,7 @@ async def test_overview_surfaces_failed_run(client: AsyncClient) -> None:
 
 
 async def test_batch_run_spawns_per_ticker(client: AsyncClient, monkeypatch) -> None:
-    gid = (await client.post("/api/coverage/groups", json={"name": "G"})).json()["id"]
+    gid = await _seed_studied_group(client, "AAPL")
 
     calls: list[tuple[str, str]] = []
 
@@ -316,27 +267,6 @@ async def test_batch_run_missing_group_404(client: AsyncClient) -> None:
     assert r.status_code == 404
 
 
-async def test_add_members_rejects_invalid_tickers(client: AsyncClient) -> None:
-    """Junk symbols (CJK, over-long, separators) must not reach the DB and then
-    fan out to providers forever (BUG-053) — the request is rejected 422."""
-    gid = (await client.post("/api/coverage/groups", json={"name": "G"})).json()["id"]
-    for bad in (["苹果"], ["AAPL", "hello-world-too-long"], ["AAPL;MSFT"]):
-        r = await client.post(f"/api/coverage/groups/{gid}/members", json={"tickers": bad})
-        assert r.status_code == 422, bad
-
-
-async def test_add_members_normalises_valid_tickers(client: AsyncClient) -> None:
-    """Valid symbols are upper-cased and de-duped (BRK-B stays intact)."""
-    gid = (await client.post("/api/coverage/groups", json={"name": "G"})).json()["id"]
-    r = await client.post(
-        f"/api/coverage/groups/{gid}/members",
-        json={"tickers": ["aapl", "AAPL", "brk-b"]},
-    )
-    assert r.status_code == 200
-    members = {m["ticker"] for m in r.json()["members"]}
-    assert "AAPL" in members and "BRK-B" in members
-
-
 async def test_batch_run_default_pipeline_is_valid_registry_key(
     client: AsyncClient, monkeypatch
 ) -> None:
@@ -345,7 +275,7 @@ async def test_batch_run_default_pipeline_is_valid_registry_key(
     the old default made every ticker skip with a 200/zero-runs response."""
     from finrobot.engine.pipelines.registry import get_pipeline_factories
 
-    gid = (await client.post("/api/coverage/groups", json={"name": "G"})).json()["id"]
+    gid = await _seed_studied_group(client, "AAPL")
 
     seen: list[str] = []
 
@@ -373,8 +303,7 @@ async def test_batch_run_default_pipeline_is_valid_registry_key(
 
 
 async def test_overview_l1_cache_and_refresh_bypass(client: AsyncClient) -> None:
-    gid = (await client.post("/api/coverage/groups", json={"name": "G"})).json()["id"]
-    await client.post(f"/api/coverage/groups/{gid}/members", json={"tickers": ["AAPL"]})
+    gid = await _seed_studied_group(client, "AAPL")
 
     first = (await client.get(f"/api/coverage/groups/{gid}/overview")).json()
     assert len(first["rows"]) == 1

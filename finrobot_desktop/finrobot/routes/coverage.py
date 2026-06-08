@@ -2,14 +2,14 @@
 
 Endpoints:
   GET    /api/coverage/groups                         — list groups (+ counts)
-  POST   /api/coverage/groups                         — create a group
-  GET    /api/coverage/groups/{id}                    — group + members
-  PATCH  /api/coverage/groups/{id}                    — rename / re-describe
-  DELETE /api/coverage/groups/{id}                    — delete a group
-  POST   /api/coverage/groups/{id}/members            — add tickers (batch)
-  DELETE /api/coverage/groups/{id}/members/{ticker}   — remove a ticker
   POST   /api/coverage/studied-tickers/members        — auto-add opened ticker
   GET    /api/coverage/groups/{id}/overview           — Coverage Table payload
+  POST   /api/coverage/groups/{id}/runs               — batch-run the group
+
+Coverage Desk is a single ``Studied Tickers`` workspace — opening a ticker
+enrols it, the table renders the universe, and a batch run fans the pipeline
+across it. There is no multi-group management surface (no create / rename /
+delete / generic member edit).
 
 Orchestration lives in :mod:`finrobot.coverage.service`; this layer only wires
 HTTP ↔ store/service and owns the short-TTL overview cache (M1). The list
@@ -46,79 +46,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/coverage", tags=["coverage"])
 
 
-def _clean_tickers(raw: list[str]) -> list[str]:
-    """Upper-case + dedupe valid symbols; raise ValueError listing any invalid.
-
-    Per-symbol syntax is the shared :func:`validate_ticker` (the one backend
-    source of truth); this wrapper adds the batch concerns: dedupe, skip
-    blanks, and collect every bad symbol into one message.
-    """
-    cleaned: list[str] = []
-    bad: list[str] = []
-    seen: set[str] = set()
-    for t in raw:
-        if not t.strip():
-            continue
-        try:
-            s = validate_ticker(t)
-        except ValueError:
-            bad.append(t)
-            continue
-        if s not in seen:
-            seen.add(s)
-            cleaned.append(s)
-    if bad:
-        raise ValueError(f"Invalid ticker symbol(s): {', '.join(bad)}")
-    if not cleaned:
-        raise ValueError("No valid tickers provided")
-    return cleaned
-
-
-def _clean_group_name(raw: str) -> str:
-    name = raw.strip()
-    if not name:
-        raise ValueError("Coverage group name must not be blank")
-    return name
-
-
 # ── Request bodies ───────────────────────────────────────────────────────────
-
-
-class CreateGroupRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=120)
-    description: str | None = None
-
-    @field_validator("name")
-    @classmethod
-    def _validate_name(cls, v: str) -> str:
-        return _clean_group_name(v)
-
-
-class UpdateGroupRequest(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=120)
-    description: str | None = None
-
-    @field_validator("name")
-    @classmethod
-    def _validate_name(cls, v: str | None) -> str | None:
-        return _clean_group_name(v) if v is not None else None
-
-
-class AddMembersRequest(BaseModel):
-    tickers: list[str] = Field(min_length=1)
-    note: str | None = None
-
-    @field_validator("tickers")
-    @classmethod
-    def _validate(cls, v: list[str]) -> list[str]:
-        return _clean_tickers(v)
 
 
 class StudiedMemberRequest(BaseModel):
     """Auto-add one opened ticker to the default ``Studied Tickers`` workspace.
 
-    Single ticker (not the batch ``AddMembersRequest``): this is the write side
-    of "opening /stocks/:ticker enrols it", fired once per successful open.
+    One ticker per request: this is the write side of "opening /stocks/:ticker
+    enrols it", fired once per successful open.
     """
 
     ticker: str
@@ -212,78 +147,6 @@ async def list_groups(request: Request) -> list[CoverageGroupSummary]:
             # Seeding is best-effort onboarding — never block the group list.
             logger.warning("System coverage group seeding skipped: %s", exc)
     return await store.list_groups()
-
-
-@router.post("/groups", response_model=CoverageGroupDetail, status_code=201)
-async def create_group(request: Request, body: CreateGroupRequest) -> CoverageGroupDetail:
-    store = _store(request)
-    group = await store.create_group(body.name.strip(), body.description)
-    detail = await store.get_group(group.id)
-    assert detail is not None  # just created
-    return detail
-
-
-@router.get("/groups/{group_id}", response_model=CoverageGroupDetail)
-async def get_group(group_id: str, request: Request) -> CoverageGroupDetail:
-    group = await _store(request).get_group(group_id)
-    if group is None:
-        raise HTTPException(status_code=404, detail=f"Coverage group not found: {group_id}")
-    return group
-
-
-@router.patch("/groups/{group_id}", response_model=CoverageGroupDetail)
-async def update_group(
-    group_id: str, request: Request, body: UpdateGroupRequest
-) -> CoverageGroupDetail:
-    updated = await _store(request).update_group(
-        group_id,
-        name=body.name.strip() if body.name else None,
-        description=body.description,
-        update_description="description" in body.model_fields_set,
-    )
-    if updated is None:
-        raise HTTPException(status_code=404, detail=f"Coverage group not found: {group_id}")
-    _invalidate(group_id)
-    return updated
-
-
-@router.delete("/groups/{group_id}", status_code=204)
-async def delete_group(group_id: str, request: Request) -> None:
-    deleted = await _store(request).delete_group(group_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail=f"Coverage group not found: {group_id}")
-    _invalidate(group_id)
-
-
-# ── Members ──────────────────────────────────────────────────────────────────
-
-
-@router.post("/groups/{group_id}/members", response_model=CoverageGroupDetail)
-async def add_members(
-    group_id: str, request: Request, body: AddMembersRequest
-) -> CoverageGroupDetail:
-    detail = await _store(request).add_members(group_id, body.tickers, note=body.note)
-    if detail is None:
-        raise HTTPException(status_code=404, detail=f"Coverage group not found: {group_id}")
-    _invalidate(group_id)
-    return detail
-
-
-@router.delete("/groups/{group_id}/members/{ticker}", response_model=CoverageGroupDetail)
-async def remove_member(group_id: str, ticker: str, request: Request) -> CoverageGroupDetail:
-    store = _store(request)
-    removed = await store.remove_member(group_id, ticker)
-    if not removed:
-        # Distinguish "no such group" from "ticker wasn't in it" for the client.
-        if await store.get_group(group_id) is None:
-            raise HTTPException(status_code=404, detail=f"Coverage group not found: {group_id}")
-        raise HTTPException(
-            status_code=404, detail=f"{ticker.upper()} not in coverage group {group_id}"
-        )
-    _invalidate(group_id)
-    detail = await store.get_group(group_id)
-    assert detail is not None  # group existed (remove succeeded)
-    return detail
 
 
 # ── Studied Tickers auto-add (search → workspace) ────────────────────────────

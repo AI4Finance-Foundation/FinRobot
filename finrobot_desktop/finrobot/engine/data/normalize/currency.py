@@ -12,6 +12,14 @@ genuinely reports in USD).
 
 from __future__ import annotations
 
+# Keys are yfinance-style full country names on purpose. FMP returns ISO-2 codes
+# ("TW" not "Taiwan"), so this override is inert on the FMP path — and that is
+# CORRECT, not a gap. Probe 2026-06-08 (12 foreign ADRs): FMP always supplies an
+# authoritative ``reportedCurrency`` (TSM=TWD, SAP=EUR, NVO=DKK …) so the USD-tag
+# branch in resolve_reporting_currency never fires for FMP; the only FMP "USD"
+# tags are genuinely-USD reporters (SHEL/BP/TTE/RIO — GB/FR oil & mining majors
+# that report in USD). Adding ISO-2 keys would false-positive all four, corrupting
+# correct USD into GBP/EUR. Do NOT "fix" the key style to match FMP country codes.
 COUNTRY_TO_REPORTING_CURRENCY: dict[str, str] = {
     "Taiwan": "TWD",
     "Japan": "JPY",

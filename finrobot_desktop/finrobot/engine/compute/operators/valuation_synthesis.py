@@ -11,6 +11,10 @@ import statistics
 from dataclasses import dataclass
 
 from finrobot.engine.models.financial import ValuationMethod, ValuationSynthesis
+from finrobot.engine.models.valuation_thresholds import (
+    MARKET_DIVERGENCE_RATIO_K,
+    SINGLE_METHOD_DIVERGENCE_RATIO_K,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,44 +44,15 @@ _RELIABILITY_SPREAD_THRESHOLD = 0.50
 # still publishes, flagged by the soft 30% outlier band.)
 _RELIABILITY_RATIO_K = 2.0
 
-# Model-vs-market circuit breaker. The spread threshold above only asks whether
-# the methods agree with EACH OTHER — it is blind to the case where every method
-# agrees while ALL of them sit far from the market price. That is the Amazon-1999
-# / TSLA failure: a fundamentals DCF and auto-peer comps corroborate each other
-# at ~$18 while the market prices ~$418 of option value (FSD / robotaxi / energy)
-# that no cash-flow model captures. A point estimate 24x off the market is NOT a
-# publishable target however internally consistent it is. When the model is this
-# far outside its calibration range, flag ``reliable=False`` so the same
-# data-health gate withholds the headline target/verdict.
-#
-# Gate on the RATIO fair_value / market_price, NOT abs(upside%). Upside% is
-# log-asymmetric: a +75% upside is a 1.75x ratio, but a -75% "downside" is a
-# 0.25x ratio (= 4x gap) — gating on abs(upside)>0.75 would trip the upside at
-# 1.75x while only tripping the downside at 4x, i.e. trust an over-priced model
-# far more readily than an under-priced one. The symmetric breaker is
-# ratio > K  OR  ratio < 1/K. K=4 keeps the 0.25x downside floor (the original
-# -75% choice, which caught the TSLA screenshot) and makes the upside symmetric
-# to it: a model worth >4x the market and one worth <1/4x are equally "out of
-# calibration" and equally deserve REVIEW — divergence MAGNITUDE matters, not
-# direction. Genuine 2-3x over/undervaluation calls still publish. (K is the
-# single tunable knob; drop to 3 for a stricter gate.)
-MARKET_DIVERGENCE_RATIO_K = 4.0
-
-# Single-method market-divergence circuit breaker — TIGHTER than the multi-method
-# band above. A lone surviving method (DCF dropped out, only comps left) has NO
-# internal cross-check: the market price is its ONLY second opinion. So it is held
-# to the same 2x corroboration limit two methods must clear against each other
-# (_RELIABILITY_RATIO_K) — a single method that disagrees with the market by > 2x
-# does not corroborate, full stop, and its mid must not become a headline target.
-#
-# Why not reuse the 4x multi-method band: 4x is the budget for a *corroborated*
-# point estimate (≥2 methods agree with each other, all sit far from market =
-# market option value the models can't see). One uncorroborated method that lands
-# 2-4x off the market is far more likely the model being wrong than the market
-# being wrong — e.g. the MU 2026-06-07 artifact, where a lone comps_pe applied a
-# peer GROWTH forward P/E (36.9x) to a memory cyclical's PEAK forward EPS ($58.9)
-# and printed $2172 = 2.5x the $864 market, shipped as a confident +151% BUY.
-SINGLE_METHOD_DIVERGENCE_RATIO_K = 2.0
+# MARKET_DIVERGENCE_RATIO_K (4.0, multi-method) and SINGLE_METHOD_DIVERGENCE_RATIO_K
+# (2.0, lone surviving method) are the two PUBLIC divergence bands — imported above
+# from engine/models/valuation_thresholds (leaf). They live in the leaf because the
+# persist-boundary output contract (artifact/contract clause C1) re-checks the same
+# bands on the final artifact and is forbidden to import compute/. The full
+# calibration rationale (why 4x for a corroborated estimate, why 2x for an
+# uncorroborated lone method — the TSLA option-value and MU $2172 cases) lives with
+# the constants there. The gate that fires on these bands is below
+# (_classify_market_divergence and the single-method branch in resolve_canonical_thesis).
 
 
 def synthesize_valuations(

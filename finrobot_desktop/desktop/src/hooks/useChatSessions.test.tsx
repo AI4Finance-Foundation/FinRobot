@@ -85,9 +85,7 @@ describe('useChatSessions — list filtering', () => {
     })
 
     const { result } = renderHook(() => useChatSessions(), { wrapper: wrapper() })
-    await waitFor(() =>
-      expect(result.current.sessions.map((s) => s.session_id)).toEqual(['real']),
-    )
+    await waitFor(() => expect(result.current.sessions.map((s) => s.session_id)).toEqual(['real']))
   })
 })
 

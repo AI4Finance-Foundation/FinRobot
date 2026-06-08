@@ -113,6 +113,55 @@ def test_drift_scanned_across_tagline_and_takeaways() -> None:
     assert any("$276.43" in tk for tk in out.key_takeaways)
 
 
+def test_four_digit_target_amount_not_truncated_and_doubled() -> None:
+    """BUG (MU 2026-06-07): ``_DOLLAR_RE`` truncated a bare 4+ digit $-amount to
+    its first 3 digits — ``$2172.06`` matched only ``$217`` — so the reconciler
+    saw ``217 != 2172.06`` = drift and rewrote ``$217`` → ``$2172.06``, leaving
+    the orphan ``2.06`` tail → ``$2172.062.06`` (the exact garbage in the shipped
+    basis string). A $-amount equal to the canonical target must round-trip
+    untouched regardless of magnitude — no comma, four+ digits, and all.
+    """
+    overview = "Our comps target of $2172.06 reflects peer forward multiples."
+    thesis = _thesis(price_target=2172.06, valuation_overview=overview)
+
+    out, drift = _reconcile_narrative_targets(
+        thesis, canonical_target=2172.06, allowed_mids=[2172.06], current_price=864.01
+    )
+
+    assert drift is False
+    assert out.valuation_overview == overview
+    assert "$2172.062.06" not in (out.valuation_overview or "")
+
+
+def test_four_digit_drift_amount_neutralized_to_full_token() -> None:
+    """A contradicting bare 4-digit prose amount is rewritten to the WHOLE
+    canonical token, never a truncated fragment: ``$5000`` → ``$2172.06`` (and
+    never ``$2172.060`` from a partial ``$500`` match)."""
+    overview = "We peg fair value near $5000, well above current levels."
+    thesis = _thesis(price_target=2172.06, valuation_overview=overview)
+
+    out, drift = _reconcile_narrative_targets(thesis, canonical_target=2172.06, allowed_mids=[])
+
+    assert drift is True
+    assert "$5000" not in (out.valuation_overview or "")
+    assert "$2172.06" in (out.valuation_overview or "")
+    # No orphaned digit tail from a truncated match.
+    assert "$2172.060" not in (out.valuation_overview or "")
+
+
+def test_comma_grouped_thousands_amount_still_matches() -> None:
+    """The fix (require ≥1 comma group in the separated alternative) must NOT
+    regress the comma path: ``$2,172.06`` stays whitelisted as the canonical
+    target and is left untouched."""
+    overview = "The weighted target of $2,172.06 anchors our view."
+    thesis = _thesis(price_target=2172.06, valuation_overview=overview)
+
+    out, drift = _reconcile_narrative_targets(thesis, canonical_target=2172.06, allowed_mids=[])
+
+    assert drift is False
+    assert out.valuation_overview == overview
+
+
 def test_drift_scanned_across_all_narrative_fields() -> None:
     # BUG-087 ③: the guard previously only scanned valuation_overview / tagline /
     # key_takeaways — an injected fake $ in company_overview / competitor_analysis

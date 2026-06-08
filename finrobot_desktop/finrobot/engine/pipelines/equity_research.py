@@ -696,9 +696,18 @@ async def _execute_technical_analysis(
     return StepOutput(text=" ".join(summary_parts), structured=payload)
 
 
-# Matches a $-prefixed dollar figure: $276, $276.43, $1,234.50, $280.
+# Matches a $-prefixed dollar figure: $276, $276.43, $1,234.50, $2172.06, $280.
 # Group 1 is the numeric body (with optional thousands separators / decimals).
-_DOLLAR_RE = re.compile(r"\$\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)")
+#
+# The separated alternative requires AT LEAST ONE comma group (``+``, not ``*``):
+# with ``*`` it also matched a bare 4+ digit number's FIRST THREE digits and
+# stopped (``$2172.06`` → ``$217``, since regex alternation is ordered and the
+# first branch's partial match wins), so the reconciler below saw 217 ≠ 2172.06 =
+# drift and rewrote ``$217`` → ``$2172.06``, leaving the orphan tail → the
+# ``$2172.062.06`` garbage shipped in the MU 2026-06-07 basis. With ``+`` the
+# separated branch only matches comma-grouped numbers and bare runs of digits
+# (any length) fall through to the second branch and match in full.
+_DOLLAR_RE = re.compile(r"\$\s?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)")
 
 # A prose $-amount may legitimately differ from the canonical weighted target
 # when it is quoting a *per-method* mid (e.g. "DCF says $5.88, comps say $19.54").

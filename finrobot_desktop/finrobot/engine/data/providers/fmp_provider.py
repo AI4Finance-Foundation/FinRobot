@@ -10,6 +10,7 @@ from typing import Any
 import httpx
 
 from finrobot.engine.primitives.ebitda import calculate_ebitda_operating
+from finrobot.engine.primitives.industry import bank_net_revenue, is_bank
 from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
 from finrobot.engine.data.types import DataType
 
@@ -298,6 +299,13 @@ class FMPProvider(DataProvider):
 
         bal = balance[0] if balance else {}
         prof = profile[0] if profile else {}
+        if is_bank(industry=prof.get("industry"), sector=prof.get("sector")):
+            warnings.append(
+                f"{ticker} is a bank: revenue is served as total NET revenue "
+                "(net interest income + noninterest income = FMP gross revenue − "
+                "interest expense), not FMP's gross top line; gross margin is "
+                "suppressed (banks have no COGS)."
+            )
         quote_row = quote[0] if isinstance(quote, list) and quote else {}
         shares_raw = quote_row.get("sharesOutstanding")
         # Real, independent share count from /quote; None ⇒ the builders derive it.
@@ -369,6 +377,17 @@ class FMPProvider(DataProvider):
         gross_profit = inc.get("grossProfit")
         operating_income = inc.get("operatingIncome")
         net_income = inc.get("netIncome")
+        # Banks: FMP forces a non-bank template. ``revenue`` is the GROSS sum
+        # (total interest income + noninterest income); the analyst-quoted top
+        # line is total NET revenue = revenue − interest expense (ties to SEC
+        # RevenuesNetOfInterestExpense — see primitives.industry.bank_net_revenue).
+        # And a bank has no COGS, so grossProfit / grossMargin are meaningless
+        # (FMP still reports ~60% on its forced template) — suppress to None.
+        if is_bank(industry=prof.get("industry"), sector=prof.get("sector")):
+            net_revenue = bank_net_revenue(revenue, inc.get("interestExpense"))
+            if net_revenue is not None:
+                revenue = net_revenue
+            gross_profit = None
         # Profile market data is a point-in-time snapshot — only valid for the
         # current period. Historical years get None (no historical price here).
         mkt_cap = prof.get("mktCap") if is_current else None
@@ -441,7 +460,13 @@ class FMPProvider(DataProvider):
             # value is left undefined rather than fabricated (market_cap + 0 - 0).
             # calculate_multiples only computes EV when both are present.
             "total_debt": _resolve_total_debt(bal),
-            "total_cash": bal.get("cashAndCashEquivalents"),
+            # EV cash caliber = cash & equivalents + short-term investments
+            # (``cashAndShortTermInvestments``). EV nets out near-cash marketable
+            # securities, so subtracting cash-only systematically OVERSTATED EV for
+            # ST-investment-rich names (SEC-verified: MSFT +$46B, NVDA ~+$40B,
+            # TSLA +$28B). yfinance's ``total_cash`` already carries this caliber,
+            # so both provider paths now agree (Mode A/B symmetry).
+            "total_cash": bal.get("cashAndShortTermInvestments"),
             # EV-bridge completeness (numeric-audit family 3): carry preferred +
             # minority/NCI so the audit can flag an EV that omits them. None ≠ 0.
             "preferred_stock": bal.get("preferredStock"),
@@ -488,6 +513,14 @@ class FMPProvider(DataProvider):
         gross_profit = total("grossProfit")
         operating_income = total("operatingIncome")
         net_income = total("netIncome")
+        # Banks: serve total NET revenue (gross − interest expense, ties to SEC
+        # RevenuesNetOfInterestExpense) and suppress the meaningless COGS-based
+        # gross profit/margin. See _build_single_year_data + primitives.industry.
+        if is_bank(industry=prof.get("industry"), sector=prof.get("sector")):
+            net_revenue = bank_net_revenue(revenue, total("interestExpense"))
+            if net_revenue is not None:
+                revenue = net_revenue
+            gross_profit = None
         income_tax_expense = total("incomeTaxExpense")
         # D&A: prefer the cash-flow statement (authoritative; carries the
         # freshest quarter that the income statement leaves at 0), fall back to
@@ -545,7 +578,10 @@ class FMPProvider(DataProvider):
             # value is left undefined rather than fabricated (market_cap + 0 - 0).
             # calculate_multiples only computes EV when both are present.
             "total_debt": _resolve_total_debt(bal),
-            "total_cash": bal.get("cashAndCashEquivalents"),
+            # EV cash caliber = cash & equivalents + short-term investments
+            # (``cashAndShortTermInvestments``) — see the TTM path above. Keeps the
+            # two FMP entry points symmetric and matches yfinance's caliber.
+            "total_cash": bal.get("cashAndShortTermInvestments"),
             # EV-bridge completeness (numeric-audit family 3): carry preferred +
             # minority/NCI so the audit can flag an EV that omits them. None ≠ 0.
             "preferred_stock": bal.get("preferredStock"),

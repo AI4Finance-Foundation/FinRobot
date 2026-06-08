@@ -9,24 +9,38 @@ Thresholds (conservative, chosen so TTM vs. latest-fiscal-year differences
 don't trip the validator for most companies):
 
 - revenue / net_income: 15% relative (covers one quarter of timing drift).
+- total_cash: 10% relative (re-enabled 2026-06-08 once FMP adopted the
+  cash + short-term-investments caliber that matches yfinance's ``total_cash``).
 - market_cap: 5% relative (real-time vs. delayed should still be close).
-- gross_margin / operating_margin: 10 percentage-point absolute.
 
-EBITDA is deliberately NOT cross-validated: the FMP path reports operating-caliber
-EBITDA (EBIT + D&A, our own derivation) while yfinance returns reported-caliber
-``info.ebitda`` (NI + tax + interest + D&A). Comparing the two at a 15% threshold
-is apples-to-oranges — it falsely "agrees" for cash-rich firms and falsely alarms
-elsewhere, adding no real cross-source signal.
+Several fields are deliberately NOT cross-validated because the two providers
+report them in DIFFERENT calibers — comparing them emits only false alarms, and
+none is arbitrated downstream (SEC XBRL has no comparable concept), so there is no
+real cross-source signal to recover:
 
-total_debt / total_cash are likewise NOT cross-validated (removed 2026-06-06): a
-live FMP-vs-yfinance probe showed total_cash diverging 75% (NVDA) / 55% (AMD) /
-24% (KO) purely because yfinance's ``total_cash`` bundles short-term investments
-(cash + ST investments) while FMP reports cash & equivalents — a definition
-difference, not a data error. total_debt mixes balance-sheet period conventions
-the same way. Neither is arbitrated downstream (SEC XBRL has no ``total_debt`` /
-``total_cash`` concept), so comparing them emitted only false alarms. revenue /
-net_income are as-reported in both providers and remain the genuine like-for-like
-checks.
+- EBITDA: the FMP path reports operating-caliber EBITDA (EBIT + D&A, our own
+  derivation) while yfinance returns reported-caliber ``info.ebitda`` (NI + tax +
+  interest + D&A). At a 15% threshold this is apples-to-oranges — it falsely
+  "agrees" for cash-rich firms and falsely alarms elsewhere.
+- total_debt (removed 2026-06-06): the two providers mix balance-sheet lease
+  conventions — FMP's ``total_debt`` carries bonds + finance leases while yfinance
+  bundles operating leases too (MSFT FMP $57B vs yfinance $125B) — a caliber gap,
+  not a data error, and not arbitrated downstream.
+  (total_cash was removed alongside it on 2026-06-06 for the same reason, but was
+  RE-ENABLED on 2026-06-08 once FMP switched to the cash + short-term-investments
+  caliber — it now shares yfinance's caliber and is cross-validated again.)
+- gross_margin / operating_margin (removed 2026-06-08): FMP derives the margin
+  from its TTM income statement (``operating_income / revenue``) while yfinance
+  uses Yahoo's ``info`` ratio on a latest-period convention. Live probe: MU
+  operating_margin 48.5% (FMP TTM) vs 67.6% (yfinance) — 19.1pp — and KO 29.3%
+  vs 35.1% — 5.7pp, both pure caliber gaps. The FMP value is the one we serve and
+  it ties to SEC TTM at 0.0% on revenue AND net_income (the margin's own inputs),
+  so the divergence is yfinance's convention, not a data error. Banks make it
+  worse: yfinance returns gross_margin 0% for JPM (no COGS in ``info``), a 60pp
+  phantom alarm.
+
+revenue / net_income are as-reported in both providers and remain the genuine
+like-for-like checks.
 
 Only applies to data_type == "financials". Price and news have different
 field structures and are not cross-validated here.
@@ -48,10 +62,15 @@ logger = logging.getLogger(__name__)
 # field -> relative tolerance (as a fraction)
 _RELATIVE_FIELDS: dict[str, float] = {
     "revenue": 0.15,
-    # ebitda / total_debt / total_cash intentionally omitted — different calibers
-    # across providers (operating-vs-reported EBITDA; cash&equiv-vs-cash+ST-inv;
-    # balance-sheet period conventions). Cross-checking them only false-alarms and
-    # none is arbitrated downstream. See module docstring.
+    # total_cash re-enabled 2026-06-08: FMP now serves cash + short-term
+    # investments (cashAndShortTermInvestments), sharing yfinance's caliber, so a
+    # divergence is a genuine period/classification signal (e.g. one provider's
+    # balance sheet lags a quarter), not a caliber artifact. 10% absorbs normal
+    # balance-sheet timing drift between providers.
+    "total_cash": 0.10,
+    # ebitda / total_debt intentionally omitted — still different calibers across
+    # providers (operating-vs-reported EBITDA; total_debt's finance/operating-lease
+    # inclusion differs) and neither is arbitrated downstream. See module docstring.
     "net_income": 0.15,
     "market_cap": 0.05,
 }
@@ -61,12 +80,6 @@ _RELATIVE_FIELDS: dict[str, float] = {
 # STRUCTURED Provenance.degraded marker (BUG-007) so dcf_seed / comps can
 # react programmatically. The primary value still flows — this only flags it.
 _KEY_FIELDS: tuple[str, ...] = ("revenue", "net_income")
-
-# field -> absolute tolerance (in percentage points, since these are fractions)
-_ABSOLUTE_FIELDS: dict[str, float] = {
-    "gross_margin": 0.10,
-    "operating_margin": 0.10,
-}
 
 
 def _is_number(v: object) -> bool:
@@ -111,21 +124,6 @@ def cross_validate(primary: DataResult, secondary: DataResult) -> list[str]:
                 f"({primary.provider}: {pv:,.0f} vs "
                 f"{secondary.provider}: {sv:,.0f}). "
                 f"Threshold: {tolerance:.0%}."
-            )
-
-    for field, tolerance in _ABSOLUTE_FIELDS.items():
-        pv, sv = p.get(field), s.get(field)
-        if pv is None or sv is None:
-            continue
-        if not _is_number(pv) or not _is_number(sv):
-            continue
-        abs_diff = abs(pv - sv)
-        if abs_diff > tolerance:
-            warnings.append(
-                f"Data discrepancy: {field} differs by {abs_diff * 100:.1f}pp "
-                f"({primary.provider}: {pv:.1%} vs "
-                f"{secondary.provider}: {sv:.1%}). "
-                f"Threshold: {tolerance * 100:.0f}pp."
             )
 
     return warnings

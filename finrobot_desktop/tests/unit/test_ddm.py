@@ -9,7 +9,6 @@ Cost of Equity = Risk-Free Rate + Beta * Equity Risk Premium  (CAPM)
 import pytest
 
 from finrobot.engine.compute.operators.ddm import calculate_ddm, calculate_ddm_sensitivity
-from finrobot.engine.compute.operators.industry import is_bank
 from finrobot.engine.models.financial import DDMInputs
 
 
@@ -333,31 +332,6 @@ class TestDDMSensitivity:
         table = calculate_ddm_sensitivity(inputs, coe_range, tg_range)
         prices = [row[0] for row in table["implied_prices"] if row[0] is not None]  # type: ignore[union-attr, index]
         assert prices == sorted(prices, reverse=True)
-
-
-class TestIndustryDetection:
-    """Tests for the industry classification utility."""
-
-    def test_bank_by_industry(self) -> None:
-        assert is_bank(industry="Banks—Diversified") is True
-        assert is_bank(industry="Banks—Regional") is True
-        assert is_bank(industry="Banks") is True
-        assert is_bank(industry="Banks - Diversified") is True
-
-    def test_bank_by_sector_and_industry(self) -> None:
-        assert is_bank(industry="Investment Banking", sector="Financial Services") is True
-        assert is_bank(industry="Community Banking", sector="Financials") is True
-
-    def test_not_bank(self) -> None:
-        assert is_bank(industry="Software") is False
-        assert is_bank(industry="Insurance", sector="Financial Services") is False
-        assert is_bank(industry=None, sector=None) is False
-        assert is_bank(industry="Technology", sector="Technology") is False
-
-    def test_financial_sector_without_bank_keyword(self) -> None:
-        """Financial Services sector but industry without 'bank' -> not a bank."""
-        assert is_bank(industry="Insurance", sector="Financial Services") is False
-        assert is_bank(industry="Asset Management", sector="Financial Services") is False
 
 
 class TestDDMModels:

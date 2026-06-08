@@ -45,26 +45,52 @@ def test_cross_validate_revenue_discrepancy():
     assert "15%" in warnings[0]  # threshold mentioned
 
 
-def test_cross_validate_ignores_total_cash_and_total_debt():
-    """total_cash / total_debt are NOT cross-validated (removed 2026-06-06).
-
-    Live FMP-vs-yfinance probe showed total_cash diverging 75% purely because
-    yfinance bundles short-term investments (cash + ST inv) vs FMP's cash &
-    equivalents — a caliber difference, not a data error. A large divergence on
-    either must produce NO warning so the false alarm stays dead.
+def test_cross_validate_ignores_total_debt():
+    """total_debt is NOT cross-validated: the two providers mix balance-sheet lease
+    conventions (FMP bonds + finance leases vs yfinance + operating leases, e.g.
+    MSFT $57B vs $125B) — a caliber gap, not a data error. A large divergence must
+    produce NO warning.
     """
-    p = _result("fmp", {"total_cash": 13_237_000_000, "total_debt": 12_814_000_000})
-    s = _result("yfinance", {"total_cash": 53_172_000_000, "total_debt": 25_000_000_000})
+    p = _result("fmp", {"total_debt": 56_965_000_000})
+    s = _result("yfinance", {"total_debt": 125_432_000_000})
     assert cross_validate(p, s) == []
 
 
-def test_cross_validate_margin_discrepancy():
-    """Gross margin differs by 15pp → warning generated (> 10pp threshold)."""
-    p = _result("fmp", {"gross_margin": 0.40})
-    s = _result("yfinance", {"gross_margin": 0.55})
+def test_cross_validate_flags_total_cash_divergence():
+    """total_cash IS cross-validated again (re-enabled 2026-06-08).
+
+    FMP now serves cash + short-term investments (cashAndShortTermInvestments) —
+    the same caliber as yfinance's ``total_cash`` — so a >10% gap is a genuine
+    period/classification signal (one provider's balance sheet lagging a quarter),
+    not a caliber artifact, and must surface a warning.
+    """
+    p = _result("fmp", {"total_cash": 13_237_000_000})
+    s = _result("yfinance", {"total_cash": 53_172_000_000})
     warnings = cross_validate(p, s)
     assert len(warnings) == 1
-    assert "gross_margin" in warnings[0]
+    assert "total_cash" in warnings[0]
+
+
+def test_cross_validate_total_cash_within_tolerance():
+    """Same-caliber total_cash within 10% (MSFT FMP cash+ST vs yfinance) → no
+    warning."""
+    p = _result("fmp", {"total_cash": 78_270_000_000})
+    s = _result("yfinance", {"total_cash": 78_230_000_000})
+    assert cross_validate(p, s) == []
+
+
+def test_cross_validate_ignores_margins():
+    """gross_margin / operating_margin are NOT cross-validated (removed 2026-06-08).
+
+    FMP derives margins from its TTM income statement while yfinance uses Yahoo's
+    ``info`` ratio on a latest-period convention — a caliber gap, not a data error
+    (MU op-margin 48.5% TTM vs 67.6%; JPM gross_margin 0% from yfinance's missing
+    COGS line). The FMP value is SEC-confirmed and not arbitrated downstream, so a
+    large divergence on either margin must produce NO warning.
+    """
+    p = _result("fmp", {"gross_margin": 0.40, "operating_margin": 0.485})
+    s = _result("yfinance", {"gross_margin": 0.0, "operating_margin": 0.676})
+    assert cross_validate(p, s) == []
 
 
 def test_cross_validate_within_tolerance():

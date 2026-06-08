@@ -75,18 +75,42 @@ def test_chapter_11_fmp_financials_default_path_returns_ttm_not_annual():
     from finrobot.engine.data.types import DataType
 
     quarterly = [
-        {"date": f"2026-0{q + 1}-30", "symbol": "NVDA", "revenue": 30e9,
-         "ebitda": 18e9, "netIncome": 27e9, "grossProfit": 22e9,
-         "operatingIncome": 19e9, "depreciationAndAmortization": 1e9,
-         "researchAndDevelopmentExpenses": 3e9,
-         "sellingGeneralAndAdministrative": 1e9, "interestExpense": 0}
+        {
+            "date": f"2026-0{q + 1}-30",
+            "symbol": "NVDA",
+            "revenue": 30e9,
+            "ebitda": 18e9,
+            "netIncome": 27e9,
+            "grossProfit": 22e9,
+            "operatingIncome": 19e9,
+            "depreciationAndAmortization": 1e9,
+            "researchAndDevelopmentExpenses": 3e9,
+            "sellingGeneralAndAdministrative": 1e9,
+            "interestExpense": 0,
+        }
         for q in range(4)
     ]
-    balance = [{"date": "2026-04-30", "symbol": "NVDA", "totalDebt": 10e9,
-                "cashAndCashEquivalents": 30e9}]
-    profile = [{"symbol": "NVDA", "mktCap": 3500e9, "price": 212.6,
-                "companyName": "NVIDIA", "industry": "Semiconductors",
-                "sector": "Technology", "beta": 1.7, "pe": None}]
+    balance = [
+        {
+            "date": "2026-04-30",
+            "symbol": "NVDA",
+            "totalDebt": 10e9,
+            "cashAndCashEquivalents": 30e9,
+            "cashAndShortTermInvestments": 30e9,
+        }
+    ]
+    profile = [
+        {
+            "symbol": "NVDA",
+            "mktCap": 3500e9,
+            "price": 212.6,
+            "companyName": "NVIDIA",
+            "industry": "Semiconductors",
+            "sector": "Technology",
+            "beta": 1.7,
+            "pe": None,
+        }
+    ]
 
     async def fake_get(path: str, params: dict | None = None):
         resp = MagicMock()
@@ -101,6 +125,7 @@ def test_chapter_11_fmp_financials_default_path_returns_ttm_not_annual():
     provider = FMPProvider(api_key="test")
     with patch.object(provider, "_get", side_effect=fake_get):
         import asyncio
+
         result = asyncio.run(provider.fetch("NVDA", DataType.FINANCIALS))
 
     assert result.data["period_basis"] == "ttm"
@@ -221,7 +246,9 @@ def test_chapter_9_sniper_sell_mode_activates_when_target_below_current():
 # ---------------------------------------------------------------------------
 
 
-def _make_company(market_cap: float, revenue: float, ebitda: float, net_income: float) -> CompanyFinancials:
+def _make_company(
+    market_cap: float, revenue: float, ebitda: float, net_income: float
+) -> CompanyFinancials:
     return CompanyFinancials(
         ticker="TEST",
         name="Test Co",
@@ -308,14 +335,19 @@ def test_chapter_12_proxy_compensation_rejects_literal_title_as_ceo_name():
     text = "Our Chief Executive Officer reviewed the strategy."
     proxy = build_proxy_compensation(_proxy_payload(text))
     # Either proxy is None (no usable fields), or ceo_name is None — never the title literal
-    assert proxy is None or proxy.ceo_name is None or proxy.ceo_name not in {
-        "Chief Executive Officer",
-        "CEO",
-        "Chairman",
-        "President",
-        "Officer",
-        "Chief",
-    }
+    assert (
+        proxy is None
+        or proxy.ceo_name is None
+        or proxy.ceo_name
+        not in {
+            "Chief Executive Officer",
+            "CEO",
+            "Chairman",
+            "President",
+            "Officer",
+            "Chief",
+        }
+    )
 
 
 def test_chapter_12_proxy_compensation_rejects_market_cap_sized_amounts():

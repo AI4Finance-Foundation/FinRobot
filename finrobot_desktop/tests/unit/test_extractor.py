@@ -276,6 +276,33 @@ def test_extract_financial_data_margins_none_when_missing():
     assert fd.income.operating_margin is None
 
 
+def test_extract_financial_data_bank_suppresses_gross_margin():
+    """Symmetric chokepoint: a bank has no COGS, so gross margin is undefined.
+    yfinance serves 0.0 for JPM (no COGS in ``info``) — the extractor must null
+    it so the engine model never shows a phantom 0% / ~60% bank gross margin,
+    regardless of which provider produced the snapshot (Mode A/B parity)."""
+    fd = extract_financial_data(
+        _make_fin(
+            gross_margin=0.0,  # the yfinance JPM phantom
+            industry="Banks - Diversified",
+            sector="Financial Services",
+        ),
+        _make_price(),
+    )
+    assert fd.income.gross_margin is None
+    # Operating margin is meaningful on net revenue for a bank — keep it.
+    assert fd.income.operating_margin == 0.28
+
+
+def test_extract_financial_data_non_bank_keeps_gross_margin():
+    """Control: a non-bank financial (insurer) is NOT suppressed by is_bank."""
+    fd = extract_financial_data(
+        _make_fin(gross_margin=0.47, industry="Insurance", sector="Financial Services"),
+        _make_price(),
+    )
+    assert fd.income.gross_margin == 0.47
+
+
 # ---------------------------------------------------------------------------
 # extract_company_financials
 # ---------------------------------------------------------------------------
@@ -285,6 +312,20 @@ def test_extract_company_financials_has_debt_cash():
     cf = extract_company_financials(_make_fin())
     assert cf.total_debt == 50e9
     assert cf.total_cash == 20e9
+
+
+def test_extract_company_financials_bank_suppresses_gross_margin():
+    """A bank peer row must not show ~60% (FMP) / 0% (yfinance) gross margin —
+    symmetric with the target path."""
+    cf = extract_company_financials(
+        _make_fin(gross_margin=0.0, industry="Banks - Diversified", sector="Financial Services")
+    )
+    assert cf.gross_margin is None
+
+
+def test_extract_company_financials_non_bank_keeps_gross_margin():
+    cf = extract_company_financials(_make_fin(gross_margin=0.47))
+    assert cf.gross_margin == 0.47
 
 
 def test_extract_company_financials_uses_operating_ebitda_caliber():
@@ -431,9 +472,9 @@ class TestExtractCompanyFinancialsCurrencyOverride:
         """TSM (no '.' suffix) with country=Taiwan: financial_currency="USD" is
         overridden to "TWD" so FX normalization will convert IS/BS items."""
         result = extract_company_financials(self._make_peer_fin("TSM", country="Taiwan"))
-        assert result.reporting_currency == "TWD", (
-            f"Expected TWD, got {result.reporting_currency} — FX override not applied"
-        )
+        assert (
+            result.reporting_currency == "TWD"
+        ), f"Expected TWD, got {result.reporting_currency} — FX override not applied"
         assert result.quote_currency == "USD"
 
     def test_asml_adr_country_netherlands_overrides_usd_to_eur(self) -> None:

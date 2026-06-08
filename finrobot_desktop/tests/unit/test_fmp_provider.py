@@ -80,6 +80,9 @@ def _fmp_balance_response(ticker: str = "AAPL") -> list[dict]:
             "symbol": ticker,
             "totalDebt": 111_088_000_000,
             "cashAndCashEquivalents": 29_965_000_000,
+            # total_cash is served from the cash + short-term-investments composite
+            # (EV-correct caliber); equal here = a name with negligible ST holdings.
+            "cashAndShortTermInvestments": 29_965_000_000,
             "totalStockholdersEquity": 56_950_000_000,
         }
     ]
@@ -275,6 +278,7 @@ class TestFMPFetch:
                 "longTermDebt": 0,
                 "shortTermDebt": 0,
                 "cashAndCashEquivalents": 9_648_000_000,
+                "cashAndShortTermInvestments": 9_648_000_000,
             }
         ]
         annual_with_debt = [
@@ -302,6 +306,33 @@ class TestFMPFetch:
         assert result.data["total_debt"] == 8_067_565_000  # from annual, not 0
         assert result.data["total_cash"] == 9_648_000_000  # kept from the quarter
         assert any("debt stub" in w for w in result.warnings)
+
+    @pytest.mark.asyncio
+    async def test_total_cash_is_cash_plus_short_term_investments(self, provider):
+        """EV cash caliber = cash & equivalents + short-term investments. The
+        provider serves FMP's ``cashAndShortTermInvestments`` composite, NOT
+        cash-only — subtracting cash-only systematically overstated EV for
+        ST-investment-rich names (SEC-verified MSFT: cash 32.1B vs cash+ST 78.3B)."""
+        balance = [
+            {
+                "date": "2026-03-31",
+                "symbol": "MSFT",
+                "totalDebt": 56_965_000_000,
+                "cashAndCashEquivalents": 32_105_000_000,
+                "cashAndShortTermInvestments": 78_272_000_000,
+            }
+        ]
+        responses = [
+            _mock_response(_fmp_quarterly_income_response()),
+            _mock_response(balance),
+            _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_quote_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("MSFT", "financials")
+        # Reads the composite (78.3B), not cashAndCashEquivalents (32.1B).
+        assert result.data["total_cash"] == 78_272_000_000
 
     @pytest.mark.asyncio
     async def test_full_quarter_with_debt_does_not_fetch_annual(self, provider):
@@ -528,9 +559,9 @@ class TestFMPFetchHistorical:
         # historical_loaders.py line 55 does `data.get("fiscal_year") or data.get("date")`
         # — a missing fiscal_year causes all years to be skipped → band.sample_count == 0.
         for entry in result.data["yearly_data"]:
-            assert entry.get("fiscal_year") is not None, (
-                f"yearly entry missing fiscal_year: {entry}"
-            )
+            assert (
+                entry.get("fiscal_year") is not None
+            ), f"yearly entry missing fiscal_year: {entry}"
 
     @pytest.mark.asyncio
     async def test_yearly_data_carries_full_historical_schema(self, provider):
@@ -976,6 +1007,7 @@ class TestFMPPeerCandidates:
         )
         assert result.data["quotes"]["AMD"]["pe"] == 42.0
 
+
 def _fmp_quote_response(
     ticker: str = "AAPL",
     price: float = 175.0,
@@ -1318,7 +1350,13 @@ class TestFMPHistoricalPerYear:
     def _multi_year_balance() -> list[dict]:
         # Distinct debt/cash per year — the whole point of BUG-012.
         return [
-            {"date": d, "symbol": "AAPL", "totalDebt": td, "cashAndCashEquivalents": tc}
+            {
+                "date": d,
+                "symbol": "AAPL",
+                "totalDebt": td,
+                "cashAndCashEquivalents": tc,
+                "cashAndShortTermInvestments": tc,
+            }
             for d, td, tc in [
                 ("2025-09-30", 112e9, 36e9),  # net 76
                 ("2024-09-30", 119e9, 30e9),  # net 89
@@ -1369,3 +1407,210 @@ class TestFMPHistoricalPerYear:
             assert stale["shares_outstanding"] is None
             assert stale["pe_ratio"] is None
             assert stale["current_price"] is None
+
+
+def _fmp_bank_profile_response(ticker: str = "JPM") -> list[dict]:
+    """FMP /profile for a bank — Banks - Diversified / Financial Services."""
+    return [
+        {
+            "symbol": ticker,
+            "mktCap": 800_000_000_000,
+            "beta": 1.1,
+            "price": 280.0,
+            "companyName": "JPMorgan Chase & Co.",
+            "industry": "Banks - Diversified",
+            "sector": "Financial Services",
+            "exchange": "NYSE",
+            "currency": "USD",
+            "country": "US",
+        }
+    ]
+
+
+def _fmp_jpm_quarterly_income() -> list[dict]:
+    """JPM quarterly income rows, real FMP values pulled 2026-06-08.
+
+    Per quarter FMP serves ``revenue`` as the GROSS top line (total interest
+    income + noninterest income) and an ``interestExpense`` line; the analyst /
+    SEC net-revenue caliber is revenue − interestExpense. Q1-2026 reconciles to
+    SEC us-gaap:RevenuesNetOfInterestExpense (49.836B) to the penny:
+    73.661B − 23.825B = 49.836B (= NII 25.366B + noninterest 24.470B).
+    """
+    rows = [
+        # (date, gross revenue, interest expense, grossProfit, operatingIncome, netIncome)
+        (
+            "2026-03-31",
+            73_661_000_000,
+            23_825_000_000,
+            47_329_000_000,
+            20_479_000_000,
+            16_494_000_000,
+        ),
+        (
+            "2025-12-31",
+            69_610_000_000,
+            23_810_000_000,
+            41_140_000_000,
+            19_000_000_000,
+            14_000_000_000,
+        ),
+        (
+            "2025-09-30",
+            71_900_000_000,
+            25_470_000_000,
+            43_020_000_000,
+            20_000_000_000,
+            15_000_000_000,
+        ),
+        (
+            "2025-06-30",
+            69_910_000_000,
+            25_030_000_000,
+            42_020_000_000,
+            19_500_000_000,
+            14_500_000_000,
+        ),
+    ]
+    return [
+        {
+            "date": date,
+            "symbol": "JPM",
+            "reportedCurrency": "USD",
+            "revenue": rev,
+            "interestExpense": int_exp,
+            "grossProfit": gp,
+            "operatingIncome": oi,
+            "netIncome": ni,
+            "ebitda": oi,
+            "depreciationAndAmortization": 500_000_000,
+            "incomeTaxExpense": 4_000_000_000,
+        }
+        for (date, rev, int_exp, gp, oi, ni) in rows
+    ]
+
+
+class TestFMPBankCaliber:
+    """Banks: net-revenue caliber + gross-margin suppression (no COGS).
+
+    External truth (SEC XBRL, JPM FY-Q1 2026 ending 2026-03-31, verified
+    2026-06-08):
+      net interest income (InterestIncomeExpenseNet)   = 25.366B
+      noninterest income  (NoninterestIncome)          = 24.470B
+      total net revenue   (RevenuesNetOfInterestExpense)= 49.836B  (= NII + noninterest)
+    FMP serves gross revenue 73.661B/quarter; revenue − interestExpense recovers
+    the net caliber. TTM (4 quarters of the above) net revenue ≈ 186.9B vs the
+    285.1B GROSS figure the system served before this fix (misleading: ~1.5× too
+    high). Banks have no COGS, so the ~60% gross margin FMP forces is meaningless.
+    """
+
+    @pytest.mark.asyncio
+    async def test_ttm_bank_serves_net_revenue_not_gross(self, provider):
+        income = _fmp_jpm_quarterly_income()
+        responses = [
+            _mock_response(income),
+            _mock_response(_fmp_balance_response("JPM")),
+            _mock_response(_fmp_quarterly_cashflow_response("JPM")),
+            _mock_response(_fmp_bank_profile_response()),
+            _mock_response(_fmp_quote_response("JPM")),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("JPM", "financials")
+
+        gross_ttm = sum(r["revenue"] for r in income)  # 285.081B
+        int_exp_ttm = sum(r["interestExpense"] for r in income)  # 98.135B
+        net_ttm = gross_ttm - int_exp_ttm  # 186.946B
+        assert result.data["revenue"] == net_ttm
+        # Must NOT serve the gross top line (the misleading pre-fix value).
+        assert result.data["revenue"] != gross_ttm
+        # Q1 net revenue ties to SEC RevenuesNetOfInterestExpense to the penny.
+        assert income[0]["revenue"] - income[0]["interestExpense"] == 49_836_000_000
+
+    @pytest.mark.asyncio
+    async def test_ttm_bank_suppresses_gross_margin(self, provider):
+        responses = [
+            _mock_response(_fmp_jpm_quarterly_income()),
+            _mock_response(_fmp_balance_response("JPM")),
+            _mock_response(_fmp_quarterly_cashflow_response("JPM")),
+            _mock_response(_fmp_bank_profile_response()),
+            _mock_response(_fmp_quote_response("JPM")),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("JPM", "financials")
+        # No COGS for a bank → gross margin undefined, not the ~60% phantom.
+        assert result.data["gross_margin"] is None
+
+    @pytest.mark.asyncio
+    async def test_bank_emits_caliber_warning(self, provider):
+        responses = [
+            _mock_response(_fmp_jpm_quarterly_income()),
+            _mock_response(_fmp_balance_response("JPM")),
+            _mock_response(_fmp_quarterly_cashflow_response("JPM")),
+            _mock_response(_fmp_bank_profile_response()),
+            _mock_response(_fmp_quote_response("JPM")),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("JPM", "financials")
+        assert any("net revenue" in w.lower() for w in result.warnings)
+
+    @pytest.mark.asyncio
+    async def test_historical_bank_serves_net_revenue_per_year(self, provider):
+        """Per-year (years>1) path mirrors the TTM net-revenue caliber so the
+        revenue-history chart shows the analyst top line, not the gross sum."""
+        from finrobot.engine.data.types import DataType
+
+        annual = [
+            {
+                "date": "2025-12-31",
+                "symbol": "JPM",
+                "reportedCurrency": "USD",
+                "revenue": 285_000_000_000,
+                "interestExpense": 98_000_000_000,
+                "grossProfit": 173_000_000_000,
+                "operatingIncome": 79_000_000_000,
+                "netIncome": 58_000_000_000,
+                "ebitda": 80_000_000_000,
+            },
+            {
+                "date": "2024-12-31",
+                "symbol": "JPM",
+                "reportedCurrency": "USD",
+                "revenue": 270_000_000_000,
+                "interestExpense": 100_000_000_000,
+                "grossProfit": 160_000_000_000,
+                "operatingIncome": 75_000_000_000,
+                "netIncome": 50_000_000_000,
+                "ebitda": 76_000_000_000,
+            },
+        ]
+        responses = [
+            _mock_response(annual),
+            _mock_response(_fmp_balance_response("JPM")),
+            _mock_response(_fmp_quarterly_cashflow_response("JPM")),
+            _mock_response(_fmp_bank_profile_response()),
+            _mock_response(_fmp_quote_response("JPM")),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("JPM", DataType.FINANCIALS, years=2)
+        rows = result.data["yearly_data"]
+        assert rows[0]["revenue"] == 285_000_000_000 - 98_000_000_000
+        assert rows[1]["revenue"] == 270_000_000_000 - 100_000_000_000
+        assert rows[0]["gross_margin"] is None
+        assert rows[1]["gross_margin"] is None
+        assert rows[0]["gross_profit"] is None
+
+    @pytest.mark.asyncio
+    async def test_non_bank_keeps_gross_revenue_and_margin(self, provider):
+        """Control: a non-bank (AAPL) is untouched — gross revenue + real margin."""
+        responses = [
+            _mock_response(_fmp_quarterly_income_response()),
+            _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_quote_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials")
+        # Revenue is the unmodified gross TTM (4 × 100B); margin is real (45/100).
+        assert result.data["revenue"] == 400_000_000_000
+        assert result.data["gross_margin"] == pytest.approx(0.45)
+        assert not any("net revenue" in w.lower() for w in result.warnings)

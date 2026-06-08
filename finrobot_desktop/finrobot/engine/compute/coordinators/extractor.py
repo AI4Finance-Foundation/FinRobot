@@ -35,6 +35,7 @@ from finrobot.engine.primitives.ebitda import (
     calculate_ebitda_operating,
     calculate_ebitda_reported,
 )
+from finrobot.engine.primitives.industry import is_bank
 
 # Relative gap above which a reported share count is treated as NOT on the price's
 # basis (multi-class issuer with one class reported, ADR ratio, or stale data), so
@@ -71,6 +72,13 @@ def extract_financial_data(
 
     revenue = fin.revenue
     market_cap = fin.market_cap
+
+    # Banks have no COGS, so gross margin is undefined. FMP forces its non-bank
+    # template (~60% phantom) and yfinance returns 0% — suppress to None at this
+    # symmetric chokepoint so neither provider's meaningless value reaches the
+    # report (Mode A/B parity; the FMP provider also suppresses at source).
+    bank = is_bank(industry=fin.industry, sector=fin.sector)
+    gross_margin = None if bank else fin.gross_margin
 
     # Two EBITDA calibers, recomputed from absolute line items so neither
     # rides on a provider's opaque (and, for the latest quarter, sometimes
@@ -201,7 +209,7 @@ def extract_financial_data(
             # is withheld (data unavailable) rather than fabricated as a real 0.
             ebitda=ebitda,
             net_income=fin.net_income,
-            gross_margin=fin.gross_margin,
+            gross_margin=gross_margin,
             operating_margin=fin.operating_margin,
             operating_income=fin.operating_income,
             depreciation_amortization=fin.depreciation_amortization,
@@ -313,7 +321,12 @@ def extract_company_financials(fin: NormalizedFinancials) -> CompanyFinancials:
         market_cap=market_cap,
         total_debt=fin.total_debt,
         total_cash=fin.total_cash,
-        gross_margin=fin.gross_margin,
+        # Banks have no COGS — suppress the meaningless gross margin so a bank
+        # peer row doesn't show ~60% (FMP) / 0% (yfinance). Symmetric with the
+        # target path (extract_financial_data) and the FMP provider source fix.
+        gross_margin=None
+        if is_bank(industry=fin.industry, sector=fin.sector)
+        else fin.gross_margin,
         operating_margin=fin.operating_margin,
         # Period-consistent EBIT for NOPAT core P/E (BUG-017) — preferred over
         # operating_margin × revenue once revenue may be XBRL-reconciled.

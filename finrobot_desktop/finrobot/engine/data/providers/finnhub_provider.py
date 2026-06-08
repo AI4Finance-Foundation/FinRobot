@@ -139,7 +139,22 @@ class FinnhubProvider(DataProvider):
         operating_income = _find_concept("ic", "OperatingIncomeLoss")
         cogs = _find_concept("ic", "CostOfGoodsAndServicesSold")
         total_debt = _find_concept("bs", "LongTermDebt")
-        total_cash = _find_concept("bs", "CashAndCashEquivalentsAtCarryingValue")
+        # EV cash caliber = cash & equivalents + short-term investments, matching
+        # the FMP and yfinance paths so EV nets near-cash marketable securities (no
+        # path divergence). Finnhub tags ST investments under one of several
+        # us-gaap concepts; sum whichever it reports, else fall back to cash-only.
+        cash_equivalents = _find_concept("bs", "CashAndCashEquivalentsAtCarryingValue")
+        short_term_investments = (
+            _find_concept("bs", "ShortTermInvestments")
+            or _find_concept("bs", "MarketableSecuritiesCurrent")
+            or _find_concept("bs", "AvailableForSaleSecuritiesDebtSecuritiesCurrent")
+        )
+        if cash_equivalents is None:
+            total_cash = None
+        elif short_term_investments is None:
+            total_cash = cash_equivalents
+        else:
+            total_cash = cash_equivalents + short_term_investments
 
         return {
             "revenue": revenue,

@@ -239,7 +239,12 @@ class DataLayer:
                 f"({ticker} / {data_type}). Retry later for fresh data."
             )
             logger.warning(stale_warning)
-            return stale.model_copy(update={"warnings": [stale_warning] + stale.warnings})
+            return stale.model_copy(
+                update={
+                    "warnings": [stale_warning] + stale.warnings,
+                    "from_stale_cache": True,
+                }
+            )
 
         # 4. No data anywhere
         msg = (
@@ -365,6 +370,14 @@ class DataLayer:
             marker = degraded_circuit_open(provider_name)
             if marker not in normalized.provenance.degraded:
                 normalized.provenance.degraded.append(marker)
+        # Stale-fallback (all providers failed → fetch served the last-known cached
+        # row): serve it to THIS caller, but do NOT re-cache. Writing it would bump
+        # cached_at and flip the canonical is_stale back to False, laundering a stale
+        # price into a "fresh"-reading quote (the 2026-06-08 in-market bug). Leaving
+        # the prior canonical row untouched keeps it honestly is_stale=True, so the
+        # next read retries the (hopefully recovered) provider chain.
+        if raw.from_stale_cache:
+            return normalized
         await self._cache.set_canonical(data_type, ticker, normalized.model_dump_json())
         return normalized
 
@@ -610,7 +623,26 @@ class DataLayer:
             await self._cache.set(DataType.PRICE, ticker, result)
             return result
         if cached is not None:
-            return cached.data  # stale beats nothing; route adds its own warning
+            # Stale beats nothing — but FLAG it. The old comment ("route adds its
+            # own warning") only held for the /price route; the canonical path
+            # (_fetch_canonical_uncached) is not a route and would otherwise
+            # launder this stale row into a fresh-reading canonical entry. Mirror
+            # fetch()'s neutral-English stale warning (the "stale"/"cache" tokens
+            # base.py's disclaimer filter matches) AND set from_stale_cache so the
+            # canonical关卡 refuses to reset the freshness clock.
+            stale = cached.data
+            age_hours = (datetime.now(tz=timezone.utc) - cached.cached_at).total_seconds() / 3600
+            stale_warning = (
+                f"All data sources failed; showing cached price from {age_hours:.0f}h ago "
+                f"({ticker} / PRICE). Retry later for fresh data."
+            )
+            logger.warning(stale_warning)
+            return stale.model_copy(
+                update={
+                    "warnings": [stale_warning] + stale.warnings,
+                    "from_stale_cache": True,
+                }
+            )
         if last_error is not None:
             raise last_error
         raise ProviderError(f"No PRICE-capable provider available for {ticker}")

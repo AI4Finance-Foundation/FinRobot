@@ -651,6 +651,87 @@ class TestReadCanonicalCached:
             await layer.read_canonical_cached(DataType.NEWS, "AAPL")
 
 
+class TestCanonicalStaleNoLaundering:
+    """A stale-fallback fetch must NOT reset the canonical freshness clock.
+
+    Repro of the in-market 2026-06-08 bug: a stale canonical entry + all providers
+    failing made ``_fetch_canonical_uncached`` re-cache the STALE raw row as a FRESH
+    canonical entry (cached_at bumped → is_stale flips back to False), laundering a
+    95-min-old price into a "live"-reading quote with no warning. The honest behavior
+    is to keep serving the last-known value while leaving it flagged stale, so the
+    stale-while-revalidate machinery keeps retrying until a provider recovers.
+    """
+
+    @staticmethod
+    async def _backdate_all(db_path: str, ticker: str, hours: float) -> None:
+        import aiosqlite
+        from datetime import timedelta
+
+        old = (datetime.now(tz=timezone.utc) - timedelta(hours=hours)).isoformat()
+        async with aiosqlite.connect(db_path) as conn:
+            # WHERE ticker only → backdates BOTH the raw slot and the canonical slot.
+            await conn.execute("UPDATE cache SET cached_at = ? WHERE ticker = ?", (old, ticker))
+            await conn.commit()
+
+    async def test_financials_stale_fallback_not_laundered(self, cache, tmp_path):
+        db = str(tmp_path / "layer_test.db")
+        good = MockProvider("good", ["financials"])
+        await DataLayer([good], cache).fetch_canonical(DataType.FINANCIALS, "AAPL")
+
+        await self._backdate_all(db, "AAPL", hours=25)  # raw + canonical now stale
+
+        layer = DataLayer(
+            [MockProvider("fail", ["financials"], raises=ProviderError("down"))], cache
+        )
+        result = await layer.fetch_canonical(DataType.FINANCIALS, "AAPL")
+        assert result is not None  # stale value still served to THIS caller
+
+        # The canonical slot must remain flagged stale — NOT relaundered to fresh.
+        hit = await layer.read_canonical_cached(DataType.FINANCIALS, "AAPL")
+        assert hit is not None
+        _, is_stale = hit
+        assert is_stale is True, "stale fallback was laundered into a fresh canonical entry"
+
+    async def test_price_stale_fallback_not_laundered(self, cache, tmp_path):
+        db = str(tmp_path / "layer_test.db")
+        price_payload = DataResult(
+            data={
+                "current_price": 311.52,
+                "exchange": "NASDAQ",
+                "quote_timestamp": int(datetime.now(tz=timezone.utc).timestamp()),
+                "price_history": [
+                    {
+                        "date": "2026-06-08",
+                        "open": 308.0,
+                        "high": 315.0,
+                        "low": 308.0,
+                        "close": 313.8,
+                        "volume": 1e7,
+                    }
+                ],
+            },
+            provider="good",
+            ticker="AAPL",
+            data_type=DataType.PRICE,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        good = MockProvider("good", [DataType.PRICE], result=price_payload)
+        await DataLayer([good], cache).fetch_canonical(DataType.PRICE, "AAPL")
+
+        await self._backdate_all(db, "AAPL", hours=25)
+
+        layer = DataLayer(
+            [MockProvider("fail", [DataType.PRICE], raises=ProviderError("down"))], cache
+        )
+        result = await layer.fetch_canonical(DataType.PRICE, "AAPL")
+        assert result is not None
+
+        hit = await layer.read_canonical_cached(DataType.PRICE, "AAPL")
+        assert hit is not None
+        _, is_stale = hit
+        assert is_stale is True, "stale PRICE fallback was laundered into a fresh canonical entry"
+
+
 class TestClose:
     """P3 Track 2: DataLayer.close() public method (T9)."""
 

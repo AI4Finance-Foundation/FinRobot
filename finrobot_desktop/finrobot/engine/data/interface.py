@@ -31,6 +31,14 @@ class DataResult(BaseModel):
     # fetch_canonical translates these to Provenance.degraded markers so research
     # reports can surface which source was absent (parallel to key_field_divergences).
     circuit_open_providers: list[str] = []
+    # True when this result is a STALE-CACHE FALLBACK (all providers failed/gated
+    # and the layer served the last-known cached row). The canonical normalization
+    # 关卡 reads this to refuse re-caching: re-writing a stale row as canonical would
+    # bump its cached_at and flip is_stale back to False, laundering a stale price
+    # into a "fresh"-reading quote (observed in-market 2026-06-08: a 95-min-old
+    # close read as a live intraday quote with no warning). Stays False on every
+    # genuine provider fetch — only the two stale-fallback returns set it.
+    from_stale_cache: bool = False
 
     def to_context_string(self) -> str:
         """Format data for LLM consumption. Human-readable, includes warnings."""

@@ -24,6 +24,7 @@ from finrobot.engine.models.financial import (
     StepOutput,
     ValuationSynthesis,
 )
+from finrobot.engine.models.reconcile_tolerances import NARRATIVE_DRIFT_TOLERANCE
 from finrobot.engine.compute.operators.catalyst import (
     extract_catalysts_from_news,
     filter_fresh_news,
@@ -712,10 +713,9 @@ _DOLLAR_RE = re.compile(r"\$\s?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)")
 # A prose $-amount may legitimately differ from the canonical weighted target
 # when it is quoting a *per-method* mid (e.g. "DCF says $5.88, comps say $19.54").
 # Anything outside this band that is NOT a whitelisted per-method mid is drift.
-# Kept tight (1%) so a rounded restatement like "$276" against $276.43 passes,
-# but a contradicting headline like "$280" against $276.43 is caught — the exact
-# table-vs-prose desync this guard exists to neutralize.
-_NARRATIVE_DRIFT_TOLERANCE = 0.01
+# The relative tolerance ``NARRATIVE_DRIFT_TOLERANCE`` is the shared leaf constant
+# (engine/models/reconcile_tolerances) so the output contract's C3 (basis
+# conclusion == headline) and this reconcile speak the same "same number" rule.
 
 
 def _reconcile_narrative_targets(
@@ -731,7 +731,7 @@ def _reconcile_narrative_targets(
     call (``valuation_overview`` / ``tagline`` / ``key_takeaways``) can still
     print a contradicting $ amount — e.g. the table says $276.43 while the prose
     says "约 $280". This scans those fields for $-amounts that deviate
-    > ``_NARRATIVE_DRIFT_TOLERANCE`` from the canonical target AND do not match
+    > ``NARRATIVE_DRIFT_TOLERANCE`` from the canonical target AND do not match
     any whitelisted per-method mid, then rewrites the offending "$X" token to the
     canonical "$Y" in place (least-invasive neutralization — the sentence
     structure is preserved). No second LLM call is made.
@@ -746,20 +746,18 @@ def _reconcile_narrative_targets(
     canonical_token = f"${canonical_target:.2f}"
 
     def _is_allowed(value: float) -> bool:
-        if abs(value - canonical_target) <= abs(canonical_target) * _NARRATIVE_DRIFT_TOLERANCE:
+        if abs(value - canonical_target) <= abs(canonical_target) * NARRATIVE_DRIFT_TOLERANCE:
             return True
         # The current market price is a legitimate reference number, not drift.
         if (
             current_price is not None
             and current_price > 0
-            and abs(value - current_price) <= abs(current_price) * _NARRATIVE_DRIFT_TOLERANCE
+            and abs(value - current_price) <= abs(current_price) * NARRATIVE_DRIFT_TOLERANCE
         ):
             return True
         # A per-method mid is legitimately citable even if far from the target
         # ("DCF $5.88 vs comps $19.54, they disagree" is the honest narrative).
-        return any(
-            abs(value - mid) <= abs(mid) * _NARRATIVE_DRIFT_TOLERANCE for mid in allowed_mids
-        )
+        return any(abs(value - mid) <= abs(mid) * NARRATIVE_DRIFT_TOLERANCE for mid in allowed_mids)
 
     drift_found = False
 

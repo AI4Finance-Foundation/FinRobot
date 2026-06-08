@@ -37,6 +37,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal
 
 from finrobot.artifact.summary_extractor import extract_entry_price, extract_target_price
 from finrobot.engine.models.numeric_claim import Finding
+from finrobot.engine.models.reconcile_tolerances import NARRATIVE_DRIFT_TOLERANCE
 from finrobot.engine.models.valuation_thresholds import (
     MARKET_DIVERGENCE_RATIO_K,
     SINGLE_METHOD_DIVERGENCE_RATIO_K,
@@ -151,11 +152,236 @@ def _iter_strings(obj: Any) -> Iterator[str]:
             yield from _iter_strings(value)
 
 
+# ── C3: basis conclusion amount == headline ──────────────────────────────────
+
+# Same shape as equity_research.py:710 `_DOLLAR_RE` (group 1 = numeric body, with
+# optional thousands separators / decimals). Replicated here, not imported, to
+# keep the contract off the pipeline layer (Q4 red line); it is a regex literal,
+# not a numeric threshold.
+_DOLLAR_RE = re.compile(r"\$\s?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)")
+
+# A conclusion cue immediately preceding a $-amount marks it as the BASIS's stated
+# conclusion (vs a per-method mid the basis merely cites). Only a cue-anchored
+# amount is compared to the headline — this is the false-positive guard: no cue,
+# no comparison (we never guess which of several cited $-amounts is the verdict).
+_CONCLUSION_CUE_RE = re.compile(
+    r"(?:→|price\s+target|target|目标价|目标)\s*[:：]?\s*\$\s?"
+    r"(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)",
+    re.IGNORECASE,
+)
+
+
+def _clause_c3_basis_matches_headline(artifact: "Artifact") -> Finding | None:
+    """A cue-anchored conclusion $-amount in the basis / valuation_overview must
+    equal the headline price_target (relative tolerance). CONSERVATIVE: fires ONLY
+    on a clear contradiction — a $-amount that directly follows a conclusion cue
+    (→ / target / 目标). No cue-anchored amount → NO-OP (cited per-method mids are
+    not guessed to be the verdict). Catches a table-vs-prose desync the upstream
+    narrative reconcile could itself have produced."""
+    target = extract_target_price(artifact)
+    if target is None or target <= 0:
+        return None
+    thesis = artifact.outputs.structured.get("thesis")
+    if not isinstance(thesis, dict):
+        return None
+
+    for field_name in ("price_target_basis", "valuation_overview"):
+        text = thesis.get(field_name)
+        if not isinstance(text, str):
+            continue
+        for match in _CONCLUSION_CUE_RE.finditer(text):
+            try:
+                amount = float(match.group(1).replace(",", ""))
+            except ValueError:
+                continue
+            if abs(amount - target) <= abs(target) * NARRATIVE_DRIFT_TOLERANCE:
+                continue
+            return Finding(
+                field_key=f"thesis.{field_name}",
+                check="contract_c3_basis_headline_desync",
+                severity="blocked_field",
+                evidence=(
+                    f"basis conclusion amount ${amount:.2f} (after '{match.group(0).strip()}') "
+                    f"contradicts the headline price_target {target:.2f}"
+                ),
+            )
+    return None
+
+
+# ── C4: currency / unit caliber ──────────────────────────────────────────────
+
+# audit_currency_caliber (compute/operators/audit/currency_caliber) emits this
+# check id for a cross-currency ratio. The contract matches the id (or the
+# "currency" family) on the already-dumped numeric_audit findings — it does not
+# re-run the auditor.
+_CURRENCY_CHECK = "cross_currency_ratio"
+
+
+def _clause_c4_currency_caliber(artifact: "Artifact") -> Finding | None:
+    """Backstop for a currency-caliber miss. Fires when a per-share headline still
+    survives AND either: (a) numeric_audit carries a currency-family blocked_field
+    finding (the type-agnostic missed-withhold — mixed-currency P/E on SAP / TSM /
+    TM), or (b) a currency block is present but missing quote_currency /
+    reporting_currency (the caliber tags never resolved). Every read is guarded —
+    numeric_audit is absent on plain dcf/ddm, currency absent on non-equity."""
+    target = extract_target_price(artifact)
+    if target is None or target <= 0:
+        return None
+    structured = artifact.outputs.structured
+
+    numeric_audit = structured.get("numeric_audit")
+    if isinstance(numeric_audit, dict):
+        findings = numeric_audit.get("findings")
+        if isinstance(findings, list):
+            for finding in findings:
+                if not isinstance(finding, dict):
+                    continue
+                if finding.get("severity") != "blocked_field":
+                    continue
+                check = finding.get("check")
+                if not isinstance(check, str):
+                    continue
+                if check == _CURRENCY_CHECK or "currency" in check:
+                    return Finding(
+                        field_key="thesis.price_target",
+                        check="contract_c4_currency_caliber",
+                        severity="blocked_field",
+                        evidence=(
+                            f"currency-caliber finding '{check}' on "
+                            f"{finding.get('field_key', '?')} blocked but headline "
+                            f"{target:.2f} survived — withholding mixed-currency target"
+                        ),
+                    )
+
+    currency = structured.get("currency")
+    if isinstance(currency, dict):
+        for key in ("quote_currency", "reporting_currency"):
+            if not currency.get(key):
+                return Finding(
+                    field_key="currency",
+                    check="contract_c4_currency_caliber",
+                    severity="blocked_field",
+                    evidence=(
+                        f"per-share headline {target:.2f} present but currency "
+                        f"caliber is incomplete (missing {key}) — cannot label the "
+                        f"amount's currency"
+                    ),
+                )
+    return None
+
+
+# ── C6: single-method no-cross-check disclosure (SOFT) ───────────────────────
+
+# The basis must admit it lacks a second opinion. Any of these phrasings counts
+# (case-insensitive); upstream resolve_canonical_thesis writes "no cross-check
+# available" — C6 re-checks new paths didn't drop it.
+_CROSS_CHECK_DISCLOSURES = (
+    "no cross-check",
+    "no cross check",
+    "single-method",
+    "single method",
+    "无交叉",
+    "单一方法",
+)
+
+
+def _clause_c6_single_method_disclosure(artifact: "Artifact") -> Finding | None:
+    """SOFT: when only one method survived (valuation_synthesis.weighted_price is
+    None) and a live headline exists, the basis MUST disclose it has no
+    cross-check. Missing → a note (severity review) — the target still ships, the
+    analyst is just told it has no second opinion. Never withholds."""
+    target = extract_target_price(artifact)
+    if target is None or target <= 0:
+        return None
+    structured = artifact.outputs.structured
+    synthesis = structured.get("valuation_synthesis")
+    if not isinstance(synthesis, dict) or synthesis.get("weighted_price") is not None:
+        return None  # multi-method (corroborated) or no synthesis block → not C6's case
+
+    thesis = structured.get("thesis")
+    basis = thesis.get("price_target_basis") if isinstance(thesis, dict) else None
+    haystack = basis.lower() if isinstance(basis, str) else ""
+    if any(phrase in haystack for phrase in _CROSS_CHECK_DISCLOSURES):
+        return None
+
+    return Finding(
+        field_key="thesis.price_target_basis",
+        check="contract_c6_single_method_disclosure",
+        severity="review",
+        evidence=(
+            f"single-method headline {target:.2f} (no weighted cross-check) but the "
+            f"basis does not disclose it lacks corroboration"
+        ),
+    )
+
+
+# ── C7: withheld must not resurrect ──────────────────────────────────────────
+
+# Raw fallback slots a withheld headline can hide in. extract_target_price is
+# thesis-authoritative and ignores them, but other consumers (coverage list,
+# signal lamp) read them directly — so C7 scans the RAW slots, not the extractor.
+_FALLBACK_HEADLINE_SLOTS: tuple[tuple[str, str | None], ...] = (
+    ("price_target", "thesis"),
+    ("target_price", "thesis"),
+    ("implied_price", None),
+    ("equity_value_per_share", None),
+    ("target_price", None),
+    ("implied_price", "financial_modeling"),
+    ("implied_price", "dcf_result"),
+)
+
+
+def _is_review(artifact: "Artifact") -> bool:
+    """The locked judge (§4.3 ⟦复核⟧): a thesis REVIEW recommendation OR an explicit
+    valuation_withheld. The data-health-gate REVIEW path NEVER sets
+    valuation_withheld, so recommendation == 'REVIEW' is load-bearing and cannot be
+    the sole-judge replaced by valuation_withheld."""
+    structured = artifact.outputs.structured
+    if structured.get("valuation_withheld") is True:
+        return True
+    thesis = structured.get("thesis")
+    return isinstance(thesis, dict) and thesis.get("recommendation") == "REVIEW"
+
+
+def _clause_c7_no_resurrection(artifact: "Artifact") -> Finding | None:
+    """When the artifact is under review, NO headline value may survive in ANY
+    fallback slot. Scans the RAW slots (not extract_target_price, which already
+    early-returns on a thesis) — the TSLA bug was financial_modeling.implied_price
+    = 20.35 riding naked on a compliant REVIEW thesis. Any positive number found →
+    fire (the _withhold scrub then nulls every slot)."""
+    if not _is_review(artifact):
+        return None
+    structured = artifact.outputs.structured
+    for slot, parent_key in _FALLBACK_HEADLINE_SLOTS:
+        container = structured.get(parent_key) if parent_key is not None else structured
+        if not isinstance(container, dict):
+            continue
+        value = container.get(slot)
+        if isinstance(value, bool):  # avoid True == 1 surviving as a "headline"
+            continue
+        if isinstance(value, (int, float)) and value > 0:
+            where = f"{parent_key}.{slot}" if parent_key else slot
+            return Finding(
+                field_key=where,
+                check="contract_c7_no_resurrection",
+                severity="blocked_field",
+                evidence=(
+                    f"withheld/REVIEW artifact still carries a headline {value} in "
+                    f"{where} — nulling so it cannot resurrect downstream"
+                ),
+            )
+    return None
+
+
 # ── Registry + enforcement ───────────────────────────────────────────────────
 
 CONTRACT_CLAUSES: list[ContractClause] = [
     ContractClause(id="C1", severity="H", check=_clause_c1_upside_band),
     ContractClause(id="C2", severity="H", check=_clause_c2_double_decimal),
+    ContractClause(id="C3", severity="H", check=_clause_c3_basis_matches_headline),
+    ContractClause(id="C4", severity="H", check=_clause_c4_currency_caliber),
+    ContractClause(id="C6", severity="S", check=_clause_c6_single_method_disclosure),
+    ContractClause(id="C7", severity="H", check=_clause_c7_no_resurrection),
 ]
 
 
@@ -179,15 +405,13 @@ def enforce_artifact_contract(artifact: "Artifact") -> "Artifact":
     return artifact
 
 
-def _withhold(artifact: "Artifact", violations: list[tuple[ContractClause, Finding]]) -> None:
-    """Degrade exactly as the numeric-audit gate does (builders.py): null the
-    headline so it cannot resurrect, force REVIEW, set valuation_withheld, and
-    record machine evidence as [CONTRACT/*] warnings. Type-agnostic: nulls both
-    the authoritative thesis target and the flat per-share slots a plain dcf/ddm
-    dumps, so extract_target_price is guaranteed None afterwards (the C7 invariant)."""
-    structured = artifact.outputs.structured
-    ids = [clause.id for clause, _ in violations]
-
+def _scrub_headline_slots(structured: dict[str, Any]) -> None:
+    """Null EVERY slot a headline value can hide in — the authoritative thesis
+    target, the flat per-share slots a plain dcf/ddm dumps, AND the nested
+    fallback slots (``financial_modeling.implied_price`` / ``dcf_result.implied_price``)
+    that the data-health-gate REVIEW path leaves naked in structured. Every hard
+    withhold calls this, so the C7 invariant — withheld ⇒ no headline survives in
+    ANY slot — holds for C1/C2/C3/C4/C7 alike (TSLA $20.35 resurrection)."""
     thesis = structured.get("thesis")
     if isinstance(thesis, dict):
         thesis["price_target"] = None
@@ -197,6 +421,26 @@ def _withhold(artifact: "Artifact", violations: list[tuple[ContractClause, Findi
     for slot in ("implied_price", "equity_value_per_share", "target_price"):
         if structured.get(slot) is not None:
             structured[slot] = None
+    # Nested fallback slots other consumers resurrected from (extract_target_price
+    # is thesis-authoritative and ignores them, but the coverage list / signal lamp
+    # read them directly — null them so the withhold is terminal everywhere).
+    for parent_key in ("financial_modeling", "dcf_result"):
+        parent = structured.get(parent_key)
+        if isinstance(parent, dict) and parent.get("implied_price") is not None:
+            parent["implied_price"] = None
+
+
+def _withhold(artifact: "Artifact", violations: list[tuple[ContractClause, Finding]]) -> None:
+    """Degrade exactly as the numeric-audit gate does (builders.py): null the
+    headline so it cannot resurrect, force REVIEW, set valuation_withheld, and
+    record machine evidence as [CONTRACT/*] warnings. Type-agnostic: scrubs the
+    authoritative thesis target, the flat per-share slots, and the nested fallback
+    slots, so extract_target_price AND every direct consumer see None afterwards
+    (the C7 invariant)."""
+    structured = artifact.outputs.structured
+    ids = [clause.id for clause, _ in violations]
+
+    _scrub_headline_slots(structured)
 
     structured["valuation_withheld"] = True
     structured["withheld_reason"] = "contract_" + "+".join(ids)

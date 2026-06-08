@@ -5,12 +5,54 @@ import os
 from datetime import datetime
 from typing import Any, Literal
 
+import httpx
 from pydantic import BaseModel, Field, PrivateAttr, field_validator
 from pydantic_ai.models import Model
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
 
 
 logger = logging.getLogger(__name__)
+
+
+# LLM streams run 30-60s+; the read/total budget must cover a slow first token
+# plus a long generation. connect stays short so a dead proxy fails fast.
+_LLM_TIMEOUT = httpx.Timeout(connect=10.0, read=300.0, write=30.0, pool=10.0)
+
+# One shared httpx.AsyncClient reused process-wide for every LLM provider —
+# mirrors how Claude Code keeps a single shared dispatcher with a warm
+# connection pool. The win is amortising the TLS handshake: through the user's
+# Clash proxy the OpenAI handshake costs ~3.3s and is otherwise paid on EVERY
+# turn, because httpx's default keepalive_expiry=5s drops the idle socket
+# during the tens-of-seconds gap between turns. Raising keepalive_expiry to
+# 300s (undici-like generosity) keeps the socket alive across normal turn gaps
+# so it gets reused — first-byte drops from ~4.4s to ~1.2s on a warm connection.
+#
+# trust_env defaults to True, so httpx honours HTTP_PROXY/HTTPS_PROXY/NO_PROXY
+# from the environment — the same proxy the rest of the process uses.
+#
+# Lazily constructed on first use (NOT at import) so no event loop is required
+# at import time; bound to the server's running loop on first create_model().
+_llm_http_client: httpx.AsyncClient | None = None
+
+
+def _shared_llm_http_client() -> httpx.AsyncClient:
+    """Return the process-wide LLM httpx client, building it on first use.
+
+    Reused across all agents/providers so the proxied TLS connection stays warm
+    between chat turns instead of being re-handshaked each turn. See module-level
+    ``_llm_http_client`` for the keepalive rationale.
+    """
+    global _llm_http_client
+    if _llm_http_client is None:
+        _llm_http_client = httpx.AsyncClient(
+            timeout=_LLM_TIMEOUT,
+            limits=httpx.Limits(
+                max_keepalive_connections=20,
+                max_connections=100,
+                keepalive_expiry=300.0,
+            ),
+        )
+    return _llm_http_client
 
 
 ProviderKind = Literal["openai-compatible", "anthropic", "test"]
@@ -374,12 +416,20 @@ class FinRobotSettings(BaseSettings):
             )
         api_key = self.provider_key(provider_id)
 
+        # One shared, warm-pooled httpx client for every provider (see
+        # _shared_llm_http_client) so the proxied TLS connection survives the
+        # gap between turns instead of being re-handshaked each turn.
+        http_client = _shared_llm_http_client()
+
         if cfg.kind == "anthropic":
             from pydantic_ai.models.anthropic import AnthropicModel
             from pydantic_ai.providers.anthropic import AnthropicProvider
 
             return AnthropicModel(
-                model_id, provider=AnthropicProvider(api_key=api_key, base_url=cfg.base_url)
+                model_id,
+                provider=AnthropicProvider(
+                    api_key=api_key, base_url=cfg.base_url, http_client=http_client
+                ),
             )
         elif cfg.kind == "openai-compatible":
             # The universal base: OpenAI itself, DeepSeek, Moonshot, Qwen,
@@ -389,7 +439,10 @@ class FinRobotSettings(BaseSettings):
             from pydantic_ai.providers.openai import OpenAIProvider
 
             return OpenAIChatModel(
-                model_id, provider=OpenAIProvider(base_url=cfg.base_url, api_key=api_key)
+                model_id,
+                provider=OpenAIProvider(
+                    base_url=cfg.base_url, api_key=api_key, http_client=http_client
+                ),
             )
         elif cfg.kind == "test":
             from pydantic_ai.models.test import TestModel

@@ -184,6 +184,54 @@ class TestCreateModel:
         s.create_model()
         assert os.environ.get("OPENAI_API_KEY") is None
 
+    def test_shared_llm_http_client_is_warm_and_proxy_aware(self):
+        """The shared LLM client keeps the proxied TLS socket warm across turns.
+
+        Guards the TTFT fix: a long keepalive_expiry (vs httpx's default 5s, which
+        drops the idle socket between turns and forces a ~3.3s re-handshake) and
+        trust_env=True so HTTP(S)_PROXY from the environment is honoured.
+        """
+        import httpx
+
+        from finrobot.config import _shared_llm_http_client
+
+        client = _shared_llm_http_client()
+        assert isinstance(client, httpx.AsyncClient)
+        # trust_env defaults to True -> httpx reads HTTP_PROXY/HTTPS_PROXY/NO_PROXY.
+        assert client.trust_env is True
+        # The connection pool stays alive long enough to survive normal turn gaps.
+        pool = client._transport._pool
+        assert pool._keepalive_expiry == 300.0
+        assert pool._max_keepalive_connections == 20
+
+    def test_passes_shared_http_client_to_provider(self, monkeypatch):
+        """create_model hands the process-wide shared client to the LLM provider,
+        reusing the SAME object across calls (mirrors Claude Code's single shared
+        dispatcher — a fresh client per call would reintroduce the per-turn TLS
+        handshake the fix exists to kill).
+        """
+        from finrobot.config import _shared_llm_http_client
+
+        captured: list[object] = []
+
+        def _fake_openai_provider(*, base_url, api_key, http_client):
+            captured.append(http_client)
+            return object()
+
+        monkeypatch.setattr("pydantic_ai.providers.openai.OpenAIProvider", _fake_openai_provider)
+        monkeypatch.setattr(
+            "pydantic_ai.models.openai.OpenAIChatModel",
+            lambda model_id, provider: object(),
+        )
+
+        s = get_settings(model_name="openai:gpt-4o", provider_keys={"openai": "sk-test"})
+        s.create_model()
+        s.create_model()
+        assert len(captured) == 2
+        # Same shared client every call, and it is the module singleton.
+        assert captured[0] is captured[1]
+        assert captured[0] is _shared_llm_http_client()
+
 
 class TestValidateRuntimeConfig:
     """P3 audit D2: single source of truth for model + data config validation,

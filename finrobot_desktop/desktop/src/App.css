@@ -115,20 +115,22 @@
   ); /* cyan 0.12 — live/fresh pill + active-filter fill */
   --bg-card-50: rgba(13, 16, 24, 0.5); /* bg-card at 50% — list-item / chip overlay */
 
-  /* ── AI assistant panel — same cool family as the workspace, lifted ──
+  /* ── AI assistant panel — same cool family, a DETACHED FLOATING CARD ──
      The app shell + data desk are a cool blue-slate near-black. The chat
      panel is NOT a warm-violet console bolted on (that read as two stitched
-     products); it's the SAME cool surface raised ONE brightness notch and
-     floated over the workspace. The "raised layer" read comes from a slate
-     edge + left drop shadow, NOT a glow wash; internal hierarchy comes from
-     cards / borders / whitespace. Violet is spent in exactly ONE place — the
-     presence orb (--aip-orb) — as a single brand dab; every other "this is
-     the assistant" accent is blue (--aip-accent), so the panel reads as one
+     products), and NOT flush either (that blurred into the workspace); it's
+     the SAME cool surface, lifted one notch and inset as a rounded card with
+     a gap on top / right / bottom so the cosmic shell shows through and it
+     reads as floating OVER the workspace. Depth comes from gap + border +
+     drop shadow, NOT a glow wash; internal hierarchy comes from cards /
+     borders / whitespace. Violet is spent in exactly ONE place — the presence
+     orb (--aip-orb) — as a single brand dab; every other "this is the
+     assistant" accent is blue (--aip-accent), so the panel reads as one
      product with the data desk.
      (oklch is banned — renders green in some WebViews — so all hex/rgba.) */
-  --aipanel-bg: linear-gradient(180deg, #11151f 0%, #0b0e16 100%);
-  --aipanel-edge: rgba(148, 163, 184, 0.16); /* subtle slate left border */
-  --aipanel-edge-shadow: rgba(2, 4, 10, 0.55); /* left shadow onto workspace */
+  --aipanel-bg: linear-gradient(180deg, #141a27 0%, #0e131e 100%);
+  --aipanel-edge: rgba(148, 163, 184, 0.22); /* slate border of the floating card */
+  --aipanel-edge-shadow: rgba(2, 4, 10, 0.6); /* drop shadow under the floating card */
   --aipanel-grid: rgba(148, 163, 184, 0.04); /* faint ambient grid lines */
   --aipanel-surface: rgba(30, 38, 54, 0.5); /* needs / tool / session cards */
   --aipanel-surface-hover: rgba(38, 48, 68, 0.6);
@@ -303,6 +305,7 @@
   --activitybar-w: 64px; /* slim icon-only — cosmic spec §5.2 */
   --explorer-w: 260px;
   --aipanel-w: 420px;
+  --aip-gap: 12px; /* inset gap around the floating AI panel card */
   --tabs-h: 38px;
   --breadcrumb-h: 32px;
   --sidebar-bg: var(--bg-sticky-88);
@@ -4831,13 +4834,11 @@ select.settings-input {
 
 .ai-panel {
   width: 0;
-  /* Flat cool surface — no diffuse glow wash. The panel reads as a raised
-     layer via the slate edge + left drop shadow below, not a colour bloom. */
+  /* Detached floating card (see .open). Flat cool surface — no glow wash;
+     depth comes from the inset gap + full border + drop shadow, not colour. */
   background: var(--aipanel-bg);
-  border-left: 1px solid var(--aipanel-edge);
-  /* Cast a shadow LEFT onto the workspace so the panel reads as a raised
-     layer, never blending into the page behind it. */
-  box-shadow: -22px 0 56px -8px var(--aipanel-edge-shadow);
+  border: 1px solid var(--aipanel-edge);
+  border-radius: var(--radius-lg);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   display: flex;
@@ -4845,6 +4846,7 @@ select.settings-input {
   overflow: hidden;
   transition:
     width 0.22s cubic-bezier(0.4, 0, 0.2, 1),
+    margin 0.22s cubic-bezier(0.4, 0, 0.2, 1),
     opacity 0.18s ease,
     border-color 0.22s ease;
   will-change: width;
@@ -4855,6 +4857,16 @@ select.settings-input {
 .ai-panel.open {
   width: var(--aipanel-w, 420px);
   opacity: 1;
+  /* DETACHED FLOATING CARD: inset gap on top / right / bottom lets the cosmic
+     shell (and its corner glow) show through, so the panel floats as a
+     separate card over the workspace — clearly distinct, still the same cool
+     family. Height auto-derives from the flex row minus the vertical margins
+     (the row is align-items: stretch). The shadow falls left + down so the
+     card reads as grounded above the data desk. */
+  margin: var(--aip-gap) var(--aip-gap) var(--aip-gap) 0;
+  box-shadow:
+    -16px 0 48px -10px var(--aipanel-edge-shadow),
+    0 18px 50px -16px var(--aipanel-edge-shadow);
 }
 /* Faint ambient grid, masked to fade out below the header — adds depth to
    the distinct surface without competing with content. */

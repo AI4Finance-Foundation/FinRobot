@@ -10,7 +10,8 @@ src/i18n/locales/*/messages.js
 # Generated standalone report-viewer bundle (built by build:viewer)
 src/export/generated/
 
-# Playwright run artifacts
+# Playwright visual-check suite — local-only tooling (specs + screenshots),
+# not run in CI; regenerated on demand via `npm run e2e`.
 test-results/
-e2e/_*.png
+e2e/
 playwright-report/

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
 
@@ -1161,3 +1162,71 @@ class TestCircuitBreakerWiring:
         quote = await layer.fetch_quote("AAA")
         assert quote.provider == "yfinance"
         assert fmp.fetch_called == 0  # gated on both paths
+
+
+class TestCanonicalSingleFlight:
+    """fetch_canonical coalesces concurrent slow-path callers per (type, ticker).
+
+    These isolate the coalescing wrapper by stubbing ``_fetch_canonical_uncached``
+    (the provider→normalize→cache body, already covered elsewhere) so the test
+    asserts the in-flight registry behaviour, not the normalize path.
+    """
+
+    async def test_concurrent_canonical_fetches_coalesce_to_one(self, cache):
+        """A refresh fan-out (or mashed button) for one ticker hits the slow
+        path once — concurrent callers ride a single in-flight Task."""
+        layer = DataLayer([MockProvider("mock", ["price"])], cache)
+        calls = 0
+        sentinel = object()
+
+        async def slow_uncached(data_type, ticker, **kwargs):
+            nonlocal calls
+            calls += 1
+            await asyncio.sleep(0.02)  # hold the in-flight window open
+            return sentinel
+
+        layer._fetch_canonical_uncached = slow_uncached  # type: ignore[method-assign]
+
+        results = await asyncio.gather(
+            *[layer.fetch_canonical(DataType.PRICE, "AAPL") for _ in range(6)]
+        )
+        assert calls == 1
+        assert all(r is sentinel for r in results)
+
+    async def test_inflight_entry_evicts_after_completion(self, cache):
+        """The registry empties after a flight completes, so a later miss starts
+        a fresh fetch rather than awaiting a dead Task."""
+        layer = DataLayer([MockProvider("mock", ["price"])], cache)
+        calls = 0
+
+        async def counting_uncached(data_type, ticker, **kwargs):
+            nonlocal calls
+            calls += 1
+            return object()
+
+        layer._fetch_canonical_uncached = counting_uncached  # type: ignore[method-assign]
+
+        await layer.fetch_canonical(DataType.PRICE, "AAPL")
+        assert layer._inflight_canonical == {}
+        # Stub never writes the cache, so the next call is a cold miss → 2nd flight.
+        await layer.fetch_canonical(DataType.PRICE, "AAPL")
+        assert calls == 2
+
+    async def test_distinct_tickers_do_not_coalesce(self, cache):
+        """Single-flight keys on (type, ticker): different tickers run in parallel,
+        each its own flight."""
+        layer = DataLayer([MockProvider("mock", ["price"])], cache)
+        seen: list[str] = []
+
+        async def recording_uncached(data_type, ticker, **kwargs):
+            seen.append(ticker)
+            await asyncio.sleep(0.01)
+            return object()
+
+        layer._fetch_canonical_uncached = recording_uncached  # type: ignore[method-assign]
+
+        await asyncio.gather(
+            layer.fetch_canonical(DataType.PRICE, "AAPL"),
+            layer.fetch_canonical(DataType.PRICE, "MSFT"),
+        )
+        assert sorted(seen) == ["AAPL", "MSFT"]

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any, Literal, overload
@@ -49,6 +50,15 @@ class DataLayer:
         # Shared across all fetch_* methods so a trip in one path protects them
         # all. Defaults to a fresh breaker; injectable for tests.
         self._health = health if health is not None else ProviderHealth()
+        # Single-flight registry for the canonical slow path: at most one
+        # in-flight provider fetch per (data_type, ticker). Concurrent callers
+        # ride the same Task instead of each hitting the provider — the
+        # rate-limit shield for an open-market refresh fan-out (see
+        # ``fetch_canonical``). Lives for one process; entries self-evict on
+        # completion.
+        self._inflight_canonical: dict[
+            tuple[DataType, str], asyncio.Future[NormalizedPrice | NormalizedFinancials]
+        ] = {}
 
     def _health_gated(self, provider: DataProvider) -> bool:
         """True if ``provider`` is in an open cooldown window and should be skipped.
@@ -288,6 +298,35 @@ class DataLayer:
         if cached is not None and not cached.is_stale:
             return self._deserialize_canonical(data_type, cached.payload_json, from_cache=True)
 
+        # Cache miss/stale → single-flight the provider fetch: exactly one
+        # in-flight call per (data_type, ticker); concurrent callers ride the
+        # same Task. This collapses a refresh fan-out (N tickers, or a mashed
+        # refresh button) and any other canonical consumer (research pipeline,
+        # /price route) onto one network call — the open-market refresh path's
+        # rate-limit shield. Safe under asyncio's single thread: there is no
+        # await between the miss check and the registry insert, so two coroutines
+        # can never both create the in-flight Task.
+        key = (data_type, ticker)
+        existing = self._inflight_canonical.get(key)
+        if existing is not None:
+            return await existing
+        task: asyncio.Future[NormalizedPrice | NormalizedFinancials] = asyncio.ensure_future(
+            self._fetch_canonical_uncached(data_type, ticker, **kwargs)
+        )
+        self._inflight_canonical[key] = task
+        try:
+            return await task
+        finally:
+            self._inflight_canonical.pop(key, None)
+
+    async def _fetch_canonical_uncached(
+        self, data_type: DataType, ticker: str, **kwargs: Any
+    ) -> NormalizedPrice | NormalizedFinancials:
+        """The cache-miss path of :meth:`fetch_canonical` — raw provider fetch →
+        normalize (AFTER cross_validate) → cache. Wrapped by ``fetch_canonical``
+        in a single-flight so concurrent callers for one (data_type, ticker)
+        share a single execution.
+        """
         raw = (
             await self.fetch_price(ticker)
             if data_type == DataType.PRICE

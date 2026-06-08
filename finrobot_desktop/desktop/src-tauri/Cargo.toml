@@ -14,6 +14,14 @@ rust-version = "1.77.2"
 name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# dev 模式（cargo tauri dev）跑的是 target/debug 下的裸 binary，macOS Dock / 悬停
+# 显示的就是这个 binary 名。不显式设会 fallback 到 package name "finrobot-desktop"
+# （Tauri v2 已知行为 tauri-apps/tauri#13874）。命名成 FinRobot 让 dev 与 build
+# （build 另由 tauri.conf 的 mainBinaryName 命名）两个模式的名字一致。
+[[bin]]
+name = "FinRobot"
+path = "src/main.rs"
+
 [build-dependencies]
 tauri-build = { version = "2.6.1", features = [] }
 

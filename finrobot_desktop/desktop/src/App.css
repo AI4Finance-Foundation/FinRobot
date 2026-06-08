@@ -114,6 +114,27 @@
   ); /* cyan 0.12 — live/fresh pill + active-filter fill */
   --bg-card-50: rgba(13, 16, 24, 0.5); /* bg-card at 50% — list-item / chip overlay */
 
+  /* ── AI assistant panel — a DELIBERATELY DISTINCT layer ──────────
+     The app shell is near-black graphite (#06070c center). The chat
+     panel must read as a separate surface floating OVER it, not a
+     continuation of the workspace — otherwise an open panel blends into
+     the left content. So the panel is bluer + lifted + opaque, with a
+     glowing cyan left edge and a drop shadow cast onto the workspace.
+     (Ported from the approved standalone design; its oklch() values are
+     translated to hex — oklch is banned, renders green in some WebViews.) */
+  --aipanel-bg: linear-gradient(180deg, #171d2e 0%, #11151f 100%);
+  --aipanel-glow-top: rgba(59, 130, 246, 0.2); /* top inner radial lift */
+  --aipanel-edge: rgba(34, 211, 238, 0.26); /* glowing left border */
+  --aipanel-edge-shadow: rgba(2, 4, 10, 0.55); /* left shadow onto workspace */
+  --aipanel-grid: rgba(125, 170, 225, 0.05); /* faint ambient grid lines */
+  --aipanel-surface: rgba(36, 45, 66, 0.55); /* needs / tool / session cards */
+  --aipanel-surface-hover: rgba(45, 56, 80, 0.62);
+  --aipanel-surface-2: rgba(18, 23, 35, 0.85); /* input inner / deeper sub */
+  --aipanel-line: rgba(150, 180, 222, 0.14); /* hairline on panel */
+  --aipanel-line-strong: rgba(120, 190, 230, 0.3); /* card border on panel */
+  --aipanel-user-bubble: linear-gradient(180deg, #4f63d8 0%, #5b46c8 100%);
+  --aipanel-user-edge: rgba(120, 130, 240, 0.55);
+
   /* ── Pure-black scrims & elevation shadows ───────────────────────
      Modal/command-palette backdrops and drop shadows are neutral black,
      deliberately not tinted by the --scrim cosmic hue. Tokenized so no
@@ -155,7 +176,12 @@
   --text-on-success: #04140a; /* dark green-black on BUY green */
   --text-on-danger: #1f0303; /* dark red-black on SELL red */
   /* --text-on-warning (#1a1207) already declared above for amber fills. */
-  --warning-glow-strong: rgba(217, 119, 6, 0.45); /* HOLD badge halo (0.45, matches success/danger glow) */
+  --warning-glow-strong: rgba(
+    217,
+    119,
+    6,
+    0.45
+  ); /* HOLD badge halo (0.45, matches success/danger glow) */
   --provenance-hint: #7a8299; /* muted slate for provenance hint lines */
 
   /* ── Legacy off-palette accent ramps ─────────────────────────────
@@ -1464,7 +1490,11 @@ select.input-field {
   height: 100%;
   overflow-y: auto;
   background:
-    radial-gradient(120% 60% at 12% -8%, color-mix(in srgb, var(--primary) 10%, transparent), transparent 60%),
+    radial-gradient(
+      120% 60% at 12% -8%,
+      color-mix(in srgb, var(--primary) 10%, transparent),
+      transparent 60%
+    ),
     radial-gradient(120% 60% at 100% 0%, var(--secondary-soft), transparent 55%);
 }
 .settings-frame {
@@ -4792,9 +4822,11 @@ select.settings-input {
 .ai-panel {
   width: 0;
   background:
-    radial-gradient(86% 54% at 100% 0%, var(--primary-soft), transparent 72%),
-    linear-gradient(180deg, var(--bg-sticky-92), var(--bg-card-deep));
-  border-left: 1px solid var(--border-faint);
+    radial-gradient(130% 42% at 50% 0%, var(--aipanel-glow-top), transparent 62%), var(--aipanel-bg);
+  border-left: 1px solid var(--aipanel-edge);
+  /* Cast a shadow LEFT onto the workspace so the panel reads as a raised
+     layer, never blending into the page behind it. */
+  box-shadow: -22px 0 56px -8px var(--aipanel-edge-shadow);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   display: flex;
@@ -4812,7 +4844,22 @@ select.settings-input {
 .ai-panel.open {
   width: var(--aipanel-w, 420px);
   opacity: 1;
-  border-left-color: var(--border-soft);
+}
+/* Faint ambient grid, masked to fade out below the header — adds depth to
+   the distinct surface without competing with content. */
+.ai-panel.open::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.6;
+  background-image:
+    linear-gradient(var(--aipanel-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--aipanel-grid) 1px, transparent 1px);
+  background-size: 40px 40px;
+  -webkit-mask-image: radial-gradient(120% 80% at 50% 0%, #000 28%, transparent 78%);
+  mask-image: radial-gradient(120% 80% at 50% 0%, #000 28%, transparent 78%);
 }
 
 /* Floating expand button — visible when panel is collapsed */
@@ -4884,102 +4931,183 @@ select.settings-input {
   justify-content: center;
 }
 
-/* Suggestion chips row */
+/* Suggestion chips row — sits inside the composer group, above the input. */
 .ai-chips {
+  position: relative;
+  z-index: 6;
   display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  padding: 6px 12px 4px;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px 2px;
   flex-shrink: 0;
-  border-bottom: 1px solid var(--border-faint);
   overflow-x: auto;
   scrollbar-width: none;
 }
 .ai-chips::-webkit-scrollbar {
   display: none;
 }
-.ai-chip {
+.ai-chips .lead {
+  flex: none;
   font-family: var(--font-mono);
-  font-size: 10px;
-  border: 1px solid var(--border-faint);
-  border-radius: 3px;
-  padding: 3px 8px;
-  color: var(--text-muted, var(--text-3));
-  background: transparent;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.ai-chip {
+  flex: none;
+  font-family: var(--font-body);
+  font-size: 12px;
+  border: 1px solid var(--aipanel-line);
+  border-radius: 18px;
+  padding: 6px 12px;
+  color: var(--text-secondary);
+  background: var(--aipanel-surface);
   cursor: pointer;
   white-space: nowrap;
   transition:
-    border-color 0.12s,
-    color 0.12s,
-    background 0.12s;
-  flex-shrink: 0;
+    border-color 0.14s,
+    color 0.14s,
+    background 0.14s,
+    transform 0.14s;
 }
 .ai-chip:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-dim);
+  border-color: var(--accent-cyan);
+  color: var(--text-primary);
+  background: var(--aipanel-surface-hover);
+  transform: translateY(-1px);
 }
 
 .ai-header {
+  position: relative;
+  z-index: 6;
   padding: 12px 14px;
-  border-bottom: 1px solid var(--border-faint);
+  border-bottom: 1px solid var(--aipanel-line);
   display: flex;
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
 }
-.ai-icon {
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
-  background: linear-gradient(135deg, var(--accent), var(--purple));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-on-primary);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 800;
+/* Presence orb — the "living AI" brand mark. Persistent state = STATIC
+   neon glow (no infinite decorative animation, per the cosmic spec). */
+.ai-presence {
+  position: relative;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+}
+.ai-presence .core {
+  position: absolute;
+  width: 58%;
+  height: 58%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 38% 32%,
+    var(--text-on-primary),
+    var(--accent-cyan) 40%,
+    var(--primary) 80%,
+    transparent
+  );
+  box-shadow:
+    0 0 12px var(--accent-cyan),
+    0 0 22px var(--primary-soft);
+}
+.ai-presence .halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-cyan-soft);
+  box-shadow: inset 0 0 12px rgba(34, 211, 238, 0.22);
+}
+/* Only while the model is actually streaming do we animate — a slow,
+   spec-legal pulse (≤1.6s live signal), never a persistent loop. */
+.ai-presence.thinking .core {
+  animation: aiOrbPulse 1.6s ease-in-out infinite;
+}
+@keyframes aiOrbPulse {
+  50% {
+    transform: scale(1.14);
+    filter: brightness(1.2);
+  }
 }
 .ai-title {
+  font-family: var(--font-display);
   font-weight: 600;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+.ai-title b {
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+/* Ticker / Explore context tag */
+.ai-ctx-tag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  border: 1px solid var(--aipanel-line-strong);
+  border-radius: 6px;
+  padding: 3px 8px;
+  flex: none;
+}
+.ai-ctx-tag .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex: none;
 }
 .ai-model {
   margin-left: auto;
   position: relative;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-secondary);
-  background: var(--bg-card-translucent);
-  padding: 4px 8px;
-  border-radius: var(--r-sm);
-  letter-spacing: 0.03em;
-  cursor: pointer;
-  border: 1px solid var(--border);
-  outline: none;
-}
-.ai-model:hover {
-  color: var(--text-primary);
-  border-color: var(--accent);
-}
-.ai-icon-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-3);
-  cursor: pointer;
-  width: 22px;
-  height: 22px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 3px;
+  gap: 5px;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--aipanel-surface-2);
+  padding: 4px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+  cursor: help;
+  border: 1px solid var(--aipanel-line);
+  outline: none;
+  flex: none;
+}
+.ai-model .pv {
+  color: var(--text-secondary);
+}
+.ai-model:hover {
+  border-color: var(--aipanel-line-strong);
+}
+.ai-icon-btn {
+  display: grid;
+  place-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   font-size: 16px;
+  transition:
+    color 0.14s,
+    background 0.14s,
+    border-color 0.14s;
 }
 .ai-icon-btn:hover {
-  background: var(--bg-3);
-  color: var(--text-0);
+  background: rgba(120, 180, 230, 0.1);
+  border-color: var(--aipanel-line);
+  color: var(--text-primary);
 }
 
 /* 上下文条 — 隐藏，功能未完成 */
@@ -5088,24 +5216,30 @@ select.settings-input {
 
 /* 消息列表 */
 .ai-messages {
+  position: relative;
+  z-index: 4;
   flex: 1;
   overflow-y: auto;
-  padding: 14px;
+  padding: 18px 16px 8px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 20px;
+  scroll-behavior: smooth;
 }
 .ai-messages::-webkit-scrollbar {
-  width: 5px;
+  width: 9px;
 }
 .ai-messages::-webkit-scrollbar-thumb {
-  background: var(--bg-3);
+  background: rgba(110, 140, 190, 0.3);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
 }
 
 .msg {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 7px;
   animation: msgIn 0.3s ease-out;
 }
 @keyframes msgIn {
@@ -5121,61 +5255,101 @@ select.settings-input {
 .msg-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  color: var(--text-3);
+  font-size: 10px;
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
 }
 .msg.user .msg-head {
   justify-content: flex-end;
-  color: var(--accent-hover);
+  color: var(--text-secondary);
 }
 .msg.agent .msg-head {
-  color: var(--green-dim);
+  color: var(--accent-cyan);
 }
 .msg-body {
-  font-size: 12.5px;
-  line-height: 1.65;
-  color: var(--text-0);
+  font-size: 13.5px;
+  line-height: 1.62;
+  color: var(--text-primary);
+}
+/* User turn — gradient bubble pinned bottom-right. */
+.msg.user {
+  align-items: flex-end;
 }
 .msg.user .msg-body {
-  background: var(--accent-dim);
-  border: 1px solid var(--accent-dim);
-  border-radius: 6px;
-  padding: 9px 12px;
   align-self: flex-end;
-  max-width: 92%;
+  max-width: 90%;
+  background: var(--aipanel-user-bubble);
+  border: 1px solid var(--aipanel-user-edge);
+  border-radius: 14px 14px 4px 14px;
+  padding: 11px 14px;
+  color: var(--text-on-primary);
+  box-shadow: 0 4px 16px rgba(64, 70, 180, 0.32);
 }
+/* AI turn — quiet left rail, no boxed card (lets tool cards / markdown breathe). */
 .msg.agent .msg-body {
-  background: var(--bg-card-overlay);
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  padding: 10px 12px;
+  padding-left: 14px;
+  border-left: 2px solid rgba(34, 211, 238, 0.38);
 }
 .msg-body code {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10.5px;
-  background: var(--bg-3);
+  font-size: 12px;
+  background: rgba(40, 56, 84, 0.6);
+  border: 1px solid var(--aipanel-line);
   padding: 1px 5px;
-  color: var(--accent);
-  border-radius: 3px;
+  color: var(--accent-cyan);
+  border-radius: 5px;
 }
 .msg-body strong {
-  color: var(--accent);
+  color: var(--text-on-primary);
   font-weight: 600;
 }
+.msg-body em {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.msg-body h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.3;
+}
+.msg-body h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13.5px;
+  line-height: 1.3;
+}
+.msg-body ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 4px;
+  list-style: none;
+}
+.msg-body li {
+  position: relative;
+  padding-left: 18px;
+  line-height: 1.55;
+}
+.msg-body li::before {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 9px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 6px rgba(34, 211, 238, 0.7);
+}
 
-/* Trace 块 */
+/* Trace 块 — thin spacing wrapper around the ToolCard (which owns its own
+   card chrome); no double box. */
 .trace {
-  background: var(--bg-0);
-  border: 1px solid var(--line);
-  padding: 8px 10px;
-  margin-top: 8px;
-  border-radius: 4px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  margin-top: 6px;
 }
 .trace-row {
   display: flex;
@@ -5212,21 +5386,26 @@ select.settings-input {
 
 /* AI 输入区 */
 .ai-input-wrap {
-  border-top: 1px solid var(--border-faint);
-  padding: 12px;
+  position: relative;
+  z-index: 6;
+  padding: 0 14px 14px;
   flex-shrink: 0;
-  background: var(--bg-sticky-92);
 }
 .ai-input-box {
-  background: var(--bg-card-overlay);
-  border: 1px solid var(--border-faint);
-  border-radius: var(--r-md);
-  transition: border-color 0.15s;
-  box-shadow: var(--shadow-sm);
+  position: relative;
+  background: var(--aipanel-surface-2);
+  border: 1px solid var(--aipanel-line-strong);
+  border-radius: 14px;
+  padding: 11px 12px 10px;
+  transition:
+    border-color 0.16s,
+    box-shadow 0.16s;
 }
 .ai-input-box:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-dim);
+  border-color: var(--accent-cyan);
+  box-shadow:
+    0 0 0 1px var(--border-cyan-soft),
+    0 0 18px rgba(34, 211, 238, 0.14);
 }
 .ai-textarea {
   width: 100%;
@@ -5234,11 +5413,14 @@ select.settings-input {
   border: none;
   outline: none;
   color: var(--text-primary);
-  font-family: var(--font-ui);
-  font-size: 14px;
-  padding: 10px 12px;
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  line-height: 1.55;
+  padding: 0;
   resize: none;
-  min-height: 52px;
+  max-height: 148px;
+  overflow-y: auto;
+  caret-color: var(--accent-cyan);
 }
 .ai-textarea::placeholder {
   color: var(--text-muted);
@@ -5246,55 +5428,253 @@ select.settings-input {
 .ai-input-bar {
   display: flex;
   align-items: center;
-  padding: 4px 8px 6px;
-  gap: 4px;
-  border-top: 1px solid var(--border-subtle);
-}
-.input-btn {
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--r-sm);
-  transition: all 0.15s;
-}
-.input-btn:hover {
-  color: var(--text-primary);
-  background: var(--elevated);
-}
-.input-btn.active {
-  color: var(--accent);
-  background: var(--accent-dim);
+  gap: 10px;
+  margin-top: 9px;
 }
 .ai-input-bar .spacer {
   flex: 1;
 }
 .send {
-  background: var(--accent);
-  color: var(--text-on-primary);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
   border: none;
-  padding: 6px 14px;
-  border-radius: var(--r-sm);
-  font-family: var(--font-ui);
-  font-size: 12px;
-  font-weight: 600;
   cursor: pointer;
-  letter-spacing: 0.02em;
+  color: var(--text-on-primary);
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  box-shadow: 0 5px 16px rgba(70, 80, 200, 0.42);
+  transition:
+    transform 0.16s,
+    box-shadow 0.16s,
+    opacity 0.16s;
+  padding: 0;
+}
+.send:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(70, 80, 200, 0.5);
+}
+.send:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.4);
+  box-shadow: none;
+}
+.send.stop {
+  background: linear-gradient(135deg, var(--danger), var(--accent-pink));
+  box-shadow: 0 5px 16px rgba(200, 50, 40, 0.42);
+}
+
+/* ── Sessions drawer — slides OVER the conversation, never squishes it ──
+   This is the core fix for the "open history → everything crams" bug: the
+   drawer is an absolute overlay (its own header + list), not an in-flow
+   block. It is conditionally mounted; on mount it slides in from the right. */
+.ai-drawer {
+  position: absolute;
+  inset: 0;
+  z-index: 18;
+  display: flex;
+  flex-direction: column;
+  background: var(--aipanel-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-left: 1px solid var(--aipanel-line-strong);
+  animation: drawerIn 0.26s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+@keyframes drawerIn {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+.ai-drawer-hd {
   display: flex;
   align-items: center;
+  gap: 10px;
+  padding: 14px;
+  border-bottom: 1px solid var(--aipanel-line);
+}
+.ai-drawer-hd .t {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-primary);
+}
+.ai-drawer-hd .grow {
+  flex: 1;
+}
+.ai-drawer-new {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 13px 13px 4px;
+  padding: 11px 13px;
+  cursor: pointer;
+  border: 1px dashed var(--aipanel-line-strong);
+  border-radius: 10px;
+  color: var(--accent-cyan);
+  font-size: 13px;
+  font-family: var(--font-body);
+  background: transparent;
+  width: auto;
+  text-align: left;
+  transition:
+    border-color 0.14s,
+    background 0.14s;
+}
+.ai-drawer-new:hover {
+  border-color: var(--accent-cyan);
+  background: rgba(34, 211, 238, 0.08);
+}
+.ai-drawer-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 13px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ai-drawer-list::-webkit-scrollbar {
+  width: 9px;
+}
+.ai-drawer-list::-webkit-scrollbar-thumb {
+  background: rgba(110, 140, 190, 0.3);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.ai-sess {
+  position: relative;
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--aipanel-line);
+  border-radius: 10px;
+  padding: 11px 12px;
+  cursor: pointer;
+  background: var(--aipanel-surface);
+  transition:
+    border-color 0.14s,
+    background 0.14s;
+}
+.ai-sess:hover {
+  border-color: var(--aipanel-line-strong);
+  background: var(--aipanel-surface-hover);
+}
+.ai-sess.active {
+  border-color: var(--accent-cyan);
+  background: rgba(34, 150, 200, 0.16);
+  box-shadow: 0 0 0 1px var(--border-cyan-soft);
+}
+.ai-sess.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 11px;
+  bottom: 11px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--accent-cyan);
+}
+.ai-sess .st {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.4;
+  padding-right: 26px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ai-sess .meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.ai-sess .meta .tk {
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+.ai-sess .meta .sep {
+  opacity: 0.4;
+}
+.ai-sess-del {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.ai-sess-del .x {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  color: var(--text-muted);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  transition:
+    color 0.14s,
+    background 0.14s;
+}
+.ai-sess-del .x:hover {
+  color: var(--danger);
+  background: rgba(200, 50, 40, 0.18);
+}
+.ai-sess-confirm {
+  display: flex;
   gap: 5px;
 }
-.send:hover {
-  background: var(--accent-hover);
-}
-.send .kbd {
-  opacity: 0.7;
+.ai-sess-confirm button {
+  font-family: var(--font-mono);
   font-size: 10px;
+  letter-spacing: 0.04em;
+  border-radius: 6px;
+  padding: 3px 8px;
+  cursor: pointer;
+  border: 1px solid var(--aipanel-line-strong);
+  background: transparent;
+  color: var(--text-secondary);
+}
+.ai-sess-confirm .del {
+  color: var(--danger);
+  border-color: rgba(200, 50, 40, 0.5);
+}
+.ai-sess-confirm .del:hover {
+  background: rgba(200, 50, 40, 0.22);
+}
+.ai-sess.removing {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.ai-drawer-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  padding: 30px;
+  color: var(--text-secondary);
+}
+.ai-drawer-state .st-s {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  max-width: 240px;
 }
 
 /* 拖拽调宽手柄 */
@@ -5631,8 +6011,16 @@ select.settings-input {
 }
 .cosmic-stars.cosmic-stars-fast {
   background:
-    radial-gradient(1px 1px at 15% 60%, color-mix(in srgb, var(--accent-cyan) 60%, transparent), transparent 60%),
-    radial-gradient(1px 1px at 75% 35%, color-mix(in srgb, var(--secondary) 50%, transparent), transparent 60%),
+    radial-gradient(
+      1px 1px at 15% 60%,
+      color-mix(in srgb, var(--accent-cyan) 60%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      1px 1px at 75% 35%,
+      color-mix(in srgb, var(--secondary) 50%, transparent),
+      transparent 60%
+    ),
     radial-gradient(1px 1px at 45% 20%, var(--star-white-40), transparent 60%);
   background-size:
     480px 480px,

@@ -240,8 +240,8 @@ function TriageCard({ item, locale, navigate }: TriageCardProps): React.ReactEle
         padding: '8px 10px 8px 14px',
         borderRadius: 8,
         cursor: 'pointer',
-        background: hover ? 'var(--bg-elevated)' : 'var(--bg-card-50)',
-        border: `1px solid ${hover ? 'var(--border)' : 'var(--border-soft)'}`,
+        background: hover ? 'var(--aipanel-surface-hover)' : 'var(--aipanel-surface)',
+        border: `1px solid ${hover ? 'var(--aipanel-line-strong)' : 'var(--aipanel-line)'}`,
         // Static neon halo on the left rail — persistent emphasis, no animation.
         boxShadow: `inset 3px 0 0 0 ${rail}, ${hover ? `0 0 0 1px ${rail}` : 'none'}`,
       }}
@@ -339,12 +339,16 @@ function TriageCard({ item, locale, navigate }: TriageCardProps): React.ReactEle
 // ── Static style atoms (inline, token-only) ──────────────────────────────────
 
 const STRIP_SHELL: React.CSSProperties = {
+  position: 'relative',
+  zIndex: 5,
   display: 'flex',
   flexDirection: 'column',
   gap: 8,
+  margin: '12px 12px 0',
   padding: '10px 12px',
-  borderBottom: '1px solid var(--border-soft)',
-  background: 'var(--surface)',
+  border: '1px solid var(--aipanel-line-strong)',
+  borderRadius: 11,
+  background: 'linear-gradient(180deg, rgba(40, 56, 84, 0.5), rgba(28, 40, 62, 0.4))',
 }
 
 const QUIET_ROW: React.CSSProperties = {

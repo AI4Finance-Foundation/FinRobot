@@ -21,7 +21,7 @@ import { MarkdownLite } from '../../components/MarkdownLite'
 import { useI18n, useUiPrefs } from '../../i18n'
 import { BASE_URL, api } from '../../api/client'
 import { fetchBackendStream } from '../../api/fetch'
-import { IconClock } from '../../lib/icons'
+import { IconClock, IconPlus, IconClose } from '../../lib/icons'
 import { ContextBar } from '../AIPanel/ContextBar'
 import { useChatSessions } from '../../hooks/useChatSessions'
 import { SessionsDrawer } from './SessionsDrawer'
@@ -455,7 +455,13 @@ export function AiChatTab({
   return (
     <div
       data-testid="right-chat-panel-chat"
-      style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}
+      style={{
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+        flex: 1,
+      }}
     >
       <AiPanelHeader
         modelLabel={modelLabel(configuredModel, settings?.providers)}
@@ -463,6 +469,7 @@ export function AiChatTab({
         onNewSession={newSession}
         onOpenHistory={() => setSessionsOpen(true)}
         ticker={ticker}
+        thinking={isLoading}
       />
 
       {sessionsOpen && (
@@ -483,13 +490,7 @@ export function AiChatTab({
 
       <CoverageTriageStrip defaultCollapsed={messages.length > 0} />
 
-      <MessageList
-        messages={messages}
-        isLoading={isLoading}
-        restoring={seedLoading}
-        ticker={ticker}
-        onExample={setInputText}
-      />
+      <MessageList messages={messages} isLoading={isLoading} restoring={seedLoading} />
 
       {routeChips.length > 0 && <SuggestionChips chips={routeChips} onSelect={setInputText} />}
 
@@ -517,8 +518,10 @@ interface SuggestionChipsProps {
 }
 
 function SuggestionChips({ chips, onSelect }: SuggestionChipsProps): React.ReactElement {
+  const { locale } = useI18n()
   return (
     <div className="ai-chips" data-testid="suggestion-chips">
+      <span className="lead">{locale === 'zh' ? '试试' : 'Try'}</span>
       {chips.map((chip) => (
         <button
           key={chip}
@@ -544,6 +547,8 @@ interface AiPanelHeaderProps {
   onNewSession: () => void
   onOpenHistory: () => void
   ticker: string | undefined
+  /** Streaming — gives the presence orb its (spec-legal, ≤1.6s) live pulse. */
+  thinking: boolean
 }
 
 function AiPanelHeader({
@@ -552,23 +557,31 @@ function AiPanelHeader({
   onNewSession,
   onOpenHistory,
   ticker,
+  thinking,
 }: AiPanelHeaderProps): React.ReactElement {
   const { t, locale } = useI18n()
 
   return (
     <div className="ai-header" data-testid="panel-header">
-      {/* Logo mark */}
-      <div className="ai-icon">F</div>
-      <div className="ai-title">FinRobot</div>
-      {/* ticker or '探索' label — both used by tests */}
-      <span
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: '10px',
-          color: ticker ? 'var(--accent)' : 'var(--text-3)',
-          letterSpacing: '0.05em',
-        }}
-      >
+      {/* Presence orb — living AI brand mark (static glow; pulses only while
+          streaming). Replaces the old flat "F" tile. */}
+      <div className={`ai-presence${thinking ? ' thinking' : ''}`} aria-hidden="true">
+        <span className="halo" />
+        <span className="core" />
+      </div>
+      <div className="ai-title">
+        Fin<b>Robot</b>
+      </div>
+
+      {/* Ticker / Explore context tag — text kept verbatim (asserted by tests). */}
+      <span className="ai-ctx-tag">
+        <span
+          className="dot"
+          style={{
+            background: ticker ? 'var(--accent-cyan)' : 'var(--text-dim)',
+            boxShadow: ticker ? '0 0 7px var(--accent-cyan)' : 'none',
+          }}
+        />
         {ticker ?? t('chat.title.explore')}
       </span>
 
@@ -577,7 +590,6 @@ function AiPanelHeader({
         data-testid="model-selector"
         className="ai-model"
         title={t('chatpanel.model.configuredInSettings')}
-        style={{ cursor: 'default' }}
       >
         {modelLabel}
       </span>
@@ -590,7 +602,7 @@ function AiPanelHeader({
         className="ai-icon-btn"
         type="button"
       >
-        <IconClock size={13} />
+        <IconClock size={15} />
       </button>
 
       {/* New session */}
@@ -599,10 +611,9 @@ function AiPanelHeader({
         onClick={onNewSession}
         title={t('chat.newSession')}
         className="ai-icon-btn"
-        style={{ fontSize: '13px' }}
         type="button"
       >
-        +
+        <IconPlus size={15} />
       </button>
 
       {/* Close / collapse */}
@@ -613,7 +624,7 @@ function AiPanelHeader({
         className="ai-icon-btn"
         type="button"
       >
-        ×
+        <IconClose size={15} />
       </button>
     </div>
   )
@@ -629,17 +640,9 @@ interface MessageListProps {
   /** True while a switched/reloaded session's transcript is being restored —
    * suppresses the empty-state so it doesn't flash "start chatting" mid-resume. */
   restoring: boolean
-  ticker: string | undefined
-  onExample: (prompt: string) => void
 }
 
-function MessageList({
-  messages,
-  isLoading,
-  restoring,
-  ticker,
-  onExample,
-}: MessageListProps): React.ReactElement {
+function MessageList({ messages, isLoading, restoring }: MessageListProps): React.ReactElement {
   const bottomRef = useRef<HTMLDivElement>(null)
   const { t } = useI18n()
 
@@ -660,51 +663,41 @@ function MessageList({
   }
 
   if (messages.length === 0 && !isLoading) {
-    const examples = ticker
-      ? [
-          t('chat.empty.example.1', { ticker }),
-          t('chat.empty.example.2', { ticker }),
-          t('chat.empty.example.3', { ticker }),
-        ]
-      : [
-          t('chat.empty.example.generic.1'),
-          t('chat.empty.example.generic.2'),
-          t('chat.empty.example.generic.3'),
-        ]
+    // Clean welcome — the suggestion chips above the input carry the clickable
+    // prompts, so the empty state stays a single calm focal point (no stacked
+    // example list competing with the chips and the coverage strip).
     return (
       <div
         data-testid="empty-state"
         className="ai-messages"
-        style={{ justifyContent: 'center', alignItems: 'center', gap: '12px' }}
+        style={{ justifyContent: 'center', alignItems: 'center', gap: '14px', textAlign: 'center' }}
       >
-        <div style={{ textAlign: 'center', color: 'var(--text-3)' }}>
-          <div style={{ fontSize: '20px', marginBottom: '6px' }}>◈</div>
-          <div style={{ fontSize: '12px', color: 'var(--text-2)' }}>{t('chat.empty.heading')}</div>
-          <div style={{ fontSize: '11px', color: 'var(--text-3)', marginTop: '4px' }}>
+        <div className="ai-presence" aria-hidden="true" style={{ width: 40, height: 40 }}>
+          <span className="halo" />
+          <span className="core" />
+        </div>
+        <div>
+          <div
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 600,
+              fontSize: '17px',
+              color: 'var(--text-primary)',
+            }}
+          >
+            {t('chat.empty.heading')}
+          </div>
+          <div
+            style={{
+              fontSize: '12.5px',
+              color: 'var(--text-secondary)',
+              marginTop: '6px',
+              lineHeight: 1.6,
+              maxWidth: 300,
+            }}
+          >
             {t('chat.empty.body')}
           </div>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
-          {examples.map((ex) => (
-            <button
-              key={ex}
-              onClick={() => onExample(ex)}
-              style={{
-                background: 'var(--bg-2)',
-                border: '1px solid var(--line-bright)',
-                borderRadius: '4px',
-                padding: '7px 10px',
-                textAlign: 'left',
-                fontSize: '11px',
-                color: 'var(--text-2)',
-                cursor: 'pointer',
-                fontFamily: 'var(--font-ui)',
-              }}
-              type="button"
-            >
-              {ex}
-            </button>
-          ))}
         </div>
       </div>
     )
@@ -1066,6 +1059,9 @@ function AiInputArea({
         )}
 
         <div className="ai-input-bar">
+          {/* The placeholder already states Enter-sends / Shift+Enter-newline
+              (the app has no other keyboard shortcuts), so the bar stays a
+              single clear send affordance. */}
           <div className="spacer" />
 
           {/* 发送 / 停止 */}
@@ -1073,24 +1069,19 @@ function AiInputArea({
             <button
               data-testid="stop-btn"
               onClick={onStop}
-              style={{
-                padding: '5px 11px',
-                borderRadius: '4px',
-                background: 'color-mix(in srgb, var(--danger) 15%, transparent)',
-                border: '1px solid color-mix(in srgb, var(--danger) 30%, transparent)',
-                color: 'var(--danger)',
-                fontSize: '10px',
-                fontFamily: 'var(--font-mono)',
-                cursor: 'pointer',
-                fontWeight: 700,
-                letterSpacing: '0.05em',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-              }}
+              className="send stop"
               type="button"
+              title={t('chat.stop')}
+              aria-label={t('chat.stop')}
             >
-              ■ {t('chat.stop')}
+              <span
+                style={{
+                  width: 11,
+                  height: 11,
+                  background: 'var(--text-on-primary)',
+                  borderRadius: 2,
+                }}
+              />
             </button>
           ) : (
             <button
@@ -1098,15 +1089,23 @@ function AiInputArea({
               onClick={onSubmit}
               disabled={isEmpty || isOverLimit}
               className="send"
-              style={{
-                opacity: isEmpty || isOverLimit ? 0.45 : 1,
-                cursor: isEmpty || isOverLimit ? 'not-allowed' : 'pointer',
-              }}
               type="button"
               title={t('chatpanel.send.title')}
+              aria-label={t('chat.send')}
             >
-              {t('chat.send')}
-              <span className="kbd">↵</span>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 19V5M5 12l7-7 7 7" />
+              </svg>
             </button>
           )}
         </div>

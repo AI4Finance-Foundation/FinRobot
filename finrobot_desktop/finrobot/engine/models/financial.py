@@ -643,12 +643,16 @@ class HistoricalMetrics(BaseModel):
     years: list[int]
     revenue: list[float]
     revenue_growth_yoy: list[float | None]
-    cogs: list[float]
-    gross_profit: list[float]
+    # cogs / gross_profit are None (not 0.0) for a year whose gross_profit the
+    # provider omitted — chiefly no-COGS businesses (banks: fmp_provider sets
+    # gross_profit=None). Fabricating cogs = revenue − 0 there would show a bank
+    # "COGS = full revenue, gross profit = $0", which is misleading, not missing.
+    cogs: list[float | None]
+    gross_profit: list[float | None]
     # Margins are None for a year whose numerator the provider omitted — a
     # missing margin is "not reported", distinct from a real 0% (None ≠ 0). The
-    # absolute line items keep the 0.0 fill (all-zero row = missing convention
-    # used by dcf_seed._median_ratio).
+    # other absolute line items keep the 0.0 fill (all-zero row = missing
+    # convention used by dcf_seed._median_ratio).
     gross_margin: list[float | None]
     sga: list[float]
     sga_ratio: list[float | None]

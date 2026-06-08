@@ -2477,9 +2477,9 @@ export interface components {
       /** Revenue Growth Yoy */
       revenue_growth_yoy: (number | null)[]
       /** Cogs */
-      cogs: number[]
+      cogs: (number | null)[]
       /** Gross Profit */
-      gross_profit: number[]
+      gross_profit: (number | null)[]
       /** Gross Margin */
       gross_margin: (number | null)[]
       /** Sga */

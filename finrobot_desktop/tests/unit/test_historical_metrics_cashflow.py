@@ -251,6 +251,23 @@ class TestExtractHistoricalMetrics:
         # oldest year: 260B - 98B = 162B
         assert result.cogs[0] == pytest.approx(162e9)
 
+    def test_cogs_and_gross_profit_none_when_provider_omits_gross_profit(self):
+        """Banks (fmp_provider sets gross_profit=None — no COGS line) must NOT get
+        a fabricated cogs = revenue − 0 / gross_profit = 0, which would render the
+        history as "COGS = full revenue, gross profit = $0". Both propagate None."""
+        bank_year = {
+            "fiscal_year": "2024-12-31",
+            "revenue": 280e9,
+            "gross_profit": None,
+            "operating_income": 90e9,
+            "net_income": 58e9,
+            "eps": 20.0,
+        }
+        result = _extract(FakeDataLayer([bank_year]))
+        assert result.cogs == [None]
+        assert result.gross_profit == [None]
+        assert result.gross_margin == [None]
+
     def test_operating_cash_flow_oldest_first(self):
         result = _extract(FakeDataLayer(_normalized_yearly()))
         assert result.operating_cash_flow[0] == pytest.approx(69e9)
@@ -351,9 +368,7 @@ class TestExtractHistoricalMetricsEdgeCases:
         """A year whose revenue is missing/None is excluded so it can't poison
         CAGR — mirrors the old revenue-NaN column filter."""
         yearly = _normalized_yearly()
-        yearly.append(
-            {"fiscal_year": "2018-12-31", "revenue": None, "net_income": 50e9}
-        )
+        yearly.append({"fiscal_year": "2018-12-31", "revenue": None, "net_income": 50e9})
         result = _extract(FakeDataLayer(yearly))
         assert 2018 not in result.years
         assert result.years == [2019, 2020, 2021, 2022]

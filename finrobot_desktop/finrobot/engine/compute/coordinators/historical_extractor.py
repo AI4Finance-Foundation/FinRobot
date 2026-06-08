@@ -98,9 +98,9 @@ def _build_from_yearly(
 
     years_list: list[int] = []
     revenue_list: list[float] = []
-    gp_list: list[float] = []
+    gp_list: list[float | None] = []
     gross_margin_list: list[float | None] = []
-    cogs_list: list[float] = []
+    cogs_list: list[float | None] = []
     ebitda_list: list[float] = []
     ebitda_margin_list: list[float | None] = []
     oi_list: list[float] = []
@@ -127,7 +127,6 @@ def _build_from_yearly(
         raw_oi = _safe_float(data.get("operating_income"))
         raw_sga = _safe_float(data.get("sga_expense"))
         rev = _safe_float(data.get("revenue")) or 0.0
-        gp = raw_gp or 0.0
         ebitda = raw_ebitda or 0.0
         oi = raw_oi or 0.0
         ni = _safe_float(data.get("net_income")) or 0.0
@@ -137,9 +136,12 @@ def _build_from_yearly(
         rev_positive = rev > 0
         years_list.append(year)
         revenue_list.append(rev)
-        gp_list.append(gp)
+        # cogs / gross_profit propagate None when the provider omits gross_profit
+        # (no-COGS businesses like banks) — never fabricate cogs = revenue − 0,
+        # which would render a bank's COGS as its full revenue.
+        gp_list.append(raw_gp)
         gross_margin_list.append(raw_gp / rev if (raw_gp is not None and rev_positive) else None)
-        cogs_list.append(rev - gp)
+        cogs_list.append(rev - raw_gp if raw_gp is not None else None)
         ebitda_list.append(ebitda)
         ebitda_margin_list.append(
             raw_ebitda / rev if (raw_ebitda is not None and rev_positive) else None

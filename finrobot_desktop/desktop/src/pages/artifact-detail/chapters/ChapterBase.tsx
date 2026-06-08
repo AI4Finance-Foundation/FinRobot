@@ -235,3 +235,14 @@ export const tableStyle: CSSProperties = {
   borderRadius: 'var(--radius-sm)',
   overflow: 'hidden',
 }
+
+/** Horizontal-scroll wrapper for `tableStyle` tables. The report's middle
+ * column is narrow (between a 184px TOC and a 268px right rail); a wide table
+ * — DCF forecast with many year columns, peer comps — otherwise overflows its
+ * column and slides under the right-rail cards (they paint later in DOM order).
+ * Scrolling within the column keeps every cell reachable instead of hidden.
+ * `minWidth: 0` lets the wrapper shrink inside the grid so it actually clips
+ * and scrolls rather than forcing the column wider. */
+export function TableScroll({ children }: { children: ReactNode }): React.ReactElement {
+  return <div style={{ overflowX: 'auto', maxWidth: '100%', minWidth: 0 }}>{children}</div>
+}

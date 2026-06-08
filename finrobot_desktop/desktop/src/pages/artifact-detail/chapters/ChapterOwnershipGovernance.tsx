@@ -16,7 +16,7 @@
 import type { CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 
-import { Chapter, KvGrid, SubChapter, tableStyle } from './ChapterBase'
+import { Chapter, KvGrid, SubChapter, TableScroll, tableStyle } from './ChapterBase'
 import type {
   FilingProvenanceShape,
   InsiderTransactionShape,
@@ -232,55 +232,61 @@ function InsiderTable({
   // Sort descending by filing_date — most recent first
   const sorted = [...rows].sort((a, b) => (a.filing_date < b.filing_date ? 1 : -1)).slice(0, 12)
   return (
-    <table style={tableStyle}>
-      <thead>
-        <tr>
-          <th style={thStyle}>{t('chapter.ownership.col.date')}</th>
-          <th style={thStyle}>{t('chapter.ownership.col.name')}</th>
-          <th style={thStyle}>{t('chapter.ownership.col.role')}</th>
-          <th style={thStyle}>{t('chapter.ownership.col.transaction')}</th>
-          <th style={{ ...thStyle, textAlign: 'right' }}>{t('chapter.ownership.col.shares')}</th>
-          <th style={{ ...thStyle, textAlign: 'right' }}>{t('chapter.ownership.col.value')}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {sorted.map((r, i) => {
-          const isBuy = r.transaction_type === 'purchase'
-          const isSell = r.transaction_type === 'sale'
-          return (
-            // index guards against identical (accession, insider, shares, value)
-            // rows — a filer can report two matching lines in one Form 4.
-            <tr key={`${r.accession_no}-${r.insider_name}-${r.shares}-${r.value}-${i}`}>
-              <td style={tdStyle}>
-                <ProvenanceLink prov={r.provenance} locale={locale} t={t}>
-                  {formatDate(r.filing_date, locale)}
-                </ProvenanceLink>
-              </td>
-              <td style={tdStyle}>{r.insider_name}</td>
-              <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>
-                {r.insider_position ?? '—'}
-              </td>
-              <td
-                style={{
-                  ...tdStyle,
-                  color: isBuy ? 'var(--success)' : isSell ? 'var(--danger)' : 'var(--text-muted)',
-                  fontWeight: 500,
-                }}
-              >
-                {transactionLabel(r.transaction_type, t)}
-              </td>
-              <td style={{ ...tdStyle, textAlign: 'right' }}>
-                {formatCompactNumber(r.shares, locale)}
-              </td>
-              <td style={{ ...tdStyle, textAlign: 'right' }}>
-                {/* Form 4 transaction value — SEC EDGAR, USD-denominated. */}
-                {r.value > 0 ? formatCurrencyCompact(r.value, 'USD', locale) : '—'}
-              </td>
-            </tr>
-          )
-        })}
-      </tbody>
-    </table>
+    <TableScroll>
+      <table style={tableStyle}>
+        <thead>
+          <tr>
+            <th style={thStyle}>{t('chapter.ownership.col.date')}</th>
+            <th style={thStyle}>{t('chapter.ownership.col.name')}</th>
+            <th style={thStyle}>{t('chapter.ownership.col.role')}</th>
+            <th style={thStyle}>{t('chapter.ownership.col.transaction')}</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>{t('chapter.ownership.col.shares')}</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>{t('chapter.ownership.col.value')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((r, i) => {
+            const isBuy = r.transaction_type === 'purchase'
+            const isSell = r.transaction_type === 'sale'
+            return (
+              // index guards against identical (accession, insider, shares, value)
+              // rows — a filer can report two matching lines in one Form 4.
+              <tr key={`${r.accession_no}-${r.insider_name}-${r.shares}-${r.value}-${i}`}>
+                <td style={tdStyle}>
+                  <ProvenanceLink prov={r.provenance} locale={locale} t={t}>
+                    {formatDate(r.filing_date, locale)}
+                  </ProvenanceLink>
+                </td>
+                <td style={tdStyle}>{r.insider_name}</td>
+                <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>
+                  {r.insider_position ?? '—'}
+                </td>
+                <td
+                  style={{
+                    ...tdStyle,
+                    color: isBuy
+                      ? 'var(--success)'
+                      : isSell
+                        ? 'var(--danger)'
+                        : 'var(--text-muted)',
+                    fontWeight: 500,
+                  }}
+                >
+                  {transactionLabel(r.transaction_type, t)}
+                </td>
+                <td style={{ ...tdStyle, textAlign: 'right' }}>
+                  {formatCompactNumber(r.shares, locale)}
+                </td>
+                <td style={{ ...tdStyle, textAlign: 'right' }}>
+                  {/* Form 4 transaction value — SEC EDGAR, USD-denominated. */}
+                  {r.value > 0 ? formatCurrencyCompact(r.value, 'USD', locale) : '—'}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </TableScroll>
   )
 }
 
@@ -334,56 +340,60 @@ function InstitutionTable({
 }): React.ReactElement {
   const sorted = [...rows].sort((a, b) => b.value_usd - a.value_usd).slice(0, 12)
   return (
-    <table style={tableStyle}>
-      <thead>
-        <tr>
-          <th style={thStyle}>{t('chapter.ownership.col.holder')}</th>
-          <th style={{ ...thStyle, textAlign: 'right' }}>{t('chapter.ownership.col.shares')}</th>
-          <th style={{ ...thStyle, textAlign: 'right' }}>{t('chapter.ownership.col.value')}</th>
-          <th style={{ ...thStyle, textAlign: 'right' }}>{t('chapter.ownership.col.changePct')}</th>
-          <th style={thStyle}>{t('chapter.ownership.col.periodEnd')}</th>
-        </tr>
-      </thead>
-      <tbody>
-        {sorted.map((r, i) => (
-          <tr key={`${r.holder_name}-${r.period_end}-${r.shares}-${i}`}>
-            <td style={tdStyle}>
-              <ProvenanceLink prov={r.provenance} locale={locale} t={t}>
-                {r.holder_name}
-              </ProvenanceLink>
-            </td>
-            <td style={{ ...tdStyle, textAlign: 'right' }}>
-              {formatCompactNumber(r.shares, locale)}
-            </td>
-            <td style={{ ...tdStyle, textAlign: 'right' }}>
-              {/* 13F value_usd — the field is USD by definition. */}
-              {formatCurrencyCompact(r.value_usd, 'USD', locale)}
-            </td>
-            <td
-              style={{
-                ...tdStyle,
-                textAlign: 'right',
-                color:
-                  r.shares_change_pct === null || r.shares_change_pct === undefined
-                    ? 'var(--text-muted)'
-                    : r.shares_change_pct > 0
-                      ? 'var(--success)'
-                      : r.shares_change_pct < 0
-                        ? 'var(--danger)'
-                        : 'var(--text-muted)',
-              }}
-            >
-              {r.shares_change_pct === null || r.shares_change_pct === undefined
-                ? '—'
-                : `${r.shares_change_pct > 0 ? '+' : ''}${formatPercent(r.shares_change_pct, locale, 1, true)}`}
-            </td>
-            <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>
-              {formatDate(r.period_end, locale)}
-            </td>
+    <TableScroll>
+      <table style={tableStyle}>
+        <thead>
+          <tr>
+            <th style={thStyle}>{t('chapter.ownership.col.holder')}</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>{t('chapter.ownership.col.shares')}</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>{t('chapter.ownership.col.value')}</th>
+            <th style={{ ...thStyle, textAlign: 'right' }}>
+              {t('chapter.ownership.col.changePct')}
+            </th>
+            <th style={thStyle}>{t('chapter.ownership.col.periodEnd')}</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {sorted.map((r, i) => (
+            <tr key={`${r.holder_name}-${r.period_end}-${r.shares}-${i}`}>
+              <td style={tdStyle}>
+                <ProvenanceLink prov={r.provenance} locale={locale} t={t}>
+                  {r.holder_name}
+                </ProvenanceLink>
+              </td>
+              <td style={{ ...tdStyle, textAlign: 'right' }}>
+                {formatCompactNumber(r.shares, locale)}
+              </td>
+              <td style={{ ...tdStyle, textAlign: 'right' }}>
+                {/* 13F value_usd — the field is USD by definition. */}
+                {formatCurrencyCompact(r.value_usd, 'USD', locale)}
+              </td>
+              <td
+                style={{
+                  ...tdStyle,
+                  textAlign: 'right',
+                  color:
+                    r.shares_change_pct === null || r.shares_change_pct === undefined
+                      ? 'var(--text-muted)'
+                      : r.shares_change_pct > 0
+                        ? 'var(--success)'
+                        : r.shares_change_pct < 0
+                          ? 'var(--danger)'
+                          : 'var(--text-muted)',
+                }}
+              >
+                {r.shares_change_pct === null || r.shares_change_pct === undefined
+                  ? '—'
+                  : `${r.shares_change_pct > 0 ? '+' : ''}${formatPercent(r.shares_change_pct, locale, 1, true)}`}
+              </td>
+              <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>
+                {formatDate(r.period_end, locale)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </TableScroll>
   )
 }
 

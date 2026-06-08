@@ -15,7 +15,7 @@ import { useHistoricalData } from '../../../hooks/useHistoricalData'
 import { useI18n } from '../../../i18n'
 import { TermTip } from '../../../components/TermTip'
 import { formatCurrencyCompact } from '../../../utils/format'
-import { Chapter, KvGrid, SubChapter, tableStyle, type KvCell } from './ChapterBase'
+import { Chapter, KvGrid, SubChapter, TableScroll, tableStyle, type KvCell } from './ChapterBase'
 import type { NumberSource } from '../../../components/SourcedNumber'
 import type { DcfShape } from './types'
 
@@ -152,57 +152,59 @@ export function ChapterFinancialAnalysis({
 
       {dcf?.projected_revenue && dcf.projected_revenue.length > 0 && (
         <SubChapter heading={t('chapter.financial.subheading.dcfForecast')}>
-          <table style={tableStyle}>
-            <thead style={{ background: 'var(--bg-elevated)' }}>
-              <tr>
-                <th style={thStyle}>{t('chapter.financial.table.unit')}</th>
-                {dcf.projected_revenue.map((_, i) => (
-                  <th key={`year-${i}`} style={thStyle}>
-                    {t('chapter.financial.table.yearPlus', { n: i + 1 })}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style={{ ...tdStyle, color: 'var(--text-primary)', fontWeight: 500 }}>
-                  {t('chapter.financial.table.revenue')}
-                </td>
-                {dcf.projected_revenue.map((v, i) => (
-                  <td key={`rev-${i}`} style={{ ...tdStyle, textAlign: 'right' }}>
-                    {fmtMoney(v)}
-                  </td>
-                ))}
-              </tr>
-              {dcf.projected_ebitda && dcf.projected_ebitda.length > 0 && (
+          <TableScroll>
+            <table style={tableStyle}>
+              <thead style={{ background: 'var(--bg-elevated)' }}>
+                <tr>
+                  <th style={thStyle}>{t('chapter.financial.table.unit')}</th>
+                  {dcf.projected_revenue.map((_, i) => (
+                    <th key={`year-${i}`} style={thStyle}>
+                      {t('chapter.financial.table.yearPlus', { n: i + 1 })}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
                 <tr>
                   <td style={{ ...tdStyle, color: 'var(--text-primary)', fontWeight: 500 }}>
-                    EBITDA
+                    {t('chapter.financial.table.revenue')}
                   </td>
-                  {dcf.projected_ebitda.map((v, i) => (
-                    <td key={`ebitda-${i}`} style={{ ...tdStyle, textAlign: 'right' }}>
+                  {dcf.projected_revenue.map((v, i) => (
+                    <td key={`rev-${i}`} style={{ ...tdStyle, textAlign: 'right' }}>
                       {fmtMoney(v)}
                     </td>
                   ))}
                 </tr>
-              )}
-              {dcf.projected_fcf && dcf.projected_fcf.length > 0 && (
-                <tr>
-                  <td style={{ ...tdStyle, color: 'var(--text-primary)', fontWeight: 500 }}>
-                    <TermTip term="FCF">{t('chapter.financial.table.fcf')}</TermTip>
-                  </td>
-                  {dcf.projected_fcf.map((v, i) => (
-                    <td
-                      key={`fcf-${i}`}
-                      style={{ ...tdStyle, textAlign: 'right', color: 'var(--accent-cyan)' }}
-                    >
-                      {fmtMoney(v)}
+                {dcf.projected_ebitda && dcf.projected_ebitda.length > 0 && (
+                  <tr>
+                    <td style={{ ...tdStyle, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      EBITDA
                     </td>
-                  ))}
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    {dcf.projected_ebitda.map((v, i) => (
+                      <td key={`ebitda-${i}`} style={{ ...tdStyle, textAlign: 'right' }}>
+                        {fmtMoney(v)}
+                      </td>
+                    ))}
+                  </tr>
+                )}
+                {dcf.projected_fcf && dcf.projected_fcf.length > 0 && (
+                  <tr>
+                    <td style={{ ...tdStyle, color: 'var(--text-primary)', fontWeight: 500 }}>
+                      <TermTip term="FCF">{t('chapter.financial.table.fcf')}</TermTip>
+                    </td>
+                    {dcf.projected_fcf.map((v, i) => (
+                      <td
+                        key={`fcf-${i}`}
+                        style={{ ...tdStyle, textAlign: 'right', color: 'var(--accent-cyan)' }}
+                      >
+                        {fmtMoney(v)}
+                      </td>
+                    ))}
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </TableScroll>
           <p
             style={{
               fontFamily: 'var(--font-mono)',

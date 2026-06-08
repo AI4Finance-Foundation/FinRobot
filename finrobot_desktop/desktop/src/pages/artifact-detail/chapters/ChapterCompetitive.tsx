@@ -5,7 +5,7 @@ import type { CompsResult } from '../../../types/finance'
 import { useI18n } from '../../../i18n'
 import { TermTip } from '../../../components/TermTip'
 import { formatCurrencyCompact } from '../../../utils/format'
-import { Chapter, Narrative, SubChapter, tableStyle } from './ChapterBase'
+import { Chapter, Narrative, SubChapter, TableScroll, tableStyle } from './ChapterBase'
 import type { PeerCompsShape, ThesisShape } from './types'
 
 interface ChapterCompetitiveProps {
@@ -65,111 +65,117 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
       )}
 
       {all.length > 0 ? (
-        <table style={tableStyle}>
-          <thead style={{ background: 'var(--bg-elevated)' }}>
-            <tr>
-              <th style={thStyle}>{t('chapter.competitive.col.ticker')}</th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>
-                {t('chapter.competitive.col.revenue')}
-              </th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>
-                <TermTip term="P/E" />
-              </th>
-              {/* Core P/E keeps its bespoke comps-reconciliation gloss (the
+        <TableScroll>
+          <table style={tableStyle}>
+            <thead style={{ background: 'var(--bg-elevated)' }}>
+              <tr>
+                <th style={thStyle}>{t('chapter.competitive.col.ticker')}</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>
+                  {t('chapter.competitive.col.revenue')}
+                </th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>
+                  <TermTip term="P/E" />
+                </th>
+                {/* Core P/E keeps its bespoke comps-reconciliation gloss (the
                   football-field "Comps (core P/E)" target is computed on this
                   column's median). TermTip supplies the standard hover + "ask
                   FinRobot" deep dive; the inline `title` stays as a quick
                   reconciliation hint that the tooltip text spells out. */}
-              <th
-                style={{ ...thStyle, textAlign: 'right', cursor: 'help' }}
-                title={coreLabel.tooltip}
-              >
-                <TermTip term="Core P/E">{coreLabel.header}</TermTip>
-              </th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>
-                <TermTip term="EV/EBITDA" />
-              </th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>
-                {t('chapter.competitive.col.grossMargin')}
-              </th>
-              <th style={{ ...thStyle, textAlign: 'right' }}>
-                {t('chapter.competitive.col.opMargin')}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {all.map((c, i) => {
-              const isTarget = i === 0 && target !== undefined
-              return (
-                <tr
-                  key={`${isTarget ? 'target' : 'peer'}:${c.ticker}:${i}`}
-                  style={
-                    isTarget
-                      ? { background: 'color-mix(in srgb, var(--accent-cyan) 6%, transparent)' }
-                      : undefined
-                  }
+                <th
+                  style={{ ...thStyle, textAlign: 'right', cursor: 'help' }}
+                  title={coreLabel.tooltip}
                 >
-                  <td
-                    style={{
-                      ...tdStyle,
-                      color: isTarget ? 'var(--accent-cyan)' : 'var(--text-primary)',
-                      fontWeight: 500,
-                    }}
+                  <TermTip term="Core P/E">{coreLabel.header}</TermTip>
+                </th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>
+                  <TermTip term="EV/EBITDA" />
+                </th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>
+                  {t('chapter.competitive.col.grossMargin')}
+                </th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>
+                  {t('chapter.competitive.col.opMargin')}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {all.map((c, i) => {
+                const isTarget = i === 0 && target !== undefined
+                return (
+                  <tr
+                    key={`${isTarget ? 'target' : 'peer'}:${c.ticker}:${i}`}
+                    style={
+                      isTarget
+                        ? { background: 'color-mix(in srgb, var(--accent-cyan) 6%, transparent)' }
+                        : undefined
+                    }
                   >
-                    {c.ticker}
-                    {c.name && (
-                      <span
-                        style={{
-                          marginLeft: 8,
-                          color: 'var(--text-muted)',
-                          fontSize: 11,
-                          fontWeight: 300,
-                        }}
-                      >
-                        {c.name}
-                      </span>
-                    )}
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {/* Canonical USD: the comps pipeline FX-normalizes BOTH the
+                    <td
+                      style={{
+                        ...tdStyle,
+                        color: isTarget ? 'var(--accent-cyan)' : 'var(--text-primary)',
+                        fontWeight: 500,
+                      }}
+                    >
+                      {c.ticker}
+                      {c.name && (
+                        <span
+                          style={{
+                            marginLeft: 8,
+                            color: 'var(--text-muted)',
+                            fontSize: 11,
+                            fontWeight: 300,
+                          }}
+                        >
+                          {c.name}
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      {/* Canonical USD: the comps pipeline FX-normalizes BOTH the
                         target and every peer to USD before computing multiples
                         (fx_normalize.normalize_company_to_usd sets
                         reporting_currency='USD'), so this column is USD even for
                         a TWD-reporting ADR target. We pass 'USD' explicitly
                         rather than the report's reporting_currency, which would
                         mislabel the normalized values (BUG-030). */}
-                    {formatCurrencyCompact(c.revenue, 'USD', locale)}
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {c.pe_ratio !== null && c.pe_ratio !== undefined ? c.pe_ratio.toFixed(1) : '—'}
-                  </td>
-                  <td
-                    style={{
-                      ...tdStyle,
-                      textAlign: 'right',
-                      color: 'var(--accent-cyan)',
-                    }}
-                  >
-                    {c.core_pe_ratio !== null && c.core_pe_ratio !== undefined
-                      ? c.core_pe_ratio.toFixed(1)
-                      : '—'}
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {c.ev_ebitda !== null && c.ev_ebitda !== undefined
-                      ? c.ev_ebitda.toFixed(1)
-                      : '—'}
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {c.gross_margin != null ? (c.gross_margin * 100).toFixed(1) + '%' : '—'}
-                  </td>
-                  <td style={{ ...tdStyle, textAlign: 'right' }}>
-                    {c.operating_margin != null ? (c.operating_margin * 100).toFixed(1) + '%' : '—'}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
+                      {formatCurrencyCompact(c.revenue, 'USD', locale)}
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      {c.pe_ratio !== null && c.pe_ratio !== undefined
+                        ? c.pe_ratio.toFixed(1)
+                        : '—'}
+                    </td>
+                    <td
+                      style={{
+                        ...tdStyle,
+                        textAlign: 'right',
+                        color: 'var(--accent-cyan)',
+                      }}
+                    >
+                      {c.core_pe_ratio !== null && c.core_pe_ratio !== undefined
+                        ? c.core_pe_ratio.toFixed(1)
+                        : '—'}
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      {c.ev_ebitda !== null && c.ev_ebitda !== undefined
+                        ? c.ev_ebitda.toFixed(1)
+                        : '—'}
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      {c.gross_margin != null ? (c.gross_margin * 100).toFixed(1) + '%' : '—'}
+                    </td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      {c.operating_margin != null
+                        ? (c.operating_margin * 100).toFixed(1) + '%'
+                        : '—'}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </TableScroll>
       ) : (
         <p style={mutedNote}>{t('chapter.competitive.empty')}</p>
       )}

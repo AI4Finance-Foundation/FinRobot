@@ -19,6 +19,7 @@ import { useUiStore } from '../stores/uiStore'
 import { useI18n } from '../i18n'
 import { startWindowDrag } from '../lib/tauri'
 import { UpdatePill } from '../components/UpdatePill'
+import appIcon from '../assets/app-icon.png'
 
 interface NavDoor {
   /** i18n message id resolved at render time. */
@@ -121,11 +122,11 @@ export function TitleBar(): React.ReactElement {
       {/* macOS traffic lights overlay reservation */}
       <div className="tb-traffic-reserve" aria-hidden />
 
-      {/* Brandmark — conic-gradient mark + FinRobot wordmark (Robot in cyan).
+      {/* Brandmark — the real app icon + FinRobot wordmark (Robot in cyan).
           Purely decorative: no click/interaction (⌘K opens the command
           palette via its own shortcut). */}
       <div className="tb-brand">
-        <span className="tb-brand-mark" aria-hidden />
+        <img className="tb-brand-mark" src={appIcon} alt="" aria-hidden />
         <span className="tb-wordmark">
           Fin<b>Robot</b>
         </span>

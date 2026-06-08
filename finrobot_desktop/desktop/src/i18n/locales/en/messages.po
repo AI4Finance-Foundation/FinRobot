@@ -1686,7 +1686,7 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "settings.sec.hintEmpty"
-#~ msgstr "Format: name or org + space + contact email, e.g. {example}"
+#~ msgstr "Unlocks 10-K / 10-Q / 8-K filings — enter a name + email, e.g. {example}"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.sec.hintInvalid"
@@ -1717,6 +1717,34 @@ msgstr ""
 #~ msgstr "Data Sources"
 
 #. js-lingui-explicit-id
+#~ msgid "settings.dataSources.baselineName"
+#~ msgstr "Yahoo Finance"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.dataSources.baselineBadge"
+#~ msgstr "Always on"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.dataSources.baselineHint"
+#~ msgstr "Live prices, financials & news — works with no key."
+
+#. js-lingui-explicit-id
+#~ msgid "settings.dataSources.coreLabel"
+#~ msgstr "Core"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.dataSources.coreNote"
+#~ msgstr "Sharpens the numbers — free, ~2 min to set up"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.dataSources.optionalLabel"
+#~ msgstr "Optional"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.dataSources.optionalNote"
+#~ msgstr "Extra news & sentiment — safe to skip"
+
+#. js-lingui-explicit-id
 #~ msgid "settings.section.aiModel"
 #~ msgstr "AI Model"
 
@@ -1741,6 +1769,10 @@ msgstr ""
 #~ msgstr "Pending"
 
 #. js-lingui-explicit-id
+#~ msgid "settings.badge.recommended"
+#~ msgstr "Recommended"
+
+#. js-lingui-explicit-id
 #~ msgid "settings.fmp.label"
 #~ msgstr "FMP API Key"
 
@@ -1750,7 +1782,7 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "settings.fmp.hint"
-#~ msgstr "Required for full accuracy — free tier available"
+#~ msgstr "Accurate financials, D&A & earnings surprises — free tier"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.finnhub.label"
@@ -1762,7 +1794,7 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "settings.finnhub.hint"
-#~ msgstr "Enables: company news, profile & basic financials"
+#~ msgstr "Adds company news & profile"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.adanos.label"
@@ -1774,7 +1806,7 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "settings.adanos.hint"
-#~ msgstr "Enables: retail sentiment from Reddit, X & Polymarket"
+#~ msgstr "Retail sentiment from Reddit, X & Polymarket"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.alphaVantage.label"
@@ -1786,7 +1818,7 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "settings.alphaVantage.hint"
-#~ msgstr "Enables: news sentiment enrichment for the news feed"
+#~ msgstr "Sentiment scoring for the news feed"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.apiKey.getKey"

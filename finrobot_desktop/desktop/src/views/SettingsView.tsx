@@ -673,6 +673,55 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       </a>
     </>
   )
+  /** One API-key field (label + status badge + secret input + hint + test row).
+   * FMP / Finnhub / Adanos / Alpha Vantage are structurally identical — they
+   * only differ in copy, the configured flag, and whether an empty key reads as
+   * "Recommended" (core tier) or "Optional" (enrichment tier). */
+  const renderKeyField = (cfg: {
+    labelKey: string
+    placeholderKey: string
+    hintKey: string
+    configured: boolean
+    value: string
+    onChange: (v: string) => void
+    signupUrl: string
+    clearField: string
+    testProvider: string
+    testField: string
+    tier: 'core' | 'optional'
+  }): React.ReactElement => (
+    <div className="settings-field">
+      <label className="settings-field-label">
+        <span className="label-text">{t(cfg.labelKey)}</span>
+        {cfg.configured ? (
+          <span className="settings-badge is-ok">{t('settings.badge.configured')}</span>
+        ) : cfg.tier === 'core' ? (
+          <span className="settings-badge is-recommended">{t('settings.badge.recommended')}</span>
+        ) : (
+          <span className="settings-badge is-optional">{t('settings.badge.optional')}</span>
+        )}
+        {cfg.configured && (
+          <button
+            type="button"
+            className="settings-clear-btn"
+            onClick={() => handleClearSecret(cfg.clearField)}
+          >
+            {t('settings.clearKey.button')}
+          </button>
+        )}
+      </label>
+      <SecretInput
+        value={cfg.value}
+        onChange={cfg.onChange}
+        placeholder={cfg.configured ? '••••••••' : t(cfg.placeholderKey)}
+      />
+      <p className="settings-hint">
+        {t(cfg.hintKey)}
+        {renderSignupLink(cfg.signupUrl)}
+      </p>
+      {renderDataTestRow(cfg.testProvider, cfg.testField, cfg.value)}
+    </div>
+  )
   const handleSecAgentChange = (v: string) => {
     setSecUserAgent(v)
     scheduleStandardSave({ sec_user_agent: v })
@@ -693,9 +742,12 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   const secIdentityMatchesServer =
     secUserAgent.trim() === (settingsResp?.sec_user_agent ?? '').trim()
   const secIdentityPreview = secHeaderIdentityPreview(secUserAgent)
+  // Empty ≠ error: SEC is recommended-not-required, so an untouched field shows
+  // calm guidance. Red only kicks in once the user has typed something invalid.
+  const secIdentityInvalidInput = secUserAgent.trim() !== '' && !secIdentityLocallyValid
   const secIdentityHint = (() => {
     if (!secUserAgent.trim())
-      return { cls: 'is-bad', text: t('settings.sec.hintEmpty', { example: SEC_IDENTITY_EXAMPLE }) }
+      return { cls: '', text: t('settings.sec.hintEmpty', { example: SEC_IDENTITY_EXAMPLE }) }
     if (!secIdentityLocallyValid)
       return {
         cls: 'is-bad',
@@ -1080,174 +1132,147 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               ref={setSectionRef('dataSources')}
             >
               <h2 className="settings-section-title">{t('settings.section.dataSources')}</h2>
-              <div className="settings-fields">
-                {/* FMP */}
-                <div className="settings-field">
-                  <label className="settings-field-label">
-                    <span className="label-text">{t('settings.fmp.label')}</span>
-                    {fmpConfigured ? (
-                      <span className="settings-badge is-ok">{t('settings.badge.configured')}</span>
-                    ) : (
-                      <span className="settings-badge is-required">
-                        {t('settings.badge.required')}
-                      </span>
-                    )}
-                    {fmpConfigured && (
-                      <button
-                        type="button"
-                        className="settings-clear-btn"
-                        onClick={() => handleClearSecret('fmp_api_key')}
-                      >
-                        {t('settings.clearKey.button')}
-                      </button>
-                    )}
-                  </label>
-                  <SecretInput
-                    value={fmpKey}
-                    onChange={handleFmpKeyChange}
-                    placeholder={fmpConfigured ? '••••••••' : t('settings.fmp.placeholder')}
-                  />
-                  <p className="settings-hint">
-                    {t('settings.fmp.hint')}
-                    {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.fmp)}
-                  </p>
-                  {renderDataTestRow('fmp', 'fmp_api_key', fmpKey)}
-                </div>
 
-                {/* Finnhub */}
-                <div className="settings-field">
-                  <label className="settings-field-label">
-                    <span className="label-text">{t('settings.finnhub.label')}</span>
-                    {finnhubConfigured ? (
-                      <span className="settings-badge is-ok">{t('settings.badge.configured')}</span>
-                    ) : (
-                      <span className="settings-badge is-optional">
-                        {t('settings.badge.optional')}
-                      </span>
-                    )}
-                    {finnhubConfigured && (
-                      <button
-                        type="button"
-                        className="settings-clear-btn"
-                        onClick={() => handleClearSecret('finnhub_api_key')}
-                      >
-                        {t('settings.clearKey.button')}
-                      </button>
-                    )}
-                  </label>
-                  <SecretInput
-                    value={finnhubKey}
-                    onChange={handleFinnhubKeyChange}
-                    placeholder={finnhubConfigured ? '••••••••' : t('settings.finnhub.placeholder')}
-                  />
-                  <p className="settings-hint">
-                    {t('settings.finnhub.hint')}
-                    {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.finnhub)}
-                  </p>
-                  {renderDataTestRow('finnhub', 'finnhub_api_key', finnhubKey)}
+              {/* Always-on baseline: the app works with zero keys — Yahoo Finance
+                  covers prices, financials & news for free. Spelling this out kills
+                  the "do I have to fill all of these?" cold-start anxiety. */}
+              <div className="settings-baseline">
+                <span className="settings-baseline-icon" aria-hidden="true">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.4" />
+                    <path
+                      d="M5.2 8.2 7 10l3.8-4"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </span>
+                <div className="settings-baseline-body">
+                  <div className="settings-baseline-head">
+                    <span className="settings-baseline-name">
+                      {t('settings.dataSources.baselineName')}
+                    </span>
+                    <span className="settings-badge is-always">
+                      {t('settings.dataSources.baselineBadge')}
+                    </span>
+                  </div>
+                  <p className="settings-hint">{t('settings.dataSources.baselineHint')}</p>
                 </div>
+              </div>
 
-                {/* Adanos — retail sentiment (Reddit / X / Polymarket) */}
-                <div className="settings-field">
-                  <label className="settings-field-label">
-                    <span className="label-text">{t('settings.adanos.label')}</span>
-                    {adanosConfigured ? (
-                      <span className="settings-badge is-ok">{t('settings.badge.configured')}</span>
-                    ) : (
-                      <span className="settings-badge is-optional">
-                        {t('settings.badge.optional')}
-                      </span>
-                    )}
-                    {adanosConfigured && (
-                      <button
-                        type="button"
-                        className="settings-clear-btn"
-                        onClick={() => handleClearSecret('adanos_api_key')}
-                      >
-                        {t('settings.clearKey.button')}
-                      </button>
-                    )}
-                  </label>
-                  <SecretInput
-                    value={adanosKey}
-                    onChange={handleAdanosKeyChange}
-                    placeholder={adanosConfigured ? '••••••••' : t('settings.adanos.placeholder')}
-                  />
-                  <p className="settings-hint">
-                    {t('settings.adanos.hint')}
-                    {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.adanos)}
-                  </p>
-                  {renderDataTestRow('adanos', 'adanos_api_key', adanosKey)}
+              {/* Core tier — keys that materially sharpen the numbers analysts trust. */}
+              <div className="settings-tier">
+                <div className="settings-tier-head">
+                  <span className="settings-tier-label is-core">
+                    {t('settings.dataSources.coreLabel')}
+                  </span>
+                  <span className="settings-tier-note">{t('settings.dataSources.coreNote')}</span>
                 </div>
+                <div className="settings-fields">
+                  {renderKeyField({
+                    labelKey: 'settings.fmp.label',
+                    placeholderKey: 'settings.fmp.placeholder',
+                    hintKey: 'settings.fmp.hint',
+                    configured: fmpConfigured,
+                    value: fmpKey,
+                    onChange: handleFmpKeyChange,
+                    signupUrl: DATA_SOURCE_SIGNUP_URLS.fmp,
+                    clearField: 'fmp_api_key',
+                    testProvider: 'fmp',
+                    testField: 'fmp_api_key',
+                    tier: 'core',
+                  })}
 
-                {/* Alpha Vantage — news sentiment enrichment */}
-                <div className="settings-field">
-                  <label className="settings-field-label">
-                    <span className="label-text">{t('settings.alphaVantage.label')}</span>
-                    {alphaVantageConfigured ? (
-                      <span className="settings-badge is-ok">{t('settings.badge.configured')}</span>
-                    ) : (
-                      <span className="settings-badge is-optional">
-                        {t('settings.badge.optional')}
-                      </span>
+                  {/* SEC EDGAR identity — not a secret key, but core: unlocks all
+                      10-K / 10-Q / 8-K / Form 4 / 13F filings. */}
+                  <div className="settings-field">
+                    <label className="settings-field-label">
+                      <span className="label-text">{t('settings.sec.label')}</span>
+                      {secIdentityActive ? (
+                        <span className="settings-badge is-ok">{t('settings.badge.active')}</span>
+                      ) : secIdentityLocallyValid ? (
+                        <span className="settings-badge is-pending">
+                          {t('settings.badge.pending')}
+                        </span>
+                      ) : (
+                        <span className="settings-badge is-recommended">
+                          {t('settings.badge.recommended')}
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      className={`settings-input${secIdentityInvalidInput ? ' is-invalid' : ''}`}
+                      type="text"
+                      value={secUserAgent}
+                      onChange={(e) => handleSecAgentChange(e.target.value)}
+                      placeholder={t('settings.sec.placeholder')}
+                      autoComplete="off"
+                      spellCheck={false}
+                      aria-invalid={secIdentityInvalidInput}
+                    />
+                    <p className={`settings-hint ${secIdentityHint.cls}`}>{secIdentityHint.text}</p>
+                    {secIdentityPreview && (
+                      <p className="settings-hint">
+                        {t('settings.sec.preview')}
+                        {secIdentityPreview}
+                      </p>
                     )}
-                    {alphaVantageConfigured && (
-                      <button
-                        type="button"
-                        className="settings-clear-btn"
-                        onClick={() => handleClearSecret('alpha_vantage_api_key')}
-                      >
-                        {t('settings.clearKey.button')}
-                      </button>
-                    )}
-                  </label>
-                  <SecretInput
-                    value={alphaVantageKey}
-                    onChange={handleAlphaVantageKeyChange}
-                    placeholder={
-                      alphaVantageConfigured ? '••••••••' : t('settings.alphaVantage.placeholder')
-                    }
-                  />
-                  <p className="settings-hint">
-                    {t('settings.alphaVantage.hint')}
-                    {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.alphaVantage)}
-                  </p>
-                  {renderDataTestRow('alpha_vantage', 'alpha_vantage_api_key', alphaVantageKey)}
+                  </div>
                 </div>
+              </div>
 
-                {/* SEC EDGAR identity */}
-                <div className="settings-field">
-                  <label className="settings-field-label">
-                    <span className="label-text">{t('settings.sec.label')}</span>
-                    {secIdentityActive ? (
-                      <span className="settings-badge is-ok">{t('settings.badge.active')}</span>
-                    ) : secIdentityLocallyValid ? (
-                      <span className="settings-badge is-pending">
-                        {t('settings.badge.pending')}
-                      </span>
-                    ) : (
-                      <span className="settings-badge is-required">
-                        {t('settings.badge.required')}
-                      </span>
-                    )}
-                  </label>
-                  <input
-                    className={`settings-input${secIdentityLocallyValid ? '' : ' is-invalid'}`}
-                    type="text"
-                    value={secUserAgent}
-                    onChange={(e) => handleSecAgentChange(e.target.value)}
-                    placeholder={t('settings.sec.placeholder')}
-                    autoComplete="off"
-                    spellCheck={false}
-                    aria-invalid={!secIdentityLocallyValid}
-                  />
-                  <p className={`settings-hint ${secIdentityHint.cls}`}>{secIdentityHint.text}</p>
-                  {secIdentityPreview && (
-                    <p className="settings-hint">
-                      {t('settings.sec.preview')}
-                      {secIdentityPreview}
-                    </p>
-                  )}
+              {/* Optional tier — enrichment (extra news & sentiment), safe to skip. */}
+              <div className="settings-tier is-optional">
+                <div className="settings-tier-head">
+                  <span className="settings-tier-label is-optional">
+                    {t('settings.dataSources.optionalLabel')}
+                  </span>
+                  <span className="settings-tier-note">
+                    {t('settings.dataSources.optionalNote')}
+                  </span>
+                </div>
+                <div className="settings-fields">
+                  {renderKeyField({
+                    labelKey: 'settings.finnhub.label',
+                    placeholderKey: 'settings.finnhub.placeholder',
+                    hintKey: 'settings.finnhub.hint',
+                    configured: finnhubConfigured,
+                    value: finnhubKey,
+                    onChange: handleFinnhubKeyChange,
+                    signupUrl: DATA_SOURCE_SIGNUP_URLS.finnhub,
+                    clearField: 'finnhub_api_key',
+                    testProvider: 'finnhub',
+                    testField: 'finnhub_api_key',
+                    tier: 'optional',
+                  })}
+                  {renderKeyField({
+                    labelKey: 'settings.adanos.label',
+                    placeholderKey: 'settings.adanos.placeholder',
+                    hintKey: 'settings.adanos.hint',
+                    configured: adanosConfigured,
+                    value: adanosKey,
+                    onChange: handleAdanosKeyChange,
+                    signupUrl: DATA_SOURCE_SIGNUP_URLS.adanos,
+                    clearField: 'adanos_api_key',
+                    testProvider: 'adanos',
+                    testField: 'adanos_api_key',
+                    tier: 'optional',
+                  })}
+                  {renderKeyField({
+                    labelKey: 'settings.alphaVantage.label',
+                    placeholderKey: 'settings.alphaVantage.placeholder',
+                    hintKey: 'settings.alphaVantage.hint',
+                    configured: alphaVantageConfigured,
+                    value: alphaVantageKey,
+                    onChange: handleAlphaVantageKeyChange,
+                    signupUrl: DATA_SOURCE_SIGNUP_URLS.alphaVantage,
+                    clearField: 'alpha_vantage_api_key',
+                    testProvider: 'alpha_vantage',
+                    testField: 'alpha_vantage_api_key',
+                    tier: 'optional',
+                  })}
                 </div>
               </div>
             </section>

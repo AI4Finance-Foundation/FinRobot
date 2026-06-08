@@ -1686,7 +1686,7 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "settings.sec.hintEmpty"
-#~ msgstr "填写格式：姓名或机构 + 空格 + 可联系邮箱，例如 {example}"
+#~ msgstr "解锁 10-K / 10-Q / 8-K 等申报 — 填姓名 + 邮箱，例如 {example}"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.sec.hintInvalid"
@@ -1717,6 +1717,34 @@ msgstr ""
 #~ msgstr "数据源"
 
 #. js-lingui-explicit-id
+#~ msgid "settings.dataSources.baselineName"
+#~ msgstr "Yahoo Finance"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.dataSources.baselineBadge"
+#~ msgstr "默认在线"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.dataSources.baselineHint"
+#~ msgstr "实时行情、财报与新闻 — 无需任何密钥即可使用。"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.dataSources.coreLabel"
+#~ msgstr "核心"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.dataSources.coreNote"
+#~ msgstr "让数字更准 — 免费、约 2 分钟配好"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.dataSources.optionalLabel"
+#~ msgstr "可选"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.dataSources.optionalNote"
+#~ msgstr "额外新闻与情绪 — 不配也无妨"
+
+#. js-lingui-explicit-id
 #~ msgid "settings.section.aiModel"
 #~ msgstr "AI 模型"
 
@@ -1741,6 +1769,10 @@ msgstr ""
 #~ msgstr "待启用"
 
 #. js-lingui-explicit-id
+#~ msgid "settings.badge.recommended"
+#~ msgstr "建议配置"
+
+#. js-lingui-explicit-id
 #~ msgid "settings.fmp.label"
 #~ msgstr "FMP API 密钥"
 
@@ -1750,7 +1782,7 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "settings.fmp.hint"
-#~ msgstr "完整准确性所需 — 有免费额度"
+#~ msgstr "准确财报、D&A 与盈利惊喜 — 有免费额度"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.finnhub.label"
@@ -1762,7 +1794,7 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "settings.finnhub.hint"
-#~ msgstr "启用：公司新闻、公司概况与基础财务"
+#~ msgstr "补充公司新闻与公司概况"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.adanos.label"
@@ -1774,7 +1806,7 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "settings.adanos.hint"
-#~ msgstr "启用：来自 Reddit、X、Polymarket 的散户情绪"
+#~ msgstr "来自 Reddit、X、Polymarket 的散户情绪"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.alphaVantage.label"
@@ -1786,7 +1818,7 @@ msgstr ""
 
 #. js-lingui-explicit-id
 #~ msgid "settings.alphaVantage.hint"
-#~ msgstr "启用：新闻情绪增强（用于新闻流）"
+#~ msgstr "为新闻流做情绪打分"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.apiKey.getKey"

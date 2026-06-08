@@ -1730,6 +1730,89 @@ select.settings-input {
   background: var(--warning-soft);
   color: var(--warning);
 }
+.settings-badge.is-recommended {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.settings-badge.is-always {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+/* ── Data Sources: always-on baseline + tiered key groups ─────────────── */
+/* The baseline row makes it obvious the app works with zero keys (Yahoo
+   Finance is always on); the Core / Optional tiers below tell the user which
+   keys actually move the needle on number accuracy vs. which are enrichment. */
+.settings-baseline {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  margin-bottom: var(--sp-5);
+  background: var(--success-soft);
+  border: 1px solid var(--success-glow-soft);
+  border-radius: var(--r-md);
+}
+.settings-baseline-icon {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--success);
+}
+.settings-baseline-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.settings-baseline-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.settings-baseline-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.settings-tier + .settings-tier {
+  margin-top: var(--sp-6);
+}
+.settings-tier-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+}
+.settings-tier-label {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+}
+.settings-tier-label.is-core {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.settings-tier-label.is-optional {
+  background: var(--bg-3);
+  color: var(--text-muted);
+}
+.settings-tier-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+/* Optional keys are genuinely skippable — render them a touch quieter so the
+   eye lands on the Core tier first. */
+.settings-tier.is-optional .settings-fields {
+  opacity: 0.82;
+}
+.settings-tier.is-optional .settings-fields:hover,
+.settings-tier.is-optional .settings-fields:focus-within {
+  opacity: 1;
+}
 
 /* Small ghost "clear key" button next to a configured secret */
 .settings-clear-btn {

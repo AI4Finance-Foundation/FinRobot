@@ -348,7 +348,7 @@ const STRIP_SHELL: React.CSSProperties = {
   padding: '10px 12px',
   border: '1px solid var(--aipanel-line-strong)',
   borderRadius: 11,
-  background: 'linear-gradient(180deg, rgba(40, 56, 84, 0.5), rgba(28, 40, 62, 0.4))',
+  background: 'var(--aipanel-strip)',
 }
 
 const QUIET_ROW: React.CSSProperties = {
@@ -390,7 +390,7 @@ const OVERFLOW_BTN: React.CSSProperties = {
   alignSelf: 'flex-start',
   background: 'transparent',
   border: 'none',
-  color: 'var(--accent-cyan, var(--primary))',
+  color: 'var(--aip-accent)',
   cursor: 'pointer',
   fontSize: 11,
   padding: '2px 0',

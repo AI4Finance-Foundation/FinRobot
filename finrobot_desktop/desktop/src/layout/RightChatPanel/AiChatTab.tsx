@@ -578,8 +578,8 @@ function AiPanelHeader({
         <span
           className="dot"
           style={{
-            background: ticker ? 'var(--accent-cyan)' : 'var(--text-dim)',
-            boxShadow: ticker ? '0 0 7px var(--accent-cyan)' : 'none',
+            background: ticker ? 'var(--aip-accent)' : 'var(--text-dim)',
+            boxShadow: ticker ? '0 0 7px var(--aip-accent)' : 'none',
           }}
         />
         {ticker ?? t('chat.title.explore')}

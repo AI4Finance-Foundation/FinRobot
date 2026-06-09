@@ -98,9 +98,15 @@ class TestIncomeStatement:
         assert stmt.depreciation_amortization == 1e7
         assert stmt.rd_expense == 5e6
 
-    def test_rejects_negative_gross_margin(self):
+    def test_allows_negative_gross_margin(self):
+        # Loss-maker selling below cost (RIVN-class) → gross_margin < 0; symmetric
+        # with operating_margin's negative allowance.
+        stmt = IncomeStatement(**_base_income(gross_margin=-0.0172))
+        assert stmt.gross_margin == -0.0172
+
+    def test_rejects_gross_margin_below_minus5(self):
         with pytest.raises(ValidationError):
-            IncomeStatement(**_base_income(gross_margin=-0.1))
+            IncomeStatement(**_base_income(gross_margin=-6.0))
 
     def test_rejects_gross_margin_over_1(self):
         with pytest.raises(ValidationError):
@@ -257,9 +263,10 @@ class TestSubModelConstruction:
         assert fd.valuation.enterprise_value == 5.3e9
         assert fd.valuation.ev_ebitda == 26.5
 
-    def test_rejects_negative_gross_margin(self):
-        with pytest.raises(ValidationError):
-            _make_fd(income_overrides={"gross_margin": -0.1})
+    def test_allows_negative_gross_margin(self):
+        # RIVN-class loss-maker → gross_margin < 0 must construct (was a 500).
+        fd = _make_fd(income_overrides={"gross_margin": -0.0172})
+        assert fd.income.gross_margin == -0.0172
 
     def test_rejects_zero_shares(self):
         with pytest.raises(ValidationError):

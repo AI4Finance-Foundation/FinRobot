@@ -88,9 +88,22 @@ def test_financial_data_valid():
     assert fd.income.revenue == 100e9
 
 
-def test_financial_data_rejects_negative_gross_margin():
+def test_financial_data_allows_negative_gross_margin():
+    # RIVN-class loss-maker sells vehicles below cost → gross margin < 0. The live
+    # FMP payload for RIVN returned gross_margin≈-0.0172, which used to 500 the
+    # /financials route because the field carried an asymmetric `ge=0` guard while
+    # its sibling operating_margin already allowed negatives. gross_margin ≥
+    # operating_margin always (opex ≥ 0), so admitting it down to the same -5 floor
+    # is provably crash-free.
+    fd = FinancialData(**_base_financial_data(gross_margin=-0.0172))
+    assert fd.income.gross_margin == -0.0172
+
+
+def test_financial_data_rejects_garbage_gross_margin():
+    # Below the -5 floor (a percentage/decimal mixup, e.g. -50 meaning -50%) is
+    # still rejected so unit-scale garbage can't masquerade as a real margin.
     with pytest.raises(ValidationError):
-        FinancialData(**_base_financial_data(gross_margin=-0.1))
+        FinancialData(**_base_financial_data(gross_margin=-50))
 
 
 def test_financial_data_rejects_zero_shares():

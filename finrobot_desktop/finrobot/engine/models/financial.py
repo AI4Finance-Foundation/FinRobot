@@ -19,8 +19,14 @@ class IncomeStatement(BaseModel):
     net_income: float | None = Field(
         default=None, description="Net income in USD; None when unavailable"
     )
+    # Gross margin can be negative: a loss-maker selling below cost (RIVN-class EV
+    # makers) reports gross_margin < 0. The old `ge=0` was an asymmetric guard —
+    # its sibling operating_margin already allowed negatives (ge=-5) — and 500'd
+    # /financials for Rivian. gross_margin ≥ operating_margin always (opex ≥ 0), so
+    # the same -5 floor is provably crash-free while still catching a percentage/
+    # decimal mixup (e.g. -50 meaning -50%).
     gross_margin: float | None = Field(
-        default=None, ge=0, le=1, description="Gross margin as decimal; None when unavailable"
+        default=None, ge=-5, le=1, description="Gross margin as decimal; None when unavailable"
     )
     operating_margin: float | None = Field(
         default=None, ge=-5, le=1, description="Operating margin as decimal; None when unavailable"

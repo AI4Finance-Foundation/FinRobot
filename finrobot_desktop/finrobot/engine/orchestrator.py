@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import ValidationError
 from pydantic_ai import Agent, ModelRetry, RunContext
+from pydantic_ai.common_tools.duckduckgo import duckduckgo_search_tool
 
 from finrobot.artifact.models import ArtifactSummary
 from finrobot.artifact.semantic_diff import DeltaItem, SemanticDelta, build_semantic_delta
@@ -202,10 +203,16 @@ def create_lead_agent(
     if skill_registry:
         instructions += "\n\n" + skill_registry.list_summary()
 
+    # Live web search via PydanticAI's own common tool (keyless DuckDuckGo,
+    # provider-agnostic). Closes the gap where "联网搜今天的 AI 新闻" had no web
+    # tool and mis-fired query_financial_data(ticker="AI"). Swap to
+    # tavily_search_tool(api_key=…) for cleaner finance-grade results when a key
+    # is configured — same registration, better backend.
     agent: Agent[FinRobotDeps, str] = Agent(
         settings.create_model(),
         deps_type=FinRobotDeps,
         instructions=instructions,
+        tools=[duckduckgo_search_tool(max_results=8)],
     )
 
     if sub_agents is None:

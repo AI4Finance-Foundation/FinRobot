@@ -819,3 +819,42 @@ class TestRunBacktest:
         out = await fn(_run_context(_deps()), "AAPL", "2023-01-01", "2024-01-01")
         assert isinstance(out, str)
         assert "No price data" in out
+
+
+# ---------------------------------------------------------------------------
+# web search — PydanticAI's own duckduckgo_search_tool (keyless, provider-
+# agnostic) registered on the lead agent.
+#
+# The chat had NO web search, so "联网搜一下今天的ai热点新闻" mis-fired
+# query_financial_data(ticker="AI", data_type="news") — treating "ai" as the
+# C3.ai ticker and returning that company's feed instead of real web results.
+# We register the FRAMEWORK's common tool rather than hand-rolling ddgs. Tests
+# stub DDGS (where the common tool builds its client) so they never hit the net.
+# ---------------------------------------------------------------------------
+
+
+class TestWebSearch:
+    def test_duckduckgo_tool_registered(self):
+        # The lead agent must carry a live web-search tool so topic/news queries
+        # don't degrade to query_financial_data on a guessed ticker.
+        assert "duckduckgo_search" in _agent()._function_toolset.tools
+
+    async def test_returns_results_from_ddg(self, monkeypatch):
+        class _FakeDDGS:
+            def text(self, query, max_results=None):  # noqa: ANN001, ARG002
+                return [
+                    {
+                        "title": "AI News | Reuters",
+                        "href": "https://reuters.com/ai",
+                        "body": "Latest AI developments and headlines.",
+                    }
+                ]
+
+        # Patch DDGS where the framework common tool constructs its client.
+        monkeypatch.setattr("pydantic_ai.common_tools.duckduckgo.DDGS", _FakeDDGS)
+        agent = _agent()
+        fn = agent._function_toolset.tools["duckduckgo_search"].function
+        results = await fn("today AI news")
+        assert isinstance(results, list)
+        assert results[0]["href"] == "https://reuters.com/ai"
+        assert results[0]["title"] == "AI News | Reuters"

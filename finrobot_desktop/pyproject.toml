@@ -39,6 +39,7 @@ dependencies = [
     "rank-bm25>=0.2.2",
     "keyring>=25.0",
     "edgartools>=5.31.5",
+    "ddgs>=9.14.4",
 ]
 
 [project.optional-dependencies]

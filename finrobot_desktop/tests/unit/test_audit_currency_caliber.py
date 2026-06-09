@@ -2,9 +2,14 @@
 currencies (quote-ccy market_cap over reporting-ccy earnings/EBITDA) is
 dimensionally corrupt — the SAP/TSM/TM class of bug, generalized to EV multiples.
 
-This is a defense-in-depth guard: when the pipeline FX-normalized the snapshot to
-USD/USD before forming the ratio, reporting == quote and nothing fires. It only
-fires when normalization was SKIPPED and a mixed-currency ratio reached the model.
+This is the REPORT-path defense-in-depth backstop. Two layers now sit in front of
+it: the canonical FX gate (class A) makes a foreign ADR single-currency before any
+ratio forms, and the FinancialData cross-currency invariant (class B) withholds the
+mixed ratios at construction. So a FinancialData built normally can never carry a
+mixed ratio — this verifier only catches a snapshot that BYPASSED construction-time
+validation (``model_construct`` / a post-hoc currency-tag mutation). The fixtures
+below deliberately reproduce that bypass (set the tags AFTER construction, which
+skips the invariant) to exercise the backstop's detection logic in isolation.
 """
 
 from __future__ import annotations
@@ -29,7 +34,7 @@ def _fd(
     ev_ebitda: float | None = None,
     ev_revenue: float | None = None,
 ) -> FinancialData:
-    return FinancialData(
+    fd = FinancialData(
         ticker="X",
         timestamp=datetime.now(tz=timezone.utc),
         income=IncomeStatement(revenue=100e9, net_income=20e9),
@@ -39,9 +44,16 @@ def _fd(
         valuation=ValuationMetrics(
             enterprise_value=enterprise_value, ev_ebitda=ev_ebitda, ev_revenue=ev_revenue
         ),
-        reporting_currency=reporting_currency,
-        quote_currency=quote_currency,
+        # Construct single-currency so the FinancialData invariant keeps the ratios,
+        reporting_currency="USD",
+        quote_currency="USD",
     )
+    # then set the (possibly mismatched) tags by direct assignment — this skips the
+    # construction-time invariant (no validate_assignment), reproducing the bypass
+    # path the report-layer backstop exists to catch.
+    fd.reporting_currency = reporting_currency
+    fd.quote_currency = quote_currency
+    return fd
 
 
 def _checks(findings) -> set[tuple[str, str, str]]:

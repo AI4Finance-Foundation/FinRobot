@@ -106,14 +106,16 @@ def _aapl_canonical_usd() -> NormalizedFinancials:
 # ---------------------------------------------------------------------------
 
 
-def test_mixed_currency_unconverted_yields_negative_ev_baseline():
-    """Reproduces the live -75B TSM EV: extract on a TWD/USD mix forms a
-    cross-currency EV that goes negative — the defect the fix removes."""
+def test_unconverted_mixed_currency_ev_withheld_by_invariant():
+    """Defense-in-depth: if the canonical FX gate (class A) is bypassed/failed and a
+    mixed TWD/USD snapshot still reaches extract, the FinancialData cross-currency
+    invariant (class B) withholds EV and the EV-multiples (None) rather than forming
+    the -75B garbage. Neither layer can emit a negative EV — that was the live bug."""
     fd = extract_financial_data(_tsm_canonical_twd(), _tsm_price_usd())
-    assert fd.valuation.enterprise_value is not None
-    assert fd.valuation.enterprise_value < 0  # impossible for a net-cash profitable issuer
-    assert fd.valuation.ev_ebitda is not None and fd.valuation.ev_ebitda < 0
-    assert fd.valuation.ev_revenue is not None and fd.valuation.ev_revenue < 0
+    assert fd.valuation.enterprise_value is None
+    assert fd.valuation.ev_ebitda is None
+    assert fd.valuation.ev_revenue is None
+    assert any("withheld" in w.lower() for w in fd.warnings)
 
 
 # ---------------------------------------------------------------------------

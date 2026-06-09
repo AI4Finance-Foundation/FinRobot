@@ -23,7 +23,7 @@ def _fd(
     pe_ratio: float | None = None,
     ttm_ends: list[date] | None = None,
 ) -> FinancialData:
-    return FinancialData(
+    fd = FinancialData(
         ticker="X",
         timestamp=datetime.now(tz=timezone.utc),
         income=IncomeStatement(revenue=100e9, net_income=net_income),
@@ -35,10 +35,17 @@ def _fd(
             pe_ratio=pe_ratio,
         ),
         valuation=ValuationMetrics(ev_ebitda=ev_ebitda),
-        reporting_currency=reporting_currency,
-        quote_currency=quote_currency,
+        # Construct single-currency so the FinancialData cross-currency invariant
+        # keeps the ratios, then set the tags by direct assignment (skips the
+        # invariant) — lets the currency_caliber backstop see a genuinely-mixed
+        # snapshot, the bypass path it still guards on the report layer.
+        reporting_currency="USD",
+        quote_currency="USD",
         ttm_quarter_ends=ttm_ends or [],
     )
+    fd.reporting_currency = reporting_currency
+    fd.quote_currency = quote_currency
+    return fd
 
 
 def test_clean_us_company_no_findings():

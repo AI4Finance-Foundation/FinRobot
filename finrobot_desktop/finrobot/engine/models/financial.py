@@ -1,5 +1,5 @@
 from typing import Any, Literal
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from datetime import date, datetime
 
 
@@ -172,6 +172,47 @@ class FinancialData(BaseModel):
     :attr:`warnings` stays the row-level catch-all; this is what lets a caveat
     sit on the exact cell it concerns instead of a generic row marker."""
 
+    @model_validator(mode="after")
+    def _withhold_cross_currency_ratios(self) -> "FinancialData":
+        """Structural invariant: a cross-currency EV/multiple cannot exist.
+
+        When ``reporting_currency != quote_currency`` (a foreign ADR whose FX
+        normalization was skipped or failed — see the DataLayer canonical FX
+        gate) every EV-based ratio mixes a quote-currency ``market_cap`` with
+        reporting-currency net debt, so it is meaningless (the -75B TSM EV, probe
+        2026-06-09). Rather than trust each consumer to remember the currency
+        check, withhold the affected fields HERE at construction: a mixed-currency
+        ``enterprise_value`` / ``ev_ebitda`` / ``ev_revenue`` / ``pe_ratio`` can
+        never reach the /financials route, Coverage table or AI orchestrator. The
+        mismatch then reads honestly as "withheld" instead of a wrong/negative
+        number. Single-currency snapshots (the common case once the canonical FX
+        gate has run) hit the early return and are untouched.
+        """
+        if self.reporting_currency.upper() == self.quote_currency.upper():
+            return self
+        withheld = False
+        for attr in ("enterprise_value", "ev_ebitda", "ev_ebitda_reported", "ev_revenue"):
+            if getattr(self.valuation, attr) is not None:
+                setattr(self.valuation, attr, None)
+                withheld = True
+        # pe = market_cap[quote ccy] / net_income[reporting ccy] is mixed too.
+        if self.market.pe_ratio is not None:
+            self.market.pe_ratio = None
+            withheld = True
+        if withheld:
+            codes = self.field_warnings.setdefault("ev_ebitda", [])
+            if FIELD_WARN_EV_CROSS_CURRENCY not in codes:
+                codes.append(FIELD_WARN_EV_CROSS_CURRENCY)
+            warning = (
+                f"{self.ticker}: reporting currency {self.reporting_currency} ≠ quote "
+                f"currency {self.quote_currency} and FX normalization was unavailable — "
+                "EV, EV/EBITDA, EV/Revenue and P/E withheld (a cross-currency ratio is "
+                "meaningless)."
+            )
+            if warning not in self.warnings:
+                self.warnings.append(warning)
+        return self
+
 
 # ── Structured field-warning codes (attach at the generation site, where the
 # affected field is known; consumers map code → localized caveat) ────────────
@@ -179,6 +220,9 @@ FIELD_WARN_EV_MISSING_NET_DEBT = "ev_missing_net_debt"
 """EV (hence EV/EBITDA, EV/Revenue) uncomputable — provider lacked debt/cash."""
 FIELD_WARN_SHARES_DERIVED = "shares_derived"
 """shares_outstanding derived as market_cap/price — per-share (EPS, P/E) approximate."""
+FIELD_WARN_EV_CROSS_CURRENCY = "ev_cross_currency"
+"""EV / EV-multiples / P/E withheld — reporting≠quote currency and FX unavailable,
+so a quote-ccy market_cap and reporting-ccy net debt can't form a valid ratio."""
 
 
 class AggregatedNewsItem(BaseModel):

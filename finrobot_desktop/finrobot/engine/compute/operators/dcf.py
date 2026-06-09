@@ -243,6 +243,17 @@ def _price_for(
     n = horizon_years
     pv_fcf: float = sum(f / (1 + wacc) ** (i + 1 - offset) for i, f in enumerate(fcfs))
     terminal_fcf = _terminal_fcf(inputs, revenue[-1], terminal_growth)
+    # Same BUG-074 guard the forward calculate_dcf applies: a non-positive
+    # steady-state terminal FCF capitalises into a NEGATIVE Gordon terminal value,
+    # so the DCF is undefined. The reverse kernels must refuse it everywhere the
+    # forward DCF refuses it — else solve_for_implied_growth returns a "converged"
+    # implied growth assembled on a negative perpetuity (a confident, traceable-
+    # looking number that contradicts the deterministic core).
+    if terminal_fcf <= 0:
+        raise ValueError(
+            f"Steady-state terminal FCF is non-positive ({terminal_fcf:.3g}); the Gordon "
+            "perpetuity is undefined — DCF is not applicable, use relative valuation instead."
+        )
     tv = terminal_fcf * (1 + terminal_growth) / (wacc - terminal_growth)
     pv_tv = tv / (1 + wacc) ** (n - offset)
     enterprise_value = pv_fcf + pv_tv
@@ -547,6 +558,14 @@ def solve_for_implied_wacc(
     # Terminal capex normalizes to D&A (see _terminal_fcf) — same perpetuity base
     # calculate_dcf uses, so the reverse-WACC solve round-trips the forward DCF.
     terminal_fcf = _terminal_fcf(inputs, revenue[-1], tg)
+    # BUG-074 (see _price_for): a non-positive terminal FCF makes the perpetuity —
+    # and therefore the whole reverse-WACC solve — undefined. Refuse it, mirroring
+    # the forward calculate_dcf, rather than solving against a negative terminal value.
+    if terminal_fcf <= 0:
+        raise ValueError(
+            f"Steady-state terminal FCF is non-positive ({terminal_fcf:.3g}); the Gordon "
+            "perpetuity is undefined — DCF is not applicable, use relative valuation instead."
+        )
 
     def _price_at(wacc: float) -> float:
         pv_fcf: float = sum(f / (1 + wacc) ** (i + 1 - offset) for i, f in enumerate(fcfs))

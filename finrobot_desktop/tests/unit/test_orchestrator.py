@@ -21,6 +21,7 @@ from finrobot.artifact.semantic_diff import (
     SemanticDelta,
 )
 from finrobot.config import get_settings
+from finrobot.engine.backtest.engine import BacktestResult
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import DCFInputs
@@ -739,3 +740,87 @@ class TestRunMonteCarlo:
         out = await fn(_run_context(_deps()), "ZZZZ")
         assert isinstance(out, str)
         assert "ZZZZ" in out
+
+
+# ---------------------------------------------------------------------------
+# run_backtest — SMA-crossover backtest as a chat tool.
+#
+# BackTraderAdapter (engine/backtest/) was reachable only via CLI/SDK, never
+# from /chat. This exposes it so the user can ask "backtest a 10/30 SMA
+# crossover on AAPL for 2023". Tests stub the adapter so they never require
+# backtrader to be installed — the tool's job is config-build + error-handling
+# + summary formatting, which is what we lock here.
+# ---------------------------------------------------------------------------
+
+
+class _StubBacktestAdapter:
+    """Stands in for BackTraderAdapter: returns a fixed BacktestResult."""
+
+    def __init__(self, data_layer) -> None:  # noqa: ANN001
+        pass
+
+    async def run(self, config) -> BacktestResult:  # noqa: ANN001
+        return BacktestResult(
+            initial_value=100_000.0,
+            final_value=128_500.0,
+            total_return=0.285,
+            annualized_return=0.131,
+            sharpe_ratio=0.92,
+            max_drawdown=-0.18,
+            total_trades=14,
+            winning_trades=9,
+            losing_trades=5,
+            warnings=["Sharpe ratio assumes risk-free rate of 4.0%."],
+        )
+
+
+def _run_backtest_fn(agent):  # noqa: ANN001
+    return agent._function_toolset.tools["run_backtest"].function
+
+
+class TestRunBacktest:
+    async def test_registered_as_tool(self):
+        agent = _agent()
+        assert "run_backtest" in agent._function_toolset.tools
+
+    async def test_bad_ticker_returns_string_not_raise(self):
+        agent = _agent()
+        fn = _run_backtest_fn(agent)
+        out = await fn(_run_context(_deps()), "###", "2023-01-01", "2024-01-01")
+        assert isinstance(out, str)
+        assert "Invalid ticker" in out
+
+    async def test_bad_date_window_returns_string_not_raise(self):
+        # start >= end is rejected by BacktestConfig; the tool must convert the
+        # ValidationError to a returned string, never let it crash the SSE stream.
+        agent = _agent()
+        fn = _run_backtest_fn(agent)
+        out = await fn(_run_context(_deps()), "AAPL", "2024-01-01", "2023-01-01")
+        assert isinstance(out, str)
+        assert "Invalid backtest request" in out
+        assert "before" in out.lower()
+
+    async def test_runs_and_formats_summary(self, monkeypatch):
+        monkeypatch.setattr("finrobot.engine.orchestrator.BackTraderAdapter", _StubBacktestAdapter)
+        agent = _agent()
+        fn = _run_backtest_fn(agent)
+        out = await fn(_run_context(_deps()), "aapl", "2023-01-01", "2024-01-01")
+        assert isinstance(out, str)
+        assert "AAPL" in out  # header echoes the ticker/window
+        assert "Sharpe" in out
+        assert "128,500" in out  # final value from the summary
+
+    async def test_run_failure_returns_string_not_raise(self, monkeypatch):
+        class _BoomAdapter:
+            def __init__(self, data_layer) -> None:  # noqa: ANN001
+                pass
+
+            async def run(self, config):  # noqa: ANN001, ANN201
+                raise ValueError("No price data for ZZZZ in the requested window")
+
+        monkeypatch.setattr("finrobot.engine.orchestrator.BackTraderAdapter", _BoomAdapter)
+        agent = _agent()
+        fn = _run_backtest_fn(agent)
+        out = await fn(_run_context(_deps()), "AAPL", "2023-01-01", "2024-01-01")
+        assert isinstance(out, str)
+        assert "No price data" in out

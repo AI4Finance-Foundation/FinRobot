@@ -3,6 +3,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
 from pydantic_ai import Agent, ModelRetry, RunContext
 
 from finrobot.artifact.models import ArtifactSummary
@@ -12,6 +13,8 @@ from finrobot.coverage.prompt import format_coverage_for_tool
 from finrobot.coverage.service import build_overview
 from finrobot.engine.agents.factory import create_sub_agents
 from finrobot.engine.analysis.qa import run_qa
+from finrobot.engine.backtest.backtrader_adapter import BackTraderAdapter
+from finrobot.engine.backtest.engine import BacktestConfig
 from finrobot.engine.compute.coordinators.dcf_seed import seed_dcf_inputs_for_ticker
 from finrobot.engine.compute.operators.monte_carlo import MonteCarloResult
 from finrobot.engine.compute.operators.monte_carlo import run_monte_carlo as run_monte_carlo_sim
@@ -394,6 +397,51 @@ def create_lead_agent(
             # assumptions); surface it rather than crash the stream.
             return f"Monte Carlo could not converge for {norm}: {exc}"
         return _format_monte_carlo_for_tool(norm, current_price, result)
+
+    @agent.tool
+    async def run_backtest(
+        ctx: RunContext[FinRobotDeps],
+        ticker: str,
+        start_date: str,
+        end_date: str,
+        fast: int = 10,
+        slow: int = 30,
+    ) -> str:
+        """Backtest an SMA-crossover strategy on a US equity over a date window.
+
+        Returns total & annualized return, Sharpe ratio, max drawdown, trade
+        count and win rate. ``start_date`` / ``end_date`` are YYYY-MM-DD; ``fast``
+        / ``slow`` are the moving-average window lengths (fast < slow; default
+        10 / 30). Use when the user asks to backtest, test a moving-average
+        crossover, or see how a simple rule would have performed historically.
+        US equities only; assumes zero commission and zero slippage, so real-world
+        returns would be lower (the result spells this out).
+        """
+        try:
+            norm = validate_ticker(ticker)
+        except ValueError:
+            return f"Invalid ticker symbol: {ticker}"
+        # BacktestConfig validates date format/order; a raised ValidationError
+        # would tear down the live chat SSE stream, so RETURN it as a string.
+        try:
+            config = BacktestConfig(
+                ticker=norm,
+                start_date=start_date,
+                end_date=end_date,
+                strategy="sma_crossover",
+                strategy_params={"fast": fast, "slow": slow},
+            )
+        except ValidationError as exc:
+            return f"Invalid backtest request: {exc}"
+        # The run touches the data layer + backtrader; surface every concrete
+        # failure (backtrader missing, non-US ticker, empty price window) as a
+        # string rather than crashing the stream.
+        try:
+            result = await BackTraderAdapter(ctx.deps.data_layer).run(config)
+        except (ProviderError, ValueError, ImportError, RuntimeError, KeyError, OSError) as exc:
+            return f"Backtest could not run for {norm}: {exc}"
+        header = f"Backtest — {norm}, SMA {fast}/{slow} crossover, {start_date} → {end_date}:"
+        return f"{header}\n{result.format_summary()}"
 
     @agent.tool
     async def activate_skill(ctx: RunContext[FinRobotDeps], skill_id: str) -> str:

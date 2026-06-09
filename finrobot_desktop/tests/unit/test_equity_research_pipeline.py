@@ -485,9 +485,9 @@ def test_build_sensitivity_ranges_returns_valid_ranges():
     assert len(wacc_range) == 5
     assert len(tg_range) >= 1
     min_wacc = min(wacc_range)
-    assert all(g < min_wacc for g in tg_range), (
-        f"All tg values must be < min_wacc {min_wacc}, got {tg_range}"
-    )
+    assert all(
+        g < min_wacc for g in tg_range
+    ), f"All tg values must be < min_wacc {min_wacc}, got {tg_range}"
 
 
 def test_sensitivity_center_equals_discount_rate_normal():
@@ -507,9 +507,9 @@ def test_sensitivity_center_preserved_for_low_wacc():
     # WACC 2%, terminal growth 1% — valid (WACC > g) but below the old 3% floor.
     wacc_range, tg_range = build_sensitivity_ranges(0.02, 0.01)
     assert len(wacc_range) == 5
-    assert wacc_range[2] == pytest.approx(0.02), (
-        f"center must equal base WACC 0.02, got {wacc_range[2]} (range={wacc_range})"
-    )
+    assert wacc_range[2] == pytest.approx(
+        0.02
+    ), f"center must equal base WACC 0.02, got {wacc_range[2]} (range={wacc_range})"
     # Gordon validity preserved: every terminal-growth candidate stays below the
     # lowest discount rate.
     assert tg_range and all(g < min(wacc_range) for g in tg_range)
@@ -945,9 +945,9 @@ async def test_thesis_overrides_llm_recommendation_with_upside_thresholds(mock_d
 
     assert isinstance(output, StepOutput)
     assert isinstance(output.structured, ThesisResult)
-    assert output.structured.recommendation == "SELL", (
-        f"recommendation={output.structured.recommendation} — LLM drift not caught"
-    )
+    assert (
+        output.structured.recommendation == "SELL"
+    ), f"recommendation={output.structured.recommendation} — LLM drift not caught"
     # And the prompt should have signalled SELL to the LLM.
     actual_prompt = mock_agent_instance.run.call_args[0][0]
     assert "AUTHORITATIVE RECOMMENDATION" in actual_prompt
@@ -1502,9 +1502,9 @@ async def test_thesis_single_method_out_of_band_forces_review(mock_deps):
     thesis = output.structured
     assert isinstance(thesis, ThesisResult)
     assert thesis.recommendation == "REVIEW"
-    assert thesis.price_target is None, (
-        f"single-method out-of-band mid must NOT publish a target, got {thesis.price_target}"
-    )
+    assert (
+        thesis.price_target is None
+    ), f"single-method out-of-band mid must NOT publish a target, got {thesis.price_target}"
     # The prompt must have carried the gate instruction.
     prompt = agent.run.call_args[0][0]
     assert "DATA-HEALTH GATE TRIPPED" in prompt
@@ -1557,9 +1557,9 @@ async def test_thesis_single_method_in_band_publishes_with_caveat(mock_deps):
 
     thesis = output.structured
     assert isinstance(thesis, ThesisResult)
-    assert thesis.price_target == 289.57, (
-        f"in-band single-method mid must become the canonical target, got {thesis.price_target}"
-    )
+    assert (
+        thesis.price_target == 289.57
+    ), f"in-band single-method mid must become the canonical target, got {thesis.price_target}"
     # -6.9% upside → HOLD band (±15%).
     assert thesis.recommendation == "HOLD"
     # Basis must disclose the single-method / no-cross-check caliber.
@@ -1567,3 +1567,44 @@ async def test_thesis_single_method_in_band_publishes_with_caveat(mock_deps):
     assert "single" in basis or "cross-check" in basis or "无交叉" in thesis.price_target_basis
     prompt = agent.run.call_args[0][0]
     assert "AUTHORITATIVE PRICE TARGET" in prompt
+
+
+class TestSec8kCatalystMateriality:
+    """8-K → catalyst conversion must drop filing-mechanics (earnings-release
+    Item 2.02 / exhibits 9.01) and only surface MATERIAL events with a readable
+    label. Regression for the 2026-06-09 TSLA report: 8 identical content-free
+    'SEC 8-K filed: Item 2.02, Item 9.01' stubs flooded the catalyst list."""
+
+    def test_material_codes_drops_routine_keeps_material(self):
+        from finrobot.engine.pipelines.equity_research import _material_8k_codes
+
+        # Bare earnings release → all routine → no material codes.
+        assert _material_8k_codes(["Item 2.02", "Item 9.01"]) == []
+        # Annual-meeting mechanics → routine.
+        assert _material_8k_codes(["Item 5.07", "Item 9.01"]) == []
+        # Exec change → material.
+        assert _material_8k_codes(["Item 5.02", "Item 9.01"]) == ["5.02"]
+        # Material agreement → material.
+        assert _material_8k_codes(["Item 1.01", "Item 9.01"]) == ["1.01"]
+        # Already-bare codes tolerated.
+        assert _material_8k_codes(["5.02"]) == ["5.02"]
+
+    def test_8k_to_catalyst_uses_descriptive_headline(self):
+        from finrobot.engine.pipelines.equity_research import _sec_8k_to_catalyst
+
+        event = {
+            "items": ["Item 5.02", "Item 9.01"],
+            "filing_date": "2025-11-07",
+            "accession_no": "0001104659-25-108507",
+        }
+        cat = _sec_8k_to_catalyst(event)
+        # Readable label, not a bare item number; routine 9.01 omitted.
+        assert cat.headline == "SEC 8-K: Executive / director change"
+        assert cat.category == "management"
+
+    def test_material_agreement_categorized_acquisition(self):
+        from finrobot.engine.pipelines.equity_research import _sec_8k_to_catalyst
+
+        cat = _sec_8k_to_catalyst({"items": ["Item 1.01", "Item 9.01"]})
+        assert cat.category == "acquisition"
+        assert "Material agreement entered" in cat.headline

@@ -4,7 +4,7 @@ import asyncio
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 import httpx
 from pydantic import ValidationError
@@ -184,9 +184,53 @@ async def _execute_data_collection_with_sec(
     return financial_output
 
 
+# 8-K item codes that are filing mechanics / recurring disclosures, not discrete
+# catalysts: Item 2.02 (earnings-release filing), 5.07 (annual-meeting vote
+# results), 7.01 (Reg FD slides/PR), 9.01 (exhibits, attached to almost every
+# 8-K). An 8-K whose items are ALL routine carries no forward catalyst signal —
+# the 2026-06-09 TSLA report surfaced 8 identical content-free "Item 2.02,
+# Item 9.01" stubs as catalysts. An 8-K is kept only when ≥1 item is non-routine.
+_ROUTINE_8K_ITEMS: frozenset[str] = frozenset({"2.02", "5.07", "7.01", "9.01"})
+
+# Plain-language labels for the material item codes we surface — a bare item
+# number tells a reader nothing; "Executive / director change" does.
+_8K_ITEM_LABELS: dict[str, str] = {
+    "1.01": "Material agreement entered",
+    "1.02": "Material agreement terminated",
+    "1.03": "Bankruptcy or receivership",
+    "2.01": "Acquisition or disposition completed",
+    "2.03": "Material financial obligation created",
+    "2.04": "Debt acceleration / triggering event",
+    "2.05": "Exit or disposal costs",
+    "2.06": "Material asset impairment",
+    "3.01": "Delisting / listing-rule notice",
+    "3.03": "Securityholder rights modified",
+    "4.01": "Auditor change",
+    "4.02": "Financial restatement (non-reliance)",
+    "5.01": "Change in control",
+    "5.02": "Executive / director change",
+    "5.03": "Charter / bylaw amendment",
+    "8.01": "Other material event",
+}
+
+# Cap on 8-K-derived catalysts so a busy filer can't crowd out genuine news
+# catalysts. Material 8-Ks are rare; 5 most-recent is ample context.
+_MAX_8K_CATALYSTS: Final[int] = 5
+
+
+def _normalize_8k_items(items: list[str]) -> list[str]:
+    """``'Item 5.02'`` → ``'5.02'`` (tolerate already-bare codes)."""
+    return [str(raw).replace("Item", "").strip() for raw in items]
+
+
+def _material_8k_codes(items: list[str]) -> list[str]:
+    """Non-routine item codes — filing mechanics (2.02/5.07/7.01/9.01) dropped."""
+    return [c for c in _normalize_8k_items(items) if c and c not in _ROUTINE_8K_ITEMS]
+
+
 def _sec_8k_to_catalyst(event: dict[str, Any]) -> CatalystEvent:
     items = [str(i) for i in event.get("items", [])]
-    item_text = ", ".join(items) if items else "8-K"
+    material = _material_8k_codes(items)
     category: Literal[
         "product_launch",
         "earnings",
@@ -195,12 +239,13 @@ def _sec_8k_to_catalyst(event: dict[str, Any]) -> CatalystEvent:
         "management",
         "market",
     ] = "regulatory"
-    if any(i.startswith("Item 2.02") for i in items):
-        category = "earnings"
-    elif any(i.startswith("Item 5.02") for i in items):
+    if any(c == "5.02" for c in material):
         category = "management"
-    elif any(i.startswith("Item 1.01") or i.startswith("Item 2.01") for i in items):
+    elif any(c in ("1.01", "1.02", "2.01") for c in material):
         category = "acquisition"
+
+    labels = [_8K_ITEM_LABELS.get(c, f"8-K Item {c}") for c in material]
+    headline = "SEC 8-K: " + "; ".join(labels) if labels else f"SEC 8-K filed: {', '.join(items)}"
 
     # Inject filing date and SEC URL for traceability
     raw_date = event.get("filing_date") or event.get("filed_at")
@@ -223,7 +268,7 @@ def _sec_8k_to_catalyst(event: dict[str, Any]) -> CatalystEvent:
 
     return CatalystEvent(
         category=category,
-        headline=f"SEC 8-K filed: {item_text}",
+        headline=headline,
         sentiment="neutral",
         impact_score=3,
         probability=1.0,
@@ -252,9 +297,11 @@ async def _execute_catalyst_analysis(
     - Structured summary with net sentiment, category breakdown, top events
     - All computation is reproducible -- no LLM randomness in scoring
     """
-    # Fetch and classify news
+    # Fetch and classify news. Pass the ticker so importance is scored for
+    # relevance to THIS company — a ticker-blind classifier rated "Musk net worth
+    # could top $1T" and "Nasdaq bounces" as top Tesla catalysts (2026-06-09).
     raw_news = await fetch_news(deps.data_layer, ticker)
-    news_items = await classify_news(raw_news, deps)
+    news_items = await classify_news(raw_news, deps, ticker=ticker)
 
     # Drop stale news (> 30 days old) before catalyst extraction
     fresh_news, stale_count = filter_fresh_news(news_items, max_age_days=30)
@@ -265,9 +312,17 @@ async def _execute_catalyst_analysis(
     catalysts = extract_catalysts_from_news(fresh_news)
     sec_filings = structured_context.get("sec_filings")
     if isinstance(sec_filings, dict):
-        for event in sec_filings.get("8k_events", [])[:10]:
-            if isinstance(event, dict):
-                catalysts.append(_sec_8k_to_catalyst(event))
+        # Only MATERIAL 8-Ks become catalysts — a bare earnings-release filing
+        # (Item 2.02/9.01) is filing mechanics, not a discrete catalyst. Keep the
+        # most-recent few so a busy filer can't crowd out genuine news catalysts.
+        material_8ks = [
+            event
+            for event in sec_filings.get("8k_events", [])
+            if isinstance(event, dict)
+            and _material_8k_codes([str(i) for i in event.get("items", [])])
+        ]
+        for event in material_8ks[:_MAX_8K_CATALYSTS]:
+            catalysts.append(_sec_8k_to_catalyst(event))
     catalysts = compute_expected_impact(catalysts)
     summary = summarize_catalyst_outlook(catalysts)
 

@@ -194,7 +194,7 @@ class TestClassifyNews:
     async def test_classify_news_empty_input(self):
         """Empty input list → empty output, no LLM call."""
         mock_deps = MagicMock()
-        result = await classify_news([], mock_deps)
+        result = await classify_news([], mock_deps, ticker="AAPL")
         assert result == []
 
     @pytest.mark.asyncio
@@ -231,13 +231,52 @@ class TestClassifyNews:
             mock_agent_instance.run.return_value = mock_output
             MockAgent.return_value = mock_agent_instance
 
-            result = await classify_news(raw_items, mock_deps)
+            result = await classify_news(raw_items, mock_deps, ticker="AAPL")
 
         assert len(result) == 1
         assert isinstance(result[0], NewsItem)
         assert result[0].category == "earnings"
         assert result[0].sentiment == "positive"
         assert result[0].importance == 4
+
+    @pytest.mark.asyncio
+    async def test_classify_news_instructions_are_ticker_aware(self):
+        """importance must be scored for relevance to the SUBJECT ticker — a
+        ticker-blind classifier rated 'Musk net worth $1T' a top Tesla catalyst
+        (2026-06-09). The subject and the down-weighting rubric must reach the
+        prompt; the company name disambiguates the ticker when provided."""
+        raw_items = [
+            RawNewsItem(
+                title="Some headline",
+                source="CNBC",
+                published=datetime(2024, 1, 1, tzinfo=timezone.utc),
+                url="https://example.com",
+            ),
+        ]
+        mock_output = MagicMock()
+        mock_output.output = ClassifiedNewsBatch(items=[])
+        captured: dict[str, str] = {}
+
+        mock_deps = MagicMock()
+        mock_deps.settings.model_name = "test-model"
+
+        with patch("finrobot.engine.analysis.news_classifier.PydanticAgent") as MockAgent:
+
+            def _capture_ctor(*_args, **kwargs):
+                captured["instructions"] = kwargs.get("instructions", "")
+                inst = AsyncMock()
+                inst.run.return_value = mock_output
+                return inst
+
+            MockAgent.side_effect = _capture_ctor
+            await classify_news(raw_items, mock_deps, ticker="TSLA", company_name="Tesla, Inc.")
+
+        instructions = captured["instructions"]
+        assert "TSLA" in instructions
+        assert "Tesla, Inc." in instructions
+        # The rubric must steer tangential / market-wide items low.
+        assert "1-2" in instructions
+        assert "tangential" in instructions.lower()
 
     @pytest.mark.asyncio
     async def test_classify_news_wraps_untrusted_and_flattens_injection(self):
@@ -269,7 +308,7 @@ class TestClassifyNews:
 
             mock_agent_instance.run.side_effect = _capture
             MockAgent.return_value = mock_agent_instance
-            await classify_news(raw_items, mock_deps)
+            await classify_news(raw_items, mock_deps, ticker="AAPL")
 
         prompt = captured["prompt"]
         assert "<untrusted_news_item>" in prompt
@@ -309,7 +348,7 @@ class TestClassifyNews:
             MockAgent.return_value = mock_agent_instance
 
             with pytest.raises(RuntimeError, match="News classification failed"):
-                await classify_news(raw_items, mock_deps)
+                await classify_news(raw_items, mock_deps, ticker="AAPL")
 
 
 class TestNewsAggregatorKeyDoesNotLeak:

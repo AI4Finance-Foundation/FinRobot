@@ -87,7 +87,7 @@ async def get_catalysts(
         raw_news = await fetch_news(data_layer, ticker_upper)
         if not raw_news:
             return {"catalysts": []}
-        classified = await classify_news(raw_news, deps)
+        classified = await classify_news(raw_news, deps, ticker=ticker_upper)
         events = extract_catalysts_from_news(classified, min_importance=min_importance)
         events = compute_expected_impact(events)
         events = rank_catalysts(events)

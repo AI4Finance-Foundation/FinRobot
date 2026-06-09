@@ -118,8 +118,14 @@ def compute_signal(
     expected_move = abs(target_price - entry_price)
     actual_move = (current_price - entry_price) * direction
 
-    # Rule 1: in the ±10% target band → hit (works for both bullish & bearish targets)
-    if abs(current_price - target_price) / target_price <= _HIT_BAND:
+    # Rule 1: in the ±10% target band AND moved toward the target → hit (works for
+    # both bullish & bearish targets). The direction guard (actual_move >= 0) is
+    # essential and mirrors Rule 2: without it a small-expected-move thesis (target
+    # near entry) scores a wrong-direction LOSS as a hit whenever the price lands
+    # within 10% of target — e.g. BUY entry100/target105, current95 (a -5% loss) sat
+    # in the band and was counted "hit", inflating the dashboard hit-rate (W2-F2,
+    # probe 2026-06-09).
+    if actual_move >= 0 and abs(current_price - target_price) / target_price <= _HIT_BAND:
         return "hit"
 
     # Rule 2: moved >50% of the expected distance in the right direction → hit

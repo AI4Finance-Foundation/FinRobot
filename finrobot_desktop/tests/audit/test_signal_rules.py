@@ -49,6 +49,52 @@ class TestSignalVerdict:
             == "hit"
         )
 
+    def test_band_hit_requires_moving_toward_target_bullish(self) -> None:
+        # W2-F2 (probe 2026-06-09): BUY entry100/target105, current95 is a -5% LOSS
+        # that moved AWAY from target, yet |95-105|/105 = 9.5% sits inside the band.
+        # Rule 1 must NOT score it "hit" — that inflated the dashboard hit-rate. The
+        # band requires moving toward the target (direction guard, like Rule 2).
+        assert (
+            compute_signal(
+                target_price=105,
+                entry_price=100,
+                current_price=95,
+                entry_date=ENTRY,
+                now=_at(3),
+            )
+            == "watching"
+        )
+
+    def test_band_hit_requires_moving_toward_target_bearish(self) -> None:
+        # SELL/short: target95<entry100. current104 is a loss (price rose) but
+        # |104-95|/95 = 9.5% is inside the band — must not be a hit (wrong direction).
+        assert (
+            compute_signal(
+                target_price=95,
+                entry_price=100,
+                current_price=104,
+                entry_date=ENTRY,
+                now=_at(3),
+            )
+            != "hit"
+        )
+
+    def test_band_hit_still_fires_when_moving_toward_target(self) -> None:
+        # Regression: a real move toward the target inside the band is still a hit
+        # (bullish current104→target105, and bearish current96→target95).
+        assert (
+            compute_signal(
+                target_price=105, entry_price=100, current_price=104, entry_date=ENTRY, now=_at(3)
+            )
+            == "hit"
+        )
+        assert (
+            compute_signal(
+                target_price=95, entry_price=100, current_price=96, entry_date=ENTRY, now=_at(3)
+            )
+            == "hit"
+        )
+
     def test_hit_when_progress_exceeds_half_expected_move(self) -> None:
         # expected_move = 20, actual_move = 12 → 60% > 50%
         assert (

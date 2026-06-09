@@ -221,6 +221,43 @@ class TestSynthesizeValuations:
         assert result.reliable is False
         assert any("market price" in w and "UNRELIABLE" in w for w in result.warnings)
 
+    def test_market_divergence_warning_cites_real_spread_not_vague_corroboration(self):
+        """The market-divergence banner must CITE the cross-method spread, not
+        flatly assert 'the methods corroborate each other'. 2026-06-09 TSLA: DCF
+        $27.83 + comps $46.78 (1.68x apart, within the 2x bar) at $408.95 market.
+        They agree within the limit, so the banner should say so AND show the
+        $27.83–$46.78 span — the old text claimed corroboration with no number
+        even though the two ranges did not overlap."""
+        methods = [
+            ValuationMethod(
+                name="dcf", low=22.27, mid=27.83, high=33.40, confidence=0.85, source="DCF"
+            ),
+            ValuationMethod(
+                name="comps_pe", low=42.10, mid=46.78, high=51.46, confidence=0.80, source="Comps"
+            ),
+        ]
+        result = synthesize_valuations(methods, current_price=408.95)
+        assert result.reliable is False
+        banner = next(w for w in result.warnings if "market price" in w and "UNRELIABLE" in w)
+        # Cites the actual spread (low–high and the ratio), not a bare claim.
+        assert "27.83" in banner and "46.78" in banner
+        assert "1.7x" in banner  # hi/lo formatted at 2 sig figs
+        assert "agree with each other" in banner
+
+    def test_market_divergence_does_not_claim_agreement_when_methods_disagree(self):
+        """When the methods are >2x apart AND far from market, the banner must NOT
+        say they 'agree' — it must state they do not even agree with each other."""
+        methods = [
+            ValuationMethod(name="dcf", low=8, mid=10.0, high=12, confidence=0.85, source="DCF"),
+            ValuationMethod(
+                name="comps_pe", low=28, mid=30.0, high=33, confidence=0.80, source="Comps"
+            ),
+        ]  # 3x apart
+        result = synthesize_valuations(methods, current_price=500.0)
+        banner = next(w for w in result.warnings if "market price" in w and "UNRELIABLE" in w)
+        assert "do not even agree" in banner
+        assert "agree with each other" not in banner.replace("do not even agree", "")
+
     def test_reliable_true_when_target_near_market(self):
         """A weighted target inside the [0.25x, 4x] band of the market price is
         NOT tripped by the model-vs-market gate. $245.50 vs $230 market = 1.07x."""

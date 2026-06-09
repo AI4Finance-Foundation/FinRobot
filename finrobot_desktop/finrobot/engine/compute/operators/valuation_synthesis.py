@@ -173,15 +173,33 @@ def synthesize_valuations(
         or valuation_ratio < 1.0 / MARKET_DIVERGENCE_RATIO_K
     ):
         reliable = False
+        # Whether the methods agree with EACH OTHER is a separate question from
+        # whether they agree with the MARKET. State the real cross-method spread
+        # instead of asserting "they corroborate" — for the 2026-06-09 TSLA
+        # artifact the DCF ($27.83) and comps ($46.78) ranges did not even
+        # overlap, yet this branch claimed they "corroborate each other".
+        methods_corroborate = lo > 0 and hi / lo <= _RELIABILITY_RATIO_K
+        if methods_corroborate:
+            agreement = (
+                f"The {len(methods)} methods agree with each other (span "
+                f"${lo:.2f}–${hi:.2f}, {hi / lo:.2g}x, within the "
+                f"{_RELIABILITY_RATIO_K:.2g}x corroboration limit) but all sit far "
+                "outside the market — the market is pricing option value (e.g. new "
+                "business lines / growth optionality) that cash-flow and relative "
+                "models do not capture."
+            )
+        else:
+            spread_txt = f"{hi / lo:.2g}x apart" if lo > 0 else "a non-positive low estimate"
+            agreement = (
+                f"The {len(methods)} methods do not even agree with each other (span "
+                f"${lo:.2f}–${hi:.2f}, {spread_txt}) and all sit far from the market."
+            )
         synthesis_warnings.append(
             f"Weighted target ${weighted_price:.2f} is UNRELIABLE: it is "
             f"{valuation_ratio:.2g}x the ${current_price:.2f} market price (outside the "
             f"[{1.0 / MARKET_DIVERGENCE_RATIO_K:.2g}x, {MARKET_DIVERGENCE_RATIO_K:.2g}x] "
-            "calibration band). The valuation methods corroborate each other but sit far "
-            "outside the market — the market is pricing option value (e.g. new business "
-            "lines / growth optionality) that cash-flow and relative models do not "
-            "capture. The model is outside its calibration range; a fundamentals point "
-            "target must be withheld pending review."
+            f"calibration band). {agreement} The model is outside its calibration "
+            "range; a fundamentals point target must be withheld pending review."
         )
 
     return ValuationSynthesis(

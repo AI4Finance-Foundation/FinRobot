@@ -1,9 +1,12 @@
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from pydantic_ai import Agent
 
 from finrobot.config import get_settings
 from finrobot.engine.agents.factory import create_sub_agents
+from finrobot.engine.data.types import DataType
 from finrobot.engine.orchestrator import create_lead_agent
 
 
@@ -26,13 +29,40 @@ class TestCreateSubAgents:
         tool_names = set(agents["data"]._function_toolset.tools.keys())
         assert "query_financial_data" in tool_names
 
+    @pytest.mark.asyncio
+    async def test_query_financial_data_uses_canonical_for_price(self):
+        """PRICE/FINANCIALS must route through fetch_canonical (the structured
+        layer's single source of truth), NOT bare fetch() — otherwise the agent
+        narrates a divergent quote ($391 vs structured $408.95, 2026-06-09 TSLA).
+        NEWS has no canonical contract and stays on raw fetch()."""
+        agents = create_sub_agents(_settings())
+        fn = agents["data"]._function_toolset.tools["query_financial_data"].function
+
+        ctx = MagicMock()
+        normalized = MagicMock()
+        normalized.model_dump_json.return_value = '{"current_price": 408.95}'
+        ctx.deps.data_layer.fetch_canonical = AsyncMock(return_value=normalized)
+        ctx.deps.data_layer.fetch = AsyncMock(
+            return_value=MagicMock(to_context_string=lambda: "news text")
+        )
+
+        out_price = await fn(ctx, "TSLA", "price")
+        ctx.deps.data_layer.fetch_canonical.assert_awaited_once_with(DataType.PRICE, "TSLA")
+        ctx.deps.data_layer.fetch.assert_not_awaited()
+        assert "canonical" in out_price and "408.95" in out_price
+
+        # NEWS falls through to raw fetch().
+        out_news = await fn(ctx, "TSLA", "news")
+        ctx.deps.data_layer.fetch.assert_awaited_once_with("news", "TSLA")
+        assert out_news == "news text"
+
     def test_non_data_agents_do_not_have_query_financial_data(self):
         agents = create_sub_agents(_settings())
         for role in ["analysis", "modeling", "synthesis", "report"]:
             tool_names = set(agents[role]._function_toolset.tools.keys())
-            assert "query_financial_data" not in tool_names, (
-                f"{role} agent should NOT have query_financial_data"
-            )
+            assert (
+                "query_financial_data" not in tool_names
+            ), f"{role} agent should NOT have query_financial_data"
 
     def test_all_agents_use_settings_model(self):
         from pydantic_ai.models.test import TestModel
@@ -40,9 +70,9 @@ class TestCreateSubAgents:
         settings = _settings()
         agents = create_sub_agents(settings)
         for role, agent in agents.items():
-            assert isinstance(agent.model, TestModel), (
-                f"{role} agent should use TestModel from settings.create_model()"
-            )
+            assert isinstance(
+                agent.model, TestModel
+            ), f"{role} agent should use TestModel from settings.create_model()"
 
 
 # ---------------------------------------------------------------------------
@@ -74,9 +104,9 @@ class TestInstructionEncoding:
         # Every instruction read for the 5 roles must request utf-8.
         instruction_reads = [e for e in seen]
         assert instruction_reads, "expected at least one instruction file read"
-        assert all(enc == "utf-8" for enc in instruction_reads), (
-            f"instruction reads must pass encoding='utf-8', saw: {instruction_reads}"
-        )
+        assert all(
+            enc == "utf-8" for enc in instruction_reads
+        ), f"instruction reads must pass encoding='utf-8', saw: {instruction_reads}"
 
     def test_lead_instructions_loaded_with_utf8_encoding(self, monkeypatch):
         """create_lead_agent must read instructions.md as UTF-8."""
@@ -91,9 +121,9 @@ class TestInstructionEncoding:
         create_lead_agent(_settings())
 
         assert "utf-8" in seen, "create_lead_agent must read instructions.md as utf-8"
-        assert all(enc == "utf-8" for enc in seen), (
-            f"all reads during lead-agent creation must pass utf-8, saw: {seen}"
-        )
+        assert all(
+            enc == "utf-8" for enc in seen
+        ), f"all reads during lead-agent creation must pass utf-8, saw: {seen}"
 
     def test_instruction_files_decode_under_ascii_locale(self):
         """Direct UTF-8 reads of the Chinese instruction files succeed.

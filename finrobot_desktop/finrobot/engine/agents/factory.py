@@ -3,6 +3,7 @@ from pathlib import Path
 from pydantic_ai import Agent, RunContext
 
 from finrobot.config import FinRobotSettings
+from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.skills.registry import SkillRegistry
 
@@ -40,6 +41,23 @@ def create_sub_agents(
         ctx: RunContext[FinRobotDeps], ticker: str, data_type: str
     ) -> str:
         """Fetch financial data. data_type: financials | price | news"""
+        # PRICE / FINANCIALS MUST come through the canonical (validated,
+        # provenance-stamped) contract — the SAME path the pipeline's structured
+        # FinancialData uses (fetch_canonical, ADR-0006). Bare fetch() here was a
+        # SECOND, un-validated quote source: the data agent narrated a price from
+        # raw fetch() while every structured/valuation field used the canonical
+        # one, so one artifact carried two "current prices" ($391 narrative vs
+        # $408.95 structured, 2026-06-09 TSLA). Only NEWS (no canonical contract)
+        # stays on raw fetch().
+        normalized_type = data_type.strip().lower()
+        if normalized_type in (DataType.PRICE.value, DataType.FINANCIALS.value):
+            canonical_type = DataType(normalized_type)
+            normalized = await ctx.deps.data_layer.fetch_canonical(canonical_type, ticker)
+            return (
+                f"[canonical] {canonical_type.value} (normalized contract — the single "
+                f"source of truth; quote these figures verbatim)\n"
+                f"```json\n{normalized.model_dump_json(indent=2)}\n```"
+            )
         result = await ctx.deps.data_layer.fetch(data_type, ticker)
         return result.to_context_string()
 

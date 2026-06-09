@@ -104,9 +104,9 @@ export function ReportChapters({
       <ChapterThesis thesis={d.thesis} />
       <ChapterCompanyOverview thesis={d.thesis} />
       <ChapterFinancialAnalysis
-        ticker={d.symbol}
         dcf={d.dcf}
         rawData={d.inputs.raw_data ?? null}
+        historicalMetrics={d.historicalMetrics}
         reportingCurrency={d.reportingCurrency}
       />
       <ChapterValuation

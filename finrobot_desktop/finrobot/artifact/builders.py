@@ -560,6 +560,14 @@ def build_equity_research_artifact(
         "thesis",
         "catalyst_analysis",
         "technical_analysis",
+        # Multi-year HistoricalMetrics (revenue/margin/cash-flow/EPS trends). The
+        # pipeline already builds it (execute_financial_data_step); persisting it
+        # here freezes the financial-trend charts into the artifact so the report
+        # chapter reads them from the snapshot instead of a live ['historical']
+        # refetch — a structural quantity the narrative's growth/trend claims are
+        # computed from, so an export-window restatement / new fiscal year would
+        # otherwise let the chart endpoints contradict the frozen prose.
+        "historical_metrics",
     ):
         val = result.structured_data.get(key)
         if val is not None:

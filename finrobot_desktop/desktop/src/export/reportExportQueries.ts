@@ -1,12 +1,12 @@
 // The read models the exported <ReportChapters> render from. The standalone
 // HTML export is supposed to be deterministic — same artifact ⇒ same file. The
-// valuation/price/beta surfaces are now FROZEN (rendered from the artifact's
-// persisted valuation_synthesis + raw_data.market snapshot, no live hooks), so
-// they need no prefetch. What remains are the two chapters that still pull
+// valuation/price/beta surfaces AND the multi-year financial-trend charts are
+// now FROZEN (rendered from the artifact's persisted valuation_synthesis +
+// raw_data.market snapshot + structured.historical_metrics, no live hooks), so
+// they need no prefetch. What remains is the one chapter that still pulls
 // slow-changing reference data live at render time:
-//   - ChapterFinancialAnalysis → ['historical', ticker]   (useHistoricalData)
-//   - ChapterFinancialData    → ['earnings-calls', ticker]
-// In the offline viewer those hooks resolve PURELY from the dehydrated cache
+//   - ChapterFinancialData → ['earnings-calls', ticker]
+// In the offline viewer that hook resolves PURELY from the dehydrated cache
 // (refetch disabled). So whatever isn't in the live cache at export time is
 // silently missing from the file — its completeness ends up depending on scroll
 // position / request timing, not the artifact (BUG-20260602-028).
@@ -20,7 +20,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
 import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../api/fetch'
 
-export type ReportExportBlockId = 'historical' | 'earnings'
+export type ReportExportBlockId = 'earnings'
 
 export interface ReportExportQuery {
   /** Stable id for failure reporting (which block could not be prefetched). */
@@ -42,12 +42,6 @@ async function fetchHeavyJson(url: string): Promise<unknown> {
  */
 export function reportExportQueries(ticker: string): ReportExportQuery[] {
   return [
-    {
-      // ChapterFinancialAnalysis — useHistoricalData
-      id: 'historical',
-      queryKey: ['historical', ticker],
-      queryFn: () => fetchHeavyJson(`${BASE_URL}/api/data/${ticker}/historical`),
-    },
     {
       // ChapterFinancialData — EarningsCallSection (limit=8 must match the hook)
       id: 'earnings',
@@ -91,7 +85,6 @@ export async function prepareReportExport(
 }
 
 const BLOCK_LABELS: Record<ReportExportBlockId, { zh: string; en: string }> = {
-  historical: { zh: '历史财务趋势图', en: 'historical financial charts' },
   earnings: { zh: '财报电话会逐字稿', en: 'earnings call transcripts' },
 }
 

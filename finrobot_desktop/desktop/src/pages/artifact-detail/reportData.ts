@@ -17,6 +17,7 @@ import type {
   ThesisShape,
   ValuationSynthesisShape,
 } from './chapters'
+import type { HistoricalMetrics } from '../../types/finance'
 import { formatDate } from '../../utils/format'
 import type { Locale } from '../../i18n'
 
@@ -69,6 +70,11 @@ export interface DerivedReportData {
   catalysts: CatalystAnalysisShape | null
   technical: TechnicalAnalysisShape | null
   ownership: OwnershipGovernanceShape | null
+  // Frozen multi-year trend series (revenue/margin/cash-flow/EPS) the financial
+  // chapter charts render from — persisted into the artifact at generation, so
+  // it never live-refetches ['historical'] and drifts out of sync with the
+  // frozen prose. null on legacy artifacts written before this freeze.
+  historicalMetrics: HistoricalMetrics | null
   // The single canonical SNAPSHOT quote every report surface uses (football
   // field, technical chapter, toolbar). Anchored to valuation_synthesis.current_price
   // (what the target was computed from), falling back to the raw FinancialData
@@ -119,6 +125,7 @@ export function deriveReportData(
   const ownership =
     (structured.ownership_governance as OwnershipGovernanceShape | undefined) ?? null
   const numericAudit = (structured.numeric_audit as NumericAuditShape | undefined) ?? null
+  const historicalMetrics = (structured.historical_metrics as HistoricalMetrics | undefined) ?? null
 
   // Frozen snapshot quote — the ONE price/beta/52w the whole report renders, so
   // no surface re-fetches live and contradicts the cover. raw_data.market is the
@@ -184,6 +191,7 @@ export function deriveReportData(
     technical,
     ownership,
     numericAudit,
+    historicalMetrics,
     snapshotPrice,
     snapshotBeta,
     snapshot52wHigh,

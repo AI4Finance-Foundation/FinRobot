@@ -20,11 +20,8 @@ vi.mock('../../../i18n', () => ({
   }),
 }))
 
-// useHistoricalData hits the network; stub it so the chapter renders its KV
-// cells (which don't depend on historical) without a QueryClient.
-vi.mock('../../../hooks/useHistoricalData', () => ({
-  useHistoricalData: () => ({ data: undefined }),
-}))
+// historical trend is now passed as a FROZEN prop (historicalMetrics), not a
+// live hook — the KV cards don't depend on it, so pass null here.
 
 // Charts are irrelevant to the KV-card regression; render them as no-ops.
 vi.mock('../../../components/charts/RevenueEbitdaChart', () => ({ default: () => null }))
@@ -44,9 +41,9 @@ describe('ChapterFinancialAnalysis KV cards', () => {
   it('reads money line items from income.* (not the top level)', () => {
     render(
       <ChapterFinancialAnalysis
-        ticker="AAPL"
         dcf={null}
         rawData={RAW_DATA}
+        historicalMetrics={null}
         reportingCurrency="USD"
       />,
     )
@@ -61,7 +58,12 @@ describe('ChapterFinancialAnalysis KV cards', () => {
 
   it('does NOT surface cards when income bucket is absent', () => {
     render(
-      <ChapterFinancialAnalysis ticker="AAPL" dcf={null} rawData={{}} reportingCurrency="USD" />,
+      <ChapterFinancialAnalysis
+        dcf={null}
+        rawData={{}}
+        historicalMetrics={null}
+        reportingCurrency="USD"
+      />,
     )
     expect(screen.queryByText('EBITDA')).not.toBeInTheDocument()
   })

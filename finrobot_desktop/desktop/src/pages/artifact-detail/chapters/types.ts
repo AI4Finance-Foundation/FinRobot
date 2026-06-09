@@ -3,6 +3,12 @@
 // per-section. Keeping these here (not in shared types/) so the report
 // view owns its read model — other consumers should NOT couple to these.
 
+// HistoricalMetrics is the ONE field here that IS a first-class shared type
+// (the same model the live ['historical'] path returns) — now FROZEN into the
+// artifact, so the read model references the canonical shape rather than
+// re-declaring it.
+import type { HistoricalMetrics } from '../../../types/finance'
+
 export interface ThesisShape {
   recommendation?: string
   price_target?: number
@@ -417,4 +423,8 @@ export interface ArtifactStructured {
   sec_filings?: SecFilingsShape
   xbrl_facts_snapshot?: XbrlFactsSnapshotShape
   numeric_audit?: NumericAuditShape
+  // Multi-year trend series, frozen at generation (builders.py persists the
+  // pipeline's HistoricalMetrics) so ChapterFinancialAnalysis reads the charts
+  // from the snapshot instead of a live ['historical'] refetch.
+  historical_metrics?: HistoricalMetrics
 }

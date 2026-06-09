@@ -10,8 +10,7 @@ import {
   dcfResultToRevenueEbitdaData,
   dcfResultToMarginData,
 } from '../../../utils/chartAdapters'
-import type { DCFResult } from '../../../types/finance'
-import { useHistoricalData } from '../../../hooks/useHistoricalData'
+import type { DCFResult, HistoricalMetrics } from '../../../types/finance'
 import { useI18n } from '../../../i18n'
 import { TermTip } from '../../../components/TermTip'
 import { formatCurrencyCompact } from '../../../utils/format'
@@ -20,25 +19,30 @@ import type { NumberSource } from '../../../components/SourcedNumber'
 import type { DcfShape } from './types'
 
 interface ChapterFinancialAnalysisProps {
-  ticker: string
   dcf: DcfShape | null
   rawData: Record<string, unknown> | null
+  // Multi-year trend series, FROZEN into the artifact at generation time (read
+  // from outputs.structured.historical_metrics via deriveReportData) — never a
+  // live ['historical'] refetch. The narrative's growth/trend claims are
+  // computed from these series, so a live refetch could drift the chart
+  // endpoints out of sync with the frozen prose (new fiscal year / restatement).
+  historicalMetrics: HistoricalMetrics | null
   // All amounts here are income-statement absolutes (revenue / EBITDA /
   // net income / projected FCF) → reporting currency (BUG-030).
   reportingCurrency: string
 }
 
 export function ChapterFinancialAnalysis({
-  ticker,
   dcf,
   rawData,
+  historicalMetrics,
   reportingCurrency,
 }: ChapterFinancialAnalysisProps): React.ReactElement {
   const { t, locale } = useI18n()
   // Currency-aware compact: en → $1.23B / $4.5M, zh → $1.23 亿; non-USD →
   // HK$1.23B / TWD 1.23B. Reporting currency (IS-caliber line items).
   const fmtMoney = (v: number): string => formatCurrencyCompact(v, reportingCurrency, locale)
-  const { data: historical } = useHistoricalData(ticker)
+  const historical = historicalMetrics
   // raw_data is FinancialData.model_dump() — the money line items live under
   // `income.*`, NOT at the top level (the sibling ChapterFinancialData reads
   // `data['income']` the same way). Reading the top level silently blanked the

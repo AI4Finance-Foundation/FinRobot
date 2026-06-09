@@ -9,15 +9,15 @@ import {
 // BUG-20260602-028: the exported HTML renders <ReportChapters> against a frozen,
 // refetch-disabled cache, so the export must seed every STILL-LIVE chapter read
 // model before dehydrating — otherwise the offline file is missing whatever the
-// user hadn't scrolled into view. The valuation/price/beta surfaces are now
-// FROZEN (rendered from the persisted artifact, no live hooks), so only the two
-// slow-changing reference-data chapters remain to prefetch.
+// user hadn't scrolled into view. The valuation/price/beta surfaces AND the
+// multi-year financial-trend charts are now FROZEN (rendered from the persisted
+// artifact, no live hooks), so only the earnings-call transcript chapter remains
+// to prefetch.
 
 const TICKER = 'AAPL'
 
 // queryKey + URL each chapter hook actually uses (kept in sync with the chapters).
 const EXPECTED = [
-  { id: 'historical', key: ['historical', TICKER], url: `/api/data/${TICKER}/historical` },
   {
     id: 'earnings',
     key: ['earnings-calls', TICKER],
@@ -42,11 +42,13 @@ describe('reportExportQueries — read-model registry', () => {
     }
   })
 
-  it('does NOT prefetch the now-frozen valuation / price / financials surfaces', () => {
+  it('does NOT prefetch the now-frozen valuation / price / historical surfaces', () => {
     const ids = reportExportQueries(TICKER).map((q) => String(q.id))
     expect(ids).not.toContain('valuation')
     expect(ids).not.toContain('price')
     expect(ids).not.toContain('financials')
+    // historical financial-trend charts are now frozen into the artifact too.
+    expect(ids).not.toContain('historical')
   })
 })
 
@@ -87,9 +89,9 @@ describe('prepareReportExport — deterministic export seeding (BUG-028)', () =>
     }
   })
 
-  it('reports which blocks failed without aborting the export', async () => {
+  it('reports a failed block without aborting (throwing) the export', async () => {
     const fetchMock = vi.mocked(globalThis.fetch)
-    // Earnings endpoint fails; historical succeeds.
+    // The earnings endpoint (the sole remaining live prefetch) fails upstream.
     fetchMock.mockImplementation((input) => {
       const url = String(input)
       if (url.includes('earnings-calls')) {
@@ -99,14 +101,11 @@ describe('prepareReportExport — deterministic export seeding (BUG-028)', () =>
     })
 
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    // A failed block is REPORTED (returned), not thrown — the export proceeds and
+    // the caller warns precisely which section will be missing.
     const missing = await prepareReportExport(qc, TICKER)
 
     expect(missing).toEqual(['earnings'])
-
-    // The surviving block is still seeded for the export.
-    const snapshot = dehydrate(qc)
-    const seededKeys = snapshot.queries.map((q) => JSON.stringify(q.queryKey))
-    expect(seededKeys).toContain(JSON.stringify(['historical', TICKER]))
   })
 })
 
@@ -115,8 +114,8 @@ describe('missingExportBlocksMessage', () => {
     const zh = missingExportBlocksMessage(['earnings'], 'zh')
     expect(zh).toContain('缺失')
     expect(zh).toContain('财报电话会逐字稿')
-    const en = missingExportBlocksMessage(['historical'], 'en')
+    const en = missingExportBlocksMessage(['earnings'], 'en')
     expect(en).toContain('Missing')
-    expect(en).toContain('historical financial charts')
+    expect(en).toContain('earnings call transcripts')
   })
 })

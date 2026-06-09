@@ -1,5 +1,14 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useI18n } from '../i18n'
+
+// A complete tool result carries the tool's `summary`. For most tools this is a
+// one-liner (a DCF range, a quote), but a pipeline tool like run_equity_research
+// returns its ENTIRE report markdown here (the same body the artifact page
+// renders chapter-by-chapter). Past this length we collapse the summary behind a
+// clamp + disclosure so a long report never floods the chat thread — the full
+// text is one click away (expand) and the canonical surface is "Open report".
+const SUMMARY_CLAMP_CHARS = 360
 
 // ──────────────────────────────────────────────────────────────
 // Types
@@ -95,7 +104,11 @@ export function ToolCard({
   onRetry,
 }: ToolCardProps): React.ReactElement {
   const [expanded, setExpanded] = useState(false)
+  const [summaryOpen, setSummaryOpen] = useState(false)
   const { t } = useI18n()
+
+  const summary = result?.summary ?? ''
+  const summaryIsLong = summary.length > SUMMARY_CLAMP_CHARS
 
   // The artifact detail route is /stocks/:ticker/runs/:artifactId — there is
   // no `?artifact=` consumer anywhere (the old /stocks landing now redirects to
@@ -143,14 +156,17 @@ export function ToolCard({
         </div>
 
         {artifactHref && state === 'complete' && (
-          <a
-            href={artifactHref}
+          // react-router <Link>, not a raw <a>: under createBrowserRouter a bare
+          // anchor does a full document navigation that reboots the SPA and
+          // discards the chat panel. <Link> keeps it an in-app transition.
+          <Link
+            to={artifactHref}
             data-testid="artifact-link"
             className="ml-2 shrink-0 text-xs"
             style={{ color: 'var(--info)' }}
           >
             {t('toolcard.openArtifact')}
-          </a>
+          </Link>
         )}
       </div>
 
@@ -167,13 +183,40 @@ export function ToolCard({
         </div>
       )}
 
-      {/* Result summary */}
-      {state === 'complete' && result?.summary && (
-        <div
-          className="mt-2 whitespace-pre-wrap text-xs leading-relaxed"
-          style={{ color: 'var(--text-secondary)' }}
-        >
-          {result.summary}
+      {/* Result summary — clamped + collapsed when long so a full report body
+          never floods the chat thread. Short summaries render as-is (no toggle). */}
+      {state === 'complete' && summary && (
+        <div className="mt-2">
+          <div
+            data-testid="tool-summary"
+            className="whitespace-pre-wrap text-xs leading-relaxed"
+            style={{
+              color: 'var(--text-secondary)',
+              ...(summaryIsLong && !summaryOpen
+                ? {
+                    maxHeight: '4.5em',
+                    overflow: 'hidden',
+                    maskImage: 'linear-gradient(to bottom, black 55%, transparent)',
+                    WebkitMaskImage: 'linear-gradient(to bottom, black 55%, transparent)',
+                  }
+                : {}),
+            }}
+          >
+            {summary}
+          </div>
+          {summaryIsLong && (
+            <button
+              type="button"
+              data-testid="summary-toggle"
+              onClick={() => setSummaryOpen((v) => !v)}
+              aria-expanded={summaryOpen}
+              aria-label={summaryOpen ? 'Collapse result' : 'Show full result'}
+              className="mt-1 w-full cursor-pointer text-center text-xs"
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)' }}
+            >
+              {summaryOpen ? '▴' : '▾'}
+            </button>
+          )}
         </div>
       )}
 

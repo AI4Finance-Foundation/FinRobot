@@ -1,8 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import { ToolCard } from './ToolCard'
 import type { ToolCardProps } from './ToolCard'
 
+// ToolCard's artifact link is a react-router <Link>, so it needs a Router in the
+// tree. MemoryRouter renders the same <a href> a real route would.
 function renderCard(props: Partial<ToolCardProps> = {}) {
   const defaults: ToolCardProps = {
     toolCallId: 'call_001',
@@ -11,7 +14,11 @@ function renderCard(props: Partial<ToolCardProps> = {}) {
     state: 'pending',
     ...props,
   }
-  return render(<ToolCard {...defaults} />)
+  return render(
+    <MemoryRouter>
+      <ToolCard {...defaults} />
+    </MemoryRouter>,
+  )
 }
 
 describe('ToolCard — state display', () => {
@@ -63,6 +70,26 @@ describe('ToolCard — result display', () => {
       result: { summary: 'AAPL implied price $198-$224' },
     })
     expect(screen.getByText('AAPL implied price $198-$224')).toBeInTheDocument()
+  })
+
+  it('a short summary renders fully with no collapse toggle', () => {
+    renderCard({ state: 'complete', result: { summary: 'DCF: $198–$224' } })
+    expect(screen.queryByTestId('summary-toggle')).not.toBeInTheDocument()
+  })
+
+  it('a long summary (a full report body) is collapsed behind a toggle by default', () => {
+    const longReport = `# FinRobot Analysis Report\n\n${'Apple Inc. equity research. '.repeat(40)}`
+    expect(longReport.length).toBeGreaterThan(360)
+    renderCard({ state: 'complete', result: { summary: longReport } })
+
+    // The text is still in the DOM (clamped via CSS, not removed) and a toggle
+    // appears so the user can fold/expand the wall of report text.
+    const toggle = screen.getByTestId('summary-toggle')
+    expect(toggle).toBeInTheDocument()
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('shows artifact link when artifact_id and ticker present', () => {

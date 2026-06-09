@@ -127,10 +127,11 @@ def format_coverage_snapshot(overview: CoverageOverview, *, change_threshold: fl
     movers = _movers(rows, change_threshold)
     if movers:
         flagged = ", ".join(f"{r.ticker} {_fmt_pct_points(r.change_pct_1d)}" for r in movers)
-        lines.append(
-            f"⚠ Movers today (|1d| ≥ {change_threshold:.0f}%): {flagged} — proactively "
-            "call these out."
-        )
+        # Movers are listed as DATA only. The behavioural policy — surface these
+        # in a conversational reply, NEVER woven into a single-ticker report body
+        # — lives in engine/instructions.md. An unconditional "proactively call
+        # these out" here leaked watchlist names (TSLA/AMD) into an AAPL deep-dive.
+        lines.append(f"⚠ Movers today (|1d| ≥ {change_threshold:.0f}%): {flagged}.")
     below = _below_target(rows)
     if below:
         names = ", ".join(f"{r.ticker} {_fmt_fraction_pct(r.upside_to_target_live)}" for r in below)

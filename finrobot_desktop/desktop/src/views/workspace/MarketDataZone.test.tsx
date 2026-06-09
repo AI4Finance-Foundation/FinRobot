@@ -14,8 +14,8 @@
 //        • reason='unconfigured' → the add-key CTA
 //        • available      → the aggregate
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { render, screen, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 
 vi.mock('../../hooks/useTickerData', () => ({
@@ -88,6 +88,35 @@ describe('MarketEventsZone — catalyst calendar loading state', () => {
     renderZone()
     expect(screen.queryByTestId('catalyst-skeleton')).not.toBeInTheDocument()
     expect(screen.getByText(/No recent events/i)).toBeInTheDocument()
+  })
+})
+
+// The cold catalyst fetch is ~12–18s; a bare shimmer reads as "broken" long
+// before it returns. After a threshold the skeleton must surface a "classifying
+// news" hint — but NOT immediately, so a warm-cache fetch returning in 1–2s
+// never flashes copy that would itself look like a stall.
+describe('MarketEventsZone — catalyst skeleton progress hint', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('does not show the classify hint immediately (warm fetch must not flash it)', () => {
+    vi.useFakeTimers()
+    vi.mocked(useTickerCatalysts).mockReturnValue(pending() as never)
+    renderZone()
+    expect(screen.getByTestId('catalyst-skeleton')).toBeInTheDocument()
+    expect(screen.queryByTestId('catalyst-classify-hint')).not.toBeInTheDocument()
+  })
+
+  it('surfaces the classify hint after the delay while still pending', () => {
+    vi.useFakeTimers()
+    vi.mocked(useTickerCatalysts).mockReturnValue(pending() as never)
+    renderZone()
+    act(() => {
+      vi.advanceTimersByTime(6000)
+    })
+    expect(screen.getByTestId('catalyst-classify-hint')).toBeInTheDocument()
+    expect(screen.getByText(/Classifying news/i)).toBeInTheDocument()
   })
 })
 

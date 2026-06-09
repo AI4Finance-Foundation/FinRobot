@@ -2317,6 +2317,10 @@ msgstr ""
 #~ msgstr "📅 Catalyst Calendar"
 
 #. js-lingui-explicit-id
+#~ msgid "workspace.market.catalystClassifying"
+#~ msgstr "Classifying news — first load ~15s"
+
+#. js-lingui-explicit-id
 #~ msgid "workspace.market.marketCap"
 #~ msgstr "Market Cap"
 

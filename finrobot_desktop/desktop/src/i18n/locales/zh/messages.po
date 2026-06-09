@@ -2317,6 +2317,10 @@ msgstr ""
 #~ msgstr "📅 催化剂日历"
 
 #. js-lingui-explicit-id
+#~ msgid "workspace.market.catalystClassifying"
+#~ msgstr "正在分类新闻 — 首次加载约 15s"
+
+#. js-lingui-explicit-id
 #~ msgid "workspace.market.marketCap"
 #~ msgstr "市值"
 

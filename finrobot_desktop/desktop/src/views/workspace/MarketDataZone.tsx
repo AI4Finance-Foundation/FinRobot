@@ -10,7 +10,7 @@
 // Split so the long left rail no longer outruns the AI column (trailing
 // whitespace) and event/sentiment lives in its own full-width 2-up row.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   useTickerPrice,
@@ -709,7 +709,7 @@ function Empty({ children }: { children: React.ReactNode }): React.ReactElement 
   )
 }
 
-// Loading skeleton for the catalyst calendar. The endpoint runs ~12s
+// Loading skeleton for the catalyst calendar. The endpoint runs ~12–18s
 // server-side (news → LLM classify → rank); without this, the empty-state copy
 // ("No recent events") rendered during the wait, which reads as "this stock has
 // no catalysts" rather than "still loading" — the exact confusion reported. The
@@ -744,7 +744,23 @@ function SkelBar({
   )
 }
 
+// Delay (ms) before the "classifying news" hint surfaces. A cold catalyst
+// fetch is ~12–18s of news → LLM classify, so a bare shimmer reads as broken to
+// an analyst long before React Query's timeout flips it to an error. The hint
+// converts that silent wait into "this is working, ~15s". It's gated behind a
+// threshold so a warm-cache fetch that returns in 1–2s never flashes copy that
+// would itself read as a stall.
+const CATALYST_HINT_DELAY_MS = 6000
+
 function CatalystSkeleton(): React.ReactElement {
+  const { t } = useI18n()
+  const [showHint, setShowHint] = useState(false)
+
+  useEffect(() => {
+    const id = window.setTimeout(() => setShowHint(true), CATALYST_HINT_DELAY_MS)
+    return () => window.clearTimeout(id)
+  }, [])
+
   return (
     <div
       data-testid="catalyst-skeleton"
@@ -769,6 +785,36 @@ function CatalystSkeleton(): React.ReactElement {
           <SkelBar height={10} width={18} />
         </div>
       ))}
+      {showHint && (
+        <div
+          data-testid="catalyst-classify-hint"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginTop: 2,
+            padding: '2px 2px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10.5,
+            color: 'var(--text-muted)',
+            letterSpacing: '0.04em',
+          }}
+        >
+          {/* Blue "active step" pulse (legal pulse-dot, §7): a working signal,
+              not the green live-data dot — recolored to --primary inline. */}
+          <span
+            aria-hidden="true"
+            className="cosmic-pulse-dot"
+            style={{
+              width: 6,
+              height: 6,
+              background: 'var(--primary)',
+              boxShadow: '0 0 10px var(--primary-soft)',
+            }}
+          />
+          <span>{t('workspace.market.catalystClassifying')}</span>
+        </div>
+      )}
     </div>
   )
 }

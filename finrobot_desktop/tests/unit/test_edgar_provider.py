@@ -1289,3 +1289,51 @@ def test_fetch_schedule13_parses_dedups_and_skips_self_filing() -> None:
     assert alerts[0]["pct_of_class"] == 4.069
     assert alerts[0]["accession_no"] == "a1"  # newest FMR kept
     assert alerts[1]["schedule_type"] == "13D"  # BlackRock SC 13D → activist
+
+
+# ---------------------------------------------------------------------------
+# build_rag_chunks — section-aware 10-K chunking.
+#
+# The old path merged every section then chunked the blob with a bare
+# "10-K/<date>" source, so chunk citations were guesswork and risk chunks
+# straddled section boundaries. build_rag_chunks chunks EACH section so every
+# chunk's source carries its section title — which is what run_qa cites.
+# ---------------------------------------------------------------------------
+
+
+class TestBuildRagChunks:
+    def _sections(self) -> list[dict[str, Any]]:
+        return [
+            {"title": "Item 1A — Risk Factors", "text": " ".join(f"risk{i}" for i in range(120))},
+            {"title": "Item 7 — MD&A", "text": " ".join(f"mdna{i}" for i in range(120))},
+            {"title": "Item 9 — Empty", "text": "   "},  # whitespace-only → skipped
+        ]
+
+    def test_source_carries_section_title(self) -> None:
+        from finrobot.engine.data.providers.edgar_provider import build_rag_chunks
+
+        chunks = build_rag_chunks(self._sections(), "2025-10-31")
+        assert chunks, "expected chunks from non-empty sections"
+        for c in chunks:
+            assert c["source"].startswith("10-K/2025-10-31")
+        risk_sources = {c["source"] for c in chunks if "risk0" in c["text"]}
+        assert any("Item 1A — Risk Factors" in s for s in risk_sources)
+        mdna_sources = {c["source"] for c in chunks if "mdna0" in c["text"]}
+        assert any("Item 7 — MD&A" in s for s in mdna_sources)
+
+    def test_chunk_index_is_unique_and_sequential(self) -> None:
+        from finrobot.engine.data.providers.edgar_provider import build_rag_chunks
+
+        chunks = build_rag_chunks(self._sections(), "2025-10-31")
+        indices = [c["chunk_index"] for c in chunks]
+        assert indices == list(range(len(chunks)))  # globally re-numbered, no dupes
+
+    def test_empty_sections_skipped_and_chunks_serializable(self) -> None:
+        import json
+
+        from finrobot.engine.data.providers.edgar_provider import build_rag_chunks
+
+        chunks = build_rag_chunks(self._sections(), "2025-10-31")
+        # the whitespace-only "Item 9" section contributes nothing
+        assert not any("Item 9" in c["source"] for c in chunks)
+        json.dumps(chunks)  # must be JSON-serializable (cache contract)

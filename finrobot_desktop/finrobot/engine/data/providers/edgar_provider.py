@@ -659,6 +659,33 @@ _ISSUER_SUFFIXES: frozenset[str] = frozenset(
 )
 
 
+def build_rag_chunks(sections: list[dict[str, Any]], filing_date: Any) -> list[dict[str, Any]]:
+    """Chunk each 10-K section separately into JSON-serializable chunk dicts.
+
+    Every chunk's ``source`` carries its section title — e.g.
+    ``"10-K/2025-10-31 · Item 1A — Risk Factors"`` — which is what ``run_qa``
+    cites. The old path merged all sections into one blob, chunked it with a bare
+    ``"10-K/<date>"`` source, and let risk chunks straddle section boundaries; the
+    section label was then guesswork. ``chunk_index`` is re-numbered globally so
+    it stays unique across sections. Whitespace-only sections are skipped.
+    """
+    from dataclasses import asdict
+
+    from finrobot.engine.primitives.rag import chunk_text
+
+    out: list[dict[str, Any]] = []
+    for s in sections:
+        text = str(s.get("text") or "")
+        if not text.strip():
+            continue
+        source = f"10-K/{filing_date} · {s['title']}"
+        for chunk in chunk_text(text, chunk_size=300, overlap=30, source=source):
+            d = asdict(chunk)
+            d["chunk_index"] = len(out)  # global, sequential, unique across sections
+            out.append(d)
+    return out
+
+
 def _issuer_token(value: str | None) -> str:
     """Stable comparison key for issuer/filer names (strips legal suffixes)."""
     if not value:
@@ -934,21 +961,14 @@ class EdgarToolsProvider(DataProvider):
         }
 
         if want_rag:
-            # FinRobot's own BM25 — input switched from regex-strip chunks
-            # to clean typed-section chunks.
-            from dataclasses import asdict
-
-            from finrobot.engine.primitives.rag import chunk_text
-
-            merged = "\n\n".join(f"[{s['title']}]\n{s['text']}" for s in sections if s["text"])
-            source_label = f"10-K/{filing.filing_date}"
-            chunks = chunk_text(merged, chunk_size=300, overlap=30, source=source_label)
-            # Store SERIALIZABLE chunk dicts, never a live BM25Index: the index is
-            # a runtime object that cannot round-trip through the canonical JSON
-            # cache — caching it made cache.set's model_dump_json raise
-            # PydanticSerializationError and crash every live 10-K fetch. run_qa
-            # rebuilds the index from these chunks on demand (cheap).
-            data["rag_chunks"] = [asdict(c) for c in chunks]
+            # Section-aware chunking → each chunk's source carries its Item title
+            # so run_qa can cite specific sections. Stored as SERIALIZABLE dicts,
+            # never a live BM25Index: the index is a runtime object that cannot
+            # round-trip through the canonical JSON cache (caching it made
+            # cache.set's model_dump_json raise PydanticSerializationError and
+            # crash every live fetch). run_qa rebuilds the index on demand.
+            chunks = build_rag_chunks(sections, filing.filing_date)
+            data["rag_chunks"] = chunks
             data["chunk_count"] = len(chunks)
 
         return data, warnings

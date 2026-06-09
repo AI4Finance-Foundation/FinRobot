@@ -34,7 +34,7 @@ async def run_qa(
     settings: FinRobotSettings,
     ticker: str,
     question: str,
-    top_k: int = 5,
+    top_k: int = 8,
 ) -> str:
     """Fetch 10-K, retrieve relevant chunks via BM25, answer the question.
 

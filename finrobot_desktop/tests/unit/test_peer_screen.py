@@ -151,3 +151,96 @@ def test_high_positive_pe_competitor_enters_set_loss_maker_does_not() -> None:
     assert "ARM" not in result.dropped_nm
     # Still deterministic.
     assert result == screen_peers(payload, "NVDA")
+
+
+def test_megacap_industry_leader_keeps_smaller_same_industry_over_sector_retail() -> None:
+    """A mega-cap industry leader (TSLA) must comp against real but smaller
+    same-industry peers, never against same-SECTOR cross-industry mega-caps.
+
+    Regression for the 2026-06-09 TSLA artifact: the symmetric 1/20x floor
+    ($77B for a $1.5T target) excluded every automaker but Toyota, so the sheet
+    backfilled from the Consumer-Cyclical SECTOR with Home Depot / McDonald's /
+    TJX. The affinity-aware floor keeps GM/Ferrari/Geely; the sector tier is
+    skipped once ≥3 high-affinity peers exist.
+    """
+    payload = {
+        "profile": {
+            "company_name": "Tesla, Inc.",
+            "sector": "Consumer Cyclical",
+            "industry": "Auto - Manufacturers",
+            "market_cap": 1_535_000_000_000,
+            "description": "Designs, manufactures and sells electric vehicles and energy storage.",
+        },
+        # Real automakers — all far below the 1/20x ($77B) floor except Toyota.
+        "industry_screen": ["TM", "GM", "RACE", "F", "RIVN", "LCID"],
+        "stock_peers": ["TM", "GM", "RACE", "GELHY", "F", "RIVN"],
+        # Same sector (Consumer Cyclical), different industry — retailers.
+        "sector_screen": ["AMZN", "HD", "MCD", "TJX", "BKNG", "BABA"],
+        "quotes": {
+            "TM": {"market_cap": 232_000_000_000, "pe": 9.7},
+            "GM": {"market_cap": 75_500_000_000, "pe": 30.6},
+            "RACE": {"market_cap": 62_000_000_000, "pe": 33.7},
+            "GELHY": {"market_cap": 25_000_000_000, "pe": 9.7},
+            "F": {"market_cap": 58_000_000_000, "pe": -9.7},  # loss → out on pe>0
+            "RIVN": {"market_cap": 21_000_000_000, "pe": -5.8},  # loss → out
+            "LCID": {"market_cap": 1_600_000_000, "pe": -0.4},  # loss + below floor
+            "AMZN": {"market_cap": 2_637_000_000_000, "pe": 31.6},
+            "HD": {"market_cap": 308_000_000_000, "pe": 22.0},
+            "MCD": {"market_cap": 197_000_000_000, "pe": 22.9},
+            "TJX": {"market_cap": 176_000_000_000, "pe": 31.1},
+            "BKNG": {"market_cap": 125_000_000_000, "pe": 21.4},
+            "BABA": {"market_cap": 280_000_000_000, "pe": 31.9},
+        },
+        "profiles": {
+            **{
+                t: {
+                    "company_name": t,
+                    "industry": "Auto - Manufacturers",
+                    "description": "Automaker.",
+                }
+                for t in ("TM", "GM", "RACE", "GELHY", "F", "RIVN", "LCID")
+            },
+            "AMZN": {
+                "company_name": "Amazon",
+                "industry": "Specialty Retail",
+                "description": "Retailer.",
+            },
+            "HD": {
+                "company_name": "Home Depot",
+                "industry": "Home Improvement",
+                "description": "Retailer.",
+            },
+            "MCD": {
+                "company_name": "McDonald's",
+                "industry": "Restaurants",
+                "description": "Restaurants.",
+            },
+            "TJX": {
+                "company_name": "TJX",
+                "industry": "Apparel - Retail",
+                "description": "Retailer.",
+            },
+            "BKNG": {
+                "company_name": "Booking",
+                "industry": "Travel Services",
+                "description": "Travel.",
+            },
+            "BABA": {
+                "company_name": "Alibaba",
+                "industry": "Specialty Retail",
+                "description": "Retailer.",
+            },
+        },
+    }
+
+    result = screen_peers(payload, "TSLA")
+
+    # Every selected peer is a real automaker (positive P/E, above the wide floor).
+    assert set(result.tickers) == {"TM", "GM", "RACE", "GELHY"}
+    # All from the high-affinity tiers (1 = industry, 2 = stock_peers); no tier 3.
+    assert all(t <= 2 for t in result.tier_of.values())
+    # No same-sector retailer leaked in.
+    for retailer in ("AMZN", "HD", "MCD", "TJX", "BKNG", "BABA"):
+        assert retailer not in result.tickers
+    # Deterministic.
+    assert result == screen_peers(payload, "TSLA")

@@ -10,15 +10,25 @@ Selection = tiered business affinity, then size proximity within tier
 (empirically validated 2026-06-05 against MSFT/KO/NVDA/ADBE; pure size
 proximity without tiers turned MSFT's comp sheet into a semiconductor basket):
 
-  Tier 1  same FMP industry        (closest business definition)
-  Tier 2  FMP stock_peers list     (cross-recommendations, may cross industry)
-  Tier 3  same FMP sector          (breadth fill for mega-caps whose industry
-                                    slice is too thin at their size)
+  Tier 1  same FMP industry        (closest business definition)   ─┐ high
+  Tier 2  FMP stock_peers list     (cross-recommendations)          ─┘ affinity
+  Tier 3  same FMP sector          (cross-industry breadth fill — used ONLY when
+                                    the affinity tiers can't field a viable set)
 
 Within each tier candidates must pass the eligibility screen:
-  - market cap within [1/BAND, BAND]x of the target (no $5B "peer" for $3T)
+  - market cap inside the tier's band. The CEILING is 20x for every tier (never
+    compare UP to a giant). The FLOOR differs by affinity: the high-affinity
+    tiers (1, 2) use a wide 1/200x floor — a same-industry / cross-recommended
+    name is a real comp even when much smaller, and a symmetric 1/20x floor
+    excludes every actual peer of a mega-cap industry LEADER (TSLA's 1/20 floor
+    is $77B, above all automakers but Toyota). The low-affinity sector tier (3)
+    keeps the strict 1/20x floor so breadth fill can't drag in a $5B "peer".
   - positive trailing P/E (loss-makers carry no earnings-multiple information and
     are not trading comps; a NEGATIVE P/E is excluded here)
+
+Tier 3 (cross-industry) is skipped entirely when tiers 1+2 yield ≥3 eligible
+names: ≥3 genuine comps stand on their own, and padding an automaker's sheet with
+same-sector retailers (Home Depot / McDonald's) only dilutes the median.
 
 Note the MEMBER gate is only ``pe > 0`` — a positive-but-high trailing P/E (AMD
 at 156x, ARM at 399x, both textbook NVDA competitors) stays IN the set for the
@@ -44,7 +54,29 @@ PEER_SCREEN_TOP_N: Final[int] = 7
 """Slots to fill. 6-8 is the standard comp-sheet size; 7 keeps medians odd."""
 
 PEER_SCREEN_MCAP_BAND: Final[float] = 20.0
-"""Eligible market-cap band: peer must be within [1/20, 20]x of the target."""
+"""Eligible market-cap band for the LOW-affinity sector tier: a same-sector but
+cross-industry name must be within [1/20, 20]x of the target to be a comp."""
+
+PEER_SCREEN_HIGH_AFFINITY_FLOOR_BAND: Final[float] = 200.0
+"""Wider FLOOR divisor for the high-affinity tiers (same industry + stock_peers).
+
+A same-industry or explicitly cross-recommended company is a real trading comp
+even when it is much smaller — relative multiples (P/E, EV/EBITDA) are size-
+normalised. The symmetric 20x floor breaks for mega-cap industry LEADERS: for
+TSLA ($1.5T) the 1/20 floor is $77B, which excludes every actual automaker but
+Toyota (GM $75.5B misses by $1.3B; Ferrari/Ford/Honda/Stellantis/Rivian all
+below it) — so the sheet backfilled from the Consumer-Cyclical SECTOR with
+McDonald's/Home Depot/TJX. The floor is widened to 1/200x for the affinity tiers
+(≈$7.7B for TSLA: keeps TM/GM/RACE/Geely, drops micro-cap EV startups) while the
+CEILING stays 20x (don't compare UP to a giant). The sector tier keeps the
+strict band. Empirically validated 2026-06-09 against TSLA/MSFT/KO/NVDA."""
+
+PEER_SCREEN_MIN_AFFINITY_FOR_SECTOR: Final[int] = 3
+"""High-affinity peer count at/above which the cross-industry sector tier is NOT
+used. With ≥3 genuine same-industry / cross-recommended comps a sheet stands on
+its own; padding it with same-sector-different-industry names (retail for an
+automaker) only dilutes the median. Below 3, sector breadth fill is the lesser
+evil (some comp signal beats none) — the original mega-cap-thin-industry net."""
 
 
 class PeerScreenResult(BaseModel):
@@ -202,6 +234,8 @@ def screen_peers(
     *,
     top_n: int = PEER_SCREEN_TOP_N,
     mcap_band: float = PEER_SCREEN_MCAP_BAND,
+    high_affinity_floor_band: float = PEER_SCREEN_HIGH_AFFINITY_FLOOR_BAND,
+    min_affinity_for_sector: int = PEER_SCREEN_MIN_AFFINITY_FOR_SECTOR,
 ) -> PeerScreenResult:
     """Screen the raw PEER_CANDIDATES payload into a deterministic peer set.
 
@@ -257,8 +291,15 @@ def screen_peers(
         [str(s).upper() for s in payload.get("sector_screen") or []],
     ]
 
-    def in_band(mcap: float) -> bool:
-        return mcap > 0 and 1.0 / mcap_band <= mcap / target_mcap <= mcap_band
+    def in_band(mcap: float, tier_idx: int) -> bool:
+        # Ceiling is the same for every tier (never compare UP to a 20x+ giant).
+        # Floor is wider for the high-affinity tiers (1 = same industry, 2 =
+        # stock_peers) so a real but smaller peer is not excluded; the low-
+        # affinity sector tier (3) keeps the strict symmetric floor.
+        if mcap <= 0:
+            return False
+        floor_band = mcap_band if tier_idx >= 3 else high_affinity_floor_band
+        return target_mcap / floor_band <= mcap <= target_mcap * mcap_band
 
     def meaningful(pe: float | None) -> bool:
         # MEMBER gate only: pe > 0. A loss-maker carries no earnings-multiple
@@ -272,15 +313,15 @@ def screen_peers(
 
     dropped_nm: list[str] = []
     dropped_role: list[str] = []
-    eligible_pool_pes: list[float] = []
+    eligible: list[tuple[str, int, float]] = []  # (sym, first-seen tier, pe)
     seen_pool: set[str] = set()
-    for tier_syms in tiers:
+    for tier_idx, tier_syms in enumerate(tiers, start=1):
         for sym in tier_syms:
             if sym == target or sym in seen_pool or sym not in quotes:
                 continue
             seen_pool.add(sym)
             mcap, pe = quotes[sym]
-            if not in_band(mcap):
+            if not in_band(mcap, tier_idx):
                 continue
             if not role_ok(sym):
                 dropped_role.append(sym)
@@ -289,7 +330,13 @@ def screen_peers(
                 dropped_nm.append(sym)
                 continue
             assert pe is not None  # narrowed by meaningful()
-            eligible_pool_pes.append(pe)
+            eligible.append((sym, tier_idx, pe))
+
+    # The cross-industry sector tier (3) is breadth fill of last resort: skip it
+    # entirely when the high-affinity tiers (1+2) already field a viable set.
+    high_affinity_count = sum(1 for _, t, _ in eligible if t <= 2)
+    use_sector = high_affinity_count < min_affinity_for_sector
+    eligible_pool_pes = [pe for _, t, pe in eligible if use_sector or t <= 2]
 
     chosen: list[str] = []
     tier_of: dict[str, int] = {}
@@ -298,13 +345,15 @@ def screen_peers(
     for tier_idx, tier_syms in enumerate(tiers, start=1):
         if len(chosen) >= top_n:
             break
+        if tier_idx >= 3 and not use_sector:
+            continue
         ranked = sorted(
             (abs(math.log(quotes[s][0] / target_mcap)), s)
             for s in sorted(set(tier_syms))
             if s != target
             and s not in seen
             and s in quotes
-            and in_band(quotes[s][0])
+            and in_band(quotes[s][0], tier_idx)
             and role_ok(s)
             and meaningful(quotes[s][1])
         )
@@ -320,15 +369,23 @@ def screen_peers(
     selected_median = _median([p for p in selected_pes if p is not None])
     pool_median = _median(eligible_pool_pes)
 
+    sector_note = (
+        f"高亲和层(同行业+互荐) {high_affinity_count} 家 ≥ {min_affinity_for_sector}，"
+        "跳过跨行业同板块层"
+        if not use_sector
+        else f"高亲和层仅 {high_affinity_count} 家 < {min_affinity_for_sector}，"
+        f"启用同板块层补足(严格带 [{1 / mcap_band:.2g}x, {mcap_band:.0f}x])"
+    )
     rationale = (
-        f"确定性筛选：候选池 {len(seen_pool)} 家 → 市值带 [{1 / mcap_band:.2g}x, "
-        f"{mcap_band:.0f}x] + 价值链角色一致 + 正 P/E（成员门 pe>0，高倍数对手保留入集、"
+        f"确定性筛选：候选池 {len(seen_pool)} 家 → 高亲和层市值带 "
+        f"[{1 / high_affinity_floor_band:.3g}x, {mcap_band:.0f}x]（同行业/互荐的真实可比"
+        f"不因更小而剔除）+ 价值链角色一致 + 正 P/E（成员门 pe>0，高倍数对手保留入集、"
         f"其失真倍数在中位数处单独 NM）过滤后 "
         f"{len(eligible_pool_pes)} 家（亏损剔除 {len(dropped_nm)} 家"
         f"{'：' + ', '.join(dropped_nm[:6]) if dropped_nm else ''}；"
         f"角色剔除 {len(dropped_role)} 家"
-        f"{'：' + ', '.join(dropped_role[:6]) if dropped_role else ''}）→ "
-        f"按 同行业>互荐>同板块 分层、层内规模邻近取 {len(chosen)} 家："
+        f"{'：' + ', '.join(dropped_role[:6]) if dropped_role else ''}）；"
+        f"{sector_note} → 按 同行业>互荐>同板块 分层、层内规模邻近取 {len(chosen)} 家："
         f"{', '.join(trace_picks)}"
     )
 

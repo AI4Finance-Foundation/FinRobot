@@ -13,6 +13,7 @@ from starlette.requests import Request
 
 from finrobot.artifact.models import Artifact
 from finrobot.artifact.store import ArtifactStore
+from finrobot.engine.compute.coordinators.extractor import extract_financial_data
 from finrobot.engine.compute.operators.forward_estimates import (
     ForwardFinancials,
     get_forward_financials,
@@ -32,7 +33,6 @@ from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import (
     DCFResult,
     DDMResult,
-    FinancialData,
     LBOResult,
     PeerComps,
     ValuationAggregate,
@@ -371,19 +371,25 @@ async def _current_ev_ebitda_override(
         return None
     try:
         fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+        price = await data_layer.fetch_canonical(DataType.PRICE, ticker)
     except (ProviderError, ValueError, KeyError) as exc:
         logger.info(
-            "current EV/EBITDA override: canonical financials unavailable for %s: %s", ticker, exc
+            "current EV/EBITDA override: canonical snapshot unavailable for %s: %s", ticker, exc
         )
         return None
-    if not isinstance(fin, FinancialData):
-        return None
-    balance = getattr(fin, "balance", None)
-    total_debt = getattr(balance, "total_debt", None) if balance is not None else None
-    total_cash = getattr(balance, "total_cash", None) if balance is not None else None
+    # fetch_canonical(FINANCIALS) returns a NormalizedFinancials, not a
+    # FinancialData — the previous `isinstance(fin, FinancialData)` guard was
+    # therefore always False, leaving the override permanently None and the band
+    # silently back on the trailing-ANNUAL samples[-1] caliber (the very W1-C2
+    # flip this override exists to close). Project the canonical snapshot through
+    # the same extractor the /financials route uses, then read the TTM legs.
+    financial_data = extract_financial_data(fin, price)
+    balance = financial_data.balance
+    total_debt = balance.total_debt
+    total_cash = balance.total_cash
     if total_debt is None or total_cash is None:
         return None
-    return current_ev_ebitda(fin, float(total_debt) - float(total_cash))
+    return current_ev_ebitda(financial_data, float(total_debt) - float(total_cash))
 
 
 # ---------------------------------------------------------------------------

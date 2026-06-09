@@ -59,10 +59,17 @@ async function postDcfWhatIf({
   return (await resp.json()) as DcfWhatIfResponse
 }
 
-// How many of the newest same-type versions the rail timeline renders. The
-// total count still shows in the panel header, so the cap never reads as
-// "this is all of them".
-const MAX_TIMELINE_ROWS = 8
+// Cap (px) on the timeline's scroll viewport on a roomy window — ~5–6 rows show
+// before the body scrolls internally; the full count is always in the panel
+// header. The card is fixed-height (never grows with version count), so a long
+// history can't shove the What-If card below it off-screen.
+const TIMELINE_MAX_HEIGHT = 320
+
+// Space (px) the rest of the rail needs inside the viewport — the rail's top
+// offset plus the What-If card beneath the timeline. On short windows (e.g. a
+// 1366×768 laptop) `calc(100vh - reserve)` shrinks the timeline below the cap so
+// the What-If card stays above the fold instead of being pushed off-screen.
+const TIMELINE_VIEWPORT_RESERVE = 480
 
 // Distance (px) from a row's top edge to its dot centre — kept in one place so
 // the connecting spine segments line up exactly with the dots.
@@ -107,13 +114,24 @@ export function ReportRightRail({
             {t('report.timeline.empty')}
           </p>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {sameType.slice(0, MAX_TIMELINE_ROWS).map((a, i, rows) => (
+          <div
+            // Fixed-height scroll box: newest (current) version sits at the top
+            // and shows without scrolling; older versions stay reachable by
+            // scrolling instead of pushing the rail's lower cards off-screen.
+            data-testid="timeline-scroll"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: `min(${TIMELINE_MAX_HEIGHT}px, calc(100vh - ${TIMELINE_VIEWPORT_RESERVE}px))`,
+              overflowY: 'auto',
+            }}
+          >
+            {sameType.map((a, i, rows) => (
               <TimelineRow
                 key={a.id}
                 artifact={a}
-                // Version number counts from the FULL same-type history (newest
-                // = vN), not the sliced window — so the cap never renumbers.
+                // Version number counts from the FULL same-type history
+                // (newest = vN).
                 version={sameType.length - i}
                 current={a.id === currentArtifactId}
                 isFirst={i === 0}

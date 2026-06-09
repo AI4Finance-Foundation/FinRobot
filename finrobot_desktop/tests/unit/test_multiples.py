@@ -123,7 +123,26 @@ def test_calculate_ev():
     assert calculate_ev(100, 30, 10) == 120
 
 
-def _financial_data(*, market_cap, ebitda):
+def test_calculate_ev_includes_preferred_and_nci():
+    # Source: standard EV bridge (Damodaran / CFA) = market_cap + total_debt
+    # + preferred equity + noncontrolling interest − cash. The net-debt-only
+    # version (mc + debt − cash) understates EV and every EV multiple for any
+    # issuer carrying preferred/NCI (KO live 2026-06-08: NCI 2.10B = 0.56% of EV
+    # silently dropped; SAP 0.28%). The 3-arg call is the preferred=NCI=0 special
+    # case and must stay backward-compatible (see test_calculate_ev above).
+    assert calculate_ev(100, 30, 10, preferred=5, noncontrolling_interest=8) == 133
+
+
+def test_current_ev_ebitda_includes_preferred_and_nci():
+    # The canonical current EV/EBITDA reads preferred + NCI off the FinancialData
+    # it already receives, so the figure the report's comps/technical chapters and
+    # the bands route consume is EV-bridge-complete, not net-debt-only.
+    fd = _financial_data(market_cap=100e9, ebitda=4e9, preferred=5e9, noncontrolling_interest=8e9)
+    # EV = mc 100e9 + net_debt 3e9 + preferred 5e9 + NCI 8e9 = 116e9; / 4e9 = 29.0x
+    assert current_ev_ebitda(fd, net_debt=3e9) == pytest.approx(29.0)
+
+
+def _financial_data(*, market_cap, ebitda, preferred=None, noncontrolling_interest=None):
     """Minimal canonical FinancialData for current_ev_ebitda (TTM) tests."""
     from finrobot.engine.models.financial import (
         BalanceSheet,
@@ -145,7 +164,12 @@ def _financial_data(*, market_cap, ebitda):
             operating_margin=0.4,
             interest_expense=1e6,
         ),
-        balance=BalanceSheet(total_debt=1e9, total_cash=2e9),
+        balance=BalanceSheet(
+            total_debt=1e9,
+            total_cash=2e9,
+            preferred_stock=preferred,
+            noncontrolling_interest=noncontrolling_interest,
+        ),
         market=MarketData(
             market_cap=market_cap,
             shares_outstanding=1e9,

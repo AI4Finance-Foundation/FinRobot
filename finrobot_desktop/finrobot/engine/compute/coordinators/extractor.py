@@ -178,7 +178,13 @@ def extract_financial_data(
     ev_revenue: float | None = None
 
     if raw_debt is not None and raw_cash is not None:
-        ev = calculate_ev(market_cap, total_debt, total_cash)
+        ev = calculate_ev(
+            market_cap,
+            total_debt,
+            total_cash,
+            fin.preferred_stock or 0.0,
+            fin.noncontrolling_interest or 0.0,
+        )
         ev_ebitda = ev / ebitda_operating if (ebitda_operating and ebitda_operating > 0) else None
         ev_ebitda_reported = (
             ev / ebitda_reported if (ebitda_reported and ebitda_reported > 0) else None
@@ -245,8 +251,9 @@ def extract_financial_data(
             # above; the stored balance must not fabricate a zero (N15/#10).
             total_debt=raw_debt,
             total_cash=raw_cash,
-            # EV-bridge completeness (numeric-audit family 3): carry preferred + NCI
-            # so audit.ev_bridge can flag an EV that omitted them. None ≠ 0.
+            # EV-bridge completeness (numeric-audit family 3): preferred + NCI are
+            # folded into calculate_ev above when reported; carried here so
+            # audit.ev_bridge can flag an UNREPORTED (None) one. None ≠ 0.
             preferred_stock=fin.preferred_stock,
             noncontrolling_interest=fin.noncontrolling_interest,
         ),

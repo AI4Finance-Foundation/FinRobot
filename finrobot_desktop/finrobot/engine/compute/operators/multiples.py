@@ -92,9 +92,25 @@ def _sanity(value: float | None, lo: float, hi: float) -> float | None:
     return value
 
 
-def calculate_ev(market_cap: float, total_debt: float, cash: float) -> float:
-    """Enterprise Value = Market Cap + Total Debt - Cash"""
-    return market_cap + total_debt - cash
+def calculate_ev(
+    market_cap: float,
+    total_debt: float,
+    cash: float,
+    preferred: float = 0.0,
+    noncontrolling_interest: float = 0.0,
+) -> float:
+    """Enterprise Value = Market Cap + Total Debt + Preferred + NCI − Cash.
+
+    The full EV bridge (Damodaran / CFA): preferred equity and noncontrolling
+    (minority) interest are claims on the enterprise alongside / senior to common,
+    so they belong in EV. The net-debt-only ``mc + debt − cash`` understates EV —
+    and EV/EBITDA, EV/Revenue — for any issuer carrying them, invisibly to the
+    identity which still closes to the dollar (live 2026-06-08: KO NCI 2.10B =
+    0.56% of EV, SAP 0.28%). ``preferred``/``noncontrolling_interest`` default to
+    0.0 so a caller without those components (or a pref=NCI=0 issuer) gets the
+    net-debt special case unchanged.
+    """
+    return market_cap + total_debt - cash + preferred + noncontrolling_interest
 
 
 def current_ev_ebitda(financial_data: FinancialData, net_debt: float) -> float | None:
@@ -103,8 +119,9 @@ def current_ev_ebitda(financial_data: FinancialData, net_debt: float) -> float |
     multiple, the technical chapter's historical-band ``current_override``, and
     the standalone ``GET /api/valuation/historical-bands`` route.
 
-    EV = market_cap + net_debt — the same identity ``calculate_ev`` encodes,
-    with ``net_debt`` already collapsed to total_debt − cash; divided by TTM
+    EV = market_cap + net_debt + preferred + NCI — the full bridge ``calculate_ev``
+    encodes, with ``net_debt`` already collapsed to total_debt − cash and the
+    preferred/NCI components read off ``financial_data.balance``; divided by TTM
     EBITDA. Returns None when market_cap or TTM EBITDA is missing or
     non-positive: the caller then lets the historical band fall back to its
     trailing-annual basis (which discloses the口径). Routing every surface
@@ -116,6 +133,7 @@ def current_ev_ebitda(financial_data: FinancialData, net_debt: float) -> float |
     """
     market = getattr(financial_data, "market", None)
     income = getattr(financial_data, "income", None)
+    balance = getattr(financial_data, "balance", None)
     market_cap = getattr(market, "market_cap", None) if market is not None else None
     ebitda = getattr(income, "ebitda", None) if income is not None else None
     if market_cap is None or ebitda is None:
@@ -124,7 +142,15 @@ def current_ev_ebitda(financial_data: FinancialData, net_debt: float) -> float |
     ebitda = float(ebitda)
     if market_cap <= 0 or ebitda <= 0:
         return None
-    return (market_cap + net_debt) / ebitda
+    # EV-bridge completeness: preferred + NCI belong in EV (see calculate_ev). They
+    # are read off the balance sheet the caller already passes; a None component
+    # ("not carried") contributes 0 — the pref=NCI=0 case reduces to mc + net_debt.
+    preferred = 0.0
+    nci = 0.0
+    if balance is not None:
+        preferred = getattr(balance, "preferred_stock", None) or 0.0
+        nci = getattr(balance, "noncontrolling_interest", None) or 0.0
+    return (market_cap + net_debt + preferred + nci) / ebitda
 
 
 def compute_ttm_fcf(

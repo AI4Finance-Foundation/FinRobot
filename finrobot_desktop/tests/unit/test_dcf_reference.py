@@ -21,11 +21,14 @@ Excel verification (wacc_override=10%, tg=2.5%):
   Y5 rev: 499.03B, FCF: 110.60B
   PV_FCF = 90.99/1.1 + 95.54/1.21 + 100.32/1.331 + 105.34/1.4641 + 110.60/1.61051
          = 82.72 + 78.96 + 75.37 + 71.95 + 68.67 = 377.67B
-  TV = 110.60×1.025/(0.10-0.025) = 1512.87B
-  PV_TV = 1512.87/1.61051 = 939.37B
-  EV = 377.67 + 939.37 = 1317.04B
-  Equity = 1317.04 - 66.9 = 1250.14B
-  Price = 1250.14 / 15.12 = $82.68/share
+  Terminal FCF normalizes capex→D&A×(1+g); with da_pct=0 terminal capex=0, so
+  terminal FCF = EBITDA₅×(1-tax) - NWC₅ = 167.18×0.79 - 7.49 = 124.59B (vs the
+  $110.60 explicit-year FCF, which still carried the 2.8% growth-phase capex).
+  TV = 124.59×1.025/(0.10-0.025) = 1702.74B
+  PV_TV = 1702.74/1.61051 = 1057.27B
+  EV = 377.67 + 1057.27 = 1434.94B
+  Equity = 1434.94 - 66.9 = 1368.04B
+  Price = 1368.04 / 15.12 = $90.48/share
 
 This is NOT a real Apple valuation (simplified FCF formula understates value
 because it over-taxes D&A). It's a test of the DCF arithmetic engine.
@@ -57,6 +60,7 @@ def test_dcf_apple_fy2024_simplified():
     )
     result = calculate_dcf(inputs, wacc_override=0.10)
 
-    # Implied price within $1 of hand-calculated $82.68
-    assert abs(result.implied_price - 82.68) < 1.0, f"Got {result.implied_price:.2f}"
+    # Implied price within $1 of hand-calculated $90.48 (see module docstring;
+    # terminal capex→D&A normalization lifted it from the legacy $82.68).
+    assert abs(result.implied_price - 90.48) < 1.0, f"Got {result.implied_price:.2f}"
     assert result.projection_years == 5

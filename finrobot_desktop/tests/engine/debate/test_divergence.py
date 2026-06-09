@@ -90,9 +90,7 @@ def test_original_point_unchanged_after_recompute(monkeypatch: pytest.MonkeyPatc
     """recompute_divergence must return model_copy, not mutate the original."""
     import finrobot.engine.debate.divergence as div
 
-    monkeypatch.setattr(
-        div, "compute_dcf_implied_price", lambda base_inputs, overrides: 42.0
-    )
+    monkeypatch.setattr(div, "compute_dcf_implied_price", lambda base_inputs, overrides: 42.0)
 
     original = DivergencePoint(assumption="wacc", bull_value=0.09, bear_value=0.12)
     out = div.recompute_divergence(original, base_inputs=_make_inputs())
@@ -117,9 +115,7 @@ def test_overrides_dict_contains_correct_key(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setattr(div, "compute_dcf_implied_price", capturing_dcf)
 
-    point = DivergencePoint(
-        assumption="terminal_growth", bull_value=0.03, bear_value=0.015
-    )
+    point = DivergencePoint(assumption="terminal_growth", bull_value=0.03, bear_value=0.015)
     div.recompute_divergence(point, base_inputs=_make_inputs())
 
     # Two calls: one for bull, one for bear
@@ -138,7 +134,7 @@ def test_wacc_divergence_true_value_matches_calculate_dcf() -> None:
 
     Verification table (baseline from test_dcf.py::test_dcf_correctness_hand_calculated):
       assumption | override      | expected (calculate_dcf) | recompute result | consistent?
-      wacc=0.10  | wacc=0.10    | $303.64 (±$0.10)         | must match       | YES
+      wacc=0.10  | wacc=0.10    | $357.80 (±$0.10)         | must match       | YES
       wacc=0.12  | wacc=0.12    | >0, < wacc=0.10 price    | must match       | YES
     """
     from finrobot.engine.compute.operators.dcf import calculate_dcf
@@ -146,7 +142,7 @@ def test_wacc_divergence_true_value_matches_calculate_dcf() -> None:
 
     inputs = _make_inputs()
 
-    # Bull: wacc=0.10 (matches the hand-calculated $303.64 baseline)
+    # Bull: wacc=0.10 (matches the hand-calculated $357.80 baseline)
     # Bear: wacc=0.12 (higher discount rate → lower price)
     point = DivergencePoint(assumption="wacc", bull_value=0.10, bear_value=0.12)
     out = recompute_divergence(point, base_inputs=inputs)
@@ -154,11 +150,10 @@ def test_wacc_divergence_true_value_matches_calculate_dcf() -> None:
     expected_bull = calculate_dcf(inputs, wacc_override=0.10).implied_price
     expected_bear = calculate_dcf(inputs, wacc_override=0.12).implied_price
 
-    # Assert against the $303.64 hand-calculated baseline from the DCF spec
-    assert abs(expected_bull - 303.64) < 0.10, (
-        f"Baseline drift: calculate_dcf(wacc=0.10) = {expected_bull:.4f}, "
-        "expected ≈303.64"
-    )
+    # Assert against the $357.80 hand-calculated baseline from the DCF spec
+    assert (
+        abs(expected_bull - 357.80) < 0.10
+    ), f"Baseline drift: calculate_dcf(wacc=0.10) = {expected_bull:.4f}, expected ≈357.80"
 
     # Divergence recompute must match calculate_dcf exactly (same code path)
     assert out.bull_implied_price == pytest.approx(expected_bull, rel=1e-9), (
@@ -191,9 +186,7 @@ def test_terminal_growth_divergence_monotonicity() -> None:
     # Bull: higher terminal growth = higher price
     # Bear: lower terminal growth = lower price
     # Both must be < WACC to satisfy Gordon Growth constraint
-    point = DivergencePoint(
-        assumption="terminal_growth", bull_value=0.03, bear_value=0.015
-    )
+    point = DivergencePoint(assumption="terminal_growth", bull_value=0.03, bear_value=0.015)
     out = recompute_divergence(point, base_inputs=inputs)
 
     assert out.bull_implied_price is not None
@@ -210,9 +203,7 @@ def test_terminal_growth_true_value_matches_calculate_dcf() -> None:
     from finrobot.engine.debate.divergence import recompute_divergence
 
     inputs = _make_inputs()
-    point = DivergencePoint(
-        assumption="terminal_growth", bull_value=0.03, bear_value=0.015
-    )
+    point = DivergencePoint(assumption="terminal_growth", bull_value=0.03, bear_value=0.015)
     out = recompute_divergence(point, base_inputs=inputs)
 
     expected_bull = calculate_dcf(inputs, tg_override=0.03).implied_price
@@ -246,9 +237,7 @@ def test_terminal_growth_rate_alias_accepted() -> None:
     from finrobot.engine.debate.divergence import recompute_divergence
 
     inputs = _make_inputs()
-    point = DivergencePoint(
-        assumption="terminal_growth_rate", bull_value=0.03, bear_value=0.015
-    )
+    point = DivergencePoint(assumption="terminal_growth_rate", bull_value=0.03, bear_value=0.015)
     out = recompute_divergence(point, base_inputs=inputs)
 
     assert out.bull_implied_price is not None

@@ -73,15 +73,16 @@ def calculate_dcf(
     # report narrative or the LLM thesis prompt. Degrade the same way the tg >= wacc
     # case does: raise ValueError so the equity_research pipeline skips the DCF
     # chapter and falls back to relative valuation (see BUG-074).
-    if projected_fcf[-1] <= 0:
+    terminal_fcf = _terminal_fcf(inputs, projected_revenue[-1], tg)
+    if terminal_fcf <= 0:
         raise ValueError(
-            f"Terminal-year FCF is non-positive ({projected_fcf[-1]:.3g}); the Gordon "
-            "Growth Model would capitalize a trough cash flow into a perpetual negative "
-            "terminal value and a negative implied price. DCF is not applicable — use "
-            "relative valuation instead."
+            f"Steady-state terminal FCF is non-positive ({terminal_fcf:.3g}); the Gordon "
+            "Growth Model would capitalize it into a perpetual negative terminal value and "
+            "a negative implied price. DCF is not applicable — use relative valuation "
+            "instead."
         )
 
-    terminal_value = projected_fcf[-1] * (1 + tg) / (wacc - tg)
+    terminal_value = terminal_fcf * (1 + tg) / (wacc - tg)
     pv_terminal = terminal_value / (1 + wacc) ** (n - offset)
 
     # 8-10. Valuation bridge: EV → Equity → Price
@@ -120,7 +121,7 @@ def calculate_sensitivity(
     (Gordon Growth Model undefined).
     """
     # --- Project FCFs once (WACC/TG-independent) ---
-    _, _, projected_fcf = _project_full(inputs)
+    projected_revenue, _, projected_fcf = _project_full(inputs)
     n = len(projected_fcf)
     offset = 0.5 if mid_year else 0.0
 
@@ -129,13 +130,16 @@ def calculate_sensitivity(
     for w in wacc_range:
         row: list[float | None] = []
         for g in tg_range:
-            if g >= w:
+            # Terminal FCF normalizes capex→D&A at the cell's own g (see
+            # _terminal_fcf), so the grid centre matches calculate_dcf's base case.
+            terminal_fcf = _terminal_fcf(inputs, projected_revenue[-1], g)
+            if g >= w or terminal_fcf <= 0:
                 row.append(None)
             else:
                 pv_fcf = sum(
                     fcf / (1 + w) ** (i + 1 - offset) for i, fcf in enumerate(projected_fcf)
                 )
-                tv = projected_fcf[-1] * (1 + g) / (w - g)
+                tv = terminal_fcf * (1 + g) / (w - g)
                 pv_tv = tv / (1 + w) ** (n - offset)
                 ev = pv_fcf + pv_tv
                 equity = ev - inputs.net_debt
@@ -189,6 +193,31 @@ def _project_full(
     return revenue, ebitda_list, fcfs
 
 
+def _terminal_fcf(inputs: DCFInputs, terminal_revenue: float, terminal_growth: float) -> float:
+    """Steady-state free cash flow that feeds the Gordon perpetuity.
+
+    In stable growth, reinvestment normalizes: capex converges to maintenance
+    (≈ D&A) plus the small net investment that funds perpetual growth, so
+    ``capex = D&A × (1 + g)`` (net capex = g × D&A grows the asset base at g).
+    Capitalizing the LAST EXPLICIT-YEAR FCF instead — which still carries the
+    full growth-phase capex — capitalizes a perpetually-suppressed cash flow: a
+    company growing at GDP (3%) cannot out-invest its depreciation by 67% forever.
+    For a capex-heavy grower (TSLA: capex 9.2% vs D&A 5.5% of revenue, held into
+    the perpetuity) that pinned the Gordon terminal value ~40% too low — implied
+    $28 vs the steady-state-normalized ~$38. Only the perpetuity BASE normalizes;
+    the explicit-forecast FCFs keep their growth-phase capex unchanged.
+
+    The same normalization runs in calculate_dcf, calculate_sensitivity, and the
+    reverse-DCF kernel (_price_for) so the base case, the sensitivity grid centre,
+    and the market-implied solver all speak the same terminal economics.
+    """
+    rev = terminal_revenue
+    da = rev * inputs.da_pct_revenue
+    ebit = rev * inputs.ebitda_margin - da
+    capex = da * (1 + terminal_growth)
+    return ebit * (1 - inputs.tax_rate) + da - capex - rev * inputs.nwc_pct_revenue
+
+
 def _price_for(
     inputs: DCFInputs,
     growth_rate: float,
@@ -209,11 +238,12 @@ def _price_for(
     """
     if terminal_growth >= wacc:
         raise ValueError(f"Terminal growth {terminal_growth} must be less than WACC {wacc}")
-    _, _, fcfs = _project_full(inputs, [growth_rate] * horizon_years)
+    revenue, _, fcfs = _project_full(inputs, [growth_rate] * horizon_years)
     offset = 0.5 if mid_year else 0.0
     n = horizon_years
     pv_fcf: float = sum(f / (1 + wacc) ** (i + 1 - offset) for i, f in enumerate(fcfs))
-    tv = fcfs[-1] * (1 + terminal_growth) / (wacc - terminal_growth)
+    terminal_fcf = _terminal_fcf(inputs, revenue[-1], terminal_growth)
+    tv = terminal_fcf * (1 + terminal_growth) / (wacc - terminal_growth)
     pv_tv = tv / (1 + wacc) ** (n - offset)
     enterprise_value = pv_fcf + pv_tv
     equity_value = enterprise_value - inputs.net_debt
@@ -511,13 +541,16 @@ def solve_for_implied_wacc(
     # Use the inputs' own growth schedule (no override here — the user is
     # solving for the discount rate they are willing to accept under their
     # own growth assumptions).
-    _, _, fcfs = _project_full(inputs)
+    revenue, _, fcfs = _project_full(inputs)
     n = len(fcfs)
     offset = 0.5 if mid_year else 0.0
+    # Terminal capex normalizes to D&A (see _terminal_fcf) — same perpetuity base
+    # calculate_dcf uses, so the reverse-WACC solve round-trips the forward DCF.
+    terminal_fcf = _terminal_fcf(inputs, revenue[-1], tg)
 
     def _price_at(wacc: float) -> float:
         pv_fcf: float = sum(f / (1 + wacc) ** (i + 1 - offset) for i, f in enumerate(fcfs))
-        tv = fcfs[-1] * (1 + tg) / (wacc - tg)
+        tv = terminal_fcf * (1 + tg) / (wacc - tg)
         pv_tv = tv / (1 + wacc) ** (n - offset)
         return float(((pv_fcf + pv_tv) - inputs.net_debt) / inputs.shares_outstanding)
 

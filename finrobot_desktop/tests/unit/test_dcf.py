@@ -29,13 +29,20 @@ def _make_inputs(**overrides):
 
 
 def test_dcf_correctness_hand_calculated():
-    """Hand-calculated expected value: ~$303.64 per share.
-    revenue_base=100B, 5×5% growth, EBITDA=35%, capex=5%, nwc=2%, tax=21%
-    wacc_override=10%, tg=2.5%, shares=1B, net_debt=10B
-    See spec for full workings. Assert within $0.10."""
+    """Hand-calculated expected value: ~$357.80 per share.
+
+    revenue_base=100B, 5×5% growth, EBITDA=35%, capex=5%, nwc=2%, da=0%, tax=21%
+    wacc_override=10%, tg=2.5%, shares=1B, net_debt=10B.
+
+    Explicit FCF margin = 0.35×0.79 − 0.05 capex − 0.02 nwc = 0.2065 of revenue.
+    Terminal FCF normalizes capex→D&A×(1+g): here D&A=0 so terminal capex=0, giving
+    terminal margin = 0.35×0.79 − 0 − 0.02 = 0.2565 of rev₅. rev₅=127.628B →
+    terminal FCF=32.736B, TV=32.736×1.025/0.075=447.40B, PV(TV)=277.79B;
+    PV(explicit FCFs)=89.996B → EV=367.79B − 10B debt = 357.79B / 1B sh = $357.80.
+    Assert within $0.10."""
     inputs = _make_inputs()
     result = calculate_dcf(inputs, wacc_override=0.10)
-    assert abs(result.implied_price - 303.64) < 0.10, f"Got {result.implied_price}"
+    assert abs(result.implied_price - 357.80) < 0.10, f"Got {result.implied_price}"
 
 
 def test_dcf_deterministic():
@@ -72,11 +79,14 @@ def test_wacc_override():
 
 
 def test_tg_override():
+    from finrobot.engine.compute.operators.dcf import _terminal_fcf
+
     inputs = _make_inputs()
     result = calculate_dcf(inputs, tg_override=0.03)
-    # verify terminal_value uses 0.03
-    final_fcf = result.projected_fcf[-1]
-    expected_tv = final_fcf * (1 + 0.03) / (result.wacc - 0.03)
+    # terminal_value capitalizes the NORMALIZED steady-state FCF (capex→D&A), not
+    # the last explicit-year FCF — and at the overridden tg=0.03.
+    terminal_fcf = _terminal_fcf(inputs, result.projected_revenue[-1], 0.03)
+    expected_tv = terminal_fcf * (1 + 0.03) / (result.wacc - 0.03)
     assert abs(result.terminal_value - expected_tv) < 1
 
 
@@ -125,32 +135,35 @@ def test_terminal_growth_gte_wacc_raises():
 
 
 def test_negative_terminal_fcf_raises_no_negative_price():
-    """BUG-074: a recession/high-capex trough drives the terminal-year FCF
-    negative. With tg < WACC the Gordon formula is still mathematically defined,
-    but it would capitalize that trough into a perpetual NEGATIVE terminal value
-    and a negative implied price per share. calculate_dcf must refuse — raising
-    ValueError (mirroring the tg >= WACC degrade path) so the equity_research
-    pipeline skips the DCF chapter instead of printing a negative fair value.
+    """BUG-074: when the STEADY-STATE terminal FCF is negative, the Gordon formula
+    (tg < WACC) is still defined but would capitalize it into a perpetual NEGATIVE
+    terminal value and a negative implied price per share. calculate_dcf must
+    refuse — raising ValueError (mirroring the tg >= WACC degrade) so the
+    equity_research pipeline skips the DCF chapter instead of printing a negative
+    fair value.
 
-    Recession params from the finding's evidence: revenue 1e11, growth -20%×5,
-    EBITDA 8%, capex 6%, D&A 5%, NWC 2%, tax 21% → terminal-year FCF ≈ -$2.06e8.
+    The guard is on the NORMALIZED terminal FCF (capex→D&A), not the last
+    explicit-year FCF — a heavy-capex growth year is no longer mistaken for a
+    perpetual trough. So the trigger is a structurally unprofitable steady state:
+    here EBITDA margin (4%) sits BELOW D&A (5%), making terminal EBIT — and thus
+    NOPAT and terminal FCF — negative regardless of the capex normalization.
     """
     inputs = _make_inputs(
         revenue_base=1e11,
-        revenue_growth_rates=[-0.20] * 5,
-        ebitda_margin=0.08,
+        revenue_growth_rates=[0.02] * 5,
+        ebitda_margin=0.04,
         capex_pct_revenue=0.06,
-        da_pct_revenue=0.05,
+        da_pct_revenue=0.05,  # D&A > EBITDA margin → terminal EBIT < 0
         nwc_pct_revenue=0.02,
         terminal_growth_rate=0.025,  # tg < WACC: tg >= WACC guard does NOT fire
     )
 
-    # Sanity: the terminal-year FCF really is negative for these inputs, so this
-    # test exercises the negative-FCF guard specifically (not the tg >= WACC one).
-    from finrobot.engine.compute.operators.dcf import _project_full
+    # Sanity: the NORMALIZED terminal FCF really is negative for these inputs, so
+    # this exercises the terminal-FCF guard specifically (not the tg >= WACC one).
+    from finrobot.engine.compute.operators.dcf import _project_full, _terminal_fcf
 
-    _, _, projected_fcf = _project_full(inputs)
-    assert projected_fcf[-1] < 0
+    revenue, _, _ = _project_full(inputs)
+    assert _terminal_fcf(inputs, revenue[-1], inputs.terminal_growth_rate) < 0
 
     with pytest.raises(ValueError):
         calculate_dcf(inputs)

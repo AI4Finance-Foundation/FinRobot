@@ -25,22 +25,31 @@ from finrobot.engine.models.financial import DCFInputs, LBOInputs
 # WACC — CAPM formula (CFA Level I reference)
 # ---------------------------------------------------------------------------
 
+
 class TestWACCSanity:
     """WACC = E/(D+E) * CoE + D/(D+E) * CoD * (1-T), CoE = Rf + B*ERP."""
 
     def test_capm_basic(self) -> None:
         """Rf=4%, Beta=1.2, ERP=5% → CoE = 4% + 1.2*5% = 10%."""
         coe, _ = calculate_wacc(
-            risk_free_rate=0.04, beta=1.2, equity_risk_premium=0.05,
-            cost_of_debt=0.06, tax_rate=0.25, debt_ratio=0.3,
+            risk_free_rate=0.04,
+            beta=1.2,
+            equity_risk_premium=0.05,
+            cost_of_debt=0.06,
+            tax_rate=0.25,
+            debt_ratio=0.3,
         )
         assert abs(coe - 0.10) < 1e-10
 
     def test_wacc_weighted(self) -> None:
         """70% equity at 10%, 30% debt at 6% after 25% tax → WACC = 8.35%."""
         _, wacc = calculate_wacc(
-            risk_free_rate=0.04, beta=1.2, equity_risk_premium=0.05,
-            cost_of_debt=0.06, tax_rate=0.25, debt_ratio=0.3,
+            risk_free_rate=0.04,
+            beta=1.2,
+            equity_risk_premium=0.05,
+            cost_of_debt=0.06,
+            tax_rate=0.25,
+            debt_ratio=0.3,
         )
         # 0.7 * 0.10 + 0.3 * 0.06 * 0.75 = 0.07 + 0.0135 = 0.0835
         assert abs(wacc - 0.0835) < 1e-10
@@ -48,8 +57,12 @@ class TestWACCSanity:
     def test_zero_debt(self) -> None:
         """All-equity firm: WACC = CoE."""
         coe, wacc = calculate_wacc(
-            risk_free_rate=0.04, beta=1.0, equity_risk_premium=0.05,
-            cost_of_debt=0.0, tax_rate=0.21, debt_ratio=0.0,
+            risk_free_rate=0.04,
+            beta=1.0,
+            equity_risk_premium=0.05,
+            cost_of_debt=0.0,
+            tax_rate=0.21,
+            debt_ratio=0.0,
         )
         assert abs(wacc - coe) < 1e-10
         assert abs(coe - 0.09) < 1e-10
@@ -57,8 +70,12 @@ class TestWACCSanity:
     def test_zero_beta(self) -> None:
         """Beta=0 (risk-free asset): CoE = Rf."""
         coe, _ = calculate_wacc(
-            risk_free_rate=0.04, beta=0.0, equity_risk_premium=0.05,
-            cost_of_debt=0.03, tax_rate=0.21, debt_ratio=0.5,
+            risk_free_rate=0.04,
+            beta=0.0,
+            equity_risk_premium=0.05,
+            cost_of_debt=0.03,
+            tax_rate=0.21,
+            debt_ratio=0.5,
         )
         assert abs(coe - 0.04) < 1e-10
 
@@ -66,6 +83,7 @@ class TestWACCSanity:
 # ---------------------------------------------------------------------------
 # DCF — Apple FY2024 reference (simplified formula)
 # ---------------------------------------------------------------------------
+
 
 class TestDCFSanity:
     """Pin DCF arithmetic to hand-calculated Apple 10-K reference."""
@@ -88,16 +106,18 @@ class TestDCFSanity:
             terminal_growth_rate=0.025,
             shares_outstanding=15_120_000_000,
             net_debt=66_900_000_000,
-            # Pin to 0 so the hand-calculated $82.68 reference (computed before
-            # D&A became required) stays valid: D&A=0 means no tax shield,
-            # standard formula collapses to EBITDA(1-T) - CapEx - ΔNWC.
+            # Pin to 0: D&A=0 means no tax shield, the standard formula collapses
+            # to EBITDA(1-T) - CapEx - ΔNWC in the explicit years. With the
+            # terminal-capex→D&A normalization, terminal capex = 0 here, lifting
+            # the perpetuity FCF — the hand-calc reference is now $90.48.
             da_pct_revenue=0.0,
         )
 
     def test_apple_implied_price(self, apple_inputs: DCFInputs) -> None:
-        """WACC override 10%, tg 2.5% → implied price ~$82.68 (hand-calculated)."""
+        """WACC override 10%, tg 2.5% → implied price ~$90.48 (hand-calculated;
+        terminal capex→D&A normalization, up from the legacy $82.68)."""
         result = calculate_dcf(apple_inputs, wacc_override=0.10)
-        assert abs(result.implied_price - 82.68) < 1.0, f"Got {result.implied_price:.2f}"
+        assert abs(result.implied_price - 90.48) < 1.0, f"Got {result.implied_price:.2f}"
 
     def test_da_zero_collapses_to_simplified_arithmetic(self, apple_inputs: DCFInputs) -> None:
         """When D&A=0 the standard formula collapses to EBITDA(1-T) - CapEx - ΔNWC.
@@ -147,6 +167,7 @@ class TestDCFSanity:
 # ---------------------------------------------------------------------------
 # LBO — Rosenbaum & Pearl ValueCo reference
 # ---------------------------------------------------------------------------
+
 
 class TestLBOSanity:
     """Pin LBO to Rosenbaum & Pearl Investment Banking Ch. 8 ValueCo."""
@@ -203,6 +224,7 @@ class TestLBOSanity:
 # ---------------------------------------------------------------------------
 # Multiples — basic EV arithmetic
 # ---------------------------------------------------------------------------
+
 
 class TestMultiplesSanity:
     """EV = Market Cap + Total Debt - Cash."""

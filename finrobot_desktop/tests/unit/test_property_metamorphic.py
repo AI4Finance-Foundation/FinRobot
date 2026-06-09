@@ -451,18 +451,18 @@ class TestDCFMetamorphic:
     def test_linearity_equity_is_affine_not_linear_when_net_debt_fixed(self) -> None:
         """The honest non-trivial finding: equity_value does NOT double when only
         FCF doubles, because net_debt is subtracted unscaled. Observed ratio
-        ≈ 2.033, NOT 2.0. We assert the affine identity exactly (equity = EV −
+        ≈ 2.028, NOT 2.0. We assert the affine identity exactly (equity = EV −
         net_debt) rather than a fudged ≈2× tolerance."""
         base = calculate_dcf(_dcf_inputs(), wacc_override=0.10)
         doubled = calculate_dcf(_dcf_inputs(revenue_base=200_000_000_000.0), wacc_override=0.10)
         net_debt = 10_000_000_000.0
         # equity = EV − net_debt holds for both; the un-doubled net_debt is the
-        # reason the equity ratio (2.033) overshoots 2.0.
+        # reason the equity ratio (2.028) overshoots 2.0.
         assert doubled.equity_value == pytest.approx(
             2.0 * base.enterprise_value - net_debt, rel=1e-12
         )
         equity_ratio = doubled.equity_value / base.equity_value
-        assert equity_ratio == pytest.approx(2.0329, abs=1e-3)
+        assert equity_ratio == pytest.approx(2.0279, abs=1e-3)
         assert equity_ratio > 2.0  # documents the affine overshoot
 
     def test_full_homogeneous_scaling_doubles_equity_exactly(self) -> None:

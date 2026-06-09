@@ -40,15 +40,30 @@ def _base_inputs(**overrides) -> DCFInputs:
 
 
 class TestDaTaxShield:
-    """D&A is a non-cash expense; raising it lowers EBIT (taxable income) and
-    therefore increases after-tax FCF by D&A × tax_rate.
+    """D&A is a non-cash expense; in the EXPLICIT forecast, raising it lowers EBIT
+    (taxable income) and therefore increases after-tax FCF by D&A × tax_rate.
+
+    In the TERMINAL value, D&A also sets the steady-state maintenance capex
+    (capex → D&A×(1+g), see dcf._terminal_fcf), so across the WHOLE valuation D&A
+    reads as a capital-intensity proxy, not a free tax shield — see first test.
     """
 
-    def test_implied_price_increases_with_da(self):
+    def test_da_capital_intensity_lowers_total_implied_price(self):
+        """With explicit capex FIXED, raising D&A LOWERS the total implied price.
+
+        The terminal value normalizes maintenance capex to D&A×(1+g): a firm
+        depreciating 10% of revenue must reinvest ~10% in perpetuity, a 1%
+        depreciator only ~1%. The terminal dominates the DCF, so higher D&A (more
+        capital-intensive) → lower value — even though the explicit-period tax
+        shield still raises forecast FCF (the two tests below). Before the
+        terminal-capex normalization, terminal capex was independent of D&A so
+        D&A read as purely accretive (the old monotonic-INCREASE invariant) — an
+        economically inconsistent 'capex ≠ D&A forever' steady state.
+        """
         low = calculate_dcf(_base_inputs(da_pct_revenue=0.01), wacc_override=0.10)
         mid = calculate_dcf(_base_inputs(da_pct_revenue=0.05), wacc_override=0.10)
         high = calculate_dcf(_base_inputs(da_pct_revenue=0.10), wacc_override=0.10)
-        assert low.implied_price < mid.implied_price < high.implied_price
+        assert high.implied_price < mid.implied_price < low.implied_price
 
     def test_fcf_increases_with_da_each_year(self):
         no_da = calculate_dcf(_base_inputs(da_pct_revenue=0.0), wacc_override=0.10)

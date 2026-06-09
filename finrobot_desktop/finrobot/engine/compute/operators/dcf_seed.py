@@ -274,8 +274,17 @@ def seed_dcf_inputs(
     prov: dict[str, str] = {}
 
     # ----- revenue_base ------------------------------------------------------
+    # Label the basis HONESTLY: revenue_base is the canonical financials' revenue,
+    # which is TTM by default (not annual). Mislabeling TTM as "年报" is exactly
+    # the口径 error the project forbids. Read the actual basis from provenance.
     revenue_base = financials.income.revenue
-    prov["revenue_base"] = f"最新年报营收 ${revenue_base / 1e9:.1f}B"
+    _basis = financials.provenance.period_basis if financials.provenance else "ttm"
+    _basis_cn = {
+        "ttm": "最新 TTM 营收(滚动 12 个月)",
+        "annual": "最新年报营收",
+        "quarterly": "最新季度营收(年化)",
+    }.get(_basis, f"最新营收({_basis})")
+    prov["revenue_base"] = f"{_basis_cn} ${revenue_base / 1e9:.1f}B"
 
     # ----- revenue_growth_rates ---------------------------------------------
     # cagr_revenue is None when: fewer than 2 data points, start revenue ≤ 0,

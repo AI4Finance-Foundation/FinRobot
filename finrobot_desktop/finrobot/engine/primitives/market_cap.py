@@ -16,6 +16,19 @@ instead of each re-deriving it (and drifting apart again).
 
 from __future__ import annotations
 
+import math
+
+
+def _valid_cap(cap: float | None) -> float | None:
+    """A market cap is valid only if finite and strictly positive.
+
+    A negative / NaN / Inf / zero cap is data corruption, not a real cap — return
+    None rather than letting it through (the module's "never a wrong number"
+    contract). Used on every return path so neither a corrupt cached cap nor a
+    non-finite live price can mint a junk cap.
+    """
+    return cap if (cap is not None and math.isfinite(cap) and cap > 0) else None
+
 
 def market_cap_on_live_price(
     *,
@@ -33,12 +46,24 @@ def market_cap_on_live_price(
     exists, the cached cap (possibly ``None``) is returned rather than fabricating
     one — a missing cap stays missing, never a wrong number.
     """
-    if live_price is None or live_price <= 0:
-        return cached_market_cap
+    valid_cached = _valid_cap(cached_market_cap)
+    # NaN/Inf live_price passes ``<= 0`` (both comparisons are False for NaN), so
+    # finiteness is checked explicitly — an unusable live price returns the cached
+    # cap, never a non-finite mark-to value.
+    if live_price is None or not math.isfinite(live_price) or live_price <= 0:
+        return valid_cached
     shares = cached_shares
-    if shares is None or shares <= 0:
-        if cached_market_cap is not None and cached_price is not None and cached_price > 0:
-            shares = cached_market_cap / cached_price
+    if shares is None or not math.isfinite(shares) or shares <= 0:
+        # Derive shares from the snapshot's own cap/price basis only when the cap
+        # is a valid positive number — else a negative/NaN cached cap would mint a
+        # negative/NaN share count and a junk live cap.
+        if (
+            valid_cached is not None
+            and cached_price is not None
+            and math.isfinite(cached_price)
+            and cached_price > 0
+        ):
+            shares = valid_cached / cached_price
         else:
-            return cached_market_cap
-    return shares * live_price
+            return valid_cached
+    return _valid_cap(shares * live_price)

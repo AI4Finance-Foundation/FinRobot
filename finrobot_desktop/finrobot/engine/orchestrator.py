@@ -6,6 +6,7 @@ from typing import Any
 from pydantic_ai import Agent, ModelRetry, RunContext
 
 from finrobot.artifact.models import ArtifactSummary
+from finrobot.artifact.semantic_diff import DeltaItem, SemanticDelta, build_semantic_delta
 from finrobot.config import FinRobotSettings
 from finrobot.coverage.prompt import format_coverage_for_tool
 from finrobot.coverage.service import build_overview
@@ -68,6 +69,55 @@ def _format_reports_for_tool(ticker: str, summaries: list[ArtifactSummary]) -> s
             parts.append(f"entry {s.entry_price:,.2f}")
         lines.append(" | ".join(parts))
     lines.append("Reference an id to open it; say so to compare versions or re-run.")
+    return "\n".join(lines)
+
+
+def _format_delta_for_tool(delta: SemanticDelta) -> str:
+    """Render a :class:`SemanticDelta` as compact text for the chat agent.
+
+    English-only to match the shipped UI locale. Every number is already
+    formatted by the backend (``formatted_*``); this only arranges them and
+    surfaces the deterministic attribution summary verbatim — the agent narrates
+    from this string and must never re-derive a number from it.
+    """
+    if delta.identical:
+        return (
+            f"{delta.a_label} and {delta.b_label} are identical — "
+            "no material change between these two versions."
+        )
+
+    def _rows(items: list[DeltaItem]) -> list[str]:
+        out: list[str] = []
+        for it in items:
+            if it.direction == "flat":
+                continue  # an unchanged field is noise in a "what changed" answer
+            pct = f" ({it.formatted_pct_change})" if it.formatted_pct_change else ""
+            note = f" — {it.caliber_note}" if it.caliber_note else ""
+            out.append(f"  - {it.label_en}: {it.formatted_old} → {it.formatted_new}{pct}{note}")
+        return out
+
+    lines = [f"Comparing {delta.a_label} → {delta.b_label} ({delta.report_type}):"]
+    conclusion_rows = _rows(delta.conclusion)
+    if conclusion_rows:
+        lines.append("Conclusion:")
+        lines.extend(conclusion_rows)
+    driver_rows = _rows(delta.drivers)
+    if driver_rows:
+        lines.append("Assumption drivers:")
+        lines.extend(driver_rows)
+    attr = delta.attribution
+    if attr.available and attr.summary_en:
+        lines.append(f"Attribution: {attr.summary_en}")
+    elif not attr.available:
+        # Attribution is deliberately withheld (formula changed, missing DCF,
+        # etc.); show the headline move and defer the "why" to the English
+        # comparability notes below rather than the Chinese disabled_reason.
+        move = f" Fair-value move: {attr.formatted_total}." if attr.formatted_total else ""
+        lines.append(f"Attribution unavailable for this comparison.{move}")
+    if delta.comparability:
+        lines.append("Comparability notes:")
+        for flag in delta.comparability:
+            lines.append(f"  - {flag.message_en}")
     return "\n".join(lines)
 
 
@@ -228,6 +278,33 @@ def create_lead_agent(
         if not summaries:
             return f"No saved reports for {norm} yet — run an analysis to create one."
         return _format_reports_for_tool(norm, summaries)
+
+    @agent.tool
+    async def diff_reports(ctx: RunContext[FinRobotDeps], a_id: str, b_id: str) -> str:
+        """Compare two saved reports and explain what changed and WHY.
+
+        ``a_id`` = the older/base version, ``b_id`` = the newer version. Returns
+        the conclusion deltas (rating / target / upside), the assumption drivers
+        (WACC, terminal growth, …), and a DETERMINISTIC single-factor attribution
+        of the fair-value change (re-priced through the DCF, not guessed). Use
+        when the user asks "what changed between my two AAPL reports", "why did
+        the target move", or "diff these versions". Call find_reports first to
+        get the two artifact ids. Both must already exist — this never creates a
+        report.
+        """
+        store = ctx.deps.artifact_store
+        if store is None:
+            return "Report history isn't available in this session (no artifact store)."
+        a = await store.get(a_id)
+        b = await store.get(b_id)
+        # RETURN (not raise) on a missing id — a raised error tears down the live
+        # chat SSE stream; a returned string lets the LLM ask the user to confirm
+        # the id (e.g. via find_reports). The explicit None-guard also narrows
+        # both to Artifact for build_semantic_delta (mypy --strict).
+        if a is None or b is None:
+            missing = ", ".join(aid for aid, art in ((a_id, a), (b_id, b)) if art is None)
+            return f"Report(s) not found: {missing}. Use find_reports to list valid ids."
+        return _format_delta_for_tool(build_semantic_delta(a, b))
 
     @agent.tool
     async def activate_skill(ctx: RunContext[FinRobotDeps], skill_id: str) -> str:

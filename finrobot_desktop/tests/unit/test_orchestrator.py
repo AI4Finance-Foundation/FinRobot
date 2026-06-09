@@ -13,6 +13,13 @@ from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
 from finrobot.artifact.models import ArtifactSummary
+from finrobot.artifact.semantic_diff import (
+    Attribution,
+    AttributionItem,
+    DataFootnote,
+    DeltaItem,
+    SemanticDelta,
+)
 from finrobot.config import get_settings
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.deps import FinRobotDeps
@@ -493,3 +500,154 @@ class TestAskFilings:
         out = await fn(_run_context(deps), "aapl", "What are the risk factors?")
         assert isinstance(out, str)
         assert "regulatory change" in out.lower()
+
+
+# ---------------------------------------------------------------------------
+# diff_reports — semantic version diff as a chat tool.
+#
+# build_semantic_delta (artifact/semantic_diff.py) turns two artifacts into a
+# decision-oriented delta with deterministic single-factor attribution, but it
+# was never a /chat tool — the AiChatTab "diff" chip was REMOVED
+# (BUG-20260602-046) because the agent could not run it. This exposes it so the
+# user can ask "what changed between my two AAPL reports / why did the target
+# move" and get the real attribution rather than a guess.
+# ---------------------------------------------------------------------------
+
+
+class _ArtifactGetStore:
+    """ArtifactStore stub exposing only get(id) -> Artifact | None."""
+
+    def __init__(self, artifacts: dict[str, object]) -> None:
+        self._artifacts = artifacts
+
+    async def get(self, artifact_id: str):  # noqa: ANN201
+        return self._artifacts.get(artifact_id)
+
+
+def _diff_reports_fn(agent):  # noqa: ANN001
+    return agent._function_toolset.tools["diff_reports"].function
+
+
+def _semantic_delta(*, identical: bool = False) -> SemanticDelta:
+    return SemanticDelta(
+        a_id="art_a",
+        b_id="art_b",
+        a_label="dcf · 2026-05-01 10:00",
+        b_label="dcf · 2026-06-01 10:00",
+        report_type="dcf",
+        identical=identical,
+        conclusion=[
+            DeltaItem(
+                key="target_price",
+                label_zh="目标价",
+                label_en="Target price",
+                old_value=175.3,
+                new_value=198.0,
+                formatted_old="$175.30",
+                formatted_new="$198.00",
+                pct_change=0.129,
+                formatted_pct_change="+12.9%",
+                direction="up",
+                sentiment="positive",
+            ),
+        ],
+        attribution=Attribution(
+            available=True,
+            items=[
+                AttributionItem(
+                    driver_key="wacc",
+                    label_zh="WACC",
+                    label_en="WACC",
+                    contribution=15.0,
+                    formatted_contribution="+$15.00",
+                )
+            ],
+            total_change=22.7,
+            formatted_total="+$22.70",
+            residual=2.7,
+            formatted_residual="+$2.70",
+            summary_en="Fair value moved +$22.70, driven by WACC (+$15.00); "
+            "the remaining +$2.70 is interaction terms and data re-basing.",
+            summary_zh="公允价值变化 +$22.70。",
+        ),
+        drivers=[
+            DeltaItem(
+                key="wacc",
+                label_zh="WACC",
+                label_en="WACC",
+                old_value=0.092,
+                new_value=0.085,
+                formatted_old="9.2%",
+                formatted_new="8.5%",
+                direction="down",
+                sentiment="positive",
+            ),
+        ],
+        comparability=[],
+        data_footnote=DataFootnote(
+            a_source="fmp",
+            b_source="fmp",
+            a_fetched_at="2026-05-01T10:00:00+00:00",
+            b_fetched_at="2026-06-01T10:00:00+00:00",
+            currency="USD",
+            currency_assumed=False,
+        ),
+    )
+
+
+class TestFormatDeltaForTool:
+    def test_renders_conclusion_drivers_and_attribution(self):
+        from finrobot.engine.orchestrator import _format_delta_for_tool
+
+        out = _format_delta_for_tool(_semantic_delta())
+        assert "Target price" in out
+        assert "$175.30" in out
+        assert "$198.00" in out
+        assert "+12.9%" in out
+        assert "WACC" in out
+        assert "9.2%" in out and "8.5%" in out
+        # The deterministic attribution summary must be surfaced verbatim.
+        assert "Fair value moved +$22.70" in out
+
+    def test_identical_versions_say_no_change(self):
+        from finrobot.engine.orchestrator import _format_delta_for_tool
+
+        out = _format_delta_for_tool(_semantic_delta(identical=True))
+        assert "identical" in out.lower()
+
+
+class TestDiffReports:
+    async def test_registered_as_tool(self):
+        agent = _agent()
+        assert "diff_reports" in agent._function_toolset.tools
+
+    async def test_no_store_returns_friendly_message_not_raise(self):
+        agent = _agent()
+        fn = _diff_reports_fn(agent)
+        out = await fn(_run_context(_deps()), "art_a", "art_b")
+        assert isinstance(out, str)
+        assert "available" in out.lower()
+
+    async def test_missing_artifact_returns_message_not_raise(self):
+        agent = _agent()
+        fn = _diff_reports_fn(agent)
+        store = _ArtifactGetStore({"art_a": object()})  # art_b absent
+        deps = FinRobotDeps(data_layer=FakeDataLayer(), settings=_settings(), artifact_store=store)
+        out = await fn(_run_context(deps), "art_a", "art_b")
+        assert isinstance(out, str)
+        assert "art_b" in out
+        assert "not found" in out.lower()
+
+    async def test_both_present_runs_diff_and_formats(self, monkeypatch):
+        store = _ArtifactGetStore({"art_a": object(), "art_b": object()})
+        deps = FinRobotDeps(data_layer=FakeDataLayer(), settings=_settings(), artifact_store=store)
+        monkeypatch.setattr(
+            "finrobot.engine.orchestrator.build_semantic_delta",
+            lambda a, b: _semantic_delta(),
+        )
+        agent = _agent()
+        fn = _diff_reports_fn(agent)
+        out = await fn(_run_context(deps), "art_a", "art_b")
+        assert isinstance(out, str)
+        assert "Fair value moved +$22.70" in out
+        assert "Target price" in out

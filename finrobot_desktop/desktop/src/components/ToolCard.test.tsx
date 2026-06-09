@@ -72,24 +72,28 @@ describe('ToolCard — result display', () => {
     expect(screen.getByText('AAPL implied price $198-$224')).toBeInTheDocument()
   })
 
-  it('a short summary renders fully with no collapse toggle', () => {
+  it('a short summary renders inline with no collapse toggle', () => {
     renderCard({ state: 'complete', result: { summary: 'DCF: $198–$224' } })
     expect(screen.queryByTestId('summary-toggle')).not.toBeInTheDocument()
+    expect(screen.getByTestId('tool-summary')).toBeInTheDocument()
   })
 
-  it('a long summary (a full report body) is collapsed behind a toggle by default', () => {
+  it('a long summary (a full report body) stays collapsed; expanding reveals a scroll box', () => {
     const longReport = `# FinRobot Analysis Report\n\n${'Apple Inc. equity research. '.repeat(40)}`
     expect(longReport.length).toBeGreaterThan(360)
     renderCard({ state: 'complete', result: { summary: longReport } })
 
-    // The text is still in the DOM (clamped via CSS, not removed) and a toggle
-    // appears so the user can fold/expand the wall of report text.
+    // Collapsed by default: the report body is NOT in the thread at all (no flood).
     const toggle = screen.getByTestId('summary-toggle')
-    expect(toggle).toBeInTheDocument()
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByTestId('tool-summary')).not.toBeInTheDocument()
 
+    // Expanding renders the body (markdown-aware) inside a bounded scroll box.
     fireEvent.click(toggle)
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    const body = screen.getByTestId('tool-summary')
+    expect(body).toBeInTheDocument()
+    expect(body).toHaveStyle({ maxHeight: '320px', overflowY: 'auto' })
   })
 
   it('shows artifact link when artifact_id and ticker present', () => {

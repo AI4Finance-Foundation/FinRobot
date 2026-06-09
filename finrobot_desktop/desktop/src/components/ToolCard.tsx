@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useI18n } from '../i18n'
+import { MarkdownLite } from './MarkdownLite'
 
 // A complete tool result carries the tool's `summary`. For most tools this is a
 // one-liner (a DCF range, a quote), but a pipeline tool like run_equity_research
@@ -183,42 +184,54 @@ export function ToolCard({
         </div>
       )}
 
-      {/* Result summary — clamped + collapsed when long so a full report body
-          never floods the chat thread. Short summaries render as-is (no toggle). */}
-      {state === 'complete' && summary && (
-        <div className="mt-2">
-          <div
-            data-testid="tool-summary"
-            className="whitespace-pre-wrap text-xs leading-relaxed"
-            style={{
-              color: 'var(--text-secondary)',
-              ...(summaryIsLong && !summaryOpen
-                ? {
-                    maxHeight: '4.5em',
-                    overflow: 'hidden',
-                    maskImage: 'linear-gradient(to bottom, black 55%, transparent)',
-                    WebkitMaskImage: 'linear-gradient(to bottom, black 55%, transparent)',
-                  }
-                : {}),
-            }}
-          >
-            {summary}
-          </div>
-          {summaryIsLong && (
+      {/* Result summary. A short result (a DCF range, a quote) renders inline,
+          markdown-aware. A long body — a pipeline tool returns its ENTIRE report
+          markdown here — stays collapsed behind a toggle and, when opened, lives
+          in a fixed-height scroll box so it never blows the chat thread open. The
+          canonical full report is the "Open report" artifact page. */}
+      {state === 'complete' &&
+        summary &&
+        (summaryIsLong ? (
+          <div className="mt-2">
             <button
               type="button"
               data-testid="summary-toggle"
               onClick={() => setSummaryOpen((v) => !v)}
               aria-expanded={summaryOpen}
-              aria-label={summaryOpen ? 'Collapse result' : 'Show full result'}
-              className="mt-1 w-full cursor-pointer text-center text-xs"
+              className="flex cursor-pointer items-center gap-1 text-xs"
               style={{ background: 'none', border: 'none', color: 'var(--text-muted)' }}
             >
-              {summaryOpen ? '▴' : '▾'}
+              <span>{summaryOpen ? '▴' : '▾'}</span>
+              {/* Hardcoded EN (app ships English-only): the Lingui catalog is
+                  frozen legacy — 960/961 ids are gettext-obsolete, and a missing
+                  key would render its raw id. */}
+              <span>{summaryOpen ? 'Hide result' : 'Show full result'}</span>
             </button>
-          )}
-        </div>
-      )}
+            {summaryOpen && (
+              <div
+                data-testid="tool-summary"
+                className="mt-1.5 rounded text-xs leading-relaxed"
+                style={{
+                  maxHeight: 320,
+                  overflowY: 'auto',
+                  padding: '8px 10px',
+                  background: 'var(--surface)',
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                <MarkdownLite text={summary} />
+              </div>
+            )}
+          </div>
+        ) : (
+          <div
+            data-testid="tool-summary"
+            className="mt-2 text-xs leading-relaxed"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            <MarkdownLite text={summary} />
+          </div>
+        ))}
 
       {/* Error */}
       {state === 'error' && (

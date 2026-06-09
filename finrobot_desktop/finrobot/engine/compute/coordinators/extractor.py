@@ -349,6 +349,10 @@ def extract_company_financials(fin: NormalizedFinancials) -> CompanyFinancials:
         market_cap=market_cap,
         total_debt=fin.total_debt,
         total_cash=fin.total_cash,
+        # EV-bridge completeness: carry preferred + NCI so calculate_multiples folds
+        # them into this company's EV (symmetric with the target extract path).
+        preferred_stock=fin.preferred_stock,
+        noncontrolling_interest=fin.noncontrolling_interest,
         # Banks have no COGS — suppress the meaningless gross margin so a bank
         # peer row doesn't show ~60% (FMP) / 0% (yfinance). Symmetric with the
         # target path (extract_financial_data) and the FMP provider source fix.

@@ -229,7 +229,13 @@ def calculate_multiples(company: CompanyFinancials) -> CompanyFinancials:
     # debt/cash-less peer out of the EV/EBITDA and EV/Revenue medians instead of
     # contributing an EV=market_cap artifact.
     if result.total_debt is not None and result.total_cash is not None:
-        ev = calculate_ev(result.market_cap, result.total_debt, result.total_cash)
+        ev = calculate_ev(
+            result.market_cap,
+            result.total_debt,
+            result.total_cash,
+            result.preferred_stock or 0.0,
+            result.noncontrolling_interest or 0.0,
+        )
         result.enterprise_value = ev
 
         raw_ev_ebitda = (

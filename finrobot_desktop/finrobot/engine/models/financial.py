@@ -325,6 +325,12 @@ class CompanyFinancials(BaseModel):
     # or cash is missing.
     total_debt: float | None = None
     total_cash: float | None = None
+    # EV-bridge completeness for peers (mirrors target FinancialData.balance):
+    # calculate_ev folds preferred + NCI into a peer's EV when reported, so a peer
+    # carrying them does not feed an understated EV/EBITDA into the comps median.
+    # None ≠ 0 (not carried). Reporting-currency (FX-scaled with the other balance lines).
+    preferred_stock: float | None = None
+    noncontrolling_interest: float | None = None
     enterprise_value: float | None = None
     gross_margin: float | None = None
     operating_margin: float | None = None

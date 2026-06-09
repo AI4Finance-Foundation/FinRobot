@@ -35,6 +35,8 @@ def _peer(
     total_cash: float = 5e9,
     enterprise_value: float | None = None,
     income_tax_expense: float | None = None,
+    preferred_stock: float | None = None,
+    noncontrolling_interest: float | None = None,
 ) -> CompanyFinancials:
     return CompanyFinancials(
         ticker=ticker,
@@ -48,6 +50,8 @@ def _peer(
         operating_margin=0.3,
         enterprise_value=enterprise_value,
         income_tax_expense=income_tax_expense,
+        preferred_stock=preferred_stock,
+        noncontrolling_interest=noncontrolling_interest,
         reporting_currency=reporting_currency,
         quote_currency=quote_currency,
     )
@@ -99,6 +103,27 @@ class TestAdrShape:
         assert math.isclose(result.total_cash, 1_700_000e6 * rate, rel_tol=1e-9)
         # market_cap stays put (quote already USD).
         assert result.market_cap == 650e9
+
+    def test_tsm_adr_preferred_and_nci_scaled(self):
+        """Preferred + NCI are reporting-currency balance items: a TWD ADR peer's
+        NCI/preferred must scale to USD with debt/cash. Otherwise calculate_multiples
+        — which recomputes the EV dropped for the reporting≠quote mismatch — adds a
+        TWD preferred/NCI onto a USD EV, reintroducing a mixed-currency EV (class A)."""
+        rate = 1 / 32.0
+        company = _peer(
+            ticker="TSM",
+            reporting_currency="TWD",
+            quote_currency="USD",
+            preferred_stock=64_000e6,
+            noncontrolling_interest=96_000e6,
+        )
+        result = normalize_company_to_usd(
+            company, reporting_fx_rate_to_usd=rate, quote_fx_rate_to_usd=1.0
+        )
+        assert result.preferred_stock is not None
+        assert result.noncontrolling_interest is not None
+        assert math.isclose(result.preferred_stock, 64_000e6 * rate, rel_tol=1e-9)
+        assert math.isclose(result.noncontrolling_interest, 96_000e6 * rate, rel_tol=1e-9)
 
     def test_income_tax_expense_scaled_with_reporting_currency(self):
         """income_tax_expense is a reporting-currency line item. It must scale

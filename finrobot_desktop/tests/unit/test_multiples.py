@@ -105,6 +105,8 @@ def _make_company(
     total_cash=0,
     gross_margin=0.4,
     operating_margin=0.2,
+    preferred_stock=None,
+    noncontrolling_interest=None,
 ):
     return CompanyFinancials(
         ticker=ticker,
@@ -116,6 +118,8 @@ def _make_company(
         total_cash=total_cash,
         gross_margin=gross_margin,
         operating_margin=operating_margin,
+        preferred_stock=preferred_stock,
+        noncontrolling_interest=noncontrolling_interest,
     )
 
 
@@ -195,6 +199,25 @@ def test_current_ev_ebitda_none_when_inputs_missing_or_non_positive(market_cap, 
     trailing-annual current, with a口径 warning) rather than a bogus multiple."""
     fd = _financial_data(market_cap=market_cap, ebitda=ebitda)
     assert current_ev_ebitda(fd, net_debt=3e9) is None
+
+
+def test_calculate_multiples_includes_preferred_and_nci():
+    # A peer's EV must use the full bridge too, else a peer carrying preferred/NCI
+    # feeds an understated EV/EBITDA into the comps median. market_cap=500, debt=30,
+    # cash=10, NCI=8 → EV = 500 + 30 − 10 + 8 = 528 (not the net-debt 520).
+    c = _make_company(
+        "Y",
+        revenue=100,
+        ebitda=35,
+        net_income=10,
+        market_cap=500,
+        total_debt=30,
+        total_cash=10,
+        noncontrolling_interest=8,
+    )
+    c = calculate_multiples(c)
+    assert c.enterprise_value == pytest.approx(528)
+    assert c.ev_ebitda == pytest.approx(528 / 35)
 
 
 def test_calculate_multiples_known_values():

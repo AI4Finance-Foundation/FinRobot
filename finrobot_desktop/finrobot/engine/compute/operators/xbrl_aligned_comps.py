@@ -207,6 +207,11 @@ async def build_xbrl_aligned_company(
         market_cap=financial_data.market.market_cap,
         total_debt=financial_data.balance.total_debt if debt_cash_reported else None,
         total_cash=financial_data.balance.total_cash if debt_cash_reported else None,
+        # EV-bridge completeness: preferred + NCI fold into this peer's EV when its
+        # debt/cash are present (calculate_multiples). Not gated on debt_cash_reported
+        # — they only contribute inside that EV branch anyway. None ≠ 0.
+        preferred_stock=financial_data.balance.preferred_stock,
+        noncontrolling_interest=financial_data.balance.noncontrolling_interest,
         gross_margin=financial_data.income.gross_margin,
         operating_margin=financial_data.income.operating_margin,
         # Period-consistent EBIT for core_pe — immune to the XBRL revenue

@@ -99,6 +99,18 @@ def normalize_company_to_usd(
     converted.total_cash = (
         company.total_cash * reporting_rate if company.total_cash is not None else None
     )
+    # preferred + NCI are reporting-currency balance items (EV-bridge completeness):
+    # scale with debt/cash so calculate_multiples recomputes a SINGLE-currency EV for
+    # an ADR peer (reporting≠quote drops the cached EV below, forcing a recompute that
+    # would otherwise add reporting-ccy preferred/NCI onto a USD EV). None stays None.
+    converted.preferred_stock = (
+        company.preferred_stock * reporting_rate if company.preferred_stock is not None else None
+    )
+    converted.noncontrolling_interest = (
+        company.noncontrolling_interest * reporting_rate
+        if company.noncontrolling_interest is not None
+        else None
+    )
     # income_tax_expense is a reporting-currency line item: it MUST scale with
     # net_income so calculate_core_pe's effective tax rate tax/(net_income+tax)
     # stays currency-invariant. Scaling net_income alone would skew the ratio and

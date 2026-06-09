@@ -19,11 +19,15 @@ from finrobot.engine.data.normalize import (
     normalize_price,
 )
 from finrobot.engine.data.types import DataType
+from finrobot.engine.data.normalize.currency import normalize_canonical_financials_currency
 from finrobot.engine.data.normalize.contracts import (
+    DEGRADED_FX_NORMALIZED,
+    DEGRADED_FX_UNAVAILABLE,
     degraded_circuit_open,
     degraded_price_divergence,
     degraded_provider_divergence,
 )
+from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.validator import (
     cross_validate,
     cross_validate_price,
@@ -370,6 +374,15 @@ class DataLayer:
             marker = degraded_circuit_open(provider_name)
             if marker not in normalized.provenance.degraded:
                 normalized.provenance.degraded.append(marker)
+        # FX关卡 (ADR-0006): a foreign ADR's FINANCIALS carries reporting-currency
+        # IS/BS line items beside a quote-currency market_cap. Convert them to one
+        # currency HERE — the sole normalization chokepoint — so every downstream
+        # consumer (extractor → /financials route, Coverage, AI orchestrator) sees
+        # a single-currency snapshot and can't form the cross-currency EV that went
+        # negative for TSM (-75.1B, probe 2026-06-09). No-op for single-currency
+        # issuers; PRICE is unaffected.
+        if data_type == DataType.FINANCIALS and isinstance(normalized, NormalizedFinancials):
+            normalized = await self._apply_canonical_fx(normalized)
         # Stale-fallback (all providers failed → fetch served the last-known cached
         # row): serve it to THIS caller, but do NOT re-cache. Writing it would bump
         # cached_at and flip the canonical is_stale back to False, laundering a stale
@@ -380,6 +393,63 @@ class DataLayer:
             return normalized
         await self._cache.set_canonical(data_type, ticker, normalized.model_dump_json())
         return normalized
+
+    def _fmp_api_key(self) -> str | None:
+        """FMP key from the configured providers, for the FX-rate FMP fallback.
+
+        yfinance is the primary FX source (no key); FMP is only consulted when a
+        shared-budget yfinance 429 storm strands the rate (see fetch_fx_rate_to_usd).
+        Best-effort: returns None when no FMP provider is wired, leaving the FX read
+        yfinance-only.
+        """
+        for provider in self._providers:
+            if getattr(provider, "name", "") == "fmp":
+                return getattr(provider, "_api_key", None)
+        return None
+
+    async def _reporting_to_quote_rate(self, reporting_ccy: str, quote_ccy: str) -> float:
+        """Factor expressing one unit of ``reporting_ccy`` in ``quote_ccy``.
+
+        Quote is USD in the overwhelmingly common ADR case (TSM/SAP/TM), so this is
+        just the reporting→USD spot. Otherwise reporting→USD ÷ quote→USD.
+        """
+        fmp_key = self._fmp_api_key()
+        reporting_to_usd = await fetch_fx_rate_to_usd(reporting_ccy, fmp_api_key=fmp_key)
+        if quote_ccy.upper() == "USD":
+            return reporting_to_usd
+        quote_to_usd = await fetch_fx_rate_to_usd(quote_ccy, fmp_api_key=fmp_key)
+        return reporting_to_usd / quote_to_usd
+
+    async def _apply_canonical_fx(self, nf: NormalizedFinancials) -> NormalizedFinancials:
+        """Make a foreign-ADR snapshot single-currency before it is cached.
+
+        No-op when reporting_currency == quote_currency (US issuers, local
+        listings). On FX-fetch failure the snapshot ships un-converted but flagged
+        ``fx_unavailable`` — the FinancialData model invariant (class B) then
+        withholds the EV rather than emitting the negative cross-currency value.
+        Never fails the canonical fetch over a missing FX quote (a missing rate
+        must not take down an otherwise-complete fundamentals fetch).
+        """
+        if nf.reporting_currency.upper() == nf.quote_currency.upper():
+            return nf
+        try:
+            rate = await self._reporting_to_quote_rate(nf.reporting_currency, nf.quote_currency)
+        except ProviderError as exc:
+            logger.warning(
+                "FX %s→%s unavailable for %s — canonical ships un-normalized; "
+                "EV/cross-currency multiples withheld downstream: %s",
+                nf.reporting_currency,
+                nf.quote_currency,
+                nf.ticker,
+                exc,
+            )
+            if DEGRADED_FX_UNAVAILABLE not in nf.provenance.degraded:
+                nf.provenance.degraded.append(DEGRADED_FX_UNAVAILABLE)
+            return nf
+        converted = normalize_canonical_financials_currency(nf, rate)
+        if DEGRADED_FX_NORMALIZED not in converted.provenance.degraded:
+            converted.provenance.degraded.append(DEGRADED_FX_NORMALIZED)
+        return converted
 
     @overload
     async def read_canonical_cached(

@@ -11,6 +11,8 @@ from finrobot.engine.data.provider_health import ProviderHealth
 from finrobot.engine.data.normalize import NormalizedFinancials, NormalizedPrice
 from finrobot.engine.data.normalize.contracts import (
     DEGRADED_CIRCUIT_OPEN_PREFIX,
+    DEGRADED_FX_NORMALIZED,
+    DEGRADED_FX_UNAVAILABLE,
     DEGRADED_PROVIDER_DIVERGENCE_PREFIX,
     degraded_circuit_open,
     degraded_price_divergence,
@@ -1311,3 +1313,101 @@ class TestCanonicalSingleFlight:
             layer.fetch_canonical(DataType.PRICE, "MSFT"),
         )
         assert sorted(seen) == ["AAPL", "MSFT"]
+
+
+def _adr_financials_result(ticker: str = "TSM") -> DataResult:
+    """FMP-shape TSM financials: TWD reporting line items, USD market quote."""
+    return DataResult(
+        data={
+            "revenue": 4_113_789_591_000,  # TWD
+            "net_income": 1_933_578_784_000,  # TWD
+            "operating_income": 1_900_000_000_000,  # TWD
+            "depreciation_amortization": 600_000_000_000,  # TWD
+            "total_debt": 1_094_130_170_000,  # TWD
+            "total_cash": 3_382_860_143_000,  # TWD
+            "market_cap": 2_213_589_664_000,  # USD (quote currency)
+            "shares_outstanding": 5_186_000_000,
+            "current_price": 427.0,  # USD
+            "financial_currency": "TWD",
+            "quote_currency": "USD",
+        },
+        provider="fmp",
+        ticker=ticker,
+        data_type="financials",
+        timestamp=datetime.now(tz=timezone.utc),
+    )
+
+
+class TestCanonicalFxNormalization:
+    """class A: the canonical layer is the one FX关卡 (ADR-0006). A foreign ADR
+    (reporting≠quote) is made single-currency here so no downstream consumer
+    (the /financials route, Coverage, the AI orchestrator) can form a
+    cross-currency EV — the live -75.1B TSM bug (probe 2026-06-09)."""
+
+    async def test_adr_financials_converted_to_quote_currency(self, cache, monkeypatch):
+        async def fake_fx(ccy, *, fmp_api_key=None):
+            return 0.03176 if ccy.upper() == "TWD" else 1.0
+
+        monkeypatch.setattr("finrobot.engine.data.layer.fetch_fx_rate_to_usd", fake_fx)
+        layer = DataLayer(
+            [MockProvider("fmp", ["financials"], result=_adr_financials_result())], cache
+        )
+
+        out = await layer.fetch_canonical("financials", "TSM")
+
+        assert isinstance(out, NormalizedFinancials)
+        # Single currency after the gate: both tags collapse to the quote currency.
+        assert out.reporting_currency == "USD"
+        assert out.quote_currency == "USD"
+        # Reporting-currency legs scaled into USD; the USD quote is left untouched.
+        assert out.total_debt == pytest.approx(1_094_130_170_000 * 0.03176)
+        assert out.total_cash == pytest.approx(3_382_860_143_000 * 0.03176)
+        assert out.revenue == pytest.approx(4_113_789_591_000 * 0.03176)
+        assert out.market_cap == 2_213_589_664_000
+        assert DEGRADED_FX_NORMALIZED in out.provenance.degraded
+
+    async def test_us_issuer_skips_fx_fetch(self, cache, monkeypatch):
+        """reporting == quote == USD: the gate is a no-op and never hits FX."""
+        called = False
+
+        async def fake_fx(ccy, *, fmp_api_key=None):
+            nonlocal called
+            called = True
+            return 1.0
+
+        monkeypatch.setattr("finrobot.engine.data.layer.fetch_fx_rate_to_usd", fake_fx)
+        result = DataResult(
+            data={"revenue": 1_000, "financial_currency": "USD"},
+            provider="fmp",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        layer = DataLayer([MockProvider("fmp", ["financials"], result=result)], cache)
+
+        out = await layer.fetch_canonical("financials", "AAPL")
+
+        assert isinstance(out, NormalizedFinancials)
+        assert out.reporting_currency == "USD"
+        assert called is False
+        assert DEGRADED_FX_NORMALIZED not in out.provenance.degraded
+
+    async def test_fx_unavailable_degrades_instead_of_failing(self, cache, monkeypatch):
+        """FX down: leave the snapshot un-converted but flag it — the FinancialData
+        model invariant (class B) then withholds the EV. Never fail the fetch."""
+
+        async def boom(ccy, *, fmp_api_key=None):
+            raise ProviderError("no spot FX quote for TWD→USD")
+
+        monkeypatch.setattr("finrobot.engine.data.layer.fetch_fx_rate_to_usd", boom)
+        layer = DataLayer(
+            [MockProvider("fmp", ["financials"], result=_adr_financials_result())], cache
+        )
+
+        out = await layer.fetch_canonical("financials", "TSM")
+
+        # Un-converted (still TWD) but explicitly degraded — and it did NOT raise.
+        assert isinstance(out, NormalizedFinancials)
+        assert out.reporting_currency == "TWD"
+        assert out.total_debt == 1_094_130_170_000
+        assert DEGRADED_FX_UNAVAILABLE in out.provenance.degraded

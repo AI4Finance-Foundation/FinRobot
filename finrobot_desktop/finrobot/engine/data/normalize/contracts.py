@@ -35,7 +35,12 @@ from pydantic import BaseModel, ConfigDict, Field
 # None onto the same path (``if not revenue: raise`` / ``_fmt_num`` → "N/A"), so no
 # cached entry can surface a wrong number. Bumping would only invalidate valid
 # caches for a semantically identical result.
-CANONICAL_CONTRACT_VERSION = 3
+# v4: FINANCIALS canonical now FX-normalizes a foreign ADR (reporting≠quote) to a
+# single currency at the gate (DataLayer._fetch_canonical_uncached, class A). Old v3
+# payloads store the mixed-currency snapshot (e.g. TWD IS/BS line items beside a USD
+# market quote) that made extract_financial_data form a negative EV — unsafe to
+# trust, so a bump forces a refetch+convert instead of serving the laundered mix.
+CANONICAL_CONTRACT_VERSION = 4
 
 # Degradation markers carried in ``Provenance.degraded``. Surfaced to the UI so
 # a fallback is visible rather than silent.
@@ -68,6 +73,15 @@ DEGRADED_PERIOD_BASIS_UNKNOWN = "period_basis_unknown"
 # A provider was in circuit-breaker cooldown and skipped for this fetch.
 # Provider-suffixed (``circuit_open:fmp``) so the UI can name the absent source.
 DEGRADED_CIRCUIT_OPEN_PREFIX = "circuit_open"
+# A foreign ADR (reporting_currency≠quote_currency) had its reporting-currency
+# line items FX-converted to the quote currency at the canonical gate, so the
+# snapshot is single-currency and EV/multiples are well-defined (class A fix).
+DEGRADED_FX_NORMALIZED = "fx_normalized"
+# FX rate fetch failed for a reporting≠quote snapshot, so it ships un-converted
+# (mixed currency). The FinancialData model invariant withholds EV-based ratios
+# (None + warning) rather than emit a cross-currency value — surfaced so the UI
+# shows "无法换算" instead of a silently wrong/negative multiple.
+DEGRADED_FX_UNAVAILABLE = "fx_unavailable"
 
 
 def degraded_circuit_open(provider_name: str) -> str:

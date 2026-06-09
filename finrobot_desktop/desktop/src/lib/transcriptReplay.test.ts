@@ -3,7 +3,11 @@
 // finrobot/audit/transcript.py (do NOT drift from it).
 
 import { describe, it, expect } from 'vitest'
-import { reconstructMessages, type TranscriptEvent } from './transcriptReplay'
+import {
+  reconstructMessages,
+  INTERRUPTED_TOOL_TEXT,
+  type TranscriptEvent,
+} from './transcriptReplay'
 import type { DynamicToolUIPart } from 'ai'
 
 function evt(
@@ -113,13 +117,37 @@ describe('reconstructMessages', () => {
     if (tool.state === 'output-error') expect(tool.errorText).toBe('data unavailable')
   })
 
-  it('leaves a tool_call with no matching tool_result as input-available (degrade, do not drop)', () => {
+  it('finalizes a tool_call with no matching tool_result as output-error (interrupted, not a live spinner)', () => {
+    // A replayed transcript is historical — nothing is live-streaming into it,
+    // so a dangling tool_call (its result line never written = the turn was cut
+    // off mid-stream) must NOT come back as `input-available`, which the UI
+    // renders as a perpetual spinner. It is a terminal, interrupted step.
     const out = reconstructMessages([
       evt('tool_call', { tool_name: 'run_comps', tool_use_id: 'tcX', args: { ticker: 'KO' } }),
     ])
     const tool = out[0].parts[0] as DynamicToolUIPart
-    expect(tool.state).toBe('input-available')
+    expect(tool.state).toBe('output-error')
     expect(tool.input).toEqual({ ticker: 'KO' })
+    if (tool.state === 'output-error') expect(tool.errorText).toBe(INTERRUPTED_TOOL_TEXT)
+  })
+
+  it('finalizes a dangling tool_call inside a coalesced turn (text before it stays intact)', () => {
+    const out = reconstructMessages([
+      evt('user_msg', { text: 'analyze AAPL' }),
+      evt('assistant_text', { text: 'Running equity research…' }),
+      evt('tool_call', {
+        tool_name: 'run_equity_research',
+        tool_use_id: 'tcRun',
+        args: { ticker: 'AAPL' },
+      }),
+      // no tool_result — the user closed the panel mid-run
+    ])
+    expect(out).toHaveLength(2)
+    const asst = out[1]
+    expect(asst.parts[0]).toEqual({ type: 'text', text: 'Running equity research…' })
+    const tool = asst.parts[1] as DynamicToolUIPart
+    expect(tool.state).toBe('output-error')
+    if (tool.state === 'output-error') expect(tool.errorText).toBe(INTERRUPTED_TOOL_TEXT)
   })
 
   it('surfaces an error event as an inline assistant note (history stays honest)', () => {

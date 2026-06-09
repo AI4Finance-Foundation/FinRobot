@@ -12,7 +12,9 @@
 //   user_msg         { text }                                      → user msg, text part
 //   assistant_text   { text }                                      → assistant msg, text part
 //   tool_call        { tool_name, tool_use_id, args }              → assistant dynamic-tool part
-//                                                                     (state input-available)
+//                                                                     (output-available/error;
+//                                                                      no result = output-error
+//                                                                      "interrupted")
 //   tool_result      { tool_use_id, tool_name, result, is_error,   → finalize matching tool part
 //                      artifact_id }                                  (output-available/error)
 //   error            { exception_class, message, context }         → assistant text part (honest)
@@ -87,9 +89,22 @@ function compactJson(value: unknown): string {
   return text.length > 400 ? `${text.slice(0, 400)}…` : text
 }
 
+/** Shown on a tool call whose result was never written to the transcript — the
+ * turn was cut off mid-stream (panel/app closed, navigated away) before the tool
+ * finished. A replay is historical, so this is a terminal interrupted step, not
+ * a live one. */
+export const INTERRUPTED_TOOL_TEXT =
+  'Interrupted — this step did not finish before the session was closed.'
+
 /** Build a finalized dynamic-tool part. When a matching tool_result is known we
- * emit output-available / output-error; otherwise the call is left
- * input-available (the result line was missing — degrade, don't drop). */
+ * emit output-available / output-error. A tool_call with NO result line means
+ * the turn was interrupted mid-stream (the backend writes the call the instant
+ * it is announced but only writes the result when the tool returns). A replayed
+ * transcript is historical — nothing is live-streaming into it — so we finalize
+ * the dangling call as `output-error` (interrupted) rather than leaving it
+ * `input-available`, which the UI would render as a spinner that never stops.
+ * The terminal state also gives the tool_use a result, keeping the message
+ * sequence valid if the user resumes the session. */
 function toolPart(
   toolName: string,
   toolCallId: string,
@@ -98,7 +113,7 @@ function toolPart(
 ): DynamicToolUIPart {
   const base = { type: 'dynamic-tool' as const, toolName, toolCallId }
   if (!resultEvt) {
-    return { ...base, state: 'input-available', input }
+    return { ...base, state: 'output-error', input, errorText: INTERRUPTED_TOOL_TEXT }
   }
   const data = resultEvt.data
   const isError = data.is_error === true

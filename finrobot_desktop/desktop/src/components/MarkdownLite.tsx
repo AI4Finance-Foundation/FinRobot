@@ -1,8 +1,8 @@
 // Tiny no-dependency markdown renderer for chat bubbles.
 // Covers the cases we actually see streaming from the agent: bold, italic,
-// inline code, code blocks, ordered/unordered lists, and headings up to ###.
-// Anything we don't recognise renders as plain text so unknown markdown is
-// never displayed as broken HTML.
+// inline code, code blocks, ordered/unordered lists, headings up to ###, and
+// [text](url) links. Anything we don't recognise renders as plain text so
+// unknown markdown is never displayed as broken HTML.
 
 import { type ReactNode } from 'react'
 
@@ -168,11 +168,14 @@ function renderBlock(block: Block, key: number): ReactNode {
   }
 }
 
-// ── Inline parsing — **bold**, *italic*, `code` ─────────────────────────────
+// ── Inline parsing — [text](url), **bold**, *italic*, `code` ────────────────
 
-// Order matters: bold (** **) must be processed before italic (* *) to avoid
-// the italic regex eating the bold markers.
-const INLINE_TOKEN = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\*[^*\n]+\*|_[^_\n]+_)/g
+// Order matters: the link alternative ([text](url)) comes first so its brackets
+// aren't half-eaten by the emphasis patterns; bold (** **) before italic (* *)
+// so the italic regex doesn't swallow the bold markers.
+const INLINE_TOKEN = /(\[[^\]\n]+\]\([^)\n]+\)|\*\*[^*\n]+\*\*|`[^`\n]+`|\*[^*\n]+\*|_[^_\n]+_)/g
+
+const LINK_TOKEN = /^\[([^\]]+)\]\(([^)]+)\)$/
 
 function renderInline(text: string): ReactNode[] {
   const out: ReactNode[] = []
@@ -184,7 +187,33 @@ function renderInline(text: string): ReactNode[] {
       out.push(text.slice(lastIdx, m.index))
     }
     const tok = m[0]
-    if (tok.startsWith('**') && tok.endsWith('**')) {
+    const link = tok.match(LINK_TOKEN)
+    if (link) {
+      const [, label, url] = link
+      if (/^https?:\/\//i.test(url)) {
+        // Real external link — same target/rel pattern the report chapters use.
+        out.push(
+          <a
+            key={out.length}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: 'var(--info)' }}
+          >
+            {label}
+          </a>,
+        )
+      } else {
+        // Internal ref (sandbox://… artifact link, anchors) — not a navigable
+        // URL. Show the label as styled text so the raw [text](url) syntax never
+        // leaks, without emitting a dead anchor.
+        out.push(
+          <span key={out.length} style={{ color: 'var(--info)' }}>
+            {label}
+          </span>,
+        )
+      }
+    } else if (tok.startsWith('**') && tok.endsWith('**')) {
       out.push(<strong key={out.length}>{tok.slice(2, -2)}</strong>)
     } else if (tok.startsWith('`') && tok.endsWith('`')) {
       out.push(

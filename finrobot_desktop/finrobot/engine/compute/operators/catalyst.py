@@ -63,7 +63,16 @@ def _expected_impact(event: CatalystEvent) -> float:
 
 
 def rank_catalysts(events: list[CatalystEvent], top_n: int | None = None) -> list[CatalystEvent]:
-    """Sort catalyst events by expected impact (impact_score x probability), descending.
+    """Sort catalyst events by ``abs(expected impact)`` descending.
+
+    Keyed on ``abs(_expected_impact(e))`` (= impact_score × probability ×
+    |sentiment_mult|), the SAME magnitude ``compute_expected_impact`` ranks by,
+    so the two are interchangeable and a caller never needs to apply both. The
+    earlier ``impact_score × probability`` key ignored sentiment, so a NEUTRAL
+    headline (mult 0 → 0 expected impact) out-ranked a real directional catalyst
+    on raw impact alone; chaining this after ``compute_expected_impact`` (the
+    /data route did) then silently overrode the sign-aware order with the
+    sign-blind one.
 
     Args:
         events: List of catalyst events to rank.
@@ -72,7 +81,7 @@ def rank_catalysts(events: list[CatalystEvent], top_n: int | None = None) -> lis
     Returns:
         Sorted list of catalyst events, optionally truncated to top_n.
     """
-    ranked = sorted(events, key=lambda e: e.impact_score * e.probability, reverse=True)
+    ranked = sorted(events, key=lambda e: abs(_expected_impact(e)), reverse=True)
     if top_n is not None:
         return ranked[:top_n]
     return ranked

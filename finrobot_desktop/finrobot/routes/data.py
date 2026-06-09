@@ -11,7 +11,6 @@ from pydantic import ValidationError
 from starlette.requests import Request
 
 from finrobot.engine.compute.operators.catalyst import (
-    compute_expected_impact,
     extract_catalysts_from_news,
     rank_catalysts,
 )
@@ -90,7 +89,10 @@ async def get_catalysts(
             return {"catalysts": []}
         classified = await classify_news(raw_news, deps, ticker=ticker_upper)
         events = extract_catalysts_from_news(classified, min_importance=min_importance)
-        events = compute_expected_impact(events)
+        # Single ranking pass: rank_catalysts now keys on abs(expected impact)
+        # (the same magnitude compute_expected_impact used), so the previous
+        # compute_expected_impact-then-rank_catalysts chain was redundant — and
+        # worse, the second sort's old sign-blind key silently overrode the first.
         events = rank_catalysts(events)
         return {"catalysts": [e.model_dump(mode="json") for e in events]}
 

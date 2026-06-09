@@ -66,6 +66,32 @@ class TestRankCatalysts:
     def test_empty_list(self):
         assert rank_catalysts([]) == []
 
+    def test_neutral_catalyst_sinks_by_signed_impact(self):
+        """rank_catalysts ranks by abs(signed expected impact) = impact × prob ×
+        sentiment, so a NEUTRAL headline (sentiment_mult 0 → 0 expected impact)
+        sinks below a real directional catalyst even when its raw impact × prob
+        is higher. Otherwise a no-signal item ranks above a genuine driver, and
+        the /data route's redundant second sort silently overrides the sign-aware
+        order (the two sorts disagreed only on neutral events)."""
+        high_impact_neutral = CatalystEvent(
+            category="market",
+            headline="Index reshuffle",
+            sentiment="neutral",
+            impact_score=5,
+            probability=0.9,  # raw 4.5, but signed |0|
+            reasoning="mechanical",
+        )
+        real_positive = CatalystEvent(
+            category="earnings",
+            headline="Q4 beat",
+            sentiment="positive",
+            impact_score=3,
+            probability=0.8,  # raw 2.4, signed |2.4|
+            reasoning="strong",
+        )
+        ranked = rank_catalysts([high_impact_neutral, real_positive])
+        assert [e.headline for e in ranked] == ["Q4 beat", "Index reshuffle"]
+
 
 class TestFilterByImpact:
     def test_filter_minimum_impact(self):

@@ -13,6 +13,7 @@ Leaf-layer rules:
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal
@@ -99,6 +100,16 @@ def compute_signal(
             target_price == entry_price (a thesis with no implied move is
             meaningless and would div-zero the expected_move computation).
     """
+    # Non-finite prices pass every sign/degeneracy guard below (NaN comparisons are
+    # all False, +Inf > 0 is True) and would yield a NaN actual_move / expected_move
+    # and a meaningless verdict — reject them up front.
+    for _name, _val in (
+        ("entry_price", entry_price),
+        ("target_price", target_price),
+        ("current_price", current_price),
+    ):
+        if not math.isfinite(_val):
+            raise ValueError(f"{_name} must be finite, got {_val!r}")
     if entry_price <= 0:
         raise ValueError("entry_price must be > 0")
     if target_price <= 0:

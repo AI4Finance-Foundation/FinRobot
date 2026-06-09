@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, datetime
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from fastapi import APIRouter, HTTPException
 from pydantic import ValidationError
@@ -141,8 +141,15 @@ async def get_financials(ticker: str, request: Request) -> FinancialData:
     return extracted
 
 
+# Accepted chart windows. ``period`` only scopes the route cache key — the
+# fetcher always pulls the provider's ~1y PRICE window — so this is an input
+# allow-list (unknown values → 422) rather than a data-range selector. Keep it
+# to the standard yfinance vocabulary the chart UI can offer.
+PricePeriod = Literal["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]
+
+
 @router.get("/{ticker}/price")
-async def get_price(ticker: str, request: Request, period: str = "1y") -> dict[str, Any]:
+async def get_price(ticker: str, request: Request, period: PricePeriod = "1y") -> dict[str, Any]:
     """Price data with configurable time period.
 
     Cached for 15 minutes (TTL set in cache._TTL_SECONDS[DataType.PRICE]).
@@ -150,8 +157,9 @@ async def get_price(ticker: str, request: Request, period: str = "1y") -> dict[s
     don't collide.
 
     Error mapping:
-      - ValueError      → 422 (invalid ticker)
-      - ProviderError   → 502 (yfinance service down)
+      - invalid ``period`` → 422 (Literal validation, before any fetch)
+      - ValueError         → 422 (invalid ticker)
+      - ProviderError      → 502 (yfinance service down)
     """
     data_layer = request.app.state.deps.data_layer
     cache = data_layer.cache
@@ -380,7 +388,15 @@ async def _enrich_price_payload_from_financial_cache(
     so a closed-market view can't claim "near-real-time" over a prior session's
     closing price (ADR-0004 audit A/B). Every /price return path flows through
     here, so this is the one place to set them.
+
+    It is also where the stable response contract is pinned: the fetcher path
+    (``fetch_price_history``) omits ``ticker`` and ``quote_timestamp`` while the
+    1y provider-cache fast path sets both, so without this the /price shape would
+    differ by which path served it (the frontend types ``ticker`` as required —
+    a non-1y / cache-miss response left it undefined). Set them for every path.
     """
+    payload["ticker"] = payload.get("ticker") or ticker
+    payload.setdefault("quote_timestamp", None)
     _stamp_as_of(payload)
     payload["session_state"] = compute_session_state(
         payload.get("as_of"),

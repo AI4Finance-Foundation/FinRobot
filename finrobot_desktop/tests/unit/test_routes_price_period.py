@@ -438,6 +438,55 @@ async def test_price_endpoint_provider_error_returns_502(app_with_deps):
 
 
 @pytest.mark.asyncio
+async def test_price_fetch_path_always_includes_ticker_and_quote_timestamp(app_with_deps):
+    """The fetcher path's payload (``fetch_price_history``) omits ``ticker`` and
+    ``quote_timestamp``, while the 1y provider-cache fast path sets both — so the
+    /price response shape silently differed by which path served it. The frontend
+    types ``ticker`` as required; a non-1y / cache-miss response left it undefined.
+    Every path flows through the _enrich choke point, which now guarantees both
+    keys, so the contract is stable regardless of period or cache state."""
+    app = app_with_deps
+
+    # Deliberately omit ticker + quote_timestamp, as the real fetcher does.
+    mock_payload = {
+        "current_price": 190.0,
+        "history": [],
+        "fetched_at": "2026-05-27T12:00:00+00:00",
+        "data_source": "yfinance",
+        "warnings": [],
+    }
+    with patch(
+        "finrobot.routes.data.fetch_price_history",
+        new=AsyncMock(return_value=mock_payload),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/data/AAPL/price?period=5d")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ticker"] == "AAPL"  # required by the frontend type, was undefined here
+    assert "quote_timestamp" in body  # key present (null ok) — parity with the 1y path
+
+
+@pytest.mark.asyncio
+async def test_price_rejects_unknown_period(app_with_deps):
+    """An unrecognised period must be rejected with 422 (typed Literal), not
+    silently accepted as a new cache slot serving full 1y data."""
+    app = app_with_deps
+
+    with patch(
+        "finrobot.routes.data.fetch_price_history",
+        new=AsyncMock(return_value={"current_price": 1.0, "history": [], "warnings": []}),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/data/AAPL/price?period=not-a-period")
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_price_endpoint_returns_fetched_at(app_with_deps):
     """Route forwards fetched_at field from service."""
     app = app_with_deps

@@ -103,6 +103,7 @@ def normalize_price(result: DataResult) -> NormalizedPrice:
         fetched_at=result.timestamp,
         degraded=degraded,
     )
+    market_state = data.get("market_state")
     return NormalizedPrice(
         ticker=result.ticker,
         quote_currency=(data.get("quote_currency") or "USD").upper(),
@@ -110,5 +111,9 @@ def normalize_price(result: DataResult) -> NormalizedPrice:
         current_price=current_price if current_price is not None else 0.0,
         is_ohlc_complete=ohlc_complete,
         exchange=data.get("exchange"),
+        # Carried verbatim (str | None); SessionState is derived at read time, not
+        # here — session phase is time-varying and must never be baked into the
+        # canonical cache (a 15:59 ET "live" would still read live at 16:14).
+        market_state=market_state if isinstance(market_state, str) else None,
         provenance=provenance,
     )

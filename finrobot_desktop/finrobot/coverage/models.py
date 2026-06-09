@@ -23,10 +23,10 @@ report's figure.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from finrobot.engine.data.normalize.session import SessionState
 from finrobot.engine.models.financial import MarketImpliedNature
 
 
@@ -146,12 +146,15 @@ class CoverageRow(BaseModel):
     price: float | None = None
     change_pct_1d: float | None = None
     price_as_of: datetime | None = None
-    session_state: Literal["live", "closed", "unknown"] | None = None
-    """Whether ``price`` is a live intraday quote, a session close (weekend /
-    after-hours / holiday), or undeterminable — recomputed server-side at read
-    time against the exchange clock (NOT cached: session phase is time-varying).
-    Drives the card's freshness affordance: a closed-market close renders
-    statically, never with a "refreshing"/live pulse over a number that won't move."""
+    session_state: SessionState | None = None
+    """The price's session phase — one of ``live`` / ``pre_market`` /
+    ``post_market`` / ``closed`` / ``halted`` / ``unknown`` (see
+    ``engine.data.normalize.session.SessionState``). Recomputed server-side at
+    read time: primary signal is the provider's per-exchange ``marketState``,
+    with the exchange clock as fallback (NOT cached — session phase is
+    time-varying). Drives the card's freshness affordance: a closed-market close
+    renders statically (never a "refreshing"/live pulse over a number that won't
+    move), while a live/pre/post quote can show its phase honestly."""
     market_cap: float | None = None
 
     # Fundamentals / valuation — from FinancialData (TTM caliber)

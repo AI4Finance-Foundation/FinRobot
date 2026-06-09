@@ -22,7 +22,61 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Literal
 from zoneinfo import ZoneInfo
 
-SessionState = Literal["live", "closed", "unknown"]
+# Market-session taxonomy — 7 honest phases, primary signal = the provider's own
+# per-exchange ``marketState`` (yfinance), clock-window inference is the fallback.
+#
+# Source of truth for the enum values is the yfinance ``marketState`` set
+# ``{PREPRE, PRE, REGULAR, POST, POSTPOST, CLOSED}`` (observed REGULAR/PREPRE/
+# POSTPOST/PRE in the 2026-06-08 probe; POST/CLOSED are documented but were not
+# in that window — the mapping covers the full set regardless). The mapping:
+#
+#   marketState   →  SessionState   semantics
+#   ───────────────────────────────────────────────────────────────────────────
+#   REGULAR       →  "live"         regular session in progress (continuous trade)
+#   PRE           →  "pre_market"   pre-market session active (extended-hours trade)
+#   PREPRE        →  "closed"       overnight before pre-market opens — no trading
+#   POST          →  "post_market"  after-hours session active (extended-hours trade)
+#   POSTPOST      →  "closed"       after after-hours ends — market fully shut
+#   CLOSED        →  "closed"       weekend / holiday / between sessions
+#   (unknown str) →  fallback       unrecognized value → clock-window inference
+#
+# ``"halted"`` has NO yfinance source value (yfinance does not surface a trading
+# halt / suspension via ``marketState``); it is reserved so a future signal that
+# CAN prove a halt (e.g. a provider ``tradeable``/``quoteType`` flag) maps to an
+# honest phase instead of mislabeling a halted name "closed". It is never emitted
+# by the current clock/marketState path.
+#
+# ``"unknown"`` means the EXCHANGE itself is unresolvable (unmapped foreign suffix
+# / unrecognized non-US exchange) — distinct from an unrecognized marketState
+# string on a known exchange, which falls back to the clock window.
+#
+# Backward-compat contract: ``live`` is still EXACTLY the regular session (no
+# semantic change for callers gating on it); ``closed`` and ``unknown`` retain
+# their meaning. ``pre_market`` / ``post_market`` are NEW phases carved out of
+# what the 3-state version reported as ``closed`` — a caller that treats anything
+# ``!= "live"`` as "not a live quote" stays correct; a caller that pattern-matched
+# the literal ``"closed"`` to mean "not live" must widen to the new set.
+SessionState = Literal[
+    "live",
+    "pre_market",
+    "post_market",
+    "closed",
+    "halted",
+    "unknown",
+]
+
+# yfinance ``marketState`` value → SessionState. Values absent here (an
+# unrecognized provider string) signal the caller to fall back to the clock
+# window — we never guess a phase from an unknown token.
+_MARKET_STATE_MAP: dict[str, SessionState] = {
+    "REGULAR": "live",
+    "PRE": "pre_market",
+    "PREPRE": "closed",
+    "POST": "post_market",
+    "POSTPOST": "closed",
+    "CLOSED": "closed",
+    # No yfinance value maps to "halted" — see module docstring; reserved.
+}
 
 
 class _MarketSession:
@@ -184,17 +238,30 @@ def derive_price_as_of(
 def compute_session_state(
     as_of: str | None,
     *,
+    market_state: str | None = None,
     ticker: str | None = None,
     exchange: str | None = None,
     now: datetime | None = None,
 ) -> SessionState:
-    """Classify ``current_price`` as a live intraday quote or a session close.
+    """Classify a price into one of seven session phases (see ``SessionState``).
 
-    Returns ``"live"`` only when the resolving exchange's regular session is in
-    progress AND today's bar is present; ``"closed"`` when the session is over
-    or no today-bar exists; and ``"unknown"`` when the market can't be resolved
-    (an unmapped foreign suffix / unrecognized non-US exchange) — never falsely
-    "closed" on a real foreign intraday quote (BUG-081).
+    Two signal tiers, primary first:
+
+    1. **``market_state``** — the provider's own per-exchange phase
+       (yfinance ``marketState``: REGULAR / PRE / PREPRE / POST / POSTPOST /
+       CLOSED). When present and recognized, it is authoritative: it already
+       distinguishes pre/post-market from the regular session and from the
+       overnight gap, per exchange, without us re-deriving the calendar. Mapped
+       through ``_MARKET_STATE_MAP``. An UNRECOGNIZED string falls through to (2).
+    2. **Clock window** (fallback, the legacy path, used when ``market_state`` is
+       ``None`` or unrecognized) — ``"live"`` only when the resolving exchange's
+       regular session is in progress AND today's bar is present; otherwise
+       ``"closed"``; ``"unknown"`` when the market can't be resolved (an unmapped
+       foreign suffix / unrecognized non-US exchange) — never falsely "closed" on
+       a real foreign intraday quote (BUG-081). The fallback cannot distinguish
+       pre/post-market (no extended-hours window is modeled), so it only ever
+       emits ``live`` / ``closed`` / ``unknown`` — pre/post phases require the
+       ``market_state`` signal.
 
     Computed in the *resolving* exchange's timezone (not always ET): a HK/A-share/
     JP intraday quote sits in ET overnight, so the prior US-only logic stamped it
@@ -205,10 +272,19 @@ def compute_session_state(
     "today" is the viewer's local date, which drifts from the exchange date.
 
     Holidays need no calendar: on a market holiday there is no bar for today, so
-    ``as_of < today`` → ``"closed"``. Not modeled: half-day early closes and
-    lunch-break minutes read ``"live"`` (continuous-span sessions). Pre/post-market
-    quotes report ``"closed"`` (only the regular session counts as live).
+    ``as_of < today`` → ``"closed"`` (clock path). Not modeled in the fallback:
+    half-day early closes and lunch-break minutes read ``"live"`` (continuous-span
+    sessions). When ``market_state`` is present these edge cases are handled by the
+    provider's own classification instead.
+
+    Note the signal asymmetry: ``market_state`` resolves the phase directly and
+    needs no ``as_of``/exchange resolution; the clock fallback still requires a
+    parseable ``as_of`` and a resolvable exchange. ``market_state`` therefore can
+    classify pre/post even when ``as_of`` is missing.
     """
+    mapped = _MARKET_STATE_MAP.get(market_state.strip().upper()) if market_state else None
+    if mapped is not None:
+        return mapped
     if not as_of:
         return "closed"
     try:

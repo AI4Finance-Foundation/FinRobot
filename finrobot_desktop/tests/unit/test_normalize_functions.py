@@ -58,6 +58,29 @@ def test_price_ohlc_complete_keeps_intraday():
     assert p.provenance.fetched_at == FETCH
 
 
+def test_price_carries_market_state_from_provider():
+    """yfinance marketState is threaded verbatim onto the canonical NormalizedPrice
+    (str | None), un-classified — SessionState is derived at read time, not baked
+    into the cache. FMP path (no marketState key) reads back None."""
+    hist = [{"date": "2026-05-27", "close": 440.0, "high": 450.0, "low": 430.0}]
+    yf = normalize_price(
+        _price_result(hist, provider="yfinance", current_price=440.0, market_state="PRE")
+    )
+    assert yf.market_state == "PRE"
+    fmp = normalize_price(_price_result(hist, provider="fmp", current_price=440.0))
+    assert fmp.market_state is None
+
+
+def test_price_market_state_non_string_coerced_to_none():
+    """Defensive: a non-string marketState (provider glitch) → None, never a stray
+    type leaking into the str | None field."""
+    hist = [{"date": "2026-05-27", "close": 440.0}]
+    p = normalize_price(
+        _price_result(hist, provider="yfinance", current_price=440.0, market_state=7)
+    )
+    assert p.market_state is None
+
+
 def test_price_as_of_uses_quote_timestamp_not_bar_midnight():
     """External baseline (this session's FMP probe): a Friday close carries a quote
     timestamp of 2026-06-05T20:00:00Z (16:00 ET). The freshness age must read 60h

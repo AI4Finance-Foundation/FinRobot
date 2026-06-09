@@ -400,11 +400,14 @@ async def _apply_market_fields(
         row.price = price_norm.current_price
         _, row.change_pct_1d = price_norm.latest_session_change()
         row.price_as_of = prov.as_of
-        # Live vs session-close, classified at read time against the exchange
-        # clock (time-varying → never cached). The card uses this to avoid
-        # pulsing "refreshing" over a closed-market close that won't move.
+        # Session phase, classified at read time (time-varying → never cached).
+        # Primary signal is the provider's per-exchange marketState (pre/post/
+        # regular/closed); the exchange clock is the fallback when it's absent.
+        # The card uses this to avoid pulsing "refreshing" over a closed-market
+        # close that won't move, and to honestly label pre/post-market quotes.
         row.session_state = compute_session_state(
             prov.as_of.isoformat(),
+            market_state=price_norm.market_state,
             ticker=ticker,
             exchange=price_norm.exchange,
             now=now,

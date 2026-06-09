@@ -88,6 +88,114 @@ def test_session_state_closed_for_weekend_close_at_monday_premarket():
     )
 
 
+# --- 7-state marketState mapping (primary signal) ------------------------------
+# Baseline: yfinance marketState enum {PREPRE, PRE, REGULAR, POST, POSTPOST,
+# CLOSED} per the 2026-06-08 probe (specs/research/行情盘内取证…). marketState is
+# the PRIMARY signal — when present and recognized it is authoritative and needs
+# no as_of / exchange resolution; the clock window is the fallback only.
+
+
+def test_market_state_regular_maps_to_live():
+    """REGULAR = regular session in progress → live (the legacy "live" anchor)."""
+    assert compute_session_state(None, market_state="REGULAR") == "live"
+
+
+def test_market_state_pre_maps_to_pre_market():
+    """PRE = pre-market session active → the new pre_market phase (was 'closed')."""
+    assert compute_session_state(None, market_state="PRE") == "pre_market"
+
+
+def test_market_state_post_maps_to_post_market():
+    """POST = after-hours session active → the new post_market phase (was 'closed')."""
+    assert compute_session_state(None, market_state="POST") == "post_market"
+
+
+def test_market_state_prepre_maps_to_closed():
+    """PREPRE = overnight before pre-market opens — no trading → closed."""
+    assert compute_session_state(None, market_state="PREPRE") == "closed"
+
+
+def test_market_state_postpost_maps_to_closed():
+    """POSTPOST = after after-hours ends — market fully shut → closed."""
+    assert compute_session_state(None, market_state="POSTPOST") == "closed"
+
+
+def test_market_state_closed_maps_to_closed():
+    """CLOSED = weekend / holiday / between sessions → closed."""
+    assert compute_session_state(None, market_state="CLOSED") == "closed"
+
+
+def test_market_state_is_case_and_whitespace_insensitive():
+    """Provider casing/whitespace must not change the phase."""
+    assert compute_session_state(None, market_state=" regular ") == "live"
+    assert compute_session_state(None, market_state="Pre") == "pre_market"
+
+
+def test_market_state_overrides_clock_window():
+    """marketState is authoritative: a PRE quote during US regular hours is
+    pre_market, NOT the clock-derived live. (Defensive — in practice the feed's
+    phase and the clock agree; this proves the precedence, not a real conflict.)"""
+    # 17:00 UTC = 13:00 EDT → inside the US 09:30–16:00 ET regular window.
+    now = datetime(2026, 5, 27, 17, 0, tzinfo=timezone.utc)
+    assert compute_session_state("2026-05-27", market_state="PRE", ticker="AAPL", now=now) == (
+        "pre_market"
+    )
+
+
+def test_market_state_full_enum_is_covered():
+    """Every documented yfinance marketState value maps to a non-fallback phase —
+    no value silently drops to the clock window. (Guards the mapping completeness
+    against the probe-confirmed enum.)"""
+    expected = {
+        "REGULAR": "live",
+        "PRE": "pre_market",
+        "PREPRE": "closed",
+        "POST": "post_market",
+        "POSTPOST": "closed",
+        "CLOSED": "closed",
+    }
+    for value, phase in expected.items():
+        # as_of=None / no ticker → only marketState can produce these; if any
+        # value fell through it would return "closed" via the empty-as_of guard,
+        # which for PRE/POST/REGULAR would fail this assert.
+        assert compute_session_state(None, market_state=value) == phase
+
+
+# --- fallback: unrecognized / absent marketState → clock window ----------------
+
+
+def test_unrecognized_market_state_falls_back_to_clock_live():
+    """An unknown marketState string is NOT trusted — fall back to the clock
+    window, which (US regular hours, today's bar) yields live."""
+    now = datetime(2026, 5, 27, 17, 0, tzinfo=timezone.utc)  # 13:00 EDT, regular hours
+    assert (
+        compute_session_state("2026-05-27", market_state="WEIRD", ticker="AAPL", now=now) == "live"
+    )
+
+
+def test_none_market_state_falls_back_to_clock():
+    """market_state=None (FMP path, or yfinance without the field) → clock window.
+    Friday close viewed Monday pre-market → closed (legacy behavior preserved)."""
+    assert (
+        compute_session_state(
+            FRI_CLOSE_DT.isoformat(), market_state=None, ticker="TSLA", now=MON_PREMARKET
+        )
+        == "closed"
+    )
+
+
+def test_empty_market_state_falls_back_to_clock():
+    """An empty-string marketState is treated as absent → clock fallback."""
+    now = datetime(2026, 5, 27, 17, 0, tzinfo=timezone.utc)  # 13:00 EDT, regular hours
+    assert compute_session_state("2026-05-27", market_state="", ticker="AAPL", now=now) == "live"
+
+
+def test_fallback_still_returns_unknown_for_unresolvable_exchange():
+    """No marketState + unmapped foreign suffix → unknown (BUG-081 preserved)."""
+    now = datetime(2026, 5, 27, 17, 0, tzinfo=timezone.utc)
+    assert compute_session_state("2026-05-27", ticker="ABC.XYZ", now=now) == "unknown"
+
+
 # --- has_newer_session_since: the calendar gate for rate-safe refresh ----------
 # Drives "smart refresh": False → no provider call (closed, already latest close);
 # True → a newer settled close exists (or market live) → worth fetching; None →

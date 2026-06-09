@@ -105,6 +105,11 @@ async def fetch_price_history(data_layer: DataLayer, ticker: str) -> dict[str, A
         "market_cap": None,
         "company_name": None,
         "exchange": price.exchange,
+        # Provider per-exchange session phase (yfinance marketState) — the primary
+        # signal the route's _enrich choke point feeds to compute_session_state so
+        # pre/post-market quotes classify honestly. None on the FMP path (no such
+        # field) → clock-window fallback there.
+        "market_state": price.market_state,
         # next_earnings_date isn't in the PRICE result; the UI hides the callout
         # when null (same as the route's provider-cache fast path).
         "next_earnings_date": None,

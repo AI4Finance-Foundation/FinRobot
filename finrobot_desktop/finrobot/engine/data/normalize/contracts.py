@@ -136,6 +136,13 @@ class NormalizedPrice(BaseModel):
     current_price: float
     is_ohlc_complete: bool = True
     exchange: str | None = None
+    # Provider's raw per-exchange session phase (yfinance ``marketState``:
+    # REGULAR / PRE / PREPRE / POST / POSTPOST / CLOSED), or None when the source
+    # has no such field (FMP /quote). Carried — not pre-classified — so the
+    # time-varying SessionState is computed fresh at read time by every consumer
+    # via ``compute_session_state(market_state=…)``. Old cached canonical entries
+    # (written before this field) read back as None → clock-window fallback.
+    market_state: str | None = None
     provenance: Provenance
     # Free-text warnings carried from the raw fetch (e.g. cross-provider
     # discrepancies, stale-cache notices). Distinct from provenance.degraded,

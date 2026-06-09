@@ -217,6 +217,46 @@ async def test_price_endpoint_enriches_cached_payload_from_financials_cache(app_
 
 
 @pytest.mark.asyncio
+async def test_price_endpoint_surfaces_pre_market_session_from_market_state(app_with_deps):
+    """End-to-end: a cached route payload carrying marketState=PRE must surface
+    ``session_state == "pre_market"`` through the /price enrich choke point — i.e.
+    the new 7-state phase reaches the API response, driven by the provider signal
+    rather than the clock fallback."""
+    app = app_with_deps
+    cache = app.state.deps.data_layer.cache
+    await cache.set(
+        DataType.PRICE,
+        "AAPL:1y",
+        DataResult(
+            data={
+                "ticker": "AAPL",
+                "current_price": 310.85,
+                "market_state": "PRE",
+                "history": [],
+                "fetched_at": "2026-05-27T12:00:00+00:00",
+                "data_source": "yfinance",
+                "warnings": [],
+            },
+            provider="yfinance",
+            ticker="AAPL:1y",
+            data_type=DataType.PRICE,
+            timestamp=datetime(2026, 5, 27, 12, 0, tzinfo=timezone.utc),
+        ),
+    )
+
+    with patch(
+        "finrobot.routes.data.fetch_price_history",
+        new=AsyncMock(side_effect=AssertionError("route cache should serve this response")),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/data/AAPL/price")
+
+    assert resp.status_code == 200
+    assert resp.json()["session_state"] == "pre_market"
+
+
+@pytest.mark.asyncio
 async def test_price_endpoint_returns_stale_provider_cache_when_yfinance_is_rate_limited(
     app_with_deps,
 ):

@@ -492,6 +492,13 @@ class YFinanceProvider(DataProvider):
                 # as the FMP path (Mode A/B symmetry) so normalize_price stamps
                 # Provenance.as_of from one provider-agnostic chain.
                 "quote_timestamp": info.get("regularMarketTime"),
+                # Per-exchange session phase straight from the feed (REGULAR / PRE
+                # / PREPRE / POST / POSTPOST / CLOSED). The primary signal for
+                # compute_session_state — it already splits pre/post from regular
+                # per exchange, so we don't re-derive extended hours from a clock.
+                # FMP's /quote has no equivalent → that path leaves this None and
+                # session state falls back to the clock window (still correct).
+                "market_state": info.get("marketState"),
             },
             provider=self.name,
             ticker=ticker,

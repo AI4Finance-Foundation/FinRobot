@@ -350,6 +350,10 @@ async def _provider_price_cache_payload(
         "market_cap": raw.get("market_cap"),
         "company_name": raw.get("company_name"),
         "exchange": raw.get("exchange"),
+        # Per-exchange session phase from the provider (yfinance marketState);
+        # the _enrich choke point feeds it to compute_session_state. None on the
+        # FMP-sourced cache → clock-window fallback (still correct).
+        "market_state": raw.get("market_state"),
         "quote_timestamp": raw.get("quote_timestamp"),
         "next_earnings_date": raw.get("next_earnings_date"),
         "history": history,
@@ -377,6 +381,7 @@ async def _enrich_price_payload_from_financial_cache(
     _stamp_as_of(payload)
     payload["session_state"] = compute_session_state(
         payload.get("as_of"),
+        market_state=payload.get("market_state"),
         ticker=payload.get("ticker") or ticker,
         exchange=payload.get("exchange"),
     )

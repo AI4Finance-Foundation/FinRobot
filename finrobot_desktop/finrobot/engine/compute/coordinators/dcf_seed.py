@@ -18,6 +18,8 @@ from finrobot.engine.compute.coordinators.extractor import (
 )
 from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
 from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
+from finrobot.engine.compute.operators.forward_estimates import get_forward_revenue_growth
+from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import DCFInputs, FinancialData, HistoricalMetrics
@@ -25,11 +27,36 @@ from finrobot.engine.models.financial import DCFInputs, FinancialData, Historica
 logger = logging.getLogger(__name__)
 
 
+async def fetch_forward_growth(data_layer: DataLayer, ticker: str) -> list[float]:
+    """Analyst-consensus YoY revenue-growth path for the DCF explicit-window seed.
+
+    Best-effort fetch of the FORWARD_ESTIMATES payload, run through the single
+    authoritative producer ``get_forward_revenue_growth``. Returns ``[]`` on any
+    miss so the seed falls back to trailing CAGR — a forward gap must never fail
+    the seed. Shared by every *fetch-path* seed entry (REST ``/dcf-seed`` + chat
+    Monte-Carlo via ``seed_dcf_inputs_for_ticker``, and the IC-memo pipeline) so
+    one ticker can't get a consensus seed on one surface and a trailing-CAGR seed
+    on another — the single-authoritative-seed contract the report path already
+    honours via the same producer.
+    """
+    try:
+        _fwd = await data_layer.fetch(DataType.FORWARD_ESTIMATES, ticker)
+    except (ProviderError, ValueError, KeyError, TypeError) as exc:
+        logger.debug("forward estimates unavailable for %s: %s", ticker, exc)
+        return []
+    return get_forward_revenue_growth(_fwd.data)
+
+
 async def seed_dcf_inputs_for_ticker(
     data_layer: DataLayer, ticker: str, *, fmp_api_key: str | None = None
 ) -> tuple[FinancialData, DCFInputs]:
     """Fetch financials + price + multi-year history for a ticker and seed a
     DCFInputs.
+
+    Seeds the explicit-window growth from analyst consensus (``fetch_forward_growth``)
+    when available — the same authoritative path the equity-research report uses —
+    so REST ``/dcf-seed`` and the chat Monte-Carlo tool can't print a different DCF
+    than the report for the same ticker. A forward miss → ``[]`` → trailing-CAGR seed.
 
     Degrades gracefully: if historical extraction fails (yfinance / provider
     variability), seeds from an empty HistoricalMetrics so seed_dcf_inputs falls
@@ -68,4 +95,7 @@ async def seed_dcf_inputs_for_ticker(
             ticker=ticker,
         )
 
-    return financial_data, seed_dcf_inputs(financial_data, historical)
+    forward_growth = await fetch_forward_growth(data_layer, ticker)
+    return financial_data, seed_dcf_inputs(
+        financial_data, historical, forward_growth=forward_growth
+    )

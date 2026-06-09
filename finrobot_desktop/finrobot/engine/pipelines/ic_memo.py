@@ -29,6 +29,7 @@ from finrobot.engine.compute.coordinators.extractor import (
     extract_financial_data,
     normalize_financials_to_usd,
 )
+from finrobot.engine.compute.coordinators.dcf_seed import fetch_forward_growth
 from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
 from finrobot.engine.compute.operators.lbo import calculate_lbo
 from finrobot.engine.compute.operators.lbo_seed import seed_lbo_inputs
@@ -119,7 +120,12 @@ async def _execute_ic_financials(
     )
 
     # --- DCF ---
-    dcf_inputs = seed_dcf_inputs(financial_data, historical)
+    # Stage-1 growth seed: analyst consensus over a backward-looking trailing CAGR,
+    # the same authoritative path equity_research / standalone DCF use — so the IC
+    # memo's DCF can't print a different fair value than the report for the same
+    # ticker. Best-effort: a forward miss → [] → seed falls back to trailing CAGR.
+    forward_growth = await fetch_forward_growth(deps.data_layer, ticker)
+    dcf_inputs = seed_dcf_inputs(financial_data, historical, forward_growth=forward_growth)
     dcf_result = calculate_dcf(dcf_inputs)
     wacc_range, tg_range = build_sensitivity_ranges(
         dcf_result.wacc, dcf_result.inputs.terminal_growth_rate

@@ -26,6 +26,7 @@ from pydantic_ai import Agent
 
 from finrobot.engine.compute.operators.dcf import calculate_dcf, calculate_sensitivity
 from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
+from finrobot.engine.compute.operators.forward_estimates import get_forward_revenue_growth
 from finrobot.engine.compute.coordinators.extractor import normalize_financials_to_usd
 from finrobot.engine.compute.operators.wacc import calculate_wacc
 from finrobot.engine.compute.coordinators.historical_extractor import (
@@ -87,7 +88,15 @@ async def _execute_dcf_calc(
     financial_data = await normalize_financials_to_usd(
         financial_data, fmp_api_key=getattr(deps.settings, "fmp_api_key", None)
     )
-    dcf_inputs = seed_dcf_inputs(financial_data, historical)
+    # Stage-1 growth seed: analyst consensus over a backward-looking trailing CAGR,
+    # the same authoritative path equity_research uses — the historical_data step
+    # already fetched forward_estimates_raw into structured_context (shared dict).
+    # Best-effort: a miss → [] → seed falls back to trailing CAGR.
+    forward_raw = structured_context.get("forward_estimates_raw")
+    forward_growth = (
+        get_forward_revenue_growth(forward_raw) if isinstance(forward_raw, dict) else []
+    )
+    dcf_inputs = seed_dcf_inputs(financial_data, historical, forward_growth=forward_growth)
 
     # Gordon Growth terminal value is undefined when terminal growth >= WACC,
     # which arises for very low-WACC profiles (low-beta, high-leverage utilities /

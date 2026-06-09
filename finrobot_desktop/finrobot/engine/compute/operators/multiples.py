@@ -1,3 +1,4 @@
+import math
 from statistics import median, mean
 from finrobot.engine.models.financial import CompanyFinancials, FinancialData, PeerComps
 
@@ -81,8 +82,12 @@ def _sanity(value: float | None, lo: float, hi: float) -> float | None:
 
     None input propagates as None (not-meaningful rather than range-violation).
     Used by ``calculate_multiples`` to gate each ratio independently.
+
+    Non-finite (NaN/Inf) is rejected explicitly: ``NaN < lo`` and ``NaN > hi``
+    are both False, so without this the garbage gate would pass the worst
+    garbage it exists to catch straight into the peer medians.
     """
-    if value is None or value < lo or value > hi:
+    if value is None or not math.isfinite(value) or value < lo or value > hi:
         return None
     return value
 
@@ -141,12 +146,21 @@ def compute_ttm_fcf(
     """
     if operating_cash_flow is None or capital_expenditure is None:
         return None
-    return operating_cash_flow - capital_expenditure
+    result = operating_cash_flow - capital_expenditure
+    # A NaN/Inf component (e.g. a corrupt provider row) must surface as N/A, not a
+    # non-finite "cash figure" the cashflow analysis would then quote.
+    return result if math.isfinite(result) else None
 
 
 def fcf_yield(fcf: float | None, market_cap: float | None) -> float | None:
-    """FCF yield = TTM FCF / market cap. None when either input is missing/≤0."""
+    """FCF yield = TTM FCF / market cap. None when either input is missing/≤0.
+
+    ``not market_cap`` / ``market_cap <= 0`` are both False for NaN, so finiteness
+    is checked explicitly — a NaN/Inf yield must never reach the screen.
+    """
     if fcf is None or not market_cap or market_cap <= 0:
+        return None
+    if not math.isfinite(fcf) or not math.isfinite(market_cap):
         return None
     return fcf / market_cap
 
@@ -343,7 +357,12 @@ def calculate_peer_statistics(comps: PeerComps) -> PeerComps:
     result = comps.model_copy(deep=True)
     total = len(result.peers)
 
-    ev_ebitda_vals = [p.ev_ebitda for p in result.peers if p.ev_ebitda is not None]
+    # `is not None` alone admits a NaN multiple (one corrupt peer poisons the
+    # whole median); the pe / forward_pe lists are already NaN-safe via their
+    # band bounds, so finiteness only needs adding to the two range-free lists.
+    ev_ebitda_vals = [
+        p.ev_ebitda for p in result.peers if p.ev_ebitda is not None and math.isfinite(p.ev_ebitda)
+    ]
     # Trailing P/E median applies the NM cap (not just the SANITY floor): with the
     # touch-5 widened member gate a real-but-distorting trailing print (AMD 156x)
     # now sits IN the set and on the peer row, but it carries no information about
@@ -354,7 +373,11 @@ def calculate_peer_statistics(comps: PeerComps) -> PeerComps:
         for p in result.peers
         if p.pe_ratio is not None and PEER_PE_SANITY_MIN <= p.pe_ratio <= PEER_PE_NM_CAP
     ]
-    ev_revenue_vals = [p.ev_revenue for p in result.peers if p.ev_revenue is not None]
+    ev_revenue_vals = [
+        p.ev_revenue
+        for p in result.peers
+        if p.ev_revenue is not None and math.isfinite(p.ev_revenue)
+    ]
 
     # Forward P/E median uses the SAME NM cap: AMD's 62.5x forward is informative
     # and stays in; INTC's 91.8x (turnaround) and ARM's 157x (hyper-growth) are NM.

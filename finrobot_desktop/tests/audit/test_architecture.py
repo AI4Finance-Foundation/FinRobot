@@ -28,6 +28,7 @@ COMPUTE = FINROBOT / "engine" / "compute"
 MODELS = FINROBOT / "engine" / "models"
 PRIMITIVES = FINROBOT / "engine" / "primitives"
 PIPELINES = FINROBOT / "engine" / "pipelines"
+CONTRACT = FINROBOT / "artifact" / "contract.py"
 
 
 def _py_files(directory: Path) -> list[Path]:
@@ -339,4 +340,138 @@ class TestEventLoopNotBlocked:
         assert not violations, (
             "heavy synchronous coroutine awaited directly on the server loop:\n"
             + "\n".join(violations)
+        )
+
+
+# ---------------------------------------------------------------------------
+# Red line 9: the output contract (artifact/contract.py) stays a "dumb" gate
+# (spec 输出合同总闸-质量harness.md §7 Q4)
+# ---------------------------------------------------------------------------
+
+# contract.py may import ONLY these finrobot modules (Q4 "只许 engine/models 叶子 +
+# summary_extractor + stdlib"; plus the Artifact type it operates on, in its own
+# package under TYPE_CHECKING). Anything under compute/ data/ pipelines/ would mean
+# the gate RE-RUNS computation instead of verifying the already-assembled result.
+_CONTRACT_ALLOWED_FINROBOT_IMPORTS = (
+    "finrobot.engine.models",  # leaf constants/ledger: numeric_claim, valuation_thresholds, reconcile_tolerances
+    "finrobot.artifact.summary_extractor",
+    "finrobot.artifact.models",  # the Artifact type the clauses operate on
+)
+
+# Numeric literals a clause body may compare against directly (Q4 ③ whitelist
+# 0/1/-1/None, plus the 1.0 reciprocal unit). A real threshold must be imported
+# from a leaf constant, never inlined as `ratio > 2.0`.
+_CONTRACT_COMPARE_LITERAL_WHITELIST: frozenset[float] = frozenset({-1.0, 0.0, 1.0})
+
+
+def _numeric_compare_literals(filepath: Path) -> list[tuple[int, float]]:
+    """(lineno, value) for every numeric literal used as an operand of an
+    ``ast.Compare`` — the bare-threshold smell the red line forbids. Resolves a
+    leading unary minus so ``x < -1`` reads as -1. Booleans are not numbers here."""
+
+    def _literal(node: ast.expr) -> float | None:
+        if (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, (int, float))
+            and not isinstance(node.value, bool)
+        ):
+            return float(node.value)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub):
+            inner = _literal(node.operand)
+            return -inner if inner is not None else None
+        return None
+
+    tree = ast.parse(filepath.read_text(), filename=str(filepath))
+    found: list[tuple[int, float]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Compare):
+            continue
+        for operand in [node.left, *node.comparators]:
+            value = _literal(operand)
+            if value is not None:
+                found.append((node.lineno, value))
+    return found
+
+
+class TestArtifactContractStaysDumb:
+    """The output contract is an end-to-end invariant assertion, NOT a second
+    compute path (spec §7 Q4). It verifies the RESULT of a fully-assembled
+    artifact without re-running / re-calibrating anything: zero I/O, no
+    compute/data/pipelines imports, no inlined thresholds. These checks let the
+    contract grow new clauses without silently drifting back into a compute path."""
+
+    def test_imports_only_leaves_and_summary_extractor(self) -> None:
+        violations: list[str] = []
+        for lineno, module in _all_imports(CONTRACT):
+            if not module.startswith("finrobot."):
+                continue  # stdlib / third-party is fine
+            if not any(
+                module == allowed or module.startswith(allowed + ".")
+                for allowed in _CONTRACT_ALLOWED_FINROBOT_IMPORTS
+            ):
+                violations.append(
+                    f"  contract.py:{lineno} imports {module}\n"
+                    f"  FIX: the contract may import ONLY engine/models leaves + "
+                    f"artifact.summary_extractor + the Artifact type + stdlib. "
+                    f"compute/ data/ pipelines/ would make it re-run computation."
+                )
+        assert not violations, (
+            "ArtifactContract imports outside its allowed set (Q4 red line):\n"
+            + "\n".join(violations)
+        )
+
+    def test_has_no_io(self) -> None:
+        """Zero I/O: a clause is a pure sync ``check(artifact)->Finding|None``. No
+        ``async def`` / ``await`` anywhere — those imply awaiting a provider/db."""
+        tree = ast.parse(CONTRACT.read_text(), filename=str(CONTRACT))
+        violations: list[str] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.AsyncFunctionDef):
+                violations.append(f"  contract.py:{node.lineno} — async def {node.name}")
+            elif isinstance(node, ast.Await):
+                violations.append(f"  contract.py:{node.lineno} — await expression")
+        assert not violations, (
+            "ArtifactContract must be zero-I/O (no async/await) — Q4 red line:\n"
+            + "\n".join(violations)
+        )
+
+    def test_holds_no_bare_threshold_literals(self) -> None:
+        """No clause compares against a bare numeric threshold (e.g. ``ratio > 2``).
+        Thresholds must be imported leaf constants; only 0/1/-1/1.0 are allowed as
+        structural literals (None/sign/reciprocal)."""
+        violations = [
+            f"  contract.py:{lineno} — compares against bare literal {value!r}\n"
+            f"  FIX: import the calibrated threshold from an engine/models leaf "
+            f"(valuation_thresholds / reconcile_tolerances)."
+            for lineno, value in _numeric_compare_literals(CONTRACT)
+            if value not in _CONTRACT_COMPARE_LITERAL_WHITELIST
+        ]
+        assert not violations, (
+            "ArtifactContract inlines a bare threshold literal (Q4 ③ red line):\n"
+            + "\n".join(violations)
+        )
+
+
+# ---------------------------------------------------------------------------
+# Red line 10: compute/ must not import artifact/ (keeps the contract acyclic)
+# ---------------------------------------------------------------------------
+
+
+class TestComputeNeverImportsArtifact:
+    """``artifact/`` depends on ``compute/`` (builders, models import operators) —
+    a one-way edge. If ``compute/`` ever imported ``artifact/`` that edge becomes a
+    cycle, and the output contract (which lives in artifact/ and imports
+    engine/models leaves) could no longer sit safely below compute. This locks the
+    precondition that put the contract in artifact/ in the first place (spec §4.1
+    ⟦复核⟧ + §7 Q4)."""
+
+    def test_compute_does_not_import_artifact(self) -> None:
+        violations: list[str] = []
+        for py in _py_files(COMPUTE):
+            for lineno, module in _all_imports(py):
+                if module == "finrobot.artifact" or module.startswith("finrobot.artifact."):
+                    violations.append(f"  {py.relative_to(ROOT)}:{lineno} imports {module}")
+        assert not violations, (
+            "compute/ must not import artifact/ (would cycle artifact↔compute, "
+            "ADR-0005 + spec Q4):\n" + "\n".join(violations)
         )

@@ -217,6 +217,73 @@ async def test_price_endpoint_enriches_cached_payload_from_financials_cache(app_
 
 
 @pytest.mark.asyncio
+async def test_price_market_cap_marked_to_live_not_grafted_stale(app_with_deps):
+    """C1: when the market_cap is filled from the financials cache, it must be
+    recomputed as shares × the served live current_price — never the cached
+    absolute cap frozen at a prior close. Reproduces the live MU bug (probe
+    2026-06-09): financials cap = 1.1277B × 864.01 (prior close) grafted onto a
+    payload showing live 949.28 made market_cap/price ≠ shares (−9.0% off)."""
+    app = app_with_deps
+    cache = app.state.deps.data_layer.cache
+    # Route-cache payload: fresh live price, no cap of its own.
+    await cache.set(
+        DataType.PRICE,
+        "MU:1y",
+        DataResult(
+            data={
+                "ticker": "MU",
+                "current_price": 949.28,
+                "market_cap": None,
+                "company_name": None,
+                "history": [],
+                "fetched_at": "2026-06-09T12:00:00+00:00",
+                "data_source": "fmp",
+                "warnings": [],
+            },
+            provider="fmp",
+            ticker="MU:1y",
+            data_type=DataType.PRICE,
+            timestamp=datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc),
+        ),
+    )
+    # Canonical financials (flat NormalizedFinancials shape): cap priced at the
+    # prior close 864.01, shares known.
+    await cache.set(
+        DataType.FINANCIALS,
+        "MU",
+        DataResult(
+            data={
+                "period_basis": "ttm",
+                "company_name": "Micron Technology",
+                "market_cap": 974_369_997_300.0,  # = 864.01 × 1,127,730,000 (stale)
+                "shares_outstanding": 1_127_730_000.0,
+                "current_price": 864.01,
+            },
+            provider="fmp",
+            ticker="MU",
+            data_type=DataType.FINANCIALS,
+            timestamp=datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc),
+        ),
+    )
+
+    with patch(
+        "finrobot.routes.data.fetch_price_history",
+        new=AsyncMock(side_effect=AssertionError("route cache should serve this response")),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/data/MU/price")
+
+    assert resp.status_code == 200
+    payload = resp.json()
+    # Marked to the live price, not the stale absolute.
+    assert payload["market_cap"] == pytest.approx(1_127_730_000 * 949.28)
+    assert payload["market_cap"] != pytest.approx(974_369_997_300.0)
+    # Invariant: the served cap is consistent with the served price.
+    assert payload["market_cap"] / payload["current_price"] == pytest.approx(1_127_730_000)
+
+
+@pytest.mark.asyncio
 async def test_price_endpoint_surfaces_pre_market_session_from_market_state(app_with_deps):
     """End-to-end: a cached route payload carrying marketState=PRE must surface
     ``session_state == "pre_market"`` through the /price enrich choke point — i.e.

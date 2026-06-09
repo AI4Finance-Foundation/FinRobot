@@ -25,6 +25,7 @@ from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.normalize.session import compute_session_state, derive_price_as_of
 from finrobot.engine.data.types import DataType
+from finrobot.engine.primitives.market_cap import market_cap_on_live_price
 from finrobot.engine.models.earnings_call import EarningsCallList, EarningsCallTranscript
 from finrobot.engine.models.financial import (
     CatalystEvent,
@@ -407,7 +408,20 @@ async def _enrich_price_payload_from_financial_cache(
     market_data = market if isinstance(market, dict) else raw
 
     if payload.get("market_cap") is None:
-        payload["market_cap"] = market_data.get("market_cap")
+        # The financials-cache market_cap is priced at THAT snapshot's own (often
+        # prior-close) quote, while the /price payload already carries a fresher
+        # live current_price. Grafting the absolute cap across the two price epochs
+        # makes market_cap / current_price ≠ the true share count — the AAPL/MU/NVDA
+        # /price-vs-/financials disagreement (probe 2026-06-09). Mark it to the live
+        # price (shares × current_price) so the served cap is consistent with the
+        # served price. Falls back to the cached absolute only when shares + the
+        # cached price are both absent (nothing to re-mark from).
+        payload["market_cap"] = market_cap_on_live_price(
+            cached_market_cap=market_data.get("market_cap"),
+            cached_shares=market_data.get("shares_outstanding"),
+            cached_price=market_data.get("current_price"),
+            live_price=payload.get("current_price"),
+        )
     if payload.get("company_name") is None:
         payload["company_name"] = raw.get("company_name")
     return payload

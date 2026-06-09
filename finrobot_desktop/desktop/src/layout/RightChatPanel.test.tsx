@@ -1058,23 +1058,6 @@ describe('RightChatPanel — transport body context (038/048)', () => {
 })
 
 // ──────────────────────────────────────────────────────────────
-// Tests: suggestion chips are honest — no chip implies a tool the lead
-// agent does not have (BUG-20260602-046)
-// ──────────────────────────────────────────────────────────────
-
-describe('RightChatPanel — honest suggestion chips (046)', () => {
-  it('ticker workspace drops Monte Carlo / 10-K Q&A chips (no backing tool)', () => {
-    renderPanel({ ticker: 'AAPL' })
-    const chips = screen.getByTestId('suggestion-chips')
-    // Kept: dcf / peers (run_* tools exist)
-    expect(within(chips).getByText('Explain DCF assumptions')).toBeInTheDocument()
-    // Removed: no monte-carlo / 10-K-QA tool registered on /chat
-    expect(within(chips).queryByText('Monte Carlo simulation')).not.toBeInTheDocument()
-    expect(within(chips).queryByText('10-K Q&A')).not.toBeInTheDocument()
-  })
-})
-
-// ──────────────────────────────────────────────────────────────
 // Tests: history entry point (BUG-20260602-045)
 // ──────────────────────────────────────────────────────────────
 

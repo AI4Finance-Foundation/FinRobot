@@ -4954,52 +4954,6 @@ select.settings-input {
   justify-content: center;
 }
 
-/* Suggestion chips row — sits inside the composer group, above the input. */
-.ai-chips {
-  position: relative;
-  z-index: 6;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 14px 2px;
-  flex-shrink: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.ai-chips::-webkit-scrollbar {
-  display: none;
-}
-.ai-chips .lead {
-  flex: none;
-  font-family: var(--font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-.ai-chip {
-  flex: none;
-  font-family: var(--font-body);
-  font-size: 12px;
-  border: 1px solid var(--aipanel-line);
-  border-radius: 18px;
-  padding: 6px 12px;
-  color: var(--text-secondary);
-  background: var(--aipanel-surface);
-  cursor: pointer;
-  white-space: nowrap;
-  transition:
-    border-color 0.14s,
-    color 0.14s,
-    background 0.14s,
-    transform 0.14s;
-}
-.ai-chip:hover {
-  border-color: var(--aip-accent);
-  color: var(--text-primary);
-  background: var(--aipanel-surface-hover);
-  transform: translateY(-1px);
-}
 
 .ai-header {
   position: relative;
@@ -5374,28 +5328,322 @@ select.settings-input {
 .trace {
   margin-top: 6px;
 }
-.trace-row {
+
+/* ── Tool-call card (AI panel) ─────────────────────────────────────────
+   HUD identity card: a per-tool icon tile + human action title + state
+   rail tell the analyst WHAT ran and WHETHER it finished. It deliberately
+   does NOT re-render the report's figures — the data lives in the artifact
+   (Open report); echoing a computed number here risks it drifting from the
+   source, which is the one thing this product must never do. State drives a
+   single accent var (rail / tile / spinner) so each lifecycle reads at a
+   glance: pending=muted · running=blue · complete=green · error=red. */
+.tcard {
+  --tc-accent: var(--aip-accent);
+  --tc-accent-soft: var(--aip-accent-soft);
+  --tc-glow: var(--aip-accent-glow);
+  position: relative;
+  margin: 8px 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.tcard[data-state='complete'] {
+  --tc-accent: var(--success);
+  --tc-accent-soft: var(--success-soft);
+  --tc-glow: var(--success-glow);
+}
+.tcard[data-state='error'] {
+  --tc-accent: var(--danger);
+  --tc-accent-soft: var(--danger-soft);
+  --tc-glow: var(--danger-glow);
+}
+.tcard[data-state='pending'] {
+  --tc-accent: var(--text-muted);
+  --tc-accent-soft: rgba(148, 163, 184, 0.1);
+  --tc-glow: transparent;
+}
+/* Left state rail. */
+.tcard::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2.5px;
+  background: var(--tc-accent);
+  box-shadow: 0 0 8px var(--tc-glow);
+}
+
+.tcard__head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 13px 11px 16px;
+}
+.tcard__tile {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--tc-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--tc-accent) 30%, transparent);
+  color: var(--tc-accent);
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--tc-accent) 14%, transparent);
+}
+.tcard__headtext {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tcard__title {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color 0.15s;
+}
+.tcard__title:hover {
+  color: var(--aip-accent);
+}
+.tcard__meta {
   display: flex;
   align-items: center;
   gap: 6px;
+  margin-top: 3px;
+  min-width: 0;
+}
+.tcard__ticker {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--aip-accent);
+  background: var(--aip-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--aip-accent) 30%, transparent);
+  border-radius: 5px;
+  padding: 1.5px 6px;
+  line-height: 1.3;
+}
+.tcard__hint {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tcard__glyph {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+.tcard__glyph--spin {
+  animation: tcspin 0.9s linear infinite;
+}
+@keyframes tcspin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Running scan bar — slim indeterminate sweep. */
+.tcard__progress {
+  height: 2px;
+  background: color-mix(in srgb, var(--aip-accent) 12%, transparent);
+  overflow: hidden;
+}
+.tcard__progress > span {
+  display: block;
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, transparent, var(--aip-accent), transparent);
+  animation: tcscan 1.5s ease-in-out infinite;
+}
+@keyframes tcscan {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+/* Raw call args (collapsed; opened from the title). */
+.tcard__details {
+  margin: 0 13px 11px 16px;
+  background: var(--aipanel-surface-2);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+}
+
+/* Result body. */
+.tcard__body {
+  padding: 0 13px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.tcard__summary {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.tcard__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
   padding: 2px 0;
-  color: var(--text-2);
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  color: var(--text-muted);
+  transition: color 0.15s;
 }
-.trace-row .ic {
-  color: var(--green);
-  width: 10px;
+.tcard__toggle:hover {
+  color: var(--text-secondary);
 }
-.trace-row .ic.run {
-  color: var(--aip-accent);
-  animation: blink 1s infinite;
+.tcard__chev {
+  transition: transform 0.2s;
 }
-.trace-row .tool {
-  color: var(--aip-accent);
+.tcard__chev[data-open='true'] {
+  transform: rotate(180deg);
 }
-.trace-row .t {
-  color: var(--text-3);
-  margin-left: auto;
+.tcard__summarybox {
+  margin-top: 6px;
+  background: var(--aipanel-surface-2);
+  border: 1px solid var(--border-faint);
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  font-size: 12px;
+  line-height: 1.62;
+  color: var(--text-secondary);
+}
+
+/* Footer: provenance seal + route to the full report. */
+.tcard__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.tcard__seal {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: color-mix(in srgb, var(--success) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--success) 24%, transparent);
+  border-radius: 999px;
+  padding: 3px 10px 3px 7px;
+  font-family: var(--font-mono);
   font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--success) 72%, white);
+  cursor: default;
+}
+.tcard__seal svg {
+  color: var(--success);
+  flex-shrink: 0;
+}
+.tcard__seal-sub {
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: color-mix(in srgb, var(--success) 48%, var(--text-muted));
+}
+.tcard__open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  background: var(--aip-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--aip-accent) 34%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 5px 11px;
+  font-family: var(--font-display);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--aip-accent);
+  text-decoration: none;
+  transition:
+    background 0.15s,
+    box-shadow 0.15s;
+}
+.tcard__open svg {
+  flex-shrink: 0;
+}
+.tcard__open:hover {
+  background: color-mix(in srgb, var(--aip-accent) 22%, transparent);
+  box-shadow: 0 0 14px var(--aip-accent-glow);
+}
+
+/* Error row. */
+.tcard__error {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 13px 13px 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: color-mix(in srgb, var(--danger) 70%, white);
+}
+.tcard__error > svg {
+  color: var(--danger);
+  flex-shrink: 0;
+}
+.tcard__error > span {
+  flex: 1;
+  min-width: 0;
+}
+.tcard__retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  background: var(--danger-soft);
+  border: 1px solid color-mix(in srgb, var(--danger) 32%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 3px 10px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--danger) 72%, white);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.tcard__retry:hover {
+  background: color-mix(in srgb, var(--danger) 26%, transparent);
 }
 @keyframes blink {
   0%,

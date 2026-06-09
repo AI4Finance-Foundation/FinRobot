@@ -3,11 +3,10 @@
 // Was: the entire RightChatPanel (outer aside + expand/collapse + chat).
 // Now: chat content only; the aside + expand + tab toggle live in
 // RightChatPanel/index.tsx. This file owns the per-ticker chat session,
-// the model picker header, ContextBar, message list, suggestion chips,
-// and the input area.
+// the model picker header, ContextBar, message list, and the input area.
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useParams, useLocation } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport } from 'ai'
@@ -44,61 +43,6 @@ const CONTEXT_OVERFLOW_RE =
 function isContextOverflowError(message: string): boolean {
   return CONTEXT_OVERFLOW_RE.test(message)
 }
-
-// ──────────────────────────────────────────────────────────────
-// Context-aware suggestion chips per route
-// ──────────────────────────────────────────────────────────────
-
-// Suggestion chips per route. Patterns are tested in order; first match
-// wins. The artifact-detail surface gets its own report-aware chips so the
-// AI panel suggests questions about *this* report rather than the workspace
-// generic ones.
-// Chips carry i18n keys; the literal prompt text is resolved per-locale in
-// the component (routeChips useMemo) so switching language re-renders them.
-//
-// HONESTY RULE (BUG-20260602-046): a chip may only suggest a workflow the lead
-// agent can actually perform. Chips are *prompt shortcuts*, not typed actions —
-// clicking one only fills the input box. So we keep chips whose intent the
-// agent can satisfy with its registered tools (run_dcf_valuation /
-// run_comps_analysis / run_equity_research → dcf / peers / catalysts) or with a
-// plain answer (apiStatus, general landing questions). We REMOVED chips that
-// implied a dedicated tool the agent does NOT have:
-//   - report "diff"          (no artifact-diff tool registered on /chat)
-//   - ticker "Monte Carlo"   (no monte-carlo tool on /chat)
-//   - ticker "10-K Q&A"      (RAG Q&A exists in qa.py but is NOT a /chat tool)
-//   - settings "coverage"    (no coverage-introspection tool)
-// so the UI never promises a workflow that silently degrades to "let the model
-// guess".
-const ROUTE_CHIP_PATTERNS: Array<{ test: (path: string) => boolean; chipKeys: string[] }> = [
-  // /stocks/:ticker/runs/:artifactId — 13-chapter report detail
-  {
-    test: (p) => /^\/stocks\/[^/]+\/runs\//.test(p),
-    chipKeys: [
-      'chatpanel.chip.report.dcf',
-      'chatpanel.chip.report.peers',
-      'chatpanel.chip.report.catalysts',
-    ],
-  },
-  // /stocks/:ticker — ticker workspace
-  {
-    test: (p) => /^\/stocks\/[^/]+$/.test(p),
-    chipKeys: ['chatpanel.chip.ticker.dcf', 'chatpanel.chip.ticker.peers'],
-  },
-  // /stocks landing
-  {
-    test: (p) => p === '/stocks',
-    chipKeys: [
-      'chatpanel.chip.landing.search',
-      'chatpanel.chip.landing.methods',
-      'chatpanel.chip.landing.howto',
-    ],
-  },
-  // /settings
-  {
-    test: (p) => p.startsWith('/settings'),
-    chipKeys: ['chatpanel.chip.settings.apiStatus'],
-  },
-]
 
 // ──────────────────────────────────────────────────────────────
 // Context bundle — the structured context the ContextBar shows is sent to
@@ -430,13 +374,6 @@ export function AiChatTab({
     [storeWidth, setAiPanelWidth],
   )
 
-  // ── Route-aware chips ────────────────────────────────────────
-  const location = useLocation()
-  const routeChips = useMemo((): string[] => {
-    const match = ROUTE_CHIP_PATTERNS.find((p) => p.test(location.pathname))
-    return match ? match.chipKeys.map((k) => t(k)) : []
-  }, [location.pathname, t])
-
   // ── Handle expand toggle for collapsed state ─────────────────
   const handleExpandToggle = useCallback(() => {
     handleToggle()
@@ -512,8 +449,6 @@ export function AiChatTab({
         restoring={seedLoading}
       />
 
-      {routeChips.length > 0 && <SuggestionChips chips={routeChips} onSelect={setInputText} />}
-
       <AiInputArea
         value={inputText}
         onChange={setInputText}
@@ -524,35 +459,6 @@ export function AiChatTab({
         error={error}
         hasMessages={messages.length > 0}
       />
-    </div>
-  )
-}
-
-// ──────────────────────────────────────────────────────────────
-// SuggestionChips — context-aware prompt shortcuts
-// ──────────────────────────────────────────────────────────────
-
-interface SuggestionChipsProps {
-  chips: string[]
-  onSelect: (chip: string) => void
-}
-
-function SuggestionChips({ chips, onSelect }: SuggestionChipsProps): React.ReactElement {
-  const { locale } = useI18n()
-  return (
-    <div className="ai-chips" data-testid="suggestion-chips">
-      <span className="lead">{locale === 'zh' ? '试试' : 'Try'}</span>
-      {chips.map((chip) => (
-        <button
-          key={chip}
-          className="ai-chip"
-          onClick={() => onSelect(chip)}
-          type="button"
-          title={chip}
-        >
-          {chip}
-        </button>
-      ))}
     </div>
   )
 }
@@ -692,9 +598,8 @@ function MessageList({
   }
 
   if (messages.length === 0 && !isLoading) {
-    // Clean welcome — the suggestion chips above the input carry the clickable
-    // prompts, so the empty state stays a single calm focal point (no stacked
-    // example list competing with the chips and the coverage strip).
+    // Clean welcome — a single calm focal point: just the greeting + the
+    // coverage strip, no stacked example list.
     return (
       <div
         data-testid="empty-state"
@@ -828,12 +733,18 @@ function ToolCardFromPart({
     cardState = 'complete'
     const rawOutput = anyPart.output
     if (rawOutput && typeof rawOutput === 'object') {
+      // Mode B pipeline tools return {summary, artifact_id, ticker}.
       const o = rawOutput as { summary?: string; artifact_id?: string; ticker?: string }
       result = {
         summary: o.summary ?? '',
         artifact_id: o.artifact_id,
         ticker: o.ticker,
       }
+    } else if (typeof rawOutput === 'string' && rawOutput.trim()) {
+      // Mode A quick-query tools (query_financial_data / activate_skill) return
+      // a plain string — that string IS the answer, so surface it as the summary
+      // instead of leaving the card body empty.
+      result = { summary: rawOutput }
     }
   } else if (state === 'output-error') {
     cardState = 'error'

@@ -58,6 +58,15 @@ def calculate_ddm(inputs: DDMInputs) -> DDMResult:
             "Gordon Growth Model perpetuity is undefined when tg >= CoE."
         )
 
+    # A dividend cannot shrink by more than 100%: a growth rate < −1 makes
+    # (1 + rate) < 0, driving the projected dividend negative (and sign-flipping
+    # below −2) → a nonsensical negative share value. rate == −1 (a permanent
+    # suspension → dividend 0, value collapses to ~0) is valid. Symmetric with the
+    # tg ≥ cost-of-equity guard above — refuse the undefined region, don't emit a
+    # reverse number.
+    if any(rate < -1 for rate in inputs.dividend_growth_rates):
+        raise ValueError("dividend_growth_rate < −1 implies a negative dividend; DDM is undefined.")
+
     # 2. Project dividends at specified growth rates
     projected_dividends: list[float] = []
     current_dividend = inputs.dividend_per_share

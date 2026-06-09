@@ -447,8 +447,18 @@ def _ev_ebitda_method(
     p25, p75 = band
     if p25 <= 0 or p75 <= 0:
         return None
-    low = max(0.01, (p25 * forward_ebitda - current_net_debt) / shares)
-    high = max(low, (p75 * forward_ebitda - current_net_debt) / shares)
+    raw_low = (p25 * forward_ebitda - current_net_debt) / shares
+    raw_high = (p75 * forward_ebitda - current_net_debt) / shares
+    # Debt exceeds the implied EV even at the OPTIMISTIC p75 multiple (p75 ≥ p25 ⇒
+    # raw_high ≥ raw_low): implied equity is negative across the whole band, so
+    # EV/EBITDA equity is undefined. Drop the row — mirroring the LBO grid's
+    # per-cell drop — instead of flooring to a fabricated $0.01 that would enter
+    # the football field as a real method. (raw_low < 0 < raw_high is a legitimate
+    # near-wipeout: floor the low end to ~0 but keep the real p75 upside.)
+    if raw_high <= 0:
+        return None
+    low = max(0.01, raw_low)
+    high = max(low, raw_high)
     mid = (low + high) / 2
     return ValuationMethodRange(
         method="ev_ebitda",

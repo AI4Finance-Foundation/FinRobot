@@ -107,17 +107,20 @@ class TestLBOReturns:
 
 
 class TestLBOEdgeCases:
-    def test_irr_total_loss(self):
-        """When exit_equity <= 0, IRR should be -1.0 (total loss)."""
-        # High leverage, very low exit multiple → debt > exit EV → equity < 0
-        inputs = _base_inputs(
-            exit_ev_ebitda=1.0,
-            leverage_multiple=10.0,
-            interest_rate=0.15,
-            cash_sweep=False,
-        )
+    def test_negative_entry_equity_returns_undefined_not_total_loss(self):
+        """Debt > enterprise value AT ENTRY → entry_equity < 0, an impossible
+        capital structure. Returns are UNDEFINED (None), not a total loss:
+        forcing moic=0/irr=-1 reads as "血本无归" when exit_equity may even be
+        positive — the opposite signal. Mirror the sensitivity grid (already
+        None-s these cells) and disclose via capital_structure_warning."""
+        # leverage 10× > entry 8× EBITDA → entry_equity = 800 − 1000 = −200 < 0.
+        inputs = _base_inputs(leverage_multiple=10.0)
         result = calculate_lbo(inputs)
-        assert result.irr == pytest.approx(-1.0)
+        assert result.entry_equity < 0
+        assert result.moic is None
+        assert result.irr is None
+        assert result.capital_structure_warning is not None
+        assert "entry equity" in result.capital_structure_warning.lower()
 
     def test_moic_floored_at_zero_when_equity_wiped(self):
         """MOIC must floor at 0.0 when exit_equity < 0 — you can lose at most

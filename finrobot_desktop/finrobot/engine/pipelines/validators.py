@@ -563,14 +563,21 @@ def validate_lbo_inputs(data: LBOInputs) -> ValidationResult:
 
 def validate_lbo_result(result: LBOResult) -> ValidationResult:
     """Validate LBO output values are within plausible bounds."""
+    # Check entry equity first: when it is non-positive (debt ≥ entry EV) the
+    # structure is impossible and the operator emits moic/irr = None (undefined,
+    # NOT a total loss). Catch it here before the bounds checks dereference None.
+    if result.entry_equity <= 0:
+        return ValidationResult(passed=False, error="Entry equity must be positive")
+    if result.moic is None or result.irr is None:
+        return ValidationResult(
+            passed=False, error="LBO returns undefined (non-positive entry equity)"
+        )
     if result.moic <= 0:
         return ValidationResult(passed=False, error=f"MOIC {result.moic:.2f}x must be positive")
     if not (-1.0 <= result.irr <= 10.0):
         return ValidationResult(
             passed=False, error=f"IRR {result.irr:.2%} out of bounds [-100%, 1000%]"
         )
-    if result.entry_equity <= 0:
-        return ValidationResult(passed=False, error="Entry equity must be positive")
     return ValidationResult(passed=True)
 
 

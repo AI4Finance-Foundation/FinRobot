@@ -43,11 +43,42 @@ def _calculate_lbo_core(inputs: LBOInputs) -> LBOResult:
     remaining_debt = schedule[-1].ending_debt
     exit_equity = exit_ev - remaining_debt
 
-    # Floor at 0×: equity can be wiped out (total loss) but never returns a
-    # negative multiple — a negative MOIC would contradict the IRR=-1.0 total-loss
-    # signal _compute_irr emits for the same exit_equity<=0 case.
-    moic = max(exit_equity / entry_equity, 0.0) if entry_equity > 0 else 0.0
-    irr = _compute_irr(entry_equity, exit_equity, inputs.holding_period_years)
+    # entry_equity <= 0 means entry_debt >= entry_ev: the sponsor would put in
+    # NO positive equity — an impossible LBO capital structure, not a trade with
+    # an outcome. Returns are UNDEFINED there (None), NOT a total loss. Forcing
+    # moic=0/irr=-1 reads as "你血本无归" when exit_equity may even be positive —
+    # the opposite signal. Mirror the sensitivity grid, which already None-s
+    # these cells, and disclose the口径 via capital_structure_warning.
+    #
+    # With POSITIVE entry equity, a wipeout (exit_equity <= 0) is a real total
+    # loss: moic floors at 0× (never a negative multiple) and _compute_irr emits
+    # -1.0 — the two agree.
+    moic: float | None
+    irr: float | None
+    if entry_equity > 0:
+        moic = max(exit_equity / entry_equity, 0.0)
+        irr = _compute_irr(entry_equity, exit_equity, inputs.holding_period_years)
+    else:
+        moic = None
+        irr = None
+
+    capital_structure_warning = (
+        "Simplified sources & uses: entry debt is modeled as new debt of "
+        "leverage_multiple × LTM EBITDA. The target's existing balance-sheet "
+        "cash (which would reduce sponsor equity) and existing debt (which "
+        "would be refinanced) are NOT netted into the equity check, and "
+        "transaction/financing fees and a minimum operating-cash requirement "
+        "are not modeled. Entry equity and returns may differ from a full "
+        "sources-&-uses build."
+    )
+    if entry_equity <= 0:
+        capital_structure_warning = (
+            f"Entry equity is non-positive (entry EV ${entry_ev / 1e6:.0f}M − entry debt "
+            f"${entry_debt / 1e6:.0f}M = ${entry_equity / 1e6:.0f}M): debt ≥ enterprise "
+            f"value, an impossible LBO structure. MOIC / IRR are UNDEFINED (not a total "
+            f"loss) — leverage_multiple ({inputs.leverage_multiple:.1f}×) exceeds the entry "
+            f"multiple ({inputs.entry_ev_ebitda:.1f}×). " + capital_structure_warning
+        )
 
     return LBOResult(
         entry_ev=entry_ev,
@@ -66,15 +97,7 @@ def _calculate_lbo_core(inputs: LBOInputs) -> LBOResult:
             "management fee recaps, and partial exits are not yet modeled — "
             "actual IRR may differ if these are material."
         ),
-        capital_structure_warning=(
-            "Simplified sources & uses: entry debt is modeled as new debt of "
-            "leverage_multiple × LTM EBITDA. The target's existing balance-sheet "
-            "cash (which would reduce sponsor equity) and existing debt (which "
-            "would be refinanced) are NOT netted into the equity check, and "
-            "transaction/financing fees and a minimum operating-cash requirement "
-            "are not modeled. Entry equity and returns may differ from a full "
-            "sources-&-uses build."
-        ),
+        capital_structure_warning=capital_structure_warning,
     )
 
 

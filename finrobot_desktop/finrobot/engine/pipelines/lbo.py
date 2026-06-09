@@ -130,9 +130,14 @@ async def _execute_lbo_calc(
         for w in (result.irr_formula_warning, result.capital_structure_warning)
         if w
     )
+    # moic/irr are None for an impossible structure (entry equity ≤ 0); the
+    # capital_structure_warning (already in warning_prefix) explains why. Render
+    # N/A instead of crashing the f-string.
+    moic_str = f"{result.moic:.1f}×" if result.moic is not None else "N/A"
+    irr_str = f"{result.irr:.1%}" if result.irr is not None else "N/A"
     narrative = (
         f"{warning_prefix}"
-        f"LBO implies {result.moic:.1f}× MOIC and {result.irr:.1%} IRR over "
+        f"LBO implies {moic_str} MOIC and {irr_str} IRR over "
         f"{inputs.holding_period_years} years. "
         f"Entry equity: ${result.entry_equity / 1e6:.0f}M, "
         f"Exit equity: ${result.exit_equity / 1e6:.0f}M. "

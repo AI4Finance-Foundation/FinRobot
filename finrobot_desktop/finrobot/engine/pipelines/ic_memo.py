@@ -142,10 +142,15 @@ async def _execute_ic_financials(
         dcf_result=dcf_result,
         lbo_result=lbo_result,
     )
+    # moic/irr are None for an impossible structure (entry equity ≤ 0); show N/A
+    # rather than crash the f-string (the financials validator rejects that case
+    # downstream, but this summary text is built first).
+    moic_str = f"{lbo_result.moic:.1f}×" if lbo_result.moic is not None else "N/A"
+    irr_str = f"{lbo_result.irr:.1%}" if lbo_result.irr is not None else "N/A"
     text = (
         f"DCF: ${dcf_result.implied_price:.2f}/share "
         f"(WACC {dcf_result.wacc:.1%}). "
-        f"LBO: {lbo_result.moic:.1f}× MOIC, {lbo_result.irr:.1%} IRR "
+        f"LBO: {moic_str} MOIC, {irr_str} IRR "
         f"({lbo_inputs.holding_period_years}yr hold)."
     )
     return StepOutput(text=text, structured=combined)
@@ -168,9 +173,12 @@ async def _execute_recommendation(
 
     if isinstance(ic_financials, ICFinancials):
         irr = ic_financials.lbo_result.irr
-        if irr < _IRR_HURDLE:
+        # An undefined IRR (None — impossible capital structure, entry equity ≤ 0)
+        # cannot clear the hurdle, so it falls through the same PASS gate.
+        if irr is None or irr < _IRR_HURDLE:
+            irr_label = f"{irr:.1%}" if irr is not None else "undefined (entry equity ≤ 0)"
             gate_text = (
-                f"[CODE GATE: LBO IRR {irr:.1%} is below the {_IRR_HURDLE:.0%} minimum hurdle. "
+                f"[CODE GATE: LBO IRR {irr_label} is below the {_IRR_HURDLE:.0%} minimum hurdle. "
                 f"Recommendation overridden to: PASS]\n\n"
             )
             return StepOutput(text=gate_text + step_result.output, structured=None)

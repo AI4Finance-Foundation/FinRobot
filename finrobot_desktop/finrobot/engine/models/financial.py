@@ -905,8 +905,16 @@ class LBOResult(BaseModel):
     exit_ebitda: float
     exit_ev: float
     exit_equity: float
-    moic: float
-    irr: float = Field(description="Annualized IRR (decimal). -1.0 = total loss.")
+    moic: float | None = Field(
+        default=None,
+        description="MOIC (×). 0 = total loss (equity wiped at exit). "
+        "None = undefined (non-positive entry equity: debt ≥ entry EV — impossible structure).",
+    )
+    irr: float | None = Field(
+        default=None,
+        description="Annualized IRR (decimal). -1.0 = total loss (equity wiped at exit). "
+        "None = undefined (non-positive entry equity — impossible LBO structure).",
+    )
     sensitivity: dict[str, Any] = Field(
         default_factory=dict,
         description="entry_multiples, exit_multiples, irr_grid, moic_grid",

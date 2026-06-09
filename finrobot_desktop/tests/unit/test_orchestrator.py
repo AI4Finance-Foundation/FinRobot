@@ -1,7 +1,9 @@
 """Tests for the lead_agent orchestrator (P1b: sub-agents + comps/dcf tools)."""
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from pydantic_ai import ModelRetry, RunContext
@@ -389,3 +391,105 @@ class TestFindReports:
         out = await fn(_run_context(_deps_with_store(store)), "###")
         assert isinstance(out, str)
         assert "Invalid ticker" in out
+
+
+# ---------------------------------------------------------------------------
+# ask_filings — 10-K RAG Q&A as a chat tool.
+#
+# run_qa (engine/analysis/qa.py) retrieves real 10-K passages via BM25 and
+# grounds the answer in them, but it was never reachable from /chat — the
+# AiChatTab "10-K Q&A" chip was REMOVED (BUG-20260602-046) because no tool
+# existed, so the model could only guess. This exposes run_qa to the lead agent.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _FakeChunk:
+    text: str
+    source: str
+    chunk_index: int
+
+
+class _FakeRagIndex:
+    """Minimal BM25Index stand-in: search() returns (chunk, score) pairs."""
+
+    def __init__(self, chunks: list[_FakeChunk], scores: list[float] | None = None) -> None:
+        self._chunks = chunks
+        self._scores = scores or [1.0] * len(chunks)
+
+    def search(self, query: str, top_k: int = 5) -> list[tuple[_FakeChunk, float]]:
+        return list(zip(self._chunks, self._scores))[:top_k]
+
+
+class _RagDataLayer:
+    """Data layer whose fetch() returns a 10-K RAG payload (or an empty one)."""
+
+    def __init__(self, *, rag_index: _FakeRagIndex | None = None, chunk_count: int = 0) -> None:
+        self._rag_index = rag_index
+        self._chunk_count = chunk_count
+
+    async def fetch(self, data_type, ticker, **kwargs) -> DataResult:  # noqa: ANN001
+        data: dict = {"chunk_count": self._chunk_count}
+        if self._rag_index is not None:
+            data["rag_index"] = self._rag_index
+        return DataResult(
+            data=data,
+            provider="sec_edgar",
+            ticker=ticker,
+            data_type=str(data_type),
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+
+def _ask_filings_fn(agent):  # noqa: ANN001
+    return agent._function_toolset.tools["ask_filings"].function
+
+
+class TestAskFilings:
+    async def test_registered_as_tool(self):
+        agent = _agent()
+        assert "ask_filings" in agent._function_toolset.tools
+
+    async def test_bad_ticker_returns_string_not_raise(self):
+        agent = _agent()
+        fn = _ask_filings_fn(agent)
+        deps = FinRobotDeps(data_layer=_RagDataLayer(), settings=_settings())
+        out = await fn(_run_context(deps), "###", "What are the risk factors?")
+        assert isinstance(out, str)
+        assert "Invalid ticker" in out
+
+    async def test_no_10k_returns_string_not_raise(self):
+        # run_qa raises ValueError("No 10-K RAG index ...") when EDGAR has no
+        # filing; the tool MUST convert it to a returned string, never re-raise —
+        # a raised ValueError tears down the live /chat SSE stream.
+        agent = _agent()
+        fn = _ask_filings_fn(agent)
+        deps = FinRobotDeps(data_layer=_RagDataLayer(rag_index=None), settings=_settings())
+        out = await fn(_run_context(deps), "AAPL", "What are the risk factors?")
+        assert isinstance(out, str)
+        assert "10-K" in out
+
+    async def test_successful_qa_returns_grounded_answer(self, monkeypatch):
+        deps = FinRobotDeps(
+            data_layer=_RagDataLayer(
+                rag_index=_FakeRagIndex(
+                    [_FakeChunk("Regulatory change is a material risk.", "[Item 1A]", 0)],
+                    scores=[3.2],
+                ),
+                chunk_count=12,
+            ),
+            settings=_settings(),
+        )
+        # Stub the LLM inside run_qa so the test exercises the real retrieval +
+        # tool plumbing without a network call.
+        mock_result = MagicMock()
+        mock_result.output = "Per [Item 1A], regulatory change is the key risk."
+        mock_agent = MagicMock()
+        mock_agent.run = AsyncMock(return_value=mock_result)
+        monkeypatch.setattr("finrobot.engine.analysis.qa.Agent", MagicMock(return_value=mock_agent))
+
+        agent = _agent()
+        fn = _ask_filings_fn(agent)
+        out = await fn(_run_context(deps), "aapl", "What are the risk factors?")
+        assert isinstance(out, str)
+        assert "regulatory change" in out.lower()

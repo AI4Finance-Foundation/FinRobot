@@ -10,6 +10,7 @@ from finrobot.config import FinRobotSettings
 from finrobot.coverage.prompt import format_coverage_for_tool
 from finrobot.coverage.service import build_overview
 from finrobot.engine.agents.factory import create_sub_agents
+from finrobot.engine.analysis.qa import run_qa
 from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
@@ -140,6 +141,31 @@ def create_lead_agent(
             ) from exc
         result = await ctx.deps.data_layer.fetch(dt, norm)
         return result.to_context_string()
+
+    @agent.tool
+    async def ask_filings(ctx: RunContext[FinRobotDeps], ticker: str, question: str) -> str:
+        """Answer a question about a company's latest SEC 10-K, grounded in the
+        filing's actual text (BM25 retrieval over the filing + section citations).
+
+        Use this for QUALITATIVE 10-K content the structured-data tools cannot
+        answer: risk factors, business description, competition, legal
+        proceedings, MD&A commentary, segment notes. The answer cites its source
+        sections (e.g. [Item 1A]); if the filing lacks the information it says so
+        rather than guessing. For numeric financials use query_financial_data.
+        """
+        # RETURN (not raise) on a bad ticker — a raised ValueError tears down the
+        # live chat SSE stream; a returned string lets the LLM recover.
+        try:
+            norm = validate_ticker(ticker)
+        except ValueError:
+            return f"Invalid ticker symbol: {ticker}"
+        # run_qa raises ValueError when EDGAR has no 10-K or no extractable
+        # sections — RETURN that message for the same SSE-safety reason as above
+        # (contract shared with query_financial_data / find_reports).
+        try:
+            return await run_qa(ctx.deps.data_layer, ctx.deps.settings, norm, question)
+        except ValueError as exc:
+            return str(exc)
 
     @agent.tool
     async def query_coverage_universe(ctx: RunContext[FinRobotDeps], refresh: bool = False) -> str:

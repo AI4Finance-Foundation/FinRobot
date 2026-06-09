@@ -6757,13 +6757,22 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   align-items: flex-end;
   justify-content: space-between;
   gap: 12px;
+  /* Wrap the provider to its own line when it can't sit beside the price block
+     (closed-market "fmp · Close · <full date>" is long). Without this AND the
+     price-block min-width fix below, flex squeezed the price block below its
+     content width and the nowrap price/change text overflowed onto the
+     provider — the green-change / amber-provider overlap. */
+  flex-wrap: wrap;
+  row-gap: 2px;
   min-width: 0;
   padding: 8px 0 2px;
   border-top: 1px solid var(--border-faint);
 }
 .coverage-card__price-block {
   position: relative;
-  min-width: 0;
+  /* NOT min-width: 0 — that let flex shrink this block below its content, so the
+     nowrap price/change overflowed rightward onto the provider. Keep its content
+     width; the provider wraps below (flex-wrap above) when there's no room. */
   padding-left: 14px;
 }
 .coverage-card__price-block::before {

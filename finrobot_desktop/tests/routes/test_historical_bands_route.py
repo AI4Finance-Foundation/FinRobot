@@ -165,36 +165,35 @@ class _FinancialsStubDataLayer(_StubDataLayer):
 
     async def fetch_canonical(self, data_type: DataType | str, ticker: str, **kw: object) -> object:
         if DataType(data_type) == DataType.FINANCIALS:
-            from finrobot.engine.models.financial import (
-                BalanceSheet,
-                FinancialData,
-                IncomeStatement,
-                MarketData,
-                ValuationMetrics,
-            )
+            from finrobot.engine.data.normalize.financials import normalize_financials
 
-            return FinancialData(
+            # fetch_canonical(FINANCIALS) returns a raw-provider-shaped
+            # NormalizedFinancials (NOT a pre-extracted FinancialData) — the route
+            # projects it through extract_financial_data. Build it with the SAME
+            # normaliser production uses so this exercises the real path (the old
+            # FinancialData fixture was a shape fetch_canonical never returns, which
+            # is exactly why the inert isinstance override stayed green here while
+            # being dead in production). market_cap is kept consistent with
+            # shares × current_price so extract's live-price mark-to is a no-op.
+            raw = DataResult(
+                data={
+                    "revenue": 100e9,
+                    "ebitda": 40e9,  # TTM, deliberately ≠ the annual band samples
+                    "net_income": 30e9,
+                    "gross_margin": 0.6,
+                    "operating_margin": 0.4,
+                    "market_cap": 2.4e9 * 859.0,
+                    "shares_outstanding": 2.4e9,
+                    "current_price": 859.0,
+                    "total_debt": 11e9,
+                    "total_cash": 8e9,
+                },
+                provider="stub",
                 ticker=ticker,
-                company_name="NVDA",
+                data_type=DataType.FINANCIALS,
                 timestamp=NOW,
-                income=IncomeStatement(
-                    revenue=100e9,
-                    ebitda=40e9,
-                    net_income=30e9,
-                    gross_margin=0.6,
-                    operating_margin=0.4,
-                    interest_expense=1e6,
-                ),
-                balance=BalanceSheet(total_debt=11e9, total_cash=8e9),
-                market=MarketData(
-                    market_cap=2000e9,
-                    shares_outstanding=2.4e9,
-                    current_price=859.0,
-                    industry="Semiconductors",
-                    beta=1.2,
-                ),
-                valuation=ValuationMetrics(),
             )
+            return normalize_financials(raw)
         return await super().fetch_canonical(data_type, ticker, **kw)
 
 
@@ -212,8 +211,11 @@ async def test_historical_bands_current_uses_canonical_ttm_override(tmp_path: Pa
         r = await client.get("/api/valuation/historical-bands/NVDA?metric=ev_ebitda&years=3")
     assert r.status_code == 200, r.text
     body = r.json()
-    # TTM override = (market_cap 2000e9 + net_debt (11e9 − 8e9)) / EBITDA 40e9 = 50.075x
-    assert body["current"] == pytest.approx(50.075, rel=1e-4)
+    # TTM override = (market_cap (2.4e9×859=2061.6e9) + net_debt (11e9 − 8e9)) /
+    # EBITDA 40e9 = 51.615x — the canonical TTM multiple, NOT the trailing-annual
+    # samples[-1] (~25e9 EBITDA would read far higher), proving the override path
+    # is live rather than inert.
+    assert body["current"] == pytest.approx(51.615, rel=1e-4)
     assert any("TTM" in w for w in body["warnings"]), body["warnings"]
 
 

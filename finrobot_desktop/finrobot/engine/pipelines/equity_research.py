@@ -37,6 +37,7 @@ from finrobot.engine.compute.operators.dcf import (
     market_implied_check,
 )
 from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
+from finrobot.engine.compute.operators.forward_estimates import get_forward_revenue_growth
 from finrobot.engine.compute.operators.valuation_synthesis import (
     CanonicalThesis,
     resolve_canonical_thesis,
@@ -503,7 +504,16 @@ async def _execute_financial_modeling(
         financial_data, fmp_api_key=getattr(deps.settings, "fmp_api_key", None)
     )
 
-    dcf_inputs = seed_dcf_inputs(financial_data, historical)
+    # Stage-1 growth seed: prefer analyst consensus (the multi-year forward path
+    # the data step already fetched) over a backward-looking trailing CAGR, so
+    # the DCF stops contradicting the pipeline's own forward projection — the
+    # AAPL 3.3%-trailing vs +14.9%-consensus gap that printed a $138 fair value.
+    # Best-effort: any miss → [] → seed_dcf_inputs falls back to trailing CAGR.
+    forward_raw = structured_context.get("forward_estimates_raw")
+    forward_growth = (
+        get_forward_revenue_growth(forward_raw) if isinstance(forward_raw, dict) else []
+    )
+    dcf_inputs = seed_dcf_inputs(financial_data, historical, forward_growth=forward_growth)
     try:
         dcf_result = calculate_dcf(dcf_inputs)
     except (ValueError, ArithmeticError) as e:

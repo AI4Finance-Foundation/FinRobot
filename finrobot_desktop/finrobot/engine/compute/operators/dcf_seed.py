@@ -57,6 +57,12 @@ DEFAULT_TAX_RATE: Final[float] = 0.21  # US corporate statutory
 # early, compounding the lowball for exactly the high-growth names.
 DEFAULT_PROJECTION_YEARS: Final[int] = 10
 DEFAULT_COST_OF_DEBT: Final[float] = 0.05  # Investment-grade corporate yield
+# Explicit-window revenue-growth bounds, shared by the trailing-CAGR and the
+# forward-consensus seed paths. Floor −20%/yr (severe-but-bounded decline); cap
+# +40%/yr (no firm compounds revenue faster than this for a decade, so even a
+# euphoric consensus FY1 is clamped before it inflates the explicit window).
+_GROWTH_CAP: Final[float] = 0.40
+_GROWTH_FLOOR: Final[float] = -0.20
 
 # Effective cost-of-debt is clamped into this band: below it the rate is
 # rounding noise (sub-1% interest on a large debt balance), above it the implied
@@ -233,6 +239,7 @@ def seed_dcf_inputs(
     equity_risk_premium: float = DEFAULT_EQUITY_RISK_PREMIUM,
     terminal_growth_rate: float = DEFAULT_TERMINAL_GROWTH,
     projection_years: int = DEFAULT_PROJECTION_YEARS,
+    forward_growth: list[float] | None = None,
 ) -> DCFInputs:
     """Build a complete DCFInputs from one ticker's financials + historical data.
 
@@ -251,6 +258,13 @@ def seed_dcf_inputs(
         equity_risk_premium: Market risk premium. Default Damodaran 2026 ERP.
         terminal_growth_rate: Perpetuity growth. Default US nominal GDP.
         projection_years: Length of explicit forecast schedule. Default 5.
+        forward_growth: Analyst-consensus YoY revenue-growth path for the first
+            few explicit years (from forward_estimates.get_forward_revenue_growth).
+            When non-empty it SEEDS the explicit window (clamped to the shared
+            floor/cap, then decayed to terminal) IN PLACE OF the trailing CAGR —
+            a backward-looking CAGR otherwise ignores a consensus re-acceleration
+            the rest of the pipeline already fetched (the AAPL 3.3%-vs-+14.9% gap).
+            None / empty → trailing-CAGR seeding, unchanged.
 
     Returns:
         DCFInputs ready to pass to ``calculate_dcf``. The ``da_pct_revenue``
@@ -268,7 +282,29 @@ def seed_dcf_inputs(
     # or NaN pollution from yfinance. math.isfinite guards the NaN/Inf case.
     cagr = historical.cagr_revenue
     has_real_cagr = cagr is not None and math.isfinite(cagr)
-    if has_real_cagr:
+    if forward_growth:
+        # Analyst consensus drives the explicit window. Clamp each consensus year
+        # to the shared floor/cap, then decay the tail from the last consensus
+        # year down to terminal — don't extrapolate a finite-horizon estimate
+        # forever, and don't fabricate a rise when the last consensus year is
+        # already ≤ terminal (mature: hold flat, Gordon perpetuity does the rest).
+        explicit = [max(min(g, _GROWTH_CAP), _GROWTH_FLOOR) for g in forward_growth][
+            :projection_years
+        ]
+        remaining = projection_years - len(explicit)
+        tail_start = explicit[-1]
+        if remaining > 0 and tail_start > terminal_growth_rate:
+            step = (tail_start - terminal_growth_rate) / remaining
+            explicit += [tail_start - step * (i + 1) for i in range(remaining)]
+        elif remaining > 0:
+            explicit += [tail_start] * remaining
+        growth_schedule = explicit
+        pct = "/".join(f"{g:.1%}" for g in growth_schedule[: len(forward_growth)])
+        prov["revenue_growth_rates"] = (
+            f"分析师一致预期 FY1-{len(forward_growth)} 增长 {pct}，"
+            f"之后线性衰减到永续 {terminal_growth_rate:.1%}"
+        )
+    elif has_real_cagr:
         assert cagr is not None  # narrowing for mypy
         # Floor at -20%/yr (severe-but-bounded decline), cap at +40%. The old
         # floor of 0.0 silently FORCED every structurally-declining firm to a
@@ -277,7 +313,7 @@ def seed_dcf_inputs(
         # held flat across the explicit window by _decay_growth_schedule (it
         # only decays a base ABOVE terminal); the Gordon perpetuity handles the
         # eventual convergence to terminal_growth.
-        base_growth = max(min(cagr, 0.40), -0.20)
+        base_growth = max(min(cagr, _GROWTH_CAP), _GROWTH_FLOOR)
         growth_schedule = _decay_growth_schedule(
             base_growth, terminal_growth_rate, projection_years
         )

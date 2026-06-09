@@ -155,6 +155,50 @@ def get_forward_financials(
 # ---------------------------------------------------------------------------
 
 
+def get_forward_revenue_growth(
+    fmp_analyst_estimates: dict[str, Any] | None,
+    *,
+    as_of: date | None = None,
+    max_years: int = 3,
+) -> list[float]:
+    """Forward YoY revenue-growth path (FY1..FYn) from FMP analyst-estimates.
+
+    Returns up to ``max_years`` consecutive consensus growth rates — FY1/last
+    actual − 1, then FY2/FY1 − 1, … — for seeding the DCF explicit window so the
+    model reflects analyst consensus instead of a backward-looking trailing CAGR.
+    Returns ``[]`` (caller falls back to trailing-CAGR seeding) when the payload
+    is absent, has no parseable rows, or carries no past-actual row to anchor the
+    FY1 growth. Far-out rows (beyond ``max_years``) are dropped — FMP consensus
+    past ~3 years is sparse and non-monotonic.
+
+    Lives here, not in dcf_seed, because §6.4.1 makes this leaf the only place
+    allowed to mint a forward-consensus number; dcf_seed consumes the plain rates.
+    """
+    rows = (
+        fmp_analyst_estimates.get("rows")
+        if isinstance(fmp_analyst_estimates, dict)
+        else fmp_analyst_estimates
+    )
+    if not isinstance(rows, list) or not rows:
+        return []
+    ref = as_of or date.today()
+    parsed: list[tuple[date, float]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        d = _parse_iso_date(row.get("date"))
+        rev = _coerce_positive_float(row.get("estimatedRevenueAvg"))
+        if d is not None and rev is not None:
+            parsed.append((d, rev))
+    parsed.sort(key=lambda p: p[0])
+    base = [p for p in parsed if p[0] < ref]
+    forward = [p for p in parsed if p[0] >= ref][:max_years]
+    if not base or not forward:
+        return []
+    seq = [base[-1][1]] + [p[1] for p in forward]
+    return [seq[i] / seq[i - 1] - 1 for i in range(1, len(seq))]
+
+
 def _from_fmp(
     ticker: str, fmp: dict[str, Any], warnings: list[str], as_of: date
 ) -> ForwardFinancials:

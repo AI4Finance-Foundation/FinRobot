@@ -620,3 +620,57 @@ class TestMedianWindowBug026:
         # Must NOT claim 3 years of history it doesn't have.
         assert "过去 3 年" not in prov["capex_pct_revenue"]
         assert "过去 3 年" not in prov["ebitda_margin"]
+
+
+class TestForwardGrowthSeed:
+    """forward_growth (analyst consensus) takes precedence over trailing CAGR.
+
+    AAPL's trailing 5y CAGR is ~3.3% (dragged by the FY22-24 plateau); consensus
+    expects a reacceleration. Seeding the explicit window from consensus stops
+    the DCF contradicting the pipeline's own forward projection.
+    """
+
+    def test_forward_growth_drives_explicit_window_over_trailing(self):
+        inputs = seed_dcf_inputs(
+            _aapl_financials(), _aapl_historical(), forward_growth=[0.149, 0.084, 0.071]
+        )
+        sched = inputs.revenue_growth_rates
+        assert sched[0] == pytest.approx(0.149)
+        assert sched[1] == pytest.approx(0.084)
+        assert sched[2] == pytest.approx(0.071)
+        # not the ~3% trailing CAGR the old seed would have produced
+        assert sched[0] > 0.10
+
+    def test_forward_tail_decays_to_terminal(self):
+        inputs = seed_dcf_inputs(
+            _aapl_financials(), _aapl_historical(), forward_growth=[0.149, 0.084, 0.071]
+        )
+        sched = inputs.revenue_growth_rates
+        assert len(sched) == 10  # DEFAULT_PROJECTION_YEARS
+        assert sched[-1] == pytest.approx(inputs.terminal_growth_rate)
+        # monotone-decreasing tail after the explicit consensus years
+        tail = sched[2:]
+        assert all(a >= b - 1e-9 for a, b in zip(tail, tail[1:]))
+
+    def test_forward_growth_respects_40pct_cap(self):
+        inputs = seed_dcf_inputs(
+            _aapl_financials(), _aapl_historical(), forward_growth=[0.82, 0.42, 0.20]
+        )
+        assert inputs.revenue_growth_rates[0] == pytest.approx(0.40)
+        assert inputs.revenue_growth_rates[1] == pytest.approx(0.40)
+
+    def test_forward_growth_provenance_is_chinese_and_names_consensus(self):
+        inputs = seed_dcf_inputs(
+            _aapl_financials(), _aapl_historical(), forward_growth=[0.149, 0.084, 0.071]
+        )
+        prov = inputs.assumption_provenance["revenue_growth_rates"]
+        assert "一致预期" in prov
+
+    def test_empty_forward_growth_falls_back_to_trailing(self):
+        base = seed_dcf_inputs(_aapl_financials(), _aapl_historical())
+        fb = seed_dcf_inputs(_aapl_financials(), _aapl_historical(), forward_growth=[])
+        assert fb.revenue_growth_rates == base.revenue_growth_rates
+        assert (
+            fb.assumption_provenance["revenue_growth_rates"]
+            == (base.assumption_provenance["revenue_growth_rates"])
+        )

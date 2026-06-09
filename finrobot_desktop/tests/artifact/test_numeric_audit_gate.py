@@ -14,6 +14,7 @@ from finrobot.artifact.builders import (
     build_comps_artifact,
     build_dcf_artifact,
     build_equity_research_artifact,
+    build_ic_memo_artifact,
     build_lbo_artifact,
 )
 from finrobot.engine.models.financial import (
@@ -21,6 +22,7 @@ from finrobot.engine.models.financial import (
     DCFInputs,
     DCFResult,
     FinancialData,
+    ICFinancials,
     IncomeStatement,
     LBOResult,
     LBOYear,
@@ -317,3 +319,50 @@ def test_standalone_comps_flags_but_does_not_claim_withheld():
     assert art.outputs.structured["median_pe"] == 20.0  # medians still published
     assert "Valuation withheld" not in art.outputs.summary_text  # summary stays honest
     assert any("financial_sector_ev_meaningless" in w for w in art.outputs.warnings)
+
+
+# ---------------------------------------------------------------------------
+# IC Memo: was the one builder that never ran the gate, yet its FinancialData is
+# nested in ICFinancials.financial_data. Step 3 routes it through the shared sink
+# so its snapshot is audited + the block ships for the audit banner + contract C4.
+# No single per-share headline → the block is attached but nothing auto-withholds.
+# ---------------------------------------------------------------------------
+
+
+def _ic_memo_result(fd: FinancialData) -> PipelineResult:
+    ic = ICFinancials(financial_data=fd, dcf_result=_dcf_result(), lbo_result=_lbo_result())
+    return PipelineResult(
+        steps={"financial_analysis": "ok"},
+        structured_data={"financial_analysis": ic},
+    )
+
+
+def test_ic_memo_carries_numeric_audit_when_clean():
+    art = build_ic_memo_artifact(
+        _ic_memo_result(_fd(industry="Software", ev_ebitda=18.0)), "X", cast(Any, None)
+    )
+    audit = art.outputs.structured["numeric_audit"]
+    assert audit["artifact_status"] == "publishable"
+    assert audit["findings"] == []
+    # The memo's DCF / LBO results still ship.
+    assert "dcf_result" in art.outputs.structured
+    assert "lbo_result" in art.outputs.structured
+
+
+def test_ic_memo_audits_nested_snapshot_and_records_block():
+    # The gate now runs on ICFinancials.financial_data (nested). A bank EV is a
+    # blocked_field — the block + finding surface (banner + contract C4 read them),
+    # but ic_memo has no single headline target, so nothing auto-withholds.
+    art = build_ic_memo_artifact(
+        _ic_memo_result(_fd(ticker="JPM", industry="Banks - Diversified", ev_ebitda=8.0)),
+        "JPM",
+        cast(Any, None),
+    )
+    audit = art.outputs.structured["numeric_audit"]
+    assert audit["artifact_status"] == "review_only"
+    assert audit["withhold_valuation"] is True  # the audit records the block
+    assert any(f["check"] == "financial_sector_ev_meaningless" for f in audit["findings"])
+    assert any("financial_sector_ev_meaningless" in w for w in art.outputs.warnings)
+    # No single per-share headline → nothing auto-withheld; the DCF / LBO ship.
+    assert "valuation_withheld" not in art.outputs.structured
+    assert "dcf_result" in art.outputs.structured

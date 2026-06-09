@@ -20,6 +20,7 @@ import logging
 import subprocess
 import uuid
 from datetime import datetime, timezone
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -168,18 +169,31 @@ def _attach_numeric_audit(
     deps: Any,
     *financial_step_names: str,
     withhold_keys: tuple[str, ...] = (),
+    snapshot: Any | None = None,
+    rich_withhold: Callable[[dict[str, Any]], None] | None = None,
 ) -> list[str]:
-    """Attach numeric audit to any valuation artifact.
+    """Attach the numeric audit to a valuation artifact — the single sink every
+    builder routes through, so the gate is Mode A/B symmetric and no type can be
+    silently left un-audited.
 
-    Returns warning strings to append to ArtifactOutputs.warnings. For standalone
-    valuation artifacts, a blocked audit can null direct per-share target fields
-    so downstream aggregate parsers hide the row instead of republishing a target
-    whose input snapshot failed a definitional gate.
+    Snapshot: taken from ``snapshot`` when the builder already holds the
+    ``FinancialData`` object (equity_research; ic_memo, whose snapshot is NESTED in
+    ``ICFinancials.financial_data`` — never a top-level step, so a step-name lookup
+    would silently audit ``None``), else extracted from the named pipeline steps.
+
+    Withhold on ``withhold_valuation``: a ``rich_withhold`` callback runs the
+    type-specific degrade (equity_research nulls thesis target + forces REVIEW +
+    syncs the llm_narrative mirror — three actions one scalar can't express);
+    otherwise the scalar ``withhold_keys`` are nulled (plain dcf/lbo/ddm).
+    ``comps`` / ``ic_memo`` pass neither — the block is still attached for the
+    audit banner + output-contract C4 to read, but nothing is auto-withheld.
     """
 
     from finrobot.engine.compute.operators.audit import audit_artifact
 
-    fin_snapshot = _extract_financial_data(result, *financial_step_names)
+    fin_snapshot = (
+        snapshot if snapshot is not None else _extract_financial_data(result, *financial_step_names)
+    )
     audit = audit_artifact(fin_snapshot)
     audit_payload = audit.model_dump(mode="json")
     capability_warnings = _data_capability_warnings(deps)
@@ -190,12 +204,15 @@ def _attach_numeric_audit(
             "reasons": capability_warnings,
         }
     structured_out["numeric_audit"] = audit_payload
-    if audit.withhold_valuation and withhold_keys:
-        structured_out["valuation_withheld"] = True
-        structured_out["withheld_reason"] = "numeric_audit_blocked_field"
-        for key in withhold_keys:
-            if key in structured_out:
-                structured_out[key] = None
+    if audit.withhold_valuation:
+        if rich_withhold is not None:
+            rich_withhold(structured_out)
+        elif withhold_keys:
+            structured_out["valuation_withheld"] = True
+            structured_out["withheld_reason"] = "numeric_audit_blocked_field"
+            for key in withhold_keys:
+                if key in structured_out:
+                    structured_out[key] = None
     return _numeric_audit_warnings(audit) + capability_warnings
 
 
@@ -517,7 +534,6 @@ def build_equity_research_artifact(
     deps: "FinRobotDeps",
 ) -> "Artifact":
     """Build an Artifact from a completed equity research pipeline result."""
-    from finrobot.engine.compute.operators.audit import audit_artifact
     from finrobot.engine.models.financial import DCFResult, FinancialData
 
     data_source, fetched_at, raw_data = _extract_financial_data_dump(result, "data_collection")
@@ -598,37 +614,33 @@ def build_equity_research_artifact(
         k: thesis_dict[k] for k in _LLM_NARRATIVE_KEYS if k in thesis_dict
     }
 
-    # Numeric-audit gate (design doc §7, behavior A). Run the definitional verifiers
-    # over the finalized snapshot; surface findings as warnings + a structured block.
-    # On a blocked_field (a category-error or dimensionally-corrupt number — bank EV,
-    # mixed-currency multiple) withhold the rating + price target: a target built on
-    # an untrustworthy number must not be published. This runs in the artifact builder
-    # — the single sink every report mode converges on — so the gate is symmetric
-    # across Mode A/B without touching individual pipeline steps.
+    # Numeric-audit gate (design doc §7, behavior A) — runs through the shared
+    # sink so every report mode is Mode A/B symmetric and ic_memo gets the same
+    # gate (it was the one builder this never ran on). equity_research's withhold
+    # is richer than a scalar null — null thesis target + force REVIEW + sync the
+    # llm_narrative mirror — so it passes a rich_withhold callback.
     fin_snapshot = next(
         (v for v in result.structured_data.values() if isinstance(v, FinancialData)),
         None,
     )
-    audit = audit_artifact(fin_snapshot)
-    audit_payload = audit.model_dump(mode="json")
-    capability_warnings = _data_capability_warnings(deps)
-    if capability_warnings:
-        audit_payload["artifact_status"] = "review_only"
-        audit_payload["data_capability"] = {
-            "artifact_status": "review_only",
-            "reasons": capability_warnings,
-        }
-    structured_out["numeric_audit"] = audit_payload
-    audit_warnings = _numeric_audit_warnings(audit) + capability_warnings
-    if audit.withhold_valuation:
-        structured_out["valuation_withheld"] = True
-        structured_out["withheld_reason"] = "numeric_audit_blocked_field"
-        thesis_out = structured_out.get("thesis")
+
+    def _withhold_equity_research(structured: dict[str, Any]) -> None:
+        structured["valuation_withheld"] = True
+        structured["withheld_reason"] = "numeric_audit_blocked_field"
+        thesis_out = structured.get("thesis")
         if isinstance(thesis_out, dict):
             thesis_out["recommendation"] = "REVIEW"
             thesis_out["price_target"] = None
         if "recommendation" in llm_narrative:
             llm_narrative["recommendation"] = "REVIEW"
+
+    audit_warnings = _attach_numeric_audit(
+        structured_out,
+        result,
+        deps,
+        snapshot=fin_snapshot,
+        rich_withhold=_withhold_equity_research,
+    )
 
     return Artifact(
         id=_make_artifact_id(ticker, "equity_research"),
@@ -694,11 +706,20 @@ def build_ic_memo_artifact(
             formula_warnings.append(ic.lbo_result.capital_structure_warning)
 
     structured_out: dict[str, Any] = {}
+    audit_warnings: list[str] = []
     if isinstance(ic, ICFinancials):
         structured_out = {
             "dcf_result": _safe_dump(ic.dcf_result),
             "lbo_result": _safe_dump(ic.lbo_result),
         }
+        # Close the ic_memo gap: its FinancialData snapshot is NESTED in
+        # ICFinancials.financial_data (not a top-level step), so feed it
+        # explicitly. ic_memo has no single per-share headline to withhold → the
+        # block is attached (for the audit banner + contract C4) without an
+        # auto-withhold. Mode A/B symmetric, same sink as every other type.
+        audit_warnings = _attach_numeric_audit(
+            structured_out, result, deps, snapshot=ic.financial_data
+        )
 
     return Artifact(
         id=_make_artifact_id(ticker, "ic_memo"),
@@ -714,7 +735,7 @@ def build_ic_memo_artifact(
         outputs=ArtifactOutputs(
             structured=structured_out,
             summary_text=result.format_summary()[:2000],
-            warnings=_collect_warnings(result),
+            warnings=_collect_warnings(result) + audit_warnings,
         ),
         meta=ArtifactMeta(
             created_at=_now(),

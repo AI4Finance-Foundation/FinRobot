@@ -23,6 +23,7 @@ from finrobot.artifact.semantic_diff import (
 from finrobot.config import get_settings
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.deps import FinRobotDeps
+from finrobot.engine.models.financial import DCFInputs
 from finrobot.engine.orchestrator import create_lead_agent
 from finrobot.engine.skills.registry import SkillRegistry
 
@@ -651,3 +652,90 @@ class TestDiffReports:
         assert isinstance(out, str)
         assert "Fair value moved +$22.70" in out
         assert "Target price" in out
+
+
+# ---------------------------------------------------------------------------
+# run_monte_carlo — Monte Carlo DCF fair-value distribution as a chat tool.
+#
+# run_monte_carlo (compute/operators/monte_carlo.py) runs thousands of
+# randomized DCF valuations into a price distribution, but it was never a /chat
+# tool — the AiChatTab "Monte Carlo" chip was REMOVED (BUG-20260602-046). This
+# wires it via the shared seed_dcf_inputs_for_ticker coordinator (the same path
+# the REST /compute/dcf-seed endpoint uses) so the model can answer "run a monte
+# carlo on AAPL / how uncertain is the fair value".
+# ---------------------------------------------------------------------------
+
+
+def _mc_inputs() -> DCFInputs:
+    # Mirrors tests/unit/test_monte_carlo.py::_inputs — a converging AAPL-shaped
+    # assumption set so the real operator runs (this exercises genuine MC math,
+    # only the data-fetch boundary is stubbed).
+    return DCFInputs(
+        revenue_base=400_000_000_000.0,
+        revenue_growth_rates=[0.06, 0.05, 0.04, 0.04, 0.03],
+        ebitda_margin=0.30,
+        capex_pct_revenue=0.06,
+        nwc_pct_revenue=0.02,
+        da_pct_revenue=0.05,
+        tax_rate=0.21,
+        risk_free_rate=0.04,
+        beta=1.2,
+        equity_risk_premium=0.05,
+        cost_of_debt=0.04,
+        debt_ratio=0.25,
+        terminal_growth_rate=0.025,
+        shares_outstanding=15_500_000_000.0,
+        net_debt=60_000_000_000.0,
+    )
+
+
+class _PriceOnlyFinancials:
+    """Stub standing in for FinancialData — the tool reads only .market.current_price."""
+
+    class _Market:
+        current_price = 160.0
+
+    market = _Market()
+
+
+def _run_monte_carlo_fn(agent):  # noqa: ANN001
+    return agent._function_toolset.tools["run_monte_carlo"].function
+
+
+class TestRunMonteCarlo:
+    async def test_registered_as_tool(self):
+        agent = _agent()
+        assert "run_monte_carlo" in agent._function_toolset.tools
+
+    async def test_bad_ticker_returns_string_not_raise(self):
+        agent = _agent()
+        fn = _run_monte_carlo_fn(agent)
+        out = await fn(_run_context(_deps()), "###")
+        assert isinstance(out, str)
+        assert "Invalid ticker" in out
+
+    async def test_runs_real_simulation_and_formats(self, monkeypatch):
+        async def _fake_seed(data_layer, ticker, *, fmp_api_key=None):  # noqa: ANN001
+            return _PriceOnlyFinancials(), _mc_inputs()
+
+        monkeypatch.setattr("finrobot.engine.orchestrator.seed_dcf_inputs_for_ticker", _fake_seed)
+        agent = _agent()
+        fn = _run_monte_carlo_fn(agent)
+        out = await fn(_run_context(_deps()), "aapl")
+        assert isinstance(out, str)
+        assert "Monte Carlo" in out
+        assert "Median" in out
+        # the current price's standing in the distribution is the analyst payload
+        assert "percentile" in out.lower()
+        assert "$160.00" in out  # current price echoed
+
+    async def test_seed_failure_returns_string_not_raise(self, monkeypatch):
+        async def _boom(data_layer, ticker, *, fmp_api_key=None):  # noqa: ANN001
+            raise ValueError("no financials available for ZZZZ")
+
+        monkeypatch.setattr("finrobot.engine.orchestrator.seed_dcf_inputs_for_ticker", _boom)
+        agent = _agent()
+        fn = _run_monte_carlo_fn(agent)
+        out = await fn(_run_context(_deps()), "ZZZZ")
+        assert isinstance(out, str)
+        assert "ZZZZ" in out

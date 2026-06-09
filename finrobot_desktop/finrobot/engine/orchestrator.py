@@ -12,6 +12,10 @@ from finrobot.coverage.prompt import format_coverage_for_tool
 from finrobot.coverage.service import build_overview
 from finrobot.engine.agents.factory import create_sub_agents
 from finrobot.engine.analysis.qa import run_qa
+from finrobot.engine.compute.coordinators.dcf_seed import seed_dcf_inputs_for_ticker
+from finrobot.engine.compute.operators.monte_carlo import MonteCarloResult
+from finrobot.engine.compute.operators.monte_carlo import run_monte_carlo as run_monte_carlo_sim
+from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
@@ -118,6 +122,46 @@ def _format_delta_for_tool(delta: SemanticDelta) -> str:
         lines.append("Comparability notes:")
         for flag in delta.comparability:
             lines.append(f"  - {flag.message_en}")
+    return "\n".join(lines)
+
+
+def _money(v: float | None) -> str:
+    return f"${v:,.2f}" if v is not None else "—"
+
+
+def _format_monte_carlo_for_tool(
+    ticker: str, current_price: float, result: MonteCarloResult
+) -> str:
+    """Render a :class:`MonteCarloResult` as compact text for the chat agent.
+
+    The seed coordinator FX-normalizes a foreign issuer's financials to USD
+    before the simulation, so every price here is USD and '$' is correct.
+    """
+    p = result.percentiles
+    n_total = result.assumptions_used.get("n_simulations", result.n_valid)
+    pct = result.current_price_percentile
+    lines = [
+        f"Monte Carlo DCF for {ticker} ({result.n_valid:,} valid of {n_total:,} simulations):",
+        "Implied fair value per share:",
+        f"  P5 {_money(p.get('5'))} · P25 {_money(p.get('25'))} · "
+        f"Median {_money(p.get('50'))} · P75 {_money(p.get('75'))} · P95 {_money(p.get('95'))}",
+        f"  Mean {_money(result.mean)} · Std {_money(result.std)}",
+        f"Current price {_money(current_price)} sits at the {pct:.0f}th percentile "
+        "of the simulated distribution.",
+    ]
+    # State the read factually; the band above is the evidence, this is the one-liner.
+    if pct <= 25:
+        lines.append(
+            "  → The market is below most simulated fair values — the model implies "
+            "upside under these assumptions."
+        )
+    elif pct >= 75:
+        lines.append(
+            "  → The market is above most simulated fair values — the model implies "
+            "downside under these assumptions."
+        )
+    else:
+        lines.append("  → The market price is within the model's central range.")
     return "\n".join(lines)
 
 
@@ -305,6 +349,51 @@ def create_lead_agent(
             missing = ", ".join(aid for aid, art in ((a_id, a), (b_id, b)) if art is None)
             return f"Report(s) not found: {missing}. Use find_reports to list valid ids."
         return _format_delta_for_tool(build_semantic_delta(a, b))
+
+    @agent.tool
+    async def run_monte_carlo(ctx: RunContext[FinRobotDeps], ticker: str) -> str:
+        """Run a Monte Carlo DCF: thousands of randomized DCF valuations → a
+        probability distribution of fair value per share.
+
+        Returns the percentile band (P5 / P25 / median / P75 / P95), mean/std,
+        and where the CURRENT price sits in that distribution — so the user sees
+        how aggressive the market is versus the model. Deterministic NumPy
+        simulation the model cannot replicate by guessing. Use when the user
+        asks: monte carlo, fair-value distribution / range, valuation
+        uncertainty, or the probability the stock is over/undervalued. The DCF is
+        seeded automatically from live financials — no prior DCF run needed.
+        """
+        try:
+            norm = validate_ticker(ticker)
+        except ValueError:
+            return f"Invalid ticker symbol: {ticker}"
+        # Seed a fresh DCF from live data via the shared coordinator (same path as
+        # the REST /compute/dcf-seed endpoint). RETURN provider/seed failures as a
+        # string — a raised error tears down the live chat SSE stream.
+        try:
+            financial_data, dcf_inputs = await seed_dcf_inputs_for_ticker(
+                ctx.deps.data_layer,
+                norm,
+                fmp_api_key=getattr(ctx.deps.settings, "fmp_api_key", None),
+            )
+        except (
+            ProviderError,
+            ValueError,
+            KeyError,
+            TypeError,
+            AttributeError,
+            RuntimeError,
+            OSError,
+        ) as exc:
+            return f"Couldn't seed a DCF for {norm} to simulate: {exc}"
+        current_price = financial_data.market.current_price
+        try:
+            result = run_monte_carlo_sim(dcf_inputs, current_price=current_price)
+        except ValueError as exc:
+            # The operator raises when too few simulations stay valid (degenerate
+            # assumptions); surface it rather than crash the stream.
+            return f"Monte Carlo could not converge for {norm}: {exc}"
+        return _format_monte_carlo_for_tool(norm, current_price, result)
 
     @agent.tool
     async def activate_skill(ctx: RunContext[FinRobotDeps], skill_id: str) -> str:

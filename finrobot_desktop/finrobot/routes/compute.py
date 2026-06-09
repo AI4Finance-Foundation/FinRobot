@@ -228,61 +228,20 @@ async def compute_dcf(inputs: DCFInputs) -> DCFResult:
 async def _seed_dcf_inputs_for_ticker(
     deps: FinRobotDeps, ticker: str
 ) -> tuple[FinancialData, DCFInputs]:
-    """Fetch financials + price + multi-year history for a ticker and seed a
-    DCFInputs. The single fetch-and-seed path shared by the dcf-seed and
-    dcf-equivalence-line endpoints.
+    """Route-boundary adapter over the shared seed coordinator: maps the request
+    ``deps`` to the ``(data_layer, fmp_api_key)`` the coordinator consumes.
 
-    Degrades gracefully: if historical extraction fails (yfinance / provider
-    variability), seeds from an empty HistoricalMetrics so seed_dcf_inputs falls
-    through to Damodaran industry medians rather than raising.
+    The fetch-and-seed logic now lives in
+    ``engine/compute/coordinators/dcf_seed.py`` so the chat orchestrator's
+    ``run_monte_carlo`` tool can reuse it without an engine→routes upward import.
+    Still the single shared seed path for the dcf-seed and dcf-equivalence-line
+    endpoints — they call this adapter unchanged.
     """
-    from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
-    from finrobot.engine.compute.coordinators.extractor import (
-        extract_financial_data,
-        normalize_financials_to_usd,
+    from finrobot.engine.compute.coordinators.dcf_seed import seed_dcf_inputs_for_ticker
+
+    return await seed_dcf_inputs_for_ticker(
+        deps.data_layer, ticker, fmp_api_key=getattr(deps.settings, "fmp_api_key", None)
     )
-    from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
-    from finrobot.engine.data.types import DataType
-
-    data_layer = deps.data_layer
-    _fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
-    _price = await data_layer.fetch_canonical(DataType.PRICE, ticker)
-    financial_data = extract_financial_data(_fin, _price)
-
-    # FX-normalize a foreign issuer's financials to canonical USD before seeding so
-    # the implied price comes out in USD (not a ~32x-inflated TWD-per-share) and the
-    # WACC debt-weight isn't cross-currency garbage (BUG-073). No-op for US issuers.
-    financial_data = await normalize_financials_to_usd(
-        financial_data, fmp_api_key=getattr(deps.settings, "fmp_api_key", None)
-    )
-
-    try:
-        historical = await fetch_historical_metrics(data_layer, ticker)
-    except (ValueError, KeyError, TypeError, AttributeError, RuntimeError, OSError) as exc:
-        logger.warning("Historical extraction failed for %s: %s", ticker, exc)
-        from finrobot.engine.models.financial import HistoricalMetrics
-
-        historical = HistoricalMetrics(
-            years=[],
-            revenue=[],
-            revenue_growth_yoy=[],
-            cogs=[],
-            gross_profit=[],
-            gross_margin=[],
-            sga=[],
-            sga_ratio=[],
-            ebitda=[],
-            ebitda_margin=[],
-            operating_income=[],
-            operating_margin=[],
-            net_income=[],
-            eps=[],
-            pe_ratio=[],
-            cagr_revenue=None,
-            ticker=ticker,
-        )
-
-    return financial_data, seed_dcf_inputs(financial_data, historical)
 
 
 @router.post("/dcf-seed", response_model=DcfSeedResponse)

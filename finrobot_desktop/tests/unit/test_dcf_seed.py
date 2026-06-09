@@ -15,6 +15,7 @@ What these tests verify beyond "code runs":
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timezone
 
 import pytest
@@ -674,3 +675,42 @@ class TestForwardGrowthSeed:
             fb.assumption_provenance["revenue_growth_rates"]
             == (base.assumption_provenance["revenue_growth_rates"])
         )
+
+    def test_nan_in_forward_growth_does_not_poison_schedule(self):
+        """A non-finite consensus point must never reach revenue_growth_rates —
+        max()/min() pass NaN through, which would make calculate_dcf return an
+        implied_price of NaN. The operator filters it at its own boundary."""
+        inputs = seed_dcf_inputs(
+            _aapl_financials(),
+            _aapl_historical(),
+            forward_growth=[0.149, float("nan"), 0.071],
+        )
+        assert all(math.isfinite(g) for g in inputs.revenue_growth_rates)
+        # the two finite consensus points survive, in order
+        assert inputs.revenue_growth_rates[0] == pytest.approx(0.149)
+        assert inputs.revenue_growth_rates[1] == pytest.approx(0.071)
+
+    def test_all_nonfinite_forward_growth_falls_back_to_trailing(self):
+        base = seed_dcf_inputs(_aapl_financials(), _aapl_historical())
+        fb = seed_dcf_inputs(
+            _aapl_financials(),
+            _aapl_historical(),
+            forward_growth=[float("nan"), float("inf")],
+        )
+        assert fb.revenue_growth_rates == base.revenue_growth_rates
+        assert "一致预期" not in fb.assumption_provenance["revenue_growth_rates"]
+
+    def test_provenance_fy_count_never_exceeds_projection_window(self):
+        """When consensus is longer than projection_years the tail years are
+        dropped — provenance must report the years actually kept (FY1-3 into a
+        3y window), never the raw input length (would claim FY1-6)."""
+        inputs = seed_dcf_inputs(
+            _aapl_financials(),
+            _aapl_historical(),
+            projection_years=3,
+            forward_growth=[0.149, 0.084, 0.071, 0.06, 0.05, 0.04],
+        )
+        assert len(inputs.revenue_growth_rates) == 3
+        prov = inputs.assumption_provenance["revenue_growth_rates"]
+        assert "FY1-3" in prov
+        assert "FY1-6" not in prov

@@ -257,14 +257,16 @@ def seed_dcf_inputs(
             live rate when available.
         equity_risk_premium: Market risk premium. Default Damodaran 2026 ERP.
         terminal_growth_rate: Perpetuity growth. Default US nominal GDP.
-        projection_years: Length of explicit forecast schedule. Default 5.
+        projection_years: Length of explicit forecast schedule. Default 10
+            (DEFAULT_PROJECTION_YEARS — the two-stage sell-side window).
         forward_growth: Analyst-consensus YoY revenue-growth path for the first
             few explicit years (from forward_estimates.get_forward_revenue_growth).
-            When non-empty it SEEDS the explicit window (clamped to the shared
-            floor/cap, then decayed to terminal) IN PLACE OF the trailing CAGR —
-            a backward-looking CAGR otherwise ignores a consensus re-acceleration
-            the rest of the pipeline already fetched (the AAPL 3.3%-vs-+14.9% gap).
-            None / empty → trailing-CAGR seeding, unchanged.
+            When it carries any finite point it SEEDS the explicit window (non-
+            finite points dropped, then clamped to the shared floor/cap and
+            decayed to terminal) IN PLACE OF the trailing CAGR — a backward-
+            looking CAGR otherwise ignores a consensus re-acceleration the rest
+            of the pipeline already fetched (the AAPL 3.3%-vs-+14.9% gap).
+            None / empty / all-non-finite → trailing-CAGR seeding, unchanged.
 
     Returns:
         DCFInputs ready to pass to ``calculate_dcf``. The ``da_pct_revenue``
@@ -291,15 +293,26 @@ def seed_dcf_inputs(
     # or NaN pollution from yfinance. math.isfinite guards the NaN/Inf case.
     cagr = historical.cagr_revenue
     has_real_cagr = cagr is not None and math.isfinite(cagr)
-    if forward_growth:
+    # Drop non-finite consensus points (NaN/Inf) before they can poison the
+    # schedule: max()/min() pass NaN straight through (unlike _median_ratio,
+    # which filters it), so a single NaN would survive the clamp into
+    # revenue_growth_rates and make calculate_dcf return implied_price NaN.
+    # seed_dcf_inputs is the single authoritative builder — it must not assume
+    # the caller pre-cleaned the path. An all-non-finite list collapses to empty
+    # and falls through to trailing-CAGR seeding.
+    consensus = [g for g in forward_growth if math.isfinite(g)] if forward_growth else []
+    if consensus:
         # Analyst consensus drives the explicit window. Clamp each consensus year
         # to the shared floor/cap, then decay the tail from the last consensus
         # year down to terminal — don't extrapolate a finite-horizon estimate
         # forever, and don't fabricate a rise when the last consensus year is
         # already ≤ terminal (mature: hold flat, Gordon perpetuity does the rest).
-        explicit = [max(min(g, _GROWTH_CAP), _GROWTH_FLOOR) for g in forward_growth][
-            :projection_years
-        ]
+        explicit = [max(min(g, _GROWTH_CAP), _GROWTH_FLOOR) for g in consensus][:projection_years]
+        # Honest consensus count = what actually survived the slice, NOT the raw
+        # input length. When consensus is longer than projection_years the tail
+        # years are dropped here, so provenance must not claim them (e.g. a 12y
+        # consensus into a 10y window is "FY1-10", never "FY1-12").
+        n_consensus = len(explicit)
         remaining = projection_years - len(explicit)
         tail_start = explicit[-1]
         if remaining > 0 and tail_start > terminal_growth_rate:
@@ -308,9 +321,9 @@ def seed_dcf_inputs(
         elif remaining > 0:
             explicit += [tail_start] * remaining
         growth_schedule = explicit
-        pct = "/".join(f"{g:.1%}" for g in growth_schedule[: len(forward_growth)])
+        pct = "/".join(f"{g:.1%}" for g in growth_schedule[:n_consensus])
         prov["revenue_growth_rates"] = (
-            f"分析师一致预期 FY1-{len(forward_growth)} 增长 {pct}，"
+            f"分析师一致预期 FY1-{n_consensus} 增长 {pct}，"
             f"之后线性衰减到永续 {terminal_growth_rate:.1%}"
         )
     elif has_real_cagr:

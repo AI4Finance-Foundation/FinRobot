@@ -150,6 +150,17 @@ def compute_historical_band(
         )
     else:
         current = samples[-1][1]  # last sample is the most recent price multiple
+        # W1-C2: no canonical TTM multiple was supplied, so the current point is
+        # the most recent price × the trailing-ANNUAL EBITDA — a different口径
+        # than the report's comps/technical chapters (which use TTM). Disclose it
+        # so a consumer (the standalone /historical-bands route) can't silently
+        # classify a ticker 贵/合理/便宜 on an annual basis while the report calls
+        # the same ticker the opposite on TTM (the signal flip).
+        warnings.append(
+            "current 点基于最近价对应的【年报年度】EBITDA(无 canonical TTM 倍数传入)——"
+            "与研报 comps / technical 章节的 TTM 口径存在基差;贵/合理/便宜判定按年报基准,"
+            "勿与 TTM 口径直接比较。"
+        )
 
     return HistoricalBand(
         metric=metric,

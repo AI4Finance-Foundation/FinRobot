@@ -157,6 +157,66 @@ async def test_historical_bands_endpoint_503_when_data_layer_missing(tmp_path: P
     assert r.status_code == 503
 
 
+class _FinancialsStubDataLayer(_StubDataLayer):
+    """Adds a canonical FINANCIALS (TTM) snapshot so the route can compute the
+    current_override. TTM EBITDA (40e9) deliberately differs from the annual
+    ebitda (~25e9) the bands samples use, so the override-vs-fallback paths
+    yield distinguishable 'current' values."""
+
+    async def fetch_canonical(self, data_type: DataType | str, ticker: str, **kw: object) -> object:
+        if DataType(data_type) == DataType.FINANCIALS:
+            from finrobot.engine.models.financial import (
+                BalanceSheet,
+                FinancialData,
+                IncomeStatement,
+                MarketData,
+                ValuationMetrics,
+            )
+
+            return FinancialData(
+                ticker=ticker,
+                company_name="NVDA",
+                timestamp=NOW,
+                income=IncomeStatement(
+                    revenue=100e9,
+                    ebitda=40e9,
+                    net_income=30e9,
+                    gross_margin=0.6,
+                    operating_margin=0.4,
+                    interest_expense=1e6,
+                ),
+                balance=BalanceSheet(total_debt=11e9, total_cash=8e9),
+                market=MarketData(
+                    market_cap=2000e9,
+                    shares_outstanding=2.4e9,
+                    current_price=859.0,
+                    industry="Semiconductors",
+                    beta=1.2,
+                ),
+                valuation=ValuationMetrics(),
+            )
+        return await super().fetch_canonical(data_type, ticker, **kw)
+
+
+@pytest.mark.asyncio
+async def test_historical_bands_current_uses_canonical_ttm_override(tmp_path: Path) -> None:
+    """W1-C2: the standalone band's 'current' must be the canonical TTM
+    EV/EBITDA (the same口径 the report's comps/technical chapters report), NOT
+    the trailing-annual samples[-1]. Otherwise this route flips a ticker's
+    贵/合理/便宜 verdict against the report on the same metric."""
+    layer = _FinancialsStubDataLayer(cache_db=str(tmp_path / "cache.db"))
+    app = FastAPI()
+    app.include_router(router)
+    app.state.deps = _StubDeps(data_layer=layer)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/valuation/historical-bands/NVDA?metric=ev_ebitda&years=3")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    # TTM override = (market_cap 2000e9 + net_debt (11e9 − 8e9)) / EBITDA 40e9 = 50.075x
+    assert body["current"] == pytest.approx(50.075, rel=1e-4)
+    assert any("TTM" in w for w in body["warnings"]), body["warnings"]
+
+
 @pytest.mark.asyncio
 async def test_historical_bands_endpoint_p_fcf_metric(tmp_path: Path) -> None:
     app, _ = _app(tmp_path)

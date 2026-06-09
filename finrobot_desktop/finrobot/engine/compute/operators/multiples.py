@@ -1,5 +1,5 @@
 from statistics import median, mean
-from finrobot.engine.models.financial import CompanyFinancials, PeerComps
+from finrobot.engine.models.financial import CompanyFinancials, FinancialData, PeerComps
 
 
 # Sanity bounds for peer multiples — a garbage filter, not a "meaningfulness"
@@ -90,6 +90,36 @@ def _sanity(value: float | None, lo: float, hi: float) -> float | None:
 def calculate_ev(market_cap: float, total_debt: float, cash: float) -> float:
     """Enterprise Value = Market Cap + Total Debt - Cash"""
     return market_cap + total_debt - cash
+
+
+def current_ev_ebitda(financial_data: FinancialData, net_debt: float) -> float | None:
+    """Canonical current EV/EBITDA on TTM EBITDA — the single authoritative
+    "current EV/EBITDA" every surface consumes: the report's comps target
+    multiple, the technical chapter's historical-band ``current_override``, and
+    the standalone ``GET /api/valuation/historical-bands`` route.
+
+    EV = market_cap + net_debt — the same identity ``calculate_ev`` encodes,
+    with ``net_debt`` already collapsed to total_debt − cash; divided by TTM
+    EBITDA. Returns None when market_cap or TTM EBITDA is missing or
+    non-positive: the caller then lets the historical band fall back to its
+    trailing-annual basis (which discloses the口径). Routing every surface
+    through this one function is what stops the route and the report from
+    reporting two different "current EV/EBITDA" for the same ticker — the
+    TTM-vs-annual signal flip (W1-C2). Canonical financials are single-currency
+    at this point (FX normalised at the data chokepoint), so market_cap and
+    EBITDA share a currency and the ratio is well-posed.
+    """
+    market = getattr(financial_data, "market", None)
+    income = getattr(financial_data, "income", None)
+    market_cap = getattr(market, "market_cap", None) if market is not None else None
+    ebitda = getattr(income, "ebitda", None) if income is not None else None
+    if market_cap is None or ebitda is None:
+        return None
+    market_cap = float(market_cap)
+    ebitda = float(ebitda)
+    if market_cap <= 0 or ebitda <= 0:
+        return None
+    return (market_cap + net_debt) / ebitda
 
 
 def compute_ttm_fcf(

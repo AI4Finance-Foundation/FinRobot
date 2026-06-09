@@ -104,7 +104,11 @@ class TestEvEbitdaBand:
         assert band.current == 40.0
         assert band.median == 44.0
         assert band.sample_count == 3
-        assert band.warnings == []
+        # W1-C2: with no canonical TTM override the current point is on the
+        # trailing-annual EBITDA basis — that口径 must be disclosed so a caller
+        # (the standalone /historical-bands route) can't silently flip 贵/合理/
+        # 便宜 on an annual basis against the report's TTM verdict.
+        assert any("年报" in w or "TTM" in w for w in band.warnings), band.warnings
 
     def test_current_override_replaces_current_and_discloses_basis(self) -> None:
         """B2: a TTM current_override replaces the band's current point only.
@@ -142,7 +146,24 @@ class TestEvEbitdaBand:
             current_override=0.0,
         )
         assert band.current == 40.0
-        assert band.warnings == []
+        # Fell back to the trailing-annual current → discloses the口径 (W1-C2).
+        assert any("年报" in w or "TTM" in w for w in band.warnings), band.warnings
+
+    def test_annual_fallback_current_discloses_caliber(self) -> None:
+        """W1-C2: when no TTM ``current_override`` is supplied the band's current
+        point is the trailing-annual multiple — it MUST carry a口径 warning so
+        the standalone /historical-bands route can't render '极贵' on an annual
+        basis while the report calls the same ticker '合理' on TTM (signal flip)."""
+        yearly = [_yearly(2025, ebitda=30)]
+        prices = [_price(date(2026, 1, 1), 120.0)]  # (120*10)/30 = 40.0
+        band = compute_historical_band(
+            metric="ev_ebitda",
+            yearly=yearly,
+            prices=prices,
+            shares_outstanding=10,
+        )
+        assert band.current == 40.0
+        assert any("年报" in w for w in band.warnings), band.warnings
 
     def test_net_debt_added_to_ev(self) -> None:
         yearly = [_yearly(2024, ebitda=10, debt=500)]

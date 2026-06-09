@@ -38,6 +38,7 @@ from finrobot.engine.compute.operators.dcf import (
 )
 from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
 from finrobot.engine.compute.operators.forward_estimates import get_forward_revenue_growth
+from finrobot.engine.compute.operators.multiples import current_ev_ebitda
 from finrobot.engine.compute.operators.valuation_synthesis import (
     CanonicalThesis,
     resolve_canonical_thesis,
@@ -610,27 +611,6 @@ async def _execute_financial_modeling(
     return StepOutput(text=narrative, structured=dcf_result)
 
 
-def _current_ev_ebitda(financial_data: FinancialData, net_debt: float) -> float | None:
-    """Canonical current EV/EBITDA on TTM EBITDA — matches the comps chapter.
-
-    EV = market_cap + net_debt; divided by TTM EBITDA. Returns None when
-    market_cap or TTM EBITDA is missing or non-positive (caller then lets the
-    band fall back to its trailing-annual basis). Kept identical to the comps
-    target formula so the report never surfaces two different "current EV/EBITDA".
-    """
-    market = getattr(financial_data, "market", None)
-    income = getattr(financial_data, "income", None)
-    market_cap = getattr(market, "market_cap", None) if market is not None else None
-    ebitda = getattr(income, "ebitda", None) if income is not None else None
-    if market_cap is None or ebitda is None:
-        return None
-    market_cap = float(market_cap)
-    ebitda = float(ebitda)
-    if market_cap <= 0 or ebitda <= 0:
-        return None
-    return (market_cap + net_debt) / ebitda
-
-
 async def _execute_technical_analysis(
     agent: Agent[Any, Any],  # noqa: ARG001 — kept for executor signature; unused
     deps: FinRobotDeps,
@@ -694,7 +674,7 @@ async def _execute_technical_analysis(
     # matches the comps chapter exactly — (market_cap + net_debt) / TTM_EBITDA,
     # the same formula the comps target uses. None when any leg is missing/≤0
     # (band then falls back to trailing-annual EBITDA).
-    current_ev_ebitda = _current_ev_ebitda(financial_data, dcf.inputs.net_debt)
+    current_ev_ebitda_value = current_ev_ebitda(financial_data, dcf.inputs.net_debt)
 
     payload = await build_technical_analysis(
         ticker=ticker,
@@ -703,7 +683,7 @@ async def _execute_technical_analysis(
         current_price=current_price,
         data_layer=deps.data_layer,
         reliable=reliable,
-        current_ev_ebitda=current_ev_ebitda,
+        current_ev_ebitda=current_ev_ebitda_value,
     )
 
     summary_parts: list[str] = []

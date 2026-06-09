@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 import pytest
 from finrobot.engine.models.financial import CompanyFinancials, PeerComps
 from finrobot.engine.compute.operators.multiples import (
@@ -6,6 +8,7 @@ from finrobot.engine.compute.operators.multiples import (
     calculate_multiples,
     calculate_peer_statistics,
     compute_ttm_fcf,
+    current_ev_ebitda,
     fcf_yield,
 )
 from finrobot.engine.primitives.ebitda import (
@@ -118,6 +121,56 @@ def _make_company(
 
 def test_calculate_ev():
     assert calculate_ev(100, 30, 10) == 120
+
+
+def _financial_data(*, market_cap, ebitda):
+    """Minimal canonical FinancialData for current_ev_ebitda (TTM) tests."""
+    from finrobot.engine.models.financial import (
+        BalanceSheet,
+        FinancialData,
+        IncomeStatement,
+        MarketData,
+        ValuationMetrics,
+    )
+
+    return FinancialData(
+        ticker="TST",
+        company_name="Test Co.",
+        timestamp=datetime.now(tz=timezone.utc),
+        income=IncomeStatement(
+            revenue=10e9,
+            ebitda=ebitda,
+            net_income=3e9,
+            gross_margin=0.6,
+            operating_margin=0.4,
+            interest_expense=1e6,
+        ),
+        balance=BalanceSheet(total_debt=1e9, total_cash=2e9),
+        market=MarketData(
+            market_cap=market_cap,
+            shares_outstanding=1e9,
+            current_price=100.0,
+            industry="Tech",
+            beta=1.0,
+        ),
+        valuation=ValuationMetrics(),
+    )
+
+
+def test_current_ev_ebitda_is_market_cap_plus_net_debt_over_ttm_ebitda():
+    """The single authoritative current EV/EBITDA the report's comps/technical
+    chapters and the standalone bands route all consume: (mc + net_debt) / TTM."""
+    fd = _financial_data(market_cap=100e9, ebitda=4e9)
+    # EV = 100e9 + net_debt 3e9 = 103e9; / 4e9 = 25.75x
+    assert current_ev_ebitda(fd, net_debt=3e9) == pytest.approx(25.75)
+
+
+@pytest.mark.parametrize("market_cap,ebitda", [(100e9, None), (100e9, 0.0), (0.0, 4e9)])
+def test_current_ev_ebitda_none_when_inputs_missing_or_non_positive(market_cap, ebitda):
+    """Missing/≤0 market_cap or TTM EBITDA → None (caller falls back to the
+    trailing-annual current, with a口径 warning) rather than a bogus multiple."""
+    fd = _financial_data(market_cap=market_cap, ebitda=ebitda)
+    assert current_ev_ebitda(fd, net_debt=3e9) is None
 
 
 def test_calculate_multiples_known_values():

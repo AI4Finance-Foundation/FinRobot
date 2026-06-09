@@ -18,6 +18,7 @@ from finrobot.engine.compute.operators.forward_estimates import (
     get_forward_financials,
 )
 from finrobot.engine.primitives.historical_valuation import HistoricalMetricName
+from finrobot.engine.compute.operators.multiples import current_ev_ebitda
 from finrobot.engine.compute.operators.valuation_aggregator import aggregate_valuation
 from finrobot.engine.data.cache import cached_fetch
 from finrobot.engine.data.historical_loaders import (
@@ -31,6 +32,7 @@ from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import (
     DCFResult,
     DDMResult,
+    FinancialData,
     LBOResult,
     PeerComps,
     ValuationAggregate,
@@ -347,6 +349,43 @@ def _current_net_debt(dcf: DCFResult | None) -> float | None:
     return None
 
 
+async def _current_ev_ebitda_override(
+    ticker: str, data_layer: DataLayer, metric: HistoricalMetricName
+) -> float | None:
+    """Canonical TTM current EV/EBITDA for the standalone bands' current point.
+
+    W1-C2: without this the route let the band fall back to the trailing-ANNUAL
+    samples[-1] multiple, so the same ticker could read "极贵" here (annual) while
+    the report's comps/technical chapters call it "合理" (TTM) — a signal flip on
+    one metric. We compute the SAME authoritative ``current_ev_ebitda`` the
+    report consumes (EV = market_cap + net_debt, ÷ TTM EBITDA) off the canonical
+    FINANCIALS snapshot and hand it in as ``current_override``.
+
+    Only ``ev_ebitda`` has an EV/EBITDA override — ``p_fcf`` gets None. Degrades
+    to None (→ trailing-annual current, which the leaf discloses) when the
+    canonical snapshot or its net-debt legs are unavailable; net_debt needs BOTH
+    total_debt and total_cash present (None ≠ 0 — never fabricate EV from an
+    assumed-zero balance).
+    """
+    if metric != "ev_ebitda":
+        return None
+    try:
+        fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+    except (ProviderError, ValueError, KeyError) as exc:
+        logger.info(
+            "current EV/EBITDA override: canonical financials unavailable for %s: %s", ticker, exc
+        )
+        return None
+    if not isinstance(fin, FinancialData):
+        return None
+    balance = getattr(fin, "balance", None)
+    total_debt = getattr(balance, "total_debt", None) if balance is not None else None
+    total_cash = getattr(balance, "total_cash", None) if balance is not None else None
+    if total_debt is None or total_cash is None:
+        return None
+    return current_ev_ebitda(fin, float(total_debt) - float(total_cash))
+
+
 # ---------------------------------------------------------------------------
 # v5 §6.6 historical valuation bands
 # ---------------------------------------------------------------------------
@@ -394,7 +433,10 @@ async def historical_bands(
     ticker = ticker.upper()
 
     async def _build() -> dict[str, Any]:
-        band = await compute_bands_via_data_layer(ticker, metric, years, data_layer)
+        override = await _current_ev_ebitda_override(ticker, data_layer, metric)
+        band = await compute_bands_via_data_layer(
+            ticker, metric, years, data_layer, current_override=override
+        )
         classification = classify_band(band)
         payload = HistoricalBandResponse(
             ticker=ticker,

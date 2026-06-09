@@ -62,7 +62,17 @@ def unlever_beta(levered_beta: float, tax_rate: float, debt_equity: float) -> fl
     on the Systematic Risk of Common Stocks." Journal of Finance, 27(2), 435-452.
     Also Damodaran, "Investment Valuation" 3rd Ed., Chapter 8.
     """
-    return levered_beta / (1 + (1 - tax_rate) * debt_equity)
+    denom = 1 + (1 - tax_rate) * debt_equity
+    if denom <= 1e-9:
+        # A firm so net-cash that D/E ≤ ~−1/(1−T): the Hamada denominator hits 0
+        # (ZeroDivisionError — or, via float residue, ~1e-16 that explodes the ratio
+        # to ~1e16) or goes negative (flipping a positive levered beta to a negative
+        # unlevered beta, breaking the contract above). At that singularity there is
+        # no meaningful leverage to strip, so the asset beta ≈ the equity beta —
+        # return it unchanged. Keeps peer_beta robust: one deeply-net-cash peer must
+        # not crash (or sign-/explosion-poison the median of) the whole WACC.
+        return levered_beta
+    return levered_beta / denom
 
 
 def relever_beta(unlevered_beta: float, tax_rate: float, debt_equity: float) -> float:

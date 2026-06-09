@@ -141,14 +141,14 @@ async def fetch_quotes_cache_only(tickers: Iterable[str]) -> dict[str, float | N
     progressive enhancement on that strip, never a render dependency — unlike
     the hit-rate banner, whose bucket math genuinely needs warm quotes and so
     still calls :func:`fetch_quotes_batch_cached`.
+
+    Backed by :meth:`QuoteCache.peek_batch`, a pure read: a cold/stale miss is
+    NOT written back. The earlier no-op-fetcher implementation borrowed
+    ``get_batch``'s write path, tomb-stoning misses as fresh ``None`` in L1+L2 —
+    that poisoned the stale-while-revalidate price and starved the hit-rate
+    banner's later real fetch (W2 探针毒化).
     """
     syms = [t.strip().upper() for t in tickers if t and t.strip()]
     if not syms:
         return {}
-    cache = _get_singleton()
-
-    async def _no_fetch(missing: list[str]) -> dict[str, float | None]:
-        # Report every miss as None instead of fanning out to the providers.
-        return dict.fromkeys(missing)
-
-    return await cache.get_batch(syms, fetcher=_no_fetch)
+    return await _get_singleton().peek_batch(syms)

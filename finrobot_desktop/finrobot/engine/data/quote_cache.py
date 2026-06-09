@@ -282,6 +282,63 @@ class QuoteCache:
 
         return result
 
+    async def peek_batch(self, tickers: list[str]) -> dict[str, float | None]:
+        """Read-only batch lookup — serves only *fresh* L1/L2 rows, never writes.
+
+        Unlike :meth:`get_batch` this NEVER invokes a fetcher and NEVER writes
+        to L1/L2. Fresh L1 hits and fresh L2 hits return their price; every
+        other ticker — cold, or stale (past TTL) — comes back ``None``.
+
+        Crucially a miss is NOT tomb-stoned. The cache-only landing path used to
+        borrow ``get_batch`` with a no-op fetcher, whose ``None`` result was then
+        written into L1+L2 as a *fresh* value — destroying the
+        stale-while-revalidate price and blocking the next real fetch within the
+        TTL (W2 探针毒化). A pure peek leaves the cache untouched, so the next
+        ``get_batch`` still refetches stale tickers and ``_fill_from_stale``
+        still recovers the last known price.
+        """
+        syms = [t.strip().upper() for t in tickers if t and t.strip()]
+        if not syms:
+            return {}
+
+        now = time.time()
+        result: dict[str, float | None] = {}
+        missing: list[str] = []
+
+        # L1 (fresh only) — read, never write.
+        async with self._l1_lock:
+            for sym in syms:
+                hit = self._l1.get(sym)
+                if hit is not None and now - hit[1] < self._ttl:
+                    result[sym] = hit[0]
+                else:
+                    missing.append(sym)
+
+        # L2 (fresh only) — read, never write back. No tombstone, no promotion.
+        # A wedged conn is dropped (non-fatal); those tickers fall to None below.
+        if missing:
+            try:
+                conn = await self._conn_ready()
+                placeholders = ",".join("?" * len(missing))
+                async with conn.execute(
+                    f"SELECT ticker, last_price, fetched_at FROM quotes_cache "
+                    f"WHERE ticker IN ({placeholders})",
+                    missing,
+                ) as cur:
+                    rows = await cur.fetchall()
+                for ticker, last_price, fetched_at in rows:
+                    if now - float(fetched_at) < self._ttl:
+                        result[ticker] = last_price
+            except sqlite3.Error:
+                logger.exception("QuoteCache peek L2 read failed for %s — dropping conn", missing)
+                await self._drop_conn()
+
+        # Cold or stale → None, WITHOUT writing back (the 探针毒化 fix).
+        for sym in syms:
+            result.setdefault(sym, None)
+
+        return result
+
     async def close(self) -> None:
         if self._conn is not None:
             await self._conn.close()

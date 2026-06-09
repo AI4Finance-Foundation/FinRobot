@@ -207,3 +207,25 @@ async def test_cache_only_serves_warm_l1_rows() -> None:
 async def test_cache_only_empty_input_returns_empty_dict() -> None:
     assert await quote_batch.fetch_quotes_cache_only([]) == {}
     assert await quote_batch.fetch_quotes_cache_only(["", "  "]) == {}
+
+
+@pytest.mark.asyncio
+async def test_cache_only_miss_does_not_block_later_real_fetch() -> None:
+    """A cache-only read of a cold ticker must NOT plant a fresh None tombstone.
+
+    Repro of W2 QuoteCache 探针毒化: ``fetch_quotes_cache_only`` borrowed
+    ``get_batch``'s write-back path, so a cold miss wrote the no-fetch ``None``
+    into L1+L2 as a *fresh* value. A subsequent real ``fetch_quotes_batch_cached``
+    then served that None (L1 hit, within TTL) instead of fetching the real
+    price — the landing recent-research strip's cache-only read silently
+    poisoned the hit-rate banner's quote.
+    """
+    # Landing strip peeks a cold ticker → None (expected) but must not write back.
+    cold = await quote_batch.fetch_quotes_cache_only(["AAPL"])
+    assert cold == {"AAPL": None}
+
+    # A real fetch within the (default 60s) TTL must still reach the provider.
+    layer = _FakeDataLayer({"AAPL": 250.0})
+    out = await quote_batch.fetch_quotes_batch_cached(["AAPL"], layer)
+    assert out == {"AAPL": 250.0}, "cache-only read must not have tombstoned AAPL"
+    assert layer.calls == ["AAPL"], "real fetch must reach provider, not serve poisoned None"

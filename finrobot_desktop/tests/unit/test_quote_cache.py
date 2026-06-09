@@ -270,13 +270,65 @@ async def test_l2_read_error_self_heals_and_falls_back_to_fetcher(
 
 
 @pytest.mark.asyncio
+async def test_peek_batch_serves_fresh_only_and_never_writes(tmp_path: Path) -> None:
+    """peek_batch returns fresh L1/L2 rows but cold/stale come back None, and a
+    peek of a cold ticker must NOT tomb-stone it — a later real get_batch still
+    fetches it."""
+    cache = QuoteCache(db_path=tmp_path / "q.db", ttl_seconds=60)
+
+    async def warm(missing: list[str]) -> dict[str, float | None]:
+        return {t: 187.0 for t in missing}
+
+    await cache.get_batch(["AAPL"], fetcher=warm)  # AAPL now fresh in L1+L2
+
+    # Fresh ticker served; cold ticker → None.
+    peeked = await cache.peek_batch(["AAPL", "COLD"])
+    assert peeked == {"AAPL": 187.0, "COLD": None}
+
+    # The cold peek must not have written a fresh None tombstone for COLD.
+    calls: list[str] = []
+
+    async def fetch_cold(missing: list[str]) -> dict[str, float | None]:
+        calls.extend(missing)
+        return {t: 42.0 for t in missing}
+
+    out = await cache.get_batch(["COLD"], fetcher=fetch_cold)
+    assert out == {"COLD": 42.0}, "peek must not have tombstoned COLD"
+    assert calls == ["COLD"], "real fetch must run — peek planted no fresh None"
+    await cache.close()
+
+
+@pytest.mark.asyncio
+async def test_peek_batch_does_not_destroy_stale_revalidate_row(tmp_path: Path) -> None:
+    """A peek of a *stale* ticker must preserve its last-known price for
+    stale-while-revalidate. Repro of the cited 250.0→None: the no-op-fetcher
+    cache-only path overwrote the stale L2 row with None, so a later
+    rate-limited get_batch served None instead of the last good 250.0."""
+    cache = QuoteCache(db_path=tmp_path / "q.db", ttl_seconds=0, rate_limit_cooldown_seconds=0)
+
+    async def warm(missing: list[str]) -> dict[str, float | None]:
+        return {t: 250.0 for t in missing}
+
+    await cache.get_batch(["AAPL"], fetcher=warm)
+    await asyncio.sleep(0.01)  # TTL=0 → AAPL is now stale-but-recoverable
+
+    # Cache-only peek of the stale ticker → None to caller, but row must survive.
+    assert await cache.peek_batch(["AAPL"]) == {"AAPL": None}
+
+    async def rate_limited(missing: list[str]) -> dict[str, float | None]:
+        raise QuoteFetchRateLimited("Yahoo 429")
+
+    recovered = await cache.get_batch(["AAPL"], fetcher=rate_limited)
+    assert recovered == {"AAPL": 250.0}, "peek must not have destroyed the stale price"
+    await cache.close()
+
+
+@pytest.mark.asyncio
 async def test_rate_limit_opens_cooldown_skips_fetcher(tmp_path: Path) -> None:
     """After a 429, a batch within the cooldown window must NOT call the
     fetcher again — it serves stale. This is the heat fix: a Yahoo 429 storm
     must not turn every dashboard refresh into another doomed round-trip."""
-    cache = QuoteCache(
-        db_path=tmp_path / "q.db", ttl_seconds=0, rate_limit_cooldown_seconds=30
-    )
+    cache = QuoteCache(db_path=tmp_path / "q.db", ttl_seconds=0, rate_limit_cooldown_seconds=30)
 
     async def first(missing: list[str]) -> dict[str, float | None]:
         return {t: 150.0 for t in missing}
@@ -304,9 +356,7 @@ async def test_rate_limit_opens_cooldown_skips_fetcher(tmp_path: Path) -> None:
 @pytest.mark.asyncio
 async def test_cooldown_expires_allows_refetch(tmp_path: Path) -> None:
     """Once the cooldown window elapses, the next batch re-hits the fetcher."""
-    cache = QuoteCache(
-        db_path=tmp_path / "q.db", ttl_seconds=0, rate_limit_cooldown_seconds=0.05
-    )
+    cache = QuoteCache(db_path=tmp_path / "q.db", ttl_seconds=0, rate_limit_cooldown_seconds=0.05)
 
     async def first(missing: list[str]) -> dict[str, float | None]:
         return {t: 150.0 for t in missing}
@@ -337,9 +387,7 @@ async def test_cooldown_blocks_new_cold_ticker(tmp_path: Path) -> None:
     """Cooldown is per-provider (the upstream is throttled), not per-ticker:
     a brand-new ticker requested during the window returns None without a
     fetch — we don't ask a throttled source for anything."""
-    cache = QuoteCache(
-        db_path=tmp_path / "q.db", ttl_seconds=60, rate_limit_cooldown_seconds=30
-    )
+    cache = QuoteCache(db_path=tmp_path / "q.db", ttl_seconds=60, rate_limit_cooldown_seconds=30)
 
     async def rate_limited(missing: list[str]) -> dict[str, float | None]:
         raise QuoteFetchRateLimited("Yahoo 429")

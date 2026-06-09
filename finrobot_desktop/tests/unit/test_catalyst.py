@@ -402,3 +402,24 @@ class TestFilterFreshNews:
         result, stale_count = filter_fresh_news([item], max_age_days=30)
         assert len(result) == 1
         assert stale_count == 0
+
+    def test_undated_item_dropped_as_stale(self):
+        """An item with no publish date (``published is None``) cannot be proven
+        fresh, so it must be dropped and counted as stale — never silently kept
+        as if recent. Previously the provider fabricated ``now()`` for undated
+        news, which let it masquerade as just-published and punch through the
+        30-day freshness window into catalyst extraction."""
+        fresh = _make_news_item("Fresh", days_ago=2)
+        undated = NewsItem(
+            title="Undated",
+            source="PR-wire",
+            published=None,
+            url="http://test/undated",
+            category="other",
+            sentiment="neutral",
+            importance=3,
+            summary="No date on this one.",
+        )
+        result, stale_count = filter_fresh_news([fresh, undated], max_age_days=30)
+        assert [i.title for i in result] == ["Fresh"]
+        assert stale_count == 1

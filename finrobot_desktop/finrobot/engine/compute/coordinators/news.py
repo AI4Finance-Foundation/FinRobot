@@ -69,31 +69,48 @@ def sanitize_untrusted_text(text: str, *, max_len: int = _MAX_UNTRUSTED_LEN) -> 
     return cleaned
 
 
+# The category/sentiment vocabularies are shared between the typed news item
+# and the LLM's per-item judgment (news_classifier.NewsClassification), so they
+# live here in the leaf layer as the single source of truth.
+NewsCategory = Literal[
+    "earnings", "product", "regulatory", "macro", "analyst", "management", "other"
+]
+NewsSentiment = Literal["positive", "negative", "neutral"]
+
+
 class RawNewsItem(BaseModel):
     title: str
     source: str
-    published: datetime
+    # None when the provider gave no date or an unparseable one. A publish date
+    # is a fact, not something to fabricate — see _parse_datetime.
+    published: datetime | None
     url: str
 
 
 class NewsItem(BaseModel):
     title: str
     source: str
-    published: datetime
+    published: datetime | None
     url: str
-    category: Literal[
-        "earnings", "product", "regulatory", "macro", "analyst", "management", "other"
-    ]
-    sentiment: Literal["positive", "negative", "neutral"]
+    category: NewsCategory
+    sentiment: NewsSentiment
     importance: int = Field(ge=1, le=5)
     summary: str
 
 
-def _parse_datetime(s: str) -> datetime:
+def _parse_datetime(s: str) -> datetime | None:
+    """Parse an ISO-8601 publish date, or None when it is missing/unparseable.
+
+    A publish date is a FACT. Earlier code fell back to ``datetime.now()`` on a
+    parse failure, which silently fabricated a "just published" timestamp — that
+    let undated or stale items punch through the 30-day freshness window and be
+    extracted as fresh catalysts. The honest value for an unknown date is None;
+    downstream (filter_fresh_news) treats it as not-provably-fresh and drops it.
+    """
     try:
         dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
     except (ValueError, AttributeError):
-        dt = datetime.now(tz=timezone.utc)
+        return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt

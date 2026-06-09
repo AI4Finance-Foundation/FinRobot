@@ -10,12 +10,14 @@ from finrobot.engine.data.types import DataType
 from finrobot.engine.compute.coordinators.news import (
     NewsItem,
     RawNewsItem,
+    _parse_datetime,
     fetch_news,
     parse_raw_news,
     sanitize_untrusted_text,
 )
 from finrobot.engine.analysis.news_classifier import (
     ClassifiedNewsBatch,
+    NewsClassification,
     classify_news,
 )
 
@@ -91,6 +93,74 @@ class TestParseRawNews:
         items = parse_raw_news(dr)
         assert len(items) == 1
         assert items[0].title == "Real headline"
+
+
+class TestNewsDateHonesty:
+    """A publish date is a FACT — if the provider gives none or an unparseable
+    one, the honest value is None/"" (unknown), never a fabricated ``now()``.
+    A fabricated ``now()`` made undated/stale news masquerade as just-published
+    and punch through the 30-day freshness window into catalyst extraction."""
+
+    def test_parse_datetime_valid_iso(self):
+        dt = _parse_datetime("2024-10-31T16:00:00Z")
+        assert dt == datetime(2024, 10, 31, 16, 0, tzinfo=timezone.utc)
+
+    def test_parse_datetime_naive_iso_assumes_utc(self):
+        dt = _parse_datetime("2024-10-31T16:00:00")
+        assert dt == datetime(2024, 10, 31, 16, 0, tzinfo=timezone.utc)
+
+    def test_parse_datetime_unparseable_returns_none(self):
+        assert _parse_datetime("not a date") is None
+
+    def test_parse_datetime_empty_returns_none(self):
+        assert _parse_datetime("") is None
+
+    def test_normalize_published_missing_returns_empty(self):
+        assert NewsAggregatorProvider._normalize_published(None) == ""
+        assert NewsAggregatorProvider._normalize_published("") == ""
+        assert NewsAggregatorProvider._normalize_published("   ") == ""
+
+    def test_normalize_published_valid_epoch(self):
+        # 2024-01-15T18:30:00Z == 1705343400
+        out = NewsAggregatorProvider._normalize_published(1705343400)
+        assert out.startswith("2024-01-15T18:30:00")
+
+    def test_normalize_published_bad_epoch_returns_empty(self):
+        assert NewsAggregatorProvider._normalize_published(10**30) == ""
+
+    def test_normalize_published_unparseable_text_returns_empty(self):
+        # A non-ISO string is unusable downstream (only fromisoformat is tried),
+        # so it normalizes to the same "unknown" sentinel rather than leaking
+        # raw garbage into the cached payload.
+        assert NewsAggregatorProvider._normalize_published("Jan 15, 2024") == ""
+
+    def test_parse_av_date_empty_returns_empty(self):
+        assert NewsAggregatorProvider._parse_av_date("") == ""
+
+    def test_parse_av_date_unparseable_returns_empty(self):
+        assert NewsAggregatorProvider._parse_av_date("garbage") == ""
+
+    def test_parse_av_date_valid(self):
+        out = NewsAggregatorProvider._parse_av_date("20240115T183000")
+        assert out.startswith("2024-01-15T18:30:00")
+
+    def test_undated_provider_item_parses_to_none(self):
+        """End-to-end: a provider item with no publish date flows to a
+        RawNewsItem whose published is None, not a fabricated timestamp."""
+        dr = DataResult(
+            data={
+                "news_items": [
+                    {"title": "Undated", "source": "PR", "published": "", "url": "u"},
+                ]
+            },
+            provider="yfinance",
+            ticker="AAPL",
+            data_type="news",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        items = parse_raw_news(dr)
+        assert len(items) == 1
+        assert items[0].published is None
 
 
 class TestFetchNews:
@@ -199,7 +269,10 @@ class TestClassifyNews:
 
     @pytest.mark.asyncio
     async def test_classify_news_returns_news_items(self):
-        """Mock PydanticAI Agent → verify list[NewsItem] output."""
+        """The LLM supplies only judgments (category/sentiment/importance/summary)
+        keyed by index; factual fields (title/source/published/url) are restored
+        deterministically from the original RawNewsItem — they are data, not
+        judgment, and must never round-trip through the model."""
         raw_items = [
             RawNewsItem(
                 title="Apple beats Q4 earnings",
@@ -208,20 +281,18 @@ class TestClassifyNews:
                 url="https://example.com/1",
             ),
         ]
-        expected_items = [
-            NewsItem(
-                title="Apple beats Q4 earnings",
-                source="Reuters",
-                published=datetime(2024, 10, 31, 16, 0, tzinfo=timezone.utc),
-                url="https://example.com/1",
-                category="earnings",
-                sentiment="positive",
-                importance=4,
-                summary="Apple exceeded Q4 earnings expectations.",
-            ),
-        ]
         mock_output = MagicMock()
-        mock_output.output = ClassifiedNewsBatch(items=expected_items)
+        mock_output.output = ClassifiedNewsBatch(
+            items=[
+                NewsClassification(
+                    index=0,
+                    category="earnings",
+                    sentiment="positive",
+                    importance=4,
+                    summary="Apple exceeded Q4 earnings expectations.",
+                ),
+            ]
+        )
 
         mock_deps = MagicMock()
         mock_deps.settings.model_name = "test-model"
@@ -235,9 +306,105 @@ class TestClassifyNews:
 
         assert len(result) == 1
         assert isinstance(result[0], NewsItem)
+        # Judgments from the LLM:
         assert result[0].category == "earnings"
         assert result[0].sentiment == "positive"
         assert result[0].importance == 4
+        assert result[0].summary == "Apple exceeded Q4 earnings expectations."
+        # Facts restored deterministically from the raw item:
+        assert result[0].title == "Apple beats Q4 earnings"
+        assert result[0].source == "Reuters"
+        assert result[0].published == datetime(2024, 10, 31, 16, 0, tzinfo=timezone.utc)
+        assert result[0].url == "https://example.com/1"
+
+    @pytest.mark.asyncio
+    async def test_classify_preserves_undated_and_ignores_llm_facts(self):
+        """An undated raw item (``published is None``) stays None after
+        classification — the model never gets to fabricate a publish date — and
+        any factual field the model tries to emit is ignored in favour of the
+        raw item's value."""
+        raw_items = [
+            RawNewsItem(
+                title="Undated wire item",
+                source="PR-wire",
+                published=None,
+                url="https://example.com/u",
+            ),
+        ]
+        mock_output = MagicMock()
+        mock_output.output = ClassifiedNewsBatch(
+            items=[
+                NewsClassification(
+                    index=0,
+                    category="product",
+                    sentiment="positive",
+                    importance=5,
+                    summary="A product announcement.",
+                ),
+            ]
+        )
+
+        mock_deps = MagicMock()
+        mock_deps.settings.model_name = "test-model"
+
+        with patch("finrobot.engine.analysis.news_classifier.PydanticAgent") as MockAgent:
+            mock_agent_instance = AsyncMock()
+            mock_agent_instance.run.return_value = mock_output
+            MockAgent.return_value = mock_agent_instance
+
+            result = await classify_news(raw_items, mock_deps, ticker="AAPL")
+
+        assert len(result) == 1
+        assert result[0].published is None  # NOT fabricated
+        assert result[0].title == "Undated wire item"
+        assert result[0].category == "product"
+
+    @pytest.mark.asyncio
+    async def test_classify_drops_items_the_llm_omits(self):
+        """When the model returns no judgment for an item's index, that item is
+        dropped — we never fabricate a classification. Order follows the raw
+        items, so a dropped/reordered model response can't mis-associate a
+        judgment with the wrong headline."""
+        raw_items = [
+            RawNewsItem(
+                title="First",
+                source="A",
+                published=datetime(2024, 1, 1, tzinfo=timezone.utc),
+                url="https://example.com/1",
+            ),
+            RawNewsItem(
+                title="Second",
+                source="B",
+                published=datetime(2024, 1, 2, tzinfo=timezone.utc),
+                url="https://example.com/2",
+            ),
+        ]
+        mock_output = MagicMock()
+        mock_output.output = ClassifiedNewsBatch(
+            items=[
+                NewsClassification(
+                    index=1,
+                    category="analyst",
+                    sentiment="neutral",
+                    importance=2,
+                    summary="Only the second item classified.",
+                ),
+            ]
+        )
+
+        mock_deps = MagicMock()
+        mock_deps.settings.model_name = "test-model"
+
+        with patch("finrobot.engine.analysis.news_classifier.PydanticAgent") as MockAgent:
+            mock_agent_instance = AsyncMock()
+            mock_agent_instance.run.return_value = mock_output
+            MockAgent.return_value = mock_agent_instance
+
+            result = await classify_news(raw_items, mock_deps, ticker="AAPL")
+
+        assert len(result) == 1
+        assert result[0].title == "Second"
+        assert result[0].category == "analyst"
 
     @pytest.mark.asyncio
     async def test_classify_news_instructions_are_ticker_aware(self):

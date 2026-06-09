@@ -247,35 +247,43 @@ class NewsAggregatorProvider(DataProvider):
         """Normalize a yfinance published timestamp to an ISO 8601 string.
 
         yfinance returns either an ISO string (``content.pubDate``) or a Unix
-        epoch seconds int (legacy ``providerPublishTime``).
+        epoch seconds int (legacy ``providerPublishTime``). When the date is
+        missing or unparseable, return "" (unknown) — never a fabricated
+        ``now()``. A fake "just published" timestamp lets undated/stale news
+        slip through the freshness filter as a fresh catalyst.
         """
         if value is None or value == "":
-            return datetime.now(tz=timezone.utc).isoformat()
+            return ""
         if isinstance(value, (int, float)):
             try:
                 return datetime.fromtimestamp(value, tz=timezone.utc).isoformat()
             except (ValueError, OSError, OverflowError):
-                return datetime.now(tz=timezone.utc).isoformat()
+                return ""
         text = str(value).strip()
         if not text:
-            return datetime.now(tz=timezone.utc).isoformat()
+            return ""
         try:
             dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
             return dt.isoformat()
         except (ValueError, TypeError):
-            return text
+            # Non-ISO text is unusable downstream (only fromisoformat is tried),
+            # so it is the "unknown" sentinel too, not leaked raw.
+            return ""
 
     @staticmethod
     def _parse_av_date(date_str: str) -> str:
-        """Parse Alpha Vantage time_published (YYYYMMDDTHHmmss) to ISO format."""
+        """Parse Alpha Vantage time_published (YYYYMMDDTHHmmss) to ISO format.
+
+        Missing/unparseable → "" (unknown), never a fabricated ``now()``.
+        """
         if not date_str:
-            return datetime.now(tz=timezone.utc).isoformat()
+            return ""
         try:
             # "20240115T183000"
             dt = datetime.strptime(date_str, "%Y%m%dT%H%M%S")
             dt = dt.replace(tzinfo=timezone.utc)
             return dt.isoformat()
         except (ValueError, TypeError):
-            return datetime.now(tz=timezone.utc).isoformat()
+            return ""

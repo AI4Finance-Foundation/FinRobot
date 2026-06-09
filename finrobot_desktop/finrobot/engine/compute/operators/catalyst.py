@@ -166,11 +166,15 @@ def filter_fresh_news(
         (fresh_items, stale_count) where stale_count is the number dropped.
 
     Items with timezone-naive published are normalized to UTC before comparison.
+    An item with no publish date (``published is None``) cannot be proven fresh,
+    so it is dropped and counted as stale — never kept as if recent.
     """
     now = datetime.now(tz=timezone.utc)
     fresh: list[NewsItem] = []
     for item in news_items:
         pub = item.published
+        if pub is None:
+            continue
         if pub.tzinfo is None:
             pub = pub.replace(tzinfo=timezone.utc)
         if (now - pub).days <= max_age_days:

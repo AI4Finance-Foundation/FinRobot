@@ -407,11 +407,17 @@ class DataLayer:
                 return getattr(provider, "_api_key", None)
         return None
 
-    async def _reporting_to_quote_rate(self, reporting_ccy: str, quote_ccy: str) -> float:
+    async def reporting_to_quote_rate(self, reporting_ccy: str, quote_ccy: str) -> float:
         """Factor expressing one unit of ``reporting_ccy`` in ``quote_ccy``.
 
         Quote is USD in the overwhelmingly common ADR case (TSM/SAP/TM), so this is
         just the reporting→USD spot. Otherwise reporting→USD ÷ quote→USD.
+
+        Public because two surfaces need the same FX chokepoint: the canonical
+        snapshot (``_apply_canonical_fx``) and the historical-band loader
+        (``historical_loaders.load_yearly_financials``), which must put native
+        yearly EBITDA / net-debt in the quote currency before mixing them with the
+        USD ADR price.
         """
         fmp_key = self._fmp_api_key()
         reporting_to_usd = await fetch_fx_rate_to_usd(reporting_ccy, fmp_api_key=fmp_key)
@@ -433,7 +439,7 @@ class DataLayer:
         if nf.reporting_currency.upper() == nf.quote_currency.upper():
             return nf
         try:
-            rate = await self._reporting_to_quote_rate(nf.reporting_currency, nf.quote_currency)
+            rate = await self.reporting_to_quote_rate(nf.reporting_currency, nf.quote_currency)
         except ProviderError as exc:
             logger.warning(
                 "FX %s→%s unavailable for %s — canonical ships un-normalized; "

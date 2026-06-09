@@ -22,7 +22,7 @@ from finrobot.engine.primitives.historical_valuation import (
     YearlyFinancials,
     compute_historical_band,
 )
-from finrobot.engine.data.interface import ProviderError
+from finrobot.engine.data.interface import DataResult, ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.types import DataType
 
@@ -49,6 +49,19 @@ async def load_yearly_financials(
         logger.info("yearly financials fetch failed for %s: %s", ticker, exc)
         return []
 
+    # ADR FX (W3-A路 · Bug B): FMP reports a foreign issuer's yearly statements
+    # in its native currency (financial_currency, e.g. TWD/JPY) while the ADR —
+    # and this band's price history — is quoted in quote_currency (USD). The
+    # native EBITDA / net-debt must be put in the quote currency BEFORE they meet
+    # the USD price in _compute_multiple, or EV/EBITDA mixes currencies and
+    # collapses (TSM live band came out ~0.05x vs the ~23x canonical). Mirrors the
+    # canonical FX chokepoint (layer._apply_canonical_fx); the share count and the
+    # FCF/ratio caliber are handled per field below. A current spot rate is
+    # applied to every year — the per-year FX drift is a single-digit-% residual
+    # on the equity term, vs the ~600× currency error it replaces; period-matched
+    # historical FX is tracked as a follow-up.
+    fx_rate = await _historical_fx_rate(results, data_layer, ticker)
+
     out: list[tuple[YearlyFinancials, float | None]] = []
     for result in results:
         data = result.data if isinstance(result.data, dict) else {}
@@ -56,19 +69,55 @@ async def load_yearly_financials(
         fy_date = _parse_date(fiscal_raw)
         if fy_date is None:
             continue
+        ebitda_native = _pos_or_none(data.get("ebitda"))
+        fcf_native = _pos_or_none(_derive_fcf(data))
+        net_debt_native = float(data.get("total_debt") or 0.0) - float(
+            data.get("total_cash") or 0.0
+        )
         out.append(
             (
                 YearlyFinancials(
                     fiscal_date=fy_date,
-                    ebitda=_pos_or_none(data.get("ebitda")),
-                    free_cash_flow=_pos_or_none(_derive_fcf(data)),
-                    net_debt=float(data.get("total_debt") or 0.0)
-                    - float(data.get("total_cash") or 0.0),
+                    ebitda=ebitda_native * fx_rate if ebitda_native is not None else None,
+                    free_cash_flow=fcf_native * fx_rate if fcf_native is not None else None,
+                    net_debt=net_debt_native * fx_rate,
                 ),
                 _pos_or_none(data.get("shares_outstanding")),
             )
         )
     return out
+
+
+async def _historical_fx_rate(
+    results: list[DataResult], data_layer: DataLayer, ticker: str
+) -> float:
+    """Spot financial→quote rate for the band, or 1.0 when no conversion is due.
+
+    Returns 1.0 for US issuers (financial_currency == quote_currency), when the
+    currency tags are absent (lightweight test fakes), or on FX-fetch failure —
+    the band then stays on native figures (currency-mixed) but never crashes,
+    matching the canonical path's degrade-don't-fail FX contract.
+    """
+    if not results or not hasattr(data_layer, "reporting_to_quote_rate"):
+        return 1.0
+    first = results[0].data if isinstance(results[0].data, dict) else {}
+    fin_ccy = str(first.get("financial_currency") or "").upper()
+    quote_ccy = str(first.get("quote_currency") or "").upper()
+    if not fin_ccy or not quote_ccy or fin_ccy == quote_ccy:
+        return 1.0
+    try:
+        rate = await data_layer.reporting_to_quote_rate(fin_ccy, quote_ccy)
+    except (ProviderError, ValueError) as exc:
+        logger.warning(
+            "historical-band FX %s→%s failed for %s; band stays native " "(currency-mixed): %s",
+            fin_ccy,
+            quote_ccy,
+            ticker,
+            exc,
+        )
+        return 1.0
+    logger.info("historical-band FX %s→%s=%.5f applied for %s", fin_ccy, quote_ccy, rate, ticker)
+    return rate
 
 
 async def load_price_history(ticker: str, data_layer: DataLayer, years: int) -> list[PricePoint]:

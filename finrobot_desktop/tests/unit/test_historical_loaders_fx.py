@@ -1,0 +1,90 @@
+"""FX normalisation of the historical-band loader (W3-A路 · Bug B).
+
+Foreign ADRs (TSM/SONY/BABA) have FMP report their yearly statements in the
+native currency (financial_currency=TWD/JPY) while the ADR trades — and the
+band's price history is fetched — in the quote currency (USD). The yearly
+EBITDA / net-debt must therefore be converted to the quote currency BEFORE they
+meet the USD price in ``_compute_multiple``; otherwise EV/EBITDA mixes
+currencies and collapses (TSM live band came out ~0.05x instead of ~23x).
+
+These tests pin the conversion using FMP's real TSM payload shape and confirm
+the same-currency (US issuer) path is left untouched.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+import pytest
+
+from finrobot.engine.data.historical_loaders import load_yearly_financials
+from finrobot.engine.data.interface import DataResult
+
+
+class _FXStubLayer:
+    """fetch_historical returns native-currency financials + a quote currency.
+
+    Mirrors the FMP TSM payload: statements in TWD, ADR quoted in USD. Records
+    the (reporting, quote) pairs requested so the test can assert the loader
+    converts exactly once.
+    """
+
+    def __init__(self, *, fin_ccy: str, quote_ccy: str, rate: float) -> None:
+        self._fin_ccy = fin_ccy
+        self._quote_ccy = quote_ccy
+        self._rate = rate
+        self.rate_calls: list[tuple[str, str]] = []
+
+    async def fetch_historical(self, data_type: str, ticker: str, years: int) -> list[DataResult]:
+        return [
+            DataResult(
+                data={
+                    "fiscal_year": "2024-12-31",
+                    "ebitda": 2_752_481_885_000,  # native (TWD for TSM)
+                    "total_debt": 1_064_582_700_000,
+                    "total_cash": 3_128_297_700_000,
+                    "shares_outstanding": 5_180_000_000,
+                    "financial_currency": self._fin_ccy,
+                    "quote_currency": self._quote_ccy,
+                },
+                provider="stub",
+                ticker=ticker,
+                data_type=data_type,
+                timestamp=datetime.now(tz=timezone.utc),
+            )
+        ]
+
+    async def reporting_to_quote_rate(self, reporting_ccy: str, quote_ccy: str) -> float:
+        self.rate_calls.append((reporting_ccy, quote_ccy))
+        return self._rate
+
+
+@pytest.mark.asyncio
+async def test_load_yearly_financials_fx_normalizes_adr_to_quote_currency():
+    rate = 0.0312  # 1 TWD ≈ 0.0312 USD
+    layer = _FXStubLayer(fin_ccy="TWD", quote_ccy="USD", rate=rate)
+
+    out = await load_yearly_financials("TSM", layer, years=3)
+
+    assert len(out) == 1
+    yf, shares = out[0]
+    # EBITDA must be the USD-converted figure, not the raw TWD trillions.
+    assert yf.ebitda == pytest.approx(2_752_481_885_000 * rate)
+    # net_debt = (total_debt − total_cash) also converted to the quote currency.
+    assert yf.net_debt == pytest.approx((1_064_582_700_000 - 3_128_297_700_000) * rate)
+    # Share count is currency-neutral — never scaled.
+    assert shares == 5_180_000_000
+    # Rate fetched exactly once (per ticker, not per year).
+    assert layer.rate_calls == [("TWD", "USD")]
+
+
+@pytest.mark.asyncio
+async def test_load_yearly_financials_no_fx_for_same_currency():
+    # US issuer: financial_currency == quote_currency → no FX call, raw values kept.
+    layer = _FXStubLayer(fin_ccy="USD", quote_ccy="USD", rate=0.5)
+
+    out = await load_yearly_financials("AAPL", layer, years=3)
+
+    yf, _ = out[0]
+    assert yf.ebitda == pytest.approx(2_752_481_885_000)  # untouched (rate not applied)
+    assert layer.rate_calls == []

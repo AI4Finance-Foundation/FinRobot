@@ -502,6 +502,22 @@ function EarningsCallSection({
 
   return (
     <div>
+      {/* Honest provenance label. Unlike every other report surface, this panel
+          is NOT frozen and NOT part of the analysis — the equity_research
+          narrative references no earnings call (verified: zero transcript refs
+          across the pipeline + all agent instructions). A live-latest transcript
+          sitting beside a report frozen to a date would otherwise let a reader
+          assume the report incorporated it. The which-call ambiguity is closed
+          by the visible quarter buttons + call date below; this line closes the
+          is-it-part-of-the-report ambiguity. (If a future pipeline step ever
+          CONSUMES transcript content, revisit freezing — see BACKLOG.) */}
+      <p style={{ ...noteStyle, marginBottom: 10 }}>
+        {tr(
+          '参考:财报电话会逐字稿 · 不属于本报告的分析范围',
+          "Reference: earnings call transcripts · not part of this report's analysis",
+          locale,
+        )}
+      </p>
       <div
         style={{
           display: 'flex',

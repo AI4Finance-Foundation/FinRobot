@@ -936,12 +936,19 @@ class EdgarToolsProvider(DataProvider):
         if want_rag:
             # FinRobot's own BM25 — input switched from regex-strip chunks
             # to clean typed-section chunks.
-            from finrobot.engine.primitives.rag import BM25Index, chunk_text
+            from dataclasses import asdict
+
+            from finrobot.engine.primitives.rag import chunk_text
 
             merged = "\n\n".join(f"[{s['title']}]\n{s['text']}" for s in sections if s["text"])
             source_label = f"10-K/{filing.filing_date}"
             chunks = chunk_text(merged, chunk_size=300, overlap=30, source=source_label)
-            data["rag_index"] = BM25Index(chunks)
+            # Store SERIALIZABLE chunk dicts, never a live BM25Index: the index is
+            # a runtime object that cannot round-trip through the canonical JSON
+            # cache — caching it made cache.set's model_dump_json raise
+            # PydanticSerializationError and crash every live 10-K fetch. run_qa
+            # rebuilds the index from these chunks on demand (cheap).
+            data["rag_chunks"] = [asdict(c) for c in chunks]
             data["chunk_count"] = len(chunks)
 
         return data, warnings

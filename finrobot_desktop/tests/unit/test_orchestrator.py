@@ -1,6 +1,5 @@
 """Tests for the lead_agent orchestrator (P1b: sub-agents + comps/dcf tools)."""
 
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -412,35 +411,26 @@ class TestFindReports:
 # ---------------------------------------------------------------------------
 
 
-@dataclass
-class _FakeChunk:
-    text: str
-    source: str
-    chunk_index: int
-
-
-class _FakeRagIndex:
-    """Minimal BM25Index stand-in: search() returns (chunk, score) pairs."""
-
-    def __init__(self, chunks: list[_FakeChunk], scores: list[float] | None = None) -> None:
-        self._chunks = chunks
-        self._scores = scores or [1.0] * len(chunks)
-
-    def search(self, query: str, top_k: int = 5) -> list[tuple[_FakeChunk, float]]:
-        return list(zip(self._chunks, self._scores))[:top_k]
+def _rag_chunk(text: str, source: str, chunk_index: int = 0) -> dict:
+    """A serialized Chunk, exactly as the EDGAR provider now stores it."""
+    return {"text": text, "source": source, "chunk_index": chunk_index, "char_start": 0}
 
 
 class _RagDataLayer:
-    """Data layer whose fetch() returns a 10-K RAG payload (or an empty one)."""
+    """Data layer whose fetch() returns a 10-K RAG payload (serializable chunks).
 
-    def __init__(self, *, rag_index: _FakeRagIndex | None = None, chunk_count: int = 0) -> None:
-        self._rag_index = rag_index
-        self._chunk_count = chunk_count
+    Mirrors the post-fix provider shape: ``rag_chunks`` (dicts), never a live
+    BM25Index — run_qa rebuilds the index, so the payload stays cache-safe.
+    """
+
+    def __init__(self, *, rag_chunks: list[dict] | None = None) -> None:
+        self._rag_chunks = rag_chunks
 
     async def fetch(self, data_type, ticker, **kwargs) -> DataResult:  # noqa: ANN001
-        data: dict = {"chunk_count": self._chunk_count}
-        if self._rag_index is not None:
-            data["rag_index"] = self._rag_index
+        data: dict = {}
+        if self._rag_chunks is not None:
+            data["rag_chunks"] = self._rag_chunks
+            data["chunk_count"] = len(self._rag_chunks)
         return DataResult(
             data=data,
             provider="sec_edgar",
@@ -468,29 +458,34 @@ class TestAskFilings:
         assert "Invalid ticker" in out
 
     async def test_no_10k_returns_string_not_raise(self):
-        # run_qa raises ValueError("No 10-K RAG index ...") when EDGAR has no
+        # run_qa raises ValueError("No 10-K RAG data ...") when EDGAR has no
         # filing; the tool MUST convert it to a returned string, never re-raise —
         # a raised ValueError tears down the live /chat SSE stream.
         agent = _agent()
         fn = _ask_filings_fn(agent)
-        deps = FinRobotDeps(data_layer=_RagDataLayer(rag_index=None), settings=_settings())
+        deps = FinRobotDeps(data_layer=_RagDataLayer(rag_chunks=None), settings=_settings())
         out = await fn(_run_context(deps), "AAPL", "What are the risk factors?")
         assert isinstance(out, str)
         assert "10-K" in out
 
     async def test_successful_qa_returns_grounded_answer(self, monkeypatch):
+        # A realistic multi-chunk corpus so BM25 IDF gives the "regulatory" term
+        # positive weight (a 1-2 doc corpus is degenerate — IDF ≤ 0).
         deps = FinRobotDeps(
             data_layer=_RagDataLayer(
-                rag_index=_FakeRagIndex(
-                    [_FakeChunk("Regulatory change is a material risk.", "[Item 1A]", 0)],
-                    scores=[3.2],
-                ),
-                chunk_count=12,
+                rag_chunks=[
+                    _rag_chunk(
+                        "Regulatory change is a material risk to operations.", "[Item 1A]", 0
+                    ),
+                    _rag_chunk("Revenue grew on services strength.", "[Item 7 - MD&A]", 1),
+                    _rag_chunk("The company designs and sells consumer hardware.", "[Item 1]", 2),
+                    _rag_chunk("Gross margin expanded on product mix.", "[Item 7]", 3),
+                ]
             ),
             settings=_settings(),
         )
         # Stub the LLM inside run_qa so the test exercises the real retrieval +
-        # tool plumbing without a network call.
+        # tool plumbing (real BM25 rebuild) without a network call.
         mock_result = MagicMock()
         mock_result.output = "Per [Item 1A], regulatory change is the key risk."
         mock_agent = MagicMock()
@@ -499,7 +494,7 @@ class TestAskFilings:
 
         agent = _agent()
         fn = _ask_filings_fn(agent)
-        out = await fn(_run_context(deps), "aapl", "What are the risk factors?")
+        out = await fn(_run_context(deps), "aapl", "What are the regulatory risk factors?")
         assert isinstance(out, str)
         assert "regulatory change" in out.lower()
 

@@ -219,8 +219,9 @@ def create_lead_agent(
     ) -> str:
         """Fetch financial data for quick questions.
         data_type: one of the DataType values, commonly financials, price, quote,
-        news, earnings, filings, profile, historical, quarterly, forward_estimates,
-        10k_rag."""
+        news, earnings, filings, profile, historical, quarterly, forward_estimates.
+        For QUESTIONS about 10-K narrative (risks, MD&A, business) use ask_filings,
+        not this tool — it grounds the answer in the filing text with citations."""
         # RETURN (not raise) on bad ticker — a raised ValueError here crashes
         # the live chat SSE stream; a returned string lets the LLM recover.
         try:

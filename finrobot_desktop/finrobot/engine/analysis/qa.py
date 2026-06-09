@@ -16,6 +16,7 @@ from pydantic_ai import Agent
 from finrobot.config import FinRobotSettings
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.types import DataType
+from finrobot.engine.primitives.rag import BM25Index, Chunk
 
 logger = logging.getLogger(__name__)
 
@@ -40,23 +41,26 @@ async def run_qa(
     Returns the LLM answer with source citations.
     Raises ValueError if no 10-K data or chunks are available.
     """
-    # 1. Fetch RAG index from SEC provider
+    # 1. Fetch the 10-K's serializable chunks from the SEC provider. The provider
+    # stores ``rag_chunks`` (plain dicts), NOT a live BM25Index — the index is a
+    # runtime artifact that cannot round-trip through the canonical JSON cache
+    # (a stored BM25Index made cache.set raise PydanticSerializationError and
+    # crashed every live fetch). We rebuild it here, cheaply, on each call.
     result = await data_layer.fetch(DataType.RAG_10K, ticker)
-    rag_index = result.data.get("rag_index")
+    raw_chunks = result.data.get("rag_chunks")
 
-    if rag_index is None:
+    if raw_chunks is None:
         raise ValueError(
-            f"No 10-K RAG index available for {ticker}. "
+            f"No 10-K RAG data available for {ticker}. "
             "Ensure SEC EDGAR is accessible and the company has filed a 10-K."
         )
-
-    chunk_count = result.data.get("chunk_count", 0)
-    if chunk_count == 0:
+    if not raw_chunks:
         raise ValueError(
             f"10-K filing for {ticker} was fetched but no sections could be extracted."
         )
 
-    # 2. Search for relevant chunks
+    # 2. Rebuild the BM25 index from the cached chunks and search.
+    rag_index = BM25Index([Chunk(**c) for c in raw_chunks])
     chunks_with_scores = rag_index.search(question, top_k=top_k)
 
     if not chunks_with_scores:

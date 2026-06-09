@@ -160,6 +160,27 @@ def test_sniper_short_mode_safety_margin_zero():
     assert result.safety_margin == 0.0
 
 
+def test_sniper_short_drops_secondary_when_it_collides_with_stop():
+    """SHORT add-on (bounce) entry must drop to None when it sits at/above the
+    stop — otherwise it ships 'add at the stop' (开仓即止损), the exact degeneracy
+    the LONG branch already guards (support ≤ stop → None). Triggered when
+    resistance ≥ current×1.10: secondary_buy = max(res, cur) then collides with
+    stop_loss = max(res, cur×1.10) (both = resistance)."""
+    result = calculate_sniper_points(
+        _req(
+            current_price=100.0,
+            dcf_target=80.0,  # SHORT
+            historical_prices=[100.0, 95.0, 120.0, 90.0, 100.0, 105.0, 98.0, 110.0, 92.0, 100.0],
+        )
+    )
+    assert result.direction == "SHORT"
+    assert result.resistance_level == pytest.approx(120.0, abs=0.01)
+    assert result.stop_loss == pytest.approx(120.0, abs=0.01)
+    # secondary_buy = max(resistance 120, current 100) = 120 == stop → must drop.
+    assert result.secondary_buy is None
+    assert any("secondary" in w.lower() for w in result.invariant_warnings)
+
+
 def test_sniper_long_mode_carries_direction_field() -> None:
     """LONG mode emits ``direction="LONG"`` so the UI can label entry/stop
     without inferring from sell_mode (which is the SELL flag, not the

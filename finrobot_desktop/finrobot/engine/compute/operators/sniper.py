@@ -146,7 +146,7 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
         direction = "SHORT"
         # Short entry: current price (open now) and resistance (add on bounce).
         ideal_buy = current
-        secondary_buy = max(resistance, current)
+        bounce_entry = max(resistance, current)
         # Cover target = the DCF intrinsic value (the thesis): fair value sits at
         # ``target`` below the price, which is where the bear case plays out. Do NOT
         # clamp the cover up to the 20-day support — that throttles the short to the
@@ -158,6 +158,23 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
         # resistance and a 10% cushion so the stop never sits inside the
         # 20-day range.
         stop_loss = max(resistance, current * 1.10)
+
+        # Second short entry = add on a bounce toward resistance, and it must sit
+        # strictly BELOW the trend-reversal stop. When resistance >= current*1.10
+        # the stop pins to resistance too, so bounce_entry == stop_loss — an "add
+        # at the very price that stops you out" (开仓即止损). Drop it to None +
+        # record why, mirroring the LONG branch's support<=stop_loss guard (never
+        # clamp onto the stop — that ships the degeneracy instead of disclosing it).
+        secondary_buy: float | None
+        if bounce_entry >= stop_loss:
+            invariant_warnings.append(
+                f"resistance ${resistance:.2f} at/above stop ${stop_loss:.2f}; "
+                f"no secondary (bounce) entry."
+            )
+            secondary_buy = None
+        else:
+            secondary_buy = bounce_entry
+
         safety_margin = 0.0  # not applicable on a short
 
         upside_abs = current - take_profit  # positive when target < current
@@ -246,6 +263,15 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
             raise ValueError(
                 f"sniper invariant violated (SHORT): stop_loss {r_stop_loss:.2f} "
                 f"<= ideal_buy {r_ideal_buy:.2f}"
+            )
+        # Secondary (bounce) entry must sit at/above the primary entry and
+        # strictly BELOW the stop, or be absent. Mirror of the LONG check: the
+        # SHORT branch drops the level to None when resistance breaches the stop,
+        # so a present value here is always coherent (defense in depth).
+        if r_secondary_buy is not None and not (r_ideal_buy <= r_secondary_buy < r_stop_loss):
+            raise ValueError(
+                f"sniper invariant violated (SHORT): secondary_buy {r_secondary_buy:.2f} "
+                f"outside [ideal_buy {r_ideal_buy:.2f}, stop_loss {r_stop_loss:.2f})"
             )
     else:
         if r_take_profit <= r_ideal_buy:

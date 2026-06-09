@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic_ai import Agent, ModelRetry, RunContext
 
+from finrobot.artifact.models import ArtifactSummary
 from finrobot.config import FinRobotSettings
 from finrobot.coverage.prompt import format_coverage_for_tool
 from finrobot.coverage.service import build_overview
@@ -46,6 +47,27 @@ async def _run_pipeline_tool(
         "artifact_id": result.artifact_id,
         "ticker": norm,
     }
+
+
+def _format_reports_for_tool(ticker: str, summaries: list[ArtifactSummary]) -> str:
+    """Render saved-report summaries as one compact line each (newest first).
+
+    Only populated fields render; the row carries the conclusion (verdict /
+    target / entry) so the assistant can confirm a report exists and offer to
+    open / compare / re-run it without re-running a pipeline just to "show" it.
+    """
+    lines = [f"Saved reports for {ticker} (newest first), {len(summaries)} shown:"]
+    for s in summaries:
+        parts = [f"- {s.id}", s.created_at.date().isoformat(), s.type]
+        if s.verdict:
+            parts.append(s.verdict)
+        if s.target_price is not None:
+            parts.append(f"target {s.target_price:,.2f}")
+        if s.entry_price is not None:
+            parts.append(f"entry {s.entry_price:,.2f}")
+        lines.append(" | ".join(parts))
+    lines.append("Reference an id to open it; say so to compare versions or re-run.")
+    return "\n".join(lines)
 
 
 def _make_pipeline_tool(
@@ -154,6 +176,32 @@ def create_lead_agent(
             cache_only=not refresh,
         )
         return format_coverage_for_tool(overview)
+
+    @agent.tool
+    async def find_reports(ctx: RunContext[FinRobotDeps], ticker: str, limit: int = 5) -> str:
+        """Locate the user's previously-run reports for a ticker (newest first).
+
+        Use when the user references a report they ALREADY ran ("the AAPL report I
+        ran earlier", "my last analysis", "compare to the previous run") and it is
+        not the one open in the ContextBar. Returns one line per saved artifact
+        (id, date, type, verdict, target, entry) so you can confirm it exists and
+        offer to open / compare / re-run it. Do NOT run a deep pipeline just to
+        surface a report the user already has — that creates a duplicate; call
+        this instead. This tool only locates; it never creates a report.
+        """
+        store = ctx.deps.artifact_store
+        if store is None:
+            return "Report history isn't available in this session (no artifact store)."
+        # RETURN (not raise) on a bad ticker — a raised ValueError tears down the
+        # live chat SSE stream; a returned string lets the LLM recover.
+        try:
+            norm = validate_ticker(ticker)
+        except ValueError:
+            return f"Invalid ticker symbol: {ticker}"
+        summaries = await store.list_by_ticker(ticker=norm, limit=limit)
+        if not summaries:
+            return f"No saved reports for {norm} yet — run an analysis to create one."
+        return _format_reports_for_tool(norm, summaries)
 
     @agent.tool
     async def activate_skill(ctx: RunContext[FinRobotDeps], skill_id: str) -> str:

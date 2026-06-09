@@ -10,6 +10,7 @@ from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
+from finrobot.artifact.models import ArtifactSummary
 from finrobot.config import get_settings
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.deps import FinRobotDeps
@@ -68,10 +69,12 @@ class TestCreateLeadAgent:
         agent = _agent()
         assert agent is not None
 
-    def test_has_all_five_tools(self):
+    def test_has_core_tools(self):
         agent = _agent()
         tool_names = set(agent._function_toolset.tools.keys())
         assert "query_financial_data" in tool_names
+        assert "query_coverage_universe" in tool_names
+        assert "find_reports" in tool_names
         assert "activate_skill" in tool_names
         assert "run_equity_research" in tool_names
         assert "run_comps_analysis" in tool_names
@@ -292,3 +295,97 @@ class TestPipelineToolLocale:
         pipe = self._RecordingPipeline()
         await _run_pipeline_tool(_run_context(deps), "AAPL", pipe)  # type: ignore[arg-type]
         assert pipe.seen_lang is None
+
+
+# ---------------------------------------------------------------------------
+# find_reports — locate the user's previously-run reports for a ticker.
+#
+# Closes the gap where a user references "the AAPL report I ran earlier" but it
+# isn't the one open in the ContextBar: without a retrieval tool the model could
+# only re-run the pipeline (a NEW artifact) or guess. list_by_ticker already
+# existed on the store; this exposes it to the agent.
+# ---------------------------------------------------------------------------
+
+
+class FakeArtifactStore:
+    def __init__(self, summaries: list[ArtifactSummary]) -> None:
+        self._summaries = summaries
+
+    async def list_by_ticker(
+        self,
+        ticker: str | None = None,
+        type=None,  # noqa: A002, ANN001
+        include_archived: bool = False,
+        limit: int = 100,
+        tickers=None,  # noqa: ANN001
+    ) -> list[ArtifactSummary]:
+        rows = [s for s in self._summaries if ticker is None or s.ticker == ticker]
+        return rows[:limit]
+
+
+def _report_summary(
+    *,
+    artifact_id: str = "art_2026-06-09_AAPL_equity_research_abc",
+    ticker: str = "AAPL",
+    verdict: str | None = "SELL",
+    target: float | None = 175.30,
+    entry: float | None = 301.54,
+) -> ArtifactSummary:
+    return ArtifactSummary(
+        id=artifact_id,
+        ticker=ticker,
+        cross_tickers=[],
+        type="equity_research",
+        created_at=datetime(2026, 6, 9, 2, 9, 18, tzinfo=timezone.utc),
+        headline="x",
+        source="pipeline:equity_research",
+        archived=False,
+        entry_price=entry,
+        target_price=target,
+        target_date=datetime(2027, 6, 9, tzinfo=timezone.utc),
+        signal=None,
+        verdict=verdict,
+    )
+
+
+def _find_reports_fn(agent):
+    return agent._function_toolset.tools["find_reports"].function
+
+
+def _deps_with_store(store) -> FinRobotDeps:  # noqa: ANN001
+    return FinRobotDeps(data_layer=FakeDataLayer(), settings=_settings(), artifact_store=store)
+
+
+class TestFindReports:
+    async def test_lists_artifacts_for_ticker_newest_first(self):
+        agent = _agent()
+        fn = _find_reports_fn(agent)
+        store = FakeArtifactStore([_report_summary()])
+        out = await fn(_run_context(_deps_with_store(store)), "AAPL")
+        assert isinstance(out, str)
+        assert "art_2026-06-09_AAPL_equity_research_abc" in out
+        assert "SELL" in out
+        assert "175.30" in out
+
+    async def test_no_store_returns_friendly_message_not_raise(self):
+        agent = _agent()
+        fn = _find_reports_fn(agent)
+        out = await fn(_run_context(_deps()), "AAPL")
+        assert isinstance(out, str)
+        assert "available" in out.lower()
+
+    async def test_no_artifacts_says_none_yet(self):
+        agent = _agent()
+        fn = _find_reports_fn(agent)
+        store = FakeArtifactStore([])
+        out = await fn(_run_context(_deps_with_store(store)), "AAPL")
+        assert isinstance(out, str)
+        assert "AAPL" in out
+
+    async def test_bad_ticker_returns_string_not_raise(self):
+        agent = _agent()
+        fn = _find_reports_fn(agent)
+        store = FakeArtifactStore([])
+        out = await fn(_run_context(_deps_with_store(store)), "###")
+        assert isinstance(out, str)
+        assert "Invalid ticker" in out

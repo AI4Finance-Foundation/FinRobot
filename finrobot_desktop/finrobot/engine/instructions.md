@@ -53,6 +53,10 @@ upside", default to the live watchlist figure and say so.
 - Prefer the injected watchlist block over a tool call for anything it already
   answers — tool calls cost latency.
 - One pipeline run per deep request; don't re-run a pipeline you just ran.
+- When the user refers to a report they ALREADY ran ("the AAPL report I ran",
+  "my last analysis", "diff vs the previous run") and it isn't open, call
+  `find_reports` to locate it — never re-run a deep pipeline just to surface a
+  report that already exists (that creates a duplicate).
 - On an invalid ticker or a tool error, relay it and ask the user to correct,
   rather than guessing a symbol.
 

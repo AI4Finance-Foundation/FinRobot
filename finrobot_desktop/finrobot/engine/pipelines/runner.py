@@ -17,6 +17,7 @@ from pydantic_ai.exceptions import AgentRunError
 
 from finrobot.artifact.contract import enforce_artifact_contract
 from finrobot.engine.data.interface import ProviderError
+from finrobot.engine.data.normalize.contracts import NormalizedPrice
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import StepOutput
 from finrobot.engine.pipelines.protocols import ArtifactBuilder, ProgressCallback
@@ -178,8 +179,15 @@ def _canonical_context_string(data_type: DataType, value: object) -> str:
     contract; it must not see raw provider dicts for the two numeric bedrock
     payloads. The JSON below includes provenance/degraded markers, currencies,
     period basis, and warnings exactly as the canonical DTO exposes them.
-    """
 
+    PRICE is rendered via ``to_prompt_summary`` (derived metrics + the most-recent
+    bars), NOT the full 52-week ASCENDING bar series — the LLM computes nothing
+    from raw bars, and the full series led the data agent to narrate the OLDEST
+    bars as "recent" (the 2026-06-09 TSLA report's year-old price window).
+    """
+    if isinstance(value, NormalizedPrice):
+        rendered = _render_structured_prompt_value(value.to_prompt_summary())
+        return f"[canonical] {data_type.value} (normalized contract)\n```json\n{rendered}\n```"
     rendered = _render_structured_prompt_value(value)
     return f"[canonical] {data_type.value} (normalized contract)\n```json\n{rendered}\n```"
 

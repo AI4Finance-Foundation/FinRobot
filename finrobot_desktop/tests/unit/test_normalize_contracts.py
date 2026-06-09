@@ -81,3 +81,36 @@ def test_helpers_safe_on_empty_or_single_bar():
     one = _price([PriceBar(date=date(2026, 5, 27), close=440.0)])
     assert one.fifty_two_week_high() == 440.0
     assert one.trailing_1y_return_pct() is None
+
+
+def test_to_prompt_summary_surfaces_most_recent_bars_not_oldest():
+    """The LLM-facing PRICE summary must show the TAIL (most-recent) bars, not the
+    head of the ascending 52-week series. Regression for the 2026-06-09 TSLA
+    report, which narrated the OLDEST 5 bars (a ~year-old window) as 'Recent Price
+    History' because the full ascending series was dumped into the prompt."""
+    bars = [
+        PriceBar(date=date(2025, 6, 9), close=300.0),
+        PriceBar(date=date(2025, 9, 1), close=350.0),
+        PriceBar(date=date(2025, 12, 1), close=380.0),
+        PriceBar(date=date(2026, 3, 1), close=400.0),
+        PriceBar(date=date(2026, 5, 26), close=433.59),
+        PriceBar(date=date(2026, 5, 27), close=440.36),
+    ]
+    summary = _price(bars).to_prompt_summary(recent_bars=3)
+    dates = [b["date"] for b in summary["most_recent_bars"]]
+    # The three MOST-RECENT dates, in order — never the 2025-06-09 head.
+    assert dates == ["2026-03-01", "2026-05-26", "2026-05-27"]
+    assert "2025-06-09" not in dates
+    # Derived metrics ride along so the LLM never recomputes from raw bars.
+    assert summary["current_price"] == 440.36
+    assert summary["fifty_two_week_high"] == 440.36
+    assert summary["fifty_two_week_low"] == 300.0
+    assert summary["as_of"] == "2026-05-27T00:00:00+00:00"
+
+
+def test_to_prompt_summary_safe_on_empty_bars():
+    summary = NormalizedPrice(
+        ticker="X", bars=[], current_price=0.0, provenance=_prov()
+    ).to_prompt_summary()
+    assert summary["most_recent_bars"] == []
+    assert summary["fifty_two_week_high"] is None

@@ -1,8 +1,10 @@
+import json
 from pathlib import Path
 
 from pydantic_ai import Agent, RunContext
 
 from finrobot.config import FinRobotSettings
+from finrobot.engine.data.normalize.contracts import NormalizedPrice
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.skills.registry import SkillRegistry
@@ -53,10 +55,17 @@ def create_sub_agents(
         if normalized_type in (DataType.PRICE.value, DataType.FINANCIALS.value):
             canonical_type = DataType(normalized_type)
             normalized = await ctx.deps.data_layer.fetch_canonical(canonical_type, ticker)
+            # PRICE: hand back the derived summary + MOST-RECENT bars, not the full
+            # 52-week ascending series — the agent narrated the OLDEST bars as
+            # "recent" off the raw series (2026-06-09 TSLA's year-old window).
+            if isinstance(normalized, NormalizedPrice):
+                body = json.dumps(normalized.to_prompt_summary(), indent=2, default=str)
+            else:
+                body = normalized.model_dump_json(indent=2)
             return (
                 f"[canonical] {canonical_type.value} (normalized contract — the single "
                 f"source of truth; quote these figures verbatim)\n"
-                f"```json\n{normalized.model_dump_json(indent=2)}\n```"
+                f"```json\n{body}\n```"
             )
         result = await ctx.deps.data_layer.fetch(data_type, ticker)
         return result.to_context_string()

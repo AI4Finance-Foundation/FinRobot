@@ -14,7 +14,7 @@ fetch timestamp — so it can't claim "实时" over a stale closing price.
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -188,6 +188,32 @@ class NormalizedPrice(BaseModel):
             return None, None
         change = last_close - prev_close
         return change, change / prev_close * 100
+
+    def to_prompt_summary(self, recent_bars: int = 5) -> dict[str, Any]:
+        """Compact PRICE view for an LLM prompt: derived metrics + the MOST RECENT
+        bars only (the tail), not the full 52-week ASCENDING series.
+
+        The LLM computes nothing from raw bars — every market metric here is
+        deterministic — and dumping the whole ascending series led the data agent
+        to narrate the OLDEST bars (``bars[0]`` ≈ one year ago) as "Recent Price
+        History" (the 2026-06-09 TSLA report showed a June-2025 window). The most
+        recent bars are the TAIL, so the summary surfaces those, correctly labeled.
+        """
+        change, change_pct = self.latest_session_change()
+        recent = self.bars[-recent_bars:] if self.bars else []
+        return {
+            "ticker": self.ticker,
+            "quote_currency": self.quote_currency,
+            "current_price": self.current_price,
+            "as_of": self.provenance.as_of.isoformat(),
+            "fifty_two_week_high": self.fifty_two_week_high(),
+            "fifty_two_week_low": self.fifty_two_week_low(),
+            "trailing_1y_return_pct": self.trailing_1y_return_pct(),
+            "latest_session_change": change,
+            "latest_session_change_pct": change_pct,
+            "most_recent_bars": [b.model_dump(mode="json") for b in recent],
+            "warnings": self.warnings,
+        }
 
 
 class NormalizedFinancials(BaseModel):

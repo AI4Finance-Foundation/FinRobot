@@ -6,6 +6,8 @@ Reference: Livnat & Mendenhall (2006) — ≥2% surprise is statistically signif
 All calculations are deterministic; no LLM involvement.
 """
 
+import math
+
 from finrobot.engine.models.financial import EarningsResult, EarningsSurprise
 
 _BEAT_THRESHOLD = 2.0  # pct
@@ -108,6 +110,10 @@ def _surprise_pct(actual: float | None, estimated: float | None) -> float | None
     as "n/a" and exclude it from aggregates.
     """
     if actual is None or estimated is None or estimated == 0:
+        return None
+    # A non-finite actual/estimated (corrupt provider row) would yield an Inf/NaN
+    # surprise that pollutes beat_rate and the avg_* aggregates — withhold it.
+    if not math.isfinite(actual) or not math.isfinite(estimated):
         return None
     return (actual - estimated) / abs(estimated) * 100.0
 

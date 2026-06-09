@@ -29,6 +29,7 @@ forward EPS / EBITDA / FCF number. The audit tests in
 
 from __future__ import annotations
 
+import math
 import statistics
 from dataclasses import dataclass
 from datetime import date
@@ -349,4 +350,6 @@ def _coerce_positive_float(value: Any) -> float | None:
         f = float(value)
     except (TypeError, ValueError):
         return None
-    return f if f > 0 else None
+    # `f > 0` drops NaN and -Inf but PASSES +Inf (inf > 0 is True) — an asymmetric
+    # gate that leaked +Inf into avg_*_surprise_pct. Require finiteness too.
+    return f if f > 0 and math.isfinite(f) else None

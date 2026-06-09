@@ -165,11 +165,20 @@ class AdanosProvider(DataProvider):
 def _normalize_source(spec: dict[str, str], row: dict[str, Any] | None) -> dict[str, Any]:
     """Normalize a single platform response into a standard dict."""
     buzz_score = _safe_float(row.get("buzz_score")) if row else 0.0
-    bullish_pct = _safe_float(row.get("bullish_pct")) if row else None
+    # None ≠ 0: a missing bullish_pct must stay None, NOT collapse to 0.0 (= a
+    # fabricated "0% bullish / 100% bearish"). _safe_float would coerce it to 0.0,
+    # which both poisoned has_data below and fed _compute_alignment a phantom 0.
+    bullish_pct = _safe_float_or_none(row.get("bullish_pct")) if row else None
     activity_value = _safe_int(row.get(spec["activity_field"])) if row else 0
     trend = row.get("trend") if row else None
 
-    has_data = bool(buzz_score > 0 or activity_value > 0 or bullish_pct is not None)
+    # "Has data" means the platform actually observed activity (buzz or mentions/
+    # trades) for this ticker — NOT merely that a bullish_pct field was present. The
+    # Adanos API returns a zero-activity placeholder row for untracked tickers; with
+    # ``bullish_pct is not None`` in the disjunct (and _safe_float coercing the
+    # absent pct to 0.0) that placeholder read as a confident 0%-bullish source, so
+    # an unknown ticker surfaced as "100% bearish, 3/3 aligned" (probe 2026-06-09).
+    has_data = bool(buzz_score > 0 or activity_value > 0)
 
     return {
         "key": spec["key"],
@@ -225,6 +234,21 @@ def _safe_float(value: Any) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _safe_float_or_none(value: Any) -> float | None:
+    """Parse a float, preserving None for absent/blank/unparseable input.
+
+    Distinct from :func:`_safe_float` (which floors to 0.0): for a *percentage*
+    like ``bullish_pct`` a missing value is "not reported", not "0% bullish" — the
+    None ≠ 0 discipline. Collapsing it to 0.0 fabricated a 100%-bearish signal for
+    untracked tickers (probe 2026-06-09)."""
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _safe_int(value: Any) -> int:

@@ -7,8 +7,10 @@ import pytest
 
 from finrobot.engine.data.interface import DataResult, ProviderError
 from finrobot.engine.data.providers.adanos_provider import (
+    _PLATFORM_SPECS,
     AdanosProvider,
     _compute_alignment,
+    _normalize_source,
 )
 
 
@@ -187,6 +189,80 @@ class TestAdanosAlignment:
 
     def test_no_coverage(self):
         assert _compute_alignment([]) == "No coverage"
+
+
+class TestAdanosNoDataNotFabricated:
+    """A zero-activity placeholder row must NOT be counted as coverage and a
+    missing bullish_pct must NOT be fabricated as 0% bullish.
+
+    The live bug (probe 2026-06-09): GET /api/sentiment/ZZZZ returned
+    available=true, coverage 3/3, bearish_pct 100, "Bearish alignment" — three
+    sources with activity_value=0. Root: ``has_data`` accepted
+    ``bullish_pct is not None``, and ``_safe_float`` coerced a missing bullish_pct
+    to 0.0 (never None), so a no-data row read as a confident 0%-bullish source.
+    Violates "可溯源确定性底座" — a confident bearish signal conjured from nothing.
+    """
+
+    def test_zero_activity_placeholder_row_is_not_data(self):
+        spec = _PLATFORM_SPECS[0]
+        row = {"ticker": "ZZZZ", "buzz_score": 0, spec["activity_field"]: 0, "bullish_pct": 0}
+        out = _normalize_source(spec, row)
+        assert out["has_data"] is False
+
+    def test_zero_activity_with_missing_bullish_is_not_data(self):
+        spec = _PLATFORM_SPECS[0]
+        row = {"ticker": "ZZZZ", "buzz_score": 0, spec["activity_field"]: 0}  # no bullish_pct
+        out = _normalize_source(spec, row)
+        assert out["has_data"] is False
+        assert out["bullish_pct"] is None
+
+    def test_real_activity_with_missing_bullish_preserves_none(self):
+        """Real mentions but the provider omitted bullish_pct → the source has data
+        (activity), but bullish_pct stays None — never a fabricated 0% bullish."""
+        spec = _PLATFORM_SPECS[0]
+        row = {"ticker": "AAPL", "buzz_score": 0, spec["activity_field"]: 500}  # no bullish_pct
+        out = _normalize_source(spec, row)
+        assert out["has_data"] is True
+        assert out["bullish_pct"] is None
+
+    def test_real_data_unchanged(self):
+        spec = _PLATFORM_SPECS[0]
+        row = {
+            "ticker": "AAPL",
+            "buzz_score": 82.0,
+            spec["activity_field"]: 1200,
+            "bullish_pct": 58.0,
+        }
+        out = _normalize_source(spec, row)
+        assert out["has_data"] is True
+        assert out["bullish_pct"] == 58.0
+
+    @pytest.mark.asyncio
+    async def test_fetch_untracked_ticker_zero_activity_is_no_coverage(self, provider):
+        """End-to-end reproduction of the ZZZZ bug: every platform returns a
+        zero-activity placeholder row → coverage 0/3, no fabricated bearish signal."""
+
+        def empty_row_resp() -> dict:
+            return {
+                "stocks": [
+                    {
+                        "ticker": "ZZZZ",
+                        "buzz_score": 0,
+                        "mentions": 0,
+                        "trade_count": 0,
+                        "bullish_pct": 0,
+                    }
+                ]
+            }
+
+        responses = [_mock_response(empty_row_resp()) for _ in range(3)]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("ZZZZ", "sentiment")
+
+        assert result.data["coverage"] == "0/3"
+        assert result.data["coverage_ratio"] == 0.0
+        assert result.data["bullish_avg"] is None
+        assert result.data["source_alignment"] == "No coverage"
 
 
 class TestAdanosRateLimiter:

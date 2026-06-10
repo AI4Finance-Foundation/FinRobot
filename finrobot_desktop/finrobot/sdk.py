@@ -33,6 +33,7 @@ import asyncio
 from typing import TYPE_CHECKING, Any
 
 from finrobot.config import get_settings
+from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.pipelines.base import PipelineResult
 
@@ -129,10 +130,16 @@ class FinRobot:
         pipeline registry (the single source of truth) so adding a pipeline no
         longer means adding a hand-written SDK method with its own inline
         ``create_*_pipeline`` import.
+
+        ``ticker`` goes through the shared :func:`validate_ticker` choke point
+        first — the SDK is a pipeline entry just like CLI / /api/runs / chat
+        tools, and an unvalidated symbol would mint a junk cache key and be
+        re-fanned to providers forever (raises ``ValueError`` on junk).
         """
         from finrobot.engine.pipelines.base import Pipeline
         from finrobot.engine.pipelines.registry import get_pipeline_factories
 
+        ticker = validate_ticker(ticker)
         pipeline: Pipeline = get_pipeline_factories()[key](self._get_sub_agents())
         return await pipeline.execute(self._ensure_deps(), ticker, progress=progress)
 
@@ -273,6 +280,7 @@ class FinRobot:
         """
         from finrobot.engine.analysis.prompts import run_analysis
 
+        ticker = validate_ticker(ticker)
         deps = self._ensure_deps()
         return await run_analysis(
             deps.data_layer,
@@ -285,6 +293,7 @@ class FinRobot:
         """Ask a question about a company's 10-K filing using RAG. Async."""
         from finrobot.engine.analysis.qa import run_qa
 
+        ticker = validate_ticker(ticker)
         deps = self._ensure_deps()
         return await run_qa(deps.data_layer, deps.settings, ticker, question)
 
@@ -308,9 +317,13 @@ class FinRobot:
         """LLM-guided strategy selection with iterative tuning. Async.
 
         Requires ``pip install 'finrobot[backtest]'``.
+
+        (``abacktest`` needs no explicit call here — ``BacktestConfig`` runs
+        the same ``validate_ticker`` in its pydantic field validator.)
         """
         from finrobot.engine.backtest.strategy_agent import run_strategy_selection
 
+        ticker = validate_ticker(ticker)
         return await run_strategy_selection(
             self._settings,
             ticker,

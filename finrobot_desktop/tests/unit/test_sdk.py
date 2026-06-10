@@ -303,9 +303,9 @@ def test_ensure_deps_provider_chain_includes_news_aggregator():
     try:
         deps = agent._ensure_deps()
         providers = deps.data_layer._providers
-        assert any(isinstance(p, NewsAggregatorProvider) for p in providers), (
-            "SDK provider chain is missing NewsAggregatorProvider — drifted from build_data_layer"
-        )
+        assert any(
+            isinstance(p, NewsAggregatorProvider) for p in providers
+        ), "SDK provider chain is missing NewsAggregatorProvider — drifted from build_data_layer"
     finally:
         import asyncio
 
@@ -330,3 +330,35 @@ async def test_close_does_not_emit_event_loop_closed_warning():
         warnings.simplefilter("error")
         await agent.close()
     assert agent._loop is None
+
+
+# ---------------------------------------------------------------------------
+# Ticker validation choke point (P2 audit 2026-06-10): the SDK is a pipeline
+# entry like CLI / /api/runs / chat tools — junk symbols must be rejected
+# BEFORE they mint a cache key and get re-fanned to providers forever.
+# ---------------------------------------------------------------------------
+
+
+async def test_sdk_rejects_junk_ticker_before_pipeline(monkeypatch):
+    _patch_research_factory(monkeypatch)
+    agent = FinRobot(model="test")
+    _inject_mock_deps(agent)
+
+    for junk in ("苹果", "AAPL;DROP", "", "A" * 13, "AAPL OK"):
+        with pytest.raises(ValueError, match="Invalid ticker"):
+            await agent.aresearch(junk)
+    with pytest.raises(ValueError, match="Invalid ticker"):
+        await agent.aanalyze("苹果", "income")
+    with pytest.raises(ValueError, match="Invalid ticker"):
+        await agent.aask("AAPL;DROP", "risks?")
+
+
+async def test_sdk_normalises_ticker_case(monkeypatch):
+    """Lower-case input reaches the pipeline upper-cased — one cache key per
+    symbol, matching every other entry point."""
+    _patch_research_factory(monkeypatch)
+    agent = FinRobot(model="test")
+    _inject_mock_deps(agent)
+
+    result = await agent.aresearch("  test ")
+    assert "TEST" in result.steps["trivial"]

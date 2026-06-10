@@ -40,6 +40,7 @@ from finrobot.engine.models.financial import (
     ICFinancials,
     StepOutput,
 )
+from finrobot.engine.models.valuation_thresholds import SPONSOR_IRR_HURDLE
 from finrobot.engine.pipelines.base import (
     Pipeline,
     PipelineStep,
@@ -55,7 +56,10 @@ from finrobot.engine.pipelines.validators import (
 
 logger = logging.getLogger(__name__)
 
-_IRR_HURDLE = 0.15  # 15% minimum IRR for IC Invest recommendation
+# Single authority for the sponsor bar (engine/models/valuation_thresholds) —
+# shared with the valuation aggregator's LBO ability-to-pay discounting so the
+# IC gate and the football field speak the same hurdle.
+_IRR_HURDLE = SPONSOR_IRR_HURDLE
 
 
 async def _execute_ic_financials(

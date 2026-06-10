@@ -55,3 +55,18 @@ MARKET_DIVERGENCE_RATIO_K = 4.0
 # peer GROWTH forward P/E (36.9x) to a memory cyclical's PEAK forward EPS ($58.9)
 # and printed $2172 = 2.5x the $864 market, shipped as a confident +151% BUY.
 SINGLE_METHOD_DIVERGENCE_RATIO_K = 2.0
+
+# Sponsor equity-return hurdle, shared by the two LBO consumers that must speak
+# the same bar (a leaf for the same reason as the constants above — the
+# aggregator is forbidden to import compute/operators/lbo):
+#   · ic_memo's IRR gate (recommendation forced to PASS below the hurdle), and
+#   · valuation_aggregator's LBO ability-to-pay band, which discounts the
+#     t+N exit equity back to today at this rate (PV = exit_equity/(1+r)^N).
+#     Undiscounted exit equity is a FUTURE value — plotting it on the football
+#     field next to PV methods (DCF) and the current price overstated the LBO
+#     row ~2x over a 5y hold.
+# 15% is the project's long-standing IC bar. [金融待核] Textbook sponsor
+# hurdles run 20–25% (Rosenbaum & Pearl Ch.8); raising this lowers the
+# ability-to-pay band and tightens the IC gate together — calibrate once, both
+# consumers follow.
+SPONSOR_IRR_HURDLE = 0.15

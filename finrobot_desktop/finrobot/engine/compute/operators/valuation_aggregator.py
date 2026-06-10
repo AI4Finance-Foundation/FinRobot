@@ -33,6 +33,7 @@ from finrobot.engine.models.financial import (
     ValuationAggregate,
     ValuationMethodRange,
 )
+from finrobot.engine.models.valuation_thresholds import SPONSOR_IRR_HURDLE
 
 _DCF_BAND_WIDTH = 0.20
 """Default ±20% band around DCFResult.implied_price when monte carlo is absent.
@@ -340,11 +341,19 @@ def _ddm_assumptions(ddm: DDMResult) -> str:
 def _lbo_method(
     lbo: LBOResult | None, shares_outstanding: float | None
 ) -> ValuationMethodRange | None:
-    """Build LBO target-price band by reusing the saved entry × exit sensitivity grid.
+    """Build the LBO ability-to-pay band by reusing the saved exit sensitivity grid.
 
     Per spec §6.4.2: we never re-run ``calculate_lbo`` per cell. Read the grid,
-    compute target_price = (exit_multiple × exit_ebitda - remaining_debt) / shares
-    for each cell, then take the min/median/max as the band.
+    compute the t+N exit equity (exit_multiple × exit_ebitda − remaining_debt)
+    per cell, then discount it to TODAY at the sponsor hurdle:
+    ``price = exit_equity / shares / (1 + SPONSOR_IRR_HURDLE)^N``.
+
+    The discounting is load-bearing: exit equity is a FUTURE value at the end
+    of the hold. Plotting it undiscounted on the football field next to PV
+    methods (DCF) and the current price overstated the LBO row ~2x over a 5y
+    hold — FV and PV must never share an axis. The discounted figure is the
+    classic ability-to-pay reading (Rosenbaum & Pearl Ch.8): the most a
+    sponsor can pay per share today and still clear its hurdle at that exit.
     """
     if lbo is None or shares_outstanding is None or shares_outstanding <= 0:
         return None
@@ -359,8 +368,9 @@ def _lbo_method(
     if exit_ebitda <= 0:
         return None
 
+    holding_years = len(lbo.schedule)
     target_prices = _lbo_target_grid(
-        exit_multiples, exit_ebitda, remaining_debt, shares_outstanding
+        exit_multiples, exit_ebitda, remaining_debt, shares_outstanding, holding_years
     )
     if not target_prices:
         return None
@@ -373,7 +383,11 @@ def _lbo_method(
         mid=target_prices[len(target_prices) // 2],
         high=target_prices[-1],
         confidence=0.60,
-        source="exit_multiple × exit_ebitda - remaining_debt (复用 sensitivity 网格)",
+        source=(
+            f"ability-to-pay: (exit_multiple × exit_ebitda − remaining_debt) "
+            f"按 sponsor hurdle {SPONSOR_IRR_HURDLE:.0%} 折现 {holding_years} 年 "
+            f"(复用 sensitivity 网格)"
+        ),
         assumptions=_lbo_assumptions(exit_multiples, lbo.schedule),
     )
 
@@ -402,7 +416,11 @@ def _lbo_target_grid(
     exit_ebitda: float,
     remaining_debt: float,
     shares: float,
+    holding_years: int,
 ) -> list[float]:
+    # exit_equity is a t+N future value — discount at the sponsor hurdle so the
+    # band is comparable to the PV methods and the current price on one axis.
+    discount = (1 + SPONSOR_IRR_HURDLE) ** max(holding_years, 0)
     out: list[float] = []
     for raw in exit_multiples:
         try:
@@ -414,7 +432,7 @@ def _lbo_target_grid(
         exit_equity = mult * exit_ebitda - remaining_debt
         if exit_equity <= 0:
             continue
-        price = exit_equity / shares
+        price = exit_equity / shares / discount
         if price > 0:
             out.append(price)
     return out

@@ -24,6 +24,8 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 from finrobot.engine.compute.operators.valuation_aggregator import aggregate_valuation
 from finrobot.engine.models.financial import (
     CompanyFinancials,
@@ -233,9 +235,10 @@ class TestAggregatorContract:
             as_of=AS_OF,
         )
         for row in agg.methods:
-            assert row.method_type in ("valuation", "multiple"), (
-                f"row {row.method} missing method_type — spec §6.4 requires it for UI rendering"
-            )
+            assert row.method_type in (
+                "valuation",
+                "multiple",
+            ), f"row {row.method} missing method_type — spec §6.4 requires it for UI rendering"
 
     def test_lbo_band_built_from_sensitivity_grid_not_recompute(self) -> None:
         lbo = _lbo_with_grid()
@@ -248,13 +251,22 @@ class TestAggregatorContract:
             as_of=AS_OF,
         )
         lbo_row = next(m for m in agg.methods if m.method == "lbo")
-        # Compute expected prices manually from the grid we provided
+        # Compute expected prices manually from the grid we provided. The t+N
+        # exit equity is a FUTURE value: it must be discounted to today at the
+        # sponsor hurdle (ability-to-pay) before sharing the football-field
+        # axis with PV methods and the current price — the undiscounted band
+        # overstated the LBO row ~2x over a 5y hold.
+        from finrobot.engine.models.valuation_thresholds import SPONSOR_IRR_HURDLE
+
         remaining_debt = lbo.schedule[-1].ending_debt
+        discount = (1 + SPONSOR_IRR_HURDLE) ** len(lbo.schedule)
         expected = sorted(
-            (mult * lbo.exit_ebitda - remaining_debt) / 2.4e9 for mult in [10.0, 11.0, 12.0]
+            (mult * lbo.exit_ebitda - remaining_debt) / 2.4e9 / discount
+            for mult in [10.0, 11.0, 12.0]
         )
-        assert lbo_row.low == expected[0]
-        assert lbo_row.high == expected[-1]
+        assert lbo_row.low == pytest.approx(expected[0])
+        assert lbo_row.high == pytest.approx(expected[-1])
+        assert "hurdle" in (lbo_row.source or "")
 
     def test_lbo_skipped_when_shares_unknown(self) -> None:
         agg = aggregate_valuation(
@@ -415,12 +427,16 @@ class TestAggregatorContract:
             as_of=AS_OF,
         )
         lbo_row = next(m for m in agg.methods if m.method == "lbo")
+        from finrobot.engine.models.valuation_thresholds import SPONSOR_IRR_HURDLE
+
         remaining_debt = lbo.schedule[-1].ending_debt
+        discount = (1 + SPONSOR_IRR_HURDLE) ** len(lbo.schedule)
         expected = sorted(
-            (mult * lbo.exit_ebitda - remaining_debt) / 2.4e9 for mult in [10.0, 11.0, 12.0]
+            (mult * lbo.exit_ebitda - remaining_debt) / 2.4e9 / discount
+            for mult in [10.0, 11.0, 12.0]
         )
-        assert lbo_row.low == expected[0]
-        assert lbo_row.high == expected[-1]
+        assert lbo_row.low == pytest.approx(expected[0])
+        assert lbo_row.high == pytest.approx(expected[-1])
 
     def test_p_fcf_emitted_when_inputs_supplied(self) -> None:
         agg = aggregate_valuation(

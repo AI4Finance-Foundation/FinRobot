@@ -102,9 +102,9 @@ class TestDCFAlwaysPresent:
         vs = build_valuation_synthesis(structured_context, current_price=170.0, ticker="AAPL")
         assert vs is not None, "Should produce ValuationSynthesis when DCF + Comps available"
         method_names = {m.name for m in vs.methods}
-        assert "dcf" in method_names, (
-            f"DCF method missing from synthesis — Bug A regression. Got: {method_names}"
-        )
+        assert (
+            "dcf" in method_names
+        ), f"DCF method missing from synthesis — Bug A regression. Got: {method_names}"
 
     def test_dcf_in_aggregate_valuation_directly(self) -> None:
         """aggregate_valuation emits a dcf row when DCFResult is provided."""
@@ -146,9 +146,9 @@ class TestMinMethodCount:
         }
         vs = build_valuation_synthesis(structured_context, current_price=170.0, ticker="AAPL")
         assert vs is not None
-        assert vs.weighted_price is not None, (
-            "weighted_price must be a float when ≥2 methods are present"
-        )
+        assert (
+            vs.weighted_price is not None
+        ), "weighted_price must be a float when ≥2 methods are present"
         assert vs.weighted_price > 0
 
 
@@ -166,9 +166,9 @@ class TestSingleMethodWeightedPriceNone:
             )
         ]
         vs = synthesize_valuations(methods, current_price=170.0)
-        assert vs.weighted_price is None, (
-            "Single-method synthesis must have weighted_price=None (no cross-check)"
-        )
+        assert (
+            vs.weighted_price is None
+        ), "Single-method synthesis must have weighted_price=None (no cross-check)"
         assert vs.upside_downside is None
 
     def test_weighted_price_none_propagates_from_build_synthesis(self) -> None:
@@ -194,6 +194,23 @@ class TestSingleMethodWeightedPriceNone:
         dcf_method = next((m for m in vs.methods if m.name == "dcf"), None)
         assert dcf_method is not None
         # The mid must equal the DCFResult.implied_price (±20% band, mid is implied_price)
-        assert dcf_method.mid == 150.0, (
-            f"DCF mid {dcf_method.mid} should equal implied_price 150.0"
-        )
+        assert dcf_method.mid == 150.0, f"DCF mid {dcf_method.mid} should equal implied_price 150.0"
+
+
+class TestGuardExitReasonsReachArtifact:
+    def test_comps_guard_exit_reason_lands_on_synthesis_warnings(self) -> None:
+        """comps_pe 被守卫请出场时,退出原因必须落在 ValuationSynthesis.warnings
+        (builder 收割进 artifact),不能只活在 debug 日志——TSLA 复验 run
+        (run_413ad4913cc1,2026-06-10)里 basis 说「only one method resolved」
+        而读者看不到另一半句子。fixture 走 trailing 路径(无 forward EPS),
+        pe_sample_n=1 确定性触发 thin-sample 守卫。"""
+        comps = _peer_comps()
+        comps.pe_sample_n = 1
+        structured_context: dict[str, object] = {
+            "financial_modeling": _dcf(40.0),
+            "peer_analysis": comps,
+        }
+        vs = build_valuation_synthesis(structured_context, current_price=396.0, ticker="TSLA")
+        assert vs is not None
+        assert [m.name for m in vs.methods] == ["dcf"], "comps_pe 应被 thin-sample 守卫退出"
+        assert any("样本仅 1 家" in w and "方法退出" in w for w in vs.warnings)

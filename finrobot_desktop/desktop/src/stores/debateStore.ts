@@ -111,7 +111,19 @@ function debateKey(ticker: string, artifactId: string): string {
 
 const sources = new Map<string, EventSource>()
 const sseErrorCounts = new Map<string, number>()
+const sseSuccessStreaks = new Map<string, number>()
 const SSE_ERROR_LIMIT = 8
+// Errors are only forgiven after the stream proves stable again. Resetting the
+// counter on ANY successful event let a flapping connection ([error, event,
+// error, event…]) dodge SSE_ERROR_LIMIT forever — the debate hung in endless
+// reconnect cycles instead of failing over to the retry UI (BUG-044).
+const SSE_STABLE_SUCCESSES = 3
+
+function noteSseSuccess(key: string): void {
+  const streak = (sseSuccessStreaks.get(key) ?? 0) + 1
+  sseSuccessStreaks.set(key, streak)
+  if (streak >= SSE_STABLE_SUCCESSES) sseErrorCounts.delete(key)
+}
 
 function closeAndForget(key: string): void {
   const es = sources.get(key)
@@ -120,6 +132,7 @@ function closeAndForget(key: string): void {
     sources.delete(key)
   }
   sseErrorCounts.delete(key)
+  sseSuccessStreaks.delete(key)
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -142,7 +155,7 @@ export const useDebateStore = create<DebateStoreState>((set, get) => {
     sources.set(key, es)
 
     es.addEventListener('debate.evidence', (e) => {
-      sseErrorCounts.set(key, 0)
+      noteSseSuccess(key)
       const data = JSON.parse((e as MessageEvent).data) as DebateEvidenceEvent
       const evidenceMap: Record<string, DebateEvidenceItem> = {}
       for (const item of data.items) {
@@ -156,7 +169,7 @@ export const useDebateStore = create<DebateStoreState>((set, get) => {
     })
 
     es.addEventListener('debate.point', (e) => {
-      sseErrorCounts.set(key, 0)
+      noteSseSuccess(key)
       const data = JSON.parse((e as MessageEvent).data) as DebatePoint & {
         event: string
         run_id: string
@@ -178,7 +191,7 @@ export const useDebateStore = create<DebateStoreState>((set, get) => {
     })
 
     es.addEventListener('debate.verdict', (e) => {
-      sseErrorCounts.set(key, 0)
+      noteSseSuccess(key)
       const data = JSON.parse((e as MessageEvent).data) as DebateVerdict & {
         event: string
         run_id: string
@@ -194,7 +207,6 @@ export const useDebateStore = create<DebateStoreState>((set, get) => {
     })
 
     es.addEventListener('run.completed', () => {
-      sseErrorCounts.set(key, 0)
       patch(key, { status: 'completed' })
       closeAndForget(key)
     })
@@ -218,6 +230,7 @@ export const useDebateStore = create<DebateStoreState>((set, get) => {
         closeAndForget(key)
         return
       }
+      sseSuccessStreaks.delete(key)
       const count = (sseErrorCounts.get(key) ?? 0) + 1
       sseErrorCounts.set(key, count)
       if (count >= SSE_ERROR_LIMIT) {

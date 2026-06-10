@@ -158,11 +158,22 @@ function setStepAt(steps: RunStep[], index: number, next: RunStep): RunStep[] {
 
 const sources = new Map<string, EventSource>()
 
-// Per-ticker onerror counts. Resets to 0 on any successful event.
-// After SSE_ERROR_LIMIT consecutive errors with status still 'running',
-// we force-fail the run so the UI doesn't spin indefinitely.
+// Per-ticker onerror counts. After SSE_ERROR_LIMIT errors with status still
+// 'running', we force-fail the run so the UI doesn't spin indefinitely.
+// Errors are only forgiven once the stream proves stable again
+// (SSE_STABLE_SUCCESSES consecutive events) — resetting on ANY successful
+// event let a flapping connection ([error, event, error, event…]) dodge the
+// limit forever (BUG-044, shared with debateStore).
 const SSE_ERROR_LIMIT = 8
+const SSE_STABLE_SUCCESSES = 3
 const sseErrorCounts = new Map<string, number>()
+const sseSuccessStreaks = new Map<string, number>()
+
+function noteSseSuccess(ticker: string): void {
+  const streak = (sseSuccessStreaks.get(ticker) ?? 0) + 1
+  sseSuccessStreaks.set(ticker, streak)
+  if (streak >= SSE_STABLE_SUCCESSES) sseErrorCounts.delete(ticker)
+}
 
 // Module-level dedupe for terminal-run side-effects (BUG-085). A completed run
 // stays resident in `runs` for the badge/history; its consuming view is
@@ -178,6 +189,7 @@ function closeAndForget(ticker: string): void {
     sources.delete(ticker)
   }
   sseErrorCounts.delete(ticker)
+  sseSuccessStreaks.delete(ticker)
 }
 
 // ── Store ───────────────────────────────────────────────────────────────────
@@ -204,7 +216,6 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
   ): { terminal: boolean } {
     switch (eventName) {
       case 'run.started': {
-        sseErrorCounts.set(ticker, 0)
         const totalSteps = (data.total_steps as number) || 4
         const cur = get().runs[ticker]
         const pipelineType = cur?.pipelineType ?? 'research'
@@ -213,7 +224,6 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
         return { terminal: false }
       }
       case 'step.started': {
-        sseErrorCounts.set(ticker, 0)
         const cur = get().runs[ticker]
         if (!cur) return { terminal: false }
         const step = data.step as number
@@ -268,7 +278,6 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
         return { terminal: false }
       }
       case 'artifact.ready': {
-        sseErrorCounts.set(ticker, 0)
         // artifact_id is optional (back-compat with pre-field stored events);
         // only stamp identity when present so we never clobber a real id with null.
         const update: Partial<RunState> = {}
@@ -278,7 +287,6 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
         return { terminal: false }
       }
       case 'run.completed': {
-        sseErrorCounts.set(ticker, 0)
         const update: Partial<RunState> = { status: 'completed', progress: 1 }
         // Prefer the completion event's identity; artifact.ready may already have
         // set it. Both optional for back-compat — keep any prior value if absent.
@@ -313,6 +321,9 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
     // forwards to the shared reducer; terminal events tear down this dedicated
     // connection. `single` binds the ticker + closes on terminal.
     const single = (name: RunEventName) => (e: Event) => {
+      // Any delivered event is transport-level proof the connection works —
+      // health accounting lives here at the transport seam, not per event type.
+      noteSseSuccess(ticker)
       const data = JSON.parse((e as MessageEvent).data)
       const { terminal } = reduceRunEvent(ticker, name, data)
       if (terminal) closeAndForget(ticker)
@@ -342,6 +353,7 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
       // no recovery, the run_id is likely invalid or the backend is down —
       // force-fail so the UI shows an actionable error instead of a frozen
       // progress bar.
+      sseSuccessStreaks.delete(ticker)
       const count = (sseErrorCounts.get(ticker) ?? 0) + 1
       sseErrorCounts.set(ticker, count)
       if (count >= SSE_ERROR_LIMIT) {

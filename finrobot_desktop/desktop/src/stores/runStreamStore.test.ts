@@ -203,3 +203,35 @@ describe('terminal-side-effect dedupe (BUG-085)', () => {
     expect(useRunStreamStore.getState().markTerminalNotified('run-clear')).toBe(true)
   })
 })
+
+describe('SSE error counting (BUG-044 sibling)', () => {
+  function triggerError(es: FakeEventSource): void {
+    es.onerror?.()
+  }
+
+  it('an [error, event, error, event…] flapping connection still trips the limit', async () => {
+    const es = await startRun('research')
+    es.emit('run.started', { total_steps: 8 })
+    for (let i = 0; i < 8; i++) {
+      expect(stepsState().status).toBe('running')
+      triggerError(es)
+      es.emit('step.started', { step: 1, total: 8, name: 'data_collection' })
+    }
+    expect(stepsState().status).toBe('failed')
+    expect(es.closed).toBe(true)
+  })
+
+  it('a genuinely recovered stream (stable successes) forgives past errors', async () => {
+    const es = await startRun('research')
+    es.emit('run.started', { total_steps: 8 })
+    for (let i = 0; i < 7; i++) triggerError(es)
+    expect(stepsState().status).toBe('running')
+    for (let i = 0; i < 3; i++) {
+      es.emit('step.started', { step: 1, total: 8, name: 'data_collection' })
+    }
+    for (let i = 0; i < 7; i++) triggerError(es)
+    expect(stepsState().status).toBe('running')
+    triggerError(es)
+    expect(stepsState().status).toBe('failed')
+  })
+})

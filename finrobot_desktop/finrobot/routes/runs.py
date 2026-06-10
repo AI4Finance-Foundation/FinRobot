@@ -49,6 +49,10 @@ _SSE_POLL_MIN_INTERVAL = 0.2
 _SSE_POLL_MAX_INTERVAL = 1.0
 _SSE_POLL_BACKOFF_FACTOR = 2.0
 
+# Max run ids one aggregated /api/runs/events stream may multiplex — see the
+# cap check in stream_runs_events.
+_MAX_MULTIPLEX_IDS = 50
+
 
 def _next_poll_interval(interval: float, *, had_events: bool) -> float:
     """Floor the interval when events arrived, else grow it toward the ceiling."""
@@ -326,6 +330,18 @@ async def stream_runs_events(ids: str, request: Request) -> StreamingResponse:
     run_ids = list(dict.fromkeys(raw_ids))
     if not run_ids:
         raise HTTPException(status_code=400, detail="No run ids provided")
+    # Cap the multiplex width. Every id costs a get_run + get_events_after per
+    # poll round on the single shared aiosqlite worker; an unbounded ?ids= list
+    # (script-built URL, not the UI) could wedge the store for every other
+    # consumer. 50 is double the largest Coverage batch the UI can launch.
+    if len(run_ids) > _MAX_MULTIPLEX_IDS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Too many run ids: {len(run_ids)} > {_MAX_MULTIPLEX_IDS}. "
+                "Split the request into smaller batches."
+            ),
+        )
 
     store: RunStore = request.app.state.run_store
 

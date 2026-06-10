@@ -514,7 +514,19 @@ app.add_middleware(RequestTraceMiddleware)
 app.add_middleware(CapabilityAuthMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        # Vite dev server (browser-driven development).
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        # Tauri production webview origins. Without these the shipped app
+        # worked only because Tauri's webview doesn't enforce CORS at runtime —
+        # a runtime coincidence, not a contract. macOS WKWebView serves the
+        # bundle from tauri://localhost; Windows WebView2 uses
+        # http(s)://tauri.localhost.
+        "tauri://localhost",
+        "http://tauri.localhost",
+        "https://tauri.localhost",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -408,6 +408,25 @@ async def test_aggregated_stream_404_when_all_ids_unknown() -> None:
     assert resp.status_code == 404
 
 
+@pytest.mark.asyncio
+async def test_aggregated_stream_400_when_too_many_ids() -> None:
+    """An unbounded ?ids= list (script-built, not the UI) must 400 before it
+    fans N get_run/get_events polls onto the shared store connection."""
+    from finrobot.routes import runs as runs_mod
+
+    app = _make_app(_make_run_record())
+    ids = ",".join(f"run-{i}" for i in range(runs_mod._MAX_MULTIPLEX_IDS + 1))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.get(f"/api/runs/events?ids={ids}")
+    assert resp.status_code == 400
+    assert "Too many run ids" in resp.json()["detail"]
+    # Duplicates collapse before the cap — 60 copies of one id are 1 id.
+    dup_ids = ",".join("run-dup" for _ in range(60))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.get(f"/api/runs/events?ids={dup_ids}")
+    assert resp.status_code == 200
+
+
 # ---------------------------------------------------------------------------
 # BUG-034 — the terminal status flip must NOT become visible to readers before
 # the terminal event (run.completed / run.failed) is in run_events. Otherwise

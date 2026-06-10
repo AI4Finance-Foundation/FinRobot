@@ -10,7 +10,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams } from 'react-router-dom'
-import { useI18n } from '../i18n'
+import { useI18n, type Locale } from '../i18n'
+import { formatDate, formatNumberAuto } from '../utils/format'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -57,25 +58,25 @@ function hasContent(source: NumberSource | undefined): boolean {
   )
 }
 
+// Both fallbacks route through utils/format (the locale single source) — a
+// bare value.toLocaleString() / Date.toLocaleString() follows the OS locale,
+// not the UI locale, the exact anti-pattern format.ts documents.
 function formatValue(
   value: number | string | null | undefined,
+  locale: Locale,
   format?: (v: number) => string,
 ): string {
   if (value === null || value === undefined) return EM_DASH
   if (typeof value === 'number') {
     if (isNaN(value)) return EM_DASH
-    return format ? format(value) : value.toLocaleString()
+    return format ? format(value) : formatNumberAuto(value, locale)
   }
   return value || EM_DASH
 }
 
-function formatFetchedAt(iso: string | undefined): string {
+function formatFetchedAt(iso: string | undefined, locale: Locale): string {
   if (!iso) return ''
-  try {
-    return new Date(iso).toLocaleString()
-  } catch {
-    return iso
-  }
+  return formatDate(iso, locale, 'datetime')
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -87,7 +88,7 @@ export function SourcedNumber({
   className,
   ticker: tickerProp,
 }: SourcedNumberProps) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLSpanElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -101,7 +102,7 @@ export function SourcedNumber({
   const ticker = tickerProp ?? routeTicker
 
   const showPopover = hasContent(source)
-  const displayed = formatValue(value, format)
+  const displayed = formatValue(value, locale, format)
   // A data-quality caveat must be visible at a glance in dense tables — not
   // hidden behind a hover popover (analysts scan dozens of rows). Render an
   // inline amber marker whenever a formula warning is attached.
@@ -267,10 +268,13 @@ export function SourcedNumber({
               value={source.provider ?? t('sourced.unknown')}
             />
             {source.as_of && (
-              <ProvRow label={t('sourced.asOf')} value={formatFetchedAt(source.as_of)} />
+              <ProvRow label={t('sourced.asOf')} value={formatFetchedAt(source.as_of, locale)} />
             )}
             {source.fetched_at && (
-              <ProvRow label={t('sourced.fetchedAt')} value={formatFetchedAt(source.fetched_at)} />
+              <ProvRow
+                label={t('sourced.fetchedAt')}
+                value={formatFetchedAt(source.fetched_at, locale)}
+              />
             )}
             {source.formula_id && (
               <ProvRow label={t('sourced.formula')} value={source.formula_id} mono />

@@ -29,6 +29,17 @@ export function formatNumber(n: number | null | undefined, locale: Locale, digit
   }).format(n)
 }
 
+/**
+ * Locale-correct rendering with grouping and Intl default fraction digits
+ * (0-3, no padding) — the deterministic replacement for a bare
+ * `n.toLocaleString()` (which follows the OS locale, not the UI locale)
+ * when the value's precision is caller-owned.
+ */
+export function formatNumberAuto(n: number | null | undefined, locale: Locale): string {
+  if (n === null || n === undefined || Number.isNaN(n)) return '—'
+  return new Intl.NumberFormat(NF_LOCALE[locale]).format(n)
+}
+
 /** Integer with grouping; no fractional part. e.g. `1,234` */
 export function formatInteger(n: number | null | undefined, locale: Locale): string {
   if (n === null || n === undefined || Number.isNaN(n)) return '—'

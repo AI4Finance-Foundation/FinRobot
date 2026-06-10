@@ -34,10 +34,11 @@ describe('SourcedNumber', () => {
 
   // ── Value formatting ────────────────────────────────────────────────────────
 
-  it('displays formatted number value', () => {
+  it('displays formatted number value deterministically (UI locale, not OS locale)', () => {
     render(<SourcedNumber value={1234567.89} />)
-    // toLocaleString format may vary by environment — just check it's present
-    expect(screen.getByText(/1[,.]?234[,.]?567/)).toBeInTheDocument()
+    // Routed through formatNumberAuto(_, 'en') — a bare toLocaleString()
+    // followed the OS locale and made this output environment-dependent.
+    expect(screen.getByText('1,234,567.89')).toBeInTheDocument()
   })
 
   it('applies custom format function', () => {

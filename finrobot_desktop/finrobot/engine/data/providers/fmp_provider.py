@@ -292,8 +292,17 @@ class FMPProvider(DataProvider):
                 quote = (await self._get(f"/quote/{ticker}")).json()
             except (httpx.HTTPError, ProviderError) as exc:
                 quote = []
+                # Same invariant as _wrap_errors: a raw httpx exception embeds
+                # the request URL with ?apikey=<live key>, and this warning
+                # flows into DataResult.warnings → shareable artifacts.
+                if isinstance(exc, httpx.HTTPStatusError):
+                    detail = f"HTTP {exc.response.status_code}"
+                elif isinstance(exc, ProviderError):
+                    detail = str(exc)
+                else:
+                    detail = type(exc).__name__
                 warnings.append(
-                    f"FMP /quote/{ticker} unavailable ({exc!r}); "
+                    f"FMP /quote/{ticker} unavailable ({detail}); "
                     "shares_outstanding falls back to mktCap/price"
                 )
 

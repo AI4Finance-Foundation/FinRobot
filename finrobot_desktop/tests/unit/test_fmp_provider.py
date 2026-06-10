@@ -244,6 +244,39 @@ class TestFMPFetch:
         assert result.data["country"] == "US"
 
     @pytest.mark.asyncio
+    async def test_quote_failure_warning_never_leaks_api_key(self, provider):
+        """A /quote failure warning must not embed the raw httpx exception.
+
+        Its str()/repr() carries the request URL with ``?apikey=<live key>``,
+        and DataResult.warnings flows into shareable artifacts (the same
+        invariant _wrap_errors documents).
+        """
+        secret_url = "https://financialmodelingprep.com/api/v3/quote/AAPL?apikey=SUPERSECRET"
+        request = httpx.Request("GET", secret_url)
+        response = httpx.Response(429, request=request)
+        quote_error = httpx.HTTPStatusError(
+            f"Client error '429 Too Many Requests' for url '{secret_url}'",
+            request=request,
+            response=response,
+        )
+        responses = [
+            _mock_response(_fmp_quarterly_income_response()),
+            _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_profile_response()),
+            quote_error,
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials")
+
+        fallback_warnings = [w for w in result.warnings if "/quote/AAPL unavailable" in w]
+        assert fallback_warnings, f"expected the /quote fallback warning, got {result.warnings}"
+        assert "HTTP 429" in fallback_warnings[0]
+        joined = " ".join(result.warnings)
+        assert "SUPERSECRET" not in joined
+        assert "apikey" not in joined
+
+    @pytest.mark.asyncio
     async def test_missing_balance_items_stay_none_not_zero(self, provider):
         """A balance sheet that omits totalDebt / cash must yield None, not 0, so
         enterprise value is left undefined rather than fabricated (market_cap + 0

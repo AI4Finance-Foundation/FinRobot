@@ -12,6 +12,7 @@ stays provider-agnostic; this module owns the data-layer translation.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from typing import Any, Literal
 
@@ -30,6 +31,31 @@ logger = logging.getLogger(__name__)
 
 
 BandClassification = Literal["expensive", "fair", "cheap", "unknown"]
+
+
+@dataclass(frozen=True)
+class HistoricalFx:
+    """Resolved FX context for per-year FINANCIALS history.
+
+    ``rate`` is the financial→quote spot factor to apply to native figures:
+      - 1.0  — no conversion due (same currency, or tags absent in test fakes)
+      - >0   — conversion factor
+      - None — conversion DUE but FX unavailable. Callers must NOT fall back
+        to 1.0 silently (fx.py's own contract): a band would mix currencies
+        in one multiple (TSM ~0.05x), so it refuses; per-year metrics stay
+        native but carry the honest currency tag.
+    """
+
+    rate: float | None
+    financial_currency: str | None
+    quote_currency: str | None
+
+    @property
+    def currency_of_figures(self) -> str | None:
+        """Currency the figures are in AFTER applying ``rate or 1``."""
+        if self.rate is None:
+            return self.financial_currency
+        return self.quote_currency or self.financial_currency
 
 
 async def load_yearly_financials(
@@ -60,7 +86,22 @@ async def load_yearly_financials(
     # applied to every year — the per-year FX drift is a single-digit-% residual
     # on the equity term, vs the ~600× currency error it replaces; period-matched
     # historical FX is tracked as a follow-up.
-    fx_rate = await _historical_fx_rate(results, data_layer, ticker)
+    fx = await resolve_historical_fx(results, data_layer, ticker)
+    if fx.rate is None:
+        # FX due but unavailable: a band multiple mixes the native financial
+        # leg with the quote-currency price leg in ONE number — that's the
+        # ~0.05x TSM garbage, not a degraded approximation. Refuse the band
+        # (callers degrade to "no band") instead of silently applying 1.0,
+        # honoring fx.py's "never fall back to 1.0" contract.
+        logger.warning(
+            "historical-band FX %s→%s unavailable for %s — band withheld "
+            "(refusing a currency-mixed multiple)",
+            fx.financial_currency,
+            fx.quote_currency,
+            ticker,
+        )
+        return []
+    fx_rate = fx.rate
 
     out: list[tuple[YearlyFinancials, float | None]] = []
     for result in results:
@@ -71,16 +112,20 @@ async def load_yearly_financials(
             continue
         ebitda_native = _pos_or_none(data.get("ebitda"))
         fcf_native = _pos_or_none(_derive_fcf(data))
-        net_debt_native = float(data.get("total_debt") or 0.0) - float(
-            data.get("total_cash") or 0.0
-        )
+        # None ≠ 0: a year whose balance rows failed to align (or a provider
+        # that omits debt/cash for the yearly path) has an UNKNOWN net debt —
+        # filling 0 fabricated a debt-free EV and skewed the band low for
+        # levered issuers. Both legs must be present.
+        debt = _opt_float(data.get("total_debt"))
+        cash = _opt_float(data.get("total_cash"))
+        net_debt_native = debt - cash if (debt is not None and cash is not None) else None
         out.append(
             (
                 YearlyFinancials(
                     fiscal_date=fy_date,
                     ebitda=ebitda_native * fx_rate if ebitda_native is not None else None,
                     free_cash_flow=fcf_native * fx_rate if fcf_native is not None else None,
-                    net_debt=net_debt_native * fx_rate,
+                    net_debt=net_debt_native * fx_rate if net_debt_native is not None else None,
                 ),
                 _pos_or_none(data.get("shares_outstanding")),
             )
@@ -88,36 +133,48 @@ async def load_yearly_financials(
     return out
 
 
-async def _historical_fx_rate(
+async def resolve_historical_fx(
     results: list[DataResult], data_layer: DataLayer, ticker: str
-) -> float:
-    """Spot financial→quote rate for the band, or 1.0 when no conversion is due.
+) -> HistoricalFx:
+    """Resolve the financial→quote FX context for per-year history.
 
-    Returns 1.0 for US issuers (financial_currency == quote_currency), when the
-    currency tags are absent (lightweight test fakes), or on FX-fetch failure —
-    the band then stays on native figures (currency-mixed) but never crashes,
-    matching the canonical path's degrade-don't-fail FX contract.
+    Shared chokepoint for BOTH per-year consumers — the band loader above and
+    the metrics coordinator (compute.coordinators.historical_extractor) — so
+    they can't drift apart on currency handling. ``rate=None`` means a
+    conversion is due but the FX fetch failed: callers decide (band → refuse a
+    currency-mixed multiple; metrics → keep native figures + honest currency
+    tag). Never silently 1.0 on failure (fx.py's contract).
     """
     if not results or not hasattr(data_layer, "reporting_to_quote_rate"):
-        return 1.0
+        return HistoricalFx(rate=1.0, financial_currency=None, quote_currency=None)
     first = results[0].data if isinstance(results[0].data, dict) else {}
-    fin_ccy = str(first.get("financial_currency") or "").upper()
-    quote_ccy = str(first.get("quote_currency") or "").upper()
+    fin_ccy = str(first.get("financial_currency") or "").upper() or None
+    quote_ccy = str(first.get("quote_currency") or "").upper() or None
     if not fin_ccy or not quote_ccy or fin_ccy == quote_ccy:
-        return 1.0
+        return HistoricalFx(rate=1.0, financial_currency=fin_ccy, quote_currency=quote_ccy)
     try:
         rate = await data_layer.reporting_to_quote_rate(fin_ccy, quote_ccy)
     except (ProviderError, ValueError) as exc:
         logger.warning(
-            "historical-band FX %s→%s failed for %s; band stays native " "(currency-mixed): %s",
+            "historical FX %s→%s failed for %s: %s",
             fin_ccy,
             quote_ccy,
             ticker,
             exc,
         )
-        return 1.0
-    logger.info("historical-band FX %s→%s=%.5f applied for %s", fin_ccy, quote_ccy, rate, ticker)
-    return rate
+        return HistoricalFx(rate=None, financial_currency=fin_ccy, quote_currency=quote_ccy)
+    logger.info("historical FX %s→%s=%.5f applied for %s", fin_ccy, quote_ccy, rate, ticker)
+    return HistoricalFx(rate=rate, financial_currency=fin_ccy, quote_currency=quote_ccy)
+
+
+def _opt_float(v: Any) -> float | None:
+    """float(v) or None — missing/unparseable stays None (None ≠ 0)."""
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
 
 
 async def load_price_history(ticker: str, data_layer: DataLayer, years: int) -> list[PricePoint]:

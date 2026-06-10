@@ -52,8 +52,11 @@ class YearlyFinancials:
     free_cash_flow: float | None
     """Annual FCF (OperatingCF - CapEx). None means data unavailable."""
 
-    net_debt: float
-    """Total debt minus cash & equivalents; can be negative (net cash)."""
+    net_debt: float | None
+    """Total debt minus cash & equivalents; can be negative (net cash).
+    None means a balance leg was missing for the year (None ≠ 0 — filling 0
+    fabricated a debt-free EV for levered issuers); the EV/EBITDA sample for
+    that year is skipped."""
 
 
 @dataclass(frozen=True)
@@ -228,7 +231,7 @@ def _compute_multiple(
     if market_cap <= 0:
         return None
     if metric == "ev_ebitda":
-        if fy.ebitda is None or fy.ebitda <= 0:
+        if fy.ebitda is None or fy.ebitda <= 0 or fy.net_debt is None:
             return None
         return (market_cap + fy.net_debt) / fy.ebitda
     # metric == "p_fcf" — the Literal alias has no other variants.

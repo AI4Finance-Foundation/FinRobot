@@ -696,6 +696,15 @@ class StepOutput(BaseModel):
 class HistoricalMetrics(BaseModel):
     """Multi-year historical financial metrics extracted from provider data."""
 
+    # Currency of every absolute monetary field (revenue/ebitda/eps/cash
+    # flows…). The extractor normalizes native-reporting ADR history (TSM:
+    # TWD) to the quote currency at today's spot before assembly; when FX is
+    # unavailable the figures stay native and this tag says so — renderers and
+    # LLM prompts must not assume USD. None = currency tags absent upstream
+    # (test fakes / legacy rows). Ratios, margins and CAGR are
+    # currency-invariant either way.
+    currency: str | None = None
+
     years: list[int]
     revenue: list[float]
     revenue_growth_yoy: list[float | None]

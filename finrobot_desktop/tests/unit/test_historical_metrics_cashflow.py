@@ -419,3 +419,76 @@ class TestExtractHistoricalMetricsEdgeCases:
         result = _extract(FakeDataLayer(yearly))
         assert len(result.years) == 5
         assert result.years == [2018, 2019, 2020, 2021, 2022]
+
+
+# ---------------------------------------------------------------------------
+# Part 4: FX normalization (P0: TSM's TWD history mixed with USD snapshot)
+# ---------------------------------------------------------------------------
+
+
+class _FXFakeDataLayer(FakeDataLayer):
+    """FakeDataLayer + the reporting_to_quote_rate chokepoint."""
+
+    def __init__(self, yearly: list[dict[str, Any]], *, rate: float | None) -> None:
+        super().__init__(yearly)
+        self._rate = rate
+        self.rate_calls: list[tuple[str, str]] = []
+
+    async def reporting_to_quote_rate(self, reporting_ccy: str, quote_ccy: str) -> float:
+        self.rate_calls.append((reporting_ccy, quote_ccy))
+        if self._rate is None:
+            raise ProviderError("FX provider down")
+        return self._rate
+
+
+def _twd_yearly() -> list[dict[str, Any]]:
+    return [
+        {
+            "fiscal_year": "2024-12-31",
+            "revenue": 2_894_307_699_000.0,  # native TWD
+            "net_income": 1_173_268_000_000.0,
+            "eps": 45.25,
+            "ebitda": 2_000_000_000_000.0,
+            "financial_currency": "TWD",
+            "quote_currency": "USD",
+        }
+    ]
+
+
+class TestExtractHistoricalMetricsFx:
+    def test_adr_absolute_figures_converted_to_quote_currency(self):
+        """TSM-shaped history: absolute monetary fields must be converted to the
+        quote currency so the multi-year charts/LLM narrative speak the same
+        currency as the FX-normalized snapshot FinancialData."""
+        rate = 0.0312
+        layer = _FXFakeDataLayer(_twd_yearly(), rate=rate)
+        result = _extract(layer, "TSM")
+
+        assert result.currency == "USD"
+        assert result.revenue[0] == pytest.approx(2_894_307_699_000.0 * rate)
+        assert result.net_income[0] == pytest.approx(1_173_268_000_000.0 * rate)
+        assert result.eps[0] == pytest.approx(45.25 * rate)
+        assert result.ebitda[0] == pytest.approx(2_000_000_000_000.0 * rate)
+        # Margins are currency-invariant.
+        assert result.ebitda_margin[0] == pytest.approx(2_000_000_000_000.0 / 2_894_307_699_000.0)
+        assert layer.rate_calls == [("TWD", "USD")]
+
+    def test_fx_unavailable_keeps_native_figures_with_honest_tag(self):
+        """FX due but unavailable: figures stay native (ratios still serve
+        dcf_seed's currency-invariant medians) and the currency tag discloses
+        TWD instead of silently passing native values off as USD."""
+        layer = _FXFakeDataLayer(_twd_yearly(), rate=None)
+        result = _extract(layer, "TSM")
+
+        assert result.currency == "TWD"
+        assert result.revenue[0] == pytest.approx(2_894_307_699_000.0)
+
+    def test_us_issuer_untouched_and_tagged(self):
+        yearly = _twd_yearly()
+        yearly[0]["financial_currency"] = "USD"
+        layer = _FXFakeDataLayer(yearly, rate=0.5)
+        result = _extract(layer, "AAPL")
+
+        assert result.currency == "USD"
+        assert result.revenue[0] == pytest.approx(2_894_307_699_000.0)
+        assert layer.rate_calls == []

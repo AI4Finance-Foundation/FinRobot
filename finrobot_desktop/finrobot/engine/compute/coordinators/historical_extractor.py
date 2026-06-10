@@ -22,6 +22,7 @@ import math
 from typing import Any
 
 from finrobot.engine.compute.operators.data_processor import calculate_cagr
+from finrobot.engine.data.historical_loaders import resolve_historical_fx
 from finrobot.engine.data.interface import DataResult, ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.types import DataType
@@ -42,13 +43,31 @@ async def fetch_historical_metrics(
         Fully populated HistoricalMetrics, sorted oldest-first. Returns a minimal
         placeholder (empty lists) when no usable historical data is available, so
         callers/dcf_seed degrade gracefully to industry medians rather than crash.
+
+    Currency: a foreign issuer's yearly statements arrive in the native
+    reporting currency (TSM: TWD) while the snapshot FinancialData in the same
+    report is FX-normalized to the quote currency — the multi-year revenue/EPS
+    charts and LLM narrative were silently mixing the two. Absolute monetary
+    fields are converted at today's spot via the same chokepoint the band
+    loader uses (resolve_historical_fx); ratios/margins/CAGR are
+    currency-invariant. When FX is unavailable the figures stay native and the
+    ``currency`` tag discloses it (the metrics still serve dcf_seed's
+    currency-invariant ratio medians, so dropping them would be overkill).
     """
     results = await data_layer.fetch_historical(DataType.FINANCIALS, ticker, years=years)
+    fx = await resolve_historical_fx(results, data_layer, ticker)
     # Trailing P/E + price_data_available come from the current-snapshot
     # financials (yfinance's info.trailingPE). Best-effort and normally a cache
     # hit — most callers fetched the snapshot moments earlier.
     trailing_pe = await _fetch_trailing_pe(data_layer, ticker)
-    return _build_from_yearly(ticker, results, years, trailing_pe)
+    return _build_from_yearly(
+        ticker,
+        results,
+        years,
+        trailing_pe,
+        fx_rate=fx.rate if fx.rate is not None else 1.0,
+        currency=fx.currency_of_figures,
+    )
 
 
 async def _fetch_trailing_pe(data_layer: DataLayer, ticker: str) -> float | None:
@@ -70,10 +89,15 @@ def _build_from_yearly(
     results: list[DataResult],
     max_years: int,
     trailing_pe: float | None,
+    fx_rate: float = 1.0,
+    currency: str | None = None,
 ) -> HistoricalMetrics:
     """Pure function: assemble HistoricalMetrics from normalized per-year dicts.
 
     Kept separate from the async wrapper so it can be tested synchronously.
+    ``fx_rate`` scales every absolute monetary field (financial→quote spot);
+    ``currency`` is the tag for the figures AFTER scaling. Ratios computed
+    below are invariant (numerator and denominator scale together).
     """
     # Parse rows; drop years without usable revenue (mirrors the old
     # revenue-NaN column filter so a NaN year doesn't poison CAGR/medians).
@@ -122,15 +146,15 @@ def _build_from_yearly(
         # The absolute line-item lists keep the 0.0 fill — downstream consumers
         # (dcf_seed._median_ratio, shares-from-EPS) already treat all-zero rows
         # as "missing", so 0.0 there is the established convention.
-        raw_gp = _safe_float(data.get("gross_profit"))
-        raw_ebitda = _safe_float(data.get("ebitda"))
-        raw_oi = _safe_float(data.get("operating_income"))
-        raw_sga = _safe_float(data.get("sga_expense"))
-        rev = _safe_float(data.get("revenue")) or 0.0
+        raw_gp = _fx(_safe_float(data.get("gross_profit")), fx_rate)
+        raw_ebitda = _fx(_safe_float(data.get("ebitda")), fx_rate)
+        raw_oi = _fx(_safe_float(data.get("operating_income")), fx_rate)
+        raw_sga = _fx(_safe_float(data.get("sga_expense")), fx_rate)
+        rev = (_safe_float(data.get("revenue")) or 0.0) * fx_rate
         ebitda = raw_ebitda or 0.0
         oi = raw_oi or 0.0
-        ni = _safe_float(data.get("net_income")) or 0.0
-        eps = _safe_float(data.get("eps")) or 0.0
+        ni = (_safe_float(data.get("net_income")) or 0.0) * fx_rate
+        eps = (_safe_float(data.get("eps")) or 0.0) * fx_rate
         sga = raw_sga or 0.0
 
         rev_positive = rev > 0
@@ -158,15 +182,17 @@ def _build_from_yearly(
         # Cash-flow scalars: a structurally-absent row stays 0.0. dcf_seed's
         # _median_ratio treats an all-zero row as "missing" and falls back to
         # industry medians, so 0.0 is the correct fill (not a fabricated value).
-        ocf_list.append(_safe_float(data.get("operating_cash_flow")) or 0.0)
-        icf_list.append(_safe_float(data.get("investing_cash_flow")) or 0.0)
-        financing_cf_list.append(_safe_float(data.get("financing_cash_flow")) or 0.0)
+        ocf_list.append((_safe_float(data.get("operating_cash_flow")) or 0.0) * fx_rate)
+        icf_list.append((_safe_float(data.get("investing_cash_flow")) or 0.0) * fx_rate)
+        financing_cf_list.append((_safe_float(data.get("financing_cash_flow")) or 0.0) * fx_rate)
         # D&A is reported positive; CapEx is already a positive magnitude
         # (providers sign-flip the cash outflow) — both feed the FCF formula's
         # "+ D&A - CapEx" convention as positive numbers.
-        da_list.append(_safe_float(data.get("depreciation_amortization")) or 0.0)
-        capex_list.append(_safe_float(data.get("capital_expenditure")) or 0.0)
-        nwc_change_list.append(_safe_float(data.get("change_in_working_capital")) or 0.0)
+        da_list.append((_safe_float(data.get("depreciation_amortization")) or 0.0) * fx_rate)
+        capex_list.append((_safe_float(data.get("capital_expenditure")) or 0.0) * fx_rate)
+        nwc_change_list.append(
+            (_safe_float(data.get("change_in_working_capital")) or 0.0) * fx_rate
+        )
 
     # YoY revenue growth (None for the oldest year and across any 0-fill gaps).
     revenue_growth: list[float | None] = []
@@ -187,6 +213,7 @@ def _build_from_yearly(
         pe_list[-1] = trailing_pe
 
     return HistoricalMetrics(
+        currency=currency,
         years=years_list,
         revenue=revenue_list,
         revenue_growth_yoy=revenue_growth,
@@ -239,6 +266,11 @@ def _empty_metrics(ticker: str) -> HistoricalMetrics:
         cagr_revenue=None,
         ticker=ticker,
     )
+
+
+def _fx(value: float | None, rate: float) -> float | None:
+    """Scale an optional monetary value by the FX rate, preserving None."""
+    return value * rate if value is not None else None
 
 
 def _safe_float(value: object) -> float | None:

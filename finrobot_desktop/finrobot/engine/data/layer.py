@@ -36,6 +36,7 @@ from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.validator import (
     cross_validate,
     cross_validate_price,
+    has_comparable_financials,
     key_field_divergences,
     market_cap_consistency,
 )
@@ -185,11 +186,17 @@ class DataLayer:
                     continue
                 break
             else:
-                # D5: skip empty secondary, add warning, try next provider
-                if not result.data:
+                # Skip a secondary that carries nothing cross_validate can
+                # compare — a truly-empty dict (D5) AND an all-None financials
+                # dict ({"revenue": None, ...}). The latter is non-empty, so a
+                # bare `if not result.data` would wave it through, but
+                # cross_validate then skips every None field and returns [] =
+                # a phantom "two providers agree". Warn, keep looking, and never
+                # let it count toward secondary_count (false 2-provider trust).
+                if not has_comparable_financials(result):
                     empty_warn = (
-                        f"Secondary provider {provider.name} returned empty data "
-                        f"— cross-validation skipped"
+                        f"Secondary provider {provider.name} returned no comparable "
+                        f"financial data — cross-validation skipped"
                     )
                     logger.warning(empty_warn)
                     if empty_warn not in primary_result.warnings:

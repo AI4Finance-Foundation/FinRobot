@@ -129,6 +129,26 @@ def cross_validate(primary: DataResult, secondary: DataResult) -> list[str]:
     return warnings
 
 
+def has_comparable_financials(result: DataResult) -> bool:
+    """True iff ``result`` carries at least one number :func:`cross_validate`
+    actually compares (a field in ``_RELATIVE_FIELDS``).
+
+    The trap this closes: an all-``None`` financials dict —
+    ``{"revenue": None, "net_income": None, ...}`` — is non-empty, so a bare
+    ``if not result.data`` guard waves it through as a real secondary. But
+    ``cross_validate`` then ``continue``s past every ``None`` field and returns
+    ``[]``, which the DataLayer reads as "two providers agree". That is phantom
+    confidence: the secondary contributed no comparable number. The DataLayer
+    uses this predicate to gate such a secondary exactly like a truly-empty one
+    (warn + don't count toward ``secondary_count``), so a single live provider
+    can never masquerade as a cross-validated pair.
+    """
+    data = result.data
+    if not data:
+        return False
+    return any(_is_number(data.get(field)) for field in _RELATIVE_FIELDS)
+
+
 # --- Market-cap consistency (lineage-aware) ----------------------------------
 #
 # Validates the accounting identity market_cap ≈ price × shares_outstanding —

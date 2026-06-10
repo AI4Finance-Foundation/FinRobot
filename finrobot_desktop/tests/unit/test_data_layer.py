@@ -558,8 +558,41 @@ class TestCrossValidationIntegration:
         p3 = MockProvider("p3", ["financials"], result=r3)
         layer = DataLayer([p1, p2, p3], cache)
         result = await layer.fetch("financials", "TEST")
-        assert any("empty data" in w.lower() for w in result.warnings)
+        assert any("cross-validation skipped" in w.lower() for w in result.warnings)
         assert p3.fetch_called > 0
+
+    async def test_all_none_secondary_not_counted_as_validation(self, cache):
+        """An all-None secondary ({"revenue": None, ...}) is non-empty, so the
+        bare `if not result.data` guard used to wave it through; cross_validate
+        then skipped every None field and returned [] = a phantom "two providers
+        agree". It must instead be flagged "no comparable ... cross-validation
+        skipped" and NOT count as a validating secondary."""
+        r1 = DataResult(
+            data={"revenue": 100_000, "net_income": 20_000},
+            provider="p1",
+            ticker="TEST",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        r2_all_none = DataResult(
+            data={"revenue": None, "net_income": None, "market_cap": None, "total_cash": None},
+            provider="p2",
+            ticker="TEST",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        p1 = MockProvider("p1", ["financials"], result=r1)
+        p2 = MockProvider("p2", ["financials"], result=r2_all_none)
+        layer = DataLayer([p1, p2], cache)
+        result = await layer.fetch("financials", "TEST")
+        # Primary still wins and flows untouched.
+        assert result.provider == "p1"
+        assert result.data["revenue"] == 100_000
+        # The all-None secondary is honestly flagged as non-comparable — NOT
+        # silently accepted as agreement (the discriminating assertion: the
+        # pre-fix code emitted neither this skip warning nor any discrepancy).
+        assert any("cross-validation skipped" in w.lower() for w in result.warnings)
+        assert not any("discrepancy" in w.lower() for w in result.warnings)
 
     async def test_cross_validation_caps_at_three_providers(self, cache):
         """D4: at most 3 providers attempted for financials, even if more configured."""

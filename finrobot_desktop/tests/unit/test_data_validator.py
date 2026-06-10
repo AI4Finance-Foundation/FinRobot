@@ -7,7 +7,11 @@ warning strings and thresholds rather than just "non-empty list".
 from datetime import datetime, timezone
 
 from finrobot.engine.data.interface import DataResult
-from finrobot.engine.data.validator import cross_validate, key_field_divergences
+from finrobot.engine.data.validator import (
+    cross_validate,
+    has_comparable_financials,
+    key_field_divergences,
+)
 
 
 def _result(provider: str, data: dict) -> DataResult:
@@ -192,3 +196,24 @@ def test_key_field_divergences_empty_secondary():
     p = _result("fmp", {"revenue": 100_000_000})
     s = _result("finnhub", {})
     assert key_field_divergences(p, s) == []
+
+
+def test_has_comparable_financials_empty_is_false():
+    assert has_comparable_financials(_result("p", {})) is False
+
+
+def test_has_comparable_financials_all_none_is_false():
+    """The bug this guards: a non-empty all-None dict that cross_validate would
+    silently skip into a phantom "agree"."""
+    s = _result("p", {"revenue": None, "net_income": None, "market_cap": None})
+    assert has_comparable_financials(s) is False
+
+
+def test_has_comparable_financials_one_real_number_is_true():
+    assert has_comparable_financials(_result("p", {"revenue": None, "market_cap": 5e11})) is True
+
+
+def test_has_comparable_financials_only_uncompared_field_is_false():
+    """ebitda is real but NOT in _RELATIVE_FIELDS, so it gives cross_validate
+    nothing to compare — the secondary still contributes no validation signal."""
+    assert has_comparable_financials(_result("p", {"ebitda": 1_000_000})) is False

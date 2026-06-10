@@ -207,9 +207,11 @@ def _terminal_fcf(inputs: DCFInputs, terminal_revenue: float, terminal_growth: f
     $28 vs the steady-state-normalized ~$38. Only the perpetuity BASE normalizes;
     the explicit-forecast FCFs keep their growth-phase capex unchanged.
 
-    The same normalization runs in calculate_dcf, calculate_sensitivity, and the
-    reverse-DCF kernel (_price_for) so the base case, the sensitivity grid centre,
-    and the market-implied solver all speak the same terminal economics.
+    The same normalization runs in calculate_dcf, calculate_sensitivity, the
+    reverse-DCF kernel (_price_for), and run_monte_carlo (vectorized) so the
+    base case, the sensitivity grid centre, the market-implied solver, and the
+    MC distribution all speak the same terminal economics. The MC side is
+    pinned by a perturbation→0 equivalence test against calculate_dcf.
     """
     rev = terminal_revenue
     da = rev * inputs.da_pct_revenue

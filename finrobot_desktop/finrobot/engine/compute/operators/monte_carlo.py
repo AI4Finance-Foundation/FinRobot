@@ -142,10 +142,15 @@ def run_monte_carlo(
     tgr_noise = np.concatenate([tgr_noise_half, -tgr_noise_half])
     sim_tgr = np.maximum(0.005, inputs.terminal_growth_rate + tgr_noise)
 
-    # WACC via CAPM: perturb risk-free rate, ERP, beta → compute WACC vectorized
+    # WACC via CAPM: perturb risk-free rate, ERP, beta → compute WACC vectorized.
+    # Beta noise scales with the wacc_std knob like the other CAPM components
+    # (×10 preserves the long-standing default: wacc_std=0.01 ↔ beta std 0.1).
+    # A hardcoded 0.1 broke the "all stds=0 → degenerate point distribution"
+    # invariant that the perturbation→0 equivalence test (MC == calculate_dcf)
+    # relies on.
     rfr_noise_half = rng.normal(0, wacc_std * 0.5, size=n_half)
     erp_noise_half = rng.normal(0, wacc_std, size=n_half)
-    beta_noise_half = rng.normal(0, 0.1, size=n_half)
+    beta_noise_half = rng.normal(0, wacc_std * 10, size=n_half)
     sim_rfr = np.maximum(
         0.005, inputs.risk_free_rate + np.concatenate([rfr_noise_half, -rfr_noise_half])
     )
@@ -198,15 +203,35 @@ def run_monte_carlo(
     # PV of projected FCFs
     pv_fcf_total = np.sum(sim_fcf * discount_factors, axis=1)  # (n,)
 
-    # Terminal value (Gordon Growth Model)
-    last_fcf = sim_fcf[:, -1]  # (n,)
-    terminal_value = last_fcf * (1 + sim_tgr) / (sim_wacc - sim_tgr)  # (n,)
+    # Terminal value (Gordon Growth Model) on the STEADY-STATE FCF — the same
+    # capex→D&A normalization as dcf._terminal_fcf, vectorized per path.
+    # Capitalizing the last explicit-year FCF instead (which carries the full
+    # growth-phase capex) pinned the whole distribution ~26% low for
+    # capex-heavy growers and contradicted the deterministic DCF chapter of
+    # the same report. Guarded by the perturbation→0 equivalence test
+    # (MC percentiles == calculate_dcf.implied_price).
+    terminal_rev = sim_revenue[:, -1]  # (n,)
+    terminal_da = terminal_rev * inputs.da_pct_revenue
+    terminal_ebit = terminal_rev * sim_margin - terminal_da
+    terminal_capex = terminal_da * (1 + sim_tgr)
+    terminal_fcf = (
+        terminal_ebit * (1 - inputs.tax_rate)
+        + terminal_da
+        - terminal_capex
+        - terminal_rev * inputs.nwc_pct_revenue
+    )  # (n,)
+    terminal_value = terminal_fcf * (1 + sim_tgr) / (sim_wacc - sim_tgr)  # (n,)
     pv_terminal = terminal_value / (1 + sim_wacc) ** (n_years - offset)  # (n,)
 
     # Enterprise value → equity value → implied price
     enterprise_value = pv_fcf_total + pv_terminal
     equity_value = enterprise_value - inputs.net_debt
     implied_prices = equity_value / inputs.shares_outstanding  # (n,)
+
+    # A non-positive steady-state terminal FCF capitalizes a trough into a
+    # perpetual negative value — calculate_dcf raises for it (BUG-074); the
+    # vectorized analogue drops those paths so they count as invalid sims.
+    implied_prices = np.where(terminal_fcf > 0, implied_prices, -np.inf)
 
     # --- Filter valid prices (IQR-based outlier removal) ---
     # Step 1: keep only positive prices

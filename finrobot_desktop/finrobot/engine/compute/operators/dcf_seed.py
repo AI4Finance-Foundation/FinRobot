@@ -433,6 +433,29 @@ def seed_dcf_inputs(
         nwc_pct = 0.01
         prov["nwc_pct_revenue"] = "1.0%（历史不可得，按通用基准）"
 
+    # ----- terminal_nwc_pct_revenue ------------------------------------------
+    # The explicit-window ΔNWC/revenue median embeds the HISTORICAL growth rate
+    # (NWC build ≈ marginal NWC ratio × Δrevenue), so holding it into a 3%
+    # perpetuity overstates the drag ~7x for a 20% grower (AMD: 8.1% → 1.4%) —
+    # and, mirrored, props up cash burners on a perpetual NWC subsidy (RIVN:
+    # −10% forever printed a 1.57x-market fair value). Steady state re-derives
+    # it from the marginal ratio: median(ΔNWC_build / Δrevenue) over revenue-
+    # GROWTH years × terminal growth. No usable growth years → None, and
+    # _terminal_fcf falls back to the explicit-window value (honest: don't
+    # pretend to have computed a scaling the data can't support).
+    terminal_nwc = _terminal_nwc_pct(
+        historical.change_in_working_capital, historical.revenue, terminal_growth_rate
+    )
+    if terminal_nwc is not None:
+        marginal_ratio, terminal_nwc_pct = terminal_nwc
+        prov["terminal_nwc_pct_revenue"] = (
+            f"{terminal_nwc_pct:.2%}（边际 NWC 比率 median(ΔNWC/Δ营收) "
+            f"{marginal_ratio:.1%} × 永续增长 {terminal_growth_rate:.1%}）"
+        )
+    else:
+        terminal_nwc_pct = None
+        prov["terminal_nwc_pct_revenue"] = f"沿用 {nwc_pct:.1%}（无营收增长年可推边际 NWC 比率）"
+
     # ----- tax_rate ---------------------------------------------------------
     # Company effective tax = income_tax_expense / pretax, where
     # pretax = net_income + income_tax_expense (textbook effective-rate口径).
@@ -548,6 +571,7 @@ def seed_dcf_inputs(
         ebitda_margin=max(0.01, min(0.95, ebitda_margin)),
         capex_pct_revenue=max(0.005, min(0.45, capex_pct)),
         nwc_pct_revenue=nwc_pct,
+        terminal_nwc_pct_revenue=terminal_nwc_pct,
         da_pct_revenue=max(0.005, min(0.40, da_pct)),
         tax_rate=max(0.05, min(0.40, tax_rate)),
         risk_free_rate=risk_free_rate,
@@ -637,3 +661,48 @@ def _pick_with_provenance(
     if ticker_value is not None and ticker_value > floor:
         return ticker_value, ticker_label
     return industry_value, industry_label
+
+
+# Marginal NWC ratio (ΔNWC/Δrevenue) clamp band. Real NWC-to-revenue LEVELS sit
+# well inside ±60%; a marginal-ratio median outside the band is data noise
+# (one-off settlements, derivative collateral swings), not working-capital
+# economics. The resulting terminal drag/subsidy is further clamped to the same
+# ±10% band as nwc_pct_revenue so the field validators never reject the seed.
+_MARGINAL_NWC_RATIO_CLAMP = 0.60
+_TERMINAL_NWC_CLAMP = 0.10
+
+
+def _terminal_nwc_pct(
+    change_in_working_capital: list[float],
+    revenue: list[float],
+    terminal_growth: float,
+) -> tuple[float, float] | None:
+    """Steady-state ΔNWC as % of revenue: median(ΔNWC_build/Δrevenue) × tg.
+
+    The marginal ratio is taken over revenue-GROWTH years only — ΔNWC/Δrev is
+    meaningless when revenue shrank (negative denominator flips the sign of an
+    economically identical build). FMP changeInWorkingCapital carries the
+    cash-flow sign (negative = NWC grew = cash consumed), so build = −value,
+    matching the nwc_pct_revenue convention above.
+
+    Returns ``(marginal_ratio, terminal_pct)`` for provenance, or None when no
+    usable growth year exists (declining/flat revenue history, NaN-polluted
+    rows) — the caller then leaves terminal_nwc_pct_revenue unset and the
+    perpetuity falls back to the explicit-window ΔNWC ratio.
+    """
+    ratios: list[float] = []
+    for i in range(1, min(len(change_in_working_capital), len(revenue))):
+        cwc, rev_now, rev_prev = change_in_working_capital[i], revenue[i], revenue[i - 1]
+        if any(math.isnan(v) for v in (cwc, rev_now, rev_prev)):
+            continue
+        d_rev = rev_now - rev_prev
+        if d_rev <= 0 or cwc == 0:
+            continue
+        ratios.append(-cwc / d_rev)
+    if not ratios:
+        return None
+    marginal = max(
+        -_MARGINAL_NWC_RATIO_CLAMP, min(_MARGINAL_NWC_RATIO_CLAMP, statistics.median(ratios))
+    )
+    terminal = max(-_TERMINAL_NWC_CLAMP, min(_TERMINAL_NWC_CLAMP, marginal * terminal_growth))
+    return marginal, terminal

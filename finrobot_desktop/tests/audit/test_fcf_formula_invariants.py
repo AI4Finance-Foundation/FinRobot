@@ -49,21 +49,33 @@ class TestDaTaxShield:
     """
 
     def test_da_capital_intensity_lowers_total_implied_price(self):
-        """With explicit capex FIXED, raising D&A LOWERS the total implied price.
+        """With explicit capex FIXED, raising D&A is piecewise in the total price.
 
-        The terminal value normalizes maintenance capex to D&A×(1+g): a firm
-        depreciating 10% of revenue must reinvest ~10% in perpetuity, a 1%
-        depreciator only ~1%. The terminal dominates the DCF, so higher D&A (more
-        capital-intensive) → lower value — even though the explicit-period tax
-        shield still raises forecast FCF (the two tests below). Before the
-        terminal-capex normalization, terminal capex was independent of D&A so
-        D&A read as purely accretive (the old monotonic-INCREASE invariant) — an
-        economically inconsistent 'capex ≠ D&A forever' steady state.
+        The terminal maintenance anchor is min(da_pct, capex_pct):
+
+        · BELOW the company's own capex (here 5%), D&A is depreciation of real
+          assets — it sets the steady-state reinvestment, so a 5% depreciator
+          must reinvest ~5% in perpetuity vs ~1% for a 1% depreciator. The
+          terminal dominates the DCF → higher D&A → LOWER value, even though
+          the explicit-period tax shield raises forecast FCF (tests below).
+
+        · ABOVE the company's own capex, the excess is acquisition-intangible
+          amortization — a sunk purchase price amortizing off, with NO cash
+          replacement cost. The anchor saturates at capex, so the excess is a
+          pure explicit-window tax shield → higher D&A → HIGHER value. Under
+          the old bare-D&A anchor this regime injected phantom perpetual
+          reinvestment instead (AMD post-Xilinx: GAAP D&A 12.3% vs real capex
+          2.5% → terminal FCF −$4.3B for a company with +$6.7B real FCF, SEC
+          FY2025 — the DCF chapter died and a single-leg comps SELL shipped).
         """
         low = calculate_dcf(_base_inputs(da_pct_revenue=0.01), wacc_override=0.10)
         mid = calculate_dcf(_base_inputs(da_pct_revenue=0.05), wacc_override=0.10)
+        # Depreciation regime (da ≤ capex): capital intensity dominates.
+        assert mid.implied_price < low.implied_price
+        # Amortization regime (da > capex): anchor saturates at capex — the
+        # excess is a pure tax shield, value rises again.
         high = calculate_dcf(_base_inputs(da_pct_revenue=0.10), wacc_override=0.10)
-        assert high.implied_price < mid.implied_price < low.implied_price
+        assert high.implied_price > mid.implied_price
 
     def test_fcf_increases_with_da_each_year(self):
         no_da = calculate_dcf(_base_inputs(da_pct_revenue=0.0), wacc_override=0.10)

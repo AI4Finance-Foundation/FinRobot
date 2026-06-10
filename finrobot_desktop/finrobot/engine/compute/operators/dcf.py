@@ -231,15 +231,38 @@ def _terminal_fcf(inputs: DCFInputs, terminal_revenue: float, terminal_growth: f
     """Steady-state free cash flow that feeds the Gordon perpetuity.
 
     In stable growth, reinvestment normalizes: capex converges to maintenance
-    (≈ D&A) plus the small net investment that funds perpetual growth, so
-    ``capex = D&A × (1 + g)`` (net capex = g × D&A grows the asset base at g).
-    Capitalizing the LAST EXPLICIT-YEAR FCF instead — which still carries the
-    full growth-phase capex — capitalizes a perpetually-suppressed cash flow: a
-    company growing at GDP (3%) cannot out-invest its depreciation by 67% forever.
-    For a capex-heavy grower (TSLA: capex 9.2% vs D&A 5.5% of revenue, held into
-    the perpetuity) that pinned the Gordon terminal value ~40% too low — implied
-    $28 vs the steady-state-normalized ~$38. Only the perpetuity BASE normalizes;
-    the explicit-forecast FCFs keep their growth-phase capex unchanged.
+    plus the small net investment that funds perpetual growth, so
+    ``capex = anchor × (1 + g)``. Capitalizing the LAST EXPLICIT-YEAR FCF
+    instead — which still carries the full growth-phase capex — capitalizes a
+    perpetually-suppressed cash flow: a company growing at GDP (3%) cannot
+    out-invest its depreciation by 67% forever. For a capex-heavy grower
+    (TSLA: capex 9.2% vs D&A 5.5% of revenue, held into the perpetuity) that
+    pinned the Gordon terminal value ~40% too low — implied $28 vs the
+    steady-state-normalized ~$38. Only the perpetuity BASE normalizes; the
+    explicit-forecast FCFs keep their growth-phase capex unchanged.
+
+    The maintenance anchor is ``min(da_pct, capex_pct)``, NOT bare D&A:
+    GAAP D&A includes acquisition-intangible amortization, which amortizes a
+    sunk purchase price and requires no cash replacement — anchoring perpetual
+    capex on it injects phantom reinvestment. AMD post-Xilinx: GAAP D&A 12.3%
+    of revenue vs real capex 2.5% (SEC FY2025: capex $0.97B / revenue $34.6B
+    = 2.8%, FCF +$6.7B) — the bare-D&A anchor burned ~10% of revenue forever,
+    flipped terminal FCF to −$4.3B and killed the DCF chapter of a company
+    with strongly positive real FCF. ``min`` keeps the capex-heavy side
+    (TSLA: anchor stays D&A 5.5%) and floors the amortization-heavy side at
+    the company's own maintenance spend. Terminal EBIT deducts (and the FCF
+    adds back) the SAME anchor so the perpetuity stays internally consistent —
+    acquisition amortization runs off in finite time, so it belongs in neither
+    perpetual EBIT nor perpetual reinvestment.
+
+    Terminal ΔNWC uses ``terminal_nwc_pct_revenue`` (seeded as the marginal
+    NWC ratio × terminal growth) when available: the historical ΔNWC/revenue
+    median embeds the historical GROWTH rate (NWC build ≈ NWC ratio × Δrev),
+    so holding it into a 3% perpetuity overstates the drag ~7x for a 20%
+    grower (AMD: 8.1% → 1.4%) — and the mirror image propped up cash burners
+    on a perpetual NWC *subsidy* (RIVN: −10% forever printed a 1.57x-market
+    fair value). ``None`` falls back to ``nwc_pct_revenue`` (inputs built
+    without historical context, e.g. direct REST payloads).
 
     The same normalization runs in calculate_dcf, calculate_sensitivity, the
     reverse-DCF kernel (_price_for), and run_monte_carlo (vectorized) so the
@@ -248,10 +271,16 @@ def _terminal_fcf(inputs: DCFInputs, terminal_revenue: float, terminal_growth: f
     pinned by a perturbation→0 equivalence test against calculate_dcf.
     """
     rev = terminal_revenue
-    da = rev * inputs.da_pct_revenue
+    anchor = min(inputs.da_pct_revenue, inputs.capex_pct_revenue)
+    da = rev * anchor
     ebit = rev * inputs.ebitda_margin - da
     capex = da * (1 + terminal_growth)
-    return ebit * (1 - inputs.tax_rate) + da - capex - rev * inputs.nwc_pct_revenue
+    nwc_pct = (
+        inputs.terminal_nwc_pct_revenue
+        if inputs.terminal_nwc_pct_revenue is not None
+        else inputs.nwc_pct_revenue
+    )
+    return ebit * (1 - inputs.tax_rate) + da - capex - rev * nwc_pct
 
 
 def _price_for(
@@ -591,8 +620,9 @@ def solve_for_implied_wacc(
     revenue, _, fcfs = _project_full(inputs)
     n = len(fcfs)
     offset = 0.5 if mid_year else 0.0
-    # Terminal capex normalizes to D&A (see _terminal_fcf) — same perpetuity base
-    # calculate_dcf uses, so the reverse-WACC solve round-trips the forward DCF.
+    # Terminal capex normalizes to the maintenance anchor (see _terminal_fcf) —
+    # same perpetuity base calculate_dcf uses, so the reverse-WACC solve
+    # round-trips the forward DCF.
     terminal_fcf = _terminal_fcf(inputs, revenue[-1], tg)
     # BUG-074 (see _price_for): a non-positive terminal FCF makes the perpetuity —
     # and therefore the whole reverse-WACC solve — undefined. Refuse it, mirroring

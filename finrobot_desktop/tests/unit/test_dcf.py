@@ -354,3 +354,119 @@ class TestGordonSpreadFloor:
         assert grid["implied_prices"][0][0] is None
         # wacc=8%: healthy spread → real price.
         assert grid["implied_prices"][1][0] is not None
+
+
+class TestTerminalReinvestmentAnchor:
+    """Terminal capex anchors on min(da_pct, capex_pct) — GAAP D&A polluted by
+    acquisition-intangible amortization must not masquerade as perpetual
+    reinvestment. Ratio fixtures come from external benchmarks: AMD FY2025 SEC
+    XBRL (revenue $34.64B, capex $0.97B = 2.8%, OCF $7.71B → real FCF +$6.7B)
+    against our seeded GAAP D&A 12.3%; TSLA ratios from the 2026-06-10 artifact
+    seed (D&A 5.5% < capex 9.2%)."""
+
+    def test_amortization_heavy_terminal_anchors_on_real_capex(self):
+        """AMD-ratio fixture, hand-calculated: $191.09 per share.
+
+        rev=100B, 1×0% growth, EBITDA=20.4%, D&A=12.3%, capex=2.5%, nwc=8.1%,
+        terminal_nwc=1.42%, tax=15.1%, wacc_override=10%, tg=3%, shares=1B,
+        net_debt=0.
+
+        Explicit FCF₁ = (20.4−12.3)×0.849 + 12.3 − 2.5 − 8.1 = 8.5769B,
+        PV = 7.7972B. Terminal anchor = min(12.3%, 2.5%) = 2.5%:
+        FCF_T = (20.4−2.5)×0.849 + 2.5 − 2.5×1.03 − 1.42 = 13.7021B,
+        TV = 13.7021×1.03/0.07 = 201.617B, PV(TV) = 183.288B.
+        EV = 191.085B → $191.09/share.
+
+        Under the old bare-D&A anchor the terminal margin was
+        (20.4−12.3)×0.849 − 12.3×0.03 − 8.1 = −1.59% of revenue → the DCF
+        chapter died (live run_7fa34496cb3a: terminal FCF −4.34e9) for a
+        company whose real FCF is +$6.7B (SEC FY2025)."""
+        inputs = _make_inputs(
+            revenue_base=100_000_000_000,
+            revenue_growth_rates=[0.0],
+            ebitda_margin=0.204,
+            da_pct_revenue=0.123,
+            capex_pct_revenue=0.025,
+            nwc_pct_revenue=0.081,
+            terminal_nwc_pct_revenue=0.0142,
+            tax_rate=0.151,
+            terminal_growth_rate=0.03,
+            net_debt=0,
+        )
+        result = calculate_dcf(inputs, wacc_override=0.10)
+        assert abs(result.implied_price - 191.09) < 0.5, f"Got {result.implied_price}"
+
+    def test_capex_heavy_terminal_keeps_da_anchor(self):
+        """TSLA-ratio fixture, hand-calculated: $94.60 per share — identical to
+        the pre-fix arithmetic, because min(5.5%, 9.2%) = 5.5% = the old D&A
+        anchor. Pins that the AMD fix does NOT walk back the capex-heavy
+        normalization (commit 1a677d4c, implied $28 → $38 class).
+
+        rev=100B, 1×0% growth, EBITDA=15.1%, D&A=5.5%, capex=9.2%, nwc=−0.1%,
+        tax=28%, wacc_override=10%, tg=3%: FCF₁ = 9.6×0.72+5.5−9.2+0.1
+        = 3.312B, PV = 3.0109B; FCF_T = 9.6×0.72+5.5−5.665+0.1 = 6.847B,
+        TV = 100.748B, PV = 91.589B → EV 94.600B → $94.60."""
+        inputs = _make_inputs(
+            revenue_base=100_000_000_000,
+            revenue_growth_rates=[0.0],
+            ebitda_margin=0.151,
+            da_pct_revenue=0.055,
+            capex_pct_revenue=0.092,
+            nwc_pct_revenue=-0.001,
+            tax_rate=0.28,
+            terminal_growth_rate=0.03,
+            net_debt=0,
+        )
+        result = calculate_dcf(inputs, wacc_override=0.10)
+        assert abs(result.implied_price - 94.60) < 0.5, f"Got {result.implied_price}"
+
+
+class TestTerminalNwc:
+    def test_none_falls_back_to_explicit_window_nwc(self):
+        """terminal_nwc_pct_revenue=None (direct REST payloads, hand-built
+        inputs) must reproduce the explicit-window ΔNWC ratio in the
+        perpetuity — byte-identical to passing it explicitly."""
+        implicit = calculate_dcf(_make_inputs(), wacc_override=0.10)
+        explicit = calculate_dcf(_make_inputs(terminal_nwc_pct_revenue=0.02), wacc_override=0.10)
+        assert implicit.implied_price == explicit.implied_price
+        assert implicit.terminal_value == explicit.terminal_value
+
+    def test_scales_only_the_perpetuity_not_explicit_fcfs(self):
+        """The terminal override must not leak into the explicit window: the
+        projected FCF path is byte-identical, only the terminal value moves —
+        and a lower steady-state drag means a HIGHER terminal value."""
+        base = calculate_dcf(_make_inputs(), wacc_override=0.10)
+        scaled = calculate_dcf(_make_inputs(terminal_nwc_pct_revenue=0.005), wacc_override=0.10)
+        assert scaled.projected_fcf == base.projected_fcf
+        assert scaled.terminal_value > base.terminal_value
+        assert scaled.implied_price > base.implied_price
+
+    def test_perpetual_nwc_subsidy_no_longer_props_up_cash_burner(self):
+        """RIVN-ratio fixture: EBITDA 16.6% sits BELOW the 20.7% maintenance
+        anchor — a perpetually terminal-unprofitable profile. The legacy
+        fallback (ΔNWC −10% of revenue as a cash source, forever) papered over
+        it and published a fair value 1.57x the market price for a cash
+        burner; the growth-scaled steady-state subsidy (−1.8%) no longer
+        covers the gap, so the Gordon perpetuity honestly refuses."""
+        rivn_ratios = dict(
+            revenue_base=100_000_000_000,
+            revenue_growth_rates=[0.0],
+            ebitda_margin=0.166,
+            da_pct_revenue=0.207,
+            capex_pct_revenue=0.231,
+            nwc_pct_revenue=-0.10,
+            tax_rate=0.20,
+            terminal_growth_rate=0.03,
+            net_debt=0,
+        )
+        # Legacy fallback (None → −10% forever): the subsidy alone keeps the
+        # terminal FCF positive and a price prints.
+        legacy = calculate_dcf(_make_inputs(**rivn_ratios), wacc_override=0.10)
+        assert legacy.implied_price > 0
+        # Growth-scaled steady state: subsidy shrinks to −1.8% and the
+        # structurally negative perpetuity surfaces.
+        with pytest.raises(ValueError, match="non-positive"):
+            calculate_dcf(
+                _make_inputs(**rivn_ratios, terminal_nwc_pct_revenue=-0.018),
+                wacc_override=0.10,
+            )

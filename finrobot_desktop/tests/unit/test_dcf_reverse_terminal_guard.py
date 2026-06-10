@@ -25,13 +25,18 @@ from finrobot.engine.models.financial import DCFInputs
 
 
 def _negative_terminal_inputs() -> DCFInputs:
-    # ebitda_margin 0.20 ≈ D&A 0.18 drives steady-state NOPAT+D&A−capex−ΔNWC
-    # negative — terminal_fcf < 0 regardless of the explicit growth searched.
+    # EBITDA margin 5% equals the maintenance anchor (min(da, capex) = 5%), so
+    # steady-state EBIT ≈ 0 and the NWC drag pushes terminal FCF negative
+    # regardless of the explicit growth searched. The old fixture manufactured
+    # the negative via D&A 18% > capex 5% — exactly the acquisition-amortization
+    # phantom the min(da, capex) anchor now removes (the AMD case), so it
+    # legitimately no longer refuses; this profile is GENUINELY terminal-
+    # unprofitable, not an accounting artifact.
     return DCFInputs(
         revenue_base=100_000_000_000,
         revenue_growth_rates=[0.05] * 5,
-        ebitda_margin=0.20,
-        da_pct_revenue=0.18,
+        ebitda_margin=0.05,
+        da_pct_revenue=0.05,
         capex_pct_revenue=0.05,
         nwc_pct_revenue=0.02,
         tax_rate=0.21,

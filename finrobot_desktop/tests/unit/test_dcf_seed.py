@@ -27,6 +27,7 @@ from finrobot.engine.compute.operators.dcf_seed import (
     _decay_growth_schedule,
     _effective_tax_rate,
     _median_ratio,
+    _terminal_nwc_pct,
     _median_recent,
     seed_dcf_inputs,
 )
@@ -751,3 +752,71 @@ class TestInputsFetchedAtProvenance:
             da_pct_revenue=0.03,
         )
         assert inputs.inputs_fetched_at is None
+
+
+class TestTerminalNwcPct:
+    """Marginal NWC ratio median(ΔNWC_build/Δrevenue) × terminal growth — the
+    steady-state ΔNWC drag. FMP changeInWorkingCapital carries the cash-flow
+    sign (negative = NWC grew = cash consumed), so build = −value."""
+
+    def test_growth_years_marginal_ratio_scaled_by_tg(self):
+        # i=1: build=1, Δrev=10 → 0.10; i=2: build=2, Δrev=11 → 0.1818
+        # median = 0.1409 → × 3% = 0.42%
+        result = _terminal_nwc_pct([0.0, -1.0, -2.0], [100.0, 110.0, 121.0], 0.03)
+        assert result is not None
+        marginal, terminal = result
+        assert abs(marginal - 0.14091) < 1e-4
+        assert abs(terminal - 0.0042273) < 1e-6
+
+    def test_declining_revenue_years_skipped_and_all_declining_returns_none(self):
+        # Δrev ≤ 0 everywhere → no usable marginal ratio → honest None
+        assert _terminal_nwc_pct([0.0, -1.0, -2.0], [121.0, 110.0, 100.0], 0.03) is None
+
+    def test_nan_rows_filtered(self):
+        result = _terminal_nwc_pct([0.0, float("nan"), -2.0], [100.0, 110.0, 121.0], 0.03)
+        assert result is not None
+        marginal, _ = result
+        assert abs(marginal - (2.0 / 11.0)) < 1e-9
+
+    def test_zero_cwc_treated_as_missing_row(self):
+        # cwc == 0 follows the _median_ratio convention: row absent from the
+        # cashflow statement, not a genuine zero build.
+        assert _terminal_nwc_pct([0.0, 0.0, 0.0], [100.0, 110.0, 121.0], 0.03) is None
+
+    def test_noise_clamped_to_marginal_band(self):
+        # One-off settlement: build 50 on Δrev 10 → ratio 5.0, clamped to 0.6
+        # → terminal = 0.6 × 3% = 1.8%
+        result = _terminal_nwc_pct([0.0, -50.0], [100.0, 110.0], 0.03)
+        assert result is not None
+        marginal, terminal = result
+        assert marginal == 0.60
+        assert abs(terminal - 0.018) < 1e-12
+
+    def test_cash_source_negative_ratio_clamped_symmetrically(self):
+        # Positive cwc = NWC released cash (payables float). Extreme release
+        # clamps at −0.6 → terminal −1.8%: the RIVN perpetual-subsidy ceiling.
+        result = _terminal_nwc_pct([0.0, 50.0], [100.0, 110.0], 0.03)
+        assert result is not None
+        marginal, terminal = result
+        assert marginal == -0.60
+        assert abs(terminal - (-0.018)) < 1e-12
+
+
+class TestSeedTerminalNwc:
+    def test_seed_populates_terminal_nwc_with_provenance(self):
+        """AAPL fixture: growth years are FY22 (Δrev 28.5B, build −1.2B) and
+        FY24 (Δrev 7.75B, build −1.9B) — FY23 revenue declined and is skipped.
+        median(−0.0421, −0.2452) = −0.1436 → × tg 3% ≈ −0.43%."""
+        inputs = seed_dcf_inputs(_aapl_financials(), _aapl_historical())
+        assert inputs.terminal_nwc_pct_revenue is not None
+        assert abs(inputs.terminal_nwc_pct_revenue - (-0.0043097)) < 1e-4
+        prov = inputs.assumption_provenance["terminal_nwc_pct_revenue"]
+        assert "边际 NWC 比率" in prov
+
+    def test_seed_falls_back_to_none_without_growth_years(self):
+        hist = _aapl_historical()
+        hist.revenue = [391e9, 383e9, 380e9, 370e9]  # monotonically declining
+        inputs = seed_dcf_inputs(_aapl_financials(), hist)
+        assert inputs.terminal_nwc_pct_revenue is None
+        prov = inputs.assumption_provenance["terminal_nwc_pct_revenue"]
+        assert "沿用" in prov

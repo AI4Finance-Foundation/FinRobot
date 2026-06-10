@@ -267,21 +267,30 @@ def run_monte_carlo(
     pv_fcf_total = np.sum(sim_fcf * discount_factors, axis=1)  # (n,)
 
     # Terminal value (Gordon Growth Model) on the STEADY-STATE FCF — the same
-    # capex→D&A normalization as dcf._terminal_fcf, vectorized per path.
-    # Capitalizing the last explicit-year FCF instead (which carries the full
-    # growth-phase capex) pinned the whole distribution ~26% low for
-    # capex-heavy growers and contradicted the deterministic DCF chapter of
-    # the same report. Guarded by the perturbation→0 equivalence test
-    # (MC percentiles == calculate_dcf.implied_price).
+    # normalization as dcf._terminal_fcf, vectorized per path: maintenance
+    # anchor = min(da_pct, capex_pct) so acquisition-intangible amortization
+    # (AMD/Xilinx: GAAP D&A 12.3% vs real capex 2.5%) can't masquerade as
+    # perpetual reinvestment, and terminal ΔNWC uses the growth-scaled seed
+    # when available. Capitalizing the last explicit-year FCF instead (which
+    # carries the full growth-phase capex) pinned the whole distribution ~26%
+    # low for capex-heavy growers and contradicted the deterministic DCF
+    # chapter of the same report. Guarded by the perturbation→0 equivalence
+    # test (MC percentiles == calculate_dcf.implied_price).
+    terminal_anchor = min(inputs.da_pct_revenue, inputs.capex_pct_revenue)
+    terminal_nwc_pct = (
+        inputs.terminal_nwc_pct_revenue
+        if inputs.terminal_nwc_pct_revenue is not None
+        else inputs.nwc_pct_revenue
+    )
     terminal_rev = sim_revenue[:, -1]  # (n,)
-    terminal_da = terminal_rev * inputs.da_pct_revenue
+    terminal_da = terminal_rev * terminal_anchor
     terminal_ebit = terminal_rev * sim_margin - terminal_da
     terminal_capex = terminal_da * (1 + sim_tgr)
     terminal_fcf = (
         terminal_ebit * (1 - inputs.tax_rate)
         + terminal_da
         - terminal_capex
-        - terminal_rev * inputs.nwc_pct_revenue
+        - terminal_rev * terminal_nwc_pct
     )  # (n,)
     terminal_value = terminal_fcf * (1 + sim_tgr) / (sim_wacc - sim_tgr)  # (n,)
     pv_terminal = terminal_value / (1 + sim_wacc) ** (n_years - offset)  # (n,)

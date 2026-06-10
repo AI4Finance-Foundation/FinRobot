@@ -440,6 +440,19 @@ class DCFInputs(BaseModel):
     nwc_pct_revenue: float = Field(
         ge=-0.2, le=0.5, description="Net working capital change as % of revenue"
     )
+    terminal_nwc_pct_revenue: float | None = Field(
+        default=None,
+        ge=-0.10,
+        le=0.10,
+        description=(
+            "Steady-state ΔNWC as % of revenue for the Gordon perpetuity, seeded "
+            "as marginal NWC ratio median(ΔNWC/Δrevenue) × terminal growth. The "
+            "explicit-window nwc_pct_revenue embeds the historical growth rate, "
+            "so holding it into a low-growth perpetuity overstates the drag (or "
+            "the subsidy) several-fold. None = fall back to nwc_pct_revenue "
+            "(inputs built without multi-year history, e.g. direct REST payloads)."
+        ),
+    )
     da_pct_revenue: float = Field(
         default=0.0,
         ge=0,
@@ -734,6 +747,17 @@ class StepOutput(BaseModel):
 
     text: str
     structured: object | None = Field(default=None)  # Accepts BaseModel, dict, or any object
+    warnings: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Step-level warnings for the artifact's machine-readable warnings "
+            "array. The channel for a step that degrades with structured=None "
+            "(e.g. financial_modeling when the DCF is not applicable): builder "
+            "warning harvesting only walks structured models' .warnings fields, "
+            "so without this the degrade reason lived exclusively in server "
+            "logs and the UI showed a bare 'DCF FAIR VALUE —' with no cause."
+        ),
+    )
 
 
 class HistoricalMetrics(BaseModel):

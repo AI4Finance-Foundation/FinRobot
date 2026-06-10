@@ -5,6 +5,7 @@ import { fetchWithTimeout } from '../api/fetch'
 import { useToastStore } from '../stores/toastStore'
 import { mapErrorToUserMessage, FetchHttpError } from '../utils/errorMessage'
 import { useI18n, tSync } from '../i18n'
+import { formatDate } from '../utils/format'
 import { useUpdaterStore } from '../stores/updaterStore'
 import { currentAppVersion } from '../lib/updater'
 import { isTauri, openExternal } from '../lib/tauri'
@@ -1174,6 +1175,10 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                 </div>
               </div>
 
+              {/* Live circuit/key state per provider — feeds from the real
+                  ProviderHealth breaker (门五②), never a mocked green panel. */}
+              <ProviderStatusPanel />
+
               {/* Core tier — keys that materially sharpen the numbers analysts trust. */}
               <div className="settings-tier">
                 <div className="settings-tier-head">
@@ -1386,6 +1391,119 @@ function ClearKeyConfirmModal({
 // The 13F reverse index is OFF by default (building it downloads a whole
 // quarter of market-wide filings — ~1-2h). This section shows cache state,
 // flips auto-sync, and triggers a manual build behind a confirm (BUG-009).
+
+// ── Data Provider Status panel (门五②) ──────────────────────────────────────
+// Mirror of finrobot.routes.settings.ProviderHealthEntry — live ProviderHealth
+// breaker signals, never mocked. circuit_state tokens: 'closed' | 'open'.
+interface ProviderHealthEntryShape {
+  name: string
+  key_required: boolean
+  key_configured: boolean | null
+  available: boolean
+  circuit_state: 'closed' | 'open'
+  cooldown_until: string | null
+  consecutive_failures: number
+  last_success: string | null
+  last_failure: string | null
+  last_rate_limited: boolean
+}
+
+// Brand names — i18n-exempt (金融术语豁免清单); raw provider id falls through.
+const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+  fmp: 'FMP',
+  yfinance: 'Yahoo Finance',
+  finnhub: 'Finnhub',
+  edgar_tools: 'SEC EDGAR',
+}
+
+function ProviderStatusPanel(): React.ReactElement | null {
+  const { t, locale } = useI18n()
+  const { data, isError } = useQuery<{ providers: ProviderHealthEntryShape[] }>({
+    queryKey: ['provider-health'],
+    queryFn: async () => {
+      const resp = await fetchWithTimeout(`${BASE_URL}/api/settings/provider-health`)
+      if (!resp.ok) throw new FetchHttpError(resp.status, resp.statusText)
+      return (await resp.json()) as { providers: ProviderHealthEntryShape[] }
+    },
+    refetchInterval: 30_000,
+  })
+
+  if (isError) {
+    return <p className="settings-hint">{t('settings.providerStatus.unavailable')}</p>
+  }
+  // Shape-guard, not just null-guard: an unexpected payload (proxy error page,
+  // wrong endpoint) must degrade to "no panel", never crash the whole view.
+  const providers = data?.providers
+  if (!Array.isArray(providers) || providers.length === 0) return null
+
+  return (
+    <div className="settings-tier">
+      <div className="settings-tier-head">
+        <span className="settings-tier-label is-core">{t('settings.providerStatus.title')}</span>
+        <span className="settings-tier-note">{t('settings.providerStatus.hint')}</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {providers.map((p) => {
+          const open = p.circuit_state === 'open'
+          const detail = open
+            ? `${t('settings.providerStatus.cooldownUntil')} ${formatDate(p.cooldown_until, locale, 'datetime')}${p.last_rate_limited ? ' · 429' : ''}`
+            : p.last_success
+              ? `${t('settings.providerStatus.lastSuccess')} ${formatDate(p.last_success, locale, 'datetime')}`
+              : t('settings.providerStatus.noCalls')
+          return (
+            <div
+              key={p.name}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '7px 10px',
+                borderRadius: 8,
+                background: 'var(--bg-2)',
+                border: '1px solid var(--border-subtle)',
+              }}
+            >
+              <span
+                aria-hidden="true"
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  background: open ? 'var(--danger)' : 'var(--success)',
+                  boxShadow: open ? '0 0 6px var(--danger-soft)' : '0 0 6px var(--success-soft)',
+                  flexShrink: 0,
+                }}
+              />
+              <span style={{ fontWeight: 600, fontSize: 12.5, minWidth: 110 }}>
+                {PROVIDER_DISPLAY_NAMES[p.name] ?? p.name}
+              </span>
+              <span className={`settings-badge ${open ? 'is-required' : 'is-ok'}`}>
+                {open ? t('settings.providerStatus.cooldown') : t('settings.providerStatus.ok')}
+              </span>
+              {p.key_required && (
+                <span className={`settings-badge ${p.key_configured ? 'is-ok' : 'is-pending'}`}>
+                  {p.key_configured
+                    ? t('settings.providerStatus.keyConfigured')
+                    : t('settings.providerStatus.noKey')}
+                </span>
+              )}
+              <span
+                style={{
+                  marginLeft: 'auto',
+                  color: 'var(--text-muted)',
+                  fontSize: 11,
+                  fontFamily: 'var(--font-mono)',
+                }}
+              >
+                {detail}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 interface RefreshRuntime {
   status: 'idle' | 'running' | 'done' | 'error'

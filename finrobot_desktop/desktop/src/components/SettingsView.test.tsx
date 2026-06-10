@@ -47,16 +47,49 @@ const SEC_HOLDINGS_STATUS = {
   },
 }
 
+const PROVIDER_HEALTH = {
+  providers: [
+    {
+      name: 'fmp',
+      key_required: true,
+      key_configured: true,
+      available: true,
+      circuit_state: 'closed',
+      cooldown_until: null,
+      consecutive_failures: 0,
+      last_success: '2026-06-10T12:00:00Z',
+      last_failure: null,
+      last_rate_limited: false,
+    },
+    {
+      name: 'yfinance',
+      key_required: false,
+      key_configured: null,
+      available: false,
+      circuit_state: 'open',
+      cooldown_until: '2026-06-10T12:10:00Z',
+      consecutive_failures: 1,
+      last_success: null,
+      last_failure: '2026-06-10T12:01:00Z',
+      last_rate_limited: true,
+    },
+  ],
+}
+
 beforeEach(() => {
   vi.mocked(api.GET).mockResolvedValue({ data: OK_SETTINGS, error: undefined } as never)
-  // SecHoldingsSection + reset mutation use raw fetch; stub it.
+  // SecHoldingsSection / ProviderStatusPanel / reset mutation use raw fetch;
+  // dispatch on URL so each consumer gets its own payload shape.
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => ({
+    vi.fn(async (url: RequestInfo | URL) => ({
       ok: true,
       status: 200,
       statusText: 'OK',
-      json: async () => SEC_HOLDINGS_STATUS,
+      json: async () =>
+        String(url).includes('/api/settings/provider-health')
+          ? PROVIDER_HEALTH
+          : SEC_HOLDINGS_STATUS,
     })) as unknown as typeof fetch,
   )
 })
@@ -79,6 +112,16 @@ describe('SettingsView', () => {
   it('renders AI 模型 section', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
     expect(await screen.findByRole('heading', { name: 'AI Model' })).toBeInTheDocument()
+  })
+
+  it('renders provider status rows from the live breaker feed', async () => {
+    renderWithQuery(<SettingsView onComplete={() => {}} />)
+    // fmp: circuit closed + key configured
+    expect(await screen.findByText('FMP')).toBeInTheDocument()
+    expect(screen.getByText('Key set')).toBeInTheDocument()
+    // yfinance: tripped breaker surfaces a cooldown badge, never a green dot.
+    // (The baseline blurb also says "Yahoo Finance", so assert on the badge.)
+    expect(screen.getByText('Cooldown')).toBeInTheDocument()
   })
 
   it('renders 数据源 section', async () => {

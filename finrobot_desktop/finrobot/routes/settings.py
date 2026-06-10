@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+import os
+import stat
+import tempfile
 from collections.abc import Awaitable, Callable
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +26,8 @@ from finrobot.secret_store import SecretStorageMode
 from finrobot.engine.data.factory import build_data_layer
 from finrobot.engine.agents.factory import create_sub_agents
 from finrobot.engine.orchestrator import create_lead_agent
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -683,13 +689,81 @@ async def _replace_runtime_settings(request: Request, settings: FinRobotSettings
     await old_data_layer.close()
 
 
-def load_non_secret_settings(path: Path) -> dict[str, Any]:
+def load_non_secret_settings_with_error(path: Path) -> tuple[dict[str, Any], str | None]:
+    """Read the persisted non-secret overrides, tolerating a corrupt file.
+
+    Returns ``(overrides, corruption_error)``. A truncated / malformed / unreadable
+    settings.json degrades to ``({}, "<description>")`` instead of raising: the
+    desktop sidecar gets SIGKILLed by the Tauri shell at exit, so a torn write
+    was reachable before ``_atomic_write_text`` existed, and a crash here killed
+    the server boot — leaving the user with no UI to repair anything from. The
+    boot path (server.lifespan) surfaces the error string via the startup_error
+    banner so the corruption is user-visible, never silent; any later Settings
+    save rewrites the file clean. This mirrors the tolerance
+    ``_merge_non_secret_settings`` below always had (same file, same risk).
+    """
     if not path.exists():
-        return {}
-    raw = json.loads(path.read_text(encoding="utf-8"))
+        return {}, None
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        error = (
+            f"Settings file {path} is corrupt or unreadable ({exc}); it was ignored and "
+            "non-secret settings reverted to defaults. Open Settings and save once to "
+            "rewrite it."
+        )
+        logger.warning("%s", error)
+        return {}, error
     if not isinstance(raw, dict):
-        raise ValueError(f"Settings file {path} is malformed")
-    return {k: v for k, v in raw.items() if k in _NON_SECRET_FIELDS}
+        error = (
+            f"Settings file {path} is malformed (expected a JSON object, got "
+            f"{type(raw).__name__}); it was ignored and non-secret settings reverted to "
+            "defaults. Open Settings and save once to rewrite it."
+        )
+        logger.warning("%s", error)
+        return {}, error
+    return {k: v for k, v in raw.items() if k in _NON_SECRET_FIELDS}, None
+
+
+def load_non_secret_settings(path: Path) -> dict[str, Any]:
+    """Non-secret overrides from settings.json; corruption degrades to ``{}``.
+
+    Convenience wrapper for callers that don't surface the corruption to a UI
+    (clear-secret rebuild, diagnostic scripts). The boot path uses
+    :func:`load_non_secret_settings_with_error` to also report the corruption.
+    """
+    overrides, _error = load_non_secret_settings_with_error(path)
+    return overrides
+
+
+def _atomic_write_text(path: Path, payload: str) -> None:
+    """Write ``payload`` to ``path`` via temp file + ``os.replace`` (same directory).
+
+    settings.json was previously written with a bare ``write_text`` (open-truncate-
+    write), so a SIGKILL mid-write — routine when the Tauri shell tears down the
+    sidecar — could leave a truncated file on disk. The rename is atomic on the
+    same filesystem, so readers only ever observe the old or the new content.
+    Preserves the existing file's permission bits (0644 default for a fresh file,
+    matching what ``write_text`` produced under the standard umask).
+    """
+    try:
+        mode = stat.S_IMODE(path.stat().st_mode)
+    except FileNotFoundError:
+        mode = 0o644
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=f"{path.name}.", suffix=".tmp")
+    try:
+        os.write(fd, payload.encode("utf-8"))
+        os.fsync(fd)
+        os.close(fd)
+        fd = -1  # mark as closed
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        if fd >= 0:
+            os.close(fd)
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
 
 
 def _merge_non_secret_settings(path: Path, updates: dict[str, Any]) -> None:
@@ -736,7 +810,4 @@ def _merge_non_secret_settings(path: Path, updates: dict[str, Any]) -> None:
     # the read side ``load_non_secret_settings`` returns the raw dict and
     # pydantic-settings coerces ISO strings back into ``datetime`` fields
     # (e.g. ``sec_identity_dismissed_at``) during ``FinRobotSettings(...)``.
-    path.write_text(
-        json.dumps(existing, indent=2, sort_keys=True, default=str),
-        encoding="utf-8",
-    )
+    _atomic_write_text(path, json.dumps(existing, indent=2, sort_keys=True, default=str))

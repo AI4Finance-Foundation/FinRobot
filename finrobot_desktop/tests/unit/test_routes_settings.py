@@ -17,6 +17,8 @@ source. The route surface this covers:
 from __future__ import annotations
 
 import json
+import os
+import stat
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -29,6 +31,8 @@ from finrobot.config import FinRobotSettings, get_settings
 from finrobot.routes.settings import (
     _DATA_PROBES,
     _merge_non_secret_settings,
+    load_non_secret_settings,
+    load_non_secret_settings_with_error,
     router as settings_router,
 )
 
@@ -146,6 +150,108 @@ def test_merge_accepts_peer_sticky_window(tmp_path: Path) -> None:
 
     content = json.loads(path.read_text())
     assert content == {"peer_sticky_max_age_days": 0}
+
+
+# ---------------------------------------------------------------------------
+# settings.json torn-write resilience — atomic write side
+# (Tauri SIGKILLs the sidecar at exit; a bare write_text could leave a
+# truncated file that then killed every subsequent boot.)
+# ---------------------------------------------------------------------------
+
+
+def test_merge_writes_via_atomic_replace_and_leaves_no_temp(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The write goes through os.replace (temp + rename), and no .tmp survives."""
+    path = tmp_path / "settings.json"
+    replace_calls: list[tuple[str, str]] = []
+    real_replace = os.replace
+
+    def _spy(src: Any, dst: Any) -> None:
+        replace_calls.append((str(src), str(dst)))
+        real_replace(src, dst)
+
+    monkeypatch.setattr("os.replace", _spy)
+    _merge_non_secret_settings(path, {"model_name": "openai:gpt-4o"})
+
+    assert replace_calls and replace_calls[0][1] == str(path)
+    assert json.loads(path.read_text()) == {"model_name": "openai:gpt-4o"}
+    # The temp file was renamed into place, never left behind.
+    assert sorted(tmp_path.iterdir()) == [path]
+
+
+def test_merge_failure_leaves_existing_file_intact(tmp_path: Path, monkeypatch: Any) -> None:
+    """If the final rename fails, the previous settings.json is untouched and the
+    temp file is cleaned up — a failed save can no longer truncate the config."""
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"log_level": "DEBUG"}))
+
+    def _boom(src: Any, dst: Any) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr("os.replace", _boom)
+    with pytest.raises(OSError):
+        _merge_non_secret_settings(path, {"model_name": "openai:gpt-4o"})
+
+    assert json.loads(path.read_text()) == {"log_level": "DEBUG"}
+    assert sorted(tmp_path.iterdir()) == [path]
+
+
+def test_merge_preserves_existing_file_mode(tmp_path: Path) -> None:
+    """The atomic rewrite keeps the permission bits of the file it replaces."""
+    path = tmp_path / "settings.json"
+    path.write_text("{}")
+    os.chmod(path, 0o644)
+
+    _merge_non_secret_settings(path, {"model_name": "openai:gpt-4o"})
+
+    assert stat.S_IMODE(path.stat().st_mode) == 0o644
+
+
+# ---------------------------------------------------------------------------
+# settings.json torn-write resilience — tolerant read side
+# (the boot path get_settings(**load_non_secret_settings(...)) must never raise)
+# ---------------------------------------------------------------------------
+
+
+def test_load_with_error_tolerates_truncated_json(tmp_path: Path) -> None:
+    """A half-written file degrades to ({}, error) instead of raising."""
+    path = tmp_path / "settings.json"
+    path.write_text('{"model_name": "openai:gp')  # torn write
+
+    overrides, error = load_non_secret_settings_with_error(path)
+
+    assert overrides == {}
+    assert error is not None and "settings.json" in error
+    # The exact boot-path expression must survive a corrupt file (the old crash):
+    settings = get_settings(**load_non_secret_settings(path))
+    assert settings.model_name == get_settings().model_name
+
+
+def test_load_with_error_tolerates_non_dict_json(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    path.write_text("[1, 2, 3]")
+
+    overrides, error = load_non_secret_settings_with_error(path)
+
+    assert overrides == {}
+    assert error is not None and "settings.json" in error
+
+
+def test_load_with_error_missing_file_reports_no_error(tmp_path: Path) -> None:
+    overrides, error = load_non_secret_settings_with_error(tmp_path / "settings.json")
+    assert overrides == {}
+    assert error is None
+
+
+def test_load_with_error_valid_file_reports_no_error(tmp_path: Path) -> None:
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"model_name": "openai:gpt-4o", "fmp_api_key": "leak"}))
+
+    overrides, error = load_non_secret_settings_with_error(path)
+
+    assert overrides == {"model_name": "openai:gpt-4o"}  # secret fields filtered
+    assert error is None
 
 
 # ---------------------------------------------------------------------------

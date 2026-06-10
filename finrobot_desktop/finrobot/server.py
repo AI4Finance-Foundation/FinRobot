@@ -42,7 +42,7 @@ from finrobot.routes.debate import router as debate_router
 from finrobot.routes.runs import router as runs_router
 from finrobot.routes.search import router as search_router
 from finrobot.routes.sec_holdings import router as sec_holdings_router
-from finrobot.routes.settings import load_non_secret_settings
+from finrobot.routes.settings import load_non_secret_settings_with_error
 from finrobot.routes.settings import router as settings_router
 from finrobot.routes.sentiment import router as sentiment_router
 from finrobot.routes.valuation import router as valuation_router
@@ -111,7 +111,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     ensure_home()
 
     settings_path = SETTINGS_JSON
-    settings = get_settings(**load_non_secret_settings(settings_path))
+    # Corruption-tolerant read: the Tauri shell SIGKILLs the sidecar at exit, so
+    # a torn settings.json was reachable (pre-atomic-write files especially). A
+    # corrupt file must NEVER prevent boot — the desktop app needs HTTP up so
+    # the user can repair the config in SettingsView. We degrade to defaults and
+    # surface the corruption via the startup_error banner below.
+    non_secret_overrides, settings_file_error = load_non_secret_settings_with_error(settings_path)
+    settings = get_settings(**non_secret_overrides)
     secret_store, secret_storage_mode = create_secret_store()
     settings = await hydrate_settings_from_secrets(settings, secret_store)
 
@@ -135,6 +141,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except ValueError as exc:
         startup_error = str(exc)
         logger.error("Runtime config validation failed: %s", startup_error)
+    if settings_file_error:
+        # A corrupt settings.json silently reset every non-secret setting to its
+        # default — that fact must reach the user (banner via GET /api/settings),
+        # not just a log line. Root cause first, then any validation error. The
+        # banner clears itself on the next Settings save: PUT re-validates and
+        # _merge_non_secret_settings rewrites the file clean.
+        logger.error("Settings file corrupt at boot: %s", settings_file_error)
+        startup_error = (
+            f"{settings_file_error}; {startup_error}" if startup_error else settings_file_error
+        )
     app.state.startup_error = startup_error
 
     # Load skills if available

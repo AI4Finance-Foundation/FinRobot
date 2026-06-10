@@ -121,6 +121,24 @@ async def test_catalysts_min_importance_keys_cache(app_with_deps):
 
 
 @pytest.mark.asyncio
+async def test_catalysts_min_importance_bounded_at_edge(app_with_deps):
+    """min_importance is documented 1-5 AND keys a cache slot — an unbounded
+    int would mint unbounded cache rows. Out-of-range → 422 before any fetch."""
+    app = app_with_deps
+    classify = AsyncMock(return_value=_classified())
+    with (
+        patch("finrobot.routes.data.fetch_news", new=AsyncMock(return_value=_raw())),
+        patch("finrobot.routes.data.classify_news", new=classify),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            for bad in (0, 6, -1, 100000):
+                resp = await client.get(f"/api/data/AAPL/catalysts?min_importance={bad}")
+                assert resp.status_code == 422, bad
+    classify.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_catalysts_empty_news_returns_empty_without_classify(app_with_deps):
     """No news → 200 [] and classify_news is never called."""
     app = app_with_deps

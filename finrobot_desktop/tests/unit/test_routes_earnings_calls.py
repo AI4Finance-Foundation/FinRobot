@@ -111,6 +111,37 @@ async def test_earnings_calls_all_valid_pass_through(app_with_deps):
 
 
 @pytest.mark.asyncio
+async def test_earnings_calls_params_bounded_at_edge(app_with_deps):
+    """``limit``/``quarter``/``year`` are bounded query params (mirroring the
+    sentiment route's ``days`` cap): they flow into the FMP request and the
+    cache key, so unbounded values hammer the quota and mint unbounded cache
+    rows. Out-of-range → 422 before any fetch."""
+    app = app_with_deps
+    _install_transcript_data_layer(app, [])
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        for params in (
+            {"limit": 0},
+            {"limit": 13},
+            {"limit": 100000},
+            {"quarter": 0},
+            {"quarter": 5},
+            {"year": 1899},
+            {"year": 2101},
+        ):
+            resp = await client.get("/api/data/AAPL/earnings-calls", params=params)
+            assert resp.status_code == 422, params
+
+        # In-range values still pass through.
+        resp = await client.get(
+            "/api/data/AAPL/earnings-calls",
+            params={"limit": 12, "quarter": 4, "year": 2025},
+        )
+        assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_earnings_calls_all_malformed_returns_empty_not_500(app_with_deps):
     """If every item is malformed, the endpoint returns an empty list, not a 500."""
     app = app_with_deps

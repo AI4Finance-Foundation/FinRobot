@@ -6,7 +6,7 @@ import logging
 from datetime import date, datetime
 from typing import Any, Literal, cast
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import ValidationError
 from starlette.requests import Request
 
@@ -62,7 +62,12 @@ def _data_http_error(exc: Exception, ticker: str) -> HTTPException:
 async def get_catalysts(
     ticker: str,
     request: Request,
-    min_importance: int = 3,
+    min_importance: int = Query(
+        default=3,
+        ge=1,
+        le=5,
+        description="Minimum news importance to become a catalyst (1-5).",
+    ),
 ) -> list[CatalystEvent]:
     """Fetch news, classify via LLM, extract catalyst events, return sorted by impact.
 
@@ -232,14 +237,22 @@ async def get_historical(ticker: str, request: Request) -> HistoricalMetrics:
 async def get_earnings_calls(
     ticker: str,
     request: Request,
-    limit: int = 4,
-    quarter: int | None = None,
-    year: int | None = None,
+    limit: int = Query(
+        default=4,
+        ge=1,
+        le=12,
+        description="Most-recent transcripts to return (12 = three years of quarterly calls).",
+    ),
+    quarter: int | None = Query(default=None, ge=1, le=4),
+    year: int | None = Query(default=None, ge=1990, le=2100),
 ) -> EarningsCallList:
     """Fetch earnings call transcripts from FMP.
 
     Requires an FMP API key. Returns up to ``limit`` most recent transcripts.
-    Optionally filter by specific quarter and year.
+    Optionally filter by specific quarter and year. All three params are
+    bounded at the edge (mirroring the sentiment route's ``days`` cap): they
+    flow into the FMP request AND the cache key, so an unbounded value both
+    hammers the provider quota and mints unbounded cache rows on disk.
     """
     data_layer = request.app.state.deps.data_layer
 

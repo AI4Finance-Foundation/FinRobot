@@ -1,4 +1,6 @@
 import pytest
+from pydantic import ValidationError
+
 from finrobot.engine.models.financial import DCFInputs, DCFResult
 from finrobot.engine.compute.operators.dcf import calculate_dcf, calculate_sensitivity
 
@@ -293,3 +295,62 @@ def test_dcf_da_pct_revenue_defaults_to_zero():
         net_debt=10e9,
     )
     assert inputs.da_pct_revenue == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Forward-Gordon refusal set: NaN inputs / negative equity / sub-floor spread
+# ---------------------------------------------------------------------------
+
+
+class TestInputFiniteness:
+    """DCFInputs is the chokepoint every entry path shares (REST bodies accept
+    the JSON NaN literal). Bounded fields reject NaN for free; the three
+    unbounded ones needed explicit validators — a NaN sailed through every
+    guard in calculate_dcf (NaN comparisons are all False) and shipped
+    implied_price=NaN into the aggregation band."""
+
+    def test_nan_growth_rate_rejected_at_model(self):
+        with pytest.raises(ValidationError, match="finite"):
+            _make_inputs(revenue_growth_rates=[0.10, float("nan"), 0.05])
+
+    def test_inf_revenue_base_rejected_at_model(self):
+        with pytest.raises(ValidationError, match="finite"):
+            _make_inputs(revenue_base=float("inf"))
+
+    def test_nan_net_debt_rejected_at_model(self):
+        with pytest.raises(ValidationError, match="finite"):
+            _make_inputs(net_debt=float("nan"))
+
+
+class TestNegativeEquityBridge:
+    def test_net_debt_exceeding_ev_raises_instead_of_negative_price(self):
+        """BUG-074's bridge-side sibling: positive FCFs pass the terminal gate,
+        but net debt > EV drove equity negative and the pipeline narrative
+        printed 'implies $-1512.42 per share'. Equity fair value floors near
+        zero — raise and degrade to relative valuation."""
+        with pytest.raises(ValueError, match="non-positive"):
+            calculate_dcf(_make_inputs(net_debt=5e12))
+
+
+class TestGordonSpreadFloor:
+    def test_sub_floor_spread_raises(self):
+        """A 0.5% wacc−tg spread is a 200× Gordon multiplier — Monte Carlo has
+        clamped per-path draws to the 1.5% floor since day one; the
+        deterministic base case published the blowup as the headline price."""
+        with pytest.raises(ValueError, match="spread"):
+            calculate_dcf(_make_inputs(), wacc_override=0.03, tg_override=0.025)
+
+    def test_spread_at_floor_passes(self):
+        result = calculate_dcf(_make_inputs(), wacc_override=0.04, tg_override=0.025)
+        assert result.implied_price > 0
+
+    def test_sensitivity_grid_blanks_sub_floor_cells(self):
+        """Grid cells must refuse exactly what the base case refuses — the
+        near-diagonal blowups rendered in the sensitivity table while the
+        headline raised."""
+        inputs = _make_inputs()
+        grid = calculate_sensitivity(inputs, wacc_range=[0.03, 0.08], tg_range=[0.025])
+        # wacc=3% vs tg=2.5%: spread 0.5% < 1.5% floor → None.
+        assert grid["implied_prices"][0][0] is None
+        # wacc=8%: healthy spread → real price.
+        assert grid["implied_prices"][1][0] is not None

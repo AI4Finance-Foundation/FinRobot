@@ -20,6 +20,7 @@ from __future__ import annotations
 from typing import TypedDict
 
 from finrobot.engine.models.financial import DDMInputs, DDMResult
+from finrobot.engine.models.valuation_thresholds import MIN_GORDON_SPREAD
 
 
 class DDMSensitivity(TypedDict):
@@ -56,6 +57,17 @@ def calculate_ddm(inputs: DDMInputs) -> DDMResult:
             f"Terminal growth ({inputs.terminal_growth_rate:.1%}) must be less than "
             f"cost of equity ({cost_of_equity:.1%}). "
             "Gordon Growth Model perpetuity is undefined when tg >= CoE."
+        )
+    if cost_of_equity - inputs.terminal_growth_rate < MIN_GORDON_SPREAD:
+        # Same forward-Gordon floor as calculate_dcf (shared constant): a
+        # sub-floor spread puts a 200×+ multiplier on the terminal dividend —
+        # a blowup, not a valuation. A low-beta payer can legally produce a
+        # CoE within a hair of the 5%-capped tg, so this is reachable.
+        raise ValueError(
+            f"CoE−terminal growth spread "
+            f"{cost_of_equity - inputs.terminal_growth_rate:.2%} is below the "
+            f"{MIN_GORDON_SPREAD:.1%} minimum — DDM is not applicable; use "
+            "relative valuation instead."
         )
 
     # A dividend cannot shrink by more than 100%: a growth rate < −1 makes
@@ -150,7 +162,10 @@ def calculate_ddm_sensitivity(
     for coe in coe_range:
         row: list[float | None] = []
         for tg in tg_range:
-            if tg >= coe:
+            # Same refusal set as calculate_ddm's base case: undefined region
+            # AND sub-floor Gordon spread — grid cells must not ship blowups
+            # the headline refuses.
+            if tg >= coe or (coe - tg) < MIN_GORDON_SPREAD:
                 row.append(None)
             else:
                 pv_divs = sum(d / (1 + coe) ** (i + 1) for i, d in enumerate(projected_dividends))

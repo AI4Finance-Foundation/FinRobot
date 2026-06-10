@@ -1,5 +1,6 @@
+import math
 from typing import Any, Literal
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from datetime import date, datetime
 
 
@@ -88,6 +89,10 @@ class MarketData(BaseModel):
     # is missing. None when provider didn't expose it.
     industry: str | None = None
     sector: str | None = None
+    # Issuer country as reported by the provider — FMP /profile gives ISO-2
+    # ("US"/"TW"), yfinance .info gives full names ("United States"/"Taiwan").
+    # Consumed by the family-1 foreign_issuer_usd_tags acceptor; None = unknown.
+    country: str | None = None
     beta: float | None = Field(default=None, ge=0, le=5)
 
 
@@ -459,6 +464,30 @@ class DCFInputs(BaseModel):
 
     shares_outstanding: float = Field(gt=0)
     net_debt: float = Field(description="Total debt - cash. Negative if net cash.")
+
+    # Finiteness gate for the three fields without ge/le bounds (bounded
+    # fields reject NaN for free — NaN fails every comparison). A NaN in
+    # revenue_base / net_debt / any growth rate sails through calculate_dcf's
+    # guards (NaN comparisons are all False) and ships implied_price=NaN into
+    # the aggregation band; JSON bodies accept the NaN literal, so the
+    # POST /monte-carlo direct-construction path is live, not theoretical.
+    @field_validator("revenue_base", "net_debt")
+    @classmethod
+    def _reject_non_finite_scalar(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("must be finite — NaN/Inf is not a number, it's missing data")
+        return v
+
+    @field_validator("revenue_growth_rates")
+    @classmethod
+    def _reject_non_finite_growth(cls, v: list[float]) -> list[float]:
+        for i, g in enumerate(v):
+            if not math.isfinite(g):
+                raise ValueError(
+                    f"revenue_growth_rates[{i}] must be finite — "
+                    "NaN/Inf is not a number, it's missing data"
+                )
+        return v
 
     currency: str = Field(
         default="USD",
@@ -1019,6 +1048,21 @@ class DDMInputs(BaseModel):
         max_length=10,
         description="Projected annual dividend growth rates as decimals",
     )
+
+    # Same finiteness gate as DCFInputs.revenue_growth_rates (the unbounded-
+    # list sibling): a NaN growth rate slips past calculate_ddm's < -1 guard
+    # (NaN comparisons are False) and poisons the dividend projection.
+    @field_validator("dividend_growth_rates")
+    @classmethod
+    def _reject_non_finite_growth(cls, v: list[float]) -> list[float]:
+        for i, g in enumerate(v):
+            if not math.isfinite(g):
+                raise ValueError(
+                    f"dividend_growth_rates[{i}] must be finite — "
+                    "NaN/Inf is not a number, it's missing data"
+                )
+        return v
+
     payout_ratio: float = Field(ge=0, le=1, description="Dividend payout ratio")
 
     # Cost of equity inputs (CAPM)

@@ -20,6 +20,7 @@ import numpy as np
 from pydantic import BaseModel, Field, field_validator
 
 from finrobot.engine.models.financial import DCFInputs
+from finrobot.engine.models.valuation_thresholds import MIN_GORDON_SPREAD
 
 
 class MonteCarloResult(BaseModel):
@@ -210,12 +211,11 @@ def run_monte_carlo(
     after_tax_debt = inputs.cost_of_debt * (1 - inputs.tax_rate)
     sim_wacc = equity_ratio * sim_coe + inputs.debt_ratio * after_tax_debt  # (n,)
 
-    # Gordon Growth requires WACC > TGR — enforce minimum 1.5% spread.
-    # A 0.5% spread creates terminal values of 200× last FCF that get filtered
-    # as outliers anyway. 1.5% is the practical minimum (Damodaran recommends
-    # TGR ≤ risk-free rate, implying spread ≥ equity premium).
-    _MIN_WACC_TGR_SPREAD = 0.015
-    sim_tgr = np.minimum(sim_tgr, sim_wacc - _MIN_WACC_TGR_SPREAD)
+    # Gordon Growth requires WACC > TGR — clamp per-path draws to the shared
+    # forward-Gordon floor (calculate_dcf raises below it; sensitivity cells
+    # render None; MC clamps because the violation here is a perturbation
+    # tail, not the base input). Single authority: MIN_GORDON_SPREAD.
+    sim_tgr = np.minimum(sim_tgr, sim_wacc - MIN_GORDON_SPREAD)
 
     # --- Vectorized DCF projection ---
     # Project revenue year by year: rev[t] = rev[t-1] * (1 + growth[t])

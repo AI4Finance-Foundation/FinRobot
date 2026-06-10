@@ -70,3 +70,15 @@ SINGLE_METHOD_DIVERGENCE_RATIO_K = 2.0
 # ability-to-pay band and tightens the IC gate together — calibrate once, both
 # consumers follow.
 SPONSOR_IRR_HURDLE = 0.15
+
+# Minimum (discount rate − terminal growth) spread for a FORWARD Gordon
+# perpetuity. A 0.5% spread puts a 200× multiplier on the terminal cash flow —
+# an astronomically levered point estimate, not a valuation (Damodaran: tg ≤
+# risk-free, implying spread ≥ the equity premium). Shared by every forward
+# Gordon consumer (calculate_dcf raise / sensitivity grid cell → None /
+# Monte Carlo per-path clamp / calculate_ddm raise) so no path can publish a
+# blowup another path refuses. Deliberately NOT applied to the reverse-DCF
+# kernel (_price_for): the reverse direction's whole job is to report the
+# absurd implied parameters the market price encodes (协议 §2), so its search
+# domain must reach them.
+MIN_GORDON_SPREAD = 0.015

@@ -6,6 +6,7 @@ from finrobot.engine.models.financial import (
     MarketImpliedCheck,
     MarketImpliedNature,
 )
+from finrobot.engine.models.valuation_thresholds import MIN_GORDON_SPREAD
 from finrobot.engine.compute.operators.wacc import calculate_wacc
 
 
@@ -50,6 +51,20 @@ def calculate_dcf(
             f"Terminal growth rate {tg} must be less than WACC {wacc} "
             "(Gordon Growth Model perpetuity is undefined when tg >= wacc)"
         )
+    if wacc - tg < MIN_GORDON_SPREAD:
+        # Monte Carlo has clamped its per-path draws to this floor since day
+        # one; the deterministic base case had no equivalent gate, so a
+        # low-WACC seed (levered utility: WACC ~3.0%, tg 2.5%) published a
+        # 200–2000× Gordon multiplier as the headline implied price. Same
+        # degrade path as tg >= wacc: raise, let the pipeline fall back to
+        # relative valuation.
+        raise ValueError(
+            f"WACC−terminal growth spread {wacc - tg:.2%} is below the "
+            f"{MIN_GORDON_SPREAD:.1%} minimum — the Gordon multiplier "
+            f"(1/(wacc−tg) = {1 / (wacc - tg):,.0f}×) capitalizes the terminal "
+            "cash flow into a blowup, not a valuation. DCF is not applicable — "
+            "use relative valuation instead."
+        )
 
     # 2-4. Project revenue, EBITDA, FCF (WACC/TG-independent) in a single pass
     projected_revenue, projected_ebitda, projected_fcf = _project_full(inputs)
@@ -88,6 +103,21 @@ def calculate_dcf(
     # 8-10. Valuation bridge: EV → Equity → Price
     enterprise_value = pv_fcf_total + pv_terminal
     equity_value = enterprise_value - inputs.net_debt
+    if equity_value <= 0:
+        # BUG-074's sibling on the other side of the bridge: positive FCFs
+        # passed the negative-terminal gate, but net debt exceeding the
+        # enterprise value drove equity negative — and the pipeline narrative
+        # printed "DCF base case implies $-1512.42 per share". Equity is an
+        # option on the firm's assets; its fair value floors near zero, never
+        # negative. Same degrade path: raise so the pipeline skips the DCF
+        # chapter and falls back to relative valuation / distressed analysis.
+        raise ValueError(
+            f"Equity value is non-positive ({equity_value:.3g}): net debt "
+            f"({inputs.net_debt:.3g}) exceeds the enterprise value "
+            f"({enterprise_value:.3g}). A negative per-share fair value is not "
+            "meaningful — DCF is not applicable; use relative valuation or "
+            "distressed/credit analysis instead."
+        )
     implied_price = equity_value / inputs.shares_outstanding
 
     return DCFResult(
@@ -132,8 +162,12 @@ def calculate_sensitivity(
         for g in tg_range:
             # Terminal FCF normalizes capex→D&A at the cell's own g (see
             # _terminal_fcf), so the grid centre matches calculate_dcf's base case.
+            # Cells the base case would REFUSE (tg >= wacc, sub-floor Gordon
+            # spread, non-positive terminal FCF or equity) render as None —
+            # the near-diagonal blowup values must not ship just because they
+            # live in a grid instead of the headline.
             terminal_fcf = _terminal_fcf(inputs, projected_revenue[-1], g)
-            if g >= w or terminal_fcf <= 0:
+            if g >= w or (w - g) < MIN_GORDON_SPREAD or terminal_fcf <= 0:
                 row.append(None)
             else:
                 pv_fcf = sum(
@@ -143,7 +177,7 @@ def calculate_sensitivity(
                 pv_tv = tv / (1 + w) ** (n - offset)
                 ev = pv_fcf + pv_tv
                 equity = ev - inputs.net_debt
-                row.append(equity / inputs.shares_outstanding)
+                row.append(equity / inputs.shares_outstanding if equity > 0 else None)
         implied_prices.append(row)
     return {
         "wacc_values": wacc_range,

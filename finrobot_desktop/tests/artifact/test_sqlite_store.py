@@ -590,3 +590,37 @@ async def test_legacy_db_without_column_self_migrates(tmp_path: Path) -> None:
         assert summaries[0].primary_provider == "yfinance"
     finally:
         await s.close()
+
+
+@pytest.mark.asyncio
+async def test_get_unreadable_payload_self_archives_and_exists(
+    store: SqliteArtifactStore,
+) -> None:
+    """Schema-drift ghost rows (P2 audit 2026-06-10): get() on an unreadable
+    payload archives the row column-only (payload preserved) so it leaves
+    default lists, and exists() lets callers tell 'never stored' from
+    'stored but unreadable'."""
+    await store.save(_make_artifact(id="art_ghost"))
+    with sqlite3.connect(store._db_path) as conn:
+        conn.execute(
+            'UPDATE artifacts SET payload = \'{"not": "an artifact"}\' WHERE id = ?',
+            ("art_ghost",),
+        )
+        conn.commit()
+
+    # Visible in the default list before detection (columns still render).
+    assert any(s.id == "art_ghost" for s in await store.list_by_ticker(ticker="AAPL"))
+
+    assert await store.get("art_ghost") is None  # unreadable → None
+    # ...but the detection self-archived it (column-only, payload untouched).
+    with sqlite3.connect(store._db_path) as conn:
+        archived, payload = conn.execute(
+            "SELECT archived, payload FROM artifacts WHERE id = ?", ("art_ghost",)
+        ).fetchone()
+    assert archived == 1
+    assert payload == '{"not": "an artifact"}'
+    assert not any(s.id == "art_ghost" for s in await store.list_by_ticker(ticker="AAPL"))
+
+    # exists() splits the two miss cases.
+    assert await store.exists("art_ghost") is True
+    assert await store.exists("art_never_stored") is False

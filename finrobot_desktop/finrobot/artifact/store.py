@@ -45,6 +45,9 @@ class ArtifactStore:
     async def get(self, artifact_id: str) -> Artifact | None:
         return await self._impl.get(artifact_id)
 
+    async def exists(self, artifact_id: str) -> bool:
+        return await self._impl.exists(artifact_id)
+
     async def delete(self, artifact_id: str) -> bool:
         return await self._impl.delete(artifact_id)
 

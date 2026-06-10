@@ -340,3 +340,65 @@ class TestTimeline:
     def test_timeline_rejects_negative_limit(self, client: TestClient) -> None:
         resp = client.get("/api/artifacts/by-ticker/TSLA/timeline?limit=-1")
         assert resp.status_code == 422
+
+
+class TestSchemaDriftGhostRows:
+    """P2 audit 2026-06-10: a row whose payload no longer deserialises used to
+    be visible in every list (summary columns still render) yet 404 on detail —
+    an unopenable ghost with no cleanup path. Contract now: first detection
+    self-archives the row (drops out of default lists) and detail answers 410
+    with an explanation; a never-stored id stays a plain 404."""
+
+    def _corrupt(self, store: ArtifactStore, artifact_id: str) -> None:
+        import sqlite3
+
+        with sqlite3.connect(store._impl._db_path) as conn:
+            conn.execute(
+                'UPDATE artifacts SET payload = \'{"not": "an artifact"}\' WHERE id = ?',
+                (artifact_id,),
+            )
+            conn.commit()
+
+    def test_unreadable_detail_410_and_list_self_heals(
+        self, client: TestClient, store: ArtifactStore
+    ) -> None:
+        _save_sync(store, _make_artifact(id="art_ghost", ticker="AAPL"))
+        self._corrupt(store, "art_ghost")
+
+        # Ghost is visible before anyone clicks (columns render fine).
+        assert any(i["id"] == "art_ghost" for i in client.get("/api/artifacts").json())
+
+        # The click that used to 404 now explains itself with 410...
+        resp = client.get("/api/artifacts/art_ghost")
+        assert resp.status_code == 410
+        assert "旧版本" in resp.json()["detail"]
+
+        # ...and the detection archived the row: default list stops showing it.
+        assert not any(i["id"] == "art_ghost" for i in client.get("/api/artifacts").json())
+        # Still recoverable/visible for an explicit archived view + deletable.
+        archived = client.get("/api/artifacts", params={"archived": "true"}).json()
+        assert any(i["id"] == "art_ghost" for i in archived)
+        assert client.delete("/api/artifacts/art_ghost").status_code == 200
+
+    def test_missing_id_still_plain_404(self, client: TestClient) -> None:
+        assert client.get("/api/artifacts/art_never_existed").status_code == 404
+
+    def test_view_on_ghost_410_and_does_not_resurrect(
+        self, client: TestClient, store: ArtifactStore
+    ) -> None:
+        """POST /view un-archives — it must bail at 410 BEFORE that side effect,
+        or every desktop open attempt would resurrect the ghost into lists."""
+        _save_sync(store, _make_artifact(id="art_ghost2", ticker="AAPL"))
+        self._corrupt(store, "art_ghost2")
+        client.get("/api/artifacts/art_ghost2")  # trigger self-archive
+
+        assert client.post("/api/artifacts/art_ghost2/view").status_code == 410
+        assert not any(i["id"] == "art_ghost2" for i in client.get("/api/artifacts").json())
+
+    def test_diff_with_ghost_410(self, client: TestClient, store: ArtifactStore) -> None:
+        _save_sync(store, _make_artifact(id="art_ok", ticker="AAPL"))
+        _save_sync(store, _make_artifact(id="art_ghost3", ticker="AAPL"))
+        self._corrupt(store, "art_ghost3")
+
+        assert client.get("/api/artifacts/art_ok/diff/art_ghost3").status_code == 410
+        assert client.get("/api/artifacts/art_ok/diff/art_nope").status_code == 404

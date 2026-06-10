@@ -307,7 +307,18 @@ class SqliteArtifactStore:
         try:
             artifact = Artifact.model_validate_json(row[0])
         except (ValueError, TypeError, KeyError):
-            logger.warning("Corrupt artifact payload for %s", artifact_id)
+            # Schema-drift self-heal: the summary columns still render this row
+            # in every list, but the payload can never be deserialised again —
+            # a permanent ghost the user can see but not open. Archive it
+            # (column-only, payload preserved for forensics / a future
+            # migration) so it drops out of default lists on first detection;
+            # the detail route distinguishes this case via exists() → 410.
+            logger.warning(
+                "Unreadable artifact payload for %s (schema drift / corruption) — archiving",
+                artifact_id,
+            )
+            await conn.execute("UPDATE artifacts SET archived = 1 WHERE id = ?", (artifact_id,))
+            await conn.commit()
             return None
         # The archived/last_viewed_at COLUMNS are authoritative — they are the
         # mutable lifecycle fields list_by_ticker/count read and that
@@ -318,6 +329,17 @@ class SqliteArtifactStore:
         artifact.meta.archived = bool(row[1])
         artifact.meta.last_viewed_at = _parse_dt(row[2])
         return artifact
+
+    async def exists(self, artifact_id: str) -> bool:
+        """True when a row with this id exists, readable or not.
+
+        Lets callers split ``get() is None`` into its two real cases: the id
+        was never stored (404) vs the row exists but its payload no longer
+        deserialises after schema drift (410 — gone, with an explanation).
+        """
+        conn = await self._conn_ready()
+        async with conn.execute("SELECT 1 FROM artifacts WHERE id = ?", (artifact_id,)) as cur:
+            return await cur.fetchone() is not None
 
     async def delete(self, artifact_id: str) -> bool:
         conn = await self._conn_ready()

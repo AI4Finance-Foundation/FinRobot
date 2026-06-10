@@ -55,6 +55,31 @@ def _store(request: Request) -> ArtifactStore:
     return store
 
 
+async def _load_artifact_or_raise(store: ArtifactStore, artifact_id: str) -> Artifact:
+    """Load a full artifact, mapping the two distinct miss cases honestly.
+
+    ``store.get() is None`` covers two different realities: the id was never
+    stored (a plain 404), or the row EXISTS but its payload no longer
+    deserialises after schema drift — previously an indistinguishable 404 on a
+    report the list had just shown, with no cleanup path (the ghost-row bug).
+    The store self-archives unreadable rows on detection, so the list stops
+    showing them; this helper completes the contract by answering the click
+    that found the ghost with a 410 + explanation instead of a lying 404.
+    """
+    artifact = await store.get(artifact_id)
+    if artifact is not None:
+        return artifact
+    if await store.exists(artifact_id):
+        raise HTTPException(
+            status_code=410,
+            detail=(
+                f"研报 {artifact_id} 由旧版本格式存储，当前版本无法读取，已自动归档并从列表隐藏。"
+                "如不再需要，可直接删除该条目。"
+            ),
+        )
+    raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_id}")
+
+
 def _data_layer(request: Request) -> DataLayer | None:
     """Best-effort DataLayer for lazy signal compute; None when unavailable."""
     deps = getattr(request.app.state, "deps", None)
@@ -198,13 +223,12 @@ async def get_artifact(artifact_id: str, request: Request) -> Artifact:
         The full Artifact.
 
     Raises:
-        404: If the artifact is not found.
+        404: If the artifact was never stored.
+        410: If the row exists but its payload is unreadable (schema drift) —
+            the store archives it on detection so it leaves default lists.
     """
     store = _store(request)
-    artifact = await store.get(artifact_id)
-    if artifact is None:
-        raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_id}")
-    return artifact
+    return await _load_artifact_or_raise(store, artifact_id)
 
 
 @router.delete("/{artifact_id}")
@@ -262,15 +286,12 @@ async def diff_two(a_id: str, b_id: str, request: Request) -> SemanticDelta:
         A SemanticDelta.
 
     Raises:
-        404: If either artifact is not found.
+        404: If either artifact was never stored.
+        410: If either row exists but is unreadable (schema drift).
     """
     store = _store(request)
-    a = await store.get(a_id)
-    if a is None:
-        raise HTTPException(status_code=404, detail=f"Artifact not found: {a_id}")
-    b = await store.get(b_id)
-    if b is None:
-        raise HTTPException(status_code=404, detail=f"Artifact not found: {b_id}")
+    a = await _load_artifact_or_raise(store, a_id)
+    b = await _load_artifact_or_raise(store, b_id)
     return build_semantic_delta(a, b)
 
 
@@ -288,12 +309,13 @@ async def mark_viewed(artifact_id: str, request: Request) -> dict[str, str]:
         ``{"status": "ok", "id": artifact_id}``
 
     Raises:
-        404: If the artifact is not found.
+        404: If the artifact was never stored.
+        410: If the row exists but is unreadable (schema drift) — returning
+            before ``mark_viewed`` also keeps the un-archive side effect from
+            resurrecting a self-archived ghost into the default lists.
     """
     store = _store(request)
-    artifact = await store.get(artifact_id)
-    if artifact is None:
-        raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_id}")
+    artifact = await _load_artifact_or_raise(store, artifact_id)
     was_archived = artifact.meta.archived
     await store.mark_viewed(artifact_id)
     # mark_viewed un-archives the artifact (store sets archived=False). When it

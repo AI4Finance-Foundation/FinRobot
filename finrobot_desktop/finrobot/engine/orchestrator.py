@@ -18,6 +18,7 @@ from finrobot.engine.analysis.qa import run_qa
 from finrobot.engine.backtest.backtrader_adapter import BackTraderAdapter
 from finrobot.engine.backtest.engine import BacktestConfig
 from finrobot.engine.compute.coordinators.dcf_seed import seed_dcf_inputs_for_ticker
+from finrobot.engine.compute.coordinators.news import render_news_for_prompt
 from finrobot.engine.compute.operators.monte_carlo import MonteCarloResult, deterministic_seed
 from finrobot.engine.compute.operators.monte_carlo import run_monte_carlo as run_monte_carlo_sim
 from finrobot.engine.data.interface import ProviderError
@@ -265,6 +266,11 @@ def create_lead_agent(
                 f"```json\n{body}\n```"
             )
         result = await ctx.deps.data_layer.fetch(dt, norm)
+        if dt is DataType.NEWS:
+            # Headlines are third-party text — flatten + untrusted-wrap before
+            # they enter the chat context (BUG-087 choke point, mirror of the
+            # sub-agent tool).
+            return render_news_for_prompt(result)
         return result.to_context_string()
 
     @agent.tool

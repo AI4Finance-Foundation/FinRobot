@@ -4,6 +4,7 @@ from pathlib import Path
 from pydantic_ai import Agent, ModelRetry, RunContext
 
 from finrobot.config import FinRobotSettings
+from finrobot.engine.compute.coordinators.news import render_news_for_prompt
 from finrobot.engine.data.normalize.contracts import NormalizedPrice
 from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.data.types import DataType
@@ -87,6 +88,10 @@ def create_sub_agents(
                 f"```json\n{body}\n```"
             )
         result = await ctx.deps.data_layer.fetch(canonical_type, norm_ticker)
+        if canonical_type is DataType.NEWS:
+            # Headlines are third-party text — flatten + untrusted-wrap before
+            # they enter the agent's context (BUG-087 choke point).
+            return render_news_for_prompt(result)
         return result.to_context_string()
 
     return agents  # type: ignore[return-value]

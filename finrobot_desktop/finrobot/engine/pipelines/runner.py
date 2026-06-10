@@ -17,10 +17,15 @@ from pydantic_ai import UnexpectedModelBehavior
 from pydantic_ai.exceptions import AgentRunError
 
 from finrobot.artifact.contract import enforce_artifact_contract
+from finrobot.engine.compute.coordinators.news import (
+    UNTRUSTED_NEWS_PROMPT_NOTE,
+    render_news_for_prompt,
+    sanitize_untrusted_text,
+)
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.normalize.contracts import NormalizedPrice
 from finrobot.engine.data.types import DataType
-from finrobot.engine.models.financial import StepOutput
+from finrobot.engine.models.financial import CatalystAnalysis, CatalystEvent, StepOutput
 from finrobot.engine.pipelines.protocols import ArtifactBuilder, ProgressCallback
 from finrobot.engine.pipelines.result import PipelineResult
 from finrobot.engine.pipelines.step import PipelineStep, PipelineStepError
@@ -179,6 +184,36 @@ def _compact_for_prompt(value: object, depth: int = 0) -> object:
         return value
 
     return str(value)
+
+
+def _sanitize_catalyst_for_prompt(analysis: CatalystAnalysis) -> CatalystAnalysis:
+    """Return a copy with every news headline flattened and untrusted-wrapped.
+
+    Catalyst headlines are third-party PR-wire/RSS text. The thesis step wraps
+    them when it builds its own prompt (_thesis_prompt.py), but every OTHER
+    LLM step — report above all — receives the same headlines through the
+    generic structured_context JSON dump, where they arrived raw (the unsynced
+    sibling of BUG-087). The stored artifact keeps the original headlines;
+    sanitization happens only at prompt-render time, same as the thesis path.
+    """
+
+    def _wrap(headline: str) -> str:
+        return (
+            f"<untrusted_news_headline>{sanitize_untrusted_text(headline)}"
+            "</untrusted_news_headline>"
+        )
+
+    def _event(e: CatalystEvent) -> CatalystEvent:
+        return e.model_copy(update={"headline": _wrap(e.headline)})
+
+    return analysis.model_copy(
+        update={
+            "events": [_event(e) for e in analysis.events],
+            "key_catalysts": [_wrap(k) for k in analysis.key_catalysts],
+            "top_positive": [_event(e) for e in analysis.top_positive],
+            "top_negative": [_event(e) for e in analysis.top_negative],
+        }
+    )
 
 
 def _render_structured_prompt_value(value: object) -> str:
@@ -669,6 +704,13 @@ class Pipeline:
                 if canonical_type in (DataType.FINANCIALS, DataType.PRICE):
                     normalized = await deps.data_layer.fetch_canonical(canonical_type, ticker)
                     rendered = _canonical_context_string(canonical_type, normalized)
+                elif canonical_type is DataType.NEWS:
+                    # Third-party headlines must reach the prompt flattened and
+                    # untrusted-wrapped (BUG-087) — the raw to_context_string
+                    # dump fed unsanitized titles to ic_memo's
+                    # situation_overview step.
+                    result = await deps.data_layer.fetch(data_type, ticker)
+                    rendered = render_news_for_prompt(result)
                 else:
                     result = await deps.data_layer.fetch(data_type, ticker)
                     rendered = result.to_context_string()
@@ -694,7 +736,18 @@ class Pipeline:
             parts.append(f"Methodology:\n{methodology}")
         if structured_context:
             sc_parts = ["Structured Data from Previous Steps:"]
+            if any(isinstance(m, CatalystAnalysis) for m in structured_context.values()):
+                # Same data-not-instructions marker the thesis prompt uses —
+                # the wrapped headlines below are meaningless to the model
+                # without it.
+                sc_parts.append(
+                    UNTRUSTED_NEWS_PROMPT_NOTE.replace(
+                        "<untrusted_news_item>", "<untrusted_news_headline>"
+                    )
+                )
             for name, model in structured_context.items():
+                if isinstance(model, CatalystAnalysis):
+                    model = _sanitize_catalyst_for_prompt(model)
                 sc_parts.append(
                     f"### {name}:\n```json\n{_render_structured_prompt_value(model)}\n```"
                 )

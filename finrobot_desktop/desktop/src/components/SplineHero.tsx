@@ -242,7 +242,7 @@ export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.R
         // skip the lens-flare gradient that frames the hero piece.
         background: isBackdrop
           ? 'transparent'
-          : 'radial-gradient(ellipse at center, rgba(59,130,246,0.12) 0%, transparent 70%)',
+          : 'radial-gradient(ellipse at center, color-mix(in srgb, var(--primary) 12%, transparent) 0%, transparent 70%)',
         // Cosmetic mask covering the lower-right corner where the Spline
         // branding sits before our shadow-DOM CSS injection lands.
         pointerEvents: isBackdrop ? 'none' : undefined,
@@ -299,7 +299,7 @@ export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.R
             alignItems: 'center',
             gap: 6,
             padding: '4px 10px',
-            background: 'rgba(15, 15, 34, 0.55)',
+            background: 'color-mix(in srgb, var(--bg-card) 55%, transparent)',
             border: '1px solid var(--border-soft)',
             borderRadius: 999,
             fontFamily: 'var(--font-mono)',
@@ -338,7 +338,7 @@ function FakeRobotRings(): React.ReactElement {
           height: 220,
           borderRadius: '50%',
           background:
-            'conic-gradient(from 0deg, rgba(59,130,246,0.45), rgba(139,92,246,0.45), rgba(34,211,238,0.35), rgba(59,130,246,0.45))',
+            'conic-gradient(from 0deg, color-mix(in srgb, var(--primary) 45%, transparent), color-mix(in srgb, var(--secondary) 45%, transparent), color-mix(in srgb, var(--accent-cyan) 35%, transparent), color-mix(in srgb, var(--primary) 45%, transparent))',
           animation: 'cosmic-halo 12s linear infinite',
           opacity: 0.7,
           position: 'relative',
@@ -350,8 +350,9 @@ function FakeRobotRings(): React.ReactElement {
             inset: 18,
             borderRadius: '50%',
             background:
-              'radial-gradient(circle at 30% 30%, rgba(34,211,238,0.6), rgba(15,15,34,0.95) 70%)',
-            boxShadow: 'inset 0 0 40px rgba(59,130,246,0.3), 0 0 60px rgba(139,92,246,0.25)',
+              'radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--accent-cyan) 60%, transparent), color-mix(in srgb, var(--bg-card) 95%, transparent) 70%)',
+            boxShadow:
+              'inset 0 0 40px color-mix(in srgb, var(--primary) 30%, transparent), 0 0 60px color-mix(in srgb, var(--secondary) 25%, transparent)',
           }}
         />
         <div
@@ -359,7 +360,8 @@ function FakeRobotRings(): React.ReactElement {
             position: 'absolute',
             inset: 60,
             borderRadius: '50%',
-            background: 'radial-gradient(circle at 50% 50%, rgba(255,255,255,0.1), transparent)',
+            background:
+              'radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--text-primary) 10%, transparent), transparent)',
           }}
         />
       </div>

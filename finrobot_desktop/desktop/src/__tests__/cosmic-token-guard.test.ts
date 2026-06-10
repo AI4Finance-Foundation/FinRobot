@@ -31,6 +31,7 @@ import titleBarSrc from '../layout/TitleBar.tsx?raw'
 import settingsViewSrc from '../views/SettingsView.tsx?raw'
 import versionDiffBannerSrc from '../components/VersionDiffBanner.tsx?raw'
 import aiChatTabSrc from '../layout/RightChatPanel/AiChatTab.tsx?raw'
+import splineHeroSrc from '../components/SplineHero.tsx?raw'
 
 const GUARDED: Array<[string, string]> = [
   // TitleBar absorbed the retired Sidebar's nav; keep it token-pure here.
@@ -38,6 +39,8 @@ const GUARDED: Array<[string, string]> = [
   ['views/SettingsView.tsx', settingsViewSrc],
   ['components/VersionDiffBanner.tsx', versionDiffBannerSrc],
   ['layout/RightChatPanel/AiChatTab.tsx', aiChatTabSrc],
+  // Hero/fallback gradients were de-hardcoded 2026-06-10 (P2 audit).
+  ['components/SplineHero.tsx', splineHeroSrc],
 ]
 
 // 3-, 4-, 6- and 8-digit hex color literals (`#fff`, `#1a1207`, `#0a0a18ff`).

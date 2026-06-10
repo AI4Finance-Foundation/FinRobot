@@ -116,6 +116,10 @@ const CHROME = {
     loading: '加载对比…',
     loadError: '加载对比失败',
     archived: '已归档',
+    // REVIEW state: DCF fair value is withheld (—→—) so it can't be attributed;
+    // the attributable signal is the market-implied growth shift above. Demote
+    // the fair-value row to this footnote instead of a blank prominent chip.
+    fairNotAttributable: 'REVIEW 态无 DCF 公允价值可归因 — 改看上方市场隐含增长的变化',
   },
   en: {
     base: 'Compare against',
@@ -132,6 +136,8 @@ const CHROME = {
     loading: 'Loading comparison…',
     loadError: 'Failed to load comparison',
     archived: 'archived',
+    fairNotAttributable:
+      'Fair value not attributable in REVIEW — track the market-implied growth shift above instead',
   },
 } as const
 
@@ -180,6 +186,10 @@ function metricToneClass(it: DeltaItem): string {
   if (it.key === 'target_price') return 'version-diff-tone--target'
   if (it.key === 'current_price') return 'version-diff-tone--market'
   if (it.key === 'dcf_fair_value' || it.key === 'implied_price') return 'version-diff-tone--fair'
+  // Reverse-DCF market-implied growth — the promoted, attributable REVIEW row.
+  // Amber (neutral-warning) — a rising market-implied growth is neither good nor
+  // bad, it just raises the bar, so it never takes 涨绿跌红.
+  if (it.key === 'implied_growth') return 'version-diff-tone--review'
   return sentimentToneClass(it.sentiment)
 }
 
@@ -189,6 +199,7 @@ function metricRailClass(it: DeltaItem): string {
   if (it.key === 'current_price' || it.key === 'dcf_fair_value' || it.key === 'implied_price') {
     return 'version-diff-rail--market'
   }
+  if (it.key === 'implied_growth') return 'version-diff-rail--review'
   return directionRailClass(it.direction)
 }
 
@@ -317,42 +328,82 @@ export function VersionDiffBanner({
 
         {data && !data.identical && (
           <>
-            {/* A-section: conclusion chips */}
-            <div className="version-diff-metrics">
-              {data.conclusion.map((it) => (
-                <div
-                  key={it.key}
-                  className={`version-diff-metric version-diff-metric--${it.key} ${metricRailClass(it)}`}
-                  data-key={it.key}
-                >
-                  <div className="version-diff-metric__label">{label_(it)}</div>
-                  <div className="version-diff-metric__row">
-                    <span className="version-diff-metric__old">{it.formatted_old}</span>
-                    <span className="version-diff-metric__arrow">{arrow(it.direction)}</span>
-                    <span className={`version-diff-metric__new ${metricToneClass(it)}`}>
-                      {it.formatted_new}
-                    </span>
-                    {it.formatted_pct_change !== null && (
-                      <span
-                        className={`version-diff-metric__pct ${directionToneClass(it.direction)}`}
+            {(() => {
+              // REVIEW demotion: when the reverse-DCF growth row is the attributable
+              // headline and the DCF fair value is withheld (—→—), the fair-value row
+              // stops being a blank prominent chip — it drops to a quiet footnote that
+              // redirects the analyst to the growth shift. The "缺少 DCF 公允价值" attribution
+              // warning becomes redundant with that footnote, so it's suppressed too.
+              const hasGrowthRow = data.conclusion.some((it) => it.key === 'implied_growth')
+              const isFairWithheld = (it: DeltaItem): boolean =>
+                (it.key === 'implied_price' || it.key === 'dcf_fair_value') &&
+                it.old_value === null &&
+                it.new_value === null
+              const demoteFair = hasGrowthRow
+              const primaryChips = demoteFair
+                ? data.conclusion.filter((it) => !isFairWithheld(it))
+                : data.conclusion
+              const demotedFair = demoteFair ? data.conclusion.find(isFairWithheld) : undefined
+              return (
+                <>
+                  {/* A-section: conclusion chips */}
+                  <div className="version-diff-metrics">
+                    {primaryChips.map((it) => (
+                      <div
+                        key={it.key}
+                        className={`version-diff-metric version-diff-metric--${it.key} ${metricRailClass(it)}`}
+                        data-key={it.key}
                       >
-                        ({it.formatted_pct_change})
-                      </span>
-                    )}
+                        <div className="version-diff-metric__label">{label_(it)}</div>
+                        <div className="version-diff-metric__row">
+                          <span className="version-diff-metric__old">{it.formatted_old}</span>
+                          <span className="version-diff-metric__arrow">{arrow(it.direction)}</span>
+                          <span className={`version-diff-metric__new ${metricToneClass(it)}`}>
+                            {it.formatted_new}
+                          </span>
+                          {it.formatted_pct_change !== null && (
+                            <span
+                              className={`version-diff-metric__pct ${directionToneClass(it.direction)}`}
+                            >
+                              ({it.formatted_pct_change})
+                            </span>
+                          )}
+                          {it.caliber_note && (
+                            <span className="version-diff-metric__note">· {it.caliber_note}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              ))}
-            </div>
 
-            {/* Attribution one-liner */}
-            {data.attribution.available && data.attribution.summary_zh && (
-              <div className="version-diff-card__summary">
-                {locale === 'zh' ? data.attribution.summary_zh : data.attribution.summary_en}
-              </div>
-            )}
-            {!data.attribution.available && data.attribution.disabled_reason && (
-              <div className="version-diff-card__warning">⚠ {data.attribution.disabled_reason}</div>
-            )}
+                  {/* Demoted fair-value footnote (was a blank —→— chip) */}
+                  {demotedFair && (
+                    <div
+                      className="version-diff-card__footnote-demoted"
+                      data-testid="diff-fair-demoted"
+                    >
+                      <span className="version-diff-card__demoted-key">{label_(demotedFair)}</span>
+                      <span className="version-diff-card__demoted-dash">— → —</span>
+                      <span>{c.fairNotAttributable}</span>
+                    </div>
+                  )}
+
+                  {/* Attribution one-liner */}
+                  {data.attribution.available && data.attribution.summary_zh && (
+                    <div className="version-diff-card__summary">
+                      {locale === 'zh' ? data.attribution.summary_zh : data.attribution.summary_en}
+                    </div>
+                  )}
+                  {!data.attribution.available &&
+                    data.attribution.disabled_reason &&
+                    !demoteFair && (
+                      <div className="version-diff-card__warning">
+                        ⚠ {data.attribution.disabled_reason}
+                      </div>
+                    )}
+                </>
+              )
+            })()}
 
             {/* Comparability flags */}
             {data.comparability.map((f, i) => (

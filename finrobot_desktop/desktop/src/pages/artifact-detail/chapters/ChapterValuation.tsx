@@ -55,6 +55,19 @@ export function ChapterValuation({
   const eq = dcf?.equity_value ?? null
   const mi = dcf?.market_implied ?? null
 
+  // REVIEW echo: in REVIEW state financial_modeling.implied_price is null, so the
+  // "DCF Implied Price" cell drops and the grid looks "缺数". Lead the chapter with
+  // a compact reverse-DCF banner that echoes the cover headline — the cash-flow
+  // ceiling here is the dcf METHOD mid (valuation_synthesis), never implied_price.
+  const dcfMethodMid = valuationSynthesis?.methods?.find((m) => m.name === 'dcf')?.mid ?? null
+  const reviewMarketPrice = valuationSynthesis?.current_price ?? null
+  const showReviewEcho =
+    mi !== null &&
+    implied === null &&
+    reviewMarketPrice !== null &&
+    reviewMarketPrice > 0 &&
+    (mi.growth_unreachable ? mi.ceiling_price != null : mi.implied_growth != null)
+
   // EV-family fields the numeric-audit gate flags as a category error (bank EV)
   // or dimensionally mixed (cross-currency). When any is flagged, the EV cell
   // carries a hover caveat so the suspect number isn't read at face value.
@@ -160,6 +173,119 @@ export function ChapterValuation({
 
   return (
     <Chapter id="valuation">
+      {showReviewEcho && mi && (
+        <div
+          data-testid="valuation-review-echo"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 14,
+            marginBottom: 16,
+            padding: '14px 16px',
+            borderRadius: 'var(--radius-md)',
+            background: `linear-gradient(160deg, color-mix(in srgb, ${mi.growth_unreachable ? 'var(--danger)' : 'var(--warning)'} 10%, transparent), var(--bg-card-50))`,
+            border: `1px solid color-mix(in srgb, ${mi.growth_unreachable ? 'var(--danger)' : 'var(--warning)'} 38%, transparent)`,
+            borderLeft: `3px solid ${mi.growth_unreachable ? 'var(--danger)' : 'var(--warning)'}`,
+          }}
+        >
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: 'var(--text-muted)',
+                marginBottom: 6,
+              }}
+            >
+              {t('chapter.cover.reverseDcf.scaleTitle')}
+            </div>
+            <div
+              style={{
+                fontFamily: 'var(--font-body)',
+                fontSize: 13.5,
+                lineHeight: 1.5,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              {mi.growth_unreachable ? (
+                <>
+                  {t('chapter.cover.reverseDcf.ledeB.pre')}{' '}
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 700,
+                      color: 'var(--danger)',
+                    }}
+                  >
+                    {mi.growth_ceiling != null ? `${(mi.growth_ceiling * 100).toFixed(0)}%` : '—'}
+                  </span>{' '}
+                  {t('chapter.cover.reverseDcf.ledeB.mid')}{' '}
+                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                    {mi.horizon_years}y
+                  </span>{' '}
+                  {t('chapter.cover.reverseDcf.ledeB.impliesOnly')}{' '}
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 700,
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    {mi.ceiling_price != null
+                      ? formatCurrency(mi.ceiling_price, quoteCurrency, locale, 2)
+                      : '—'}
+                  </span>{' '}
+                  {t('chapter.cover.reverseDcf.ledeB.marketAt')}{' '}
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 700,
+                      color: 'var(--accent-cyan)',
+                    }}
+                  >
+                    {formatCurrency(reviewMarketPrice as number, quoteCurrency, locale, 2)}
+                  </span>
+                  .
+                </>
+              ) : (
+                <>
+                  {t('chapter.cover.reverseDcf.ledeA.pre')}{' '}
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontWeight: 700,
+                      color: 'var(--warning)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    ~{mi.implied_growth != null ? `${(mi.implied_growth * 100).toFixed(1)}%` : '—'}
+                    /yr
+                  </span>{' '}
+                  {t('chapter.cover.reverseDcf.ledeA.mid')}{' '}
+                  <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                    {mi.horizon_years}y
+                  </span>
+                  {dcfMethodMid != null && (
+                    <>
+                      {' · '}
+                      {t('chapter.cover.reverseDcf.modelTopsOut')}{' '}
+                      <span
+                        style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}
+                      >
+                        {formatCurrency(dcfMethodMid, quoteCurrency, locale, 2)}
+                      </span>
+                    </>
+                  )}
+                  .
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {overview && (
         <Narrative>
           <p>{overview}</p>

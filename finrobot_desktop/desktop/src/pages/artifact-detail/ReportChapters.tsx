@@ -100,6 +100,13 @@ export function ReportChapters({
         versionNumber={d.versionNumber}
         totalVersions={d.totalVersions}
         withheldReason={withheldReason}
+        // Reverse-DCF REVIEW headline inputs. The cash-flow ceiling comes from
+        // the dcf method (valuation_synthesis), NOT dcf.implied_price (null in
+        // REVIEW). current_price is the live pricing anchor the gap is measured to.
+        marketImplied={d.dcf?.market_implied ?? null}
+        dcfMethod={d.valuationSynthesis?.methods?.find((m) => m.name === 'dcf') ?? null}
+        currentPrice={d.valuationSynthesis?.current_price ?? null}
+        quoteCurrency={d.quoteCurrency}
       />
       <ChapterThesis thesis={d.thesis} />
       <ChapterCompanyOverview thesis={d.thesis} />

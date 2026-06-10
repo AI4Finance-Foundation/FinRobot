@@ -7310,6 +7310,47 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
 .version-diff-tone--muted {
   color: var(--text-muted);
 }
+/* Reverse-DCF market-implied growth — the promoted REVIEW row. Amber neutral
+   warning (not 涨绿跌红): a rising implied growth just raises the bar. */
+.version-diff-metric--implied_growth,
+.version-diff-rail--review {
+  border-left-color: var(--accent-amber);
+}
+.version-diff-tone--review {
+  color: var(--accent-amber);
+  text-shadow: 0 0 16px var(--warning-glow);
+}
+.version-diff-metric__note {
+  flex-basis: 100%;
+  margin-top: 2px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+/* Demoted DCF-fair-value footnote — was a blank "—→—" prominent chip; in REVIEW
+   it drops here and redirects to the market-implied growth shift. */
+.version-diff-card__footnote-demoted {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-faint);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.version-diff-card__demoted-key {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.version-diff-card__demoted-dash {
+  color: var(--text-dim);
+}
 .version-diff-card__summary {
   margin-top: 22px;
   color: var(--text-secondary);

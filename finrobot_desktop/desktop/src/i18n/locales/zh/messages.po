@@ -1393,6 +1393,134 @@ msgstr ""
 #~ msgstr "N/A · 待复核"
 
 #. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.scaleTitle"
+#~ msgstr "估值落差"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.scaleUnit"
+#~ msgstr "对数刻度 $ / 股"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.bridgeNote"
+#~ msgstr "填平落差所需的隐含增长"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.modelCeiling"
+#~ msgstr "现金流模型上限"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.marketLive"
+#~ msgstr "市价 · 实时"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.ledeA.pre"
+#~ msgstr "市场正在为"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.ledeA.mid"
+#~ msgstr "的年营收增长定价，期限"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.modelTopsOut"
+#~ msgstr "现金流模型可达上限"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.dcfMidRange"
+#~ msgstr "DCF 中值 · {range}"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.marketSitsAt"
+#~ msgstr "市价处于"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.livePriceAnchor"
+#~ msgstr "实时价 · 定价锚"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.higher"
+#~ msgstr "倍于上限"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.short"
+#~ msgstr "仍够不到"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.withheldTitle"
+#~ msgstr "12 个月目标价已扣留"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.withheldBody"
+#~ msgstr "模型拒绝编造一个它无法辩护的数字。"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.notFailure"
+#~ msgstr "这不是失败。"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.ledeB.pre"
+#~ msgstr "即便"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.ledeB.mid"
+#~ msgstr "的年增长，期限"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.ledeB.impliesOnly"
+#~ msgstr "也只能推到"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.ledeB.marketAt"
+#~ msgstr "—— 而市价处于"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.maxDcfReach"
+#~ msgstr "DCF 可达上限"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.atCeiling"
+#~ msgstr "在 {ceiling}/年 的增长封顶下"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.ceilingCap"
+#~ msgstr "DCF 至多只能爬到这里"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.optionalityTitle"
+#~ msgstr "市价在为现金流模型无法捕捉的期权价值定价。"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.optionalityBody"
+#~ msgstr "基本面点估值不适用于此类标的 —— 这道落差是故事，不是折现率。"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.anchor.implied"
+#~ msgstr "市场隐含"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.anchor.ceiling"
+#~ msgstr "现金流上限"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.anchor.anchorPrice"
+#~ msgstr "定价锚"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.badge.stretch"
+#~ msgstr "高难度"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.badge.unreachable"
+#~ msgstr "无解"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.badge.defensible"
+#~ msgstr "可辩护"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.badge.live"
+#~ msgstr "实时 · 市价"
+
+#. js-lingui-explicit-id
 #~ msgid "chapter.cover.typeLabel"
 #~ msgstr "类型"
 

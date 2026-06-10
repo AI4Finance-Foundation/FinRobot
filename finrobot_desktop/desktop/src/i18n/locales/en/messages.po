@@ -1393,6 +1393,134 @@ msgstr ""
 #~ msgstr "N/A · withheld"
 
 #. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.scaleTitle"
+#~ msgstr "The Gap"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.scaleUnit"
+#~ msgstr "log $ / share"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.bridgeNote"
+#~ msgstr "implied growth to bridge the gap"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.modelCeiling"
+#~ msgstr "CASH-FLOW MODEL CEILING"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.marketLive"
+#~ msgstr "MARKET · LIVE"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.ledeA.pre"
+#~ msgstr "The market is pricing in"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.ledeA.mid"
+#~ msgstr "revenue growth over"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.modelTopsOut"
+#~ msgstr "Cash-flow model tops out"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.dcfMidRange"
+#~ msgstr "DCF mid · {range}"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.marketSitsAt"
+#~ msgstr "Market sits at"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.livePriceAnchor"
+#~ msgstr "live price · pricing anchor"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.higher"
+#~ msgstr "higher"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.short"
+#~ msgstr "short"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.withheldTitle"
+#~ msgstr "A 12-month target is withheld"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.withheldBody"
+#~ msgstr "the model refuses to fabricate a number it can't defend."
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.notFailure"
+#~ msgstr "This isn't a failure."
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.ledeB.pre"
+#~ msgstr "Even"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.ledeB.mid"
+#~ msgstr "annual growth over"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.ledeB.impliesOnly"
+#~ msgstr "implies only"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.ledeB.marketAt"
+#~ msgstr "— the market is at"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.maxDcfReach"
+#~ msgstr "Max DCF can reach"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.atCeiling"
+#~ msgstr "at {ceiling}/yr growth ceiling"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.ceilingCap"
+#~ msgstr "DCF CAN ONLY CLIMB THIS FAR"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.optionalityTitle"
+#~ msgstr "Priced on optionality no cash-flow model can capture."
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.optionalityBody"
+#~ msgstr "A fundamentals point target doesn't apply to this name — the gap is a story, not a discount rate."
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.anchor.implied"
+#~ msgstr "Market-implied"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.anchor.ceiling"
+#~ msgstr "Cash-flow ceiling"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.anchor.anchorPrice"
+#~ msgstr "Pricing anchor"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.badge.stretch"
+#~ msgstr "stretch"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.badge.unreachable"
+#~ msgstr "unreachable"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.badge.defensible"
+#~ msgstr "defensible"
+
+#. js-lingui-explicit-id
+#~ msgid "chapter.cover.reverseDcf.badge.live"
+#~ msgstr "live · market"
+
+#. js-lingui-explicit-id
 #~ msgid "chapter.cover.typeLabel"
 #~ msgstr "TYPE"
 

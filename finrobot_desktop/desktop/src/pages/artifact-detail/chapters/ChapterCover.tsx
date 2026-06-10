@@ -2,7 +2,8 @@
 // tagline / artifact metadata. See layout invariants;
 // we render it as the entry section so PDF exports get a proper cover.
 
-import type { ThesisShape } from './types'
+import type { DcfShape, ThesisShape, ValuationMethodShape } from './types'
+import { ReverseDcfHeadline } from './ReverseDcfHeadline'
 import { verdictLabel, verdictTone } from '../../../utils/verdict'
 import { formatDate } from '../../../utils/format'
 import { useI18n } from '../../../i18n'
@@ -22,6 +23,14 @@ interface ChapterCoverProps {
    * Null when not withheld, or when the REVIEW came from an upstream gate with no
    * contract evidence (the audit banner still explains those below). */
   withheldReason?: string | null
+  /** Reverse-DCF inputs for the REVIEW headline (the verdict, not a probe). The
+   * cash-flow ceiling MUST come from the dcf method mid (valuation_synthesis),
+   * never dcf.implied_price — that is null in REVIEW state. Null on non-REVIEW
+   * reports or legacy artifacts; the headline simply isn't rendered then. */
+  marketImplied?: DcfShape['market_implied'] | null
+  dcfMethod?: ValuationMethodShape | null
+  currentPrice?: number | null
+  quoteCurrency?: string
 }
 
 export function ChapterCover({
@@ -34,11 +43,18 @@ export function ChapterCover({
   versionNumber,
   totalVersions,
   withheldReason = null,
+  marketImplied = null,
+  dcfMethod = null,
+  currentPrice = null,
+  quoteCurrency = 'USD',
 }: ChapterCoverProps): React.ReactElement {
   const { locale, t } = useI18n()
   const verdict = (thesis?.recommendation ?? '').toUpperCase()
   const tone = verdictTone(verdict)
   const target = thesis?.price_target ?? null
+  // REVIEW headline = the reverse-DCF gap (verdict-grade visual). Only on a
+  // genuine withheld REVIEW (no target) with frozen market_implied data.
+  const showReverseDcf = verdict === 'REVIEW' && target === null && marketImplied != null
 
   return (
     <section
@@ -165,6 +181,15 @@ export function ChapterCover({
           )
         )}
       </div>
+
+      {showReverseDcf && marketImplied && (
+        <ReverseDcfHeadline
+          marketImplied={marketImplied}
+          dcfMethod={dcfMethod}
+          currentPrice={currentPrice}
+          quoteCurrency={quoteCurrency}
+        />
+      )}
 
       {verdict === 'REVIEW' && withheldReason && (
         <a

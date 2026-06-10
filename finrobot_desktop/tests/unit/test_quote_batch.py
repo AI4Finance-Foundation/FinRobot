@@ -165,6 +165,69 @@ async def test_rate_limit_opens_cache_wide_cooldown() -> None:
 
 
 @pytest.mark.asyncio
+async def test_all_providers_circuit_open_preserves_stale_price(tmp_path: Any) -> None:
+    """Bug 12 repro: a warm price goes TTL-stale, then EVERY QUOTE-capable
+    provider sits in an open circuit-breaker cooldown. fetch_quote raises a
+    gated-exhaustion error that MUST carry rate-limit semantics — otherwise the
+    fetcher returns None and get_batch overwrites the stale L1+L2 price with a
+    fresh None tombstone (the 429 disaster, resurrected through the breaker).
+
+    Uses a REAL DataLayer (not _FakeDataLayer) so the test pins the actual
+    fetch_quote gated-exhaustion path end to end."""
+    from finrobot.engine.data.cache import DataCache
+    from finrobot.engine.data.interface import DataProvider
+    from finrobot.engine.data.layer import DataLayer
+    from finrobot.engine.data.provider_health import ProviderHealth
+
+    # 1. Warm the cache with a real price.
+    warm_layer = _FakeDataLayer({"AAPL": 200.0})
+    assert await quote_batch.fetch_quotes_batch_cached(["AAPL"], warm_layer) == {"AAPL": 200.0}
+
+    # 2. Age the row past the 60s TTL in both L1 and L2 so the next batch
+    #    actually re-fetches instead of serving the fresh hit.
+    cache = quote_batch._get_singleton()
+    async with cache._l1_lock:
+        price, fetched_at = cache._l1["AAPL"]
+        cache._l1["AAPL"] = (price, fetched_at - 120.0)
+    conn = await cache._conn_ready()
+    await conn.execute("UPDATE quotes_cache SET fetched_at = fetched_at - 120")
+    await conn.commit()
+
+    # 3. Real DataLayer whose only QUOTE-capable provider is in open cooldown.
+    class _QuoteProvider(DataProvider):
+        fetch_called = 0
+
+        @property
+        def name(self) -> str:
+            return "fmp"
+
+        def capabilities(self) -> list[str]:
+            return ["quote"]
+
+        async def fetch(self, ticker: str, data_type: str, **kwargs: Any) -> DataResult:
+            type(self).fetch_called += 1
+            raise AssertionError("gated provider must never be attempted")
+
+    health = ProviderHealth()
+    health.record_failure("fmp", rate_limited=True)  # opens the breaker cooldown
+    data_cache = DataCache(db_path=str(tmp_path / "data_cache.db"))
+    try:
+        gated_layer = DataLayer([_QuoteProvider()], data_cache, health=health)
+        out = await quote_batch.fetch_quotes_batch_cached(["AAPL"], gated_layer)
+    finally:
+        await data_cache.close()
+
+    # Stale price served, provider untouched.
+    assert out == {"AAPL": 200.0}
+    assert _QuoteProvider.fetch_called == 0
+
+    # And the L2 row was NOT overwritten with a None tombstone.
+    async with conn.execute("SELECT last_price FROM quotes_cache WHERE ticker = 'AAPL'") as cur:
+        row = await cur.fetchone()
+    assert row is not None and row[0] == 200.0
+
+
+@pytest.mark.asyncio
 async def test_generic_failure_does_not_open_cooldown() -> None:
     """A non-rate-limit failure tombstones None WITHOUT opening the cooldown —
     a different ticker still fetches normally."""

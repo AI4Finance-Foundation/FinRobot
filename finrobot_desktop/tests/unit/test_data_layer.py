@@ -5,7 +5,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from finrobot.engine.data.cache import DataCache, raw_slot_key
-from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
+from finrobot.engine.data.interface import (
+    DataProvider,
+    DataResult,
+    ProviderError,
+    RateLimitedProviderError,
+    is_rate_limit_error,
+)
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.provider_health import ProviderHealth
 from finrobot.engine.data.normalize import NormalizedFinancials, NormalizedPrice
@@ -972,10 +978,55 @@ class TestFetchQuoteRaises:
             await layer.fetch_quote("AAPL")
 
     async def test_raises_when_no_quote_capable_provider(self, cache):
+        """Config-shaped exhaustion (no QUOTE-capable provider at all) must NOT
+        read as a rate-limit — quote_batch is allowed to tombstone here."""
         p = MockProvider("x", ["financials"])
         layer = DataLayer([p], cache)
-        with pytest.raises(ProviderError, match="No QUOTE"):
+        with pytest.raises(ProviderError, match="No QUOTE") as excinfo:
             await layer.fetch_quote("AAPL")
+        assert is_rate_limit_error(excinfo.value) is False
+
+    async def test_all_capable_providers_gated_raises_rate_limited(self, cache):
+        """Bug 12: QUOTE-capable providers exist but ALL sit in an open
+        circuit-breaker cooldown → the error must carry rate-limit semantics
+        (RateLimitedProviderError) so quote_batch maps it to
+        QuoteFetchRateLimited and preserves stale prices instead of writing a
+        None tombstone over them."""
+        health = ProviderHealth()
+        health.record_failure("fmp", rate_limited=True)
+        health.record_failure("yfinance", rate_limited=True)
+        p1 = MockProvider("fmp", ["quote"])
+        p2 = MockProvider("yfinance", ["quote"])
+        layer = DataLayer([p1, p2], cache, health=health)
+
+        with pytest.raises(RateLimitedProviderError, match="circuit-breaker cooldown"):
+            await layer.fetch_quote("AAPL")
+        assert p1.fetch_called == 0 and p2.fetch_called == 0  # gated, never attempted
+
+    async def test_partial_gating_still_uses_available_provider(self, cache):
+        """One provider gated, the other healthy → quote still resolves."""
+        health = ProviderHealth()
+        health.record_failure("fmp", rate_limited=True)
+        p1 = MockProvider("fmp", ["quote"])
+        p2 = MockProvider(
+            "yfinance", ["quote"], result=_make_result(data_type="quote", provider="yfinance")
+        )
+        layer = DataLayer([p1, p2], cache, health=health)
+        result = await layer.fetch_quote("AAPL")
+        assert result.provider == "yfinance"
+        assert p1.fetch_called == 0
+
+    async def test_attempted_failure_beats_gated_signal(self, cache):
+        """A real verdict from an attempted provider (delisted/not-found) wins
+        over the gated-cooldown signal — that path may still tombstone."""
+        health = ProviderHealth()
+        health.record_failure("fmp", rate_limited=True)
+        p1 = MockProvider("fmp", ["quote"])
+        p2 = MockProvider("yfinance", ["quote"], raises=ProviderError("Symbol delisted"))
+        layer = DataLayer([p1, p2], cache, health=health)
+        with pytest.raises(ProviderError, match="delisted") as excinfo:
+            await layer.fetch_quote("AAPL")
+        assert is_rate_limit_error(excinfo.value) is False
 
 
 class TestFetchPriceRaises:

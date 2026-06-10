@@ -82,6 +82,18 @@ class ProviderError(Exception):
     """Raised when a provider fails to fetch data."""
 
 
+class RateLimitedProviderError(ProviderError):
+    """A ProviderError that carries rate-limit semantics BY CONSTRUCTION.
+
+    Raised where the data layer itself knows the failure is throttling-shaped
+    and there is no wrapped upstream message to sniff — e.g. every capable
+    provider sits in an open circuit-breaker cooldown, so no provider was even
+    attempted. ``is_rate_limit_error`` recognises the type directly (no marker
+    matching), so callers preserve stale values (QuoteCache cooldown) instead
+    of tomb-stoning the ticker as delisted.
+    """
+
+
 # Substrings that mark a provider failure as upstream rate-limiting (HTTP 429)
 # rather than a bad ticker. Providers wrap the upstream error into ProviderError,
 # so message-sniffing is the reliable cross-provider signal. Union of every
@@ -104,7 +116,11 @@ def is_rate_limit_error(exc: BaseException) -> bool:
     ``QuoteFetchRateLimited`` (preserve stale, open cooldown), and the
     ``ProviderHealth`` circuit-breaker uses the same classifier to decide when
     to trip a provider. Message-based so it works on a wrapped ``ProviderError``
-    regardless of the originating provider/library.
+    regardless of the originating provider/library; a typed
+    ``RateLimitedProviderError`` is recognised structurally, independent of its
+    message wording.
     """
+    if isinstance(exc, RateLimitedProviderError):
+        return True
     msg = str(exc).lower()
     return any(marker in msg for marker in _RATE_LIMIT_MARKERS)

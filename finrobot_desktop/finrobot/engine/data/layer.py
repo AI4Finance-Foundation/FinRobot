@@ -8,6 +8,7 @@ from finrobot.engine.data.interface import (
     DataProvider,
     DataResult,
     ProviderError,
+    RateLimitedProviderError,
     is_rate_limit_error,
 )
 from finrobot.engine.data.provider_health import ProviderHealth
@@ -580,10 +581,12 @@ class DataLayer:
         DataLayer cache and just walks the provider chain (FMP → yfinance).
         """
         last_error: ProviderError | None = None
+        gated_capable: list[str] = []
         for provider in self._providers:
             if DataType.QUOTE not in provider.capabilities():
                 continue
             if self._health_gated(provider):
+                gated_capable.append(provider.name)
                 continue
             try:
                 result = await provider.fetch(ticker, DataType.QUOTE)
@@ -596,6 +599,17 @@ class DataLayer:
             return result
         if last_error is not None:
             raise last_error
+        if gated_capable:
+            # Transient exhaustion: QUOTE-capable providers exist but ALL sit in
+            # an open circuit-breaker cooldown, so nothing was even attempted.
+            # This must carry rate-limit semantics — a plain ProviderError here
+            # is not recognised by is_rate_limit_error, so quote_batch would
+            # return None and get_batch would overwrite every stale price with
+            # a fresh None tombstone (the 429 disaster, back via the breaker).
+            raise RateLimitedProviderError(
+                f"All QUOTE-capable providers for {ticker} are in circuit-breaker "
+                f"cooldown ({', '.join(gated_capable)}); serving stale until it closes."
+            )
         raise ProviderError(f"No QUOTE-capable provider available for {ticker}")
 
     async def fetch_price_range(

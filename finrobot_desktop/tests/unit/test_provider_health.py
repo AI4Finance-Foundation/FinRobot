@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from finrobot.engine.data import interface
+from finrobot.engine.data.interface import ProviderError, RateLimitedProviderError
 from finrobot.engine.data.provider_health import ProviderHealth, is_rate_limit_error
 
 UTC = timezone.utc
@@ -28,6 +29,15 @@ def test_marker_union_covers_all_variants() -> None:
     ):
         assert is_rate_limit_error(Exception(msg)) is True
     assert is_rate_limit_error(Exception("Symbol delisted")) is False
+
+
+def test_typed_rate_limited_error_recognised_regardless_of_message() -> None:
+    """Bug 12: RateLimitedProviderError carries rate-limit semantics by TYPE —
+    the classifier must recognise it even when the message contains none of the
+    429 markers (e.g. the all-providers-in-cooldown synthesised error). A plain
+    ProviderError with the same wording stays message-classified."""
+    assert is_rate_limit_error(RateLimitedProviderError("all providers in cooldown")) is True
+    assert is_rate_limit_error(ProviderError("all providers in cooldown")) is False
 
 
 def test_unknown_provider_is_available() -> None:

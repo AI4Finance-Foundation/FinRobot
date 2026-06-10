@@ -383,6 +383,7 @@ def calculate_core_pe(comps: PeerComps) -> PeerComps:
         if p.core_pe_ratio is not None and p.core_pe_ratio <= PEER_PE_NM_CAP
     ]
     result.median_core_pe = median(core_vals) if core_vals else None
+    result.core_pe_sample_n = len(core_vals)
     return result
 
 
@@ -437,6 +438,8 @@ def calculate_peer_statistics(comps: PeerComps) -> PeerComps:
     result.mean_pe = mean(pe_vals) if pe_vals else None
     result.median_ev_revenue = median(ev_revenue_vals) if ev_revenue_vals else None
     result.median_forward_pe = median(forward_pe_vals) if forward_pe_vals else None
+    result.pe_sample_n = len(pe_vals)
+    result.forward_pe_sample_n = len(forward_pe_vals)
 
     ev_ebitda_n = len(ev_ebitda_vals)
     if ev_ebitda_n < total:

@@ -397,6 +397,14 @@ class PeerComps(BaseModel):
     # analyst consensus contribute. Feeds the forward_comps valuation method,
     # which pairs it with the target's forward EPS (one forward caliber both sides).
     median_forward_pe: float | None = None
+    # How many peers actually fed each median after NM/sanity exclusions — a
+    # "median" of one survivor is a single peer's multiple wearing a median's
+    # authority (TSLA 2026-06-10: TM carried no forward P/E, so the published
+    # "peer median forward P/E 5.8x" was GM alone). The comps_pe method refuses
+    # a median below its sample floor instead of pricing a target off it.
+    pe_sample_n: int = 0
+    core_pe_sample_n: int = 0
+    forward_pe_sample_n: int = 0
 
     # LLM-provided
     peer_justification: str = ""

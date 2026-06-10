@@ -50,6 +50,49 @@ _DDM_BAND_WIDTH = 0.15
 _COMPS_PE_BAND_WIDTH = 0.10
 """±1 std proxy when peer-PE std isn't recorded (PeerComps lacks std today)."""
 
+_COMPS_MIN_MULTIPLE_SAMPLE = 3
+"""Minimum surviving peers behind a multiple median before it may price the
+target. NM caps / sanity bounds / missing consensus thin the contributing set
+below the peer-SET floor (validate_peer_comps' ≥3 gates set membership, not
+median membership): TSLA 2026-06-10 carried 2 peers of which only GM had a
+forward P/E, and "peer median forward P/E 5.8x" — one company's multiple
+wearing a median's authority — priced TSLA at $10.93. A sample of 0 means the
+PeerComps was built without calculate_peer_statistics (hand-constructed /
+pre-field cached payloads) — counts unknown, median trusted as before."""
+
+_COMPS_MULTIPLE_MISMATCH_MAX = 10.0
+"""Premise guard: comps prices the target AT the peer median, which presumes
+the market would value it like its peers. A same-caliber target multiple ≥10x
+away from the median (TSLA forward P/E 322x vs auto peers 5.8x = 55x) is the
+market persistently rejecting that premise — applying the median manufactures
+a number with no information content and poisons the synthesis spread.
+Ordinary leader premia run 2–3x (AMD 63.6x vs semis 33x = 1.9x; MU 15.7x vs
+37.3x = 2.4x — both must keep pricing), so 10x only trips the absurd."""
+
+
+def _comps_median_refusal(
+    median_val: float,
+    sample_n: int,
+    target_multiple: float | None,
+    label: str,
+) -> str | None:
+    """None when the peer median may price the target; else the refusal reason."""
+    if 0 < sample_n < _COMPS_MIN_MULTIPLE_SAMPLE:
+        return (
+            f"comps_pe: 同业 {label} 样本仅 {sample_n} 家"
+            f"（< {_COMPS_MIN_MULTIPLE_SAMPLE}），单一对手的倍数不构成中位数 — 方法退出"
+        )
+    if target_multiple is not None and target_multiple > 0:
+        mismatch = max(target_multiple, median_val) / min(target_multiple, median_val)
+        if mismatch > _COMPS_MULTIPLE_MISMATCH_MAX:
+            return (
+                f"comps_pe: 标的自身 {label} {target_multiple:.0f}x 与同业中位 "
+                f"{median_val:.1f}x 相差 {mismatch:.0f}x"
+                f"（> {_COMPS_MULTIPLE_MISMATCH_MAX:.0f}x）——市场从未按同业中位"
+                f"为该标的定价，「向同业收敛」前提不适用 — 方法退出"
+            )
+    return None
+
 
 def aggregate_valuation(
     *,
@@ -85,7 +128,7 @@ def aggregate_valuation(
     elif dcf is None:
         warnings.append("dcf: 无 DCF artifact — 跑 AI 完整研报后此行展示")
 
-    if (m := _comps_pe_method(peer_comps, forward_eps, shares_outstanding)) is not None:
+    if (m := _comps_pe_method(peer_comps, forward_eps, shares_outstanding, warnings)) is not None:
         methods.append(m)
     elif peer_comps is None:
         warnings.append("comps_pe: 无 peer_analysis artifact — 跑 AI 完整研报后此行展示")
@@ -220,9 +263,14 @@ def _comps_pe_method(
     peer_comps: PeerComps | None,
     forward_eps: float | None,
     shares_outstanding: float | None,
+    warnings: list[str] | None = None,
 ) -> ValuationMethodRange | None:
     if peer_comps is None:
         return None
+
+    def _warn(msg: str) -> None:
+        if warnings is not None:
+            warnings.append(msg)
 
     used_forward = forward_eps is not None and forward_eps > 0
     has_shares = shares_outstanding is not None and shares_outstanding > 0
@@ -239,6 +287,15 @@ def _comps_pe_method(
         # median P/E only when no peer carried a forward multiple. Highest-confidence
         # path either way.
         if peer_comps.median_forward_pe is not None and peer_comps.median_forward_pe > 0:
+            refusal = _comps_median_refusal(
+                peer_comps.median_forward_pe,
+                peer_comps.forward_pe_sample_n,
+                peer_comps.target.forward_pe,
+                "forward P/E",
+            )
+            if refusal is not None:
+                _warn(refusal)
+                return None
             # Fully forward: peer FORWARD median P/E × target forward EPS — ONE
             # forward caliber on both sides, resolving the BUG-029 mixed-caliber
             # caveat below (peers' forward P/E = market_cap / FY1 consensus net
@@ -250,6 +307,15 @@ def _comps_pe_method(
             caliber = "forward EPS（同业 forward P/E，同口径）"
             confidence = 0.80
         elif peer_comps.median_pe is not None and peer_comps.median_pe > 0:
+            refusal = _comps_median_refusal(
+                peer_comps.median_pe,
+                peer_comps.pe_sample_n,
+                peer_comps.target.pe_ratio,
+                "P/E",
+            )
+            if refusal is not None:
+                _warn(refusal)
+                return None
             # Fallback when no peer carried a forward P/E (foreign-only set, or no
             # analyst consensus): as-reported trailing peer median P/E × forward EPS.
             #
@@ -277,6 +343,15 @@ def _comps_pe_method(
             and core_ni > 0
             and has_shares
         ):
+            refusal = _comps_median_refusal(
+                peer_comps.median_core_pe,
+                peer_comps.core_pe_sample_n,
+                peer_comps.target.core_pe_ratio,
+                "core P/E",
+            )
+            if refusal is not None:
+                _warn(refusal)
+                return None
             core_eps = core_ni / shares_outstanding  # type: ignore[operator]
             mid = peer_comps.median_core_pe * core_eps
             source = "peer_median_core_pe × core_eps（NOPAT 核心盈利口径，forward 不可得）"
@@ -289,6 +364,15 @@ def _comps_pe_method(
             # dropping the method entirely.
             net_income = peer_comps.target.net_income
             if net_income is not None and net_income > 0:
+                refusal = _comps_median_refusal(
+                    peer_comps.median_pe,
+                    peer_comps.pe_sample_n,
+                    peer_comps.target.pe_ratio,
+                    "P/E",
+                )
+                if refusal is not None:
+                    _warn(refusal)
+                    return None
                 mid = peer_comps.median_pe * (net_income / shares_outstanding)  # type: ignore[operator]
                 source = "peer_median_pe × trailing_eps (forward 不可得)"
                 multiple = peer_comps.median_pe

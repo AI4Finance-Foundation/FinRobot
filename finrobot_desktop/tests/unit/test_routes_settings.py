@@ -1268,3 +1268,86 @@ async def test_test_data_provider_maps_connect_error(tmp_path: Path, monkeypatch
     body = resp.json()
     assert body["ok"] is False
     assert body["code"] == "connect"
+
+
+# ---------------------------------------------------------------------------
+# Concurrency: lost updates + retired data-layer close (P2 audit 2026-06-10)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_concurrent_puts_do_not_lose_updates(tmp_path: Path, monkeypatch: Any) -> None:
+    """Two overlapping PUTs touching DIFFERENT fields must both land.
+
+    The route body is a read-modify-write over deps.settings (plus keychain +
+    settings.json): without the mutation lock, both requests read the same
+    ``current``, and whichever commits last erases the other's field from the
+    runtime settings. The slow secret_store.get forces the interleave window.
+    """
+    import asyncio as _asyncio
+
+    settings = _settings(sec_user_agent="OldCo old@example.com")
+    secret_store = AsyncMock()
+    secret_store.has = AsyncMock(return_value=False)
+    secret_store.set = AsyncMock()
+    secret_store.delete = AsyncMock()
+
+    async def slow_get(_key: str) -> None:
+        await _asyncio.sleep(0.02)  # widen the read→write window
+        return None
+
+    secret_store.get = AsyncMock(side_effect=slow_get)
+    app = _make_app(tmp_path, settings=settings, secret_store=secret_store)
+
+    async def fake_replace(request: Any, new_settings: Any) -> None:
+        await _asyncio.sleep(0)  # yield so the other request can interleave
+        request.app.state.deps.settings = new_settings
+
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", fake_replace)
+
+    async with _client(app) as c:
+        r1, r2 = await _asyncio.gather(
+            c.put("/api/settings", json={"model_name": "openai:gpt-4o-mini"}),
+            c.put("/api/settings", json={"sec_user_agent": "NewCo new@example.com"}),
+        )
+
+    assert r1.status_code == 200, r1.text
+    assert r2.status_code == 200, r2.text
+    final = app.state.deps.settings
+    assert final.model_name == "openai:gpt-4o-mini"
+    assert final.sec_user_agent == "NewCo new@example.com"
+    # And settings.json carries both (the file merge is also serialised).
+    content = json.loads((tmp_path / "settings.json").read_text())
+    assert content["model_name"] == "openai:gpt-4o-mini"
+    assert content["sec_user_agent"] == "NewCo new@example.com"
+
+
+@pytest.mark.asyncio
+async def test_replace_runtime_settings_defers_old_layer_close(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The replaced DataLayer must NOT be closed inline — an in-flight run's
+    fetch awaiting on it would have its connection pool yanked mid-await. It is
+    closed after the grace window instead."""
+    import asyncio as _asyncio
+
+    from finrobot.routes import settings as settings_mod
+
+    # No LLM key → validate_runtime_config fails → agent construction skipped
+    # (keeps the test offline); the layer-swap path is what we're pinning.
+    app = _make_app(tmp_path, settings=get_settings(model_name="openai:gpt-4o", provider_keys={}))
+    old_layer = app.state.deps.data_layer
+    new_layer = MagicMock()
+    new_layer.close = AsyncMock()
+    monkeypatch.setattr(settings_mod, "build_data_layer", lambda _s: new_layer)
+    monkeypatch.setattr(settings_mod, "_RETIRED_LAYER_GRACE_S", 0.05)
+
+    request = MagicMock()
+    request.app = app
+    await settings_mod._replace_runtime_settings(request, app.state.deps.settings)
+
+    assert app.state.deps.data_layer is new_layer
+    old_layer.close.assert_not_awaited()  # NOT closed inline
+
+    await _asyncio.sleep(0.2)  # let the grace window elapse
+    old_layer.close.assert_awaited_once()

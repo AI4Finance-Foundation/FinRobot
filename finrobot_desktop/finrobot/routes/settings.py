@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -41,6 +42,46 @@ _PROVIDER_KEY_PREFIX = "provider_key:"
 
 # Built-in provider ids cannot be deleted or shadowed by a custom provider.
 _BUILTIN_PROVIDER_IDS: frozenset[str] = frozenset(p.id for p in BUILTIN_PROVIDERS)
+
+
+# Serialises every settings mutation (PUT and clear-secret). Both endpoints
+# are read-modify-write over THREE stores at once (in-memory deps.settings,
+# the keychain, settings.json) — two concurrent PUTs interleaving their reads
+# silently drop one caller's fields from the merged candidate (lost update),
+# and the settings.json merge below is itself a read-modify-write of the file.
+# A single-process desktop server makes an in-process lock sufficient.
+_settings_mutation_lock = asyncio.Lock()
+
+# Grace period before a replaced DataLayer is actually closed. Pipelines read
+# ``deps.data_layer`` afresh on every fetch (the deps object is mutated in
+# place), so after a swap only fetches ALREADY awaiting on the old layer still
+# use it — closing immediately yanks their connection pools mid-await and
+# fails an in-flight run because the user saved an unrelated setting. A single
+# in-flight fetch is bounded by the provider httpx timeouts (~15-30s) plus
+# retries, so 120s comfortably drains it. Reference counting would need a
+# DataLayer contract change; the deferred close gets the same safety from the
+# route side alone.
+_RETIRED_LAYER_GRACE_S = 120.0
+# Strong refs so the deferred-close tasks aren't GC'd mid-flight.
+_retired_layer_tasks: set[asyncio.Task[None]] = set()
+
+
+async def _close_layer_after_grace(layer: Any) -> None:
+    try:
+        # Module attribute read at call time (not a bound default) so tests can
+        # shrink the grace window via monkeypatch.
+        await asyncio.sleep(_RETIRED_LAYER_GRACE_S)
+    finally:
+        # Runs even when the server shuts down mid-grace (task cancelled):
+        # the retired layer's provider pools must still be closed, not leaked.
+        with contextlib.suppress(Exception):
+            await layer.close()
+
+
+def _schedule_retired_layer_close(layer: Any) -> None:
+    task = asyncio.get_running_loop().create_task(_close_layer_after_grace(layer))
+    _retired_layer_tasks.add(task)
+    task.add_done_callback(_retired_layer_tasks.discard)
 
 
 def _provider_key_name(provider_id: str) -> str:
@@ -214,6 +255,14 @@ async def get_settings_route(request: Request) -> SettingsResponse:
 
 @router.put("", response_model=SettingsResponse)
 async def put_settings_route(update: SettingsUpdate, request: Request) -> SettingsResponse:
+    """Apply a settings update. Serialised by ``_settings_mutation_lock`` —
+    the body is a read-modify-write over deps.settings + keychain +
+    settings.json, so concurrent PUTs would silently drop one caller's fields."""
+    async with _settings_mutation_lock:
+        return await _put_settings_locked(update, request)
+
+
+async def _put_settings_locked(update: SettingsUpdate, request: Request) -> SettingsResponse:
     secret_store = request.app.state.secret_store
     current: FinRobotSettings = request.app.state.deps.settings
     payload = update.model_dump(exclude_unset=True)
@@ -337,7 +386,16 @@ async def clear_secret_route(body: ClearSecretRequest, request: Request) -> Sett
     stops carrying the cleared value. If clearing the key leaves the runtime
     config invalid (e.g. the active LLM provider lost its key), the startup_error
     banner is set so the UI tells the user.
+
+    Serialised by ``_settings_mutation_lock`` like PUT — the rebuild reads the
+    keychain + settings.json and replaces runtime state, so racing a PUT could
+    resurrect the just-cleared key or drop the PUT's fields.
     """
+    async with _settings_mutation_lock:
+        return await _clear_secret_locked(body, request)
+
+
+async def _clear_secret_locked(body: ClearSecretRequest, request: Request) -> SettingsResponse:
     is_data_secret = body.field in _DATA_SECRET_FIELDS
     is_provider_key = body.field.startswith(_PROVIDER_KEY_PREFIX)
     if not (is_data_secret or is_provider_key):
@@ -698,7 +756,11 @@ async def _replace_runtime_settings(request: Request, settings: FinRobotSettings
     else:
         request.app.state.agent = None
         request.app.state.sub_agents = {}
-    await old_data_layer.close()
+    # Deferred close: pipelines re-read deps.data_layer per fetch, but a fetch
+    # ALREADY awaiting on the old layer would have its connection pool yanked
+    # mid-await by an immediate close — a settings save must never fail an
+    # in-flight run. See _RETIRED_LAYER_GRACE_S for the drain-window reasoning.
+    _schedule_retired_layer_close(old_data_layer)
 
 
 def load_non_secret_settings_with_error(path: Path) -> tuple[dict[str, Any], str | None]:

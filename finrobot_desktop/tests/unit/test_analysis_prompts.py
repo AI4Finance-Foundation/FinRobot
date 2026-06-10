@@ -150,6 +150,24 @@ class TestBuildAnalysisPrompt:
         assert "MSFT" in prompt
 
 
+def _make_peer_candidates(ticker: str = "AAPL") -> DataResult:
+    """A minimal PEER_CANDIDATES payload whose deterministic screen picks TSM."""
+    return DataResult(
+        data={
+            "profile": {"market_cap": 3e12},
+            "industry_screen": ["TSM"],
+            "stock_peers": [],
+            "sector_screen": [],
+            "quotes": {"TSM": {"market_cap": 900e9, "pe": 28.0}},
+            "profiles": {},
+        },
+        provider="fmp",
+        ticker=ticker,
+        data_type="peer_candidates",
+        timestamp=datetime.now(tz=timezone.utc),
+    )
+
+
 class TestPeerTableFxNormalization:
     """BUG-016: the `analyze competitors` peer table must run peers through the
     same FX-normalize + sanity-gate recipe as the comps pipeline — never feed
@@ -178,15 +196,14 @@ class TestPeerTableFxNormalization:
         # Sanity-check the fixture really is a foreign-ccy collapse case.
         assert foreign_fin.reporting_currency == "TWD"
 
+        candidates = _make_peer_candidates()
+
         class _FakeDataLayer:
+            async def fetch(self, data_type: object, ticker: str) -> DataResult:
+                return candidates
+
             async def fetch_canonical(self, data_type: object, ticker: str) -> object:
                 return foreign_fin
-
-        class _StubAgent:
-            def __init__(self, *a: object, **k: object) -> None: ...
-
-            async def run(self, prompt: str, **kwargs: object) -> object:
-                return SimpleNamespace(output="TSM")
 
         settings = MagicMock()
         settings.create_model = MagicMock(return_value=MagicMock())
@@ -195,18 +212,64 @@ class TestPeerTableFxNormalization:
         async def _fake_fx(ccy: str, *, fmp_api_key: object = None) -> float:
             return 1.0 / 32.0  # TWD → USD
 
-        target = _make_fin()
-        with (
-            patch("finrobot.engine.analysis.prompts.Agent", _StubAgent),
-            patch("finrobot.engine.compute.coordinators.extractor.fetch_fx_rate_to_usd", _fake_fx),
-        ):
-            table = await _fetch_peer_table(_FakeDataLayer(), settings, "AAPL", target)
+        with patch("finrobot.engine.compute.coordinators.extractor.fetch_fx_rate_to_usd", _fake_fx):
+            table = await _fetch_peer_table(_FakeDataLayer(), settings, "AAPL")
 
         # net_income 1000B TWD × (1/32) = 31.25B USD; market_cap 900B USD →
         # P/E ≈ 28.8x (sane), NOT the collapsed 0.9x.
         assert "28.8x" in table, table
         assert "0.9x" not in table
         assert "Revenue (USD)" in table  # header flags the normalization
+
+
+class TestPeerTableDeterministicSelection:
+    """ADR-0014 contract: peers come from the deterministic PEER_CANDIDATES
+    screen, never from an LLM pick, and every symbol passes validate_ticker
+    before it becomes a fetch parameter."""
+
+    async def test_invalid_screen_symbol_is_dropped_before_fetch(self) -> None:
+        fetched: list[str] = []
+        target_fin = _make_fin()
+        candidates = _make_peer_candidates()
+
+        class _FakeDataLayer:
+            async def fetch(self, data_type: object, ticker: str) -> DataResult:
+                return candidates
+
+            async def fetch_canonical(self, data_type: object, ticker: str) -> object:
+                fetched.append(ticker)
+                return target_fin
+
+        settings = MagicMock()
+        settings.fmp_api_key = None
+
+        junk_screen = SimpleNamespace(tickers=["苹果", "AAPL;DROP", "MSFT"], rationale="fake")
+        with patch(
+            "finrobot.engine.analysis.prompts.screen_peers", MagicMock(return_value=junk_screen)
+        ):
+            table = await _fetch_peer_table(_FakeDataLayer(), settings, "AAPL")
+
+        # Junk symbols never reach the provider fan-out; the valid one does.
+        assert fetched == ["MSFT"]
+        assert "MSFT" in table
+
+    async def test_screen_degradation_returns_no_peers_not_llm_fallback(self) -> None:
+        class _FakeDataLayer:
+            async def fetch(self, data_type: object, ticker: str) -> DataResult:
+                return DataResult(
+                    data={"error": "no FMP key"},
+                    provider="fmp",
+                    ticker=ticker,
+                    data_type="peer_candidates",
+                    timestamp=datetime.now(tz=timezone.utc),
+                )
+
+            async def fetch_canonical(self, data_type: object, ticker: str) -> object:
+                raise AssertionError("must not fetch peer financials without a screen")
+
+        settings = MagicMock()
+        table = await _fetch_peer_table(_FakeDataLayer(), settings, "AAPL")
+        assert table == "No peers identified."
 
 
 class TestBuildAnalysisPromptMore:

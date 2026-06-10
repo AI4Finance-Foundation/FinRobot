@@ -25,9 +25,11 @@ from finrobot.engine.compute.operators.multiples import (
     compute_ttm_fcf,
     fcf_yield,
 )
+from finrobot.engine.compute.operators.peer_screen import screen_peers
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials
+from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.models.financial import CompanyFinancials
 from finrobot.engine.data.types import DataType
 
@@ -359,7 +361,7 @@ async def run_analysis(
 
     peer_table = ""
     if analysis_type == "competitors":
-        peer_table = await _fetch_peer_table(data_layer, settings, ticker, _fin)
+        peer_table = await _fetch_peer_table(data_layer, settings, ticker)
 
     prompt = build_analysis_prompt(
         analysis_type,
@@ -380,29 +382,45 @@ async def _fetch_peer_table(
     data_layer: DataLayer,
     settings: FinRobotSettings,
     ticker: str,
-    fin: NormalizedFinancials,
 ) -> str:
-    """Use LLM to select peers, then fetch their canonical financials for comparison.
+    """Deterministic peer selection + canonical financials for comparison.
 
-    ADR-0006 Step 6: peer financials now come from fetch_canonical(FINANCIALS)
+    Peers come from the same ADR-0014 recipe as the comps pipeline
+    (``DataType.PEER_CANDIDATES`` fetch + pure ``screen_peers``), NOT an LLM
+    pick. The retired LLM selector violated the core contract twice over: its
+    output became fetch parameters without ``validate_ticker``, and its
+    run-to-run nondeterminism made the peer table untraceable (the same class
+    of swing that moved comps_pe ±30% in one day before ADR-0014). Each
+    screened symbol is still passed through ``validate_ticker`` as a syntax
+    gate before it becomes a cache key / provider fan-out parameter.
+
+    ADR-0006 Step 6: peer financials come from fetch_canonical(FINANCIALS)
     so peer rows use the same typed fields as the target — no raw dict parse.
     """
-    selector: Agent[None, str] = Agent(
-        settings.create_model(),
-        instructions=(
-            "You are a financial analyst. Given a company ticker and its financials, "
-            "return ONLY a comma-separated list of 3-5 peer company tickers "
-            "(e.g. 'MSFT,GOOGL,META'). No explanation, just tickers."
-        ),
-    )
-    context = f"Company: {ticker.upper()}\nRevenue: {_fmt_num(fin.revenue)}"
-    sel_result = await selector.run(context)
-    raw_tickers = sel_result.output.strip().replace(" ", "")
-    peer_tickers = [
-        t.strip().upper()
-        for t in raw_tickers.split(",")
-        if t.strip() and t.strip().upper() != ticker.upper()
-    ][:5]
+    try:
+        candidates = await data_layer.fetch(DataType.PEER_CANDIDATES, ticker)
+    except ProviderError as e:
+        logger.warning("Peer candidates unavailable for %s: %s", ticker, e)
+        return "No peers identified."
+    if candidates.data.get("error"):
+        logger.warning("Peer candidates unavailable for %s: %s", ticker, candidates.data["error"])
+        return "No peers identified."
+    try:
+        screen = screen_peers(candidates.data, ticker)
+    except ValueError as e:
+        logger.warning("Peer screen degraded for %s: %s", ticker, e)
+        return "No peers identified."
+
+    peer_tickers: list[str] = []
+    for raw in screen.tickers:
+        try:
+            norm = validate_ticker(raw)
+        except ValueError:
+            logger.warning("Dropping invalid peer symbol %r from screen for %s", raw, ticker)
+            continue
+        if norm != ticker.upper():
+            peer_tickers.append(norm)
+    peer_tickers = peer_tickers[:5]
 
     if not peer_tickers:
         return "No peers identified."

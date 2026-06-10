@@ -9,7 +9,11 @@ FMP serves gross revenue 73.661B and interestExpense 23.825B for that quarter;
 73.661B − 23.825B = 49.836B ties to SEC to the penny.
 """
 
-from finrobot.engine.primitives.industry import bank_net_revenue, is_bank
+from finrobot.engine.primitives.industry import (
+    bank_net_revenue,
+    is_bank,
+    is_commodity_cyclical,
+)
 
 
 class TestIsBank:
@@ -33,6 +37,105 @@ class TestIsBank:
         """Financial Services sector but industry without 'bank' -> not a bank."""
         assert is_bank(industry="Insurance", sector="Financial Services") is False
         assert is_bank(industry="Asset Management", sector="Financial Services") is False
+
+
+class TestIsCommodityCyclical:
+    """Full-basket regression钉死 for the cyclical gate (mechanical闸门).
+
+    The provider industry tags below are the REAL ones (yfinance, probed
+    2026-06-10 in scripts/_cyclical_*): MU/NVDA/AMD all carry "Semiconductors";
+    WDC/STX carry "Computer Hardware" (so do DELL/ANET). The gate must therefore
+    separate cyclicals from non-cyclicals WITHIN those shared buckets, never by
+    the tag alone. AMD=False is the load-bearing assertion: a pure-volatility gate
+    misclassifies AMD's turnaround swings as a commodity cycle (PILLAR 3).
+    """
+
+    def test_memory_storage_true_via_ticker_anchor(self) -> None:
+        """Seed path: no description, generic tag — the ticker anchor fires.
+
+        MU/NVDA/AMD share "Semiconductors"; WDC/STX share "Computer Hardware"
+        with DELL/ANET. With only the tag available (the seed path), the curated
+        anchor is what makes the memory/storage names cyclical."""
+        assert is_commodity_cyclical("Semiconductors", "Technology", ticker="MU") is True
+        assert is_commodity_cyclical("Computer Hardware", "Technology", ticker="WDC") is True
+        assert is_commodity_cyclical("Computer Hardware", "Technology", ticker="STX") is True
+        assert is_commodity_cyclical("Computer Hardware", "Technology", ticker="SNDK") is True
+
+    def test_memory_storage_true_via_keyword(self) -> None:
+        """Comps path: description carries a memory/storage keyword → cyclical,
+        even for a ticker NOT in the anchor (the keyword收口 generalizes)."""
+        assert (
+            is_commodity_cyclical(
+                "Semiconductors",
+                "Technology",
+                description="Designs and manufactures DRAM and NAND memory",
+            )
+            is True
+        )
+        assert (
+            is_commodity_cyclical(
+                "Computer Hardware",
+                "Technology",
+                description="Maker of hard disk drives and HDD storage",
+            )
+            is True
+        )
+
+    def test_non_cyclical_semis_false(self) -> None:
+        """NVDA/AMD are "Semiconductors" but NOT memory — must stay non-cyclical.
+
+        AMD=False even though its op-margin history is highly volatile: the gate
+        is the whitelist/keyword/anchor, never volatility (the AMD假阳 the design
+        rejected). No description, not in the anchor → False."""
+        assert is_commodity_cyclical("Semiconductors", "Technology", ticker="NVDA") is False
+        assert is_commodity_cyclical("Semiconductors", "Technology", ticker="AMD") is False
+        # Even with a GPU/CPU description (no memory keyword) AMD stays False.
+        assert (
+            is_commodity_cyclical(
+                "Semiconductors",
+                "Technology",
+                description="Designs CPUs, GPUs and adaptive SoC products",
+                ticker="AMD",
+            )
+            is False
+        )
+
+    def test_non_cyclical_non_semis_false(self) -> None:
+        assert (
+            is_commodity_cyclical("Beverages—Non-Alcoholic", "Consumer Defensive", ticker="KO")
+            is False
+        )
+        assert (
+            is_commodity_cyclical("Software—Infrastructure", "Technology", ticker="MSFT") is False
+        )
+        assert (
+            is_commodity_cyclical("Drug Manufacturers—General", "Healthcare", ticker="JNJ") is False
+        )
+        assert is_commodity_cyclical(industry=None, sector=None) is False
+
+    def test_wide_bucket_without_keyword_false(self) -> None:
+        """DELL/ANET sit in "Computer Hardware" but are not memory/storage → False
+        (no anchor, no keyword)."""
+        assert is_commodity_cyclical("Computer Hardware", "Technology", ticker="DELL") is False
+        assert (
+            is_commodity_cyclical(
+                "Computer Hardware",
+                "Technology",
+                description="Network switches and routers",
+                ticker="ANET",
+            )
+            is False
+        )
+
+    def test_unambiguous_cyclical_industries_true(self) -> None:
+        """The unambiguous whitelist fires on the industry tag alone."""
+        assert is_commodity_cyclical("Steel", "Basic Materials", ticker="X") is True
+        assert is_commodity_cyclical("Oil & Gas E&P", "Energy", ticker="DVN") is True
+        assert is_commodity_cyclical("Marine Shipping", "Industrials", ticker="ZIM") is True
+        assert is_commodity_cyclical("Auto Manufacturers", "Consumer Cyclical", ticker="F") is True
+
+    def test_ticker_anchor_normalizes_case_and_whitespace(self) -> None:
+        assert is_commodity_cyclical("Semiconductors", "Technology", ticker=" mu ") is True
 
 
 class TestBankNetRevenue:

@@ -53,6 +53,146 @@ _FINANCIAL_SECTOR_NAMES: frozenset[str] = frozenset(
     }
 )
 
+# Commodity / deep-cyclical industries whose earnings swing peak→trough by tens of
+# margin points within one business cycle, so the trailing-3y snapshot the generic
+# DCF seeds off badly misprices them (Damodaran, *Valuing Cyclical and Commodity
+# Companies*). These names need a THROUGH-CYCLE normalized earnings base, not the
+# current-regime median. Membership is the PRIMARY gate (a deterministic whitelist,
+# the same工程权衡 as ``_BANK_INDUSTRIES``); op-margin volatility is deliberately
+# NOT the gate — it假阳's AMD (a turnaround/secular-growth high-vol story, not a
+# commodity cycle) while abstaining on names whose margin history the provider
+# can't field (empirically: scripts/_cyclical_normalization_validation.py PILLAR 3).
+#
+# Only UNAMBIGUOUS industry labels live here. Memory/storage names ride the generic
+# "Semiconductors" / "Computer Hardware" buckets that ALSO contain non-cyclicals
+# (NVDA/AMD; DELL/ANET), so they are gated separately below via keyword收口 on the
+# business description and a curated ticker anchor — the industry tag alone can't
+# separate MU from NVDA (both "Semiconductors").
+_COMMODITY_CYCLICAL_INDUSTRIES: frozenset[str] = frozenset(
+    {
+        # Marine shipping / freight (charter-rate cyclical)
+        "Marine Shipping",
+        "Shipbuilding & Marine",
+        "Integrated Freight & Logistics",
+        # Steel / industrial metals & mining
+        "Steel",
+        "Aluminum",
+        "Other Industrial Metals & Mining",
+        "Industrial Metals & Mining",
+        "Copper",
+        "Coking Coal",
+        "Gold",
+        "Silver",
+        # Bulk chemicals
+        "Chemicals",
+        "Specialty Chemicals",
+        "Agricultural Inputs",
+        # Oil & gas (upstream / services / refining — NOT midstream pipelines)
+        "Oil & Gas E&P",
+        "Oil & Gas Equipment & Services",
+        "Oil & Gas Drilling",
+        "Oil & Gas Refining & Marketing",
+        "Oil & Gas Integrated",
+        # Autos (volume-cyclical OEM + parts)
+        "Auto Manufacturers",
+        "Auto Parts",
+    }
+)
+
+# Wide industry buckets that CONTAIN commodity-cyclicals but also non-cyclicals.
+# A name in one of these is cyclical ONLY when its business description carries a
+# memory/storage keyword (keyword收口, §2.3-A) — mirrors ``peer_screen.
+# _semiconductor_role`` which also gates on provider profile text.
+_AMBIGUOUS_CYCLICAL_BUCKETS: frozenset[str] = frozenset(
+    {
+        "Semiconductors",  # MU is here, so are NVDA/AMD/AVGO — keyword separates them
+        "Computer Hardware",  # WDC/STX/SNDK here, so are DELL/ANET — keyword separates
+        "Consumer Electronics",
+    }
+)
+
+# Memory / storage keywords. A "Semiconductors" / "Computer Hardware" name whose
+# description contains one of these is a memory/storage cyclical (DRAM/NAND price
+# swings drive the cycle). Lower-cased substring match against the profile text.
+_MEMORY_STORAGE_KEYWORDS: tuple[str, ...] = (
+    "dram",
+    "nand",
+    "memory",
+    "flash memory",
+    "hard disk",
+    "hard drive",
+    "hdd",
+    "solid state drive",
+    "solid-state drive",
+    "data storage",
+    "storage solutions",
+)
+
+# Curated memory/storage ticker anchor. The seed path (``seed_dcf_inputs``) only
+# carries the provider industry/sector tags — NOT a business description — so the
+# keyword收口 above can't fire there for MU/WDC/STX (all generic-tagged). This
+# whitelist is the deterministic anchor that makes them cyclical on the seed path,
+# the same curated-constant mechanism as ``cyclical_peers._CYCLICAL_PEER_MAP``
+# (and kept in sync with it). It is an ANCHOR, never a denylist: a ticker absent
+# here still qualifies via industry/keyword. Normalized (upper, no exchange suffix).
+_MEMORY_STORAGE_TICKERS: frozenset[str] = frozenset(
+    {
+        "MU",  # Micron — DRAM/NAND
+        "WDC",  # Western Digital — HDD + flash
+        "STX",  # Seagate — HDD
+        "SNDK",  # Sandisk — NAND flash (2025 spin from WDC)
+    }
+)
+
+
+def is_commodity_cyclical(
+    industry: str | None = None,
+    sector: str | None = None,
+    description: str | None = None,
+    ticker: str | None = None,
+) -> bool:
+    """Detect a commodity / deep-cyclical company that needs through-cycle
+    earnings normalization in its DCF seed (Damodaran cyclical口径).
+
+    A company qualifies when ANY of:
+    1. Its industry is an unambiguous commodity-cyclical label
+       (``_COMMODITY_CYCLICAL_INDUSTRIES``: steel, shipping, oil&gas E&P, autos…).
+    2. Its industry is a wide bucket that mixes cyclicals with non-cyclicals
+       (``_AMBIGUOUS_CYCLICAL_BUCKETS``: Semiconductors / Computer Hardware /
+       Consumer Electronics) AND its business ``description`` carries a
+       memory/storage keyword (DRAM/NAND/flash/HDD…). This separates MU from
+       NVDA/AMD, and WDC/STX from DELL/ANET, without trusting the industry tag.
+    3. Its ``ticker`` is in the curated memory/storage anchor
+       (``_MEMORY_STORAGE_TICKERS``). This is the seed-path mechanism: the seed
+       carries no description, so the keyword收口 can't fire — the anchor makes
+       MU/WDC/STX cyclical there. Never a denylist (absence ≠ non-cyclical).
+
+    Volatility is intentionally NOT a gate (it misclassifies AMD's turnaround
+    high-vol as a commodity cycle — PILLAR 3 empirics). Whitelist + keyword +
+    anchor are all deterministic and traceable.
+
+    Args:
+        industry: Provider industry label (e.g. "Semiconductors").
+        sector: Provider sector label (reserved; the industry tag is decisive here).
+        description: Business-description text (peer_screen profile / SEC business
+            summary). Drives the keyword收口 for the wide buckets. None on the seed
+            path → falls through to the ticker anchor.
+        ticker: Stock symbol for the curated memory/storage anchor.
+
+    Returns:
+        True when the DCF earnings base should be the through-cycle normalized
+        median rather than the trailing-3y median.
+    """
+    if industry and industry in _COMMODITY_CYCLICAL_INDUSTRIES:
+        return True
+    if industry and industry in _AMBIGUOUS_CYCLICAL_BUCKETS and description:
+        text = description.lower()
+        if any(kw in text for kw in _MEMORY_STORAGE_KEYWORDS):
+            return True
+    if ticker and ticker.strip().upper() in _MEMORY_STORAGE_TICKERS:
+        return True
+    return False
+
 
 def is_bank(
     industry: str | None = None,

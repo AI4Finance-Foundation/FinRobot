@@ -102,3 +102,27 @@ def test_suffixed_fabricated_amount_flagged() -> None:
     args = [Argument(claim="市值将蒸发 USD 150B", evidence_ids=["method.DCF.mid"])]
     out = verify_arguments("bear", args, _es())
     assert out[0].verified is False
+
+
+def test_suffixed_amount_matching_evidence_scales_and_passes() -> None:
+    """'USD 150B' must scale to 1.5e11 BEFORE matching — a $-leaf at that
+    magnitude endorses it; comparing the raw '150' against 1.5e11 would not."""
+    es = _es()
+    es.items.append(
+        Evidence(evidence_id="synthesis.implied_ev", label="隐含 EV", value=1.5e11, unit="$")
+    )
+    args = [Argument(claim="隐含 EV 约 USD 150B", evidence_ids=["synthesis.implied_ev"])]
+    out = verify_arguments("bull", args, es)
+    assert out[0].verified is True
+
+
+def test_negative_dollar_evidence_endorses_its_magnitude() -> None:
+    """The amount regex captures sign-less digits, so a negative $-leaf
+    (e.g. per-share net-debt drag of -15.33) must endorse '$15.33' via abs()."""
+    es = _es()
+    es.items.append(
+        Evidence(evidence_id="method.NAV.net_debt_ps", label="每股净债", value=-15.33, unit="$")
+    )
+    args = [Argument(claim="每股净债拖累 $15.33", evidence_ids=["method.NAV.net_debt_ps"])]
+    out = verify_arguments("bear", args, es)
+    assert out[0].verified is True

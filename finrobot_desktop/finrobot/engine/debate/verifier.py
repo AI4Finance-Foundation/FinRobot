@@ -47,8 +47,10 @@ def verify_arguments(
     # $-amounts in claims may only restate $-denominated evidence (cited or
     # not — mis-attribution is sloppiness, fabrication is the contract breach)
     # or the current price. Unit-aware on purpose: a WACC of 16.6 (%) does not
-    # endorse a "$16.6" in prose.
-    dollar_leaves = [e.value for e in evidence_set.items if e.unit == "$"]
+    # endorse a "$16.6" in prose. Compared as abs(): the amount regex captures
+    # sign-less digits ("-$15.33" parses to 15.33), so a negative $-leaf must
+    # endorse its magnitude or it could never endorse anything.
+    dollar_leaves = [abs(e.value) for e in evidence_set.items if e.unit == "$"]
     dollar_leaves.append(evidence_set.current_price)
     results: list[VerifiedArgument] = []
 

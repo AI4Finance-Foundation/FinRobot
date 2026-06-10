@@ -130,6 +130,13 @@ def current_ev_ebitda(financial_data: FinancialData, net_debt: float) -> float |
     TTM-vs-annual signal flip (W1-C2). Canonical financials are single-currency
     at this point (FX normalised at the data chokepoint), so market_cap and
     EBITDA share a currency and the ratio is well-posed.
+
+    The result passes through the SAME ``_sanity`` gate as the peer-comps path
+    ([PEER_EV_EBITDA_SANITY_MIN, PEER_EV_EBITDA_SANITY_MAX]): a sub-0.5x or
+    300x+ print — or a NaN net_debt component leaking through — is unit/FX/
+    caliber garbage, and the single authoritative "current EV/EBITDA" must not
+    be the one surface exempt from the garbage filter every peer row passes.
+    Out-of-band → None → the caller's disclosed trailing-annual fallback.
     """
     market = getattr(financial_data, "market", None)
     income = getattr(financial_data, "income", None)
@@ -150,7 +157,11 @@ def current_ev_ebitda(financial_data: FinancialData, net_debt: float) -> float |
     if balance is not None:
         preferred = getattr(balance, "preferred_stock", None) or 0.0
         nci = getattr(balance, "noncontrolling_interest", None) or 0.0
-    return (market_cap + net_debt + preferred + nci) / ebitda
+    return _sanity(
+        (market_cap + net_debt + preferred + nci) / ebitda,
+        PEER_EV_EBITDA_SANITY_MIN,
+        PEER_EV_EBITDA_SANITY_MAX,
+    )
 
 
 def compute_ttm_fcf(

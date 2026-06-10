@@ -201,6 +201,34 @@ def test_current_ev_ebitda_none_when_inputs_missing_or_non_positive(market_cap, 
     assert current_ev_ebitda(fd, net_debt=3e9) is None
 
 
+def test_current_ev_ebitda_sub_sanity_floor_is_none():
+    """TSM-shape FX/unit artifact (USD market_cap over local-ccy EBITDA collapses
+    the ratio sub-0.5x) must be gated by the SAME sanity band as the peer path —
+    the canonical 'current EV/EBITDA' was the one surface exempt from the filter."""
+    fd = _financial_data(market_cap=1e9, ebitda=100e9)  # 0.01x — unit garbage
+    assert current_ev_ebitda(fd, net_debt=0.0) is None
+
+
+def test_current_ev_ebitda_above_sanity_cap_is_none():
+    """Divide-by-near-zero garbage (EBITDA collapsed to a sliver) → 300x+ → None."""
+    fd = _financial_data(market_cap=100e9, ebitda=0.1e9)  # 1030x
+    assert current_ev_ebitda(fd, net_debt=3e9) is None
+
+
+def test_current_ev_ebitda_nan_net_debt_is_none():
+    """A NaN net_debt component poisons the ratio; the gate must reject it —
+    `<=` comparisons are False for NaN so the input checks alone don't catch it."""
+    fd = _financial_data(market_cap=100e9, ebitda=4e9)
+    assert current_ev_ebitda(fd, net_debt=float("nan")) is None
+
+
+def test_current_ev_ebitda_legit_trough_value_passes():
+    """Symmetric gate must admit a legal cyclical-trough print (Damodaran: real
+    3-5x troughs exist; floor is 0.5x) — the filter blocks garbage, not low values."""
+    fd = _financial_data(market_cap=2e9, ebitda=4e9)  # (2e9+1e9)/4e9 = 0.75x
+    assert current_ev_ebitda(fd, net_debt=1e9) == pytest.approx(0.75)
+
+
 def test_calculate_multiples_includes_preferred_and_nci():
     # A peer's EV must use the full bridge too, else a peer carrying preferred/NCI
     # feeds an understated EV/EBITDA into the comps median. market_cap=500, debt=30,

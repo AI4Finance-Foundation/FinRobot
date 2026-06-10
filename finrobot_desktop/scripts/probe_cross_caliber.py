@@ -68,6 +68,12 @@ UNIVERSE: list[str] = [
 TOL_TIGHT = 0.005  # 0.5% — 同一个数跨口径
 TOL_CALIBER = 0.02  # 2% — 同名口径(EV/EBITDA)跨端点
 
+# 外部源已验真的极端倍数(ticker, field)——band 是启发式 candidate 滤网,
+# 这些是查过外部基准确认"系统是对的"的真实极端值,不再重复报。
+# ARM:stockanalysis.com 2026-06-09 EV/EBITDA=322.97(TTM EBITDA $1.06B,
+# EV $343.87B),我们 297.8 同量级仅 EBITDA 细口径差 → 数字正确。
+VERIFIED_EXTREMES: set[tuple[str, str]] = {("ARM", "ev_ebitda")}
+
 
 def _get(path: str, timeout: int = 30) -> dict | None:
     try:
@@ -210,6 +216,8 @@ def probe(ticker: str) -> list[dict]:
             # 负 PE(亏损)可接受 → 仅当被算成给出值才看;这里 lo=0 会抓负 PE
             if name == "pe_ratio" and v <= 0:
                 continue  # 亏损股 PE 可能负/None,不算违反
+            if (ticker, name) in VERIFIED_EXTREMES:
+                continue  # 外部源已验真的极端值,见 VERIFIED_EXTREMES
             viol("MULT-BAND", f"{name}={v} 超出合理 band ({lo},{hi}]", field=name, value=v)
 
     # ── INV-EVEBITDA-CALIBER:/financials.ev_ebitda 与 historical-bands.current 同口径 ──

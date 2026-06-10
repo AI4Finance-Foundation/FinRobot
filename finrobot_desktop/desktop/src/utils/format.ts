@@ -167,6 +167,26 @@ export function formatCurrencyCompact(
   }
 }
 
+/** Date-only ISO strings ("YYYY-MM-DD") — fiscal period ends, price-bar dates. */
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/**
+ * Parse a date input for *calendar-day* rendering. `new Date('YYYY-MM-DD')`
+ * parses as UTC midnight per spec, so rendering it with the local-TZ getters
+ * below shows the PREVIOUS day for any viewer west of UTC (a 2026-03-31
+ * fiscal period end renders "2026-03-30" in New York). Date-only strings are
+ * therefore parsed as LOCAL midnight so the calendar day always round-trips;
+ * everything else (full ISO timestamps, epoch numbers, Date) is a real
+ * instant and keeps normal parsing.
+ */
+function parseDateInput(d: Date | string | number): Date {
+  if (typeof d === 'string' && DATE_ONLY_RE.test(d)) {
+    const [y, m, day] = d.split('-').map(Number)
+    return new Date(y, m - 1, day)
+  }
+  return typeof d === 'string' || typeof d === 'number' ? new Date(d) : d
+}
+
 /**
  * Date formatter.
  *   short ⇒ "2026-05-23" (ISO, locale-invariant — consistent for tables/lists)
@@ -179,7 +199,7 @@ export function formatDate(
   style: 'short' | 'long' | 'datetime' = 'short',
 ): string {
   if (d === null || d === undefined) return '—'
-  const date = typeof d === 'string' || typeof d === 'number' ? new Date(d) : d
+  const date = parseDateInput(d)
   if (Number.isNaN(date.getTime())) return '—'
 
   if (style === 'short') {
@@ -273,7 +293,7 @@ export function formatRelativeTime(
   now: Date = new Date(),
 ): string {
   if (d === null || d === undefined) return '—'
-  const date = typeof d === 'string' || typeof d === 'number' ? new Date(d) : d
+  const date = parseDateInput(d)
   if (Number.isNaN(date.getTime())) return '—'
 
   const diffMs = now.getTime() - date.getTime()

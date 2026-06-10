@@ -27,6 +27,7 @@ from finrobot.engine.compute.operators.sniper import (
     calculate_sniper_points,
 )
 from finrobot.engine.compute.operators.wacc import calculate_wacc
+from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.models.financial import (
     DCFInputs,
@@ -42,6 +43,25 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/compute", tags=["compute"])
+
+
+def _compute_http_error(exc: Exception, *, context: str | None = None) -> HTTPException:
+    """Map a compute/data-layer exception to its HTTP status + 中文 detail.
+
+    Mirrors ``routes/data.py::_data_http_error`` so the compute endpoints
+    surface the same vocabulary the desktop UI already handles:
+
+    - ProviderError → 502 (the seed routes fetch live data; upstream is down)
+    - ValueError    → 422 (invalid inputs / degenerate model / unknown ticker)
+
+    Without this the pure operators (and the seed routes' ``fetch_canonical``)
+    were called bare, so an operator ``ValueError`` or a provider outage became
+    an opaque 500. ``context`` is a short phrase (ticker or operation) for detail.
+    """
+    where = f"（{context}）" if context else ""
+    if isinstance(exc, ProviderError):
+        return HTTPException(status_code=502, detail=f"数据源暂不可用{where}：{exc}")
+    return HTTPException(status_code=422, detail=f"计算无法完成{where}：{exc}")
 
 
 def apply_growth_scale_override(inputs: DCFInputs, scale: float | None) -> DCFInputs:
@@ -206,14 +226,17 @@ class LboSeedResponse(BaseModel):
 
 @router.post("/wacc", response_model=WaccResponse)
 async def compute_wacc(request: WaccRequest) -> WaccResponse:
-    cost_of_equity, wacc = calculate_wacc(
-        request.risk_free_rate,
-        request.beta,
-        request.equity_risk_premium,
-        request.cost_of_debt,
-        request.tax_rate,
-        request.debt_ratio,
-    )
+    try:
+        cost_of_equity, wacc = calculate_wacc(
+            request.risk_free_rate,
+            request.beta,
+            request.equity_risk_premium,
+            request.cost_of_debt,
+            request.tax_rate,
+            request.debt_ratio,
+        )
+    except ValueError as exc:
+        raise _compute_http_error(exc, context="WACC") from exc
     return WaccResponse(cost_of_equity=cost_of_equity, wacc=wacc)
 
 
@@ -262,55 +285,61 @@ async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedRes
     deps = request.app.state.deps
     ticker = body.ticker
 
-    financial_data, dcf_inputs = await _seed_dcf_inputs_for_ticker(deps, ticker)
-    dcf_inputs = apply_growth_scale_override(dcf_inputs, body.growth_scale_override)
-    result = calculate_dcf(
-        dcf_inputs,
-        wacc_override=body.wacc_override,
-        tg_override=body.tg_override,
-        mid_year=body.mid_year,
-    )
-    wacc_range, tg_range = build_sensitivity_ranges(result.wacc, result.inputs.terminal_growth_rate)
-    sensitivity = calculate_sensitivity(dcf_inputs, wacc_range, tg_range)
-    result = result.model_copy(update={"sensitivity_table": sensitivity})
+    try:
+        financial_data, dcf_inputs = await _seed_dcf_inputs_for_ticker(deps, ticker)
+        dcf_inputs = apply_growth_scale_override(dcf_inputs, body.growth_scale_override)
+        result = calculate_dcf(
+            dcf_inputs,
+            wacc_override=body.wacc_override,
+            tg_override=body.tg_override,
+            mid_year=body.mid_year,
+        )
+        wacc_range, tg_range = build_sensitivity_ranges(
+            result.wacc, result.inputs.terminal_growth_rate
+        )
+        sensitivity = calculate_sensitivity(dcf_inputs, wacc_range, tg_range)
+        result = result.model_copy(update={"sensitivity_table": sensitivity})
 
-    current_price = financial_data.market.current_price
-    reverse_growth: DcfReverseResult | None = None
-    reverse_wacc: DcfReverseResult | None = None
-    reverse_horizon: DcfReverseResult | None = None
-    if body.include_reverse and current_price and current_price > 0:
-        rg = solve_for_implied_growth(
-            dcf_inputs,
-            target_price=current_price,
-            wacc_override=body.wacc_override,
-            tg_override=body.tg_override,
-            mid_year=body.mid_year,
-        )
-        reverse_growth = DcfReverseResult(solve_for="growth", **rg)
-        rw = solve_for_implied_wacc(
-            dcf_inputs,
-            target_price=current_price,
-            tg_override=body.tg_override,
-            mid_year=body.mid_year,
-        )
-        reverse_wacc = DcfReverseResult(solve_for="wacc", **rw)
-        # Horizon reverse needs a growth axis to hold fixed (it trades off against
-        # horizon). Default to the seeded first-year growth; the response echoes it
-        # as assumed_growth so the implied horizon is read "under g=X%, ~N years".
-        seeded_growth = (
-            dcf_inputs.revenue_growth_rates[0]
-            if dcf_inputs.revenue_growth_rates
-            else dcf_inputs.terminal_growth_rate
-        )
-        rh = solve_for_implied_horizon(
-            dcf_inputs,
-            target_price=current_price,
-            growth_rate=seeded_growth,
-            wacc_override=body.wacc_override,
-            tg_override=body.tg_override,
-            mid_year=body.mid_year,
-        )
-        reverse_horizon = DcfReverseResult(solve_for="horizon", **rh)
+        current_price = financial_data.market.current_price
+        reverse_growth: DcfReverseResult | None = None
+        reverse_wacc: DcfReverseResult | None = None
+        reverse_horizon: DcfReverseResult | None = None
+        if body.include_reverse and current_price and current_price > 0:
+            rg = solve_for_implied_growth(
+                dcf_inputs,
+                target_price=current_price,
+                wacc_override=body.wacc_override,
+                tg_override=body.tg_override,
+                mid_year=body.mid_year,
+            )
+            reverse_growth = DcfReverseResult(solve_for="growth", **rg)
+            rw = solve_for_implied_wacc(
+                dcf_inputs,
+                target_price=current_price,
+                tg_override=body.tg_override,
+                mid_year=body.mid_year,
+            )
+            reverse_wacc = DcfReverseResult(solve_for="wacc", **rw)
+            # Horizon reverse needs a growth axis to hold fixed (it trades off
+            # against horizon). Default to the seeded first-year growth; the
+            # response echoes it as assumed_growth so the implied horizon is read
+            # "under g=X%, ~N years".
+            seeded_growth = (
+                dcf_inputs.revenue_growth_rates[0]
+                if dcf_inputs.revenue_growth_rates
+                else dcf_inputs.terminal_growth_rate
+            )
+            rh = solve_for_implied_horizon(
+                dcf_inputs,
+                target_price=current_price,
+                growth_rate=seeded_growth,
+                wacc_override=body.wacc_override,
+                tg_override=body.tg_override,
+                mid_year=body.mid_year,
+            )
+            reverse_horizon = DcfReverseResult(solve_for="horizon", **rh)
+    except (ValueError, ProviderError) as exc:
+        raise _compute_http_error(exc, context=ticker) from exc
 
     return DcfSeedResponse(
         inputs=dcf_inputs,
@@ -548,19 +577,22 @@ async def compute_dcf_equivalence_line(
     deps = request.app.state.deps
     ticker = body.ticker
 
-    financial_data, dcf_inputs = await _seed_dcf_inputs_for_ticker(deps, ticker)
-    target_price = body.target_price or financial_data.market.current_price
+    try:
+        financial_data, dcf_inputs = await _seed_dcf_inputs_for_ticker(deps, ticker)
+        target_price = body.target_price or financial_data.market.current_price
 
-    wacc, terminal_growth, points = build_equivalence_line(
-        dcf_inputs,
-        target_price,
-        wacc_override=body.wacc_override,
-        tg_override=body.tg_override,
-        growth_lo=body.growth_lo,
-        growth_hi=body.growth_hi,
-        steps=body.steps,
-        mid_year=body.mid_year,
-    )
+        wacc, terminal_growth, points = build_equivalence_line(
+            dcf_inputs,
+            target_price,
+            wacc_override=body.wacc_override,
+            tg_override=body.tg_override,
+            growth_lo=body.growth_lo,
+            growth_hi=body.growth_hi,
+            steps=body.steps,
+            mid_year=body.mid_year,
+        )
+    except (ValueError, ProviderError) as exc:
+        raise _compute_http_error(exc, context=ticker) from exc
     return DcfEquivalenceLineResponse(
         ticker=ticker,
         target_price=target_price,
@@ -574,18 +606,24 @@ async def compute_dcf_equivalence_line(
 async def compute_dcf_sensitivity(
     request: DcfSensitivityRequest,
 ) -> DcfSensitivityResult:
-    raw = await asyncio.to_thread(
-        calculate_sensitivity,
-        request.inputs,
-        request.wacc_range,
-        request.tg_range,
-    )
+    try:
+        raw = await asyncio.to_thread(
+            calculate_sensitivity,
+            request.inputs,
+            request.wacc_range,
+            request.tg_range,
+        )
+    except ValueError as exc:
+        raise _compute_http_error(exc, context="DCF 敏感性") from exc
     return DcfSensitivityResult(**raw)
 
 
 @router.post("/lbo", response_model=LBOResult)
 async def compute_lbo(inputs: LBOInputs) -> LBOResult:
-    return calculate_lbo(inputs)
+    try:
+        return calculate_lbo(inputs)
+    except ValueError as exc:
+        raise _compute_http_error(exc, context=inputs.ticker) from exc
 
 
 @router.post("/lbo-seed", response_model=LboSeedResponse)
@@ -610,9 +648,12 @@ async def compute_lbo_seed(body: LboSeedRequest, request: Request) -> LboSeedRes
     deps: FinRobotDeps = request.app.state.deps
     ticker = body.ticker
 
-    _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
-    _price = await deps.data_layer.fetch_canonical(DataType.PRICE, ticker)
-    financial_data = extract_financial_data(_fin, _price)
+    try:
+        _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+        _price = await deps.data_layer.fetch_canonical(DataType.PRICE, ticker)
+        financial_data = extract_financial_data(_fin, _price)
+    except (ValueError, ProviderError) as exc:
+        raise _compute_http_error(exc, context=ticker) from exc
 
     try:
         historical = await fetch_historical_metrics(deps.data_layer, ticker)
@@ -650,8 +691,11 @@ async def compute_lbo_seed(body: LboSeedRequest, request: Request) -> LboSeedRes
     if body.leverage_multiple is not None:
         seed_kwargs["leverage_multiple"] = body.leverage_multiple
 
-    lbo_inputs = seed_lbo_inputs(financial_data, historical, **seed_kwargs)  # type: ignore[arg-type]
-    lbo_result = calculate_lbo(lbo_inputs)
+    try:
+        lbo_inputs = seed_lbo_inputs(financial_data, historical, **seed_kwargs)  # type: ignore[arg-type]
+        lbo_result = calculate_lbo(lbo_inputs)
+    except (ValueError, ProviderError) as exc:
+        raise _compute_http_error(exc, context=ticker) from exc
 
     return LboSeedResponse(
         inputs=lbo_inputs,
@@ -663,18 +707,21 @@ async def compute_lbo_seed(body: LboSeedRequest, request: Request) -> LboSeedRes
 @router.post("/monte-carlo", response_model=MonteCarloResult)
 async def compute_monte_carlo(request: MonteCarloRequest) -> MonteCarloResult:
     """Run Monte Carlo DCF simulation (CPU-bound, offloaded to thread)."""
-    return await asyncio.to_thread(
-        run_monte_carlo,
-        inputs=request.inputs,
-        current_price=request.current_price,
-        n_simulations=request.n_simulations,
-        n_bins=request.n_bins,
-        revenue_growth_std=request.revenue_growth_std,
-        ebitda_margin_std=request.ebitda_margin_std,
-        wacc_std=request.wacc_std,
-        terminal_growth_std=request.terminal_growth_std,
-        mid_year=request.mid_year,
-    )
+    try:
+        return await asyncio.to_thread(
+            run_monte_carlo,
+            inputs=request.inputs,
+            current_price=request.current_price,
+            n_simulations=request.n_simulations,
+            n_bins=request.n_bins,
+            revenue_growth_std=request.revenue_growth_std,
+            ebitda_margin_std=request.ebitda_margin_std,
+            wacc_std=request.wacc_std,
+            terminal_growth_std=request.terminal_growth_std,
+            mid_year=request.mid_year,
+        )
+    except ValueError as exc:
+        raise _compute_http_error(exc, context="Monte Carlo") from exc
 
 
 @router.post("/sniper", response_model=SniperPoints)
@@ -685,4 +732,7 @@ async def compute_sniper(body: SniperRequest) -> SniperPoints:
     support/resistance levels, and risk/reward ratio. All numbers trace to typed
     inputs — no LLM inference.
     """
-    return calculate_sniper_points(body)
+    try:
+        return calculate_sniper_points(body)
+    except ValueError as exc:
+        raise _compute_http_error(exc, context=body.ticker) from exc

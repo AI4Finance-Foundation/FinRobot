@@ -110,6 +110,7 @@ async def test_sentiment_returns_normalised_snapshot() -> None:
     body = r.json()
     assert body["ticker"] == "NVDA"
     assert body["available"] is True
+    assert body["reason"] is None  # available → no failure reason
     assert body["bullish_pct"] == 67.5
     assert body["bearish_pct"] == pytest.approx(32.5)
     assert body["coverage"] == "2/3"
@@ -192,6 +193,9 @@ async def test_sentiment_returns_unavailable_when_provider_missing() -> None:
     assert r.status_code == 200
     body = r.json()
     assert body["available"] is False
+    # 'unconfigured' is what tells the UI to show the "add API key" CTA — distinct
+    # from a transient failure, which must NOT send a configured user to settings.
+    assert body["reason"] == "unconfigured"
     assert any("adanos provider 未配置" in w for w in body["warnings"])
 
 
@@ -203,6 +207,9 @@ async def test_sentiment_returns_unavailable_when_provider_raises() -> None:
     assert r.status_code == 200
     body = r.json()
     assert body["available"] is False
+    # Key IS configured but the call failed → 'provider_error' so the UI shows a
+    # retry, not the misleading "not configured" CTA (the reported bug).
+    assert body["reason"] == "provider_error"
     assert any("调用失败" in w for w in body["warnings"])
 
 

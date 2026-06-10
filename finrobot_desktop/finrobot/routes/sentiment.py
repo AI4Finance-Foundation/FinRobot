@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import math
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -48,6 +48,17 @@ class SentimentSnapshot(BaseModel):
             "False when the Adanos provider isn't configured (no API key) or all "
             "platform requests failed — UI shows '未配置 Adanos · [跳设置 →]'."
         )
+    )
+    reason: Literal["unconfigured", "provider_error"] | None = Field(
+        default=None,
+        description=(
+            "Why `available` is False, so the UI never mislabels a transient hiccup "
+            "as a missing API key:\n"
+            "  • 'unconfigured' — no Adanos key registered → show the 'add key' CTA.\n"
+            "  • 'provider_error' — key IS configured but the call failed → show a "
+            "retry affordance, NOT the config CTA.\n"
+            "  • None — the snapshot is available (or success)."
+        ),
     )
     coverage: str | None = Field(
         default=None, description="N/3 platforms returned data, e.g. '2/3'"
@@ -86,6 +97,7 @@ async def get_sentiment(
             ticker=ticker,
             days=days,
             available=False,
+            reason="unconfigured",
             warnings=["adanos provider 未配置 — 在设置中填入 API key 后即可解锁散户情绪"],
         )
 
@@ -97,6 +109,7 @@ async def get_sentiment(
             ticker=ticker,
             days=days,
             available=False,
+            reason="provider_error",
             warnings=[f"adanos 调用失败 — {exc}"],
         )
 

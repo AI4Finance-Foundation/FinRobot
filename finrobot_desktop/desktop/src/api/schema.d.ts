@@ -288,8 +288,9 @@ export interface paths {
      *     don't collide.
      *
      *     Error mapping:
-     *       - ValueError      → 422 (invalid ticker)
-     *       - ProviderError   → 502 (yfinance service down)
+     *       - invalid ``period`` → 422 (Literal validation, before any fetch)
+     *       - ValueError         → 422 (invalid ticker)
+     *       - ProviderError      → 502 (yfinance service down)
      */
     get: operations['get_price_api_data__ticker__price_get']
     put?: never
@@ -796,7 +797,24 @@ export interface paths {
     get: operations['get_chat_session_transcript_api_chat_sessions__session_id__get']
     put?: never
     post?: never
-    delete?: never
+    /**
+     * Delete Chat Session
+     * @description Permanently delete one session's on-disk transcript.
+     *
+     *     The ``session_id`` becomes the stem of ``<sessions>/<session_id>.jsonl``, so
+     *     a traversal stem (``../..``) is gated at the edge with
+     *     :func:`is_valid_session_id` (reject → 404, never a 500 or an unlink outside
+     *     the sessions dir — BUG-089). ``delete_session`` re-checks containment via
+     *     ``resolve()`` as defense-in-depth.
+     *
+     *     Returns:
+     *         ``{"status": "deleted", "session_id": session_id}`` on success.
+     *
+     *     Raises:
+     *         404: If the ``session_id`` is malformed, or no transcript exists on disk
+     *             (never started, already deleted, or evicted).
+     */
+    delete: operations['delete_chat_session_api_chat_sessions__session_id__delete']
     options?: never
     head?: never
     patch?: never
@@ -820,62 +838,8 @@ export interface paths {
      */
     get: operations['list_groups_api_coverage_groups_get']
     put?: never
-    /** Create Group */
-    post: operations['create_group_api_coverage_groups_post']
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/coverage/groups/{group_id}': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /** Get Group */
-    get: operations['get_group_api_coverage_groups__group_id__get']
-    put?: never
     post?: never
-    /** Delete Group */
-    delete: operations['delete_group_api_coverage_groups__group_id__delete']
-    options?: never
-    head?: never
-    /** Update Group */
-    patch: operations['update_group_api_coverage_groups__group_id__patch']
-    trace?: never
-  }
-  '/api/coverage/groups/{group_id}/members': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /** Add Members */
-    post: operations['add_members_api_coverage_groups__group_id__members_post']
     delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/coverage/groups/{group_id}/members/{ticker}': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post?: never
-    /** Remove Member */
-    delete: operations['remove_member_api_coverage_groups__group_id__members__ticker__delete']
     options?: never
     head?: never
     patch?: never
@@ -1238,13 +1202,6 @@ export interface paths {
 export type webhooks = Record<string, never>
 export interface components {
   schemas: {
-    /** AddMembersRequest */
-    AddMembersRequest: {
-      /** Tickers */
-      tickers: string[]
-      /** Note */
-      note?: string | null
-    }
     /**
      * Artifact
      * @description A single financial analysis snapshot.
@@ -1775,6 +1732,11 @@ export interface components {
        * @default false
        */
       cache_only: boolean
+      /**
+       * Refresh Noop
+       * @default false
+       */
+      refresh_noop: boolean
     }
     /**
      * CoverageRow
@@ -1797,6 +1759,10 @@ export interface components {
       change_pct_1d?: number | null
       /** Price As Of */
       price_as_of?: string | null
+      /** Session State */
+      session_state?:
+        | ('live' | 'pre_market' | 'post_market' | 'closed' | 'halted' | 'unknown')
+        | null
       /** Market Cap */
       market_cap?: number | null
       /** Revenue Ttm */
@@ -1869,13 +1835,6 @@ export interface components {
       pe?: components['schemas']['NumberSource'] | null
       upside_to_target_live?: components['schemas']['NumberSource'] | null
       market_implied?: components['schemas']['NumberSource'] | null
-    }
-    /** CreateGroupRequest */
-    CreateGroupRequest: {
-      /** Name */
-      name: string
-      /** Description */
-      description?: string | null
     }
     /** CreateRunRequest */
     CreateRunRequest: {
@@ -1981,6 +1940,12 @@ export interface components {
        */
       net_debt: number
       /**
+       * Currency
+       * @description ISO 4217 quote currency of the per-share / equity outputs (``implied_price`` is ``equity_value / shares_outstanding``, a market quote, so it follows ``FinancialData.quote_currency`` — TWD for TSM, EUR for SAP). Threaded by ``seed_dcf_inputs`` from the financials snapshot; ``calculate_dcf`` passes it through to ``DCFResult`` so the artifact carries a real currency tag and the diff formatter never has to assume USD. Defaults to USD so direct callers and JSON-round-tripped legacy artifacts (no ``currency`` key) still validate — same read-compat precedent as ``ttm_quarter_ends``.
+       * @default USD
+       */
+      currency: string
+      /**
        * Assumption Provenance
        * @description Maps assumption field names to their reasoning/source
        */
@@ -2017,6 +1982,11 @@ export interface components {
       equity_value: number
       /** Implied Price */
       implied_price: number
+      /**
+       * Currency
+       * @default USD
+       */
+      currency: string
       /** Sensitivity Table */
       sensitivity_table?: {
         [key: string]: unknown
@@ -2720,13 +2690,16 @@ export interface components {
       exit_ev: number
       /** Exit Equity */
       exit_equity: number
-      /** Moic */
-      moic: number
+      /**
+       * Moic
+       * @description MOIC (×). 0 = total loss (equity wiped at exit). None = undefined (non-positive entry equity: debt ≥ entry EV — impossible structure).
+       */
+      moic?: number | null
       /**
        * Irr
-       * @description Annualized IRR (decimal). -1.0 = total loss.
+       * @description Annualized IRR (decimal). -1.0 = total loss (equity wiped at exit). None = undefined (non-positive entry equity — impossible LBO structure).
        */
-      irr: number
+      irr?: number | null
       /**
        * Sensitivity
        * @description entry_multiples, exit_multiples, irr_grid, moic_grid
@@ -3334,6 +3307,14 @@ export interface components {
        */
       available: boolean
       /**
+       * Reason
+       * @description Why `available` is False, so the UI never mislabels a transient hiccup as a missing API key:
+       *       • 'unconfigured' — no Adanos key registered → show the 'add key' CTA.
+       *       • 'provider_error' — key IS configured but the call failed → show a retry affordance, NOT the config CTA.
+       *       • None — the snapshot is available (or success).
+       */
+      reason?: ('unconfigured' | 'provider_error') | null
+      /**
        * Coverage
        * @description N/3 platforms returned data, e.g. '2/3'
        */
@@ -3464,7 +3445,7 @@ export interface components {
       /** Sec Holdings Auto Refresh */
       sec_holdings_auto_refresh?: boolean | null
       /** Log Level */
-      log_level?: string | null
+      log_level?: ('DEBUG' | 'INFO' | 'WARNING' | 'ERROR' | 'CRITICAL') | null
       /** Log To File */
       log_to_file?: boolean | null
       /** Log Retention Days */
@@ -3532,8 +3513,8 @@ export interface components {
      * StudiedMemberRequest
      * @description Auto-add one opened ticker to the default ``Studied Tickers`` workspace.
      *
-     *     Single ticker (not the batch ``AddMembersRequest``): this is the write side
-     *     of "opening /stocks/:ticker enrols it", fired once per successful open.
+     *     One ticker per request: this is the write side of "opening /stocks/:ticker
+     *     enrols it", fired once per successful open.
      */
     StudiedMemberRequest: {
       /** Ticker */
@@ -3621,13 +3602,6 @@ export interface components {
       data: {
         [key: string]: unknown
       }
-    }
-    /** UpdateGroupRequest */
-    UpdateGroupRequest: {
-      /** Name */
-      name?: string | null
-      /** Description */
-      description?: string | null
     }
     /** ValidationError */
     ValidationError: {
@@ -4162,7 +4136,7 @@ export interface operations {
   get_price_api_data__ticker__price_get: {
     parameters: {
       query?: {
-        period?: string
+        period?: '1d' | '5d' | '1mo' | '3mo' | '6mo' | '1y' | '2y' | '5y' | '10y' | 'ytd' | 'max'
       }
       header?: never
       path: {
@@ -4861,6 +4835,39 @@ export interface operations {
       }
     }
   }
+  delete_chat_session_api_chat_sessions__session_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        session_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': {
+            [key: string]: string
+          }
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
   list_groups_api_coverage_groups_get: {
     parameters: {
       query?: never
@@ -4877,201 +4884,6 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['CoverageGroupSummary'][]
-        }
-      }
-    }
-  }
-  create_group_api_coverage_groups_post: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['CreateGroupRequest']
-      }
-    }
-    responses: {
-      /** @description Successful Response */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['CoverageGroupDetail']
-        }
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
-      }
-    }
-  }
-  get_group_api_coverage_groups__group_id__get: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        group_id: string
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['CoverageGroupDetail']
-        }
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
-      }
-    }
-  }
-  delete_group_api_coverage_groups__group_id__delete: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        group_id: string
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Successful Response */
-      204: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
-      }
-    }
-  }
-  update_group_api_coverage_groups__group_id__patch: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        group_id: string
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['UpdateGroupRequest']
-      }
-    }
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['CoverageGroupDetail']
-        }
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
-      }
-    }
-  }
-  add_members_api_coverage_groups__group_id__members_post: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        group_id: string
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['AddMembersRequest']
-      }
-    }
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['CoverageGroupDetail']
-        }
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
-      }
-    }
-  }
-  remove_member_api_coverage_groups__group_id__members__ticker__delete: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        group_id: string
-        ticker: string
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['CoverageGroupDetail']
-        }
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
         }
       }
     }

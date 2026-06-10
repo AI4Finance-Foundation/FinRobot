@@ -380,8 +380,15 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       }
       return data
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       queryClient.setQueryData(['settings'], data)
+      // Saving the Adanos key rebuilds the data layer server-side, so the retail
+      // sentiment card's cached `available:false` is now stale. Without this it
+      // keeps showing "Adanos not configured" until staleTime (5 min) elapses —
+      // the user configures the key and the card still calls them unconfigured.
+      if (variables && 'adanos_api_key' in variables) {
+        void queryClient.invalidateQueries({ queryKey: ['ticker-sentiment'] })
+      }
       lastPayloadRef.current = null
       setSaveState('saved')
       saveTimerRef.current = setTimeout(() => setSaveState('idle'), 2500)
@@ -414,8 +421,13 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       }
       return (await resp.json()) as never
     },
-    onSuccess: (data) => {
+    onSuccess: (data, field) => {
       queryClient.setQueryData(['settings'], data)
+      // Clearing the Adanos key drops the sentiment provider server-side — drop
+      // the cached snapshot so the card flips back to the configure CTA at once.
+      if (field === 'adanos_api_key') {
+        void queryClient.invalidateQueries({ queryKey: ['ticker-sentiment'] })
+      }
       setFmpKey('')
       setFinnhubKey('')
       setAdanosKey('')

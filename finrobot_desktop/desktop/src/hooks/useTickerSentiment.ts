@@ -1,56 +1,39 @@
 // useTickerSentiment — pulls /api/sentiment/{ticker} for the workspace's
 // Retail Sentiment card (Adanos: Reddit / X.com / Polymarket aggregate).
 //
-// Degrades quietly: a backend outage / timeout resolves to `available: false`
-// rather than throwing, so the market-data column never blanks out on a
-// sentiment hiccup. The "未配置 Adanos" empty state is itself a *successful*
-// 200 with `available: false` (see finrobot/routes/sentiment.py), so the
-// component branches on `data.available`, not on query error.
+// Honest failure model. The card has three distinct truths and must never
+// conflate them (BUG: a timed-out fetch was rendering as "Adanos not
+// configured", sending users who HAD configured it on a wild goose chase):
+//   • 200 available:true            → render the aggregate.
+//   • 200 available:false, reason   → backend reached a verdict: 'unconfigured'
+//     (show the add-key CTA) vs 'provider_error' (key set, call hiccuped → retry).
+//   • transport failure / non-2xx   → THROW, so react-query marks the query
+//     `isError` and the component shows a retry — instead of caching a fake
+//     `available:false` for 5 min that masquerades as "not configured".
 
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
 import { fetchWithTimeout } from '../api/fetch'
+import { FetchHttpError } from '../utils/errorMessage'
 import type { SentimentSnapshot } from '../types/v5'
 
 export type { SentimentSnapshot } from '../types/v5'
 
-// Local fallback when the network/fetch itself fails (not a backend 200). We
-// surface it as an unavailable snapshot rather than a thrown error so the card
-// shows the same "go configure" affordance instead of a red error box.
-function unavailable(ticker: string, days: number, warning: string): SentimentSnapshot {
-  return {
-    ticker,
-    days,
-    available: false,
-    coverage: null,
-    bullish_pct: null,
-    bearish_pct: null,
-    average_buzz: null,
-    source_alignment: null,
-    sources: [],
-    warnings: [warning],
-  }
-}
-
-/** Fetch retail sentiment for a ticker. Never rejects — failures map to an
- *  `available: false` snapshot so the consumer renders the unconfigured CTA. */
+/** Fetch retail sentiment for a ticker. Resolves with the backend snapshot on a
+ *  2xx (the `reason` field tells the UI why it's unavailable); throws on a
+ *  non-2xx or network/timeout so the consumer can render a retry, never a
+ *  misleading "not configured". */
 export function useTickerSentiment(ticker: string, days = 7) {
-  return useQuery<SentimentSnapshot>({
+  return useQuery<SentimentSnapshot, FetchHttpError | Error>({
     queryKey: ['ticker-sentiment', ticker, days],
     queryFn: async ({ signal }) => {
-      try {
-        const r = await fetchWithTimeout(`${BASE_URL}/api/sentiment/${ticker}?days=${days}`, {
-          signal,
-        })
-        if (!r.ok) {
-          return unavailable(ticker, days, `sentiment ${r.status}`)
-        }
-        return (await r.json()) as SentimentSnapshot
-      } catch {
-        // Network error / timeout — degrade to the unconfigured-style empty
-        // state rather than bubbling a query error into the column.
-        return unavailable(ticker, days, 'sentiment fetch failed')
+      const r = await fetchWithTimeout(`${BASE_URL}/api/sentiment/${ticker}?days=${days}`, {
+        signal,
+      })
+      if (!r.ok) {
+        throw new FetchHttpError(r.status, r.statusText)
       }
+      return (await r.json()) as SentimentSnapshot
     },
     enabled: !!ticker,
     staleTime: 5 * 60_000,

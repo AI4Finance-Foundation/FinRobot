@@ -27,12 +27,24 @@ _EMPTY_CACHE = {
     "row_count": 0,
     "latest_period_end": None,
     "distinct_tickers": 0,
+    "expected_period_end": "2026-03-31",
+    "stale": False,
 }
 _POPULATED_CACHE = {
     "populated": True,
     "row_count": 412_000,
     "latest_period_end": "2026-03-31",
     "distinct_tickers": 8_900,
+    "expected_period_end": "2026-03-31",
+    "stale": False,
+}
+_STALE_CACHE = {
+    "populated": True,
+    "row_count": 412_000,
+    "latest_period_end": "2025-09-30",
+    "distinct_tickers": 8_900,
+    "expected_period_end": "2026-03-31",
+    "stale": True,
 }
 
 
@@ -106,6 +118,24 @@ def test_status_populated_cache(app: FastAPI, client: TestClient, monkeypatch) -
     assert body["latest_period_end"] == "2026-03-31"
     assert body["distinct_tickers"] == 8_900
     assert body["auto_refresh"] is True
+    assert body["stale"] is False
+    assert body["expected_period_end"] == "2026-03-31"
+
+
+def test_status_surfaces_stale_cache(app: FastAPI, client: TestClient, monkeypatch) -> None:
+    """A cache lagging behind the 13F filing deadline must read stale=True so
+    the Settings page can warn instead of presenting an old quarter as current."""
+    _patch(
+        app,
+        monkeypatch,
+        identity="Acme Research analyst@example.com",
+        auto_refresh=False,
+        cache=_STALE_CACHE,
+    )
+    body = client.get("/api/sec-holdings/status").json()
+    assert body["stale"] is True
+    assert body["latest_period_end"] == "2025-09-30"
+    assert body["expected_period_end"] == "2026-03-31"
 
 
 def test_status_reports_identity_not_configured_for_placeholder(

@@ -1337,3 +1337,102 @@ class TestBuildRagChunks:
         # the whitespace-only "Item 9" section contributes nothing
         assert not any("Item 9" in c["source"] for c in chunks)
         json.dumps(chunks)  # must be JSON-serializable (cache contract)
+
+
+# ---------------------------------------------------------------------------
+# 13F stale-quarter warning (_fetch_13f_sync)
+# ---------------------------------------------------------------------------
+
+
+class TestFetch13FStaleWarning:
+    """The 13F cache serves the newest quarter it HAS, which silently lags
+    once the next quarter's 13F-HR deadline (45 days after quarter end)
+    passes. Consumers must get a stale warning, never a silent old quarter."""
+
+    @staticmethod
+    def _wire(monkeypatch: pytest.MonkeyPatch, holders: list[dict], status: dict) -> None:
+        from finrobot.engine.data import sec_holdings_cache as cache_mod
+
+        async def _holders(*_a: Any, **_k: Any) -> list[dict]:
+            return holders
+
+        async def _status() -> dict:
+            return status
+
+        monkeypatch.setattr(cache_mod, "lookup_holders_for_ticker", _holders)
+        monkeypatch.setattr(cache_mod, "cache_status", _status)
+
+    def test_stale_cache_emits_warning(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._wire(
+            monkeypatch,
+            holders=[{"period_end": "2025-09-30", "holder_name": "X"}],
+            status={
+                "populated": True,
+                "row_count": 10,
+                "latest_period_end": "2025-09-30",
+                "distinct_tickers": 1,
+                "expected_period_end": "2026-03-31",
+                "stale": True,
+            },
+        )
+        p = EdgarToolsProvider("Jane Doe jane@example.com")
+        _payload, warnings = p._fetch_13f_sync("NVDA")
+        joined = " ".join(warnings)
+        assert "stale" in joined.lower()
+        assert "2025-09-30" in joined and "2026-03-31" in joined
+
+    def test_fresh_cache_no_warning(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._wire(
+            monkeypatch,
+            holders=[{"period_end": "2026-03-31", "holder_name": "X"}],
+            status={
+                "populated": True,
+                "row_count": 10,
+                "latest_period_end": "2026-03-31",
+                "distinct_tickers": 1,
+                "expected_period_end": "2026-03-31",
+                "stale": False,
+            },
+        )
+        p = EdgarToolsProvider("Jane Doe jane@example.com")
+        _payload, warnings = p._fetch_13f_sync("NVDA")
+        assert warnings == []
+
+    def test_ticker_older_than_cache_global_latest_warns(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Cache globally fresh, but THIS ticker's newest rows are an old
+        quarter (issuer dropped by filers / CUSIP churn) → still stale."""
+        self._wire(
+            monkeypatch,
+            holders=[{"period_end": "2025-12-31", "holder_name": "X"}],
+            status={
+                "populated": True,
+                "row_count": 10,
+                "latest_period_end": "2026-03-31",
+                "distinct_tickers": 1,
+                "expected_period_end": "2026-03-31",
+                "stale": False,
+            },
+        )
+        p = EdgarToolsProvider("Jane Doe jane@example.com")
+        _payload, warnings = p._fetch_13f_sync("NVDA")
+        assert any("stale" in w.lower() for w in warnings)
+
+    def test_unbuilt_cache_keeps_not_built_warning(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._wire(
+            monkeypatch,
+            holders=[],
+            status={
+                "populated": False,
+                "row_count": 0,
+                "latest_period_end": None,
+                "distinct_tickers": 0,
+                "expected_period_end": "2026-03-31",
+                "stale": False,
+            },
+        )
+        p = EdgarToolsProvider("Jane Doe jane@example.com")
+        _payload, warnings = p._fetch_13f_sync("NVDA")
+        assert len(warnings) == 1
+        assert "not built" in warnings[0]

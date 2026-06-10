@@ -1225,6 +1225,21 @@ class EdgarToolsProvider(DataProvider):
             warnings.append(
                 "13F holdings cache not built yet; run scripts/refresh_sec_holdings.py to populate"
             )
+        else:
+            # The lookup serves the newest quarter it HAS, which silently lags
+            # once the next quarter's 13F-HR deadline passes. Compare the
+            # quarter actually served for THIS ticker (the cache's global
+            # latest can be fresher than a dropped issuer's rows) against the
+            # cadence expectation computed by cache_status.
+            expected = status.get("expected_period_end")
+            served = str(holders[0]["period_end"]) if holders else status.get("latest_period_end")
+            if expected and served and str(served) < str(expected):
+                warnings.append(
+                    f"13F holdings are stale: serving quarter {served}, but quarter "
+                    f"{expected} filings are already due (13F-HR is due 45 days after "
+                    "quarter end). Run scripts/refresh_sec_holdings.py or Settings → "
+                    "SEC 13F sync to refresh."
+                )
         return {
             "holders": holders,
             "source": "local_index",

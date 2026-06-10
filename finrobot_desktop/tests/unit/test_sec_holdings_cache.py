@@ -53,11 +53,13 @@ async def test_lookup_empty_when_cache_unbuilt(_isolated_cache) -> None:  # type
 
 @pytest.mark.asyncio
 async def test_bulk_upsert_then_lookup_roundtrip(_isolated_cache) -> None:  # type: ignore[no-untyped-def]
-    count = await cache_mod.bulk_upsert_holdings([
-        _row(holder_name="Bridgewater", holder_cik="A", shares=30_000_000, value_usd=5.5e9),
-        _row(holder_name="Renaissance", holder_cik="B", shares=22_000_000, value_usd=4.0e9),
-        _row(holder_name="Citadel",     holder_cik="C", shares=18_000_000, value_usd=3.3e9),
-    ])
+    count = await cache_mod.bulk_upsert_holdings(
+        [
+            _row(holder_name="Bridgewater", holder_cik="A", shares=30_000_000, value_usd=5.5e9),
+            _row(holder_name="Renaissance", holder_cik="B", shares=22_000_000, value_usd=4.0e9),
+            _row(holder_name="Citadel", holder_cik="C", shares=18_000_000, value_usd=3.3e9),
+        ]
+    )
     assert count == 3
     rows = await cache_mod.lookup_holders_for_ticker("NVDA")
     assert len(rows) == 3
@@ -69,11 +71,13 @@ async def test_bulk_upsert_then_lookup_roundtrip(_isolated_cache) -> None:  # ty
 @pytest.mark.asyncio
 async def test_lookup_falls_back_to_most_recent_period(_isolated_cache) -> None:  # type: ignore[no-untyped-def]
     """When period_end is None, return rows from the latest period present."""
-    await cache_mod.bulk_upsert_holdings([
-        _row(holder_cik="A", period_end=date(2025, 12, 31), shares=10, value_usd=100.0),
-        _row(holder_cik="A", period_end=date(2026, 3, 31),  shares=20, value_usd=200.0),
-        _row(holder_cik="B", period_end=date(2026, 3, 31),  shares=30, value_usd=300.0),
-    ])
+    await cache_mod.bulk_upsert_holdings(
+        [
+            _row(holder_cik="A", period_end=date(2025, 12, 31), shares=10, value_usd=100.0),
+            _row(holder_cik="A", period_end=date(2026, 3, 31), shares=20, value_usd=200.0),
+            _row(holder_cik="B", period_end=date(2026, 3, 31), shares=30, value_usd=300.0),
+        ]
+    )
     rows = await cache_mod.lookup_holders_for_ticker("NVDA")  # latest = 2026-03-31
     assert len(rows) == 2
     assert all(r["period_end"] == "2026-03-31" for r in rows)
@@ -107,10 +111,19 @@ async def test_cache_status_empty_then_populated(_isolated_cache) -> None:  # ty
     assert status0["populated"] is False
     assert status0["row_count"] == 0
 
-    await cache_mod.bulk_upsert_holdings([
-        _row(ticker="NVDA", holder_cik="A", shares=10, value_usd=100.0),
-        _row(ticker="AAPL", holder_cik="A", shares=20, value_usd=200.0, cusip="037833100", name_of_issuer="APPLE INC"),
-    ])
+    await cache_mod.bulk_upsert_holdings(
+        [
+            _row(ticker="NVDA", holder_cik="A", shares=10, value_usd=100.0),
+            _row(
+                ticker="AAPL",
+                holder_cik="A",
+                shares=20,
+                value_usd=200.0,
+                cusip="037833100",
+                name_of_issuer="APPLE INC",
+            ),
+        ]
+    )
     status1 = await cache_mod.cache_status()
     assert status1["populated"] is True
     assert status1["row_count"] == 2
@@ -118,28 +131,70 @@ async def test_cache_status_empty_then_populated(_isolated_cache) -> None:  # ty
     assert status1["latest_period_end"] is not None
 
 
+def test_expected_latest_period_end_deadline_boundaries() -> None:
+    """13F-HR is due within 45 days after quarter end (SEC rule 13f-1(a)).
+
+    A quarter only becomes "expected in cache" the day AFTER its deadline —
+    flagging stale on the deadline day itself would false-positive while
+    filings are still legally trickling in.
+    """
+    # Q1 2026 ends 2026-03-31 → deadline 2026-05-15.
+    assert cache_mod.expected_latest_period_end(date(2026, 6, 10)) == date(2026, 3, 31)
+    assert cache_mod.expected_latest_period_end(date(2026, 5, 16)) == date(2026, 3, 31)
+    # On the deadline day the previous quarter is still the expectation.
+    assert cache_mod.expected_latest_period_end(date(2026, 5, 15)) == date(2025, 12, 31)
+    # Q4 2025 ends 2025-12-31 → deadline 2026-02-14 (year boundary).
+    assert cache_mod.expected_latest_period_end(date(2026, 2, 15)) == date(2025, 12, 31)
+    assert cache_mod.expected_latest_period_end(date(2026, 2, 14)) == date(2025, 9, 30)
+    assert cache_mod.expected_latest_period_end(date(2026, 1, 5)) == date(2025, 9, 30)
+    # Exactly on a quarter end: that quarter's deadline hasn't even started.
+    assert cache_mod.expected_latest_period_end(date(2026, 3, 31)) == date(2025, 12, 31)
+
+
+@pytest.mark.asyncio
+async def test_cache_status_stale_flag(_isolated_cache) -> None:  # type: ignore[no-untyped-def]
+    """Stale = populated AND latest cached quarter predates the expected one."""
+    status_empty = await cache_mod.cache_status()
+    assert status_empty["stale"] is False  # unpopulated has its own warning path
+    assert status_empty["expected_period_end"] is not None
+
+    # An ancient quarter is stale no matter what today is.
+    await cache_mod.bulk_upsert_holdings([_row(holder_cik="A", period_end=date(1999, 12, 31))])
+    status_old = await cache_mod.cache_status()
+    assert status_old["stale"] is True
+
+    # A quarter matching the current expectation is fresh.
+    expected = cache_mod.expected_latest_period_end(date.today())
+    await cache_mod.bulk_upsert_holdings([_row(holder_cik="B", period_end=expected)])
+    status_fresh = await cache_mod.cache_status()
+    assert status_fresh["stale"] is False
+    assert status_fresh["expected_period_end"] == expected.isoformat()
+
+
 @pytest.mark.asyncio
 async def test_lookup_uses_issuer_name_when_ticker_unresolved(_isolated_cache) -> None:  # type: ignore[no-untyped-def]
     """13F rows are still queryable when refresh cannot license a CUSIP→ticker map."""
-    await cache_mod.bulk_upsert_holdings([
-        _row(
-            ticker=None,
-            name_of_issuer="NVIDIA CORP",
-            holder_name="Bridgewater",
-            holder_cik="A",
-            shares=30_000_000,
-            value_usd=5.5e9,
-        ),
-        _row(
-            ticker=None,
-            cusip="037833100",
-            name_of_issuer="APPLE INC",
-            holder_name="Berkshire",
-            holder_cik="B",
-            shares=10_000_000,
-            value_usd=1.8e9,
-        ),
-    ])
+    await cache_mod.bulk_upsert_holdings(
+        [
+            _row(
+                ticker=None,
+                name_of_issuer="NVIDIA CORP",
+                holder_name="Bridgewater",
+                holder_cik="A",
+                shares=30_000_000,
+                value_usd=5.5e9,
+            ),
+            _row(
+                ticker=None,
+                cusip="037833100",
+                name_of_issuer="APPLE INC",
+                holder_name="Berkshire",
+                holder_cik="B",
+                shares=10_000_000,
+                value_usd=1.8e9,
+            ),
+        ]
+    )
 
     rows = await cache_mod.lookup_holders_for_ticker(
         "NVDA",

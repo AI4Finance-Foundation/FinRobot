@@ -84,9 +84,7 @@ def test_compute_ownership_populates_schedule13_and_degrades_only_on_failure() -
     assert "schedule13_alerts" not in b.degraded_sections
 
     # Fetch failed → degraded so the UI shows "data unavailable", not "none".
-    c = compute_ownership_governance(
-        **base, schedule13_data={"available": False, "error": "boom"}
-    )
+    c = compute_ownership_governance(**base, schedule13_data={"available": False, "error": "boom"})
     assert c.schedule13_alerts == []
     assert "schedule13_alerts" in c.degraded_sections
 
@@ -470,10 +468,7 @@ def test_extract_ceo_name_keeps_honorific_pattern() -> None:
     """`Mr./Ms./Dr. Lastname` near a CEO anchor must still resolve."""
     from finrobot.engine.compute.operators.ownership import _extract_ceo_name
 
-    text = (
-        "The Board reappointed Mr. Cook as Chief Executive Officer "
-        "for another term."
-    )
+    text = "The Board reappointed Mr. Cook as Chief Executive Officer " "for another term."
     assert _extract_ceo_name(text) == "Cook"
 
 
@@ -532,3 +527,33 @@ def test_compute_ownership_governance_marks_empty_sections_degraded() -> None:
         "institutional_holdings",
         "proxy_compensation",
     ]
+
+
+def test_compute_ownership_governance_lifts_payload_warnings() -> None:
+    """Fetch warnings (e.g. 13F stale-quarter) must reach the analysis object —
+    _collect_warnings only sees structured models, so dropping them here means
+    they never reach artifact.outputs.warnings (same contract as
+    FinancialData.warnings)."""
+    analysis = compute_ownership_governance(
+        insider_data={"transactions": [], "warnings": ["insider fetch degraded"]},
+        institutional_data={
+            "holders": [],
+            "warnings": ["13F holdings are stale: serving 2025-09-30, expected 2026-03-31"],
+        },
+        proxy_data={"proxy": None},
+        schedule13_data={"alerts": [], "warnings": ["insider fetch degraded"]},
+    )
+    # Deduped, order-preserving union of all four payloads' warnings.
+    assert analysis.warnings == [
+        "insider fetch degraded",
+        "13F holdings are stale: serving 2025-09-30, expected 2026-03-31",
+    ]
+
+
+def test_compute_ownership_governance_no_warnings_field_defaults_empty() -> None:
+    analysis = compute_ownership_governance(
+        insider_data={"transactions": []},
+        institutional_data={"holders": []},
+        proxy_data={"proxy": None},
+    )
+    assert analysis.warnings == []

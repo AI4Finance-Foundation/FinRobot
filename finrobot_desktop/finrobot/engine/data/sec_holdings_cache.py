@@ -34,7 +34,7 @@ import logging
 import sqlite3
 import re
 from collections.abc import Iterable
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -143,6 +143,42 @@ def reset_singleton_sync() -> None:
     """Test-only: drop the cached connection without closing (for monkeypatched paths)."""
     global _GLOBAL_CONN
     _GLOBAL_CONN = None
+
+
+# 13F-HR is due within 45 days after each calendar-quarter end (SEC rule
+# 13f-1(a)). The cadence math lives HERE — the module that owns the cache —
+# so every consumer (EDGAR provider warning, /api/sec-holdings/status,
+# Settings UI) shares one staleness definition instead of re-deriving it.
+_FORM_13F_DEADLINE_DAYS = 45
+
+_QUARTER_ENDS = ((3, 31), (6, 30), (9, 30), (12, 31))
+
+
+def _previous_quarter_end(d: date) -> date:
+    """Most recent calendar-quarter end strictly before ``d``."""
+    year = d.year
+    while True:
+        for month, day in reversed(_QUARTER_ENDS):
+            q = date(year, month, day)
+            if q < d:
+                return q
+        year -= 1
+
+
+def expected_latest_period_end(today: date) -> date:
+    """Most recent quarter end whose 13F filing deadline has already passed.
+
+    A quarter only becomes "expected in cache" the day AFTER its 45-day
+    deadline: on the deadline day filings are still legally trickling in,
+    so flagging stale then would false-positive. The statutory deadline can
+    shift a business day or two when it lands on a weekend/holiday; this
+    feeds a soft warning (never a throw), so the 45-day approximation only
+    means the hint may appear a day early in those windows.
+    """
+    q_end = _previous_quarter_end(today)
+    while today <= q_end + timedelta(days=_FORM_13F_DEADLINE_DAYS):
+        q_end = _previous_quarter_end(q_end)
+    return q_end
 
 
 # ---------------------------------------------------------------------------
@@ -299,7 +335,13 @@ async def cache_status() -> dict[str, Any]:
     """Quick health probe for /api/health/sec-holdings or Settings page.
 
     Returns ``{"populated": bool, "row_count": int, "latest_period_end":
-    str|None, "distinct_tickers": int}``.
+    str|None, "distinct_tickers": int, "expected_period_end": str,
+    "stale": bool}``.
+
+    ``stale`` is True when the cache IS populated but its newest quarter
+    predates ``expected_period_end`` (the most recent quarter whose 13F
+    deadline has passed) — i.e. a refresh is overdue. An unpopulated cache
+    is reported via ``populated``, not ``stale``.
 
     ``distinct_tickers`` counts distinct CUSIPs, NOT the ``ticker`` column:
     13F XML identifies securities by CUSIP + issuer name, so ``ticker`` is
@@ -308,6 +350,7 @@ async def cache_status() -> dict[str, Any]:
     "number of distinct securities held" — that is what the UI's "N 只标的"
     means.
     """
+    expected = expected_latest_period_end(date.today()).isoformat()
     c = await _conn()
     async with c.execute(
         "SELECT COUNT(*), MAX(period_end), COUNT(DISTINCT cusip) FROM holdings"
@@ -319,11 +362,17 @@ async def cache_status() -> dict[str, Any]:
             "row_count": 0,
             "latest_period_end": None,
             "distinct_tickers": 0,
+            "expected_period_end": expected,
+            "stale": False,
         }
     total, latest, distinct = row
+    latest_str = str(latest) if latest else None
     return {
         "populated": bool(total),
         "row_count": int(total) if total else 0,
-        "latest_period_end": str(latest) if latest else None,
+        "latest_period_end": latest_str,
         "distinct_tickers": int(distinct) if distinct else 0,
+        "expected_period_end": expected,
+        # ISO date strings compare lexicographically == chronologically.
+        "stale": bool(latest_str is not None and latest_str < expected),
     }

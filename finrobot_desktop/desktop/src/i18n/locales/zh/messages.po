@@ -1869,6 +1869,10 @@ msgstr ""
 #~ msgstr "缓存未建立 · 尚无机构持仓数据"
 
 #. js-lingui-explicit-id
+#~ msgid "settings.secHoldings.stale"
+#~ msgstr "已过期 — {expected} 季度 13F 申报已到期但尚未同步"
+
+#. js-lingui-explicit-id
 #~ msgid "settings.secHoldings.syncNow"
 #~ msgstr "立即同步"
 

@@ -1869,6 +1869,10 @@ msgstr ""
 #~ msgstr "Not built — no institutional holdings cached yet"
 
 #. js-lingui-explicit-id
+#~ msgid "settings.secHoldings.stale"
+#~ msgstr "Stale — quarter {expected} 13F filings are due but not yet synced"
+
+#. js-lingui-explicit-id
 #~ msgid "settings.secHoldings.syncNow"
 #~ msgstr "Sync now"
 

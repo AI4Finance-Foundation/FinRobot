@@ -313,3 +313,11 @@ class OwnershipGovernanceAnalysis(BaseModel):
         str,
         Literal["identity_missing", "no_recent_filings", "fetch_error", "parse_failed"],
     ] = Field(default_factory=dict)
+
+    # Data-freshness / fetch warnings lifted from the SEC payloads (e.g. the
+    # 13F cache serving a stale quarter). builders._collect_warnings hoists
+    # any structured object's ``warnings`` into artifact.outputs.warnings —
+    # same contract as FinancialData.warnings. Distinct from degraded_sections:
+    # degraded = "section data unavailable, render placeholder"; a warning
+    # annotates data that IS displayed.
+    warnings: list[str] = Field(default_factory=list)

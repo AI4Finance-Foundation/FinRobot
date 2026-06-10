@@ -554,8 +554,7 @@ def _extract_ceo_name(text: str) -> str | None:
     # ("Compensation Discussion and Analysis\n\nCEO …") leak through as
     # a fake one-token name "Analysis" (NVDA proxy 2026-05-28).
     prev_line_pattern = re.compile(
-        r"([A-Z][A-Za-z.'-]+(?:[ \t\xa0]+[A-Z][A-Za-z.'-]+){1,3})"
-        r"\s*\n\s*CEO\b",
+        r"([A-Z][A-Za-z.'-]+(?:[ \t\xa0]+[A-Z][A-Za-z.'-]+){1,3})" r"\s*\n\s*CEO\b",
     )
     for m in prev_line_pattern.finditer(text):
         candidate = m.group(1).strip()
@@ -839,6 +838,16 @@ def compute_ownership_governance(
         if not schedule13_alerts and schedule13_data.get("available") is False:
             degraded_sections.append("schedule13_alerts")
 
+    # Lift fetch warnings (e.g. 13F stale-quarter) off the raw payloads into
+    # the analysis object — builders._collect_warnings only walks structured
+    # models, so warnings dropped here would never reach
+    # artifact.outputs.warnings. Deduped, order-preserving.
+    warnings: list[str] = []
+    for payload in (insider_data, institutional_data, proxy_data, schedule13_data):
+        for warning in (payload or {}).get("warnings") or []:
+            if warning not in warnings:
+                warnings.append(warning)
+
     return OwnershipGovernanceAnalysis(
         insider_transactions=insiders,
         institutional_holdings=institutions,
@@ -846,4 +855,5 @@ def compute_ownership_governance(
         schedule13_alerts=schedule13_alerts,
         generated_at=datetime.now(tz=timezone.utc),
         degraded_sections=degraded_sections,
+        warnings=warnings,
     )

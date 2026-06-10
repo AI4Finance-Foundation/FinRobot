@@ -37,6 +37,13 @@ class SecHoldingsStatus(BaseModel):
     row_count: int
     latest_period_end: str | None
     distinct_tickers: int
+    expected_period_end: str | None
+    """Most recent quarter end whose 13F filing deadline (45 days after
+    quarter end) has passed — what a fresh cache should contain."""
+    stale: bool
+    """True when populated but latest_period_end < expected_period_end, i.e.
+    a refresh is overdue. The UI renders a stale warning next to the status
+    line so an old quarter is never presented as current."""
     identity_configured: bool
     """Whether a valid SEC User-Agent identity is set. Refresh is impossible
     without it — the UI greys out the 立即同步 button when this is False."""
@@ -63,6 +70,8 @@ async def sec_holdings_status(request: Request) -> SecHoldingsStatus:
         row_count=int(cache["row_count"]),
         latest_period_end=cache["latest_period_end"],
         distinct_tickers=int(cache["distinct_tickers"]),
+        expected_period_end=cache.get("expected_period_end"),
+        stale=bool(cache.get("stale", False)),
         identity_configured=_is_valid_identity(settings.sec_user_agent),
         auto_refresh=bool(settings.sec_holdings_auto_refresh),
         refresh=RefreshRuntimeState(**get_state()),

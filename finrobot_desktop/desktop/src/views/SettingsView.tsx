@@ -1400,6 +1400,10 @@ interface SecHoldingsStatusShape {
   row_count: number
   latest_period_end: string | null
   distinct_tickers: number
+  // Most recent quarter whose 13F filing deadline has passed; `stale` means
+  // the cache lags it and a re-sync is overdue (backend SecHoldingsStatus).
+  expected_period_end: string | null
+  stale: boolean
   identity_configured: boolean
   auto_refresh: boolean
   refresh: RefreshRuntime
@@ -1501,6 +1505,11 @@ function SecHoldingsSection({
         <p className="settings-hint" style={{ fontFamily: 'var(--font-mono)' }}>
           {statusLine}
         </p>
+        {status?.stale && status.expected_period_end && (
+          <p className="settings-hint is-warn" style={{ marginTop: 4 }}>
+            {t('settings.secHoldings.stale', { expected: status.expected_period_end })}
+          </p>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <button
             type="button"

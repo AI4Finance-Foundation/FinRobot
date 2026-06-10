@@ -33,17 +33,31 @@ logger = logging.getLogger(__name__)
 # raw httpx exceptions (whose str() leaks ``?apikey=<key>``), the transcript is
 # the last line before secrets become permanent on disk, so it scrubs every
 # event payload itself. Patterns are anchored on the *value* so the redacted
-# string still shows which credential was present.
-#   1. query-string keys:   ...?apikey=SECRET   ...&api_key=SECRET
-#   2. header-style keys:    "X-API-Key": "SECRET"  /  X-Finnhub-Token: SECRET
-_QUERY_KEY_RE = re.compile(r"(?i)(api[_-]?key=)[^&\s\"']+")
-_HEADER_KEY_RE = re.compile(r"(?i)(x-(?:api-key|finnhub-token)['\"]?\s*[:=]\s*['\"]?)[^&\s,}\"']+")
+# string still shows which credential was present. Covered credential shapes
+# (every one in live use somewhere in this codebase or its SDKs):
+#   1. key=value / key: value, query-string OR header OR JSON-dump style —
+#      ``?apikey=SECRET`` ``&api_key=SECRET`` ``"X-API-Key": "SECRET"``
+#      ``X-Finnhub-Token: SECRET`` ``?token=SECRET`` (auth.py capability token)
+#      ``"fmp_api_key": "SECRET"`` (settings dump) ``client_secret=SECRET``
+#   2. HTTP auth schemes: ``Authorization: Bearer SECRET`` (auth.py + every
+#      LLM SDK) and ``Basic <base64>``. The value charset is the RFC 6750
+#      token68 set; the {8,} floor keeps prose like "bearer of" untouched.
+#   3. bare ``sk-…`` keys (OpenAI / Anthropic / DeepSeek) — these can surface
+#      in SDK exception text WITHOUT any ``key=`` prefix, so a prefix-anchored
+#      pattern alone would miss the highest-value credential in the system.
+_KEY_VALUE_RE = re.compile(
+    r"(?i)((?:x-api-key|api[_-]?key|[a-z_-]*token|[a-z_-]*secret)['\"]?\s*[:=]\s*['\"]?)"
+    r"[^&\s,}\"']+"
+)
+_AUTH_SCHEME_RE = re.compile(r"(?i)\b((?:bearer|basic)\s+)[a-z0-9._~+/=\-]{8,}")
+_BARE_SK_KEY_RE = re.compile(r"\bsk-[A-Za-z0-9_-]{16,}")
 
 
 def _scrub_secrets(text: str) -> str:
-    """Redact API-key-shaped substrings from a single string."""
-    text = _QUERY_KEY_RE.sub(r"\1[REDACTED]", text)
-    return _HEADER_KEY_RE.sub(r"\1[REDACTED]", text)
+    """Redact credential-shaped substrings from a single string."""
+    text = _KEY_VALUE_RE.sub(r"\1[REDACTED]", text)
+    text = _AUTH_SCHEME_RE.sub(r"\1[REDACTED]", text)
+    return _BARE_SK_KEY_RE.sub("[REDACTED]", text)
 
 
 def _scrub_data(value: Any) -> Any:

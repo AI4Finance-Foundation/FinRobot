@@ -157,6 +157,64 @@ async def test_header_style_api_key_is_redacted(tmp_session_dir: Path) -> None:
     assert raw.count("[REDACTED]") == 2
 
 
+@pytest.mark.asyncio
+async def test_authorization_bearer_is_redacted(tmp_session_dir: Path) -> None:
+    """``Authorization: Bearer <token>`` (auth.py capability token, LLM SDK
+    keys in httpx exception dumps) must never reach disk verbatim."""
+    writer = TranscriptWriter("sess-redact-bearer", base_dir=tmp_session_dir)
+    await writer.log_error(
+        exception_class="ProviderError",
+        message='401 with headers {"Authorization": "Bearer cap-tok-1234567890abcdef"}',
+        context={"raw": "Authorization: Basic dXNlcjpwYXNzd29yZA=="},
+    )
+
+    path = tmp_session_dir / "sess-redact-bearer.jsonl"
+    raw = path.read_text(encoding="utf-8")
+    assert "cap-tok-1234567890abcdef" not in raw
+    assert "dXNlcjpwYXNzd29yZA" not in raw
+    assert raw.count("[REDACTED]") == 2
+    # Scheme prefix is preserved so the audit trail shows WHICH credential type leaked.
+    assert "Bearer [REDACTED]" in raw
+    assert "Basic [REDACTED]" in raw
+
+
+@pytest.mark.asyncio
+async def test_token_query_and_settings_dump_keys_are_redacted(tmp_session_dir: Path) -> None:
+    """``?token=`` (auth.py query fallback, finnhub-style URLs) and JSON
+    settings-dump keys (``"fmp_api_key": "..."``) are scrubbed; bare ``sk-``
+    LLM keys are scrubbed even with no key= prefix at all."""
+    writer = TranscriptWriter("sess-redact-misc", base_dir=tmp_session_dir)
+    await writer.log_error(
+        exception_class="RuntimeError",
+        message="GET wss://local/api/chat?token=cap999secret -> 403",
+        context={
+            "settings": '{"fmp_api_key": "fmp-live-key-1", "client_secret": "cs-2"}',
+            "sdk": "AuthenticationError: invalid key sk-ant-api03-AAAAAAAAAAAAAAAA",
+        },
+    )
+
+    path = tmp_session_dir / "sess-redact-misc.jsonl"
+    raw = path.read_text(encoding="utf-8")
+    assert "cap999secret" not in raw
+    assert "fmp-live-key-1" not in raw
+    assert "cs-2" not in raw
+    assert "sk-ant-api03" not in raw
+
+
+@pytest.mark.asyncio
+async def test_scrubber_leaves_benign_text_untouched(tmp_session_dir: Path) -> None:
+    """Near-miss shapes must survive: ``max_tokens=`` is a model param, not a
+    credential, and short prose after 'bearer' is not a token68 value."""
+    writer = TranscriptWriter("sess-noredact", base_dir=tmp_session_dir)
+    benign = "ran with max_tokens=4096; the bearer of bad news; tokenizer: tiktoken"
+    await writer.log_user_message(benign)
+
+    path = tmp_session_dir / "sess-noredact.jsonl"
+    raw = path.read_text(encoding="utf-8")
+    assert "[REDACTED]" not in raw
+    assert "max_tokens=4096" in raw
+
+
 # ---------------------------------------------------------------------------
 # Concurrent safety: 100 parallel writes must not corrupt the file
 # ---------------------------------------------------------------------------

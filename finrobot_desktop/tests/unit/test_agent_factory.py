@@ -2,7 +2,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic_ai import Agent
+from pydantic_ai import Agent, ModelRetry
 
 from finrobot.config import get_settings
 from finrobot.engine.agents.factory import create_sub_agents
@@ -51,10 +51,50 @@ class TestCreateSubAgents:
         ctx.deps.data_layer.fetch.assert_not_awaited()
         assert "canonical" in out_price and "408.95" in out_price
 
-        # NEWS falls through to raw fetch().
+        # NEWS falls through to raw fetch() — with the coerced enum, not the
+        # raw LLM string.
         out_news = await fn(ctx, "TSLA", "news")
-        ctx.deps.data_layer.fetch.assert_awaited_once_with("news", "TSLA")
+        ctx.deps.data_layer.fetch.assert_awaited_once_with(DataType.NEWS, "TSLA")
         assert out_news == "news text"
+
+    @pytest.mark.asyncio
+    async def test_query_financial_data_bad_data_type_raises_model_retry(self):
+        """An LLM-invented data_type must surface as ModelRetry (fed back to the
+        model to self-correct, per pydantic-ai docs) — NOT a bare ValueError,
+        which pydantic-ai does not catch and which would kill the whole
+        sub-agent run / pipeline step. Mirror of the lead orchestrator's
+        same-named tool."""
+        agents = create_sub_agents(_settings())
+        fn = agents["data"]._function_toolset.tools["query_financial_data"].function
+
+        ctx = MagicMock()
+        ctx.deps.data_layer.fetch_canonical = AsyncMock()
+        ctx.deps.data_layer.fetch = AsyncMock()
+
+        with pytest.raises(ModelRetry) as excinfo:
+            await fn(ctx, "AAPL", "balance_sheet")
+        # The retry message must teach the model the valid vocabulary.
+        assert "balance_sheet" in str(excinfo.value)
+        assert "financials" in str(excinfo.value)
+        ctx.deps.data_layer.fetch.assert_not_awaited()
+        ctx.deps.data_layer.fetch_canonical.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_query_financial_data_bad_ticker_returns_error_string(self):
+        """A junk LLM-chosen ticker must never become a fetch parameter / cache
+        key — it is rejected by validate_ticker and RETURNED as an error string
+        (the model cannot self-correct a hallucinated symbol, so let it narrate)."""
+        agents = create_sub_agents(_settings())
+        fn = agents["data"]._function_toolset.tools["query_financial_data"].function
+
+        ctx = MagicMock()
+        ctx.deps.data_layer.fetch_canonical = AsyncMock()
+        ctx.deps.data_layer.fetch = AsyncMock()
+
+        out = await fn(ctx, "苹果", "price")
+        assert "Invalid ticker" in out
+        ctx.deps.data_layer.fetch.assert_not_awaited()
+        ctx.deps.data_layer.fetch_canonical.assert_not_awaited()
 
     def test_non_data_agents_do_not_have_query_financial_data(self):
         agents = create_sub_agents(_settings())

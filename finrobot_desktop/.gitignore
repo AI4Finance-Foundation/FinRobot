@@ -100,7 +100,8 @@ design-demos/
 # 发布操作手册 — 本地私人备忘（含发布步骤/账号细节），不进版本管理
 /发布须知.md
 
-# app 图标母图 — 1024² RGBA squircle 源（由设计原图 flood-fill 抠白底而来）。
-# 1.17MB 超 pre-commit 的 500KB 限；生成出的全套图标（icons/ 下 icns/ico/PNG/
+# app 图标母图 — 1024² RGBA squircle 源（由设计原图裁切 tile + 圆角透明遮罩而来，
+# 重生成命令：cd desktop && npm run tauri icon -- src-tauri/icon-source.png）。
+# 1.1MB 超 pre-commit 的 500KB 限；生成出的全套图标（icons/ 下 icns/ico/PNG/
 # Windows tiles）已入库,这张母图本地留作重生成源,不进版本管理。
 desktop/src-tauri/icon-source.png

@@ -2489,6 +2489,14 @@ msgstr ""
 #~ msgstr "Sources split"
 
 #. js-lingui-explicit-id
+#~ msgid "workspace.market.sentimentAlignment.partial_divergence"
+#~ msgstr "Partial divergence"
+
+#. js-lingui-explicit-id
+#~ msgid "workspace.market.sentimentAlignment.single_source"
+#~ msgstr "Single source"
+
+#. js-lingui-explicit-id
 #~ msgid "workspace.market.sentimentAlignment.no_data"
 #~ msgstr "No data"
 

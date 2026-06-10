@@ -3327,9 +3327,11 @@ export interface components {
       average_buzz?: number | null
       /**
        * Source Alignment
-       * @description 'aligned' / 'split' / 'no_data' — how consistently the sources agree.
+       * @description How consistently the platforms agree with each other (direction is in bullish_pct/bearish_pct, not here): 'aligned' (spread ≤10pp) / 'partial_divergence' (≤20pp) / 'split' (>20pp) / 'single_source' (only one platform has a view, nothing to cross-check) / 'no_data'.
        */
-      source_alignment?: string | null
+      source_alignment?:
+        | ('aligned' | 'partial_divergence' | 'split' | 'single_source' | 'no_data')
+        | null
       /** Sources */
       sources?: components['schemas']['SentimentSource'][]
       /** Warnings */

@@ -20,6 +20,7 @@ from starlette.requests import Request
 
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
+from finrobot.engine.data.providers.adanos_provider import AlignmentToken
 from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.data.types import DataType
 
@@ -66,9 +67,14 @@ class SentimentSnapshot(BaseModel):
     bullish_pct: float | None = None
     bearish_pct: float | None = None
     average_buzz: float | None = None
-    source_alignment: str | None = Field(
+    source_alignment: AlignmentToken | None = Field(
         default=None,
-        description="'aligned' / 'split' / 'no_data' — how consistently the sources agree.",
+        description=(
+            "How consistently the platforms agree with each other (direction is "
+            "in bullish_pct/bearish_pct, not here): 'aligned' (spread ≤10pp) / "
+            "'partial_divergence' (≤20pp) / 'split' (>20pp) / 'single_source' "
+            "(only one platform has a view, nothing to cross-check) / 'no_data'."
+        ),
     )
     sources: list[SentimentSource] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)

@@ -276,7 +276,16 @@ export function MarketEventsZone({ ticker }: MarketDataZoneProps): React.ReactEl
 //     IS configured — do NOT tell the user to go add one)
 //   • available=false, unconfigured   → "未配置 Adanos · 去设置 →" CTA to /settings
 //   • available=true                  → coverage + bull/bear split (涨绿跌红) + buzz + rows
-const ALIGNMENT_KEYS = new Set(['aligned', 'split', 'no_data'])
+// Mirrors the backend AlignmentToken Literal (adanos_provider.py) — every token
+// the provider can emit has a key here AND an i18n entry, so the badge never
+// silently drops a state the way the old free-phrase values did.
+const ALIGNMENT_KEYS = new Set([
+  'aligned',
+  'partial_divergence',
+  'split',
+  'single_source',
+  'no_data',
+])
 
 function SentimentCard({
   snapshot,

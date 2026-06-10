@@ -12,7 +12,7 @@ import logging
 import time
 from datetime import datetime, timezone
 from statistics import mean
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 
@@ -20,6 +20,11 @@ from finrobot.engine.data.interface import DataProvider, DataResult, ProviderErr
 from finrobot.engine.data.types import DataType
 
 logger = logging.getLogger(__name__)
+
+# Cross-platform agreement tokens. The single source of truth for the whole
+# chain: _compute_alignment output ⊆ this Literal ⊆ route schema ⊆ frontend
+# ALIGNMENT_KEYS ⊆ i18n keys (workspace.market.sentimentAlignment.*).
+AlignmentToken = Literal["aligned", "partial_divergence", "split", "single_source", "no_data"]
 
 _BASE_URL = "https://api.adanos.org"
 _TIMEOUT = 10.0
@@ -206,25 +211,27 @@ def _empty_source(spec: dict[str, str]) -> dict[str, Any]:
     }
 
 
-def _compute_alignment(bullish_values: list[float]) -> str:
-    """Classify source alignment based on bullish_pct values."""
+def _compute_alignment(bullish_values: list[float]) -> AlignmentToken:
+    """Classify cross-platform agreement as a stable enum token.
+
+    Tokens, not prose: this value crosses the language boundary (route Literal →
+    frontend whitelist → i18n key), so it must be machine-stable. The old free
+    phrases ('Wide divergence' …) never matched the frontend's key set — the
+    badge was dead UI. Direction (bullish/bearish) is deliberately absent: the
+    bull/bear split bar already shows it; this token answers only "do the
+    platforms agree with each other?".
+    """
     if not bullish_values:
-        return "No coverage"
+        return "no_data"
     if len(bullish_values) == 1:
-        return "Single-source signal"
+        return "single_source"
 
-    avg = mean(bullish_values)
     spread = max(bullish_values) - min(bullish_values)
-
     if spread <= 10:
-        if avg >= 55:
-            return "Bullish alignment"
-        if avg <= 45:
-            return "Bearish alignment"
-        return "Neutral alignment"
+        return "aligned"
     if spread <= 20:
-        return "Partial divergence"
-    return "Wide divergence"
+        return "partial_divergence"
+    return "split"
 
 
 def _safe_float(value: Any) -> float:

@@ -73,10 +73,14 @@ def canonical_key(data_type: str | DataType) -> str:
 #   fetch_price() path. Old raw PRICE rows may have been written by bare fetch()
 #   without cross-source quote validation, so they must not seed the canonical
 #   slot.
+#   sentiment v2 — 2026-06-10: source_alignment switched from free English
+#   phrases ('Wide divergence' …) to stable enum tokens; the route schema now
+#   validates against the AlignmentToken Literal, so pre-token rows must miss.
 _RAW_SLOT_VERSION: dict[str, int] = {
     DataType.PRICE.value: 2,
     DataType.PROXY_STATEMENT.value: 2,
     DataType.PEER_CANDIDATES.value: 2,
+    DataType.SENTIMENT.value: 2,
 }
 
 

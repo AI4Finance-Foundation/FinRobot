@@ -107,8 +107,8 @@ class TestAdanosFetch:
         assert result.data["average_buzz"] == 75.3
         # (58 + 62 + 55) / 3 = 58.333... → 58.3
         assert result.data["bullish_avg"] == 58.3
-        # spread = 62-55 = 7 (<=10), avg = 58.3 (>=55) → Bullish alignment
-        assert result.data["source_alignment"] == "Bullish alignment"
+        # spread = 62-55 = 7 (<=10) → sources agree; direction lives in the bar
+        assert result.data["source_alignment"] == "aligned"
         assert len(result.data["sources"]) == 3
 
     @pytest.mark.asyncio
@@ -169,26 +169,43 @@ class TestAdanosFetch:
 
 
 class TestAdanosAlignment:
-    def test_bullish_alignment(self):
-        assert _compute_alignment([60, 62, 58]) == "Bullish alignment"
+    """_compute_alignment returns stable enum tokens (cross-language contract:
+    provider ⊆ route Literal ⊆ frontend ALIGNMENT_KEYS ⊆ i18n keys). The old
+    free-English phrases ('Wide divergence' …) never matched the frontend
+    whitelist, so the alignment badge was dead UI. Direction (bullish/bearish/
+    neutral) is NOT in the token — the bull/bear split bar next to the badge
+    already shows it; the badge answers only "do the sources agree?"."""
 
-    def test_bearish_alignment(self):
-        assert _compute_alignment([40, 42, 38]) == "Bearish alignment"
-
-    def test_neutral_alignment(self):
-        assert _compute_alignment([48, 50, 52]) == "Neutral alignment"
+    def test_agreeing_sources_are_aligned_regardless_of_direction(self):
+        assert _compute_alignment([60, 62, 58]) == "aligned"  # bullish consensus
+        assert _compute_alignment([40, 42, 38]) == "aligned"  # bearish consensus
+        assert _compute_alignment([48, 50, 52]) == "aligned"  # neutral consensus
 
     def test_partial_divergence(self):
-        assert _compute_alignment([40, 55]) == "Partial divergence"
+        assert _compute_alignment([40, 55]) == "partial_divergence"
 
-    def test_wide_divergence(self):
-        assert _compute_alignment([30, 70]) == "Wide divergence"
+    def test_wide_divergence_is_split(self):
+        assert _compute_alignment([30, 70]) == "split"
 
     def test_single_source(self):
-        assert _compute_alignment([60]) == "Single-source signal"
+        assert _compute_alignment([60]) == "single_source"
 
     def test_no_coverage(self):
-        assert _compute_alignment([]) == "No coverage"
+        assert _compute_alignment([]) == "no_data"
+
+    def test_every_produced_token_is_in_the_shared_literal(self):
+        """Provider output ⊆ AlignmentToken — the route reuses this Literal, so
+        a new phrase that isn't a known token fails here, not in production."""
+        from typing import get_args
+
+        from finrobot.engine.data.providers.adanos_provider import AlignmentToken
+
+        tokens = set(get_args(AlignmentToken))
+        produced = {
+            _compute_alignment(vals)
+            for vals in ([], [60.0], [60.0, 62.0], [40.0, 55.0], [30.0, 70.0], [40.0, 42.0, 38.0])
+        }
+        assert produced <= tokens
 
 
 class TestAdanosNoDataNotFabricated:
@@ -262,7 +279,7 @@ class TestAdanosNoDataNotFabricated:
         assert result.data["coverage"] == "0/3"
         assert result.data["coverage_ratio"] == 0.0
         assert result.data["bullish_avg"] is None
-        assert result.data["source_alignment"] == "No coverage"
+        assert result.data["source_alignment"] == "no_data"
 
 
 class TestAdanosRateLimiter:

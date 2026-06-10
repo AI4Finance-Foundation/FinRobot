@@ -123,7 +123,9 @@ export interface SentimentSnapshot {
   bullish_pct: number | null
   bearish_pct: number | null
   average_buzz: number | null
-  source_alignment: string | null
+  // Backend AlignmentToken Literal — cross-platform agreement only; direction
+  // lives in bullish_pct/bearish_pct.
+  source_alignment: 'aligned' | 'partial_divergence' | 'split' | 'single_source' | 'no_data' | null
   sources: {
     platform: string
     has_data: boolean

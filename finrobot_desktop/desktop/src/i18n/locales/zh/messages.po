@@ -2489,6 +2489,14 @@ msgstr ""
 #~ msgstr "各平台分歧"
 
 #. js-lingui-explicit-id
+#~ msgid "workspace.market.sentimentAlignment.partial_divergence"
+#~ msgstr "部分分歧"
+
+#. js-lingui-explicit-id
+#~ msgid "workspace.market.sentimentAlignment.single_source"
+#~ msgstr "单一来源"
+
+#. js-lingui-explicit-id
 #~ msgid "workspace.market.sentimentAlignment.no_data"
 #~ msgstr "无数据"
 

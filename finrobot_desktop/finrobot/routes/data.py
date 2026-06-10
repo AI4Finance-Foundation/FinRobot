@@ -59,6 +59,50 @@ def _data_http_error(exc: Exception, ticker: str) -> HTTPException:
     )
 
 
+def _fmp_degradation_warning(request: Request, provider: str | None) -> str | None:
+    """User-visible note when FMP is configured but the data came from yfinance.
+
+    build_data_layer puts FMP first in the chain whenever a key is set, so for
+    FMP-served types (FINANCIALS / PRICE) ``provider == yfinance`` despite a
+    configured key means the FMP call failed (invalid/expired key, outage,
+    circuit open) and the layer silently fell back. The fallback itself is
+    correct behaviour — serving stale-keyed users nothing would be worse — but
+    it must be VISIBLE: the response already carries ``data_source``, and this
+    warning tells the user why it isn't the source they configured. Route-side
+    by design: the provider chain (layer.py) stays policy-free.
+    """
+    settings = getattr(request.app.state.deps, "settings", None)
+    if not settings or not getattr(settings, "fmp_api_key", ""):
+        return None
+    if provider is not None and provider.startswith("yfinance"):
+        return (
+            "已配置 FMP，但本次数据来自 yfinance 降级——请到 设置 → 数据源 测试 FMP key "
+            "是否仍有效（key 失效或 FMP 故障时会自动回退）。"
+        )
+    return None
+
+
+def _with_fmp_degradation_note(request: Request, payload: dict[str, Any]) -> dict[str, Any]:
+    """Append the FMP-fallback warning to a /price payload when applicable.
+
+    Called at every ``return`` of :func:`get_price` (fresh fetch, route cache,
+    provider cache, stale fallbacks) so the note follows the payload no matter
+    which path served it.
+    """
+    raw_source = payload.get("data_source")
+    degraded = _fmp_degradation_warning(
+        request, raw_source if isinstance(raw_source, str) else None
+    )
+    if degraded:
+        warnings = payload.get("warnings")
+        if not isinstance(warnings, list):
+            warnings = []
+            payload["warnings"] = warnings
+        if degraded not in warnings:
+            warnings.append(degraded)
+    return payload
+
+
 @router.get("/{ticker}/catalysts", response_model=list[CatalystEvent])
 async def get_catalysts(
     ticker: str,
@@ -146,6 +190,9 @@ async def get_financials(ticker: str, request: Request) -> FinancialData:
     # Cross-validation warnings already merged into fin/price.warnings by
     # fetch_canonical, and extract_financial_data carries them through.
     extracted = extract_financial_data(_fin, _price)
+    degraded = _fmp_degradation_warning(request, extracted.data_source)
+    if degraded and degraded not in extracted.warnings:
+        extracted.warnings.append(degraded)
     return extracted
 
 
@@ -177,12 +224,15 @@ async def get_price(ticker: str, request: Request, period: PricePeriod = "1y") -
     cached = await cache.get(DataType.PRICE, route_cache_key)
     if cached is not None and not cached.is_stale:
         cached_payload = dict(cast(dict[str, Any], cached.data.data))
-        return await _enrich_price_payload_from_financial_cache(cache, ticker_upper, cached_payload)
+        return _with_fmp_degradation_note(
+            request,
+            await _enrich_price_payload_from_financial_cache(cache, ticker_upper, cached_payload),
+        )
 
     if period == "1y":
         provider_cached = await _provider_price_cache_payload(cache, ticker_upper)
         if provider_cached is not None:
-            return provider_cached
+            return _with_fmp_degradation_note(request, provider_cached)
 
     try:
         payload = await cached_fetch(
@@ -192,7 +242,10 @@ async def get_price(ticker: str, request: Request, period: PricePeriod = "1y") -
             lambda: fetch_price_history(data_layer, ticker_upper),
             cache_key_suffix=f":{period}",
         )
-        return await _enrich_price_payload_from_financial_cache(cache, ticker_upper, payload)
+        return _with_fmp_degradation_note(
+            request,
+            await _enrich_price_payload_from_financial_cache(cache, ticker_upper, payload),
+        )
     except (ValueError, ProviderError) as e:
         if cached is not None:
             stale_payload = dict(cached.data.data)
@@ -200,8 +253,11 @@ async def get_price(ticker: str, request: Request, period: PricePeriod = "1y") -
             warnings = list(raw_warnings) if isinstance(raw_warnings, list) else []
             warnings.insert(0, f"数据源请求失败，正在显示缓存行情（{ticker_upper} / {period}）。")
             stale_payload["warnings"] = _dedupe(warnings)
-            return await _enrich_price_payload_from_financial_cache(
-                cache, ticker_upper, stale_payload
+            return _with_fmp_degradation_note(
+                request,
+                await _enrich_price_payload_from_financial_cache(
+                    cache, ticker_upper, stale_payload
+                ),
             )
         if period == "1y":
             stale_provider = await _provider_price_cache_payload(
@@ -211,7 +267,7 @@ async def get_price(ticker: str, request: Request, period: PricePeriod = "1y") -
                 warning=f"数据源请求失败，正在显示缓存行情（{ticker_upper} / provider）。",
             )
             if stale_provider is not None:
-                return stale_provider
+                return _with_fmp_degradation_note(request, stale_provider)
         raise _data_http_error(e, ticker_upper) from e
 
 

@@ -23,7 +23,7 @@ describe('fetchJsonOrThrowHttp', () => {
     expect(result.current_price).toBe(200)
   })
 
-  it('422 → throws FetchHttpError with status=422', async () => {
+  it('422 → throws FetchHttpError with status=422 and backend detail (BUG-053 sibling)', async () => {
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(
       new Response('{"detail":"未知 ticker"}', {
         status: 422,
@@ -35,10 +35,11 @@ describe('fetchJsonOrThrowHttp', () => {
       name: 'FetchHttpError',
       status: 422,
       statusText: 'Unprocessable Entity',
+      detail: '未知 ticker',
     })
   })
 
-  it('502 → throws FetchHttpError with status=502', async () => {
+  it('502 → throws FetchHttpError with status=502 and backend detail', async () => {
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(
       new Response('{"detail":"数据源暂不可用"}', {
         status: 502,
@@ -49,10 +50,11 @@ describe('fetchJsonOrThrowHttp', () => {
     await expect(fetchJsonOrThrowHttp('http://test/api')).rejects.toMatchObject({
       name: 'FetchHttpError',
       status: 502,
+      detail: '数据源暂不可用',
     })
   })
 
-  it('error thrown is instanceof FetchHttpError', async () => {
+  it('error thrown is instanceof FetchHttpError; empty body → empty detail', async () => {
     vi.mocked(globalThis.fetch).mockResolvedValueOnce(new Response('{}', { status: 500 }))
     try {
       await fetchJsonOrThrowHttp('http://test/api')
@@ -60,6 +62,7 @@ describe('fetchJsonOrThrowHttp', () => {
     } catch (err) {
       expect(err).toBeInstanceOf(FetchHttpError)
       expect((err as FetchHttpError).status).toBe(500)
+      expect((err as FetchHttpError).detail).toBe('')
     }
   })
 

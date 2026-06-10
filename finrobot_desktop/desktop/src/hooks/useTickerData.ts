@@ -4,6 +4,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
+import { extractErrorDetail } from '../api/errors'
 import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../api/fetch'
 import { FetchHttpError } from '../utils/errorMessage'
 
@@ -157,7 +158,13 @@ export async function fetchJsonOrThrowHttp<T>(
 ): Promise<T> {
   const resp = await fetchWithTimeout(url, { signal }, timeoutMs)
   if (!resp.ok) {
-    throw new FetchHttpError(resp.status, resp.statusText)
+    // The backend ships a user-facing `detail` on data errors (422 invalid
+    // ticker / 502 provider failed / 503 capability unconfigured). Read the
+    // body once and carry it into the typed error so mapErrorToUserMessage
+    // surfaces the real reason instead of the generic status bucket —
+    // mirrors coverage's req() (BUG-053).
+    const detail = await extractErrorDetail(resp, '')
+    throw new FetchHttpError(resp.status, resp.statusText, detail)
   }
   return resp.json() as Promise<T>
 }

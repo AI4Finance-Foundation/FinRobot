@@ -508,6 +508,12 @@ function mockPriceFetchError(err: Error | Response) {
       }
       return Promise.reject(err)
     }
+    // List endpoints must return shape-correct empties ([]), not {} — AIZone's
+    // useLatestArtifact calls .find() on the timeline payload and an {} body
+    // crashes the whole tree before the gate can render.
+    if (url.includes('/timeline') || url.includes('/catalysts')) {
+      return jsonResponse([])
+    }
     // All other endpoints return 200 {} so no unrelated query errors mask the gate.
     return jsonResponse({})
   })

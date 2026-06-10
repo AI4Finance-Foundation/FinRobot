@@ -244,6 +244,35 @@ class TestFMPFetch:
         assert result.data["country"] == "US"
 
     @pytest.mark.asyncio
+    async def test_empty_income_raises_instead_of_all_none_success(self, provider):
+        """FMP returns HTTP 200 + [] for uncovered/delisted tickers. That must
+        raise ProviderError so DataLayer falls through to yfinance's real data —
+        an all-None 'success' became primary, blocked the secondary, and was
+        cached for the 24h FINANCIALS TTL (same invariant as _fetch_price's
+        empty-quote raise)."""
+        responses = [_mock_response([])]  # quarterly income comes first
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            with pytest.raises(ProviderError, match="no rows"):
+                await provider.fetch("AAPL", "financials")
+
+    @pytest.mark.asyncio
+    async def test_empty_annual_income_raises_for_historical_path(self, provider):
+        responses = [_mock_response([])]  # annual income comes first for years>1
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            with pytest.raises(ProviderError, match="no rows"):
+                await provider.fetch("AAPL", "financials", years=5)
+
+    @pytest.mark.asyncio
+    async def test_financials_dict_error_body_raises_provider_error(self, provider):
+        """HTTP 200 + dict error body must become ProviderError (fallback /
+        stale serve), not a KeyError escaping outside _wrap_errors as an
+        opaque 500."""
+        body = {"Error Message": "Limit Reach . Please upgrade your plan."}
+        with patch.object(provider, "_get", AsyncMock(return_value=_mock_response(body))):
+            with pytest.raises(ProviderError, match="non-array"):
+                await provider.fetch("AAPL", "financials")
+
+    @pytest.mark.asyncio
     async def test_quote_failure_warning_never_leaks_api_key(self, provider):
         """A /quote failure warning must not embed the raw httpx exception.
 
@@ -835,6 +864,25 @@ class TestFMPNews:
     @pytest.mark.asyncio
     async def test_news_in_capabilities(self, provider):
         assert "news" in provider.capabilities()
+
+    @pytest.mark.asyncio
+    async def test_empty_news_raises_so_chain_falls_to_aggregator(self, provider):
+        """An empty /stock_news list must NOT become a zero-news 'success':
+        that would stop the provider chain before the news_aggregator
+        (yfinance headlines + Alpha Vantage) ever gets a shot, and downstream
+        can't distinguish it from 'genuinely no news'."""
+        with patch.object(provider, "_get", AsyncMock(return_value=_mock_response([]))):
+            with pytest.raises(ProviderError, match="no rows"):
+                await provider.fetch("AAPL", "news")
+
+    @pytest.mark.asyncio
+    async def test_news_dict_error_body_raises_provider_error(self, provider):
+        """FMP signals some errors as HTTP 200 + dict body; that must surface
+        as ProviderError (provider fallback), not an escaped AttributeError."""
+        body = {"Error Message": "Limit Reach . Please upgrade your plan."}
+        with patch.object(provider, "_get", AsyncMock(return_value=_mock_response(body))):
+            with pytest.raises(ProviderError, match="non-array"):
+                await provider.fetch("AAPL", "news")
 
 
 def _fmp_earnings_response(ticker="AAPL"):

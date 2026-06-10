@@ -201,37 +201,61 @@ class FMPProvider(DataProvider):
         cashflow: list[dict[str, Any]] = []
         with self._wrap_errors(ticker, "fetch"):
             if years and years > 1:
-                income = (
-                    await self._get(f"/income-statement/{ticker}", params={"limit": years})
-                ).json()
+                income = self._expect_rows(
+                    (
+                        await self._get(f"/income-statement/{ticker}", params={"limit": years})
+                    ).json(),
+                    ticker,
+                    "/income-statement",
+                    required=True,
+                )
                 # Pull `years` of annual balance sheets (not limit:1) so each
                 # historical year's net debt comes from THAT year's filing. Reusing
                 # the latest balance sheet for every year distorted the EV side of
                 # the historical EV/EBITDA bands for companies whose debt structure
                 # moved across years (BUG-012).
-                balance = (
-                    await self._get(f"/balance-sheet-statement/{ticker}", params={"limit": years})
-                ).json()
+                balance = self._expect_rows(
+                    (
+                        await self._get(
+                            f"/balance-sheet-statement/{ticker}", params={"limit": years}
+                        )
+                    ).json(),
+                    ticker,
+                    "/balance-sheet-statement",
+                )
                 # DCF's FCF = OCF − CapEx − ΔNWC. The income statement carries
                 # none of those; without this cash-flow pull FMP-sourced history
                 # silently drops every cash-flow input and DCF degrades to
                 # industry-median assumptions (see 门一 baseline spec).
-                cashflow = (
-                    await self._get(f"/cash-flow-statement/{ticker}", params={"limit": years})
-                ).json()
+                cashflow = self._expect_rows(
+                    (
+                        await self._get(f"/cash-flow-statement/{ticker}", params={"limit": years})
+                    ).json(),
+                    ticker,
+                    "/cash-flow-statement",
+                )
             else:
-                income = (
-                    await self._get(
-                        f"/income-statement/{ticker}",
-                        params={"period": "quarter", "limit": 4},
-                    )
-                ).json()
-                balance = (
-                    await self._get(
-                        f"/balance-sheet-statement/{ticker}",
-                        params={"period": "quarter", "limit": 1},
-                    )
-                ).json()
+                income = self._expect_rows(
+                    (
+                        await self._get(
+                            f"/income-statement/{ticker}",
+                            params={"period": "quarter", "limit": 4},
+                        )
+                    ).json(),
+                    ticker,
+                    "/income-statement",
+                    required=True,
+                )
+                balance = self._expect_rows(
+                    (
+                        await self._get(
+                            f"/balance-sheet-statement/{ticker}",
+                            params={"period": "quarter", "limit": 1},
+                        )
+                    ).json(),
+                    ticker,
+                    "/balance-sheet-statement",
+                )
                 # FMP often ships a DEBT STUB on the freshest quarter: totalDebt /
                 # longTermDebt / shortTermDebt all 0 until FMP backfills the
                 # detail (cash is usually already populated). Trusting that 0
@@ -252,9 +276,15 @@ class FMPProvider(DataProvider):
                         balance[0].get(f) for f in ("totalDebt", "longTermDebt", "shortTermDebt")
                     )
                 ):
-                    annual_balance = (
-                        await self._get(f"/balance-sheet-statement/{ticker}", params={"limit": 1})
-                    ).json()
+                    annual_balance = self._expect_rows(
+                        (
+                            await self._get(
+                                f"/balance-sheet-statement/{ticker}", params={"limit": 1}
+                            )
+                        ).json(),
+                        ticker,
+                        "/balance-sheet-statement (annual stub backfill)",
+                    )
                     if annual_balance:
                         for f in ("totalDebt", "longTermDebt", "shortTermDebt"):
                             balance[0][f] = annual_balance[0].get(f)
@@ -269,18 +299,24 @@ class FMPProvider(DataProvider):
                 # real per-quarter D&A — fetch the matching 4 quarters and let
                 # _build_ttm_data prefer it. (Same call order as the years>1
                 # branch: income → balance → cash-flow → profile.)
-                cashflow = (
-                    await self._get(
-                        f"/cash-flow-statement/{ticker}",
-                        params={"period": "quarter", "limit": 4},
-                    )
-                ).json()
+                cashflow = self._expect_rows(
+                    (
+                        await self._get(
+                            f"/cash-flow-statement/{ticker}",
+                            params={"period": "quarter", "limit": 4},
+                        )
+                    ).json(),
+                    ticker,
+                    "/cash-flow-statement",
+                )
                 if len(income) < 4:
                     warnings.append(
                         f"FMP returned only {len(income)} quarterly income rows for {ticker}; "
                         "TTM metrics use the available rows."
                     )
-            profile = (await self._get(f"/profile/{ticker}")).json()
+            profile = self._expect_rows(
+                (await self._get(f"/profile/{ticker}")).json(), ticker, "/profile"
+            )
             # FMP /profile carries NO share count, which is why shares were
             # historically back-solved as int(mktCap/price) — a tautology that
             # turned price×shares≈mktCap into a fake cross-check. /quote DOES expose
@@ -762,7 +798,11 @@ class FMPProvider(DataProvider):
         """Fetch recent news articles for a ticker from FMP /stock_news endpoint."""
         with self._wrap_errors(ticker, "news fetch"):
             resp = await self._get("/stock_news", params={"tickers": ticker, "limit": 20})
-        raw: list[dict[str, Any]] = resp.json()
+        # required=True: an empty FMP news list must fall through to the
+        # news_aggregator (yfinance headlines + Alpha Vantage sentiment) at the
+        # end of the provider chain instead of becoming a zero-news "success"
+        # that is indistinguishable from "genuinely no news".
+        raw = self._expect_rows(resp.json(), ticker, "/stock_news", required=True)
         news_items = [
             {
                 "title": item.get("title", ""),
@@ -793,7 +833,9 @@ class FMPProvider(DataProvider):
                 params={"symbol": ticker, "limit": 40},
                 base=_STABLE_BASE,
             )
-        raw: list[dict[str, Any]] = resp.json()
+        # Type-gate only: an empty earnings history is honest for a fresh IPO
+        # and FMP is the sole EARNINGS provider (no chain to fall through to).
+        raw = self._expect_rows(resp.json(), ticker, "stable/earnings")
         earnings_history = [
             {
                 "date": item.get("date", ""),
@@ -836,7 +878,7 @@ class FMPProvider(DataProvider):
             else:
                 # FMP lists available transcripts at this endpoint without q/y params
                 resp = await self._get(f"/earning_call_transcript/{ticker}")
-        raw: list[dict[str, Any]] = resp.json()
+        raw = self._expect_rows(resp.json(), ticker, "/earning_call_transcript")
 
         transcripts = []
         for item in raw[:limit]:
@@ -926,7 +968,8 @@ class FMPProvider(DataProvider):
                         },
                     )
                 ).json()
-                industry_screen = [str(r["symbol"]) for r in rows or [] if r.get("symbol")]
+                rows = rows if isinstance(rows, list) else []
+                industry_screen = [str(r["symbol"]) for r in rows if r.get("symbol")]
 
             sector_screen: list[str] = []
             if sector and target_mcap > 0:
@@ -940,7 +983,8 @@ class FMPProvider(DataProvider):
                         },
                     )
                 ).json()
-                sector_screen = [str(r["symbol"]) for r in rows or [] if r.get("symbol")]
+                rows = rows if isinstance(rows, list) else []
+                sector_screen = [str(r["symbol"]) for r in rows if r.get("symbol")]
 
             symbols = sorted(
                 {s for s in (*stock_peers, *industry_screen, *sector_screen) if s != ticker}
@@ -949,7 +993,8 @@ class FMPProvider(DataProvider):
             for i in range(0, len(symbols), 40):
                 chunk = symbols[i : i + 40]
                 rows = (await self._get(f"/profile/{','.join(chunk)}")).json()
-                for r in rows or []:
+                rows = rows if isinstance(rows, list) else []
+                for r in rows:
                     sym = r.get("symbol")
                     if not sym:
                         continue
@@ -964,7 +1009,8 @@ class FMPProvider(DataProvider):
             for i in range(0, len(symbols), 40):
                 chunk = symbols[i : i + 40]
                 rows = (await self._get(f"/quote/{','.join(chunk)}")).json()
-                for r in rows or []:
+                rows = rows if isinstance(rows, list) else []
+                for r in rows:
                     sym = r.get("symbol")
                     if not sym:
                         continue
@@ -1030,6 +1076,28 @@ class FMPProvider(DataProvider):
             ) from e
         except (ValueError, KeyError, TypeError, AttributeError) as e:
             raise ProviderError(f"FMP {op} failed for '{ticker}' ({type(e).__name__})") from e
+
+    @staticmethod
+    def _expect_rows(
+        payload: Any, ticker: str, endpoint: str, *, required: bool = False
+    ) -> list[dict[str, Any]]:
+        """Validate an FMP payload that must be a JSON array.
+
+        FMP signals some errors as HTTP 200 with a dict body
+        (``{"Error Message": ...}``). Row-indexing such a body outside
+        ``_wrap_errors`` escaped the ProviderError failure chain as
+        KeyError/AttributeError — no provider fallback, no stale serve, just
+        an opaque 500. ``required=True`` additionally rejects an EMPTY array:
+        an empty primary (uncovered/delisted ticker) would otherwise become an
+        all-None "success" that blocks the next provider's real data and gets
+        cached for the slot's TTL (same invariant as _fetch_price's empty-quote
+        raise).
+        """
+        if not isinstance(payload, list):
+            raise ProviderError(f"FMP {endpoint} returned a non-array payload for '{ticker}'")
+        if required and not payload:
+            raise ProviderError(f"FMP {endpoint} returned no rows for '{ticker}'")
+        return payload
 
     async def _get(
         self, path: str, params: dict[str, Any] | None = None, *, base: str = _BASE_URL

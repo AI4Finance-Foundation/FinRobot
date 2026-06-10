@@ -19,14 +19,20 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
-    // Realistic per-chunk budget. The only chunk that legitimately exceeds 600KB
-    // is `src/export/bundle.ts` — a `?raw` STRING blob of the pre-built report
-    // viewer IIFE (recharts + React, ~1.4MB minified) that gets inlined verbatim
-    // into exported .html. It is a string, not splittable code, and is already a
-    // lazy chunk loaded only on export. Everything else (vendors + route bundles)
-    // is kept under this limit by the manualChunks split below, so we leave the
-    // warning ENABLED at 600KB to catch real regressions; the one expected
-    // over-budget chunk (bundle-*.js) is the inlined export viewer by design.
+    // Realistic per-chunk budget. A few chunks legitimately exceed 600KB, but
+    // every one of them is LAZY — none sit on the eager landing path, which
+    // keeps the index entry chunk at ~280KB:
+    //   - bundle-*.js (~1.6MB)  `src/export/bundle.ts`, a `?raw` STRING blob of
+    //       the pre-built report viewer IIFE inlined verbatim into exported
+    //       .html. A string, not splittable code; loaded only on export.
+    //   - spline-viewer-*.js (~2.3MB) + physics-*.js (~2MB)  the @splinetool 3D
+    //       viewer runtime, dynamically import()-ed by SplineHero ONLY when the
+    //       hero actually mounts (tab visible + scrolled into view). Off cold
+    //       start — a static import used to weld this onto index (2.4MB eager).
+    // Everything on the eager path (vendors + index + route bundles) stays well
+    // under this limit via the manualChunks split + lazy routes, so we leave the
+    // warning ENABLED at 600KB to catch a real regression — i.e. something heavy
+    // sneaking back onto the eager graph the way Spline used to.
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
@@ -35,8 +41,9 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined
           const inPkg = (...pkgs: string[]) => pkgs.some((p) => id.includes(`node_modules/${p}/`))
-          // recharts + its d3 dependency tree — the single biggest vendor in the
-          // app entry. Carving it out drops the eager index chunk well under 600KB.
+          // recharts + its d3 dependency tree — the biggest vendor that's still
+          // eager (charts render in the landing tables). Carved into its own
+          // chunk so it caches independently and doesn't bloat the index entry.
           if (
             inPkg(
               'recharts',

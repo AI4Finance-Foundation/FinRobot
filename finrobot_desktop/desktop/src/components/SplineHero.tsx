@@ -27,7 +27,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 // The scene + its runtime WASM stay remote DATA (Spline can't be fully
 // self-hosted: the viewer hardcodes the unpkg WASM URL); the tightened CSP in
 // tauri.conf.json constrains those to the specific spline.design / unpkg hosts.
-import '@splinetool/viewer'
+//
+// The import is DYNAMIC (see the effect in the component), NOT a top-level
+// `import '@splinetool/viewer'`: the viewer drags in ~1.9MB of three.js +
+// physics/navmesh runtime. A static import welds that whole graph onto the eager
+// landing chunk even when the robot never renders — which this component already
+// refuses to do off-screen. So we register the element on demand, the first time
+// the hero is actually allowed to mount, keeping the runtime off cold start.
 
 const SCENE_SRC = 'https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode'
 const LOAD_TIMEOUT_MS = 8000
@@ -65,6 +71,10 @@ export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.R
   const [status, setStatus] = useState<'loading' | 'ready' | 'failed'>('loading')
   const [visible, setVisible] = useState(true)
   const [hasLayout, setHasLayout] = useState(false)
+  // Set true once the dynamic `import('@splinetool/viewer')` has resolved and
+  // registered the custom element. Until then we can't render <spline-viewer>
+  // (it wouldn't be defined), so the static rings stand in.
+  const [viewerModuleReady, setViewerModuleReady] = useState(false)
   const [pageActive, setPageActive] = useState(
     typeof document === 'undefined' ? true : !document.hidden,
   )
@@ -130,10 +140,11 @@ export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.R
     return () => ro.disconnect()
   }, [])
 
-  // The custom element is statically registered (vendored import), so there is
-  // no script to load — readiness is the SCENE loading. Drive it off the
-  // viewer's own lifecycle events, with the 8s timeout as the fallback to the
-  // static rings if load-complete never arrives (offline / corrupt asset).
+  // The custom element is registered by the lazy import below (not a static
+  // import), so once it's defined there is no per-element script to load —
+  // readiness is the SCENE loading. Drive it off the viewer's own lifecycle
+  // events, with the 8s timeout as the fallback to the static rings if
+  // load-complete never arrives (offline / corrupt asset).
   const bindViewer = useCallback((el: HTMLElement | null) => {
     if (!el) return
     // { once } so re-renders don't stack listeners; attached at mount (before
@@ -142,13 +153,36 @@ export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.R
     el.addEventListener('error', () => setStatus('failed'), { once: true })
   }, [])
 
+  // Lazy-load the vendored viewer the first time the hero is allowed to render.
+  // import() is idempotent — the module executes and self-registers the custom
+  // element once; later calls resolve the cached module — so re-entering
+  // `allowed` is free. On failure we drop to the static rings instead of
+  // rendering an undefined element.
   useEffect(() => {
-    if (!allowed) return
+    if (!allowed || viewerModuleReady) return
+    let cancelled = false
+    import('@splinetool/viewer')
+      .then(() => {
+        if (!cancelled) setViewerModuleReady(true)
+      })
+      .catch(() => {
+        if (!cancelled) setStatus('failed')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [allowed, viewerModuleReady])
+
+  // 8s scene-load budget — armed only once the element is registered AND
+  // mounting, so the timeout covers SCENE load (its original intent), not the
+  // one-time module download which has no fixed budget on a cold network.
+  useEffect(() => {
+    if (!allowed || !viewerModuleReady) return
     const timeoutId = setTimeout(() => {
       setStatus((cur) => (cur === 'loading' ? 'failed' : cur))
     }, LOAD_TIMEOUT_MS)
     return () => clearTimeout(timeoutId)
-  }, [allowed])
+  }, [allowed, viewerModuleReady])
 
   // "Built with Spline" branding lives inside spline-viewer's shadow DOM
   // (the free Spline tier renders it on every scene). Inject a style tag
@@ -214,7 +248,7 @@ export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.R
         pointerEvents: isBackdrop ? 'none' : undefined,
       }}
     >
-      {allowed && status !== 'failed' && (
+      {allowed && viewerModuleReady && status !== 'failed' && (
         <spline-viewer
           ref={bindViewer}
           url={SCENE_SRC}

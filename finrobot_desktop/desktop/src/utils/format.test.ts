@@ -121,28 +121,32 @@ describe('formatCurrencyCompact', () => {
 })
 
 describe('formatDate — date-only strings are TZ-safe (western-hemisphere off-by-one)', () => {
-  const originalTZ = process.env.TZ
+  // The web tsconfig has no Node types; reach process via globalThis so the
+  // TZ swap (a Node/vitest-only facility) doesn't break the tsc build.
+  const proc = (globalThis as unknown as { process: { env: Record<string, string | undefined> } })
+    .process
+  const originalTZ = proc.env.TZ
 
   afterEach(() => {
-    if (originalTZ === undefined) delete process.env.TZ
-    else process.env.TZ = originalTZ
+    if (originalTZ === undefined) delete proc.env.TZ
+    else proc.env.TZ = originalTZ
   })
 
   it('renders the calendar day verbatim in a UTC-negative zone', () => {
     // `new Date('2026-03-31')` is UTC midnight; local getters in New York
     // (UTC-4/-5) land on 03-30 without date-only local parsing.
-    process.env.TZ = 'America/New_York'
+    proc.env.TZ = 'America/New_York'
     expect(formatDate('2026-03-31', 'en', 'short')).toBe('2026-03-31')
     expect(formatDate('2026-03-31', 'en', 'long')).toBe('March 31, 2026')
   })
 
   it('renders the calendar day verbatim in a UTC-positive zone', () => {
-    process.env.TZ = 'Asia/Shanghai'
+    proc.env.TZ = 'Asia/Shanghai'
     expect(formatDate('2026-03-31', 'en', 'short')).toBe('2026-03-31')
   })
 
   it('full ISO timestamps keep instant semantics (not affected)', () => {
-    process.env.TZ = 'Asia/Shanghai'
+    proc.env.TZ = 'Asia/Shanghai'
     // UTC 16:00 on 03-30 = 03-31 00:00 in Shanghai — a real instant must
     // still render in the viewer's local zone.
     expect(formatDate('2026-03-30T16:00:00Z', 'en', 'short')).toBe('2026-03-31')

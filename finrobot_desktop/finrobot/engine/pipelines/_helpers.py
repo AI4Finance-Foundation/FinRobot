@@ -583,7 +583,12 @@ async def _build_historical_metrics(deps: FinRobotDeps, ticker: str) -> Historic
     split. Returns None when fewer than 2 usable years exist.
     """
     try:
-        hm = await fetch_historical_metrics(deps.data_layer, ticker, years=5)
+        # AUTO window (years=None): 5y for a normal name, 10y for a commodity-
+        # cyclical so the through-cycle DCF median sees a full peak→trough→recovery
+        # window. This is the PRIMARY historical_metrics the report's DCF seeds off
+        # (equity_research reads structured_context["historical_metrics"] first), so
+        # a hardcoded 5 here would silently starve MU's through-cycle normalization.
+        hm = await fetch_historical_metrics(deps.data_layer, ticker)
     except (ValueError, KeyError, TypeError, RuntimeError, AttributeError, OSError) as e:
         logger.warning("Failed to build HistoricalMetrics for %s: %s", ticker, e)
         return None

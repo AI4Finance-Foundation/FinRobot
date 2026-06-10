@@ -27,17 +27,43 @@ from finrobot.engine.data.interface import DataResult, ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import HistoricalMetrics
+from finrobot.engine.primitives.industry import is_commodity_cyclical
+
+# Default trailing window for non-cyclicals: equity-research convention seeds the
+# DCF off the trailing ~5y (sliced to ~3y for the median inside dcf_seed).
+_DEFAULT_HISTORY_YEARS: int = 5
+
+# Cyclical / commodity names need a window that spans a FULL business cycle plus
+# the current regime (peak→trough→recovery), so the through-cycle median isn't
+# computed on a truncated half-cycle. Memory was peak FY2018 → trough FY2023 →
+# AI super-cycle FY2024-2026 (SEC-verified), ≈9 fiscal years end-to-end; pull 10
+# so the whole cycle is in-window. Lands in its own cache slot (the cache key
+# folds in ``years``, so 10 never collides with the 5-year slot — T6#2).
+_CYCLICAL_HISTORY_YEARS: int = 10
 
 
 async def fetch_historical_metrics(
-    data_layer: DataLayer, ticker: str, years: int = 5
+    data_layer: DataLayer,
+    ticker: str,
+    years: int | None = None,
+    *,
+    industry: str | None = None,
+    sector: str | None = None,
 ) -> HistoricalMetrics:
     """Fetch multi-year financials via the DataLayer and build HistoricalMetrics.
 
     Args:
         data_layer: The shared DataLayer (provider chain FMP → yfinance).
         ticker: Upper-case stock ticker symbol (e.g. "AAPL").
-        years: Maximum number of annual periods to include (default 5).
+        years: Maximum number of annual periods to include. ``None`` (the default)
+            means AUTO: 5 for a normal name, 10 for a commodity-cyclical so the
+            through-cycle median sees a full peak→trough→recovery window. Pass an
+            explicit int only to override (e.g. the /historical route's UI window).
+        industry: Provider industry label, when the caller already has the
+            snapshot. Lets a non-memory cyclical (steel/oil/shipping) also get the
+            extended window. None is fine — memory/storage names still extend via
+            the curated ticker anchor inside ``is_commodity_cyclical``.
+        sector: Provider sector label (reserved; industry tag is decisive).
 
     Returns:
         Fully populated HistoricalMetrics, sorted oldest-first. Returns a minimal
@@ -54,6 +80,13 @@ async def fetch_historical_metrics(
     ``currency`` tag discloses it (the metrics still serve dcf_seed's
     currency-invariant ratio medians, so dropping them would be overkill).
     """
+    # AUTO window: extend for commodity-cyclicals so the through-cycle median has a
+    # full cycle in-window. The ticker anchor covers memory/storage on every call
+    # site (none of which carries a description); industry covers the rest when the
+    # caller has it. An explicit ``years`` always wins (the UI /historical window).
+    if years is None:
+        cyclical = is_commodity_cyclical(industry=industry, sector=sector, ticker=ticker)
+        years = _CYCLICAL_HISTORY_YEARS if cyclical else _DEFAULT_HISTORY_YEARS
     results = await data_layer.fetch_historical(DataType.FINANCIALS, ticker, years=years)
     fx = await resolve_historical_fx(results, data_layer, ticker)
     # Trailing P/E + price_data_available come from the current-snapshot

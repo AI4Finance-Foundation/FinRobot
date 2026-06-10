@@ -662,6 +662,50 @@ class TestCircuitOpenProvenance:
         ), f"Expected '{expected_marker}' in degraded={normalized.provenance.degraded}"
         assert expected_marker.startswith(DEGRADED_CIRCUIT_OPEN_PREFIX)
 
+    async def test_circuit_open_not_persisted_to_raw_cache(self, cache):
+        """Item 6: fetch() stamps circuit_open on the RETURNED result but caches
+        the row clean — which providers were in cooldown is a point-in-time fact
+        about this fetch, not the data. Freezing it for the whole TTL would flag a
+        recovered provider as down for 24h."""
+        health = self._tripped_health("fmp")
+        fmp = MockProvider("fmp", ["financials"])
+        yf = MockProvider("yfinance", ["financials"])
+        layer = DataLayer([fmp, yf], cache, health=health)
+
+        result = await layer.fetch("financials", "AAPL")
+        assert "fmp" in result.circuit_open_providers  # immediate caller sees it
+        assert fmp.fetch_called == 0
+
+        cached = await cache.get(DataType.FINANCIALS, "AAPL")
+        assert cached is not None
+        assert cached.data.circuit_open_providers == []  # cached row is clean
+
+    async def test_circuit_open_marker_not_persisted_to_canonical_cache(self, cache):
+        """Item 6: the canonical degraded_circuit_open marker reaches the immediate
+        caller but must NOT be frozen into the cached canonical row, or a later
+        read (breaker since recovered) keeps reading degraded for the full TTL."""
+        health = self._tripped_health("fmp")
+        fmp = MockProvider("fmp", ["financials"])
+        yf_result = DataResult(
+            data={"revenue": 1_000_000, "period_basis": "ttm"},
+            provider="yfinance",
+            ticker="AAPL",
+            data_type="financials",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        yf = MockProvider("yfinance", ["financials"], result=yf_result)
+        layer = DataLayer([fmp, yf], cache, health=health)
+
+        fetched = await layer.fetch_canonical(DataType.FINANCIALS, "AAPL")
+        assert degraded_circuit_open("fmp") in fetched.provenance.degraded
+
+        # The cached canonical row, read back (the breaker may have recovered), is
+        # clean of the ephemeral marker — data-provenance markers would persist.
+        cached = await layer.read_canonical_cached(DataType.FINANCIALS, "AAPL")
+        assert cached is not None
+        cached_norm, _ = cached
+        assert degraded_circuit_open("fmp") not in cached_norm.provenance.degraded
+
 
 class TestReadCanonicalCached:
     """Cache-only canonical read — the stale-while-revalidate first paint.

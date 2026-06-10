@@ -251,11 +251,18 @@ class DataLayer:
                     break
 
         if primary_result is not None:
+            # Cache the row CLEAN of circuit_open_providers: which providers sat
+            # in an open breaker is a point-in-time observation about THIS fetch,
+            # not a property of the data. Persisting it would freeze "fetched
+            # while X was down" for the whole TTL (24h for financials) even after
+            # X recovers seconds later — a misleading, self-perpetuating degraded
+            # flag. Surface it to THIS caller only; the live breaker state stays
+            # queryable via provider_status() for anyone who needs "right now".
+            await self._cache.set(data_type, cache_key, primary_result)
             if circuit_open:
                 primary_result = primary_result.model_copy(
                     update={"circuit_open_providers": circuit_open}
                 )
-            await self._cache.set(data_type, cache_key, primary_result)
             return primary_result
 
         # 3. All providers failed — return stale cache with PROMINENT warning
@@ -424,10 +431,9 @@ class DataLayer:
             marker = degraded_price_divergence(field)
             if marker not in normalized.provenance.degraded:
                 normalized.provenance.degraded.append(marker)
-        for provider_name in raw.circuit_open_providers:
-            marker = degraded_circuit_open(provider_name)
-            if marker not in normalized.provenance.degraded:
-                normalized.provenance.degraded.append(marker)
+        # NOTE: degraded_circuit_open markers are deliberately NOT stamped here —
+        # they are appended AFTER the cache write (see tail) because the breaker
+        # state is ephemeral and must not be frozen into the cached snapshot.
         # FX关卡 (ADR-0006): a foreign ADR's FINANCIALS carries reporting-currency
         # IS/BS line items beside a quote-currency market_cap. Convert them to one
         # currency HERE — the sole normalization chokepoint — so every downstream
@@ -443,9 +449,18 @@ class DataLayer:
         # price into a "fresh"-reading quote (the 2026-06-08 in-market bug). Leaving
         # the prior canonical row untouched keeps it honestly is_stale=True, so the
         # next read retries the (hopefully recovered) provider chain.
-        if raw.from_stale_cache:
-            return normalized
-        await self._cache.set_canonical(data_type, ticker, normalized.model_dump_json())
+        if not raw.from_stale_cache:
+            await self._cache.set_canonical(data_type, ticker, normalized.model_dump_json())
+        # Circuit-open is an EPHEMERAL infra observation about THIS fetch (the
+        # breaker recovers in seconds), not a property of the data — stamp it onto
+        # the object returned to THIS caller, but only AFTER caching, so a provider
+        # that recovers moments later never reads as permanently degraded from the
+        # 24h-TTL canonical row. Live breaker state stays queryable via
+        # provider_status(); data-provenance markers (divergence/fx) above ARE cached.
+        for provider_name in raw.circuit_open_providers:
+            marker = degraded_circuit_open(provider_name)
+            if marker not in normalized.provenance.degraded:
+                normalized.provenance.degraded.append(marker)
         return normalized
 
     def _fmp_api_key(self) -> str | None:
@@ -781,9 +796,13 @@ class DataLayer:
                         ],
                     }
                 )
+            # Cache the PRICE row CLEAN of circuit_open_providers (ephemeral
+            # breaker state, not a property of the data — see fetch()); stamp it
+            # onto the returned copy only, so a recovered provider isn't read as
+            # degraded from a still-fresh cached quote.
+            await self._cache.set(DataType.PRICE, ticker, result)
             if circuit_open:
                 result = result.model_copy(update={"circuit_open_providers": circuit_open})
-            await self._cache.set(DataType.PRICE, ticker, result)
             return result
         if cached is not None:
             # Stale beats nothing — but FLAG it. The old comment ("route adds its

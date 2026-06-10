@@ -1111,9 +1111,27 @@ async def _chat_impl(
     # the frontend toolset; we mirror that here so the fallback run is identical
     # to the streamed one. Vercel's adapter exposes no frontend toolset and
     # FinRobotDeps is not a StateHandler, so messages + deferred results are the
-    # only adapter-derived inputs (the toolset assert keeps us honest if that
-    # ever changes upstream).
-    assert adapter.toolset is None, "fallback path does not handle frontend toolsets"
+    # only adapter-derived inputs. If that ever changes upstream, the fallback
+    # re-issue would silently drop the toolset — so we degrade to streaming
+    # WITHOUT the one-shot fallback instead. (This was an `assert`, which 500'd
+    # the whole chat turn in production and vanished entirely under `python
+    # -O`; a missing fallback is a far smaller loss than a dead chat.)
+    if adapter.toolset is not None:
+        logger.warning(
+            "Frontend toolset present on adapter — streaming without the "
+            "non-streaming fallback (fallback cannot re-run a toolset turn)"
+        )
+        plain_encoder = adapter.build_event_stream()
+
+        async def _encode_plain() -> AsyncIterator[str]:
+            async for chunk in event_stream:
+                yield plain_encoder.encode_event(chunk)
+
+        return StreamingResponse(
+            _encode_plain(),
+            headers=plain_encoder.response_headers,
+            media_type=plain_encoder.content_type,
+        )
     fallback_history = list(adapter.messages)
     fallback_deferred = adapter.deferred_tool_results
     # One encoder instance for both held happy-path frames and fallback frames;

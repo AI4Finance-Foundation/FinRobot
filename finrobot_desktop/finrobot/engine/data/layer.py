@@ -13,7 +13,7 @@ from finrobot.engine.data.interface import (
     RateLimitedProviderError,
     is_rate_limit_error,
 )
-from finrobot.engine.data.provider_health import ProviderHealth
+from finrobot.engine.data.provider_health import ProviderHealth, ProviderState
 from finrobot.engine.data.normalize import (
     NormalizedFinancials,
     NormalizedForwardEstimates,
@@ -83,6 +83,15 @@ class DataLayer:
             return False
         logger.info("Provider '%s' in cooldown (circuit open) — skipping", provider.name)
         return True
+
+    def provider_status(self) -> list[tuple[str, bool, ProviderState]]:
+        """(name, available_now, breaker snapshot) per configured provider, in
+        chain priority order — the Settings「Data Provider Status」panel feed.
+        Read-only view over the live ProviderHealth breaker (never a mock)."""
+        return [
+            (p.name, self._health.is_available(p.name), self._health.snapshot(p.name))
+            for p in self._providers
+        ]
 
     @property
     def cache(self) -> DataCache:

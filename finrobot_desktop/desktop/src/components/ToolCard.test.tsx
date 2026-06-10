@@ -154,6 +154,25 @@ describe('ToolCard — args expand/collapse', () => {
   })
 })
 
+describe('ToolCard — tool identity', () => {
+  it('shows a human action label, not the raw func() name', () => {
+    renderCard({ toolName: 'run_equity_research' })
+    expect(screen.getByText('Equity Research')).toBeInTheDocument()
+    // The raw call survives only as the title tooltip (hover affordance).
+    expect(screen.queryByText('run_equity_research')).not.toBeInTheDocument()
+  })
+
+  it('humanises an unknown tool name (run_foo_bar → "Foo Bar")', () => {
+    renderCard({ toolName: 'run_foo_bar' })
+    expect(screen.getByText('Foo Bar')).toBeInTheDocument()
+  })
+
+  it('renders the ticker chip from args when result has none yet (running)', () => {
+    renderCard({ toolName: 'run_dcf_valuation', state: 'running', args: { ticker: 'nvda' } })
+    expect(screen.getByText('NVDA')).toBeInTheDocument()
+  })
+})
+
 describe('ToolCard — data-state attribute', () => {
   it.each(['pending', 'running', 'complete', 'error'] as const)('has data-state="%s"', (state) => {
     renderCard({ state })

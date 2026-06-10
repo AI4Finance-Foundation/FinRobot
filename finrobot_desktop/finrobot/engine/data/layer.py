@@ -306,24 +306,22 @@ class DataLayer:
 
     @overload
     async def fetch_canonical(
-        self, data_type: Literal[DataType.FINANCIALS], ticker: str, **kwargs: Any
+        self, data_type: Literal[DataType.FINANCIALS], ticker: str
     ) -> NormalizedFinancials: ...
     @overload
     async def fetch_canonical(
-        self, data_type: Literal[DataType.PRICE], ticker: str, **kwargs: Any
+        self, data_type: Literal[DataType.PRICE], ticker: str
     ) -> NormalizedPrice: ...
     @overload
     async def fetch_canonical(
-        self, data_type: Literal[DataType.FORWARD_ESTIMATES], ticker: str, **kwargs: Any
+        self, data_type: Literal[DataType.FORWARD_ESTIMATES], ticker: str
     ) -> NormalizedForwardEstimates: ...
     @overload
     async def fetch_canonical(
-        self, data_type: str | DataType, ticker: str, **kwargs: Any
+        self, data_type: str | DataType, ticker: str
     ) -> CanonicalSnapshot: ...
 
-    async def fetch_canonical(
-        self, data_type: str | DataType, ticker: str, **kwargs: Any
-    ) -> CanonicalSnapshot:
+    async def fetch_canonical(self, data_type: str | DataType, ticker: str) -> CanonicalSnapshot:
         """Return the normalized (canonical) PRICE / FINANCIALS /
         FORWARD_ESTIMATES for a ticker.
 
@@ -340,6 +338,13 @@ class DataLayer:
         Consumers get a typed, provenance-stamped contract instead of a raw
         provider dict. Only these three types have canonical contracts; other
         data_types must use raw ``fetch()``.
+
+        Deliberately takes NO payload-varying kwargs: the canonical slot and the
+        single-flight registry both key on ``(data_type, ticker)`` only — one
+        normalized snapshot per ticker. A kwarg could not reach either key, so
+        accepting one would silently collide two parameterisations in one slot
+        (the sentiment days_back family). Parameterised reads belong on raw
+        ``fetch()``, whose key already folds in sorted kwargs.
         """
         data_type = DataType(data_type)
         if data_type not in _CANONICAL_TYPES:
@@ -377,7 +382,7 @@ class DataLayer:
         if existing is not None:
             return await existing
         task: asyncio.Future[CanonicalSnapshot] = asyncio.ensure_future(
-            self._fetch_canonical_uncached(data_type, ticker, **kwargs)
+            self._fetch_canonical_uncached(data_type, ticker)
         )
         self._inflight_canonical[key] = task
         try:
@@ -386,7 +391,7 @@ class DataLayer:
             self._inflight_canonical.pop(key, None)
 
     async def _fetch_canonical_uncached(
-        self, data_type: DataType, ticker: str, **kwargs: Any
+        self, data_type: DataType, ticker: str
     ) -> CanonicalSnapshot:
         """The cache-miss path of :meth:`fetch_canonical` — raw provider fetch →
         normalize (AFTER cross_validate) → cache. Wrapped by ``fetch_canonical``
@@ -396,7 +401,7 @@ class DataLayer:
         raw = (
             await self.fetch_price(ticker)
             if data_type == DataType.PRICE
-            else await self.fetch(data_type, ticker, **kwargs)
+            else await self.fetch(data_type, ticker)
         )
         if raw.provider == "none":
             # All providers failed and no cache — never normalize+cache an
@@ -611,7 +616,13 @@ class DataLayer:
         # I7: same normalisation as fetch() — canonical enum for all
         # downstream comparisons and provider capability lookups.
         data_type = DataType(data_type)
-        cache_key = f"{ticker}:historical:{data_type.value}:{years}"
+        # Cache identity must fold in every kwarg that varies the provider payload
+        # (the sentiment days_back=7-vs-30 slot-collision family). ``years`` is
+        # already explicit; sort the rest for call-order stability. No extra kwargs
+        # → empty suffix, so existing slots stay reachable. ``**kwargs`` reaches
+        # provider.fetch below, so any future payload-varying arg lands here too.
+        kwarg_suffix = "".join(f":{k}={v}" for k, v in sorted(kwargs.items()))
+        cache_key = f"{ticker}:historical:{data_type.value}:{years}{kwarg_suffix}"
         cached = await self._cache.get(DataType.HISTORICAL, cache_key)
         if cached is not None and not cached.is_stale:
             return self._split_yearly(cached.data)

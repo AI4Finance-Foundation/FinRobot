@@ -1072,6 +1072,22 @@ class TestFetchHistorical:
         assert results[0].data["revenue"] == 100.0
         assert any("Historical data sources failed" in w for w in results[0].warnings)
 
+    async def test_fetch_historical_cache_key_includes_kwargs(self, cache):
+        """fetch_historical folds payload-varying kwargs into the cache key, so two
+        distinct parameterisations never collide in one HISTORICAL slot (the
+        sentiment days_back=7-vs-30 family). Guards any future extra kwarg threaded
+        through to provider.fetch beyond the already-explicit ``years``."""
+        p = MockProvider("mock", ["financials"])
+        layer = DataLayer([p], cache)
+        await layer.fetch_historical("financials", "AAPL", years=5, variant="a")
+        # Same (years, kwargs) → cache hit, provider NOT re-called.
+        await layer.fetch_historical("financials", "AAPL", years=5, variant="a")
+        assert p.fetch_called == 1
+        # Different kwarg → different slot → cache miss → provider re-called. Pre-fix
+        # the key omitted kwargs, so variant="b" would wrongly hit the variant="a" slot.
+        await layer.fetch_historical("financials", "AAPL", years=5, variant="b")
+        assert p.fetch_called == 2
+
 
 # ---------------------------------------------------------------------------
 # 门一 Step 3/4: fetch_quote + fetch_price PROPAGATE provider failure
@@ -1469,7 +1485,7 @@ class TestCanonicalSingleFlight:
         calls = 0
         sentinel = object()
 
-        async def slow_uncached(data_type, ticker, **kwargs):
+        async def slow_uncached(data_type, ticker):
             nonlocal calls
             calls += 1
             await asyncio.sleep(0.02)  # hold the in-flight window open
@@ -1489,7 +1505,7 @@ class TestCanonicalSingleFlight:
         layer = DataLayer([MockProvider("mock", ["price"])], cache)
         calls = 0
 
-        async def counting_uncached(data_type, ticker, **kwargs):
+        async def counting_uncached(data_type, ticker):
             nonlocal calls
             calls += 1
             return object()
@@ -1508,7 +1524,7 @@ class TestCanonicalSingleFlight:
         layer = DataLayer([MockProvider("mock", ["price"])], cache)
         seen: list[str] = []
 
-        async def recording_uncached(data_type, ticker, **kwargs):
+        async def recording_uncached(data_type, ticker):
             seen.append(ticker)
             await asyncio.sleep(0.01)
             return object()

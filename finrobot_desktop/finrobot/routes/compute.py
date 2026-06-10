@@ -245,7 +245,7 @@ async def compute_dcf(inputs: DCFInputs) -> DCFResult:
     try:
         return calculate_dcf(inputs)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise _compute_http_error(exc, context="DCF") from exc
 
 
 async def _seed_dcf_inputs_for_ticker(
@@ -451,15 +451,25 @@ async def compute_dcf_what_if(
             detail=f"Artifact {artifact_id} DCF inputs are malformed: {exc}",
         ) from exc
 
+    # Same exception mapping as every other route in this router (21c2fe07):
+    # a what-if slider combo can legitimately push the operator into a
+    # degenerate model (wacc_override ≤ frozen tg, growth_scale collapsing the
+    # terminal FCF) — that's a 422 with the operator's own message, not an
+    # opaque 500.
     dcf_inputs = apply_growth_scale_override(dcf_inputs, body.growth_scale_override)
-    result = calculate_dcf(
-        dcf_inputs,
-        wacc_override=body.wacc_override,
-        tg_override=body.tg_override,
-        mid_year=body.mid_year,
-    )
-    wacc_range, tg_range = build_sensitivity_ranges(result.wacc, result.inputs.terminal_growth_rate)
-    sensitivity = calculate_sensitivity(dcf_inputs, wacc_range, tg_range)
+    try:
+        result = calculate_dcf(
+            dcf_inputs,
+            wacc_override=body.wacc_override,
+            tg_override=body.tg_override,
+            mid_year=body.mid_year,
+        )
+        wacc_range, tg_range = build_sensitivity_ranges(
+            result.wacc, result.inputs.terminal_growth_rate
+        )
+        sensitivity = calculate_sensitivity(dcf_inputs, wacc_range, tg_range)
+    except ValueError as exc:
+        raise _compute_http_error(exc, context=artifact_id) from exc
     result = result.model_copy(update={"sensitivity_table": sensitivity})
 
     return DcfWhatIfResponse(

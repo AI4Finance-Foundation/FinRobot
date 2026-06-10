@@ -2169,6 +2169,18 @@ msgstr ""
 #~ msgstr "{name} · 失败"
 
 #. js-lingui-explicit-id
+#~ msgid "workspace.pipeline.statusCancelled"
+#~ msgstr "{name} · 已取消"
+
+#. js-lingui-explicit-id
+#~ msgid "workspace.pipeline.cancel"
+#~ msgstr "取消"
+
+#. js-lingui-explicit-id
+#~ msgid "workspace.pipeline.cancelling"
+#~ msgstr "取消中…"
+
+#. js-lingui-explicit-id
 #~ msgid "workspace.pipeline.elapsed"
 #~ msgstr " · 已运行 {s}s"
 
@@ -2643,6 +2655,10 @@ msgstr ""
 #. js-lingui-explicit-id
 #~ msgid "workspace.toast.reportDone"
 #~ msgstr "{ticker} 研报完成"
+
+#. js-lingui-explicit-id
+#~ msgid "workspace.toast.reportCancelled"
+#~ msgstr "{ticker} 任务已取消"
 
 #. js-lingui-explicit-id
 #~ msgid "workspace.toast.reportDoneDesc"
@@ -3879,3 +3895,43 @@ msgstr ""
 #. js-lingui-explicit-id
 #~ msgid "report.toolbar.rerunRunningTitle"
 #~ msgstr "{ticker} 已有任务正在运行"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.title"
+#~ msgstr "数据源健康状态"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.hint"
+#~ msgstr "各数据源实时熔断状态——跳闸的源会被跳过,冷却结束后自动恢复"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.ok"
+#~ msgstr "正常"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.cooldown"
+#~ msgstr "冷却中"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.keyConfigured"
+#~ msgstr "已配置 Key"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.noKey"
+#~ msgstr "未配置 Key"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.lastSuccess"
+#~ msgstr "上次成功"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.cooldownUntil"
+#~ msgstr "冷却至"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.noCalls"
+#~ msgstr "本次会话尚无调用"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.unavailable"
+#~ msgstr "数据源状态不可用——后端未连接。"

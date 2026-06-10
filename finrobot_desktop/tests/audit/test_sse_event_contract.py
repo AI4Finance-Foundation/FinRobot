@@ -20,9 +20,12 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BACKEND_SRC = REPO_ROOT / "finrobot" / "routes" / "runs.py"
-FRONTEND_SRC = REPO_ROOT / "ui" / "src" / "stores" / "runStreamStore.ts"
+# The UI lives under desktop/ (the old ui/ path silently skipped the frontend
+# half of this contract for months — an audit that can't find its subject must
+# fail loudly, hence the hard assert in the test below).
+FRONTEND_SRC = REPO_ROOT / "desktop" / "src" / "stores" / "runStreamStore.ts"
 
-# The six events both sides must agree on. Adding to this list requires both
+# The events both sides must agree on. Adding to this list requires both
 # code paths AND this test to update in lockstep — that's the point.
 _REQUIRED_EVENTS = (
     "run.started",
@@ -31,6 +34,7 @@ _REQUIRED_EVENTS = (
     "step.retry",
     "run.completed",
     "run.failed",
+    "run.cancelled",
 )
 
 
@@ -44,10 +48,9 @@ def test_backend_emits_every_required_sse_event() -> None:
 
 
 def test_frontend_listens_for_every_required_sse_event() -> None:
-    if not FRONTEND_SRC.exists():
-        # Repo without the UI vendored (CI container variants) — skip the
-        # cross-side assertion but keep the backend test enforced.
-        return
+    # No exists()-guard: the old guard pointed at a stale ui/ path and silently
+    # skipped this half of the contract for months. If the store moves, update
+    # FRONTEND_SRC — don't let the audit pass vacuously.
     src = FRONTEND_SRC.read_text()
     missing = [
         name

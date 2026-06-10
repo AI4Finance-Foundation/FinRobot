@@ -64,7 +64,12 @@ export function StockWorkspace(): React.ReactElement {
     // route-mounted, so a useRef resets on every navigate-away/back and would
     // re-fire the toast + invalidations against the still-resident completed
     // run (BUG-085). markTerminalNotified returns true once per runId, ever.
-    if (runState.status !== 'completed' && runState.status !== 'failed') return
+    if (
+      runState.status !== 'completed' &&
+      runState.status !== 'failed' &&
+      runState.status !== 'cancelled'
+    )
+      return
     if (!markTerminalNotified(runId)) return
     if (runState.status === 'completed') {
       // Refetch every read model that an equity_research artifact touches.
@@ -78,6 +83,13 @@ export function StockWorkspace(): React.ReactElement {
         type: 'success',
         title: t('workspace.toast.reportDone', { ticker: symbol }),
         description: t('workspace.toast.reportDoneDesc'),
+      })
+    } else if (runState.status === 'cancelled') {
+      // User-requested stop: neutral info, not an error — nothing to retry,
+      // nothing to diagnose.
+      addToast({
+        type: 'info',
+        title: t('workspace.toast.reportCancelled', { ticker: symbol }),
       })
     } else if (runState.status === 'failed') {
       // runState.error is the raw SSE `run.failed` payload (or our SSE-dropout

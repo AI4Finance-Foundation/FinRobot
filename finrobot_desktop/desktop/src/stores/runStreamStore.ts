@@ -44,7 +44,7 @@ export interface RunStep {
   attempt?: number
 }
 
-export type RunStatus = 'running' | 'completed' | 'failed'
+export type RunStatus = 'running' | 'completed' | 'failed' | 'cancelled'
 
 /** The backend SSE event vocabulary both stream paths listen for. Pinned by
  *  tests/audit/test_sse_event_contract.py against routes/runs.py. */
@@ -56,6 +56,7 @@ type RunEventName =
   | 'artifact.ready'
   | 'run.completed'
   | 'run.failed'
+  | 'run.cancelled'
 
 export interface RunState {
   runId: string
@@ -79,11 +80,23 @@ export interface RunState {
   /** The artifact's real type (dcf / lbo / comps / equity_research / …), so the
    * UI can route to the right viewer regardless of pipeline. null until known. */
   artifactType: string | null
+  /** Cancel requested (POST /cancel sent) but the terminal run.cancelled SSE
+   * event hasn't landed yet. Drives the button's "Cancelling…" disabled state;
+   * status stays 'running' until the backend confirms — the backend owns the
+   * truth about when spend actually stopped. */
+  cancelling: boolean
 }
 
 interface RunStreamState {
   runs: Record<string, RunState>
   startRun: (pipelineType: string, ticker: string, sourceArtifactId?: string) => Promise<string>
+  /** POST /api/runs/{id}/cancel for this ticker's live run. Marks the run
+   *  `cancelling` immediately (button feedback); the store only flips to the
+   *  terminal 'cancelled' status when the backend's run.cancelled SSE event
+   *  arrives — the backend owns when spend actually stopped. Rejects when the
+   *  POST fails (caller toasts); the `cancelling` flag is rolled back so the
+   *  button is usable again. No-op when the ticker has no live run. */
+  cancelRun: (ticker: string) => Promise<void>
   /** App-startup recovery: GET /api/runs?status=created,running and re-subscribe
    *  each active run's SSE stream. A webview reload / app restart drops this
    *  in-memory store while the backend pipelines keep executing (and billing) —
@@ -335,6 +348,12 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
         })
         return { terminal: true }
       }
+      case 'run.cancelled': {
+        // User-requested stop — terminal but NOT an error: no error text, no
+        // red badge. The card renders a neutral cancelled state.
+        patch(ticker, { status: 'cancelled', cancelling: false })
+        return { terminal: true }
+      }
       default:
         return { terminal: false }
     }
@@ -368,6 +387,7 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
     es.addEventListener('artifact.ready', single('artifact.ready'))
     es.addEventListener('run.completed', single('run.completed'))
     es.addEventListener('run.failed', single('run.failed'))
+    es.addEventListener('run.cancelled', single('run.cancelled'))
 
     es.onerror = () => {
       const cur = get().runs[ticker]
@@ -392,7 +412,7 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
       if (count >= SSE_ERROR_LIMIT) {
         patch(ticker, {
           status: 'failed',
-          error: `SSE 连接中断（连续 ${SSE_ERROR_LIMIT} 次错误）。请检查后端服务后重试。`,
+          error: `Run stream disconnected (${SSE_ERROR_LIMIT} consecutive errors). Check the backend service and retry.`,
         })
         closeAndForget(ticker)
       }
@@ -436,6 +456,7 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
             dismissed: false,
             artifactId: null,
             artifactType: null,
+            cancelling: false,
           },
         },
       }))
@@ -496,6 +517,46 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
       return start
     },
 
+    cancelRun: async (ticker) => {
+      const run = get().runs[ticker]
+      // Nothing to cancel: no run, already terminal, cancel already in flight,
+      // or the POST that creates the run hasn't returned a runId yet (the
+      // occupation window — there is no id to cancel until it resolves).
+      if (!run || run.status !== 'running' || run.cancelling || !run.runId) return
+      patch(ticker, { cancelling: true })
+      try {
+        const resp = await fetchWithTimeout(
+          `${BASE_URL}/api/runs/${run.runId}/cancel`,
+          { method: 'POST' },
+          5_000,
+        )
+        if (!resp.ok) {
+          const body = (await resp.json().catch(() => ({}))) as { detail?: string }
+          const detail = typeof body.detail === 'string' ? body.detail.trim() : ''
+          if (detail) throw new Error(detail)
+          throw new FetchHttpError(resp.status, resp.statusText)
+        }
+        const { status } = (await resp.json()) as { status: string }
+        if (status === 'cancelled') {
+          // The endpoint finalised an orphaned record directly — there is no
+          // live task, so no run.cancelled SSE frame may ever reach a dead
+          // stream. Reflect the terminal state now; a live stream delivering
+          // the frame later is an idempotent re-patch.
+          patch(ticker, { status: 'cancelled', cancelling: false })
+          closeAndForget(ticker)
+        } else if (status !== 'cancelling') {
+          // Idempotent no-op: the run finished (completed/failed) in the race
+          // window. The SSE terminal event owns the status; just clear the flag.
+          patch(ticker, { cancelling: false })
+        }
+        // status === 'cancelling': leave the flag on; run.cancelled arrives
+        // via SSE when the backend task finishes unwinding.
+      } catch (err) {
+        patch(ticker, { cancelling: false })
+        throw err
+      }
+    },
+
     reattachActiveRuns: () => {
       if (inflightReattach) return inflightReattach
       inflightReattach = (async (): Promise<void> => {
@@ -540,6 +601,7 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
                 dismissed: false,
                 artifactId: null,
                 artifactType: null,
+                cancelling: false,
               },
             },
           }))

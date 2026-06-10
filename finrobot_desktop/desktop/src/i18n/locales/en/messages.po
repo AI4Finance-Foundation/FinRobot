@@ -2169,6 +2169,18 @@ msgstr ""
 #~ msgstr "{name} · Failed"
 
 #. js-lingui-explicit-id
+#~ msgid "workspace.pipeline.statusCancelled"
+#~ msgstr "{name} · Cancelled"
+
+#. js-lingui-explicit-id
+#~ msgid "workspace.pipeline.cancel"
+#~ msgstr "Cancel"
+
+#. js-lingui-explicit-id
+#~ msgid "workspace.pipeline.cancelling"
+#~ msgstr "Cancelling…"
+
+#. js-lingui-explicit-id
 #~ msgid "workspace.pipeline.elapsed"
 #~ msgstr " · {s}s elapsed"
 
@@ -2643,6 +2655,10 @@ msgstr ""
 #. js-lingui-explicit-id
 #~ msgid "workspace.toast.reportDone"
 #~ msgstr "{ticker} report complete"
+
+#. js-lingui-explicit-id
+#~ msgid "workspace.toast.reportCancelled"
+#~ msgstr "{ticker} run cancelled"
 
 #. js-lingui-explicit-id
 #~ msgid "workspace.toast.reportDoneDesc"
@@ -3879,3 +3895,43 @@ msgstr ""
 #. js-lingui-explicit-id
 #~ msgid "report.toolbar.rerunRunningTitle"
 #~ msgstr "A run for {ticker} is already in progress"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.title"
+#~ msgstr "Data Provider Status"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.hint"
+#~ msgstr "Live circuit state per source — a tripped breaker is skipped until its cooldown ends"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.ok"
+#~ msgstr "OK"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.cooldown"
+#~ msgstr "Cooldown"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.keyConfigured"
+#~ msgstr "Key set"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.noKey"
+#~ msgstr "No key"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.lastSuccess"
+#~ msgstr "last success"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.cooldownUntil"
+#~ msgstr "cooldown until"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.noCalls"
+#~ msgstr "no calls this session yet"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.unavailable"
+#~ msgstr "Provider status unavailable — backend unreachable."

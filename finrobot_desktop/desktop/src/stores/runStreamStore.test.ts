@@ -195,6 +195,7 @@ describe('terminal-side-effect dedupe (BUG-085)', () => {
           dismissed: false,
           artifactId: null,
           artifactType: null,
+          cancelling: false,
         },
       },
     }))
@@ -268,6 +269,7 @@ describe('duplicate-start lock (P1-30)', () => {
       dismissed: false,
       artifactId: 'art_prev',
       artifactType: 'equity_research',
+      cancelling: false,
     }
     useRunStreamStore.setState((s) => ({ runs: { ...s.runs, [TICKER]: completed } }))
 
@@ -416,5 +418,78 @@ describe('SSE error counting (BUG-044 sibling)', () => {
     expect(stepsState().status).toBe('running')
     triggerError(es)
     expect(stepsState().status).toBe('failed')
+  })
+})
+
+describe('run cancellation (P2: stop button for money-burning pipelines)', () => {
+  it('cancelRun marks cancelling; the run.cancelled SSE event lands the terminal state', async () => {
+    const es = await startRun('research')
+    es.emit('run.started', { total_steps: 8 })
+
+    // Second fetch call is the cancel POST — backend says the task is unwinding.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ run_id: 'run-test-1', status: 'cancelling' }),
+      })) as unknown as typeof fetch,
+    )
+    await useRunStreamStore.getState().cancelRun(TICKER)
+
+    // Backend owns the truth: still running, button shows "Cancelling…".
+    expect(stepsState().status).toBe('running')
+    expect(stepsState().cancelling).toBe(true)
+
+    es.emit('run.cancelled', { run_id: 'run-test-1', ticker: TICKER })
+    expect(stepsState().status).toBe('cancelled')
+    expect(stepsState().cancelling).toBe(false)
+    // Terminal — no error text (a cancel is not a failure), stream torn down.
+    expect(stepsState().error).toBeNull()
+    expect(es.closed).toBe(true)
+  })
+
+  it('an orphan finalised directly by the endpoint (status: cancelled) lands immediately', async () => {
+    const es = await startRun('research')
+    es.emit('run.started', { total_steps: 8 })
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ run_id: 'run-test-1', status: 'cancelled' }),
+      })) as unknown as typeof fetch,
+    )
+    await useRunStreamStore.getState().cancelRun(TICKER)
+
+    // No SSE frame will ever come from a dead task — the store reflects the
+    // terminal state from the POST response itself.
+    expect(stepsState().status).toBe('cancelled')
+    expect(stepsState().cancelling).toBe(false)
+    expect(es.closed).toBe(true)
+  })
+
+  it('a failed cancel POST rolls the cancelling flag back and rejects', async () => {
+    await startRun('research')
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: false,
+        status: 500,
+        statusText: 'Internal Server Error',
+        json: async () => ({}),
+      })) as unknown as typeof fetch,
+    )
+    await expect(useRunStreamStore.getState().cancelRun(TICKER)).rejects.toThrow()
+    expect(stepsState().status).toBe('running')
+    expect(stepsState().cancelling).toBe(false)
+  })
+
+  it('is a no-op without a live run / while a cancel is already in flight', async () => {
+    const fetchSpy = vi.fn()
+    vi.stubGlobal('fetch', fetchSpy as unknown as typeof fetch)
+    // No run at all.
+    await useRunStreamStore.getState().cancelRun(TICKER)
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 })

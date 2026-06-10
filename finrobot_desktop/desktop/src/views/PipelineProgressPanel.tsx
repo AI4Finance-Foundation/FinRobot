@@ -51,6 +51,7 @@ export function PipelineProgressPanel({
 }: PipelineProgressPanelProps): React.ReactElement | null {
   const run = useRunStreamStore((s) => s.runs[ticker])
   const dismiss = useRunStreamStore((s) => s.dismiss)
+  const cancelRun = useRunStreamStore((s) => s.cancelRun)
   const navigate = useNavigate()
   const { t } = useI18n()
 
@@ -93,7 +94,9 @@ export function PipelineProgressPanel({
       ? 'var(--success)'
       : run.status === 'failed'
         ? 'var(--danger)'
-        : 'var(--secondary)'
+        : run.status === 'cancelled'
+          ? 'var(--text-muted)'
+          : 'var(--secondary)'
   const borderColor =
     run.status === 'completed'
       ? 'var(--success-glow-soft)'
@@ -139,9 +142,13 @@ export function PipelineProgressPanel({
               ? t('workspace.pipeline.statusDone', { name: labelForPipeline(run.pipelineType) })
               : run.status === 'failed'
                 ? t('workspace.pipeline.statusFailed', { name: labelForPipeline(run.pipelineType) })
-                : t('workspace.pipeline.statusGenerating', {
-                    name: labelForPipeline(run.pipelineType),
-                  })}
+                : run.status === 'cancelled'
+                  ? t('workspace.pipeline.statusCancelled', {
+                      name: labelForPipeline(run.pipelineType),
+                    })
+                  : t('workspace.pipeline.statusGenerating', {
+                      name: labelForPipeline(run.pipelineType),
+                    })}
           </span>
           {run.status === 'running' && (
             <span
@@ -193,7 +200,34 @@ export function PipelineProgressPanel({
               {t('workspace.pipeline.openReport')}
             </button>
           )}
-          {(run.status === 'completed' || run.status === 'failed') && (
+          {run.status === 'running' && (
+            <button
+              type="button"
+              data-testid="pipeline-cancel"
+              disabled={run.cancelling || !run.runId}
+              onClick={() => {
+                // Errors surface in the run card itself if the run later
+                // fails; a failed cancel POST simply re-enables the button.
+                void cancelRun(ticker).catch(() => {})
+              }}
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                padding: '5px 11px',
+                borderRadius: 6,
+                background: 'transparent',
+                color: run.cancelling ? 'var(--text-dim)' : 'var(--danger)',
+                border: `1px solid ${run.cancelling ? 'var(--border-soft)' : 'var(--danger-glow-soft)'}`,
+                cursor: run.cancelling ? 'default' : 'pointer',
+                letterSpacing: '0.04em',
+              }}
+            >
+              {run.cancelling ? t('workspace.pipeline.cancelling') : t('workspace.pipeline.cancel')}
+            </button>
+          )}
+          {(run.status === 'completed' ||
+            run.status === 'failed' ||
+            run.status === 'cancelled') && (
             <button
               type="button"
               data-testid="pipeline-dismiss"

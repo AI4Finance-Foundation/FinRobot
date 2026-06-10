@@ -20,20 +20,50 @@ import re
 # {1,10}) is deliberate so dotted/hyphenated class shares stay in range.
 _TICKER_RE = re.compile(r"^[A-Z0-9.\-]{1,12}$")
 
+# US share-class canonicalization. Vendors split on the separator: the dotted
+# form ``BRK.B`` is the financial-press convention, but the providers want the
+# HYPHEN form — probed 2026-06-10: yfinance (the primary, always-on provider)
+# returns prices for BRK-B / BF-B / BRK-A and "no data / delisted" for BRK.B /
+# BF.B / BRK.A. Without a chokepoint, ``BRK.B`` and ``BRK-B`` split into two
+# cache / coverage slots for one security AND the dotted form a user naturally
+# types silently resolves to nothing. We canonicalize the dot → hyphen, but ONLY
+# for a probed allowlist of class letters {A, B}: single-letter *exchange*
+# suffixes (``RIO.L`` London, ``7203.T`` Tokyo — both probed, resolve only
+# dotted) MUST keep the dot, and A/B are never Yahoo exchange codes. The
+# alpha-root anchor excludes numeric-root foreign symbols (7203.T); multi-char
+# foreign suffixes (.SS/.HK/.PA/.DE/...) never match the single-letter group.
+# (FMP's class-share convention is [待验] — key usage limit hit during probing —
+# but FMP is an optional fallback behind yfinance, so a worst-case dot-preferring
+# FMP still fails over to the hyphen-correct yfinance.)
+_US_SHARE_CLASS_SUFFIXES = frozenset({"A", "B"})
+_SHARE_CLASS_RE = re.compile(r"^([A-Z][A-Z0-9]{0,5})\.([A-Z])$")
+
+
+def _canonicalize_share_class(symbol: str) -> str:
+    """Map a US dotted share-class symbol (``BRK.B``) to the hyphen form
+    (``BRK-B``) the providers require, leaving exchange-suffixed foreign symbols
+    (``RIO.L``, ``BMW.DE``, ``600519.SS``) and plain tickers untouched."""
+    m = _SHARE_CLASS_RE.match(symbol)
+    if m is not None and m.group(2) in _US_SHARE_CLASS_SUFFIXES:
+        return f"{m.group(1)}-{m.group(2)}"
+    return symbol
+
 
 def validate_ticker(s: str) -> str:
-    """Strip, upper-case, and regex-validate a single ticker symbol.
+    """Strip, upper-case, regex-validate, and canonicalize a single ticker.
 
-    Returns the normalised (stripped + upper-cased) symbol on success.
-    Raises ``ValueError`` with a user-facing message on any miss — empty
-    input, illegal characters (CJK, punctuation, whitespace), or > 12 chars.
+    Returns the normalised symbol on success — stripped, upper-cased, and with US
+    share-class dot forms folded to the hyphen the providers accept (``brk.b`` →
+    ``BRK-B``) so one security never splits across two cache / coverage slots.
+    Raises ``ValueError`` with a user-facing message on any miss — empty input,
+    illegal characters (CJK, punctuation, whitespace), or > 12 chars.
     """
     normalised = s.strip().upper()
     if not _TICKER_RE.match(normalised):
         raise ValueError(
             f"Invalid ticker '{s}'. Use A-Z/0-9/./- up to 12 chars, e.g. AAPL or BRK.B"
         )
-    return normalised
+    return _canonicalize_share_class(normalised)
 
 
 # Non-US-equity market suffixes (Shanghai/Shenzhen/Hong Kong + the common

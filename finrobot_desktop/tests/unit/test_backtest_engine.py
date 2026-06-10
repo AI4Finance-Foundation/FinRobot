@@ -29,7 +29,9 @@ class TestBacktestConfig:
             start_date="2023-01-01",
             end_date="2024-01-01",
         )
-        assert config.ticker == "BRK.B"
+        # Stripped + upper-cased, and the US share-class dot folded to the hyphen
+        # form providers require (yfinance returns no data for "BRK.B").
+        assert config.ticker == "BRK-B"
 
     @pytest.mark.parametrize("ticker", ["苹果", "AAPL;DROP", "$"])
     def test_invalid_ticker_rejected(self, ticker: str) -> None:

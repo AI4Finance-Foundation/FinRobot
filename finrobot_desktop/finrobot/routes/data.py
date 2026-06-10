@@ -23,6 +23,7 @@ from finrobot.engine.data.cache import cached_fetch
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.normalize.session import compute_session_state, derive_price_as_of
+from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.data.types import DataType
 from finrobot.engine.primitives.market_cap import market_cap_on_live_price
 from finrobot.engine.models.earnings_call import EarningsCallList, EarningsCallTranscript
@@ -57,6 +58,19 @@ def _data_http_error(exc: Exception, ticker: str) -> HTTPException:
         status_code=422,
         detail=f"无法获取 {ticker} 的数据：{exc}",
     )
+
+
+def _normalize_ticker_param(ticker: str) -> str:
+    """Funnel a path-param ticker through the shared ``validate_ticker`` chokepoint
+    so the data routes share ONE ticker definition with the pipeline / CLI /
+    compute routes. A bare ``ticker.upper()`` (the prior behaviour) let ``BRK.B``
+    and ``BRK-B`` split into two cache / coverage slots for one security AND served
+    the dotted form straight to yfinance, which returns no data for it. This
+    canonicalizes the share-class dot → hyphen and rejects junk; ValueError → 422."""
+    try:
+        return validate_ticker(ticker)
+    except ValueError as exc:
+        raise _data_http_error(exc, ticker.upper()) from exc
 
 
 def _fmp_degradation_warning(request: Request, provider: str | None) -> str | None:
@@ -132,7 +146,7 @@ async def get_catalysts(
     deps = request.app.state.deps
     data_layer = deps.data_layer
     cache = data_layer.cache
-    ticker_upper = ticker.upper()
+    ticker_upper = _normalize_ticker_param(ticker)
 
     async def _fetch_catalysts() -> dict[str, Any]:
         raw_news = await fetch_news(data_layer, ticker_upper)
@@ -180,11 +194,12 @@ async def get_catalysts(
 async def get_financials(ticker: str, request: Request) -> FinancialData:
     enforce_live_data_limit(request)
     data_layer: DataLayer = request.app.state.deps.data_layer
+    ticker_upper = _normalize_ticker_param(ticker)
     try:
-        _fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker.upper())
-        _price = await data_layer.fetch_canonical(DataType.PRICE, ticker.upper())
+        _fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker_upper)
+        _price = await data_layer.fetch_canonical(DataType.PRICE, ticker_upper)
     except (ValueError, ProviderError) as e:
-        raise _data_http_error(e, ticker.upper()) from e
+        raise _data_http_error(e, ticker_upper) from e
     # fetch_canonical is overloaded on the DataType literal, so _fin / _price are
     # already typed NormalizedFinancials / NormalizedPrice — no narrowing needed.
     # Cross-validation warnings already merged into fin/price.warnings by
@@ -219,7 +234,7 @@ async def get_price(ticker: str, request: Request, period: PricePeriod = "1y") -
     enforce_live_data_limit(request)
     data_layer = request.app.state.deps.data_layer
     cache = data_layer.cache
-    ticker_upper = ticker.upper()
+    ticker_upper = _normalize_ticker_param(ticker)
     route_cache_key = f"{ticker_upper}:{period}"
     cached = await cache.get(DataType.PRICE, route_cache_key)
     if cached is not None and not cached.is_stale:
@@ -280,7 +295,7 @@ async def get_historical(ticker: str, request: Request) -> HistoricalMetrics:
     enforce_live_data_limit(request)
     data_layer = request.app.state.deps.data_layer
     cache = data_layer.cache
-    ticker_upper = ticker.upper()
+    ticker_upper = _normalize_ticker_param(ticker)
 
     async def _fetch_as_dict() -> dict[str, Any]:
         metrics = await fetch_historical_metrics(data_layer, ticker_upper)
@@ -333,16 +348,17 @@ async def get_earnings_calls(
             detail="财报电话会逐字稿需要 FMP API 密钥。请在 设置 → API 密钥 配置 FMP_API_KEY 后重试。",
         )
 
+    ticker_upper = _normalize_ticker_param(ticker)
     try:
         result = await data_layer.fetch(
             DataType.EARNINGS_TRANSCRIPT,
-            ticker.upper(),
+            ticker_upper,
             quarter=quarter,
             year=year,
             limit=limit,
         )
     except (ValueError, ProviderError) as e:
-        raise _data_http_error(e, ticker.upper()) from e
+        raise _data_http_error(e, ticker_upper) from e
 
     raw_transcripts = result.data.get("transcripts", [])
     transcripts = []
@@ -363,7 +379,7 @@ async def get_earnings_calls(
         try:
             transcripts.append(
                 EarningsCallTranscript(
-                    ticker=item.get("ticker", ticker.upper()),
+                    ticker=item.get("ticker", ticker_upper),
                     quarter=item.get("quarter", 0),
                     year=item.get("year", 0),
                     date=parsed_date,
@@ -374,7 +390,7 @@ async def get_earnings_calls(
             skipped += 1
             logger.warning(
                 "Skipped malformed earnings transcript for %s (quarter=%r, year=%r)",
-                ticker.upper(),
+                ticker_upper,
                 item.get("quarter"),
                 item.get("year"),
             )
@@ -384,11 +400,11 @@ async def get_earnings_calls(
             "Returned %d/%d earnings transcripts for %s; %d skipped as malformed",
             len(transcripts),
             len(raw_transcripts),
-            ticker.upper(),
+            ticker_upper,
             skipped,
         )
 
-    return EarningsCallList(ticker=ticker.upper(), transcripts=transcripts)
+    return EarningsCallList(ticker=ticker_upper, transcripts=transcripts)
 
 
 def _dedupe(items: list[str]) -> list[str]:

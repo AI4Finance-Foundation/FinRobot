@@ -111,6 +111,45 @@ async def test_earnings_calls_all_valid_pass_through(app_with_deps):
 
 
 @pytest.mark.asyncio
+async def test_earnings_calls_canonicalizes_share_class_ticker(app_with_deps):
+    """A data route must funnel its path-param through the validate_ticker
+    chokepoint, so a dotted US share class (BRK.B — which yfinance cannot resolve)
+    is canonicalized to the hyphen form BRK-B the providers accept, sharing ONE
+    cache/coverage slot with the pipeline instead of splitting (the bare
+    ticker.upper() this replaces did neither)."""
+    app = app_with_deps
+    seen: dict[str, str] = {}
+
+    async def _fetch(data_type, ticker, **_kwargs):
+        seen["ticker"] = ticker
+        return SimpleNamespace(data={"transcripts": []})
+
+    app.state.deps.data_layer = SimpleNamespace(_providers=[_FakeProvider()], fetch=_fetch)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/data/BRK.B/earnings-calls")
+
+    assert resp.status_code == 200
+    assert seen["ticker"] == "BRK-B"  # provider queried with the canonical form
+    assert resp.json()["ticker"] == "BRK-B"  # response reflects the canonical form
+
+
+@pytest.mark.asyncio
+async def test_earnings_calls_rejects_junk_ticker(app_with_deps):
+    """The chokepoint also rejects junk at the route (CJK / injection), which the
+    bare .upper() let through to be cached + re-fanned to providers forever."""
+    app = app_with_deps
+    _install_transcript_data_layer(app, [])
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/data/AAPL;DROP/earnings-calls")
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_earnings_calls_params_bounded_at_edge(app_with_deps):
     """``limit``/``quarter``/``year`` are bounded query params (mirroring the
     sentiment route's ``days`` cap): they flow into the FMP request and the

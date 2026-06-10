@@ -40,6 +40,46 @@ class MonteCarloResult(BaseModel):
     n_valid: int = Field(description="Number of valid simulations (out of n_simulations)")
 
 
+def _bounded_perturb(base: float, noise: np.ndarray, floor: float) -> np.ndarray:
+    """Apply Gaussian ``noise`` to ``base`` with a domain floor, preserving
+    antithetic symmetry.
+
+    Clips to ``[base - d, base + d]`` where ``d = base - floor``: the upper
+    bound mirrors the floor around the base, so every antithetic pair
+    ``(Z, -Z)`` stays mirrored and the input mean is EXACTLY ``base``. The
+    old one-sided ``np.maximum(floor, base + noise)`` truncated only the
+    lower tail, biasing the input upward (probe: E[tgr] 1.198% for base
+    1.0%, std 1.0%) — defeating the very cancellation the antithetic
+    pairing (Glasserman Ch. 4) is for.
+
+    When ``base <= floor`` (legal model input — e.g. risk_free_rate 0.3% in
+    a zero-rate regime, beta 0.2 for a low-vol utility), every draw collapses
+    to ``base``: the simulation honours the input as given, exactly like
+    calculate_dcf, instead of silently rewriting it to the floor (which broke
+    the std=0 MC == DCF equivalence by up to -15.9% for beta 0.2).
+    """
+    d = max(base - floor, 0.0)
+    return np.clip(base + noise, base - d, base + d)
+
+
+def _percentile_rank(sorted_prices: np.ndarray, x: float) -> float:
+    """Percentile rank of ``x`` in ``sorted_prices`` with midpoint ties —
+    the scipy.stats.percentileofscore(kind="mean") convention.
+
+    ``side="right"`` alone counted values EQUAL to ``x`` as below it, so a
+    degenerate distribution (all stds → 0) with the current price exactly on
+    the point mass read 100% instead of the honest 50%.
+
+    Callers must compare at the precision the result contract publishes
+    (2 decimals — prices_list/percentiles are all rounded): an unrounded
+    point mass at 82.8312 vs a 2-decimal current price of 82.83 is not an
+    array tie, yet the user sees both printed as $82.83.
+    """
+    below = int(np.searchsorted(sorted_prices, x, side="left"))
+    at_or_below = int(np.searchsorted(sorted_prices, x, side="right"))
+    return ((below + at_or_below) / 2) / len(sorted_prices) * 100
+
+
 class MonteCarloRequest(BaseModel):
     """Request body for Monte Carlo endpoint."""
 
@@ -132,15 +172,18 @@ def run_monte_carlo(
     growth_noise = np.concatenate([growth_noise_half, -growth_noise_half], axis=0)
     sim_growth = base_growth[np.newaxis, :] + growth_noise  # (n, n_years)
 
-    # EBITDA margin: (n,) vector, floored at 1%
+    # Domain floors below are applied via _bounded_perturb (symmetric clip),
+    # never a one-sided np.maximum — see its docstring for the bias probe.
+
+    # EBITDA margin: (n,) vector, domain floor 1%
     margin_noise_half = rng.normal(0, ebitda_margin_std, size=n_half)
     margin_noise = np.concatenate([margin_noise_half, -margin_noise_half])
-    sim_margin = np.maximum(0.01, inputs.ebitda_margin + margin_noise)
+    sim_margin = _bounded_perturb(inputs.ebitda_margin, margin_noise, 0.01)
 
-    # Terminal growth rate: (n,) vector, floored at 0.5%
+    # Terminal growth rate: (n,) vector, domain floor 0.5%
     tgr_noise_half = rng.normal(0, terminal_growth_std, size=n_half)
     tgr_noise = np.concatenate([tgr_noise_half, -tgr_noise_half])
-    sim_tgr = np.maximum(0.005, inputs.terminal_growth_rate + tgr_noise)
+    sim_tgr = _bounded_perturb(inputs.terminal_growth_rate, tgr_noise, 0.005)
 
     # WACC via CAPM: perturb risk-free rate, ERP, beta → compute WACC vectorized.
     # Beta noise scales with the wacc_std knob like the other CAPM components
@@ -151,13 +194,15 @@ def run_monte_carlo(
     rfr_noise_half = rng.normal(0, wacc_std * 0.5, size=n_half)
     erp_noise_half = rng.normal(0, wacc_std, size=n_half)
     beta_noise_half = rng.normal(0, wacc_std * 10, size=n_half)
-    sim_rfr = np.maximum(
-        0.005, inputs.risk_free_rate + np.concatenate([rfr_noise_half, -rfr_noise_half])
+    sim_rfr = _bounded_perturb(
+        inputs.risk_free_rate, np.concatenate([rfr_noise_half, -rfr_noise_half]), 0.005
     )
-    sim_erp = np.maximum(
-        0.02, inputs.equity_risk_premium + np.concatenate([erp_noise_half, -erp_noise_half])
+    sim_erp = _bounded_perturb(
+        inputs.equity_risk_premium, np.concatenate([erp_noise_half, -erp_noise_half]), 0.02
     )
-    sim_beta = np.maximum(0.3, inputs.beta + np.concatenate([beta_noise_half, -beta_noise_half]))
+    sim_beta = _bounded_perturb(
+        inputs.beta, np.concatenate([beta_noise_half, -beta_noise_half]), 0.3
+    )
 
     # CAPM: CoE = rf + beta * ERP
     sim_coe = sim_rfr + sim_beta * sim_erp
@@ -278,9 +323,9 @@ def run_monte_carlo(
     # Histogram via NumPy
     counts_arr, edges_arr = np.histogram(valid_prices, bins=n_bins)
 
-    # Current price percentile
-    below_count = int(np.searchsorted(valid_prices, current_price, side="right"))
-    current_pct = (below_count / len(valid_prices)) * 100
+    # Current price percentile — midpoint tie convention, compared at the
+    # 2-decimal precision the result contract publishes (see _percentile_rank).
+    current_pct = _percentile_rank(np.round(valid_prices, 2), round(current_price, 2))
 
     return MonteCarloResult(
         implied_prices=prices_list,

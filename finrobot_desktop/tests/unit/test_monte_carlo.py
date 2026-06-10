@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 from finrobot.engine.compute.operators.dcf import calculate_dcf
-from finrobot.engine.compute.operators.monte_carlo import MonteCarloRequest, run_monte_carlo
+from finrobot.engine.compute.operators.monte_carlo import (
+    MonteCarloRequest,
+    _bounded_perturb,
+    _percentile_rank,
+    run_monte_carlo,
+)
 from finrobot.engine.models.financial import DCFInputs
 
 
@@ -79,6 +85,120 @@ def test_perturbation_zero_mc_equals_deterministic_dcf(mid_year: bool) -> None:
     # All noise sources (including beta, which scales with wacc_std) are off,
     # so the distribution must be a degenerate point.
     assert result.std == pytest.approx(0.0, abs=0.01)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        # All legal DCFInputs values (rfr ge=0, tgr ge=0, beta ge=0) that sit
+        # BELOW the MC domain floors (0.005 / 0.005 / 0.3). The old one-sided
+        # np.maximum silently rewrote the base even at std=0 — probe measured
+        # MC P50 drifting -4.9% (rfr 0.3%, zero-rate regimes), +2.0% (tgr
+        # 0.3%) and -15.9% (beta 0.2, low-beta utility) against calculate_dcf
+        # in the SAME report.
+        ("risk_free_rate", 0.003),
+        ("terminal_growth_rate", 0.003),
+        ("beta", 0.2),
+    ],
+)
+def test_below_floor_base_with_zero_std_still_equals_deterministic_dcf(
+    field: str, value: float
+) -> None:
+    inputs = _inputs().model_copy(update={field: value})
+    deterministic = round(calculate_dcf(inputs).implied_price, 2)
+
+    result = run_monte_carlo(
+        inputs,
+        current_price=160.0,
+        n_simulations=200,
+        revenue_growth_std=0.0,
+        ebitda_margin_std=0.0,
+        wacc_std=0.0,
+        terminal_growth_std=0.0,
+        seed=42,
+    )
+
+    assert result.percentiles["50"] == pytest.approx(deterministic, abs=0.01)
+    assert result.std == pytest.approx(0.0, abs=0.01)
+
+
+class TestBoundedPerturb:
+    """Antithetic symmetry of the domain floor (Glasserman Ch.4: the pairing
+    only cancels noise if +Z and -Z are treated symmetrically). A one-sided
+    np.maximum(floor, base + noise) truncated only the lower tail: probe
+    measured E[tgr] = 1.198% for base 1.0%, std 1.0% — a +20% relative
+    upward bias injected into every Gordon terminal value."""
+
+    def test_pairs_mirror_exactly_around_base(self) -> None:
+        noise = np.array([0.004, 0.02, -0.02, 0.0007])
+        up = _bounded_perturb(0.01, noise, 0.005)
+        down = _bounded_perturb(0.01, -noise, 0.005)
+        # Each (Z, -Z) pair averages to the base exactly — zero input bias.
+        np.testing.assert_allclose((up + down) / 2, 0.01, rtol=0, atol=1e-15)
+
+    def test_mean_is_exactly_unbiased_under_gaussian_noise(self) -> None:
+        rng = np.random.default_rng(0)
+        z = rng.normal(0, 0.01, 100_000)
+        noise = np.concatenate([z, -z])
+        out = _bounded_perturb(0.01, noise, 0.005)
+        assert float(out.mean()) == pytest.approx(0.01, abs=1e-12)
+
+    def test_floor_still_enforced(self) -> None:
+        noise = np.array([-1.0, 1.0])
+        out = _bounded_perturb(0.01, noise, 0.005)
+        assert out.min() >= 0.005
+        # Symmetric cap: the upper bound mirrors the floor around the base.
+        assert out.max() <= 0.015
+
+    def test_base_at_or_below_floor_collapses_to_base(self) -> None:
+        noise = np.array([-0.01, 0.0, 0.01])
+        np.testing.assert_allclose(_bounded_perturb(0.005, noise, 0.005), 0.005)
+        # A base below the floor is a legal model input (e.g. rfr=0.3%) —
+        # honour it as given, exactly like calculate_dcf does.
+        np.testing.assert_allclose(_bounded_perturb(0.003, noise, 0.005), 0.003)
+
+
+class TestPercentileRank:
+    """Midpoint tie convention — scipy.stats.percentileofscore(kind='mean').
+    side='right' alone counted ties as 'below', reporting 100% (or 0% after
+    rounding skew) when the current price sits exactly ON a degenerate
+    distribution; the honest answer is 50%."""
+
+    def test_ties_count_half(self) -> None:
+        prices = np.array([1.0, 2.0, 2.0, 3.0])
+        assert _percentile_rank(prices, 2.0) == pytest.approx(50.0)
+
+    def test_degenerate_distribution_reads_fifty(self) -> None:
+        prices = np.full(200, 82.83)
+        assert _percentile_rank(prices, 82.83) == pytest.approx(50.0)
+
+    def test_extremes(self) -> None:
+        prices = np.array([10.0, 20.0, 30.0])
+        assert _percentile_rank(prices, 5.0) == pytest.approx(0.0)
+        assert _percentile_rank(prices, 35.0) == pytest.approx(100.0)
+
+    def test_continuous_case_unchanged(self) -> None:
+        # No ties → identical to the old side='right' count.
+        prices = np.array([10.0, 20.0, 30.0, 40.0])
+        assert _percentile_rank(prices, 25.0) == pytest.approx(50.0)
+
+    def test_degenerate_run_reads_fifty_end_to_end(self) -> None:
+        # All stds → 0 collapses the distribution onto calculate_dcf's price;
+        # a current price equal to it (at the published 2-decimal precision)
+        # must read "50th percentile", not 0/100 by rounding skew.
+        inputs = _inputs()
+        point = round(calculate_dcf(inputs).implied_price, 2)
+        result = run_monte_carlo(
+            inputs,
+            current_price=point,
+            n_simulations=200,
+            revenue_growth_std=0.0,
+            ebitda_margin_std=0.0,
+            wacc_std=0.0,
+            terminal_growth_std=0.0,
+            seed=42,
+        )
+        assert result.current_price_percentile == pytest.approx(50.0)
 
 
 def test_non_positive_terminal_fcf_paths_are_dropped() -> None:

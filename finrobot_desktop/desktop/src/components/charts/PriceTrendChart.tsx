@@ -17,6 +17,10 @@ import { CosmicTooltipShell } from './chartTooltip'
 
 interface Props {
   points: PricePoint[] | null
+  /** True while the price query is still in flight. Distinguishes "still
+   *  loading" from "resolved with no usable history" — without it an empty
+   *  payload rendered as a permanent "Loading…". */
+  loading?: boolean
   /** Live quote + session state for the right-edge readout. When the session is
    *  live the last daily bar is still forming and its "close" lags this quote, so
    *  the readout shows `currentPrice` (== the header) labeled "Latest" instead of
@@ -106,12 +110,17 @@ function ChartTooltip({
   )
 }
 
-export function PriceTrendChart({ points, currentPrice, sessionState }: Props): React.ReactElement {
+export function PriceTrendChart({
+  points,
+  loading = false,
+  currentPrice,
+  sessionState,
+}: Props): React.ReactElement {
   const { t } = useI18n()
   if (!points || points.length < 2) {
     return (
       <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
-        {t('chart.priceTrend.loading')}
+        {t(loading ? 'chart.priceTrend.loading' : 'chart.priceTrend.empty')}
       </p>
     )
   }

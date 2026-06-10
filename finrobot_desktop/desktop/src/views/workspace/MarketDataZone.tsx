@@ -31,6 +31,7 @@ interface MarketDataZoneProps {
 export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElement {
   const {
     data: price,
+    isPending: pricePending,
     isError: priceError,
     error: priceErr,
     refetch: refetchPrice,
@@ -90,6 +91,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
           <>
             <PriceTrendChart
               points={price?.history ?? null}
+              loading={pricePending}
               currentPrice={price?.current_price}
               sessionState={price?.session_state}
             />

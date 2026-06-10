@@ -893,6 +893,10 @@ msgstr ""
 #~ msgstr "成交量"
 
 #. js-lingui-explicit-id
+#~ msgid "chart.priceTrend.empty"
+#~ msgstr "该标的暂无价格历史数据"
+
+#. js-lingui-explicit-id
 #~ msgid "chart.priceTrend.loading"
 #~ msgstr "加载中…"
 

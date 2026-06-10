@@ -893,6 +893,10 @@ msgstr ""
 #~ msgstr "Volume"
 
 #. js-lingui-explicit-id
+#~ msgid "chart.priceTrend.empty"
+#~ msgstr "No price history available for this ticker"
+
+#. js-lingui-explicit-id
 #~ msgid "chart.priceTrend.loading"
 #~ msgstr "Loading…"
 

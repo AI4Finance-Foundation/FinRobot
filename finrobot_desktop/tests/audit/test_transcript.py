@@ -14,6 +14,7 @@ from finrobot.audit.persistence import (
     _summarize_session_file,
     list_sessions,
     load_session_transcript,
+    prune_sessions,
 )
 from finrobot.audit.transcript import (
     TranscriptWriter,
@@ -223,6 +224,104 @@ async def test_list_sessions_user_id_filter(tmp_session_dir: Path) -> None:
 async def test_list_sessions_empty_dir_returns_empty(tmp_session_dir: Path) -> None:
     result = list_sessions(base_dir=tmp_session_dir / "nonexistent")
     assert result == []
+
+
+async def _seed_sessions_with_spread_mtimes(base_dir: Path, count: int) -> list[str]:
+    """Write ``count`` sessions and force strictly increasing mtimes.
+
+    Sub-millisecond writes can collide on filesystems with coarse mtime
+    granularity, so the mtimes are pinned explicitly — sess-0 oldest,
+    sess-{count-1} newest.
+    """
+    import os
+
+    ids = [f"sess-{i}" for i in range(count)]
+    for i, sid in enumerate(ids):
+        writer = TranscriptWriter(sid, base_dir=base_dir)
+        await writer.log_session_start(user_id="local", model="m")
+        await writer.log_user_message(f"turn {i}")
+        path = base_dir / f"{sid}.jsonl"
+        os.utime(path, (1_700_000_000 + i, 1_700_000_000 + i))
+    return ids
+
+
+@pytest.mark.asyncio
+async def test_list_sessions_limit_returns_newest_page_without_full_scan(
+    tmp_session_dir: Path,
+) -> None:
+    """``limit`` must page the newest-N by file mtime (≡ last_active_at for
+    append-only JSONL) — the unbounded full-dir parse was the audit finding."""
+    await _seed_sessions_with_spread_mtimes(tmp_session_dir, 5)
+
+    page = list_sessions(base_dir=tmp_session_dir, limit=2)
+    assert [s.session_id for s in page] == ["sess-4", "sess-3"]
+
+    # limit larger than population → everything, newest first.
+    everything = list_sessions(base_dir=tmp_session_dir, limit=50)
+    assert len(everything) == 5
+
+    with pytest.raises(ValueError, match="limit must be >= 1"):
+        list_sessions(base_dir=tmp_session_dir, limit=0)
+
+
+@pytest.mark.asyncio
+async def test_list_sessions_limit_applies_after_filters(tmp_session_dir: Path) -> None:
+    """The cap counts MATCHING sessions — a ticker filter must not eat the page."""
+    import os
+
+    for i, (sid, ticker) in enumerate(
+        [("a-aapl", "AAPL"), ("b-nvda", "NVDA"), ("c-aapl", "AAPL"), ("d-aapl", "AAPL")]
+    ):
+        writer = TranscriptWriter(sid, base_dir=tmp_session_dir)
+        await writer.log_session_start(user_id="local", model="m", ticker=ticker)
+        path = tmp_session_dir / f"{sid}.jsonl"
+        os.utime(path, (1_700_000_000 + i, 1_700_000_000 + i))
+
+    page = list_sessions(base_dir=tmp_session_dir, ticker="AAPL", limit=2)
+    assert [s.session_id for s in page] == ["d-aapl", "c-aapl"]
+
+
+# ---------------------------------------------------------------------------
+# persistence.prune_sessions (retention policy)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_prune_sessions_deletes_oldest_past_cap(tmp_session_dir: Path) -> None:
+    await _seed_sessions_with_spread_mtimes(tmp_session_dir, 5)
+
+    deleted = prune_sessions(max_sessions=3, base_dir=tmp_session_dir)
+    assert deleted == 2
+    remaining = sorted(p.stem for p in tmp_session_dir.glob("*.jsonl"))
+    assert remaining == ["sess-2", "sess-3", "sess-4"]
+
+    # Idempotent — already at cap.
+    assert prune_sessions(max_sessions=3, base_dir=tmp_session_dir) == 0
+
+
+def test_prune_sessions_under_cap_and_missing_dir_are_noops(tmp_session_dir: Path) -> None:
+    assert prune_sessions(max_sessions=10, base_dir=tmp_session_dir / "nope") == 0
+    with pytest.raises(ValueError, match="max_sessions must be >= 1"):
+        prune_sessions(max_sessions=0, base_dir=tmp_session_dir)
+
+
+@pytest.mark.asyncio
+async def test_session_start_triggers_retention_prune(
+    tmp_session_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The writer enforces retention on session start (no scheduler exists in
+    the desktop deployment, so this is the only place the cap can hold)."""
+    calls: list[Path] = []
+
+    def spy_prune(max_sessions: int = 500, base_dir: Path | None = None) -> int:
+        assert base_dir is not None
+        calls.append(base_dir)
+        return 0
+
+    monkeypatch.setattr("finrobot.audit.persistence.prune_sessions", spy_prune)
+    writer = TranscriptWriter("prune-wire", base_dir=tmp_session_dir)
+    await writer.log_session_start(user_id="local", model="m")
+    assert calls == [tmp_session_dir]
 
 
 # ---------------------------------------------------------------------------

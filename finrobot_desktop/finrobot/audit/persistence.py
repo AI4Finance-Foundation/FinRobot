@@ -15,6 +15,13 @@ from finrobot.audit.transcript import _safe_session_path
 
 logger = logging.getLogger(__name__)
 
+# Retention cap for on-disk chat transcripts. Sessions are append-only JSONL
+# files that otherwise accumulate forever; the writer prunes the oldest files
+# past this cap on every session start (same constant-on-module precedent as
+# ``run_store.RUN_EVENT_RETENTION_DAYS``). 500 sessions at typical transcript
+# size keeps months of history while bounding both disk and the list scan.
+SESSION_RETENTION_MAX = 500
+
 
 # Tests monkey-patch this attribute to redirect reads to a tmp dir.
 # Production leaves it None so :func:`_default_dir` resolves to the
@@ -67,24 +74,42 @@ def list_sessions(
     user_id: str | None = None,
     ticker: str | None = None,
     base_dir: Path | None = None,
+    limit: int | None = None,
 ) -> list[SessionSummary]:
     """Scan disk and return session summaries sorted newest-first.
+
+    Candidate files are visited in mtime-descending order so a ``limit`` stops
+    parsing as soon as the page is full — for an append-only JSONL a file's
+    mtime is the write time of its last event, i.e. the same order as
+    ``last_active_at``, so the page is the true newest-N without summarising
+    every transcript on disk on every list call.
 
     Args:
         user_id: If given, only return sessions that match this user_id.
         ticker: If given, only return sessions tagged with this ticker
             (case-insensitive).
         base_dir: Override the default session directory.
+        limit: If given, return at most this many (filtered) summaries.
+            ``None`` keeps the full-scan behaviour. Must be >= 1.
 
     Returns:
         List of ``SessionSummary`` sorted by ``last_active_at`` descending.
     """
+    if limit is not None and limit < 1:
+        raise ValueError(f"limit must be >= 1, got {limit}")
     base = base_dir or _default_dir()
     if not base.exists():
         return []
     ticker_norm = ticker.upper() if ticker else None
+    candidates: list[tuple[float, Path]] = []
+    for path in base.glob("*.jsonl"):
+        try:
+            candidates.append((path.stat().st_mtime, path))
+        except OSError as exc:
+            logger.warning("Skipping unstatable session file %s: %s", path, exc)
+    candidates.sort(key=lambda pair: pair[0], reverse=True)
     summaries: list[SessionSummary] = []
-    for path in sorted(base.glob("*.jsonl")):
+    for _, path in candidates:
         try:
             summary = _summarize_session_file(path)
         except (OSError, json.JSONDecodeError, KeyError) as exc:
@@ -97,8 +122,51 @@ def list_sessions(
         if ticker_norm is not None and (summary.ticker or "").upper() != ticker_norm:
             continue
         summaries.append(summary)
+        if limit is not None and len(summaries) >= limit:
+            break
     summaries.sort(key=lambda s: s.last_active_at, reverse=True)
     return summaries
+
+
+def prune_sessions(
+    max_sessions: int = SESSION_RETENTION_MAX,
+    base_dir: Path | None = None,
+) -> int:
+    """Delete the oldest transcript files beyond the ``max_sessions`` cap.
+
+    Retention policy for the otherwise-unbounded sessions dir: keep the
+    ``max_sessions`` most recently written files (mtime order — the last-event
+    write time for append-only JSONL) and unlink the rest. Called by the write
+    side on every session start, so the cap holds without a scheduler. Unlink
+    failures are logged and skipped — pruning must never break a chat turn.
+
+    Returns:
+        Number of files deleted.
+    """
+    if max_sessions < 1:
+        raise ValueError(f"max_sessions must be >= 1, got {max_sessions}")
+    base = base_dir or _default_dir()
+    if not base.exists():
+        return 0
+    files: list[tuple[float, Path]] = []
+    for path in base.glob("*.jsonl"):
+        try:
+            files.append((path.stat().st_mtime, path))
+        except OSError:
+            continue
+    if len(files) <= max_sessions:
+        return 0
+    files.sort(key=lambda pair: pair[0], reverse=True)
+    deleted = 0
+    for _, path in files[max_sessions:]:
+        try:
+            path.unlink()
+            deleted += 1
+        except OSError as exc:
+            logger.warning("Failed to prune session file %s: %s", path, exc)
+    if deleted:
+        logger.info("Pruned %d chat transcript(s) past the %d-session cap", deleted, max_sessions)
+    return deleted
 
 
 def _summarize_session_file(path: Path) -> SessionSummary | None:

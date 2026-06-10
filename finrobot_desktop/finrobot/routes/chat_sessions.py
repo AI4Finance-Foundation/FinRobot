@@ -69,13 +69,21 @@ def get_chat_sessions(
         default=None,
         description="Filter to sessions focused on this ticker (case-insensitive).",
     ),
+    limit: int = Query(
+        default=100,
+        ge=1,
+        le=500,
+        description="Maximum number of sessions to return (newest first).",
+    ),
 ) -> SessionListResponse:
-    """List past chat sessions, newest-first.
+    """List past chat sessions, newest-first, capped at ``limit``.
 
     Reads the on-disk JSONL transcripts. Unreadable/corrupt files are skipped
-    by the persistence layer rather than 500-ing the whole list.
+    by the persistence layer rather than 500-ing the whole list. The cap keeps
+    the endpoint from parsing every transcript on disk per call (the
+    persistence layer stops scanning once the page is full).
     """
-    summaries = list_sessions(ticker=ticker)
+    summaries = list_sessions(ticker=ticker, limit=limit)
     return SessionListResponse(
         sessions=[
             SessionSummaryModel(

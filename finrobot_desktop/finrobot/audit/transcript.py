@@ -216,6 +216,16 @@ class TranscriptWriter:
         if locale:
             data["locale"] = locale
         await self._write_event("session_start", data)
+        # Retention: a new session is the natural moment to enforce the cap —
+        # there is no scheduler in the desktop deployment, and pruning here
+        # bounds the dir before it can grow past cap+1. Local import because
+        # persistence imports _safe_session_path from this module.
+        from finrobot.audit.persistence import prune_sessions
+
+        try:
+            prune_sessions(base_dir=self._base_dir)
+        except (OSError, ValueError):
+            logger.exception("Session prune failed (session=%s)", self.session_id)
 
     async def log_context(self, context: dict[str, Any]) -> None:
         """Emit a ``context`` event recording the ContextBar bundle sent with a

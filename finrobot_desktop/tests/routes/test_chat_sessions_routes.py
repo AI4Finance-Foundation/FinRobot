@@ -73,6 +73,27 @@ async def test_list_sessions_returns_summaries_newest_first(
     assert by_id["sess-nvda"]["model"] == "m2"
 
 
+async def test_list_sessions_limit_caps_page_and_rejects_out_of_range(
+    _sessions_dir: Path, client: TestClient
+) -> None:
+    """``?limit=`` bounds the page (newest first); 0 / >500 are 422s, matching
+    the list_runs cap style — the endpoint must never parse the whole dir for
+    one dropdown render."""
+    import os
+
+    for i, sid in enumerate(["sess-old", "sess-mid", "sess-new"]):
+        await _seed_session(sid, model="m", ticker=None, locale=None, user_text=f"q{i}")
+        os.utime(_sessions_dir / f"{sid}.jsonl", (1_700_000_000 + i, 1_700_000_000 + i))
+
+    resp = client.get("/api/chat/sessions", params={"limit": 1})
+    assert resp.status_code == 200
+    sessions = resp.json()["sessions"]
+    assert [s["session_id"] for s in sessions] == ["sess-new"]
+
+    assert client.get("/api/chat/sessions", params={"limit": 0}).status_code == 422
+    assert client.get("/api/chat/sessions", params={"limit": 501}).status_code == 422
+
+
 async def test_list_sessions_ticker_filter(_sessions_dir: Path, client: TestClient) -> None:
     await _seed_session("sess-aapl", model="m1", ticker="AAPL", locale="en", user_text="q1")
     await _seed_session("sess-nvda", model="m2", ticker="NVDA", locale="en", user_text="q2")

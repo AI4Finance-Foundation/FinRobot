@@ -410,12 +410,22 @@ class SqliteArtifactStore:
         )
 
     async def mark_viewed(self, artifact_id: str) -> None:
-        artifact = await self.get(artifact_id)
-        if artifact is None:
-            return
-        artifact.meta.last_viewed_at = _now()
-        artifact.meta.archived = False
-        await self.save(artifact)
+        """Stamp ``last_viewed_at`` and un-archive, as a column-only UPDATE.
+
+        ``last_viewed_at`` / ``archived`` are the mutable lifecycle columns —
+        the same ones ``archive_stale`` flips without touching the payload, and
+        :meth:`get` realigns ``payload.meta`` to them at read time. The old
+        get()+save() round-trip re-(de)serialised the full multi-MB payload to
+        change two scalars, and silently skipped rows whose payload no longer
+        validates (which is exactly when the lifecycle columns still matter).
+        Missing ids are a no-op (rowcount 0), matching the old behaviour.
+        """
+        conn = await self._conn_ready()
+        await conn.execute(
+            "UPDATE artifacts SET last_viewed_at = ?, archived = 0 WHERE id = ?",
+            (_now().isoformat(), artifact_id),
+        )
+        await conn.commit()
 
     async def rebuild_summaries_if_outdated(self, version: int = SUMMARY_PROJECTION_VERSION) -> int:
         """Backfill the mirror columns once per projection-version bump.

@@ -250,6 +250,52 @@ async def test_mark_viewed_unarchives(store: SqliteArtifactStore) -> None:
 
 
 @pytest.mark.asyncio
+async def test_mark_viewed_is_column_only_no_payload_rewrite(
+    store: SqliteArtifactStore,
+) -> None:
+    """mark_viewed must flip last_viewed_at/archived as a column UPDATE.
+
+    The old get()+save() path re-(de)serialised the full payload to change two
+    scalars, and silently skipped rows whose payload no longer validates —
+    exactly the rows where the lifecycle columns are the only live state.
+    Guard: payload bytes unchanged, columns moved, corrupt-payload row still
+    gets stamped, missing id is a no-op.
+    """
+    art = _make_artifact(id="art_v")
+    art.meta.archived = True
+    await store.save(art)
+    # A row whose payload no longer parses (schema drift) — columns must still move.
+    corrupt = _make_artifact(id="art_corrupt")
+    await store.save(corrupt)
+    with sqlite3.connect(store._db_path) as conn:
+        conn.execute(
+            'UPDATE artifacts SET payload = \'{"not": "an artifact"}\' WHERE id = ?',
+            ("art_corrupt",),
+        )
+        conn.commit()
+        before = dict(conn.execute("SELECT id, payload FROM artifacts").fetchall())
+
+    await store.mark_viewed("art_v")
+    await store.mark_viewed("art_corrupt")
+    await store.mark_viewed("art_missing")  # no-op, must not raise
+
+    with sqlite3.connect(store._db_path) as conn:
+        after = dict(conn.execute("SELECT id, payload FROM artifacts").fetchall())
+        rows = dict(conn.execute("SELECT id, last_viewed_at FROM artifacts").fetchall())
+        archived_flags = dict(conn.execute("SELECT id, archived FROM artifacts").fetchall())
+    assert after == before, "mark_viewed must not rewrite the payload column"
+    assert rows["art_v"] is not None
+    assert rows["art_corrupt"] is not None, "corrupt payload must not block the lifecycle stamp"
+    assert archived_flags["art_v"] == 0
+
+    # get() realigns the in-memory Artifact to the columns.
+    loaded = await store.get("art_v")
+    assert loaded is not None
+    assert loaded.meta.archived is False
+    assert loaded.meta.last_viewed_at is not None
+
+
+@pytest.mark.asyncio
 async def test_archive_stale_marks_old(store: SqliteArtifactStore) -> None:
     now = datetime.now(tz=UTC)
     old = _make_artifact(id="art_old", created_at=now - timedelta(hours=48))

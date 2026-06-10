@@ -1,8 +1,22 @@
 import os
+from pathlib import Path
 from typing_extensions import Annotated
 from IPython import get_ipython
 
 default_path = "coding/"
+
+
+def _resolve_workspace_path(path: str) -> Path:
+    """Resolve a user-provided path and ensure it stays inside the coding workspace."""
+    workspace = Path(default_path).resolve()
+    resolved_path = (workspace / path).resolve()
+    try:
+        common_path = os.path.commonpath([str(workspace), str(resolved_path)])
+    except ValueError as exc:
+        raise ValueError(f"Path escapes the coding workspace: {path}") from exc
+    if common_path != str(workspace):
+        raise ValueError(f"Path escapes the coding workspace: {path}")
+    return resolved_path
 
 
 class IPythonUtils:
@@ -41,14 +55,14 @@ class CodingUtils:  # Borrowed from https://microsoft.github.io/autogen/docs/not
         """
         List files in choosen directory.
         """
-        files = os.listdir(default_path + directory)
+        files = os.listdir(_resolve_workspace_path(directory))
         return str(files)
 
     def see_file(filename: Annotated[str, "Name and path of file to check."]) -> str:
         """
         Check the contents of a chosen file.
         """
-        with open(default_path + filename, "r") as file:
+        with open(_resolve_workspace_path(filename), "r") as file:
             lines = file.readlines()
         formatted_lines = [f"{i+1}:{line}" for i, line in enumerate(lines)]
         file_contents = "".join(formatted_lines)
@@ -67,7 +81,7 @@ class CodingUtils:  # Borrowed from https://microsoft.github.io/autogen/docs/not
         """
         Replace old piece of code with new one. Proper indentation is important.
         """
-        with open(default_path + filename, "r+") as file:
+        with open(_resolve_workspace_path(filename), "r+") as file:
             file_contents = file.readlines()
             file_contents[start_line - 1 : end_line] = [new_code + "\n"]
             file.seek(0)
@@ -82,8 +96,8 @@ class CodingUtils:  # Borrowed from https://microsoft.github.io/autogen/docs/not
         """
         Create a new file with provided code.
         """
-        directory = os.path.dirname(default_path + filename)
-        os.makedirs(directory, exist_ok=True)
-        with open(default_path + filename, "w") as file:
+        file_path = _resolve_workspace_path(filename)
+        os.makedirs(file_path.parent, exist_ok=True)
+        with open(file_path, "w") as file:
             file.write(code)
         return "File created successfully"

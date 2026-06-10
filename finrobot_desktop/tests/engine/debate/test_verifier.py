@@ -1,8 +1,9 @@
-"""Tests for claim-entailment verifier (Task 3).
+"""Tests for claim-entailment verifier.
 
-Verifier v1: evidence reference-existence only (no semantic NLI).
-An argument is verified=True iff every cited evidence_id exists in the
-EvidenceSet AND at least one is cited.
+Verified=True requires all three: at least one evidence_id cited, every cited
+id exists in the EvidenceSet, and every monetary amount written in the claim
+text restates a $-denominated deterministic value (or the current price).
+Semantic NLI stays deferred.
 """
 
 from finrobot.engine.debate.models import Argument, Evidence, EvidenceSet
@@ -21,7 +22,13 @@ def _es() -> EvidenceSet:
                 label="x",
                 value=-0.18,
                 unit="%",
-            )
+            ),
+            Evidence(
+                evidence_id="method.DCF.mid",
+                label="DCF 中值估值",
+                value=173.21,
+                unit="$",
+            ),
         ],
     )
 
@@ -44,3 +51,54 @@ def test_dangling_evidence_id_flagged() -> None:
     out = verify_arguments("bull", args, _es())
     assert out[0].verified is False
     assert "method.PE.mid" in out[0].reason
+
+
+def test_fabricated_amount_with_real_citation_flagged() -> None:
+    """A real evidence_id must not launder a fabricated number in the claim text."""
+    args = [
+        Argument(
+            claim="DCF 中值高达 $999.99,严重高估",
+            evidence_ids=["method.DCF.mid"],
+        )
+    ]
+    out = verify_arguments("bear", args, _es())
+    assert out[0].verified is False
+    assert "$999.99" in out[0].reason
+
+
+def test_amount_restating_cited_evidence_passes() -> None:
+    args = [Argument(claim="DCF 中值 $173.21,上行充足", evidence_ids=["method.DCF.mid"])]
+    out = verify_arguments("bull", args, _es())
+    assert out[0].verified is True
+
+
+def test_display_rounding_within_tolerance_passes() -> None:
+    """$173 vs 173.21 is a display rounding (0.12%), not drift."""
+    args = [Argument(claim="DCF 中值约 $173", evidence_ids=["method.DCF.mid"])]
+    out = verify_arguments("bull", args, _es())
+    assert out[0].verified is True
+
+
+def test_current_price_amount_endorsed() -> None:
+    args = [Argument(claim="现价 $200 已计入利好", evidence_ids=["method.DCF.mid"])]
+    out = verify_arguments("bear", args, _es())
+    assert out[0].verified is True
+
+
+def test_percent_evidence_does_not_endorse_dollar_amount() -> None:
+    """unit='%' value -0.18 must not back a '$0.18' claim — units are not fungible."""
+    args = [
+        Argument(
+            claim="每股仅值 $0.18",
+            evidence_ids=["synthesis.upside_downside"],
+        )
+    ]
+    out = verify_arguments("bear", args, _es())
+    assert out[0].verified is False
+
+
+def test_suffixed_fabricated_amount_flagged() -> None:
+    """'USD 150B' scales to 1.5e11 — nothing in the set endorses it."""
+    args = [Argument(claim="市值将蒸发 USD 150B", evidence_ids=["method.DCF.mid"])]
+    out = verify_arguments("bear", args, _es())
+    assert out[0].verified is False

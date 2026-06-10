@@ -10,7 +10,7 @@ import {
 } from 'recharts'
 import { useMemo } from 'react'
 
-import { fmtUsd } from '../../utils/formatters'
+import { formatCurrencyCompact } from '../../utils/format'
 import { useI18n } from '../../i18n'
 import { CosmicTooltipShell, CosmicTooltipRow } from './chartTooltip'
 
@@ -48,7 +48,7 @@ function WaterfallTooltip({
   active?: boolean
   payload?: { payload?: WaterfallBar }[]
 }) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const entry = active ? payload?.[0]?.payload : undefined
   if (!entry) return null
   const name = entry.is_total
@@ -61,13 +61,14 @@ function WaterfallTooltip({
       <CosmicTooltipRow
         color={entry.fill}
         name={name}
-        value={fmtUsd(entry.is_total ? entry.delta : entry.value)}
+        value={formatCurrencyCompact(entry.is_total ? entry.delta : entry.value, 'USD', locale)}
       />
     </CosmicTooltipShell>
   )
 }
 
 export default function WaterfallChart({ data, title }: ChartProps) {
+  const { locale } = useI18n()
   const bars = useMemo<WaterfallBar[]>(() => {
     if (!data || data.length === 0) return []
     let runningTotal = 0
@@ -125,7 +126,7 @@ export default function WaterfallChart({ data, title }: ChartProps) {
               // Large values (e.g. AAPL terminal value ~$1.2T) need abbreviated
               // ticks — raw `${v}` overflowed the Y-axis gutter and rendered as
               // a clipped run of zeros in the production screenshot.
-              tickFormatter={fmtUsd}
+              tickFormatter={(v: number) => formatCurrencyCompact(v, 'USD', locale)}
               width={60}
             />
             <Tooltip

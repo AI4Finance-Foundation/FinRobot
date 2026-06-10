@@ -11,7 +11,7 @@ from finrobot.engine.data.interface import DataProvider, DataResult, ProviderErr
 from finrobot.engine.data.types import DataType
 
 _BASE_URL = "https://finnhub.io/api/v1"
-# Finnhub serves PROFILE / PRICE / NEWS only. It does NOT serve FINANCIALS:
+# Finnhub serves PRICE / NEWS only. It does NOT serve FINANCIALS:
 # its /stock/financials-reported parser matched bare us-gaap concept names
 # ("Revenues", "NetIncomeLoss") while the API returns them namespace-prefixed
 # ("us-gaap_RevenueFromContractWithCustomerExcludingAssessedTax", ...), so it
@@ -21,7 +21,14 @@ _BASE_URL = "https://finnhub.io/api/v1"
 # mismatch FMP's TTM and inject false cross-validation divergences. Removed
 # 2026-06-08 (option B). Authoritative SEC-XBRL fundamentals belong to
 # EdgarToolsProvider (real XBRL concept resolution), not a hand-rolled matcher.
-_SUPPORTED = [DataType.PRICE, DataType.PROFILE, DataType.NEWS]
+# PROFILE removed 2026-06-10: it was a DEAD capability (nothing in the codebase
+# ever fetches DataType.PROFILE — only Finnhub advertised it) AND a fabrication
+# landmine — _fetch_profile coerced a missing marketCapitalization/shareOutstanding
+# to 0*1M = 0, a fake $0 market cap / 0 shares instead of an honest None (the
+# /quote path already treats Finnhub's 0 as "no data"). The live /stock/profile2
+# call _fetch_price still makes only reads `exchange`, never these fabricated
+# fields, so quote/price are unaffected.
+_SUPPORTED = [DataType.PRICE, DataType.NEWS]
 _TIMEOUT = 15.0
 _MIN_INTERVAL = 1.1  # Finnhub free tier: 60 req/min → 1 req/sec; 1.1s adds 10% buffer
 # Trailing calendar window for the candle (daily OHLC) fetch. 52 weeks + cushion
@@ -60,8 +67,6 @@ class FinnhubProvider(DataProvider):
         try:
             if data_type == DataType.PRICE:
                 data = await self._fetch_price(ticker)
-            elif data_type == DataType.PROFILE:
-                data = await self._fetch_profile(ticker)
             elif data_type == DataType.NEWS:
                 return await self._fetch_news(ticker)
             else:
@@ -191,16 +196,6 @@ class FinnhubProvider(DataProvider):
         # Finnhub candle arrays are already chronological (oldest-first), matching
         # yfinance/FMP price_history ordering the 52-week window assumes.
         return bars
-
-    async def _fetch_profile(self, ticker: str) -> dict[str, Any]:
-        profile = (await self._get("/stock/profile2", params={"symbol": ticker})).json()
-        return {
-            "company_name": profile.get("name"),
-            "industry": profile.get("finnhubIndustry"),
-            "market_cap": (profile.get("marketCapitalization", 0) or 0) * 1_000_000,
-            "shares_outstanding": (profile.get("shareOutstanding", 0) or 0) * 1_000_000,
-            "exchange": profile.get("exchange"),
-        }
 
     async def _fetch_news(self, ticker: str) -> DataResult:
         """Fetch recent company news from Finnhub /company-news (last 90 days)."""

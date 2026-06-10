@@ -40,15 +40,14 @@ def _mock_response(json_data, status_code=200):
 
 class TestFinnhubFetch:
     @pytest.mark.asyncio
-    async def test_fetch_profile(self, provider):
-        with patch.object(
-            provider,
-            "_get",
-            AsyncMock(return_value=_mock_response(_finnhub_profile_response())),
-        ):
-            result = await provider.fetch("AAPL", "profile")
-        assert result.data_type == "profile"
-        assert result.data["company_name"] == "Apple Inc"
+    async def test_profile_no_longer_supported(self, provider):
+        """PROFILE was a DEAD capability (nothing in the codebase fetches
+        DataType.PROFILE) AND a 0-fabrication landmine — _fetch_profile coerced a
+        missing marketCapitalization/shareOutstanding to a fake $0 / 0 shares.
+        Removed 2026-06-10: it must now raise, not fabricate."""
+        assert "profile" not in provider.capabilities()
+        with pytest.raises(ProviderError, match="not supported"):
+            await provider.fetch("AAPL", "profile")
 
     @pytest.mark.asyncio
     async def test_unsupported_type_raises(self, provider):
@@ -70,7 +69,7 @@ class TestFinnhubFetch:
             provider, "_get", AsyncMock(side_effect=httpx.TimeoutException("timeout"))
         ):
             with pytest.raises(ProviderError, match="timeout"):
-                await provider.fetch("AAPL", "profile")
+                await provider.fetch("AAPL", "price")
 
 
 class TestFinnhubInterface:
@@ -79,9 +78,10 @@ class TestFinnhubInterface:
 
     def test_capabilities(self, provider):
         caps = provider.capabilities()
-        # FINANCIALS was removed (option B): fundamentals are FMP + yfinance.
+        # FINANCIALS removed (option B): fundamentals are FMP + yfinance.
+        # PROFILE removed 2026-06-10: dead capability + 0-fabrication landmine.
         assert "financials" not in caps
-        assert "profile" in caps
+        assert "profile" not in caps
         assert "price" in caps
         assert "news" in caps
 
@@ -296,7 +296,7 @@ class TestFinnhubNetworkErrors:
             AsyncMock(side_effect=httpx.ConnectError("connection refused")),
         ):
             with pytest.raises(ProviderError, match="network error"):
-                await provider.fetch("AAPL", "profile")
+                await provider.fetch("AAPL", "price")
 
     @pytest.mark.asyncio
     async def test_remote_protocol_error_raises_provider_error(self, provider):
@@ -306,7 +306,7 @@ class TestFinnhubNetworkErrors:
             AsyncMock(side_effect=httpx.RemoteProtocolError("unexpected EOF")),
         ):
             with pytest.raises(ProviderError, match="network error"):
-                await provider.fetch("AAPL", "profile")
+                await provider.fetch("AAPL", "price")
 
     @pytest.mark.asyncio
     async def test_read_error_raises_provider_error(self, provider):
@@ -326,7 +326,7 @@ class TestFinnhubNetworkErrors:
             AsyncMock(side_effect=httpx.WriteError("write failed")),
         ):
             with pytest.raises(ProviderError, match="network error"):
-                await provider.fetch("AAPL", "profile")
+                await provider.fetch("AAPL", "price")
 
 
 class TestFinnhubRateLimiter:

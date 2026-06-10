@@ -207,6 +207,11 @@ export function useTickerCatalysts(ticker: string) {
     // Delegate retry policy to QueryClient defaults (production: 1 retry).
     // Gate-level error handling in StockWorkspace supersedes per-hook retry
     // for the price query; catalysts / financials use the client default.
+    // Self-heal after a backend outage like the price card does (its 60s
+    // refetchInterval keeps firing in error state). Polling this LLM-heavy
+    // endpoint while HEALTHY would be wasteful, so the interval only runs
+    // while the query sits in error.
+    refetchInterval: (query) => (query.state.status === 'error' ? 60_000 : false),
   })
 }
 
@@ -220,5 +225,9 @@ export function useTickerFinancials(ticker: string) {
     staleTime: 5 * 60_000,
     refetchOnMount: false,
     // Delegate retry policy to QueryClient defaults (production: 1 retry).
+    // Error-only self-heal interval — see useTickerCatalysts above. Without it
+    // a backend blip froze this card on the error state forever while the
+    // price card (60s interval) recovered by itself.
+    refetchInterval: (query) => (query.state.status === 'error' ? 60_000 : false),
   })
 }

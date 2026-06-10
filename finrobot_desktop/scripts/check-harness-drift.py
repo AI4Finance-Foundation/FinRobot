@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """Harness-drift sentinel.
 
-The AI coding harness (root CLAUDE.md ≡ AGENTS.md + the finagent-* sub-agents in
-.claude/agents/ and their .codex/agents/ mirrors) hard-codes file paths and
-references. When the codebase moves, those references silently rot: a grep against
-a renamed directory emits a warning and returns nothing, so an agent pastes
-"no findings" and the red-line scan is dead. This script makes that rot loud.
+The AI coding harness (root CLAUDE.md ≡ AGENTS.md, hook configs in
+.claude/settings.json + .claude/hooks/*.sh + .codex/hooks.json, and any agent
+files under .claude/agents/ with .codex/agents/ mirrors) hard-codes file paths
+and references. When the codebase moves, those references silently rot: a grep
+against a renamed directory emits a warning and returns nothing, so an agent
+pastes "no findings" and the red-line scan is dead. This script makes that rot
+loud.
 
 Checks:
-  1. No agent/instruction file references the non-existent `finagent/` package
+  1. No harness file references the non-existent `finagent/` package
      (the real package is `finrobot/`).
   2. Every fully-qualified path token (finrobot/ specs/ docs/ project-memory/
-     tests/ desktop/) referenced in the harness actually exists on disk.
+     tests/ desktop/ scripts/) referenced in the harness actually exists on disk.
   3. Every .claude/agents/<name>.md has a .codex/agents/<name>.toml mirror, and
      vice versa.
   4. CLAUDE.md and AGENTS.md are byte-identical.
@@ -30,17 +32,30 @@ ROOT = Path(__file__).resolve().parent.parent
 HARNESS_FILES = [
     *sorted((ROOT / ".claude/agents").glob("*.md")),
     *sorted((ROOT / ".codex/agents").glob("*.toml")),
+    *sorted((ROOT / ".claude/hooks").glob("*.sh")),
+    ROOT / ".claude/settings.json",
+    ROOT / ".codex/hooks.json",
     ROOT / "CLAUDE.md",
     ROOT / "AGENTS.md",
 ]
 
 # Roots whose fully-qualified references we verify exist on disk.
-PATH_ROOTS = ("finrobot/", "specs/", "docs/", "project-memory/", "tests/", "desktop/")
+PATH_ROOTS = (
+    "finrobot/",
+    "specs/",
+    "docs/",
+    "project-memory/",
+    "tests/",
+    "desktop/",
+    "scripts/",
+)
 # A path token = one of the roots followed by path chars (incl. CJK for 中文 filenames),
-# stopping at whitespace, quotes, backticks, parens (half/full width) and template <...>.
+# stopping at whitespace, quotes, backticks, parens (half/full width), template <...>,
+# and prose punctuation in both widths (, ; : ! ? em-dash interpunct ellipsis) — repo
+# filenames never contain these, but hook/instruction prose right after a path does.
 TOKEN_RE = re.compile(
     r"(?:" + "|".join(re.escape(r) for r in PATH_ROOTS) + r")"
-    r"[^\s`'\"\\，。、；：！？（）()<>|\[\]]+"
+    r"[^\s`'\"\\，。、；：！？（）()<>|\[\],;:!?—·…]+"
 )
 
 

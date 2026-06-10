@@ -10,6 +10,8 @@ Stubs:
 
 from __future__ import annotations
 
+import asyncio
+
 from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -298,26 +300,16 @@ async def test_successful_debate_emits_run_completed() -> None:
 
     run_store = app.state.run_store
 
-    # run must have been marked completed.
-    update_calls = run_store.update_run.call_args_list
+    # run must have been finished as completed via finish_run — the store-level
+    # helper that commits run.completed BEFORE the status flip (BUG-034).
+    finish_calls = run_store.finish_run.call_args_list
     completed_call = next(
-        (c for c in update_calls if c.kwargs.get("status") == "completed"),
+        (c for c in finish_calls if c.kwargs.get("status") == "completed"),
         None,
     )
-    assert completed_call is not None, "update_run(status='completed') was never called"
-
-    # run.completed event must have been appended (the actual regression).
-    append_calls = run_store.append_event.call_args_list
-    completed_event_call = next(
-        (
-            c
-            for c in append_calls
-            if isinstance(c.args[1], dict) and c.args[1].get("event") == "run.completed"
-        ),
-        None,
-    )
-    assert completed_event_call is not None, "run.completed event was never appended"
-    event = completed_event_call.args[1]
+    assert completed_call is not None, "finish_run(status='completed') was never called"
+    event = completed_call.args[1]
+    assert event["event"] == "run.completed"
     assert event["run_id"] == run_id
     assert event["ticker"] == "NVDA"
 
@@ -374,25 +366,82 @@ async def test_agent_run_error_transitions_run_to_failed() -> None:
 
     run_store = app.state.run_store
 
-    # run must have been marked failed (not left at 'running').
-    update_calls = run_store.update_run.call_args_list
+    # run must have been finished as failed via finish_run (not left at
+    # 'running') — event-before-status is the helper's contract (BUG-034).
+    finish_calls = run_store.finish_run.call_args_list
     failed_call = next(
-        (c for c in update_calls if c.kwargs.get("status") == "failed"),
+        (c for c in finish_calls if c.kwargs.get("status") == "failed"),
         None,
     )
-    assert failed_call is not None, "update_run(status='failed') was never called"
-
-    # run.failed event must have been appended.
-    append_calls = run_store.append_event.call_args_list
-    failed_event_call = next(
-        (
-            c
-            for c in append_calls
-            if isinstance(c.args[1], dict) and c.args[1].get("event") == "run.failed"
-        ),
-        None,
-    )
-    assert failed_event_call is not None, "run.failed event was never appended"
+    assert failed_call is not None, "finish_run(status='failed') was never called"
+    assert failed_call.args[1]["event"] == "run.failed"
 
     # run_tasks must have been cleaned up.
     assert run_id not in app.state.run_tasks, "run_id still in run_tasks after failure"
+
+
+# ── Money gates (P1-14: debate was the uncounted fourth LLM-spending endpoint) ──
+
+
+async def test_create_debate_503_when_startup_error_set() -> None:
+    """A broken runtime config (startup_error) must 503 BEFORE create_run —
+    same gate as POST /api/runs; debate used to skip it and surface an opaque
+    500 from provider construction, leaving an orphan run row behind."""
+    app = _make_app(artifact=_equity_research_artifact("seed-1"))
+    app.state.startup_error = "LLM key missing"
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        resp = await client.post("/api/debate", json={"ticker": "NVDA", "artifact_id": "seed-1"})
+
+    assert resp.status_code == 503
+    app.state.run_store.create_run.assert_not_awaited()
+
+
+async def test_create_debate_429_when_rate_limited() -> None:
+    """Debate spends real LLM money (3 agents) — it shares the runs token
+    bucket instead of being infinitely triggerable."""
+    app = _make_app(artifact=_equity_research_artifact("seed-1"))
+    limiter = MagicMock()
+    limiter.allow_runs = MagicMock(return_value=False)
+    app.state.run_rate_limiter = limiter
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        resp = await client.post("/api/debate", json={"ticker": "NVDA", "artifact_id": "seed-1"})
+
+    assert resp.status_code == 429
+    app.state.run_store.create_run.assert_not_awaited()
+
+
+async def test_debate_task_acquires_run_semaphore() -> None:
+    """The debate task must hold the app-wide LLM concurrency cap while
+    debating — it was the only LLM path outside the BUG-017 semaphore."""
+    app = _make_app(artifact=_equity_research_artifact("seed-1"))
+
+    acquired: list[str] = []
+
+    class _Sem:
+        async def __aenter__(self) -> None:
+            acquired.append("enter")
+
+        async def __aexit__(self, *exc: object) -> None:
+            acquired.append("exit")
+
+    app.state.deps.run_semaphore = _Sem()
+
+    with patch(
+        "finrobot.routes.debate.build_debate_agents",
+        return_value=_stub_agents(),
+    ):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+            resp = await client.post(
+                "/api/debate", json={"ticker": "NVDA", "artifact_id": "seed-1"}
+            )
+    assert resp.status_code == 200
+    run_id = resp.json()["run_id"]
+    bg_task = app.state.run_tasks.get(run_id)
+    if bg_task is not None:
+        await asyncio.gather(bg_task, return_exceptions=True)
+    else:
+        await asyncio.sleep(0.05)
+
+    assert acquired == ["enter", "exit"]

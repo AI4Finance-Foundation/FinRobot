@@ -242,6 +242,13 @@ async def test_run_completion_emits_artifact_id_and_type(monkeypatch: Any) -> No
 
     store.append_event = AsyncMock(side_effect=_capture)
 
+    async def _finish(run_id: str, terminal_event: dict[str, Any], **kwargs: Any) -> None:
+        # Mirror RunStore.finish_run's observable side: the terminal event
+        # lands in run_events (captured here) before the status flip.
+        appended.append(terminal_event)
+
+    store.finish_run = AsyncMock(side_effect=_finish)
+
     # Artifact store resolves the real type for the persisted id.
     artifact = MagicMock()
     artifact.type = "lbo"
@@ -429,6 +436,15 @@ class _OrderRecordingStore:
         if status in {"completed", "failed"}:
             self.order.append(f"status:{status}")
         return await self._inner.update_run(run_id, **kwargs)
+
+    async def finish_run(self, run_id: str, terminal_event: Any, **kwargs: Any) -> Any:
+        # Run the REAL production ordering logic with this wrapper as self, so
+        # its append_event/update_run calls flow through the recording methods
+        # above — re-implementing the sequence here would test a copy of the
+        # invariant instead of the invariant.
+        from finrobot.run_store import RunStore
+
+        return await RunStore.finish_run(self, run_id, terminal_event, **kwargs)  # type: ignore[arg-type]
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._inner, name)

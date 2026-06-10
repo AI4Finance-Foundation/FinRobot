@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import sqlite3
 import time
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
@@ -18,7 +19,7 @@ from starlette.responses import StreamingResponse
 
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.ticker import validate_ticker
-from finrobot.engine.pipelines.base import PipelineResult
+from finrobot.engine.pipelines.base import Pipeline, PipelineResult
 from finrobot.engine.pipelines.registry import get_pipeline_factories
 from finrobot.events import (
     ArtifactReady,
@@ -484,21 +485,84 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
     if record is None:
         return
 
-    factories = get_pipeline_factories()
-    pipeline = factories[record.pipeline_type](request.app.state.sub_agents)
     started = time.monotonic()
-    await store.update_run(run_id, status="running")
-    await _append(
-        store,
-        RunStarted(
-            event="run.started",
-            run_id=run_id,
-            pipeline_type=record.pipeline_type,
-            ticker=record.ticker,
-            total_steps=len(pipeline.steps),
-        ),
-    )
+    try:
+        # Everything from here lives inside the try: the factory lookup
+        # (KeyError when a pipeline was deregistered across a version bump),
+        # the status flip and the RunStarted write (sqlite3.Error) used to
+        # run BEFORE any handler existed — the task died with no terminal
+        # state, the run sat at created/running forever and the SSE stream
+        # never broke until the next restart's reconciler.
+        factories = get_pipeline_factories()
+        pipeline = factories[record.pipeline_type](request.app.state.sub_agents)
+        await store.update_run(run_id, status="running")
+        await _append(
+            store,
+            RunStarted(
+                event="run.started",
+                run_id=run_id,
+                pipeline_type=record.pipeline_type,
+                ticker=record.ticker,
+                total_steps=len(pipeline.steps),
+            ),
+        )
+        await _execute_pipeline_run(run_id, request, store, record, pipeline, started)
+    except (
+        ProviderError,
+        ValidationError,
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+        RuntimeError,
+        UnexpectedModelBehavior,
+        AgentRunError,
+        OSError,
+        sqlite3.Error,
+        json.JSONDecodeError,
+        httpx.HTTPError,
+    ) as e:
+        # Anything that escapes pipeline execution must transition the run to
+        # `failed`, otherwise the SSE stream at /api/runs/{id}/events keeps
+        # polling `record.status == "running"` forever (it only breaks on
+        # completed/failed) and any client GETting the stream hangs. The
+        # broad-but-explicit set (architecture audit forbids bare `except
+        # Exception`) now includes sqlite3.Error — aiosqlite re-raises the
+        # stdlib classes, which are NOT under OSError, and run_store's own
+        # append_event re-raises OperationalError after logging.
+        # CancelledError stays unaffected so shutdown still propagates.
+        logger.exception("Pipeline %s failed unexpectedly", run_id)
+        # finish_run appends run.failed BEFORE flipping status — same BUG-034
+        # ordering invariant as the success branch, now mechanical.
+        try:
+            await store.finish_run(
+                run_id,
+                RunFailed(
+                    event="run.failed",
+                    run_id=run_id,
+                    error=str(e)[:500] or type(e).__name__,
+                ),
+                status="failed",
+                completed_at=_iso_now(),
+                duration_s=round(time.monotonic() - started, 1),
+                error=str(e)[:500] or type(e).__name__,
+            )
+        except sqlite3.Error:
+            # The store itself is down — nothing more to persist; the restart
+            # reconciler collects the orphan.
+            logger.exception("Run %s: failed to persist terminal state", run_id)
+    finally:
+        request.app.state.run_tasks.pop(run_id, None)
 
+
+async def _execute_pipeline_run(
+    run_id: str,
+    request: Request,
+    store: RunStore,
+    record: RunRecord,
+    pipeline: Pipeline,
+    started: float,
+) -> None:
     class RunProgress:
         async def on_step_start(self, step_index: int, total: int, name: str) -> None:
             await _append(
@@ -552,132 +616,73 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
                 ),
             )
 
-    try:
-        result = await pipeline.execute(
-            request.app.state.deps,
-            record.ticker,
-            progress=RunProgress(),
-            lang=record.language,
-            source_artifact_id=record.source_artifact_id,
+    result = await pipeline.execute(
+        request.app.state.deps,
+        record.ticker,
+        progress=RunProgress(),
+        lang=record.language,
+        source_artifact_id=record.source_artifact_id,
+    )
+    duration_s = round(time.monotonic() - started, 1)
+    result_json = _result_to_json(result)
+    artifact_id = result.artifact_id
+    # Resolve the artifact's real type (dcf/lbo/comps/equity_research/...)
+    # from the persisted artifact so the completion events carry true
+    # identity. The run_store's artifact_type column historically held the
+    # opaque "artifact" placeholder; we now store the real type so
+    # list_artifacts and any consumer reflect what was actually produced.
+    artifact_type: str | None = None
+    if artifact_id:
+        artifact_type = await _resolve_artifact_type(request, artifact_id)
+        await store.add_artifact(
+            run_id,
+            artifact_type=artifact_type or "artifact",
+            format="json",
+            file_path=f"/api/artifacts/{artifact_id}",
         )
-        duration_s = round(time.monotonic() - started, 1)
-        result_json = _result_to_json(result)
-        artifact_id = result.artifact_id
-        # Resolve the artifact's real type (dcf/lbo/comps/equity_research/...)
-        # from the persisted artifact so the completion events carry true
-        # identity. The run_store's artifact_type column historically held the
-        # opaque "artifact" placeholder; we now store the real type so
-        # list_artifacts and any consumer reflect what was actually produced.
-        artifact_type: str | None = None
-        if artifact_id:
-            artifact_type = await _resolve_artifact_type(request, artifact_id)
-            await store.add_artifact(
-                run_id,
+        await _append(
+            store,
+            ArtifactReady(
+                event="artifact.ready",
+                run_id=run_id,
                 artifact_type=artifact_type or "artifact",
                 format="json",
-                file_path=f"/api/artifacts/{artifact_id}",
-            )
-            await _append(
-                store,
-                ArtifactReady(
-                    event="artifact.ready",
-                    run_id=run_id,
-                    artifact_type=artifact_type or "artifact",
-                    format="json",
-                    artifact_id=artifact_id,
-                ),
-            )
-        # Append the terminal event BEFORE flipping the run status to a
-        # terminal value (BUG-034). The status column and its terminal event
-        # are two separate awaited commits; the SSE poll loop breaks the moment
-        # it observes status∈{completed,failed} and then fetches trailing
-        # events. If the status flip committed first, a poll iteration could
-        # land in the gap, see "completed", fetch trailing events that don't yet
-        # include run.completed, and break without ever emitting it. Writing the
-        # event first makes the invariant hold: any reader that sees a terminal
-        # status is guaranteed run.completed already exists in run_events.
-        await _append(
-            store,
-            RunCompleted(
-                event="run.completed",
-                run_id=run_id,
-                ticker=record.ticker,
-                duration_s=duration_s,
-                # Point result_url at the artifact when there is one so a plain
-                # consumer of the completion event can fetch the exact product;
-                # fall back to the run url when no artifact was persisted.
-                result_url=(
-                    f"/api/artifacts/{artifact_id}" if artifact_id else f"/api/runs/{run_id}"
-                ),
                 artifact_id=artifact_id,
-                artifact_type=artifact_type,
             ),
         )
-        await store.update_run(
-            run_id,
-            status="completed",
-            completed_at=_iso_now(),
+    # finish_run appends run.completed BEFORE flipping the status (BUG-034,
+    # now mechanical in RunStore): any reader that sees a terminal status is
+    # guaranteed the terminal event already exists in run_events.
+    await store.finish_run(
+        run_id,
+        RunCompleted(
+            event="run.completed",
+            run_id=run_id,
+            ticker=record.ticker,
             duration_s=duration_s,
-            result_text=result.format_summary(),
-            result_json=result_json,
-        )
-        if artifact_id:
-            # A new artifact just landed in the store. Drop the dashboard's
-            # 60s TTL caches so the landing hit-rate + recent-research strip
-            # reflect this run on the next GET instead of up to a minute later
-            # (BUG-20260602-030). Local import: routes.dashboard imports nothing
-            # from routes.runs, but keep the dependency one-directional and
-            # lazy so the module graph stays acyclic regardless of future edits.
-            from finrobot.routes.dashboard import invalidate_dashboard_caches
+            # Point result_url at the artifact when there is one so a plain
+            # consumer of the completion event can fetch the exact product;
+            # fall back to the run url when no artifact was persisted.
+            result_url=(f"/api/artifacts/{artifact_id}" if artifact_id else f"/api/runs/{run_id}"),
+            artifact_id=artifact_id,
+            artifact_type=artifact_type,
+        ),
+        status="completed",
+        completed_at=_iso_now(),
+        duration_s=duration_s,
+        result_text=result.format_summary(),
+        result_json=result_json,
+    )
+    if artifact_id:
+        # A new artifact just landed in the store. Drop the dashboard's
+        # 60s TTL caches so the landing hit-rate + recent-research strip
+        # reflect this run on the next GET instead of up to a minute later
+        # (BUG-20260602-030). Local import: routes.dashboard imports nothing
+        # from routes.runs, but keep the dependency one-directional and
+        # lazy so the module graph stays acyclic regardless of future edits.
+        from finrobot.routes.dashboard import invalidate_dashboard_caches
 
-            invalidate_dashboard_caches()
-    except (
-        ProviderError,
-        ValidationError,
-        ValueError,
-        TypeError,
-        KeyError,
-        AttributeError,
-        RuntimeError,
-        UnexpectedModelBehavior,
-        AgentRunError,
-        OSError,
-        json.JSONDecodeError,
-        httpx.HTTPError,
-    ) as e:
-        # Anything that escapes pipeline execution must transition the run to
-        # `failed`, otherwise the SSE stream at /api/runs/{id}/events keeps
-        # polling `record.status == "running"` forever (it only breaks on
-        # completed/failed) and any client GETting the stream hangs. The old
-        # narrower tuple silently lost TypeError/AttributeError/etc. — the
-        # task died with the exception, status stayed `running`, the test
-        # runner hung, the desktop UI overlay would have hung too. We catch
-        # the broad-but-explicit set here (architecture audit forbids bare
-        # `except Exception`); CancelledError stays unaffected so shutdown
-        # still propagates cleanly.
-        logger.exception("Pipeline %s failed unexpectedly", run_id)
-        # Append run.failed BEFORE flipping status to "failed" — same ordering
-        # invariant as the success branch (BUG-034). A reader that sees a
-        # terminal status must be guaranteed the terminal event already exists,
-        # otherwise the SSE poll loop can break in the gap and never emit
-        # run.failed.
-        await _append(
-            store,
-            RunFailed(
-                event="run.failed",
-                run_id=run_id,
-                error=str(e)[:500] or type(e).__name__,
-            ),
-        )
-        await store.update_run(
-            run_id,
-            status="failed",
-            completed_at=_iso_now(),
-            duration_s=round(time.monotonic() - started, 1),
-            error=str(e)[:500] or type(e).__name__,
-        )
-    finally:
-        request.app.state.run_tasks.pop(run_id, None)
+        invalidate_dashboard_caches()
 
 
 async def _resolve_artifact_type(request: Request, artifact_id: str) -> str | None:

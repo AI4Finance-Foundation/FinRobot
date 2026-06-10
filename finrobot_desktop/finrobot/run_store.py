@@ -368,6 +368,40 @@ class RunStore:
             out.setdefault(record.ticker, record)  # newest first → first wins
         return out
 
+    async def finish_run(
+        self,
+        run_id: str,
+        terminal_event: RunEvent,
+        *,
+        status: RunStatus,
+        completed_at: str | None = None,
+        duration_s: float | None = None,
+        result_text: str | None = None,
+        result_json: dict[str, Any] | None = None,
+        error: str | None = None,
+    ) -> None:
+        """Transition a run to a terminal state — event FIRST, status second.
+
+        The BUG-034 ordering invariant, made mechanical: the SSE poll loop
+        breaks the moment it observes status∈{completed,failed} and then
+        fetches trailing events, so the terminal event MUST be committed
+        before the status flip or a poll landing in the gap never emits it
+        (the client EventSource then reconnect-storms into the "请检查后端服务"
+        banner). runs.py honored this in a comment; debate.py wrote it
+        backwards — an invariant two call sites must share belongs in the
+        store, not in prose.
+        """
+        await self.append_event(run_id, terminal_event)
+        await self.update_run(
+            run_id,
+            status=status,
+            completed_at=completed_at,
+            duration_s=duration_s,
+            result_text=result_text,
+            result_json=result_json,
+            error=error,
+        )
+
     async def append_event(self, run_id: str, event: RunEvent) -> int:
         try:
             conn = await self._ensure_connection()

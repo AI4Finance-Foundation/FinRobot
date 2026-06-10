@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import sqlite3
 import time
 from typing import Any, cast
 
@@ -70,6 +71,20 @@ async def create_debate(body: DebateRequest, request: Request) -> DebateResponse
     The caller streams debate.point / debate.verdict events via the existing
     generic SSE endpoint:  GET /api/runs/{run_id}/events
     """
+    # Same three money-gates as POST /api/runs — debate drives THREE LLM agents
+    # (bull/bear → verify → judge) and was the only LLM-spending endpoint
+    # outside all of them (the ratelimit module docstring even counted "three
+    # endpoints spend real LLM money" — this was the uncounted fourth).
+    startup_error = getattr(request.app.state, "startup_error", None)
+    if startup_error:
+        raise HTTPException(status_code=503, detail=f"Server not ready: {startup_error}")
+    limiter = getattr(request.app.state, "run_rate_limiter", None)
+    if limiter is not None and not limiter.allow_runs(1):
+        raise HTTPException(
+            status_code=429,
+            detail="Rate limit exceeded — too many runs started. Retry shortly.",
+        )
+
     artifact_store = request.app.state.artifact_store
     artifact = await artifact_store.get(body.artifact_id)
     if artifact is None:
@@ -89,12 +104,15 @@ async def create_debate(body: DebateRequest, request: Request) -> DebateResponse
             detail=f"Artifact {body.artifact_id} has structured data unfit for debate: {exc}",
         ) from exc
 
+    # Build agents BEFORE create_run: provider construction raises when the
+    # runtime config broke after boot (revoked key), and failing here leaves
+    # no orphan "created" row behind.
+    settings = request.app.state.deps.settings
+    agents = build_debate_agents(settings)
+
     run_store: RunStore = request.app.state.run_store
     record = await run_store.create_run("debate", body.ticker)
     run_id = record.run_id
-
-    settings = request.app.state.deps.settings
-    agents = build_debate_agents(settings)
 
     # Debate language follows the debated artifact, not the viewer's UI locale —
     # an English report must produce an English debate (ADR-0008). Legacy
@@ -135,40 +153,42 @@ async def _run_debate_task(
     from datetime import datetime, timezone
 
     started = time.monotonic()
-    await run_store.update_run(run_id, status="running")
-    await run_store.append_event(
-        run_id,
-        RunStarted(
-            event="run.started",
-            run_id=run_id,
-            pipeline_type="debate",
-            ticker=evidence_set.ticker,
-            total_steps=3,  # bull/bear → verify → judge
-        ),
-    )
 
     async def _emit(ev: dict[str, Any]) -> None:
         await run_store.append_event(run_id, cast(RunEvent, {**ev, "run_id": run_id}))
 
     try:
+        # The status flip / RunStarted writes live INSIDE the try: a sqlite
+        # error here used to kill the task before any handler existed, leaving
+        # the run stuck at "created" forever (SSE polls a run that will never
+        # finish until the next restart's reconciler).
+        await run_store.update_run(run_id, status="running")
+        await run_store.append_event(
+            run_id,
+            RunStarted(
+                event="run.started",
+                run_id=run_id,
+                pipeline_type="debate",
+                ticker=evidence_set.ticker,
+                total_steps=3,  # bull/bear → verify → judge
+            ),
+        )
         deps = request.app.state.deps
-        await run_debate(evidence_set, agents, emit=_emit, deps=deps, lang=lang)
+        # Debate shares the app-wide LLM concurrency cap with every pipeline
+        # run (BUG-017's Semaphore). It was the only LLM path outside the cap:
+        # N debates + 4 pipelines used to run 3·N+4 concurrent agent streams.
+        # Acquired AFTER the "running" flip so the queue wait is visible as
+        # running, same as Pipeline.execute.
+        async with deps.run_semaphore:
+            await run_debate(evidence_set, agents, emit=_emit, deps=deps, lang=lang)
 
         duration_s = round(time.monotonic() - started, 1)
-        await run_store.update_run(
-            run_id,
-            status="completed",
-            completed_at=datetime.now(tz=timezone.utc).isoformat(),
-            duration_s=duration_s,
-        )
-        # Emit the terminal run.completed event — symmetric with the failure
-        # path's run.failed below and with runs.py::_run_pipeline_impl.  Without
-        # it the frontend debateStore never leaves 'running': the server closes
-        # the SSE stream once status flips to completed, EventSource reads the
-        # close as an error, auto-reconnects, the server immediately closes
-        # again (already completed) → repeat → 8 errors → the catastrophic
-        # "请检查后端服务" banner fires even though the verdict already arrived.
-        await run_store.append_event(
+        # finish_run appends run.completed BEFORE flipping status (BUG-034) —
+        # this path used to do it backwards: a poll landing between the two
+        # commits saw "completed", fetched trailing events without
+        # run.completed, broke, and the client EventSource reconnect-stormed
+        # into the "请检查后端服务" banner this file's own comment describes.
+        await run_store.finish_run(
             run_id,
             RunCompleted(
                 event="run.completed",
@@ -177,6 +197,9 @@ async def _run_debate_task(
                 duration_s=duration_s,
                 result_url=f"/api/runs/{run_id}",
             ),
+            status="completed",
+            completed_at=datetime.now(tz=timezone.utc).isoformat(),
+            duration_s=duration_s,
         )
     except (
         ProviderError,
@@ -189,31 +212,34 @@ async def _run_debate_task(
         UnexpectedModelBehavior,
         AgentRunError,
         OSError,
+        sqlite3.Error,
         json.JSONDecodeError,
         httpx.HTTPError,
     ) as exc:
-        # Task-boundary exception handler: mirrors runs.py::_run_pipeline_impl
-        # (runs.py:302-325).  The set is broad-but-explicit — covers every
-        # concrete failure mode that can escape run_debate: LLM API errors
-        # (AgentRunError, UnexpectedModelBehavior, httpx.HTTPError), output
-        # schema failures (ValidationError), data provider errors (ProviderError),
-        # and standard Python/IO errors.  CancelledError is intentionally omitted
-        # so server shutdown propagates cleanly.  Without this full set a failing
-        # LLM agent would leave the run at status="running" and the SSE stream at
-        # GET /api/runs/{id}/events would hang forever polling a run that will
-        # never complete.
+        # Task-boundary exception handler: mirrors runs.py::_run_pipeline_impl.
+        # The set is broad-but-explicit — covers every concrete failure mode
+        # that can escape run_debate: LLM API errors (AgentRunError,
+        # UnexpectedModelBehavior, httpx.HTTPError), output schema failures
+        # (ValidationError), data provider errors (ProviderError), store errors
+        # (sqlite3.Error — aiosqlite re-raises the stdlib classes, which are
+        # NOT under OSError), and standard Python/IO errors. CancelledError is
+        # intentionally omitted so server shutdown propagates cleanly. Without
+        # this full set a failing LLM agent would leave the run at
+        # status="running" and the SSE stream would hang forever.
         logger.exception("Debate run %s failed", run_id)
         error_msg = str(exc)[:500] or type(exc).__name__
-        await run_store.update_run(
-            run_id,
-            status="failed",
-            completed_at=datetime.now(tz=timezone.utc).isoformat(),
-            duration_s=round(time.monotonic() - started, 1),
-            error=error_msg,
-        )
-        await run_store.append_event(
-            run_id,
-            RunFailed(event="run.failed", run_id=run_id, error=error_msg),
-        )
+        try:
+            await run_store.finish_run(
+                run_id,
+                RunFailed(event="run.failed", run_id=run_id, error=error_msg),
+                status="failed",
+                completed_at=datetime.now(tz=timezone.utc).isoformat(),
+                duration_s=round(time.monotonic() - started, 1),
+                error=error_msg,
+            )
+        except sqlite3.Error:
+            # The store itself is down — nothing more we can persist; the
+            # restart reconciler will collect the orphan.
+            logger.exception("Debate run %s: failed to persist terminal state", run_id)
     finally:
         request.app.state.run_tasks.pop(run_id, None)

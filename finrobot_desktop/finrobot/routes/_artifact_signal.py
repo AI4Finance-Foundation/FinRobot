@@ -28,6 +28,14 @@ from finrobot.engine.data.types import DataType
 
 logger = logging.getLogger(__name__)
 
+# Cap on concurrent quote fetches. A bare gather over every unique ticker in
+# the artifact list (a 500-row store page = up to 500 coroutines) stampedes
+# the provider pool and the event loop at once; the DataLayer's per-provider
+# lock only serialises same-(type,ticker) calls, not distinct tickers. Same
+# value as coverage's _MARKET_FANOUT_CONCURRENCY — one shared budget shape for
+# market fan-outs.
+_QUOTE_FANOUT_CONCURRENCY = 8
+
 
 async def attach_signals(
     summaries: list[ArtifactSummary],
@@ -84,24 +92,28 @@ def _apply_signal(
 
 
 async def _fetch_quotes(tickers: Iterable[str], data_layer: DataLayer) -> dict[str, float]:
-    """Fetch one quote per ticker, concurrently.
+    """Fetch one quote per ticker, concurrently but capped.
 
-    The DataLayer's per-provider lock + cache stampede guard already bound the
-    real outbound calls, so firing these together is safe — it turns an
-    N-ticker serial wait into a single concurrent batch (an N-ticker coverage
-    group dropped from ~N×latency to ~1×). Per-ticker errors leave that ticker
-    out of the result, never raise.
+    Concurrency turns an N-ticker serial wait into ~⌈N/8⌉×latency, while the
+    semaphore keeps a large artifact page (hundreds of unique tickers) from
+    stampeding the provider pool — the DataLayer's per-provider lock only
+    serialises same-(type,ticker) calls, not distinct tickers (same pattern as
+    coverage's market fan-out cap). Per-ticker errors leave that ticker out of
+    the result, never raise.
     """
     ticker_list = list(tickers)
     if not ticker_list:
         return {}
 
+    sem = asyncio.Semaphore(_QUOTE_FANOUT_CONCURRENCY)
+
     async def _one(ticker: str) -> float | None:
-        try:
-            result = await data_layer.fetch_canonical(DataType.PRICE, ticker)
-        except (ProviderError, ValueError, KeyError) as exc:
-            logger.info("price fetch failed for %s while attaching signals: %s", ticker, exc)
-            return None
+        async with sem:
+            try:
+                result = await data_layer.fetch_canonical(DataType.PRICE, ticker)
+            except (ProviderError, ValueError, KeyError) as exc:
+                logger.info("price fetch failed for %s while attaching signals: %s", ticker, exc)
+                return None
         try:
             price = float(result.current_price)
         except (TypeError, ValueError):

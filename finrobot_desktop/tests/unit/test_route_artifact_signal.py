@@ -192,3 +192,22 @@ async def test_quotes_fetched_concurrently_not_serially() -> None:
     )
     assert all(s.signal == "hit" for s in out)
     assert layer.max_active >= 2  # proves overlap; serial loop could only reach 1
+
+
+@pytest.mark.asyncio
+async def test_quote_fanout_capped_by_semaphore() -> None:
+    """A big artifact page (hundreds of unique tickers) must not stampede the
+    provider pool with a bare gather — in-flight fetches are capped at
+    _QUOTE_FANOUT_CONCURRENCY (same budget shape as coverage's market fan-out)."""
+    from finrobot.routes._artifact_signal import _QUOTE_FANOUT_CONCURRENCY
+
+    tickers = [f"T{i:03d}" for i in range(30)]
+    layer = _ConcurrencyTrackingLayer(quotes=dict.fromkeys(tickers, 115.0))
+    out = await attach_signals(
+        [_summary(artifact_id=f"a{i}", ticker=t) for i, t in enumerate(tickers)],
+        layer,  # type: ignore[arg-type]
+        now=NOW,
+    )
+    assert all(s.signal == "hit" for s in out)
+    assert layer.max_active <= _QUOTE_FANOUT_CONCURRENCY
+    assert layer.max_active >= 2  # still concurrent, not degraded to serial

@@ -7,6 +7,8 @@ TTM lag exposure.
 
 from datetime import date, datetime, timezone
 
+import pytest
+
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.contracts import (
     DEGRADED_CCY_INFERRED,
@@ -155,6 +157,15 @@ def test_price_current_price_present_no_fallback_marker():
     p = normalize_price(_price_result(hist, provider="yfinance", current_price=441.0))
     assert p.current_price == 441.0
     assert DEGRADED_PRICE_FALLBACK_CLOSE not in p.provenance.degraded
+
+
+def test_price_double_missing_raises_no_zero_fabrication():
+    """Bug 21: no current_price AND no usable bars → refuse to normalize.
+    The old ``else 0.0`` fallback canonicalized a fabricated $0 quote into the
+    versioned PRICE slot, where it read as a real price for the whole TTL."""
+    for history in ([], [{"date": "2026-05-27"}]):  # empty, and bars without close
+        with pytest.raises(ValueError, match="neither current_price nor any usable price bars"):
+            normalize_price(_price_result(history))
 
 
 def test_price_missing_current_price_falls_back_to_close_with_marker():

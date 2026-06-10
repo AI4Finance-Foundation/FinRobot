@@ -80,8 +80,12 @@ def _financials_raw(warnings: list[str] | None = None) -> DataResult:
 
 
 def _price_raw() -> DataResult:
+    # A dated bar: normalize_price drops undated rows, and a payload with
+    # neither current_price nor a usable bar is now refused outright (the $0
+    # fabrication fix) — these tests are about warnings merging, so give the
+    # fixture an honest close-fallback shape.
     return DataResult(
-        data={"price_history": [{"close": 50.0}]},
+        data={"current_price": 50.0, "price_history": [{"date": "2026-06-01", "close": 50.0}]},
         provider="fmp",
         ticker="TEST",
         data_type="price",

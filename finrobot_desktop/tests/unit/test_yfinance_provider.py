@@ -106,6 +106,32 @@ class TestFetchFinancials:
             with pytest.raises(ProviderError):
                 await provider.fetch("INVALID_TICKER_XYZ", "financials")
 
+    @pytest.mark.asyncio
+    async def test_key_rich_but_priceless_info_raises_provider_error(self):
+        """Bug 21 entry gate: a delisted/OTC residual page can return a key-RICH
+        info dict whose price/cap anchors (regularMarketPrice, currentPrice,
+        marketCap) are ALL None. The old ``len(info) <= 1`` sub-gate let it
+        through, and the priceless payload fabricated a $0 quote downstream."""
+        provider = YFinanceProvider()
+        mock_ticker = _make_mock_ticker(
+            {
+                "regularMarketPrice": None,
+                "currentPrice": None,
+                "marketCap": None,
+                # Residual page noise — plenty of keys, zero price anchors.
+                "longName": "Ghost Holdings Corp",
+                "exchange": "PNK",
+                "quoteType": "EQUITY",
+                "currency": "USD",
+                "symbol": "GHST",
+            }
+        )
+        with patch(
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
+            with pytest.raises(ProviderError, match="not found or returned no data"):
+                await provider.fetch("GHST", "financials")
+
 
 class TestFetchQuote:
     """门一 Step 3: lightweight QUOTE path via fast_info.last_price (no .info)."""
@@ -196,9 +222,7 @@ class TestFetchPriceRange:
             "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
         ):
             with pytest.raises(ProviderError, match="no bars"):
-                await provider.fetch(
-                    "AAPL", "price_range", start="1990-01-01", end="1990-01-02"
-                )
+                await provider.fetch("AAPL", "price_range", start="1990-01-01", end="1990-01-02")
 
 
 class TestFetchNews:
@@ -390,9 +414,9 @@ class TestRateLimitBehavior:
             "_MAX_RETRIES re-introduced — retry-inside-provider conflicts "
             "with DataLayer fallback. See yfinance_provider.py docstring."
         )
-        assert not hasattr(yfinance_provider, "_RETRY_DELAYS"), (
-            "_RETRY_DELAYS re-introduced — see _MAX_RETRIES rationale."
-        )
+        assert not hasattr(
+            yfinance_provider, "_RETRY_DELAYS"
+        ), "_RETRY_DELAYS re-introduced — see _MAX_RETRIES rationale."
 
 
 class TestUnsupportedDataType:

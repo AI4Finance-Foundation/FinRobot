@@ -265,8 +265,13 @@ class YFinanceProvider(DataProvider):
                 and info.get("currentPrice") is None
                 and info.get("marketCap") is None
             ):
-                if info is not None and len(info) <= 1:
-                    raise ProviderError(f"Ticker '{ticker}' not found or returned no data")
+                # All three price/cap anchors are absent → dead page (delisted /
+                # OTC residual), regardless of how many other keys Yahoo still
+                # returns. The old ``len(info) <= 1`` sub-gate let key-rich but
+                # priceless pages through, and their payload fabricated a $0
+                # quote downstream (normalize_price now also refuses — this is
+                # the entry-side twin of that canonical关卡).
+                raise ProviderError(f"Ticker '{ticker}' not found or returned no data")
         except ProviderError:
             raise
         except (

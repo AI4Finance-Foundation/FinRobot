@@ -76,6 +76,16 @@ def normalize_price(result: DataResult) -> NormalizedPrice:
     price_fell_back_to_close = current_price is None and bool(bars)
     if price_fell_back_to_close:
         current_price = bars[-1].close
+    if current_price is None:
+        # No quote AND no usable bars — there is no honest price to
+        # canonicalize. Refuse instead of fabricating: the old 0.0 fallback
+        # flowed a $0 quote into the versioned canonical PRICE slot, where it
+        # read as a real price for the whole TTL (报错一个数字砸招牌).
+        raise ValueError(
+            f"Cannot normalize PRICE for {result.ticker}: provider payload has "
+            f"neither current_price nor any usable price bars "
+            f"(provider={result.provider})."
+        )
 
     degraded: list[str] = []
     if not ohlc_complete:
@@ -108,7 +118,7 @@ def normalize_price(result: DataResult) -> NormalizedPrice:
         ticker=result.ticker,
         quote_currency=(data.get("quote_currency") or "USD").upper(),
         bars=bars,
-        current_price=current_price if current_price is not None else 0.0,
+        current_price=current_price,
         is_ohlc_complete=ohlc_complete,
         exchange=data.get("exchange"),
         # Carried verbatim (str | None); SessionState is derived at read time, not

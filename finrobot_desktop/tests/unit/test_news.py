@@ -488,12 +488,13 @@ class TestClassifyNews:
         assert "INSTRUCTION TO CLASSIFIER" in item_lines[0]
 
     @pytest.mark.asyncio
-    async def test_classify_news_llm_failure_raises(self):
-        """When LLM agent raises, classify_news propagates a RuntimeError.
-
-        We deliberately surface failure instead of silently returning []
-        so that downstream callers can distinguish a real LLM outage from
-        the legitimate "no catalysts" case.
+    async def test_classify_news_agent_error_passes_through_unwrapped(self):
+        """An LLM-runtime failure must propagate as AgentRunError, NOT be
+        re-wrapped in RuntimeError: the pipeline runner's recoverability check
+        is isinstance-based, and the re-wrap demoted a transient 500 during
+        catalyst_analysis to "non-recoverable" — killing the whole 8-step
+        research run at step 2. We still surface failure (never silently
+        return []) so callers can distinguish an outage from "no catalysts".
         """
         from pydantic_ai.exceptions import AgentRunError
 
@@ -512,6 +513,30 @@ class TestClassifyNews:
         with patch("finrobot.engine.analysis.news_classifier.PydanticAgent") as MockAgent:
             mock_agent_instance = AsyncMock()
             mock_agent_instance.run.side_effect = AgentRunError("LLM failed")
+            MockAgent.return_value = mock_agent_instance
+
+            with pytest.raises(AgentRunError):
+                await classify_news(raw_items, mock_deps, ticker="AAPL")
+
+    @pytest.mark.asyncio
+    async def test_classify_news_value_error_still_wrapped(self):
+        """Genuinely non-recoverable parse/contract failures keep the
+        RuntimeError wrap (they should NOT burn retry budget)."""
+        raw_items = [
+            RawNewsItem(
+                title="Some news",
+                source="CNBC",
+                published=datetime(2024, 1, 1, tzinfo=timezone.utc),
+                url="https://example.com",
+            ),
+        ]
+
+        mock_deps = MagicMock()
+        mock_deps.settings.model_name = "test-model"
+
+        with patch("finrobot.engine.analysis.news_classifier.PydanticAgent") as MockAgent:
+            mock_agent_instance = AsyncMock()
+            mock_agent_instance.run.side_effect = ValueError("bad output contract")
             MockAgent.return_value = mock_agent_instance
 
             with pytest.raises(RuntimeError, match="News classification failed"):

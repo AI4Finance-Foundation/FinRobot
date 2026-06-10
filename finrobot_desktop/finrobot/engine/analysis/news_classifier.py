@@ -148,7 +148,16 @@ async def classify_news(
 
     try:
         result = await classification_agent.run(prompt, deps=deps)  # type: ignore[call-overload]
-    except (AgentRunError, ValueError, TypeError) as e:
+    except AgentRunError:
+        # Pass through UNWRAPPED: the pipeline runner's recoverability check
+        # is isinstance-based (AgentRunError → typed-recoverable → retry with
+        # backoff). Re-wrapping as RuntimeError demoted a transient LLM 500
+        # during catalyst_analysis to "non-recoverable" — and killed the whole
+        # 8-step research run at step 2 (every LLM dollar already spent,
+        # no artifact). _execute_thesis preserves the type the same way.
+        logger.warning("News classification failed (typed-recoverable, will retry)")
+        raise
+    except (ValueError, TypeError) as e:
         logger.warning(f"News classification failed: {e}")
         raise RuntimeError(f"News classification failed: {e}") from e
 

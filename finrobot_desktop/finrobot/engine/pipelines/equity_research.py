@@ -744,6 +744,7 @@ async def _execute_technical_analysis(
 
 # Matches a $-prefixed dollar figure: $276, $276.43, $1,234.50, $2172.06, $280.
 # Group 1 is the numeric body (with optional thousands separators / decimals).
+# Group 2 is an optional magnitude suffix ($3.41T, $391.0B, $3.4 billion).
 #
 # The separated alternative requires AT LEAST ONE comma group (``+``, not ``*``):
 # with ``*`` it also matched a bare 4+ digit number's FIRST THREE digits and
@@ -753,7 +754,19 @@ async def _execute_technical_analysis(
 # ``$2172.062.06`` garbage shipped in the MU 2026-06-07 basis. With ``+`` the
 # separated branch only matches comma-grouped numbers and bare runs of digits
 # (any length) fall through to the second branch and match in full.
-_DOLLAR_RE = re.compile(r"\$\s?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)")
+#
+# The suffix MUST be consumed by the match: without it, "$3.41T" (a peer
+# market cap the thesis prompt itself injects via fmt_market_cap) matched as
+# "$3.41", failed the whitelist, and was rewritten to the canonical target —
+# producing "$276.43T". A magnitude-suffixed amount is categorically not a
+# per-share target, so the reconciler skips it entirely; fabricated big
+# amounts are the report-level drift scanner's job (operators/report_drift),
+# which parses the same suffixes and compares against all numeric leaves.
+_DOLLAR_RE = re.compile(
+    r"\$\s?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
+    r"(\s?(?:[KMBT]\b|million\b|billion\b|trillion\b|bn\b|mn\b|tn\b))?",
+    re.IGNORECASE,
+)
 
 # A prose $-amount may legitimately differ from the canonical weighted target
 # when it is quoting a *per-method* mid (e.g. "DCF says $5.88, comps say $19.54").
@@ -811,6 +824,10 @@ def _reconcile_narrative_targets(
 
         def _sub(match: re.Match[str]) -> str:
             nonlocal drift_found
+            # Magnitude-suffixed amounts ($3.41T market cap, $391.0B EV) are
+            # never per-share targets — out of scope for target reconciliation.
+            if match.group(2):
+                return match.group(0)
             try:
                 value = float(match.group(1).replace(",", ""))
             except ValueError:

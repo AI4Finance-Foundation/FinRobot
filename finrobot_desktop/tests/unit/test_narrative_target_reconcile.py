@@ -57,6 +57,43 @@ def test_drifting_prose_amount_is_neutralized_to_canonical(
     )
 
 
+def test_magnitude_suffixed_amounts_are_never_rewritten() -> None:
+    """$3.41T / $391.0B / $3.4 billion are market-cap/EV-scale facts, not
+    per-share targets. The reconciler used to match only the numeric body
+    ("$3.41"), fail the whitelist, and rewrite it to the canonical target —
+    shipping "$276.43T". Suffixed amounts are out of scope entirely (the
+    report-level drift scanner owns them)."""
+    thesis = _thesis(
+        competitor_analysis=(
+            "Versus megacap peers (market_cap=$3.41T) and an EV of $391.0B, "
+            "the segment generates $3.4 billion in services revenue and "
+            "carries $150B of net cash; smaller rival sits at $920.5M."
+        ),
+    )
+
+    out, drift = _reconcile_narrative_targets(
+        thesis, canonical_target=276.43, allowed_mids=[260.0, 295.0]
+    )
+
+    assert drift is False
+    assert out.competitor_analysis == thesis.competitor_analysis
+
+
+def test_plain_drift_amount_followed_by_word_still_rewritten() -> None:
+    """The optional-suffix group must not swallow ordinary words: "$280 Buyback"
+    is still a plain drifting per-share amount (B is followed by word chars, so
+    the \\b suffix boundary fails) and must be neutralized."""
+    thesis = _thesis(
+        valuation_overview="Fair value near $280 Buyback support adds a floor.",
+    )
+
+    out, drift = _reconcile_narrative_targets(thesis, canonical_target=276.43, allowed_mids=[])
+
+    assert drift is True
+    assert out.valuation_overview is not None
+    assert "$276.43 Buyback" in out.valuation_overview
+
+
 def test_happy_path_matching_amount_is_untouched() -> None:
     overview = "Our weighted target of $276.43 reflects a balanced DCF/comps blend."
     thesis = _thesis(valuation_overview=overview)

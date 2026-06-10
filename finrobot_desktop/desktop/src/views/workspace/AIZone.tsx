@@ -523,6 +523,7 @@ function OtherArtifacts({
               </span>
               <span style={{ color: 'var(--text-dim)', fontSize: 10.5 }}>
                 {formatDate(a.created_at, locale, 'short')} · {ageLabel(a.created_at)}
+                {a.primary_provider ? ` · ${a.primary_provider}` : ''}
               </span>
               <span style={{ color: 'var(--secondary)', textDecoration: 'underline' }}>
                 {zh ? '打开 →' : 'Open →'}
@@ -1118,6 +1119,7 @@ function HotState({
                   </span>
                   <span style={{ color: 'var(--text-dim)', fontSize: 10.5 }}>
                     {formatDate(a.created_at, locale, 'short')} · {ageLabel(a.created_at)}
+                    {a.primary_provider ? ` · ${a.primary_provider}` : ''}
                   </span>
                   <span
                     style={{

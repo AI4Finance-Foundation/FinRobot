@@ -215,3 +215,13 @@ class ArtifactSummary(BaseModel):
             "produced before the narrative bump."
         ),
     )
+    primary_provider: str | None = Field(
+        default=None,
+        description=(
+            "Data provider that fed this artifact (inputs.data_source), mirrored "
+            "into a summary column at save time (门四溯源半) so the Library list "
+            "shows the source without payload reads. None for the builders' "
+            "'unknown' placeholder and for rows written before the column "
+            "existed (backfilled by the projection rebuild)."
+        ),
+    )

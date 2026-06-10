@@ -521,3 +521,72 @@ async def test_save_is_upsert_on_id_conflict(store: SqliteArtifactStore) -> None
     # Still only one row
     summaries = await store.list_by_ticker(ticker="AAPL")
     assert len(summaries) == 1
+
+
+# ── 门四溯源半: primary_provider mirror column ───────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_summary_carries_primary_provider(store: SqliteArtifactStore) -> None:
+    """save() must extract inputs.data_source into the primary_provider column
+    so the Library list can show WHICH provider fed each artifact without
+    reloading payloads (溯源驾驶舱: provider visible at a glance)."""
+    art = _make_artifact()  # conftest sets inputs.data_source="yfinance"
+    await store.save(art)
+    summaries = await store.list_by_ticker(ticker="AAPL")
+    assert summaries[0].primary_provider == "yfinance"
+
+
+@pytest.mark.asyncio
+async def test_unknown_provider_normalizes_to_none(store: SqliteArtifactStore) -> None:
+    """builders fall back to data_source="unknown" when no structured step
+    matched — that placeholder must not render as a fake provider chip."""
+    art = _make_artifact(id="art_unknown_src")
+    art.inputs.data_source = "unknown"
+    await store.save(art)
+    summaries = await store.list_by_ticker(ticker="AAPL")
+    assert summaries[0].primary_provider is None
+
+
+@pytest.mark.asyncio
+async def test_legacy_db_without_column_self_migrates(tmp_path: Path) -> None:
+    """Opening a pre-门四 artifacts.db (no primary_provider column) must
+    ALTER the table in place — existing installs can't lose their store."""
+    db = tmp_path / "legacy.db"
+    conn = sqlite3.connect(db)
+    conn.execute(
+        """
+        CREATE TABLE artifacts (
+            id TEXT PRIMARY KEY, ticker TEXT, cross_tickers TEXT NOT NULL DEFAULT '[]',
+            type TEXT NOT NULL, verdict TEXT, created_at TEXT NOT NULL,
+            last_viewed_at TEXT, archived INTEGER NOT NULL DEFAULT 0,
+            entry_price REAL, target_price REAL, target_date TEXT,
+            source TEXT, headline TEXT, tagline TEXT, payload TEXT NOT NULL
+        )
+        """
+    )
+    legacy = _make_artifact(id="art_legacy_row")
+    conn.execute(
+        "INSERT INTO artifacts (id, ticker, type, created_at, payload) VALUES (?, ?, ?, ?, ?)",
+        (
+            legacy.id,
+            legacy.ticker,
+            str(legacy.type),
+            legacy.meta.created_at.isoformat(),
+            legacy.model_dump_json(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    s = SqliteArtifactStore(db_path=db)
+    try:
+        # legacy row reads back with a NULL column (no crash) …
+        summaries = await s.list_by_ticker(ticker="AAPL")
+        assert summaries[0].primary_provider is None
+        # … and the projection rebuild backfills it from the payload.
+        await s.rebuild_summaries()
+        summaries = await s.list_by_ticker(ticker="AAPL")
+        assert summaries[0].primary_provider == "yfinance"
+    finally:
+        await s.close()

@@ -143,3 +143,23 @@ def _coerce_positive_float(value: Any) -> float | None:
     except (TypeError, ValueError):
         return None
     return f if f > 0 else None
+
+
+def extract_primary_provider(artifact: "Artifact") -> str | None:
+    """The data provider that fed this artifact (``inputs.data_source``).
+
+    Mirrored into the ``primary_provider`` summary column (门四溯源半) so the
+    Library list shows at a glance which source produced each snapshot and the
+    diff view can flag a provider switch without payload reads.
+
+    Returns None when the builder recorded the "unknown" placeholder (no
+    structured step matched) or an empty string — a fake provider chip is
+    worse than no chip.
+    """
+    raw = artifact.inputs.data_source if artifact.inputs else None
+    if not isinstance(raw, str):
+        return None
+    stripped = raw.strip()
+    if not stripped or stripped.lower() == "unknown":
+        return None
+    return stripped

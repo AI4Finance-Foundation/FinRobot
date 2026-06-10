@@ -44,6 +44,7 @@ from finrobot.artifact.models import Artifact, ArtifactSummary, ArtifactType
 from finrobot.engine.compute.operators.signal import Signal  # noqa: F401 — used in ArtifactSummary
 from finrobot.artifact.summary_extractor import (
     extract_entry_price,
+    extract_primary_provider,
     extract_tagline,
     extract_target_date,
     extract_target_price,
@@ -69,9 +70,19 @@ CREATE TABLE IF NOT EXISTS artifacts (
     source         TEXT,
     headline       TEXT,
     tagline        TEXT,
+    primary_provider TEXT,
     payload        TEXT NOT NULL
 )
 """
+
+# Columns added after the table first shipped. _conn_ready ALTERs them into an
+# existing db (SQLite's CREATE TABLE IF NOT EXISTS never adds columns), so an
+# install upgrading across the bump keeps its store. Pair every entry with a
+# SUMMARY_PROJECTION_VERSION bump so rebuild_summaries backfills the values
+# from the stored payloads on next boot.
+_MIGRATED_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("primary_provider", "TEXT"),  # 门四溯源半, 2026-06-10
+)
 
 _CREATE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_artifacts_ticker_created ON artifacts(ticker, created_at DESC)",
@@ -84,7 +95,8 @@ _CREATE_INDEXES = [
 
 _SUMMARY_COLUMNS = (
     "id, ticker, cross_tickers, type, verdict, created_at, archived, "
-    "entry_price, target_price, target_date, source, headline, tagline"
+    "entry_price, target_price, target_date, source, headline, tagline, "
+    "primary_provider"
 )
 
 # Version of the mirror-column projection (the summary_extractor rules behind
@@ -95,7 +107,9 @@ _SUMMARY_COLUMNS = (
 # written at save() time and are read as source-of-truth (BUG-065). The applied
 # version is persisted in the artifacts.db header via PRAGMA user_version, so
 # the backfill runs exactly once per bump, not on every boot.
-SUMMARY_PROJECTION_VERSION = 1
+# v2 — 2026-06-10: primary_provider column added (门四溯源半); bump so legacy
+# rows get the provider backfilled from their payload's inputs.data_source.
+SUMMARY_PROJECTION_VERSION = 2
 
 
 def _now() -> datetime:
@@ -126,6 +140,7 @@ def _row_to_summary(row: tuple[Any, ...]) -> ArtifactSummary:
         source,
         headline,
         tagline,
+        primary_provider,
     ) = row
     return ArtifactSummary(
         id=id_,
@@ -142,6 +157,7 @@ def _row_to_summary(row: tuple[Any, ...]) -> ArtifactSummary:
         signal=None,
         verdict=verdict,
         tagline=tagline,
+        primary_provider=primary_provider,
     )
 
 
@@ -170,6 +186,7 @@ def summary_from_artifact(artifact: Artifact) -> ArtifactSummary:
         signal=None,
         verdict=extract_verdict(artifact),
         tagline=extract_tagline(artifact),
+        primary_provider=extract_primary_provider(artifact),
     )
 
 
@@ -194,6 +211,7 @@ def _artifact_to_row(artifact: Artifact) -> tuple[Any, ...]:
         artifact.meta.source,
         headline,
         extract_tagline(artifact),
+        extract_primary_provider(artifact),
         artifact.model_dump_json(),
     )
 
@@ -225,6 +243,17 @@ class SqliteArtifactStore:
                 try:
                     await _paths.configure_connection(conn)
                     await conn.execute(_CREATE_TABLE)
+                    # CREATE TABLE IF NOT EXISTS never adds columns to an
+                    # existing db — ALTER the post-ship columns in so upgrading
+                    # installs keep their store (values backfilled by the
+                    # SUMMARY_PROJECTION_VERSION rebuild at startup).
+                    async with conn.execute("PRAGMA table_info(artifacts)") as cur:
+                        existing_cols = {row[1] for row in await cur.fetchall()}
+                    for col_name, col_type in _MIGRATED_COLUMNS:
+                        if col_name not in existing_cols:
+                            await conn.execute(
+                                f"ALTER TABLE artifacts ADD COLUMN {col_name} {col_type}"
+                            )
                     for stmt in _CREATE_INDEXES:
                         await conn.execute(stmt)
                     await conn.commit()
@@ -242,8 +271,8 @@ class SqliteArtifactStore:
             INSERT INTO artifacts (
                 id, ticker, cross_tickers, type, verdict, created_at,
                 last_viewed_at, archived, entry_price, target_price,
-                target_date, source, headline, tagline, payload
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                target_date, source, headline, tagline, primary_provider, payload
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 ticker = excluded.ticker,
                 cross_tickers = excluded.cross_tickers,
@@ -258,6 +287,7 @@ class SqliteArtifactStore:
                 source = excluded.source,
                 headline = excluded.headline,
                 tagline = excluded.tagline,
+                primary_provider = excluded.primary_provider,
                 payload = excluded.payload
             """,
             row,
@@ -509,7 +539,8 @@ class SqliteArtifactStore:
                     target_price = ?,
                     target_date = ?,
                     tagline = ?,
-                    headline = ?
+                    headline = ?,
+                    primary_provider = ?
                 WHERE id = ?
                 """,
                 (
@@ -519,6 +550,7 @@ class SqliteArtifactStore:
                     target_date.isoformat() if target_date else None,
                     extract_tagline(artifact),
                     headline,
+                    extract_primary_provider(artifact),
                     artifact_id,
                 ),
             )

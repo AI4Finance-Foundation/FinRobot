@@ -509,6 +509,20 @@ class DCFInputs(BaseModel):
         description="Maps assumption field names to their reasoning/source",
     )
 
+    inputs_fetched_at: datetime | None = Field(
+        default=None,
+        description=(
+            "Wall-clock time the market/financial inputs behind this seed were "
+            "fetched (= FinancialData.timestamp, the canonical fetch time). "
+            "Stamped by seed_dcf_inputs so every surface that prints a DCF/WACC "
+            "(REST /dcf-seed, what-if, chat Monte-Carlo, artifacts via "
+            "DCFResult.inputs) can show 'inputs as of X' — 门四溯源半. None for "
+            "direct construction (user-supplied REST bodies have no fetch time; "
+            "never fabricate a now()) and for JSON-round-tripped legacy "
+            "artifacts (read-compat, ttm_quarter_ends precedent)."
+        ),
+    )
+
 
 class MarketImpliedCheck(BaseModel):
     """Reverse-DCF reality check: what the CURRENT market price implies.

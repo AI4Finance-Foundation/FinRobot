@@ -567,6 +567,10 @@ def seed_dcf_inputs(
         # tags its outputs and the diff formatter never assumes USD.
         currency=financials.quote_currency,
         assumption_provenance=prov,
+        # 门四溯源半: when these inputs were fetched (canonical fetch time),
+        # so every DCF/WACC surface can print "inputs as of X". Pure: copied
+        # from the snapshot, never a wall-clock call.
+        inputs_fetched_at=financials.timestamp,
     )
 
 

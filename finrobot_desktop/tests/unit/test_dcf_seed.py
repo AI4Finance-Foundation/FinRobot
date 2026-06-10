@@ -714,3 +714,40 @@ class TestForwardGrowthSeed:
         prov = inputs.assumption_provenance["revenue_growth_rates"]
         assert "FY1-3" in prov
         assert "FY1-6" not in prov
+
+
+class TestInputsFetchedAtProvenance:
+    """门四溯源半: the seeded DCFInputs must carry WHEN its market/financial
+    inputs were fetched, so every surface that prints a DCF (REST /dcf-seed,
+    what-if, chat MC, artifact) can show "inputs as of X" without an artifact
+    envelope. Stamped from FinancialData.timestamp — the canonical fetch time —
+    never from a wall clock (the operator stays pure)."""
+
+    def test_seed_stamps_inputs_fetched_at_from_financials(self) -> None:
+        fin = _aapl_financials()
+        inputs = seed_dcf_inputs(fin, _aapl_historical())
+        assert inputs.inputs_fetched_at == fin.timestamp
+
+    def test_direct_construction_defaults_to_none(self) -> None:
+        """User-supplied inputs (REST /dcf body) have no fetch time — the field
+        must stay honestly None, never a fabricated now()."""
+        from finrobot.engine.models.financial import DCFInputs
+
+        inputs = DCFInputs(
+            revenue_base=391e9,
+            revenue_growth_rates=[0.05] * 5,
+            ebitda_margin=0.33,
+            tax_rate=0.16,
+            capex_pct_revenue=0.025,
+            nwc_pct_revenue=0.005,
+            terminal_growth_rate=0.025,
+            risk_free_rate=0.043,
+            beta=1.25,
+            equity_risk_premium=0.046,
+            cost_of_debt=0.04,
+            debt_ratio=0.03,
+            net_debt=41e9,
+            shares_outstanding=15.1e9,
+            da_pct_revenue=0.03,
+        )
+        assert inputs.inputs_fetched_at is None

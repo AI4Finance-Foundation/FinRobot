@@ -54,6 +54,13 @@ export interface ArtifactSummaryV5 {
    * None for legacy artifacts produced before the narrative bump.
    */
   tagline?: string | null
+  /**
+   * Data provider that fed this artifact (backend inputs.data_source, mirrored
+   * to a summary column at save time — 门四溯源半). null for the backend's
+   * "unknown" placeholder and for legacy rows until the projection rebuild
+   * backfills them.
+   */
+  primary_provider?: string | null
 }
 
 /** Mirror of `engine.compute.signal.HitRateStats` (PR1). */

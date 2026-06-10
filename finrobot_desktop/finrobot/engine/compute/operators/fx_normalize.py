@@ -25,6 +25,8 @@ peer-spread noise floor.
 
 from __future__ import annotations
 
+import math
+
 from finrobot.engine.models.financial import CompanyFinancials, FinancialData
 
 
@@ -316,7 +318,10 @@ def normalize_financialdata_to_usd(
 
 
 def _validate_rate(rate: float, ticker: str, src_ccy: str, kind: str) -> None:
-    if rate <= 0 or rate != rate:  # NaN guard
+    # isfinite rejects NaN AND ±Inf — `rate <= 0 or rate != rate` lets +Inf
+    # through (positive, equal to itself) and an Inf rate fabricates Inf USD
+    # line items downstream.
+    if rate <= 0 or not math.isfinite(rate):
         raise ValueError(
             f"{kind}_fx_rate_to_usd must be positive and finite, got {rate!r} "
             f"for {ticker} ({src_ccy} → USD)"

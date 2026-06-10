@@ -420,6 +420,13 @@ class TestFinancialDataRateValidation:
         fd = _fd()
         normalize_financialdata_to_usd(fd, -9.9, float("nan"))
 
+    def test_positive_inf_reporting_rate_raises(self):
+        """+Inf is positive and equal to itself — the old `<=0 or x!=x` guard
+        let it through, fabricating Inf USD line items. Explicit rejection."""
+        fd = _fd(reporting_currency="TWD", quote_currency="USD")
+        with pytest.raises(ValueError, match="reporting_fx_rate_to_usd"):
+            normalize_financialdata_to_usd(fd, float("inf"), 1.0)
+
 
 class TestFinancialDataPeRatio:
     """P/E must be re-derived from same-currency USD inputs at the FX boundary.
@@ -480,6 +487,14 @@ class TestRateValidation:
         with pytest.raises(ValueError, match="reporting_fx_rate_to_usd"):
             normalize_company_to_usd(
                 company, reporting_fx_rate_to_usd=float("nan"), quote_fx_rate_to_usd=1.0
+            )
+
+    def test_positive_inf_quote_rate_raises(self):
+        """+Inf passes a naive `<=0 or x!=x` guard; must be rejected explicitly."""
+        company = _peer(ticker="W", reporting_currency="USD", quote_currency="EUR")
+        with pytest.raises(ValueError, match="quote_fx_rate_to_usd"):
+            normalize_company_to_usd(
+                company, reporting_fx_rate_to_usd=1.0, quote_fx_rate_to_usd=float("inf")
             )
 
     def test_unused_rate_not_validated(self):

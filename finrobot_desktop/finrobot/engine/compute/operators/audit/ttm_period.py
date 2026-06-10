@@ -83,5 +83,24 @@ def audit_ttm_period(fin: FinancialData) -> list[Finding]:
                 ),
             )
         )
+    elif len(ordered) > _EXPECTED_QUARTERS:
+        # The verifier's founding defect class cuts BOTH ways: five normally
+        # spaced quarter-ends (a restatement shipping old+new rows side by
+        # side) pass every pairwise gap check yet sum 15 months into the
+        # "trailing twelve" — overstating TTM ~25% with zero warning. Counting
+        # only the short side defended half the invariant.
+        findings.append(
+            Finding(
+                field_key=_FIELD_KEY,
+                check="ttm_quarters_excess",
+                severity="blocked_field",
+                evidence=(
+                    f"{fin.ticker}: TTM built from {len(ordered)} quarter-ends, not "
+                    f"{_EXPECTED_QUARTERS} — an extra period is summed into the "
+                    f"trailing-twelve-month aggregate (provider restatement drift), "
+                    f"overstating it and every ratio built on it."
+                ),
+            )
+        )
 
     return findings

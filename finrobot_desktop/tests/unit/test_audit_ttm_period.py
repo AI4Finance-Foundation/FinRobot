@@ -94,3 +94,26 @@ class TestNoData:
     def test_empty_quarter_ends_no_finding(self):
         # yfinance / annual snapshots carry no per-quarter dates — nothing to audit.
         assert audit_ttm_period(_fd([])) == []
+
+
+class TestExcessQuarters:
+    def test_five_normally_spaced_quarters_blocked(self):
+        """Restatement drift: the provider ships old+new rows side by side —
+        five quarter-ends, every pairwise gap a normal ~91d. The pairwise
+        checks pass, but the TTM aggregate sums 15 months into the "trailing
+        twelve" (~25% overstated). The count check must defend BOTH sides,
+        not only the short one."""
+        ends = [
+            date(2026, 3, 31),
+            date(2025, 12, 31),
+            date(2025, 9, 30),
+            date(2025, 6, 30),
+            date(2025, 3, 31),
+        ]
+        findings = audit_ttm_period(_fd(ends))
+        assert ("ttm_period", "ttm_quarters_excess", "blocked_field") in _checks(findings)
+
+    def test_exactly_four_quarters_not_flagged_as_excess(self):
+        ends = [date(2026, 3, 31), date(2025, 12, 31), date(2025, 9, 30), date(2025, 6, 30)]
+        findings = audit_ttm_period(_fd(ends))
+        assert not any(f.check == "ttm_quarters_excess" for f in findings)

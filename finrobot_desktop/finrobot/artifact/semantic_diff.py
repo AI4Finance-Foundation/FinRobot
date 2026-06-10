@@ -540,6 +540,90 @@ def _valuation_method_mid(art: Artifact, method_name: str) -> float | None:
     return None
 
 
+def _market_implied_item(
+    a_dcf: dict[str, Any] | None,
+    b_dcf: dict[str, Any] | None,
+) -> DeltaItem | None:
+    """The reverse-DCF market-implied-growth diff — the attributable headline for
+    REVIEW-state reports where the DCF fair value (``implied_price``) is withheld
+    and shows "— → —".
+
+    Two regimes, mirroring ``MarketImpliedCheck``:
+      • reachable (``implied_growth`` present, ``growth_unreachable`` false) → a
+        plain percent delta (e.g. 44.5% → 44.0%), fully comparable / attributable.
+      • unreachable (``implied_growth`` None) → the price is above any growth the
+        solver can reach (option-value stock). We never run a percent value
+        through this row in that case; instead the side reads "Unreachable" and
+        the ``ceiling_price`` it tops out at is carried in ``caliber_note`` — a
+        $ ceiling must never be formatted with the percent caliber.
+    """
+    mi_a = a_dcf.get("market_implied") if isinstance(a_dcf, dict) else None
+    mi_b = b_dcf.get("market_implied") if isinstance(b_dcf, dict) else None
+    if not isinstance(mi_a, dict) and not isinstance(mi_b, dict):
+        return None
+
+    cal = REGISTRY["implied_growth"]
+
+    def _side(mi: object) -> tuple[float | None, bool, float | None, int | None]:
+        if not isinstance(mi, dict):
+            return None, False, None, None
+        return (
+            _num(mi.get("implied_growth")),
+            bool(mi.get("growth_unreachable")),
+            _num(mi.get("ceiling_price")),
+            (
+                int(mi["horizon_years"])
+                if isinstance(mi.get("horizon_years"), (int, float))
+                else None
+            ),
+        )
+
+    g_a, unreach_a, ceil_a, hz_a = _side(mi_a)
+    g_b, unreach_b, ceil_b, hz_b = _side(mi_b)
+    horizon = hz_b if hz_b is not None else hz_a
+
+    # Reachable regime on both sides → a clean, comparable percent delta. Reuse
+    # _numeric_item so the pct badge / direction / "16.6% vs 16.6% is flat" logic
+    # stays in one place; layer the horizon onto the caliber note.
+    if not unreach_a and not unreach_b and (g_a is not None or g_b is not None):
+        item = _numeric_item(cal, g_a, g_b, currency=None)
+        if horizon is not None:
+            hz_note = f"{horizon}y"
+            item.caliber_note = f"{item.caliber_note}；{hz_note}" if item.caliber_note else hz_note
+        return item
+
+    # Unreachable on at least one side → option-value regime; never coerce a $
+    # ceiling into a percent. Show the regime per side and footnote the ceiling.
+    def _fmt_growth(g: float | None, unreach: bool) -> str:
+        if unreach or g is None:
+            return "Unreachable"
+        return format_caliber_value(cal, g)
+
+    fmt_old = _fmt_growth(g_a, unreach_a)
+    fmt_new = _fmt_growth(g_b, unreach_b)
+
+    ceil_parts: list[str] = []
+    if unreach_a and ceil_a is not None:
+        ceil_parts.append(f"v1 ≤ ${ceil_a:,.2f}")
+    if unreach_b and ceil_b is not None:
+        ceil_parts.append(f"v2 ≤ ${ceil_b:,.2f}")
+    note = "现金流上限 " + " · ".join(ceil_parts) if ceil_parts else None
+
+    return DeltaItem(
+        key="implied_growth",
+        label_zh=cal.label_zh,
+        label_en=cal.label_en,
+        old_value="Unreachable" if (unreach_a or g_a is None) else g_a,
+        new_value="Unreachable" if (unreach_b or g_b is None) else g_b,
+        formatted_old=fmt_old,
+        formatted_new=fmt_new,
+        direction="flat",
+        sentiment="neutral",
+        comparable=False,
+        caliber_note=note,
+    )
+
+
 def _peer_set_item(a: Artifact, b: Artifact) -> tuple[DeltaItem | None, ComparabilityFlag | None]:
     old = _peer_tickers(a)
     new = _peer_tickers(b)
@@ -695,6 +779,13 @@ def build_semantic_delta(a: Artifact, b: Artifact) -> SemanticDelta:
                 currency=currency,
             )
         )
+        # Reverse-DCF market-implied growth — the attributable headline when the
+        # DCF fair value above is withheld (REVIEW → "— → —"). Appended right
+        # after implied_price so the diff promotes "what growth the price demands"
+        # over a blank fair-value row. None when neither side carries it.
+        mi_item = _market_implied_item(a_dcf, b_dcf)
+        if mi_item is not None:
+            conclusion.append(mi_item)
 
     # — drivers (B section) —
     overrides_a = (

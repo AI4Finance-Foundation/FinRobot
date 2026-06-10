@@ -59,10 +59,17 @@ def _equity_artifact(
     formula_id: str = "equity_research_dcf_standard_with_da_v2",
     data_source: str = "yfinance",
     fetched_at: datetime | None = None,
+    market_implied: dict[str, Any] | None = None,
 ) -> Artifact:
     """Build an equity_research artifact whose DCFResult is computed for real."""
     dcf = calculate_dcf(inputs)
     dcf_dump: dict[str, Any] = dcf.model_dump(mode="json")
+    if market_implied is not None:
+        # calculate_dcf has no current_price arg, so it never reverse-solves the
+        # market-implied growth; the pipeline fills DCFResult.market_implied via a
+        # separate market_implied_check pass. Inject a frozen payload here to mirror
+        # the REVIEW-state artifacts the diff renders.
+        dcf_dump["market_implied"] = market_implied
     ts = fetched_at or datetime(2026, 5, 13, 10, 0, tzinfo=UTC)
     structured: dict[str, Any] = {
         "financial_modeling": dcf_dump,
@@ -156,6 +163,119 @@ class TestConclusion:
             if not it.comparable:
                 assert it.pct_change is None
                 assert it.formatted_pct_change is None
+
+
+class TestMarketImpliedGrowth:
+    """Reverse-DCF market-implied-growth row — the attributable conclusion line
+    for REVIEW reports where the DCF fair value (implied_price) is withheld.
+
+    Frozen payloads mirror two real TSLA REVIEW artifacts:
+      • reachable: implied_growth 0.4402 over a 10y horizon (e96c34)
+      • unreachable: growth_unreachable=True, ceiling $301.96 at 50% (6cd0ef)
+    """
+
+    _REACHABLE_A = {
+        "horizon_years": 10,
+        "implied_growth": 0.44998,
+        "implied_wacc": None,
+        "growth_unreachable": False,
+        "growth_ceiling": None,
+        "ceiling_price": None,
+    }
+    _REACHABLE_B = {
+        "horizon_years": 10,
+        "implied_growth": 0.44016,
+        "implied_wacc": None,
+        "growth_unreachable": False,
+        "growth_ceiling": None,
+        "ceiling_price": None,
+    }
+    _UNREACHABLE = {
+        "horizon_years": 10,
+        "implied_growth": None,
+        "implied_wacc": None,
+        "growth_unreachable": True,
+        "growth_ceiling": 0.5,
+        "ceiling_price": 301.96,
+    }
+
+    def test_reachable_both_sides_is_percent_delta(self) -> None:
+        a = _equity_artifact(
+            "art_v1",
+            _inputs(),
+            recommendation="REVIEW",
+            current_price=391.0,
+            market_implied=self._REACHABLE_A,
+        )
+        b = _equity_artifact(
+            "art_v2",
+            _inputs(),
+            recommendation="REVIEW",
+            current_price=391.99,
+            market_implied=self._REACHABLE_B,
+        )
+        delta = build_semantic_delta(a, b)
+        mi = next(it for it in delta.conclusion if it.key == "implied_growth")
+        assert mi.formatted_old == "45.0%"
+        assert mi.formatted_new == "44.0%"
+        assert mi.direction == "down"
+        # horizon carried in the note, not mis-rendered as a value
+        assert mi.caliber_note is not None and "10y" in mi.caliber_note
+        # percent row is comparable / attributable, carries a pct badge
+        assert mi.comparable is True
+        assert mi.formatted_pct_change is not None
+
+    def test_unreachable_shows_regime_not_percent(self) -> None:
+        # A $ ceiling must NEVER be formatted through the percent caliber.
+        a = _equity_artifact(
+            "art_v1",
+            _inputs(),
+            recommendation="REVIEW",
+            current_price=391.0,
+            market_implied=self._UNREACHABLE,
+        )
+        b = _equity_artifact(
+            "art_v2",
+            _inputs(),
+            recommendation="REVIEW",
+            current_price=391.0,
+            market_implied=self._UNREACHABLE,
+        )
+        delta = build_semantic_delta(a, b)
+        mi = next(it for it in delta.conclusion if it.key == "implied_growth")
+        assert mi.formatted_old == "Unreachable"
+        assert mi.formatted_new == "Unreachable"
+        # ceiling carried as $ context in the note, never as a "30196.0%" value
+        assert mi.caliber_note is not None and "$301.96" in mi.caliber_note
+        assert "%" not in mi.caliber_note
+        assert mi.comparable is False
+
+    def test_regime_shift_reachable_to_unreachable(self) -> None:
+        a = _equity_artifact(
+            "art_v1",
+            _inputs(),
+            recommendation="REVIEW",
+            current_price=391.0,
+            market_implied=self._REACHABLE_B,
+        )
+        b = _equity_artifact(
+            "art_v2",
+            _inputs(),
+            recommendation="REVIEW",
+            current_price=420.0,
+            market_implied=self._UNREACHABLE,
+        )
+        delta = build_semantic_delta(a, b)
+        mi = next(it for it in delta.conclusion if it.key == "implied_growth")
+        assert mi.formatted_old == "44.0%"
+        assert mi.formatted_new == "Unreachable"
+
+    def test_absent_market_implied_emits_no_row(self) -> None:
+        # Plain (non-REVIEW) artifacts without market_implied get no extra row.
+        a = _equity_artifact("art_v1", _inputs(), recommendation="BUY", current_price=170.0)
+        b = _equity_artifact("art_v2", _inputs(), recommendation="BUY", current_price=170.0)
+        delta = build_semantic_delta(a, b)
+        assert not any(it.key == "implied_growth" for it in delta.conclusion)
 
 
 class TestAttribution:

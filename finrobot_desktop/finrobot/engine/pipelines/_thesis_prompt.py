@@ -249,6 +249,37 @@ def build_thesis_prompt(
             f"  - financial_modeling.terminal_growth_rate: "
             f"{dcf_for_prompt.inputs.terminal_growth_rate:.4f}"
         )
+        # The reverse-DCF figures are injected above as AUTHORITATIVE numbers
+        # (market_implied_line) and the REVIEW narrative cites them ("the market
+        # prices in 44%/yr"). Whitelist them here too, symmetric with that
+        # injection — otherwise a prompt-fidelity audit reads the strict
+        # whitelist literally and flags the 44% as a hallucinated figure.
+        mi_for_prompt = dcf_for_prompt.market_implied
+        if mi_for_prompt is not None:
+            _whitelist_parts.append(
+                f"  - financial_modeling.market_implied.horizon_years: "
+                f"{mi_for_prompt.horizon_years}"
+            )
+            if mi_for_prompt.implied_growth is not None:
+                _whitelist_parts.append(
+                    f"  - financial_modeling.market_implied.implied_growth "
+                    f"(market-implied annual growth): {mi_for_prompt.implied_growth:.4f}"
+                )
+            if mi_for_prompt.implied_wacc is not None:
+                _whitelist_parts.append(
+                    f"  - financial_modeling.market_implied.implied_wacc: "
+                    f"{mi_for_prompt.implied_wacc:.4f}"
+                )
+            if mi_for_prompt.growth_ceiling is not None:
+                _whitelist_parts.append(
+                    f"  - financial_modeling.market_implied.growth_ceiling "
+                    f"(max growth the reverse solver tried): {mi_for_prompt.growth_ceiling:.4f}"
+                )
+            if mi_for_prompt.ceiling_price is not None:
+                _whitelist_parts.append(
+                    f"  - financial_modeling.market_implied.ceiling_price "
+                    f"(implied price at growth_ceiling): ${mi_for_prompt.ceiling_price:.2f}"
+                )
     if xbrl_snap:
         _whitelist_parts.append("  - xbrl_facts_snapshot.*: (injected above in structured data)")
     _whitelist_parts += [

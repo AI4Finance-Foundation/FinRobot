@@ -164,6 +164,19 @@ _CALIBERS: tuple[FieldCaliber, ...] = (
         decimals=1,
         direction_semantics="higher_better",
     ),
+    # Reverse-DCF: the annual revenue growth the CURRENT market price implies.
+    # neutral direction — a rising market-implied growth is not "good" or "bad",
+    # it just raises the bar the price already assumes. The diff promotes this
+    # over DCF fair value in REVIEW state (where implied_price is withheld/None).
+    FieldCaliber(
+        key="implied_growth",
+        label_zh="市场隐含增长",
+        label_en="Market-implied growth",
+        unit="percent",
+        decimals=1,
+        direction_semantics="neutral",
+        sign_flip_sensitive=False,
+    ),
     # — Valuation outputs (absolute) —
     FieldCaliber(
         key="equity_value",

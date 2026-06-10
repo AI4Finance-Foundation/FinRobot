@@ -952,6 +952,36 @@ def apply_canonical_override(
         thesis, _ = _reconcile_narrative_targets(
             thesis, canonical_target, allowed_mids, current_price=market_price
         )
+    else:
+        # No deterministic anchor at all (resolve_canonical_thesis's empty
+        # branch: every valuation method degraded). Previously NEITHER branch
+        # ran here, so the LLM's own price_target — a fact field with zero code
+        # backing — passed through verbatim into the artifact, and
+        # summary_extractor treats thesis.price_target as authoritative for
+        # the coverage signal. No cross-checkable method is strictly weaker
+        # than the single-method out-of-band case, which already forces
+        # REVIEW/no-target — same treatment applies.
+        if thesis.price_target is not None or thesis.recommendation.strip().upper() != "REVIEW":
+            logger.warning(
+                "Thesis LLM emitted target/verdict with NO canonical synthesis "
+                "(rec=%s, target=%s) — forcing REVIEW / withholding target",
+                thesis.recommendation,
+                thesis.price_target,
+            )
+        thesis = thesis.model_copy(
+            update={
+                # The out-of-band single-method branch reaches here too (target
+                # withheld, verdict/basis populated) — prefer its specific
+                # wording over the generic one.
+                "recommendation": canonical_verdict or "REVIEW",
+                "price_target": None,
+                "price_target_basis": canonical_basis
+                or (
+                    "No deterministic valuation method available — "
+                    "target withheld (nothing to cross-validate the model against)."
+                ),
+            }
+        )
     return thesis
 
 

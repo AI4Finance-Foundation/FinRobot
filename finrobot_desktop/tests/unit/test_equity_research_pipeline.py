@@ -1451,6 +1451,36 @@ async def test_peer_analysis_excludes_target_and_names_dropped_peers(mock_deps):
 
 
 @pytest.mark.asyncio
+def test_override_empty_canonical_withholds_llm_target():
+    """When EVERY valuation method degrades (resolve_canonical_thesis's empty
+    branch: no gate, no target, no verdict), the LLM's own price_target — a
+    fact field with zero code backing — used to pass through verbatim: neither
+    override branch ran, and summary_extractor treats thesis.price_target as
+    authoritative for the coverage signal. No method at all is strictly weaker
+    than single-method-out-of-band, so the same REVIEW/no-target machinery
+    must apply."""
+    from finrobot.engine.compute.operators.valuation_synthesis import CanonicalThesis
+    from finrobot.engine.models.financial import ThesisResult
+    from finrobot.engine.pipelines.equity_research import apply_canonical_override
+
+    rogue = ThesisResult(
+        recommendation="Buy",
+        price_target=123.45,  # pure LLM fabrication — nothing computed it
+        price_target_basis="Gut feel dressed as synthesis",
+        catalysts=["c"],
+        risks=["r"],
+        narrative="n",
+    )
+    empty = CanonicalThesis(target=None, verdict=None, basis=None, upside=None, gate_failed=False)
+
+    out = apply_canonical_override(rogue, empty, vs=None)
+
+    assert out.recommendation == "REVIEW"
+    assert out.price_target is None
+    assert out.price_target_basis is not None
+    assert "withheld" in out.price_target_basis
+
+
 async def test_thesis_single_method_out_of_band_forces_review(mock_deps):
     """The 2026-06-05 TSLA live artifact: comps died (all-EV peer set, P/E n=0)
     → single-method synthesis (weighted_price=None) → NO canonical target and NO

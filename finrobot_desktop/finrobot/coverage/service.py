@@ -277,8 +277,7 @@ def _apply_research_fields(row: CoverageRow, summaries: list[ArtifactSummary]) -
 
 # A provenance degraded code → the field it most directly caveats, with a
 # concise Chinese note (matching the row-warning style). Only codes with a clear
-# single-field attribution live here; ``ccy_inferred`` stays on the currency
-# column rather than being smeared across every价-denominated cell.
+# single-field attribution live here.
 _DEGRADED_CAVEAT = {
     DEGRADED_CLOSE_ONLY: "实时价缺失，用最近收盘价",
     DEGRADED_TTM_LAG: "TTM 口径滞后(P/E 分母)",

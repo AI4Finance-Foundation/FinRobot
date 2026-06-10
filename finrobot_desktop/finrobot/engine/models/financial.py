@@ -128,7 +128,7 @@ class DataProvenance(BaseModel):
     as_of: date | None = None  # financials period end — the data's semantic time
     period_basis: str = "ttm"
     pe_ttm_lag_quarters: int | None = None
-    degraded: list[str] = Field(default_factory=list)  # close_only / ttm_lag / ccy_inferred
+    degraded: list[str] = Field(default_factory=list)  # close_only / ttm_lag / …
 
 
 class FinancialData(BaseModel):

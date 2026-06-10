@@ -1,8 +1,9 @@
 """normalize_financials: raw provider financials DataResult → NormalizedFinancials.
 
-Resolves the IS/BS reporting currency (correcting ADR mis-tags), exposes the TTM
-``period_end`` so a stale denominator is visible instead of silent, and stamps
-provenance with degraded markers (inferred currency, TTM lag).
+Takes the provider's IS/BS reporting-currency tag at face value (see
+``normalize.currency`` for why no country heuristic may second-guess it),
+exposes the TTM ``period_end`` so a stale denominator is visible instead of
+silent, and stamps provenance with degraded markers (period basis, TTM lag).
 """
 
 from __future__ import annotations
@@ -12,13 +13,11 @@ from typing import Any
 
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.contracts import (
-    DEGRADED_CCY_INFERRED,
     DEGRADED_PERIOD_BASIS_UNKNOWN,
     DEGRADED_TTM_LAG,
     NormalizedFinancials,
     Provenance,
 )
-from finrobot.engine.data.normalize.currency import resolve_reporting_currency
 from finrobot.engine.data.normalize.price import _date_to_dt, _f
 
 # A TTM denominator this many full quarters behind the fetch date is flagged as
@@ -58,10 +57,12 @@ def normalize_financials(result: DataResult) -> NormalizedFinancials:
     data = result.data if isinstance(result.data, dict) else {}
     ticker = result.ticker
 
-    provider_ccy = (data.get("financial_currency") or "USD").upper()
-    country = data.get("country")
-    reporting_currency = resolve_reporting_currency(provider_ccy, ticker, country)
+    reporting_currency = (data.get("financial_currency") or "USD").upper()
     quote_currency = (data.get("quote_currency") or "USD").upper()
+    # country flows into the snapshot untouched — the family-1 verifier
+    # (audit_foreign_issuer_usd_tags) needs it to flag double-USD foreign
+    # issuers for review; it never alters the currency tags here.
+    country = data.get("country")
 
     period_end = _parse_date(data.get("fiscal_year") or data.get("date"))
     _raw_basis: str = data.get("period_basis") or ""
@@ -73,8 +74,6 @@ def normalize_financials(result: DataResult) -> NormalizedFinancials:
     degraded: list[str] = []
     if _basis_unknown:
         degraded.append(DEGRADED_PERIOD_BASIS_UNKNOWN)
-    if reporting_currency != provider_ccy:
-        degraded.append(DEGRADED_CCY_INFERRED)
     if lag is not None and lag >= _TTM_LAG_DEGRADE_THRESHOLD:
         degraded.append(DEGRADED_TTM_LAG)
 

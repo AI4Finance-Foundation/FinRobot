@@ -1,7 +1,7 @@
 """normalize_price / normalize_financials fixtures (ADR-0004 step 3).
 
 Five scenarios: yfinance OHLC price, FMP close-only price (degraded),
-over-wide price window (17 months → trimmed), ADR currency override,
+over-wide price window (17 months → trimmed), currency-tag pass-through,
 TTM lag exposure.
 """
 
@@ -11,7 +11,6 @@ import pytest
 
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.contracts import (
-    DEGRADED_CCY_INFERRED,
     DEGRADED_CLOSE_ONLY,
     DEGRADED_PERIOD_BASIS_UNKNOWN,
     DEGRADED_PRICE_FALLBACK_CLOSE,
@@ -195,20 +194,39 @@ def test_price_over_wide_window_is_trimmed():
     assert p.fifty_two_week_high() == 450.0
 
 
-def test_financials_adr_currency_override_flags_degraded():
-    # FMP says USD but country=Taiwan + ADR ticker → reporting currency TWD.
+def test_financials_usd_tag_passes_through_for_foreign_issuer():
+    # 2026-06-10 篮子 probe(21 tickers):yfinance financialCurrency 21/21 正确
+    # (12 家非 USD 报表外国发行人全部带对本币 tag),而旧 country 启发式把 7/9
+    # 真 USD 报表外国发行人改错(LULU→CAD、SHEL→GBP 等,全报表错缩 ~27%)。
+    # provider tag 直通;双 USD 外籍发行人的人工复核由族1 验收器
+    # audit_foreign_issuer_usd_tags 给 review 横幅,绝不改写数字。
     fin = normalize_financials(
         _fin_result(
             revenue=1e9,
             market_cap=5e11,
             financial_currency="USD",
+            country="Canada",
+            date="2026-03-31",
+        )
+    )
+    assert fin.reporting_currency == "USD"
+    assert fin.quote_currency == "USD"
+    assert "ccy_inferred" not in fin.provenance.degraded
+
+
+def test_financials_non_usd_tag_passes_through():
+    # 正确打 tag 的外国发行人(TSM=TWD 类)不受影响:tag 原样直通,FX 闸照常转换。
+    fin = normalize_financials(
+        _fin_result(
+            revenue=2e12,
+            market_cap=5e11,
+            financial_currency="TWD",
             country="Taiwan",
             date="2026-03-31",
         )
     )
     assert fin.reporting_currency == "TWD"
     assert fin.quote_currency == "USD"
-    assert DEGRADED_CCY_INFERRED in fin.provenance.degraded
 
 
 def test_financials_exposes_ttm_lag_and_period_end():

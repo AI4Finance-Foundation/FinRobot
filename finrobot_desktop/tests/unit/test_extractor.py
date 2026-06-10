@@ -479,9 +479,13 @@ def test_extract_price_history_valid():
 # ---------------------------------------------------------------------------
 
 
-class TestExtractCompanyFinancialsCurrencyOverride:
-    """ADR currency-override: when yfinance mis-tags financialCurrency=USD for
-    a foreign issuer, the country field must correct it so FX normalization runs."""
+class TestExtractCompanyFinancialsCurrencyTags:
+    """Currency tags pass through from the provider, untouched by geography.
+
+    The country-based USD rewrite was retired 2026-06-10 (21-ticker probe:
+    yfinance financialCurrency 21/21 correct; the rewrite corrupted 7/9 genuine
+    USD-reporting foreign issuers). A double-USD foreign issuer is flagged for
+    review by audit_foreign_issuer_usd_tags — never silently re-currencied."""
 
     def _make_peer_fin(self, ticker: str, **overrides: object):
         data: dict[str, object] = {
@@ -494,7 +498,7 @@ class TestExtractCompanyFinancialsCurrencyOverride:
             "market_cap": 650e9,
             "total_debt": 320_000e6,
             "total_cash": 1_700_000e6,
-            "financial_currency": "USD",  # provider mis-tag
+            "financial_currency": "USD",
             "quote_currency": "USD",
         }
         data.update(overrides)  # type: ignore[arg-type]
@@ -507,19 +511,12 @@ class TestExtractCompanyFinancialsCurrencyOverride:
         )
         return normalize_financials(raw)
 
-    def test_tsm_adr_country_taiwan_overrides_usd_to_twd(self) -> None:
-        """TSM (no '.' suffix) with country=Taiwan: financial_currency="USD" is
-        overridden to "TWD" so FX normalization will convert IS/BS items."""
-        result = extract_company_financials(self._make_peer_fin("TSM", country="Taiwan"))
-        assert (
-            result.reporting_currency == "TWD"
-        ), f"Expected TWD, got {result.reporting_currency} — FX override not applied"
+    def test_usd_tag_foreign_country_passes_through(self) -> None:
+        """The LULU/SHEL class: a USD tag with a foreign country stays USD —
+        rewriting it FX-scaled correct statements by ~±27% (the retired bug)."""
+        result = extract_company_financials(self._make_peer_fin("LULU", country="Canada"))
+        assert result.reporting_currency == "USD"
         assert result.quote_currency == "USD"
-
-    def test_asml_adr_country_netherlands_overrides_usd_to_eur(self) -> None:
-        """ASML (no '.' suffix) with country=Netherlands: USD → EUR."""
-        result = extract_company_financials(self._make_peer_fin("ASML", country="Netherlands"))
-        assert result.reporting_currency == "EUR"
 
     def test_us_issuer_no_override(self) -> None:
         """AAPL: country=None → USD tag is trusted as-is."""

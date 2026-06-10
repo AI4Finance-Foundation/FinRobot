@@ -289,8 +289,8 @@ def extract_financial_data(
             as_of=fin.period_end,
             period_basis=fin.period_basis,
             pe_ttm_lag_quarters=fin.pe_ttm_lag_quarters,
-            # Combine financials degraded flags (ttm_lag, ccy_inferred) with the
-            # price feed's (close_only) since the snapshot shows both 52w (price)
+            # Combine financials degraded flags (ttm_lag) with the price
+            # feed's (close_only) since the snapshot shows both 52w (price)
             # and P/E (financials) numbers.
             degraded=list(dict.fromkeys([*fin.provenance.degraded, *price.provenance.degraded])),
         ),
@@ -316,9 +316,9 @@ def extract_company_financials(fin: NormalizedFinancials) -> CompanyFinancials:
       ``calculate_multiples`` withholds EV instead of fabricating EV=market_cap
       and poisoning the median. Previously ``or 0`` silently assumed zero net debt.
 
-    ``reporting_currency`` carries the resolved IS/BS currency (ISO 4217); the
-    country-based override corrects yfinance ADR mis-tags so the downstream FX
-    step converts before EV/EBITDA is computed. Raises ValueError for missing
+    ``reporting_currency`` carries the provider's IS/BS currency tag (ISO 4217,
+    taken at face value — see normalize.currency) so the downstream FX step
+    converts before EV/EBITDA is computed. Raises ValueError for missing
     revenue/market_cap so the caller drops the peer rather than comparing zeros.
     """
     ticker = fin.ticker

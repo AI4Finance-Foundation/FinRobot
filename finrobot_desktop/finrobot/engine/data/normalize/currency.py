@@ -1,73 +1,26 @@
-"""Reporting-currency resolution for the normalization layer (ADR-0004).
+"""Canonical FX normalization for the data layer (ADR-0004 / ADR-0006).
 
-yfinance ``financialCurrency`` is unreliable for ADRs — it often returns "USD"
-for TSM/ASML/SAP when the IS/BS are actually in the home currency. FMP frequently
-omits the field entirely. We use the country field as a reliable override signal.
+The IS/BS reporting currency is the PROVIDER TAG, taken at face value. There is
+deliberately no country→currency rewrite here, and one must never come back:
+a country-keyed heuristic ("USD tag + foreign country ⇒ must really be the home
+currency") existed until 2026-06-10 and was retired on live evidence — a
+21-ticker basket probe found yfinance ``financialCurrency`` correct 21/21
+(TSM=TWD, SAP=EUR, SONY=JPY, … all 12 non-USD reporters tagged right), while
+the heuristic itself corrupted 7 of 9 genuinely-USD-reporting foreign issuers
+(SHEL/BP/RIO/AZN/LIN→GBP, TTE→EUR, LULU→CAD), FX-"normalizing" correct USD
+statements by ~±27% across every line item. The failure mode it guarded had
+healed upstream; only the harm remained. FMP supplies an authoritative
+``reportedCurrency`` outright (probe 2026-06-08).
 
-We only override when the provider says "USD" but country implies a different
-home currency — never override a non-USD provider tag, which would mask
-legitimate multi-currency structures (e.g. a Bermuda-domiciled holding co that
-genuinely reports in USD).
+The residual ambiguity — a foreign issuer whose snapshot reads USD/USD could
+in principle still be a provider mis-tag — is owned by the family-1 verifier
+``audit_foreign_issuer_usd_tags`` (severity=review, banner only): flag for an
+analyst's eye, never rewrite a number on a guess.
 """
 
 from __future__ import annotations
 
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials
-
-# Keys are yfinance-style full country names on purpose. FMP returns ISO-2 codes
-# ("TW" not "Taiwan"), so this override is inert on the FMP path — and that is
-# CORRECT, not a gap. Probe 2026-06-08 (12 foreign ADRs): FMP always supplies an
-# authoritative ``reportedCurrency`` (TSM=TWD, SAP=EUR, NVO=DKK …) so the USD-tag
-# branch in resolve_reporting_currency never fires for FMP; the only FMP "USD"
-# tags are genuinely-USD reporters (SHEL/BP/TTE/RIO — GB/FR oil & mining majors
-# that report in USD). Adding ISO-2 keys would false-positive all four, corrupting
-# correct USD into GBP/EUR. Do NOT "fix" the key style to match FMP country codes.
-COUNTRY_TO_REPORTING_CURRENCY: dict[str, str] = {
-    "Taiwan": "TWD",
-    "Japan": "JPY",
-    "South Korea": "KRW",
-    "China": "CNY",
-    "Hong Kong": "HKD",
-    "Germany": "EUR",
-    "Netherlands": "EUR",
-    "France": "EUR",
-    "Italy": "EUR",
-    "Spain": "EUR",
-    "Switzerland": "CHF",
-    "Sweden": "SEK",
-    "Denmark": "DKK",
-    "Norway": "NOK",
-    "United Kingdom": "GBP",
-    "Australia": "AUD",
-    "Canada": "CAD",
-    "India": "INR",
-    "Brazil": "BRL",
-    "Mexico": "MXN",
-    "Singapore": "SGD",
-    "Israel": "ILS",
-}
-
-
-def resolve_reporting_currency(
-    provider_tag: str | None,
-    ticker: str,
-    country: str | None,
-) -> str:
-    """Reliable IS/BS reporting currency (ISO 4217, uppercase).
-
-    Overrides a "USD" provider tag with the country's home currency only for
-    ADRs (no '.' suffix). Local listings (e.g. 2330.TW) already carry the
-    correct non-USD tag and are never overridden.
-    """
-    normalised = (provider_tag or "USD").upper()
-    if normalised != "USD" or country is None:
-        return normalised
-    home_ccy = COUNTRY_TO_REPORTING_CURRENCY.get(country)
-    if home_ccy is None:
-        return normalised  # US or unknown country — trust USD
-    if "." not in ticker:
-        return home_ccy  # ADR on a US exchange — IS/BS in home currency
-    return normalised  # local listing — provider tag already correct
 
 
 def normalize_canonical_financials_currency(

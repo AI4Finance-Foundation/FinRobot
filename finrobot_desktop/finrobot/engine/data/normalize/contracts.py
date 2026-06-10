@@ -7,8 +7,8 @@ stop guessing provider-specific dict shapes (ADR-0004 root cause #1).
 Provenance is a first-class field on every result: the provider that actually
 served it, the data's semantic ``as_of`` (latest bar date / fiscal period end),
 the wall-clock ``fetched_at``, and any ``degraded`` markers (close-only history,
-TTM lag, inferred currency). The freshness pill must read ``as_of`` — not the
-fetch timestamp — so it can't claim "实时" over a stale closing price.
+TTM lag). The freshness pill must read ``as_of`` — not the fetch timestamp — so
+it can't claim "实时" over a stale closing price.
 """
 
 from __future__ import annotations
@@ -40,13 +40,20 @@ from pydantic import BaseModel, ConfigDict, Field
 # payloads store the mixed-currency snapshot (e.g. TWD IS/BS line items beside a USD
 # market quote) that made extract_financial_data form a negative EV — unsafe to
 # trust, so a bump forces a refetch+convert instead of serving the laundered mix.
-CANONICAL_CONTRACT_VERSION = 4
+# v5 — 2026-06-10: the country→currency rewrite is retired (21-ticker probe:
+# yfinance financialCurrency 21/21 correct; the heuristic corrupted 7/9 genuine
+# USD-reporting foreign issuers — see normalize.currency module docstring). Old
+# v4 FINANCIALS snapshots for that class hold FX-scaled WRONG line items (SHEL
+# ×~1.27, LULU ×~0.73, marked "ccy_inferred"+fx_normalized in provenance) — they
+# must miss so normalization re-runs with the tag taken at face value.
+CANONICAL_CONTRACT_VERSION = 5
 
 # Degradation markers carried in ``Provenance.degraded``. Surfaced to the UI so
 # a fallback is visible rather than silent.
+# (Retired 2026-06-10: "ccy_inferred" — written only by the country→currency
+# rewrite; survives in pre-v5 snapshots and old artifacts as an inert string.)
 DEGRADED_CLOSE_ONLY = "close_only"  # no intraday OHLC; 52w high/low fall back to close
 DEGRADED_TTM_LAG = "ttm_lag"  # TTM denominator trails the latest reported quarter
-DEGRADED_CCY_INFERRED = "ccy_inferred"  # reporting currency inferred, not provider-stated
 # provider gave no real-time current_price; using the latest bar's close as a
 # stand-in. Lets the UI avoid claiming a stale close is a live "实时" quote.
 DEGRADED_PRICE_FALLBACK_CLOSE = "price_fallback_close"

@@ -103,7 +103,7 @@ async def _forward_financials(
     issuer the forward EPS / EBITDA / FCF are converted to USD here, BEFORE the
     pure aggregator multiplies them — otherwise a USD multiple × TWD EPS prints a
     ~32x-inflated target (BUG-006). The reporting currency comes from the
-    canonical FINANCIALS snapshot (resolved via the country override).
+    canonical FINANCIALS snapshot (the provider tag, taken at face value).
     """
     payload: dict[str, Any] | None = None
     if data_layer is not None:

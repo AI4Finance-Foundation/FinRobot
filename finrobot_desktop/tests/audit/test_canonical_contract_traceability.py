@@ -18,7 +18,6 @@ from finrobot.engine.data.normalize import (
     normalize_price,
 )
 from finrobot.engine.data.normalize.contracts import (
-    DEGRADED_CCY_INFERRED,
     DEGRADED_CLOSE_ONLY,
 )
 
@@ -74,12 +73,14 @@ def _fmp_financials() -> DataResult:
 
 
 def _cross_border_financials() -> DataResult:
-    # ADR case: provider mis-tags a Japanese issuer's IS/BS as USD; country is
-    # the reliable override signal → reporting currency inferred as JPY.
+    # ADR case: a Japanese issuer's IS/BS in JPY, quote in USD. The provider tag
+    # is authoritative (2026-06-10 21-ticker probe: yfinance financialCurrency
+    # 21/21 correct) — the old country-based USD rewrite corrupted 7/9 genuine
+    # USD-reporting foreign issuers and is gone.
     return DataResult(
         data={
             "revenue": 45_000_000_000_000,  # JPY absolute
-            "financial_currency": "USD",  # wrong tag
+            "financial_currency": "JPY",
             "quote_currency": "USD",  # ADR trades in USD
             "country": "Japan",
             "fiscal_year": "2025-03-31",
@@ -167,11 +168,25 @@ def test_currency_traceable_on_both_paths() -> None:
         assert out.quote_currency.isupper() and len(out.quote_currency) == 3
 
 
-def test_cross_border_infers_currency_and_flags_degraded() -> None:
+def test_cross_border_currency_tags_pass_through() -> None:
     out = normalize_financials(_cross_border_financials())
-    assert out.reporting_currency == "JPY"  # inferred from country, not the USD tag
+    assert out.reporting_currency == "JPY"  # provider tag, taken at face value
     assert out.quote_currency == "USD"  # ADR still quoted in USD
-    assert DEGRADED_CCY_INFERRED in out.provenance.degraded
+    assert "ccy_inferred" not in out.provenance.degraded
+
+
+def test_usd_reporting_foreign_issuer_not_rewritten() -> None:
+    # The LULU/SHEL class: foreign country, genuinely-USD filings. The retired
+    # country heuristic rewrote these to CAD/GBP and FX-"normalized" correct
+    # numbers into wrong ones (LULU ×~0.73). Tags must survive untouched; the
+    # family-1 verifier (audit_foreign_issuer_usd_tags) owns the review banner.
+    raw = _cross_border_financials()
+    raw.data["financial_currency"] = "USD"
+    raw.data["country"] = "Canada"
+    out = normalize_financials(raw)
+    assert out.reporting_currency == "USD"
+    assert out.quote_currency == "USD"
+    assert "ccy_inferred" not in out.provenance.degraded
 
 
 # ---------------------------------------------------------------------------

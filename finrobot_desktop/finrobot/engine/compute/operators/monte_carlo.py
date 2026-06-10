@@ -234,8 +234,10 @@ def run_monte_carlo(
     implied_prices = np.where(terminal_fcf > 0, implied_prices, -np.inf)
 
     # --- Filter valid prices (IQR-based outlier removal) ---
-    # Step 1: keep only positive prices
-    positive_mask = implied_prices > 0
+    # Step 1: keep only positive prices. The threshold matches the 2-decimal
+    # output rounding: a price in (0, 0.005) would round to $0.00 yet count
+    # as a "valid positive simulation".
+    positive_mask = implied_prices >= 0.005
     positive_prices = implied_prices[positive_mask]
 
     if len(positive_prices) < 100:

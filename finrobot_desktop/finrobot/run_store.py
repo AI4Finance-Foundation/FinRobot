@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import uuid
+from collections.abc import Sequence
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -317,11 +318,28 @@ class RunStore:
             )
         return count
 
-    async def list_runs(self, limit: int = 50) -> list[RunRecord]:
+    async def list_runs(
+        self, limit: int = 50, statuses: Sequence[str] | None = None
+    ) -> list[RunRecord]:
+        """Recent runs, newest first; ``statuses`` narrows to that status set.
+
+        The status filter powers the desktop's restart-reattach (GET
+        /api/runs?status=created,running): after a webview reload the in-memory
+        run map is gone while backend pipelines keep executing, so the UI asks
+        for the non-terminal rows to re-subscribe their SSE streams. Filtering
+        in SQL (not post-hoc on a LIMITed page) so an active run can never be
+        pushed off the page by newer terminal rows.
+        """
         conn = await self._ensure_connection()
+        where = ""
+        params: tuple[Any, ...] = ()
+        if statuses:
+            placeholders = ",".join("?" * len(statuses))
+            where = f" WHERE status IN ({placeholders})"
+            params = tuple(statuses)
         async with conn.execute(
-            f"SELECT {_RUN_SELECT_COLUMNS} FROM runs ORDER BY created_at DESC LIMIT ?",
-            (limit,),
+            f"SELECT {_RUN_SELECT_COLUMNS} FROM runs{where} ORDER BY created_at DESC LIMIT ?",
+            (*params, limit),
         ) as cursor:
             rows = await cursor.fetchall()
         return [_row_to_run(row) for row in rows]

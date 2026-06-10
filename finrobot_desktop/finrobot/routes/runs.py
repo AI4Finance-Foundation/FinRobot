@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ValidationError
 from pydantic_ai import UnexpectedModelBehavior
 from pydantic_ai.exceptions import AgentRunError
@@ -189,6 +189,62 @@ async def create_run(request_body: CreateRunRequest, request: Request) -> Create
         ticker=record.ticker,
         created_at=record.created_at,
     )
+
+
+_VALID_RUN_STATUSES = {"created", "running", "completed", "failed"}
+
+
+class RunSummary(BaseModel):
+    """One GET /api/runs row — the run registry view, no result payload."""
+
+    run_id: str
+    status: str
+    pipeline_type: str
+    ticker: str
+    created_at: str
+    completed_at: str | None = None
+    error: str | None = None
+
+
+@router.get("", response_model=list[RunSummary])
+async def list_runs(
+    request: Request,
+    status: str | None = None,
+    limit: int = Query(default=50, ge=1, le=500),
+) -> list[RunSummary]:
+    """Recent runs, newest first.
+
+    ``status`` filters to a comma-separated status set — the desktop's
+    restart-reattach asks for ``created,running`` on startup to find pipelines
+    still executing after a webview reload and re-subscribe their SSE streams.
+    Unknown status values are a 400, not a silent empty match.
+    """
+    statuses: list[str] | None = None
+    if status:
+        statuses = [s.strip() for s in status.split(",") if s.strip()]
+        unknown = sorted(set(statuses) - _VALID_RUN_STATUSES)
+        if unknown:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Unknown run status(es): {', '.join(unknown)}. "
+                    f"Valid: {', '.join(sorted(_VALID_RUN_STATUSES))}"
+                ),
+            )
+    store: RunStore = request.app.state.run_store
+    records = await store.list_runs(limit=limit, statuses=statuses)
+    return [
+        RunSummary(
+            run_id=r.run_id,
+            status=r.status,
+            pipeline_type=r.pipeline_type,
+            ticker=r.ticker,
+            created_at=r.created_at,
+            completed_at=r.completed_at,
+            error=r.error,
+        )
+        for r in records
+    ]
 
 
 def _parse_multiplex_cursor(header: str | None) -> dict[str, int]:

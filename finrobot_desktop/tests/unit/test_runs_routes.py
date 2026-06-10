@@ -513,6 +513,85 @@ async def test_failed_event_appended_before_status_flip(tmp_path: Any, monkeypat
     await inner.close()
 
 
+# ---------------------------------------------------------------------------
+# P1-30 — GET /api/runs: the run registry list. The desktop's restart-reattach
+# asks ?status=created,running on startup to find pipelines still executing
+# after a webview reload (the in-memory run map is gone, the backend keeps
+# burning) and re-subscribe their SSE streams.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_runs_returns_all_newest_first(tmp_path: Any) -> None:
+    from finrobot.run_store import RunStore
+
+    store = RunStore(tmp_path / "runs.db")
+    rid_done = await _seed_completed_run(store, "AAPL")
+    rec_created = await store.create_run("research", "MSFT")
+    app = _make_app_with_store(store)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.get("/api/runs")
+    assert resp.status_code == 200, resp.text
+
+    body = resp.json()
+    assert {row["run_id"] for row in body} == {rid_done, rec_created.run_id}
+    # Registry view only — no result payload fields leak into the list.
+    assert "result" not in body[0] and "result_text" not in body[0]
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_list_runs_status_filter_returns_only_active(tmp_path: Any) -> None:
+    """?status=created,running excludes terminal rows — the reattach query."""
+    from finrobot.run_store import RunStore
+
+    store = RunStore(tmp_path / "runs.db")
+    await _seed_completed_run(store, "AAPL")
+    rec_created = await store.create_run("research", "MSFT")
+    rec_running = await store.create_run("dcf", "NVDA")
+    await store.update_run(rec_running.run_id, status="running")
+    app = _make_app_with_store(store)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.get("/api/runs?status=created,running")
+    assert resp.status_code == 200, resp.text
+
+    body = resp.json()
+    assert {row["run_id"] for row in body} == {rec_created.run_id, rec_running.run_id}
+    assert {row["status"] for row in body} == {"created", "running"}
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_list_runs_filter_in_sql_not_on_limited_page(tmp_path: Any) -> None:
+    """An active run older than `limit` newer terminal rows must still be
+    returned: the status filter runs in SQL, not post-hoc on a LIMITed page."""
+    from finrobot.run_store import RunStore
+
+    store = RunStore(tmp_path / "runs.db")
+    rec_running = await store.create_run("research", "NVDA")
+    await store.update_run(rec_running.run_id, status="running")
+    for i in range(3):
+        await _seed_completed_run(store, f"T{i}")
+    app = _make_app_with_store(store)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.get("/api/runs?status=created,running&limit=2")
+    assert resp.status_code == 200, resp.text
+    assert [row["run_id"] for row in resp.json()] == [rec_running.run_id]
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_list_runs_unknown_status_is_400() -> None:
+    app = _make_app(None)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.get("/api/runs?status=bogus")
+    assert resp.status_code == 400
+    assert "bogus" in resp.json()["detail"]
+
+
 # --- BUG-050: SSE idle-poll backoff -----------------------------------------
 
 

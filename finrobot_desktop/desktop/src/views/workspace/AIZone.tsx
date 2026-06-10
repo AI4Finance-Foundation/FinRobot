@@ -82,7 +82,10 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
     isError: artifactError,
     error: artifactErr,
     refetch: artifactRefetch,
-  } = useLatestArtifact(ticker, 'equity_research')
+    // limit 200 == the timeline query below, so both subscribe to the SAME
+    // react-query key → one request, one truncation caliber (was a second
+    // default-50 fetch whose "latest" could disagree with the 200-row list).
+  } = useLatestArtifact(ticker, 'equity_research', 200)
   const {
     data: timeline,
     isLoading: timelineLoading,

@@ -295,9 +295,9 @@ async def _enrich_company_forward(
     if not usd_safe:
         return
     try:
-        _fwd_raw = await deps.data_layer.fetch(DataType.FORWARD_ESTIMATES, company.ticker)
+        _fwd_raw = await deps.data_layer.fetch_canonical(DataType.FORWARD_ESTIMATES, company.ticker)
         _fwd = get_forward_financials(
-            ticker=company.ticker, yf_info=None, fmp_analyst_estimates=_fwd_raw.data
+            ticker=company.ticker, yf_info=None, fmp_analyst_estimates=_fwd_raw.payload()
         )
         company.forward_eps = _fwd.forward_eps
         if _fwd.forward_net_income and company.market_cap > 0:
@@ -528,13 +528,15 @@ async def execute_financial_data_step(
     # forward EPS) instead of the trailing fallback. Best-effort: a forward miss
     # must never fail the data step — the synthesis just stays on trailing.
     try:
-        _fwd_raw = await deps.data_layer.fetch(DataType.FORWARD_ESTIMATES, ticker)
+        _fwd_raw = await deps.data_layer.fetch_canonical(DataType.FORWARD_ESTIMATES, ticker)
         # Raw multi-year payload kept for the DCF stage-1 growth seed (consensus
         # path via get_forward_revenue_growth); forward_financials is the FY1
-        # projection the synthesis uses. Both read the same fetched payload.
-        structured_context["forward_estimates_raw"] = _fwd_raw.data
+        # projection the synthesis uses. Both read the same canonical snapshot —
+        # the shared slot every other seed entry (REST /dcf-seed, chat MC,
+        # IC-memo) also fetches, so consensus presence can't diverge per surface.
+        structured_context["forward_estimates_raw"] = _fwd_raw.payload()
         structured_context["forward_financials"] = get_forward_financials(
-            ticker=ticker, yf_info=None, fmp_analyst_estimates=_fwd_raw.data
+            ticker=ticker, yf_info=None, fmp_analyst_estimates=_fwd_raw.payload()
         )
     except (ProviderError, ValueError, KeyError, TypeError) as _fwd_err:
         logger.debug("forward estimates unavailable for %s: %s", ticker, _fwd_err)

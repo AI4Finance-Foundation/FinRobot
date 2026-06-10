@@ -12,8 +12,9 @@ Three evidence pillars, against LIVE data:
    names (KO / JNJ) must stay sane (finite, positive, no Gordon blowup); a
    loss-maker (RIVN) and an ADR (SAP) must not crash or go NaN.
 3. Single-authoritative-seed — fetch_forward_growth(dl, t) is deterministic and
-   equals get_forward_revenue_growth on the same fetched payload, so every entry
-   point derives the identical seed for a given ticker.
+   equals get_forward_revenue_growth on the same CANONICAL snapshot payload
+   (fetch_canonical — the shared versioned slot), so every entry point derives
+   the identical seed for a given ticker.
 
 Run: `python scripts/_forward_seed_integration_validation.py [TICKERS...]`
 (uses the keychain FMP key via hydrate_settings_from_secrets — no backend needed).
@@ -80,8 +81,8 @@ async def main() -> int:
         # --- pillar 3: single authoritative seed (determinism + producer parity)
         fwd = await fetch_forward_growth(dl, t)
         fwd2 = await fetch_forward_growth(dl, t)
-        _raw = await dl.fetch(DataType.FORWARD_ESTIMATES, t)
-        producer = get_forward_revenue_growth(_raw.data)
+        _canon = await dl.fetch_canonical(DataType.FORWARD_ESTIMATES, t)
+        producer = get_forward_revenue_growth(_canon.payload())
         if fwd != fwd2:
             failures.append(f"{t}: fetch_forward_growth non-deterministic {fwd} != {fwd2}")
         if fwd != producer:

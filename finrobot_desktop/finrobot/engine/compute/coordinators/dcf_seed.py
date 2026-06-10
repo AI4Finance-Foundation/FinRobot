@@ -30,21 +30,25 @@ logger = logging.getLogger(__name__)
 async def fetch_forward_growth(data_layer: DataLayer, ticker: str) -> list[float]:
     """Analyst-consensus YoY revenue-growth path for the DCF explicit-window seed.
 
-    Best-effort fetch of the FORWARD_ESTIMATES payload, run through the single
-    authoritative producer ``get_forward_revenue_growth``. Returns ``[]`` on any
-    miss so the seed falls back to trailing CAGR — a forward gap must never fail
-    the seed. Shared by every *fetch-path* seed entry (REST ``/dcf-seed`` + chat
-    Monte-Carlo via ``seed_dcf_inputs_for_ticker``, and the IC-memo pipeline) so
-    one ticker can't get a consensus seed on one surface and a trailing-CAGR seed
-    on another — the single-authoritative-seed contract the report path already
-    honours via the same producer.
+    Best-effort fetch of the canonical FORWARD_ESTIMATES snapshot, run through
+    the single authoritative producer ``get_forward_revenue_growth``. Returns
+    ``[]`` on any miss so the seed falls back to trailing CAGR — a forward gap
+    must never fail the seed. Shared by every *fetch-path* seed entry (REST
+    ``/dcf-seed`` + chat Monte-Carlo via ``seed_dcf_inputs_for_ticker``, and the
+    IC-memo pipeline) so one ticker can't get a consensus seed on one surface and
+    a trailing-CAGR seed on another — the single-authoritative-seed contract the
+    report path already honours via the same producer. ``fetch_canonical`` (not
+    raw ``fetch()``) is what makes the source HARD-single: all entries share one
+    versioned cache slot, one in-flight fetch and one failure semantic, so a
+    transient provider flake can't hand consensus to one surface and trailing
+    CAGR to another within the TTL.
     """
     try:
-        _fwd = await data_layer.fetch(DataType.FORWARD_ESTIMATES, ticker)
+        _fwd = await data_layer.fetch_canonical(DataType.FORWARD_ESTIMATES, ticker)
     except (ProviderError, ValueError, KeyError, TypeError) as exc:
         logger.debug("forward estimates unavailable for %s: %s", ticker, exc)
         return []
-    return get_forward_revenue_growth(_fwd.data)
+    return get_forward_revenue_growth(_fwd.payload())
 
 
 async def seed_dcf_inputs_for_ticker(

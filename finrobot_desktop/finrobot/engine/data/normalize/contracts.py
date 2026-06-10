@@ -300,3 +300,33 @@ class NormalizedFinancials(BaseModel):
     # discrepancies surfaced by cross_validate). Distinct from
     # provenance.degraded, which is an enum of structured fallback markers.
     warnings: list[str] = Field(default_factory=list)
+
+
+class NormalizedForwardEstimates(BaseModel):
+    """Canonical analyst-consensus estimates — a typed ENVELOPE, not a parse.
+
+    ``rows`` stays the raw FMP /analyst-estimates row list on purpose: spec
+    §6.4.1 makes ``compute.operators.forward_estimates`` the only module allowed
+    to interpret a forward row (FY1 selection, growth derivation), so this
+    contract must not re-derive anything. What the canonical gate buys here is
+    transport-level: one versioned cache slot, a single-flight per ticker,
+    provenance stamping, and a shared failure semantic (ProviderError raised to
+    every caller) — so the five DCF-seed entries can never transiently diverge
+    on whether consensus exists for a ticker.
+
+    ``as_of`` mirrors ``fetched_at``: FMP serves the CURRENT consensus and the
+    payload carries no publication instant, so fetch time is the honest semantic
+    timestamp (the rows' fiscal-year dates are forecast targets, not data ages).
+    """
+
+    model_config = ConfigDict(frozen=False)
+
+    ticker: str
+    rows: list[dict[str, Any]] = Field(default_factory=list)
+    provenance: Provenance
+    warnings: list[str] = Field(default_factory=list)
+
+    def payload(self) -> dict[str, Any]:
+        """The ``{"rows": [...]}`` shape the red-line leaf consumes
+        (``get_forward_financials`` / ``get_forward_revenue_growth``)."""
+        return {"rows": self.rows}

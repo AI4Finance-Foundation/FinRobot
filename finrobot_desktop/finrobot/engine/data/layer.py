@@ -16,9 +16,11 @@ from finrobot.engine.data.interface import (
 from finrobot.engine.data.provider_health import ProviderHealth
 from finrobot.engine.data.normalize import (
     NormalizedFinancials,
+    NormalizedForwardEstimates,
     NormalizedPrice,
     PriceBar,
     normalize_financials,
+    normalize_forward_estimates,
     normalize_price,
 )
 from finrobot.engine.data.types import DataType
@@ -39,6 +41,12 @@ from finrobot.engine.data.validator import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Union of the typed contracts the canonical gate can serve. FORWARD_ESTIMATES
+# joined PRICE / FINANCIALS in 2026-06 (hard single-source for the DCF-seed
+# entries); every other data_type remains raw-fetch only.
+CanonicalSnapshot = NormalizedPrice | NormalizedFinancials | NormalizedForwardEstimates
+_CANONICAL_TYPES = (DataType.PRICE, DataType.FINANCIALS, DataType.FORWARD_ESTIMATES)
 
 
 class DataLayer:
@@ -63,9 +71,7 @@ class DataLayer:
         # rate-limit shield for an open-market refresh fan-out (see
         # ``fetch_canonical``). Lives for one process; entries self-evict on
         # completion.
-        self._inflight_canonical: dict[
-            tuple[DataType, str], asyncio.Future[NormalizedPrice | NormalizedFinancials]
-        ] = {}
+        self._inflight_canonical: dict[tuple[DataType, str], asyncio.Future[CanonicalSnapshot]] = {}
 
     def _health_gated(self, provider: DataProvider) -> bool:
         """True if ``provider`` is in an open cooldown window and should be skipped.
@@ -285,32 +291,38 @@ class DataLayer:
     ) -> NormalizedPrice: ...
     @overload
     async def fetch_canonical(
+        self, data_type: Literal[DataType.FORWARD_ESTIMATES], ticker: str, **kwargs: Any
+    ) -> NormalizedForwardEstimates: ...
+    @overload
+    async def fetch_canonical(
         self, data_type: str | DataType, ticker: str, **kwargs: Any
-    ) -> NormalizedPrice | NormalizedFinancials: ...
+    ) -> CanonicalSnapshot: ...
 
     async def fetch_canonical(
         self, data_type: str | DataType, ticker: str, **kwargs: Any
-    ) -> NormalizedPrice | NormalizedFinancials:
-        """Return the normalized (canonical) PRICE / FINANCIALS for a ticker.
+    ) -> CanonicalSnapshot:
+        """Return the normalized (canonical) PRICE / FINANCIALS /
+        FORWARD_ESTIMATES for a ticker.
 
         Typed via ``@overload`` on the ``DataType`` literal so callers passing
-        ``DataType.FINANCIALS`` / ``DataType.PRICE`` get the precise contract
-        type directly — no ``assert isinstance`` narrowing at the call site. The
-        str / non-literal fallback overload still returns the union.
+        ``DataType.FINANCIALS`` / ``DataType.PRICE`` /
+        ``DataType.FORWARD_ESTIMATES`` get the precise contract type directly —
+        no ``assert isinstance`` narrowing at the call site. The str /
+        non-literal fallback overload still returns the union.
 
         The one true normalization关卡 (ADR-0006): versioned canonical cache →
         on miss, raw provider fetch (FINANCIALS runs its double-provider
         ``cross_validate`` inside ``fetch()``) → ``normalize_*`` AFTER validation
         (so the validator still sees raw cross-provider口径 divergence) → cache.
         Consumers get a typed, provenance-stamped contract instead of a raw
-        provider dict. Only PRICE / FINANCIALS have canonical contracts; other
+        provider dict. Only these three types have canonical contracts; other
         data_types must use raw ``fetch()``.
         """
         data_type = DataType(data_type)
-        if data_type not in (DataType.PRICE, DataType.FINANCIALS):
+        if data_type not in _CANONICAL_TYPES:
             raise ValueError(
-                f"fetch_canonical supports only PRICE / FINANCIALS, got {data_type}. "
-                "Other types have no canonical contract — use fetch()."
+                f"fetch_canonical supports only PRICE / FINANCIALS / FORWARD_ESTIMATES, "
+                f"got {data_type}. Other types have no canonical contract — use fetch()."
             )
 
         cached = await self._cache.get_canonical(data_type, ticker)
@@ -341,7 +353,7 @@ class DataLayer:
         existing = self._inflight_canonical.get(key)
         if existing is not None:
             return await existing
-        task: asyncio.Future[NormalizedPrice | NormalizedFinancials] = asyncio.ensure_future(
+        task: asyncio.Future[CanonicalSnapshot] = asyncio.ensure_future(
             self._fetch_canonical_uncached(data_type, ticker, **kwargs)
         )
         self._inflight_canonical[key] = task
@@ -352,7 +364,7 @@ class DataLayer:
 
     async def _fetch_canonical_uncached(
         self, data_type: DataType, ticker: str, **kwargs: Any
-    ) -> NormalizedPrice | NormalizedFinancials:
+    ) -> CanonicalSnapshot:
         """The cache-miss path of :meth:`fetch_canonical` — raw provider fetch →
         normalize (AFTER cross_validate) → cache. Wrapped by ``fetch_canonical``
         in a single-flight so concurrent callers for one (data_type, ticker)
@@ -371,9 +383,13 @@ class DataLayer:
                 f"all providers failed and no cache is available."
             )
 
-        normalized: NormalizedPrice | NormalizedFinancials = (
-            normalize_price(raw) if data_type == DataType.PRICE else normalize_financials(raw)
-        )
+        normalized: CanonicalSnapshot
+        if data_type == DataType.PRICE:
+            normalized = normalize_price(raw)
+        elif data_type == DataType.FORWARD_ESTIMATES:
+            normalized = normalize_forward_estimates(raw)
+        else:
+            normalized = normalize_financials(raw)
         # Carry the raw fetch's warnings (incl. cross_validate discrepancies)
         # onto the canonical object so they survive the normalization boundary.
         if raw.warnings:
@@ -489,12 +505,16 @@ class DataLayer:
     ) -> tuple[NormalizedPrice, bool] | None: ...
     @overload
     async def read_canonical_cached(
+        self, data_type: Literal[DataType.FORWARD_ESTIMATES], ticker: str
+    ) -> tuple[NormalizedForwardEstimates, bool] | None: ...
+    @overload
+    async def read_canonical_cached(
         self, data_type: str | DataType, ticker: str
-    ) -> tuple[NormalizedPrice | NormalizedFinancials, bool] | None: ...
+    ) -> tuple[CanonicalSnapshot, bool] | None: ...
 
     async def read_canonical_cached(
         self, data_type: str | DataType, ticker: str
-    ) -> tuple[NormalizedPrice | NormalizedFinancials, bool] | None:
+    ) -> tuple[CanonicalSnapshot, bool] | None:
         """Read canonical PRICE/FINANCIALS from cache WITHOUT ever fetching.
 
         Returns ``(normalized, is_stale)`` — the last-known snapshot even when
@@ -506,9 +526,10 @@ class DataLayer:
         >180s-for-100 cold fan-out that made the desk "load every open").
         """
         data_type = DataType(data_type)
-        if data_type not in (DataType.PRICE, DataType.FINANCIALS):
+        if data_type not in _CANONICAL_TYPES:
             raise ValueError(
-                f"read_canonical_cached supports only PRICE / FINANCIALS, got {data_type}."
+                f"read_canonical_cached supports only PRICE / FINANCIALS / FORWARD_ESTIMATES, "
+                f"got {data_type}."
             )
         cached = await self._cache.get_canonical(data_type, ticker)
         if cached is None:
@@ -532,12 +553,14 @@ class DataLayer:
     @staticmethod
     def _deserialize_canonical(
         data_type: DataType, payload_json: str, *, from_cache: bool
-    ) -> NormalizedPrice | NormalizedFinancials:
-        obj: NormalizedPrice | NormalizedFinancials = (
-            NormalizedPrice.model_validate_json(payload_json)
-            if data_type == DataType.PRICE
-            else NormalizedFinancials.model_validate_json(payload_json)
-        )
+    ) -> CanonicalSnapshot:
+        obj: CanonicalSnapshot
+        if data_type == DataType.PRICE:
+            obj = NormalizedPrice.model_validate_json(payload_json)
+        elif data_type == DataType.FORWARD_ESTIMATES:
+            obj = NormalizedForwardEstimates.model_validate_json(payload_json)
+        else:
+            obj = NormalizedFinancials.model_validate_json(payload_json)
         obj.provenance.from_cache = from_cache
         return obj
 

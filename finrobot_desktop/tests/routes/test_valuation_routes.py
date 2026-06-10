@@ -22,6 +22,7 @@ from finrobot.artifact.store import ArtifactStore
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.contracts import (
     NormalizedFinancials,
+    NormalizedForwardEstimates,
     NormalizedPrice,
     PriceBar,
     Provenance,
@@ -43,9 +44,10 @@ NOW = datetime(2026, 5, 21, tzinfo=UTC)
 
 
 class _StubDataLayer:
-    """Returns a PRICE-shaped payload for everything except FORWARD_ESTIMATES,
-    which returns the injected analyst-estimate rows (or empty when None).
+    """Serves canonical PRICE / FINANCIALS / FORWARD_ESTIMATES stubs.
 
+    ``fetch_canonical(FORWARD_ESTIMATES)`` returns the injected analyst-estimate
+    rows (or empty when None) — the hard single-source slot the route now reads.
     ``fetch_canonical(FINANCIALS)`` returns a NormalizedFinancials carrying the
     configured ``reporting_currency`` so the BUG-006 forward-EPS FX conversion
     in ``routes/valuation._forward_to_usd`` can resolve the issuer's currency."""
@@ -57,14 +59,6 @@ class _StubDataLayer:
         self._reporting_currency = reporting_currency
 
     async def fetch(self, data_type: DataType | str, ticker: str, **_: object) -> DataResult:
-        if DataType(data_type) == DataType.FORWARD_ESTIMATES:
-            return DataResult(
-                data={"rows": self._forward_rows or []},
-                provider="stub",
-                ticker=ticker,
-                data_type=DataType.FORWARD_ESTIMATES,
-                timestamp=NOW,
-            )
         return DataResult(
             data={"current_price": 876.42, "price_history": []},
             provider="stub",
@@ -75,7 +69,13 @@ class _StubDataLayer:
 
     async def fetch_canonical(
         self, data_type: DataType | str, ticker: str, **_: object
-    ) -> NormalizedFinancials | NormalizedPrice:
+    ) -> NormalizedFinancials | NormalizedPrice | NormalizedForwardEstimates:
+        if DataType(data_type) == DataType.FORWARD_ESTIMATES:
+            return NormalizedForwardEstimates(
+                ticker=ticker,
+                rows=self._forward_rows or [],
+                provenance=Provenance(provider="stub", as_of=NOW, fetched_at=NOW),
+            )
         if DataType(data_type) == DataType.PRICE:
             return NormalizedPrice(
                 ticker=ticker,

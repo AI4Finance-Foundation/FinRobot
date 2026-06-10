@@ -89,12 +89,13 @@ async def _forward_financials(
 ) -> ForwardFinancials:
     """Resolve FY1 forward consensus via DataLayer → the red-line leaf.
 
-    Fetches DataType.FORWARD_ESTIMATES (FMP /analyst-estimates) and hands the
-    payload to ``get_forward_financials``, which owns FY1 selection and口径.
-    When no FMP-capable provider is configured the fetch returns an error
-    payload (no ``rows``); the leaf then degrades to ``unavailable`` (all None)
-    so the aggregator hides the forward-multiple rows with a warning instead of
-    inventing a number — matches the BACKLOG P0 acceptance criterion.
+    Fetches the canonical FORWARD_ESTIMATES snapshot (the hard single-source
+    slot every DCF-seed entry shares) and hands its payload to
+    ``get_forward_financials``, which owns FY1 selection and口径. When no
+    FMP-capable provider is configured ``fetch_canonical`` raises ProviderError
+    (caught here → ``payload=None``); the leaf then degrades to ``unavailable``
+    (all None) so the aggregator hides the forward-multiple rows with a warning
+    instead of inventing a number — matches the BACKLOG P0 acceptance criterion.
 
     FMP analyst-estimates are denominated in the issuer's REPORTING currency
     (TWD for TSM), but the aggregator multiplies forward EPS by a USD-normalized
@@ -107,12 +108,11 @@ async def _forward_financials(
     payload: dict[str, Any] | None = None
     if data_layer is not None:
         try:
-            result = await data_layer.fetch(DataType.FORWARD_ESTIMATES, ticker)
+            result = await data_layer.fetch_canonical(DataType.FORWARD_ESTIMATES, ticker)
         except (ProviderError, ValueError, KeyError) as exc:
             logger.info("forward estimates fetch failed for %s: %s", ticker, exc)
         else:
-            if isinstance(result.data, dict) and "rows" in result.data:
-                payload = result.data
+            payload = result.payload()
 
     forward = get_forward_financials(ticker=ticker, yf_info=None, fmp_analyst_estimates=payload)
     forward = await _forward_to_usd(forward, ticker, data_layer, fmp_api_key=fmp_api_key)

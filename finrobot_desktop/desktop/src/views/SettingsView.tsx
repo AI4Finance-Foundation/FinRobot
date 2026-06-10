@@ -1493,6 +1493,8 @@ function ProviderStatusPanel(): React.ReactElement | null {
                   color: 'var(--text-muted)',
                   fontSize: 11,
                   fontFamily: 'var(--font-mono)',
+                  textAlign: 'right',
+                  maxWidth: 220,
                 }}
               >
                 {detail}

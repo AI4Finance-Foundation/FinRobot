@@ -67,7 +67,23 @@ async def fetch_historical_metrics(
         trailing_pe,
         fx_rate=fx.rate if fx.rate is not None else 1.0,
         currency=fx.currency_of_figures,
+        data_source=_aggregate_provider(results),
     )
+
+
+def _aggregate_provider(results: list[DataResult]) -> str | None:
+    """Collapse per-year provider tags into one provenance string.
+
+    One fetch normally serves every year from the same provider, but the
+    contract doesn't promise it — an honest "mixed:a+b" beats silently
+    reporting whichever year came last. None when there are no rows.
+    """
+    providers = sorted({r.provider for r in results if r.provider})
+    if not providers:
+        return None
+    if len(providers) == 1:
+        return providers[0]
+    return "mixed:" + "+".join(providers)
 
 
 async def _fetch_trailing_pe(data_layer: DataLayer, ticker: str) -> float | None:
@@ -91,6 +107,7 @@ def _build_from_yearly(
     trailing_pe: float | None,
     fx_rate: float = 1.0,
     currency: str | None = None,
+    data_source: str | None = None,
 ) -> HistoricalMetrics:
     """Pure function: assemble HistoricalMetrics from normalized per-year dicts.
 
@@ -214,6 +231,7 @@ def _build_from_yearly(
 
     return HistoricalMetrics(
         currency=currency,
+        data_source=data_source,
         years=years_list,
         revenue=revenue_list,
         revenue_growth_yoy=revenue_growth,

@@ -748,6 +748,16 @@ class HistoricalMetrics(BaseModel):
     # currency-invariant either way.
     currency: str | None = None
 
+    # Provider that served the yearly statements ("fmp" / "yfinance";
+    # "mixed:a+b" when years came from different providers in one fetch).
+    # None = built by a path that didn't record provenance (test fakes /
+    # legacy cache rows). Lets the /historical route disclose an FMP→yfinance
+    # silent fallback the same way /financials and /price already do.
+    data_source: str | None = None
+    # Free-text user-facing notes (e.g. the FMP-degradation warning the route
+    # appends). Mirrors the warnings convention on the canonical contracts.
+    warnings: list[str] = Field(default_factory=list)
+
     years: list[int]
     revenue: list[float]
     revenue_growth_yoy: list[float | None]

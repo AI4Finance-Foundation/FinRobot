@@ -56,3 +56,35 @@ def test_price_payload_note_appended_once_and_list_coerced() -> None:
     # FMP-served payload is untouched.
     clean = {"data_source": "fmp", "warnings": []}
     assert _with_fmp_degradation_note(req, clean)["warnings"] == []
+
+
+def test_historical_metrics_payload_roundtrips_through_note() -> None:
+    """/historical appends the note to the cached dict and re-validates it —
+    the HistoricalMetrics model must carry data_source + warnings through."""
+    from finrobot.engine.models.financial import HistoricalMetrics
+
+    metrics = HistoricalMetrics(
+        data_source="yfinance",
+        years=[2022],
+        revenue=[1e9],
+        revenue_growth_yoy=[None],
+        cogs=[None],
+        gross_profit=[None],
+        gross_margin=[None],
+        sga=[0.0],
+        sga_ratio=[None],
+        ebitda=[1e8],
+        ebitda_margin=[0.1],
+        operating_income=[1e8],
+        operating_margin=[0.1],
+        net_income=[5e7],
+        eps=[1.0],
+        pe_ratio=[None],
+        cagr_revenue=None,
+        ticker="AAPL",
+    )
+    payload = metrics.model_dump(mode="json")
+    out = _with_fmp_degradation_note(_request("fmp-key"), payload)
+    revalidated = HistoricalMetrics.model_validate(out)
+    assert revalidated.data_source == "yfinance"
+    assert any("yfinance 降级" in w for w in revalidated.warnings)

@@ -291,7 +291,10 @@ async def get_historical(ticker: str, request: Request) -> HistoricalMetrics:
     except (ValueError, ProviderError) as e:
         raise _data_http_error(e, ticker_upper) from e
 
-    return HistoricalMetrics.model_validate(payload)
+    # Same FMP-fallback disclosure as /financials and /price: outside the 24h
+    # route cache on purpose, so the note reflects the CURRENT settings (a key
+    # fixed after the cached fetch stops warning without waiting out the TTL).
+    return HistoricalMetrics.model_validate(_with_fmp_degradation_note(request, payload))
 
 
 @router.get("/{ticker}/earnings-calls", response_model=EarningsCallList)

@@ -492,3 +492,29 @@ class TestExtractHistoricalMetricsFx:
         assert result.currency == "USD"
         assert result.revenue[0] == pytest.approx(2_894_307_699_000.0)
         assert layer.rate_calls == []
+
+
+class TestDataSourceProvenance:
+    """data_source carries which provider served the yearly statements, so the
+    /historical route can disclose an FMP→yfinance silent fallback (the same
+    contract /financials and /price already honour)."""
+
+    def test_single_provider_tag_propagates(self):
+        result = _extract(FakeDataLayer(_normalized_yearly()))
+        # FakeDataLayer's DataResults all carry provider="test".
+        assert result.data_source == "test"
+
+    def test_mixed_providers_disclosed_not_last_wins(self):
+        from finrobot.engine.compute.coordinators.historical_extractor import (
+            _aggregate_provider,
+        )
+
+        rows = [_dr(d) for d in _normalized_yearly()]
+        rows[0] = rows[0].model_copy(update={"provider": "fmp"})
+        rows[1] = rows[1].model_copy(update={"provider": "yfinance"})
+        assert _aggregate_provider(rows) == "mixed:fmp+test+yfinance"
+        assert _aggregate_provider([]) is None
+
+    def test_empty_history_has_no_source(self):
+        result = _extract(FakeDataLayer([]))
+        assert result.data_source is None

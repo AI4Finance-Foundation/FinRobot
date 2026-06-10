@@ -20,7 +20,8 @@ import {
   type Technicals,
 } from '../../hooks/useTickerData'
 import { useTickerSentiment, type SentimentSnapshot } from '../../hooks/useTickerSentiment'
-import { useI18n, tSync } from '../../i18n'
+import { useI18n, tSync, type Locale } from '../../i18n'
+import { formatCurrencyCompact } from '../../utils/format'
 import { degradedLabel } from './degradedLabel'
 import { PriceTrendChart } from '../../components/charts/PriceTrendChart'
 
@@ -42,7 +43,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
     error: finErr,
     refetch: refetchFin,
   } = useTickerFinancials(ticker)
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
 
   return (
     <section data-testid="market-data-zone">
@@ -57,7 +58,10 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
           <>
             <Kv4
               cells={[
-                { label: t('workspace.market.marketCap'), value: fmtMc(fin?.market?.market_cap) },
+                {
+                  label: t('workspace.market.marketCap'),
+                  value: fmtMc(fin?.market?.market_cap, locale),
+                },
                 { label: 'P/E (TTM)', value: fmt(fin?.market?.pe_ratio, 1) },
                 {
                   label: 'EV/EBITDA (op)',
@@ -108,21 +112,24 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
           <>
             <Kv4
               cells={[
-                { label: t('workspace.market.revenueTtm'), value: fmtMc(fin?.income?.revenue) },
+                {
+                  label: t('workspace.market.revenueTtm'),
+                  value: fmtMc(fin?.income?.revenue, locale),
+                },
                 {
                   label: 'EBITDA (op)',
-                  value: fmtMc(fin?.income?.ebitda),
+                  value: fmtMc(fin?.income?.ebitda, locale),
                   sub:
                     typeof fin?.valuation?.ebitda_reported === 'number'
                       ? t('workspace.market.streetCaliber', {
-                          v: fmtMc(fin.valuation.ebitda_reported),
+                          v: fmtMc(fin.valuation.ebitda_reported, locale),
                         })
                       : undefined,
                   subTitle: t('workspace.market.ebitdaCaliber'),
                 },
                 {
                   label: 'Net Income',
-                  value: fmtMc(fin?.income?.net_income),
+                  value: fmtMc(fin?.income?.net_income, locale),
                 },
                 {
                   label: 'Gross Margin',
@@ -1083,10 +1090,8 @@ function fmt(v: number | null | undefined, digits = 2): string {
 function fmtPrice(v: number | null | undefined): string {
   return typeof v === 'number' ? `$${v.toFixed(2)}` : '—'
 }
-function fmtMc(v: number | null | undefined): string {
-  if (typeof v !== 'number') return '—'
-  if (Math.abs(v) >= 1e12) return `$${(v / 1e12).toFixed(2)}T`
-  if (Math.abs(v) >= 1e9) return `$${(v / 1e9).toFixed(2)}B`
-  if (Math.abs(v) >= 1e6) return `$${(v / 1e6).toFixed(1)}M`
-  return `$${v.toFixed(0)}`
+// Compact USD via the format.ts throat — one negative-notation rule (-$5.00B,
+// not the hand-rolled "$-5.00B") and one NaN guard for every money cell here.
+function fmtMc(v: number | null | undefined, locale: Locale): string {
+  return formatCurrencyCompact(v, 'USD', locale)
 }

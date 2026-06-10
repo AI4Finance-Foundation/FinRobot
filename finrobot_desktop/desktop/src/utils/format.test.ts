@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   formatAge,
+  formatCurrencyCompact,
   freshnessColor,
   freshnessTier,
   FRESHNESS_WARN_SECONDS,
@@ -86,5 +87,34 @@ describe('freshnessTier', () => {
     expect(freshnessTier(FRESHNESS_WARN_SECONDS + 1)).toBe('delayed')
     expect(freshnessTier(FRESHNESS_DANGER_SECONDS)).toBe('delayed')
     expect(freshnessTier(FRESHNESS_DANGER_SECONDS + 1)).toBe('stale')
+  })
+})
+
+describe('formatCurrencyCompact', () => {
+  it('compacts positive USD amounts', () => {
+    expect(formatCurrencyCompact(5e9, 'USD', 'en')).toBe('$5.00B')
+    expect(formatCurrencyCompact(1.23e12, 'USD', 'en')).toBe('$1.23T')
+    expect(formatCurrencyCompact(4.5e6, 'USD', 'en')).toBe('$4.50M')
+  })
+
+  it('puts the sign BEFORE the symbol for negatives (finance convention)', () => {
+    // "-$5.00B", never the hand-rolled "$-5.00B".
+    expect(formatCurrencyCompact(-5e9, 'USD', 'en')).toBe('-$5.00B')
+    expect(formatCurrencyCompact(-1.23e12, 'USD', 'en')).toBe('-$1.23T')
+    expect(formatCurrencyCompact(-2.5e6, 'HKD', 'en')).toBe('-HK$2.50M')
+  })
+
+  it('keeps the sign with the number in the ISO-code fallback', () => {
+    expect(formatCurrencyCompact(-1.23e9, 'XYZ', 'en')).toBe('XYZ -1.23B')
+  })
+
+  it('sub-thousand negatives defer to Intl (sign handled there)', () => {
+    expect(formatCurrencyCompact(-500, 'USD', 'en')).toBe('-$500')
+  })
+
+  it('null / undefined / NaN → em dash', () => {
+    expect(formatCurrencyCompact(null, 'USD', 'en')).toBe('—')
+    expect(formatCurrencyCompact(undefined, 'USD', 'en')).toBe('—')
+    expect(formatCurrencyCompact(Number.NaN, 'USD', 'en')).toBe('—')
   })
 })

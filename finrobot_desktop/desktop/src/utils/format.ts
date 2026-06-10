@@ -142,10 +142,13 @@ export function formatCurrencyCompact(
   const firstThreshold = locale === 'zh' ? 1e4 : 1e3
   if (abs < firstThreshold) return formatCurrency(n, currency, locale, 0)
 
-  const compact = formatCompactNumber(n, locale) // e.g. "1.23B" / "1.23 亿"
+  // Finance convention puts the sign BEFORE the currency symbol (-$5.00B);
+  // compacting the signed value and prefixing "$" yielded "$-5.00B".
+  const sign = n < 0 ? '-' : ''
+  const compact = formatCompactNumber(abs, locale) // e.g. "1.23B" / "1.23 亿"
   // USD always renders as a bare "$" so existing US reports stay byte-identical
   // (the default `symbol` display would localize it to "US$" under zh).
-  if (currency.toUpperCase() === 'USD') return `$${compact}`
+  if (currency.toUpperCase() === 'USD') return `${sign}$${compact}`
   // Extract the currency symbol via formatToParts (ICU-stable, unlike stripping
   // a formatted string). Default `symbol` display keeps "HK$" distinct from "$"
   // — narrowSymbol would collapse HK$→$, re-introducing the very mislabel
@@ -157,10 +160,10 @@ export function formatCurrencyCompact(
       currency,
     }).formatToParts(1)
     const sym = parts.find((p) => p.type === 'currency')?.value ?? currency
-    if (sym.toUpperCase() === currency.toUpperCase()) return `${currency} ${compact}`
-    return `${sym}${compact}`
+    if (sym.toUpperCase() === currency.toUpperCase()) return `${currency} ${sign}${compact}`
+    return `${sign}${sym}${compact}`
   } catch {
-    return `${currency} ${compact}`
+    return `${currency} ${sign}${compact}`
   }
 }
 

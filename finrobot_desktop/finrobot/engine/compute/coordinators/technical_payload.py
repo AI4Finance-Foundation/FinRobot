@@ -23,7 +23,11 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from finrobot.engine.primitives.historical_valuation import HistoricalBand
-from finrobot.engine.compute.operators.monte_carlo import MonteCarloResult, run_monte_carlo
+from finrobot.engine.compute.operators.monte_carlo import (
+    MonteCarloResult,
+    deterministic_seed,
+    run_monte_carlo,
+)
 from finrobot.engine.compute.operators.sniper import (
     SniperPoints,
     SniperRequest,
@@ -135,7 +139,7 @@ async def build_technical_analysis(
     """
     warnings: list[str] = []
 
-    monte_carlo = _safe_monte_carlo(dcf_inputs, current_price, warnings)
+    monte_carlo = _safe_monte_carlo(ticker, dcf_inputs, current_price, warnings)
     prices = await load_price_history(ticker, data_layer, years=1)
     sniper = _safe_sniper(ticker, current_price, dcf_target, prices, warnings, reliable=reliable)
     historical_bands = await _safe_historical_bands(
@@ -156,16 +160,20 @@ async def build_technical_analysis(
 
 
 def _safe_monte_carlo(
-    dcf_inputs: DCFInputs, current_price: float, warnings: list[str]
+    ticker: str, dcf_inputs: DCFInputs, current_price: float, warnings: list[str]
 ) -> MonteCarloResult | None:
     if current_price <= 0:
         warnings.append("monte_carlo skipped: current_price unavailable")
         return None
     try:
+        # Deterministic seed (crc32 of ticker + UTC day): rerunning the same
+        # report on the same day reproduces the exact MC band; the seed lands
+        # in assumptions_used so the artifact stays traceable.
         return run_monte_carlo(
             inputs=dcf_inputs,
             current_price=current_price,
             n_simulations=_MC_SIMULATIONS,
+            seed=deterministic_seed(ticker),
         )
     except (ValueError, ArithmeticError, RuntimeError) as exc:
         logger.warning("Monte Carlo failed for %s: %s", dcf_inputs, exc)

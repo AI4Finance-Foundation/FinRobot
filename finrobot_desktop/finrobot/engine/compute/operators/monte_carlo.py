@@ -14,6 +14,8 @@ completes in ~10ms vs ~2s for the scalar loop it replaced.
 
 from __future__ import annotations
 
+import zlib
+from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
@@ -81,6 +83,18 @@ def _percentile_rank(sorted_prices: np.ndarray, x: float) -> float:
     return ((below + at_or_below) / 2) / len(sorted_prices) * 100
 
 
+def deterministic_seed(ticker: str, as_of: str | None = None) -> int:
+    """Deterministic RNG seed for production call sites — ``crc32(ticker:date)``.
+
+    Same ticker re-simulated on the same (UTC) day reproduces a bit-identical
+    distribution, so two renders of one report never disagree on the MC band.
+    The day boundary is UTC because every other as-of stamp in the engine is;
+    pass ``as_of`` (ISO date) explicitly when the caller already carries one.
+    """
+    day = as_of or datetime.now(tz=timezone.utc).date().isoformat()
+    return zlib.crc32(f"{ticker}:{day}".encode())
+
+
 class MonteCarloRequest(BaseModel):
     """Request body for Monte Carlo endpoint."""
 
@@ -93,6 +107,10 @@ class MonteCarloRequest(BaseModel):
     wacc_std: float = Field(default=0.01, ge=0, le=0.05)
     terminal_growth_std: float = Field(default=0.005, ge=0, le=0.02)
     mid_year: bool = Field(default=False)
+    seed: int | None = Field(
+        default=None,
+        description="RNG seed for bit-identical reruns; recorded in assumptions_used.",
+    )
 
     @field_validator("n_simulations")
     @classmethod
@@ -345,5 +363,6 @@ def run_monte_carlo(
             "terminal_growth_std": terminal_growth_std,
             "variance_reduction": "antithetic_variates",
             "mid_year_convention": mid_year,
+            "seed": seed,
         },
     )

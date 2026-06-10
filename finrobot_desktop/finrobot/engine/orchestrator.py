@@ -18,7 +18,7 @@ from finrobot.engine.analysis.qa import run_qa
 from finrobot.engine.backtest.backtrader_adapter import BackTraderAdapter
 from finrobot.engine.backtest.engine import BacktestConfig
 from finrobot.engine.compute.coordinators.dcf_seed import seed_dcf_inputs_for_ticker
-from finrobot.engine.compute.operators.monte_carlo import MonteCarloResult
+from finrobot.engine.compute.operators.monte_carlo import MonteCarloResult, deterministic_seed
 from finrobot.engine.compute.operators.monte_carlo import run_monte_carlo as run_monte_carlo_sim
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.normalize import NormalizedPrice
@@ -419,7 +419,11 @@ def create_lead_agent(
             return f"Couldn't seed a DCF for {norm} to simulate: {exc}"
         current_price = financial_data.market.current_price
         try:
-            result = run_monte_carlo_sim(dcf_inputs, current_price=current_price)
+            # Deterministic seed (ticker + UTC day): re-asking in the same chat
+            # session reproduces the same distribution instead of jittering.
+            result = run_monte_carlo_sim(
+                dcf_inputs, current_price=current_price, seed=deterministic_seed(norm)
+            )
         except ValueError as exc:
             # The operator raises when too few simulations stay valid (degenerate
             # assumptions); surface it rather than crash the stream.

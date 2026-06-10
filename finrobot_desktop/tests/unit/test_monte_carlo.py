@@ -8,6 +8,7 @@ from finrobot.engine.compute.operators.monte_carlo import (
     MonteCarloRequest,
     _bounded_perturb,
     _percentile_rank,
+    deterministic_seed,
     run_monte_carlo,
 )
 from finrobot.engine.models.financial import DCFInputs
@@ -210,3 +211,46 @@ def test_non_positive_terminal_fcf_paths_are_dropped() -> None:
 
     with pytest.raises(ValueError, match="positive simulations"):
         run_monte_carlo(sick, current_price=160.0, n_simulations=200, seed=7)
+
+
+def test_same_seed_reproduces_bit_identical_result() -> None:
+    """Reproducibility contract: production call sites pass a deterministic
+    seed (crc32 of ticker + UTC day), so rerunning the same report the same
+    day must reproduce the distribution bit for bit — every percentile, every
+    histogram count, every price."""
+    a = run_monte_carlo(_inputs(), current_price=160.0, n_simulations=2_000, seed=12345)
+    b = run_monte_carlo(_inputs(), current_price=160.0, n_simulations=2_000, seed=12345)
+
+    assert a.implied_prices == b.implied_prices
+    assert a.percentiles == b.percentiles
+    assert a.histogram_bins == b.histogram_bins
+    assert a.histogram_counts == b.histogram_counts
+    assert a.mean == b.mean
+    assert a.std == b.std
+    assert a.current_price_percentile == b.current_price_percentile
+
+
+def test_assumptions_used_records_seed_for_provenance() -> None:
+    seeded = run_monte_carlo(_inputs(), current_price=160.0, n_simulations=200, seed=99)
+    unseeded = run_monte_carlo(_inputs(), current_price=160.0, n_simulations=200)
+
+    assert seeded.assumptions_used["seed"] == 99
+    assert unseeded.assumptions_used["seed"] is None
+
+
+def test_deterministic_seed_is_stable_per_ticker_and_day() -> None:
+    assert deterministic_seed("AAPL", as_of="2026-06-10") == deterministic_seed(
+        "AAPL", as_of="2026-06-10"
+    )
+    assert deterministic_seed("AAPL", as_of="2026-06-10") != deterministic_seed(
+        "MSFT", as_of="2026-06-10"
+    )
+    assert deterministic_seed("AAPL", as_of="2026-06-10") != deterministic_seed(
+        "AAPL", as_of="2026-06-11"
+    )
+
+
+def test_monte_carlo_request_accepts_seed_field() -> None:
+    request = MonteCarloRequest(inputs=_inputs(), current_price=160.0, seed=7)
+    assert request.seed == 7
+    assert MonteCarloRequest(inputs=_inputs(), current_price=160.0).seed is None

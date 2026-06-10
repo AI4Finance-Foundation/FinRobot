@@ -1329,7 +1329,7 @@ class TestFetchCanonical:
             [MockProvider("fmp", ["financials"], r1), MockProvider("finnhub", ["financials"], r2)],
             cache,
         )
-        out = await layer.fetch_canonical("financials", "AAPL")
+        out = await layer.fetch_canonical(DataType.FINANCIALS, "AAPL")
         assert degraded_provider_divergence("revenue") in out.provenance.degraded
         # Primary (FMP) value still flows — number not dropped, just flagged.
         assert out.revenue == 100_000_000
@@ -1536,6 +1536,79 @@ class TestCanonicalSingleFlight:
             layer.fetch_canonical(DataType.PRICE, "MSFT"),
         )
         assert sorted(seen) == ["AAPL", "MSFT"]
+
+
+class TestRawFetchSingleFlight:
+    """fetch() coalesces concurrent identical cold-cache misses (item 3) — the
+    raw-path twin of fetch_canonical's single-flight."""
+
+    async def test_concurrent_raw_fetches_coalesce_to_one(self, cache):
+        """A cold-cache stampede for one (data_type, ticker) collapses to a single
+        provider walk; the registry self-evicts after completion."""
+
+        class SlowProvider(DataProvider):
+            def __init__(self) -> None:
+                self.calls = 0
+
+            @property
+            def name(self) -> str:
+                return "slow"
+
+            def capabilities(self) -> list[str]:
+                return ["news"]
+
+            async def fetch(self, ticker, data_type, **kwargs) -> DataResult:
+                self.calls += 1
+                await asyncio.sleep(0.02)  # hold the in-flight window open
+                return DataResult(
+                    data={"news_items": []},
+                    provider="slow",
+                    ticker=ticker,
+                    data_type="news",
+                    timestamp=datetime.now(tz=timezone.utc),
+                )
+
+        p = SlowProvider()
+        layer = DataLayer([p], cache)
+        results = await asyncio.gather(*[layer.fetch("news", "AAPL") for _ in range(6)])
+        assert p.calls == 1  # 6 concurrent callers, ONE provider walk
+        assert all(r.provider == "slow" for r in results)
+        assert layer._inflight_raw == {}  # registry self-evicts
+
+    async def test_raw_fetches_with_distinct_kwargs_do_not_coalesce(self, cache):
+        """Single-flight keys on (data_type, cache_key incl kwargs): different
+        days_back run as separate flights, so neither window is served the other's
+        payload (ties item 3 to the item 1 kwarg-in-key fix)."""
+
+        class RecordingProvider(DataProvider):
+            def __init__(self) -> None:
+                self.seen: list[int] = []
+
+            @property
+            def name(self) -> str:
+                return "rec"
+
+            def capabilities(self) -> list[str]:
+                return ["sentiment"]
+
+            async def fetch(self, ticker, data_type, **kwargs) -> DataResult:
+                self.seen.append(int(kwargs["days_back"]))
+                await asyncio.sleep(0.01)
+                return DataResult(
+                    data={"days_back": kwargs["days_back"]},
+                    provider="rec",
+                    ticker=ticker,
+                    data_type="sentiment",
+                    timestamp=datetime.now(tz=timezone.utc),
+                )
+
+        p = RecordingProvider()
+        layer = DataLayer([p], cache)
+        await asyncio.gather(
+            layer.fetch("sentiment", "AAPL", days_back=7),
+            layer.fetch("sentiment", "AAPL", days_back=30),
+        )
+        assert sorted(p.seen) == [7, 30]
 
 
 def _adr_financials_result(ticker: str = "TSM") -> DataResult:

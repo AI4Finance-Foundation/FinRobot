@@ -73,6 +73,11 @@ class DataLayer:
         # ``fetch_canonical``). Lives for one process; entries self-evict on
         # completion.
         self._inflight_canonical: dict[tuple[DataType, str], asyncio.Future[CanonicalSnapshot]] = {}
+        # Same single-flight, but for the RAW ``fetch()`` slow path (news /
+        # sentiment / transcripts / financials), keyed by (data_type, cache_key)
+        # so distinct kwargs don't share a flight. Collapses a cold-cache
+        # stampede the canonical registry above doesn't cover.
+        self._inflight_raw: dict[tuple[DataType, str], asyncio.Future[DataResult]] = {}
 
     def _health_gated(self, provider: DataProvider) -> bool:
         """True if ``provider`` is in an open cooldown window and should be skipped.
@@ -154,7 +159,42 @@ class DataLayer:
 
         # 1. Fresh cache hit — raw slot; staleness is by TTL only. Canonical
         # slots use version-tagged keys (ADR-0006 C1) that auto-invalidate on
-        # schema bumps, so a fresh hit needs no contract-shape check.
+        # schema bumps, so a fresh hit needs no contract-shape check. Served
+        # OUTSIDE the single-flight so a warm cache never waits on a sibling.
+        cached = await self._cache.get(data_type, cache_key)
+        if cached is not None and not cached.is_stale:
+            return cached.data
+
+        # Slow path: collapse concurrent identical misses onto ONE provider walk
+        # (cache-stampede shield). N parallel cold callers for one (data_type,
+        # cache_key) — a research fan-out plus a route hitting the same NEWS /
+        # SENTIMENT — would otherwise each walk the provider chain and risk
+        # rate-limiting FMP/Finnhub or DoS-ing yfinance. Single-thread-safe like
+        # fetch_canonical: no await between the miss check and the registry
+        # insert, so two coroutines can never both create the in-flight Task.
+        sf_key = (data_type, cache_key)
+        existing = self._inflight_raw.get(sf_key)
+        if existing is not None:
+            return await existing
+        task: asyncio.Future[DataResult] = asyncio.ensure_future(
+            self._fetch_uncached(data_type, ticker, cache_key, **kwargs)
+        )
+        self._inflight_raw[sf_key] = task
+        try:
+            return await task
+        finally:
+            self._inflight_raw.pop(sf_key, None)
+
+    async def _fetch_uncached(
+        self, data_type: DataType, ticker: str, cache_key: str, **kwargs: Any
+    ) -> DataResult:
+        """Cache-miss path of :meth:`fetch` — provider walk → cache → return,
+        wrapped by ``fetch`` in a per-(data_type, cache_key) single-flight so
+        concurrent identical misses share one execution.
+        """
+        # Double-check the cache: a sibling flight may have populated it between
+        # our miss in fetch() and this body running. Also re-binds ``cached`` for
+        # the stale-fallback path below.
         cached = await self._cache.get(data_type, cache_key)
         if cached is not None and not cached.is_stale:
             return cached.data

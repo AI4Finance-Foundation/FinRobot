@@ -778,6 +778,17 @@ def load_non_secret_settings_with_error(path: Path) -> tuple[dict[str, Any], str
     """
     if not path.exists():
         return {}, None
+    # Self-heal permission drift on the boot read, mirroring FileSecretStore:
+    # an existing install's settings.json predates the 0600 write path (or a
+    # backup/restore loosened it), and waiting for the next save would leave it
+    # group/other-readable indefinitely. Never fatal — perms are best-effort.
+    try:
+        mode = stat.S_IMODE(path.stat().st_mode)
+        if mode & 0o077:
+            os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+            logger.warning("Settings file %s had mode %#o; tightened to 0600.", path, mode)
+    except OSError:
+        pass
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -817,13 +828,15 @@ def _atomic_write_text(path: Path, payload: str) -> None:
     write), so a SIGKILL mid-write — routine when the Tauri shell tears down the
     sidecar — could leave a truncated file on disk. The rename is atomic on the
     same filesystem, so readers only ever observe the old or the new content.
-    Preserves the existing file's permission bits (0644 default for a fresh file,
-    matching what ``write_text`` produced under the standard umask).
+
+    Mode is forced to 0600 — symmetric with the FileSecretStore's .secrets
+    handling. settings.json holds no API keys, but it does hold the user's SEC
+    identity (name + email in ``sec_user_agent``) and their provider registry
+    (custom base_urls), which other local users have no business reading. The
+    rewrite also self-heals a file that drifted looser (backup/restore, editor
+    rewrites under the default umask).
     """
-    try:
-        mode = stat.S_IMODE(path.stat().st_mode)
-    except FileNotFoundError:
-        mode = 0o644
+    mode = stat.S_IRUSR | stat.S_IWUSR  # 0600, always — never preserve looser bits
     fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=f"{path.name}.", suffix=".tmp")
     try:
         os.write(fd, payload.encode("utf-8"))
@@ -885,3 +898,65 @@ def _merge_non_secret_settings(path: Path, updates: dict[str, Any]) -> None:
     # pydantic-settings coerces ISO strings back into ``datetime`` fields
     # (e.g. ``sec_identity_dismissed_at``) during ``FinRobotSettings(...)``.
     _atomic_write_text(path, json.dumps(existing, indent=2, sort_keys=True, default=str))
+
+
+# ── Data Provider Status (门五②) ─────────────────────────────────────────────
+# Read-only view over the live DataLayer's ProviderHealth breaker for the
+# Settings「Data Provider Status」panel. Signals are the real circuit state —
+# spec acceptance forbids a mocked all-green panel.
+
+# Which settings field holds a provider's credential. yfinance has no key
+# concept at all → key_required=False, key_configured=None (a fake "configured"
+# chip on a keyless provider would be noise, not provenance).
+_PROVIDER_KEY_FIELDS: dict[str, str] = {
+    "fmp": "fmp_api_key",
+    "finnhub": "finnhub_api_key",
+    "edgar_tools": "sec_user_agent",
+}
+
+
+class ProviderHealthEntry(BaseModel):
+    name: str
+    key_required: bool
+    key_configured: bool | None = None
+    available: bool
+    # Stable tokens the UI switches on (T8: backend Literal ⊆ frontend union).
+    circuit_state: str = Field(pattern="^(closed|open)$")
+    cooldown_until: datetime | None = None
+    consecutive_failures: int = 0
+    last_success: datetime | None = None
+    last_failure: datetime | None = None
+    last_rate_limited: bool = False
+
+
+class ProviderHealthResponse(BaseModel):
+    providers: list[ProviderHealthEntry]
+
+
+@router.get("/provider-health", response_model=ProviderHealthResponse)
+async def provider_health_route(request: Request) -> ProviderHealthResponse:
+    """Per-provider circuit/freshness signals from the live ProviderHealth
+    breaker — name, availability, cooldown window, last success/failure/429,
+    and whether the provider's credential is configured."""
+    data_layer = request.app.state.deps.data_layer
+    settings = request.app.state.deps.settings
+    entries: list[ProviderHealthEntry] = []
+    for name, available, state in data_layer.provider_status():
+        key_field = _PROVIDER_KEY_FIELDS.get(name)
+        entries.append(
+            ProviderHealthEntry(
+                name=name,
+                key_required=key_field is not None,
+                key_configured=(
+                    bool(getattr(settings, key_field, "")) if key_field is not None else None
+                ),
+                available=available,
+                circuit_state="closed" if available else "open",
+                cooldown_until=state.cooldown_until,
+                consecutive_failures=state.consecutive_failures,
+                last_success=state.last_success,
+                last_failure=state.last_failure,
+                last_rate_limited=state.last_rate_limited,
+            )
+        )
+    return ProviderHealthResponse(providers=entries)

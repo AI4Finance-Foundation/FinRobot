@@ -197,15 +197,35 @@ def test_merge_failure_leaves_existing_file_intact(tmp_path: Path, monkeypatch: 
     assert sorted(tmp_path.iterdir()) == [path]
 
 
-def test_merge_preserves_existing_file_mode(tmp_path: Path) -> None:
-    """The atomic rewrite keeps the permission bits of the file it replaces."""
+def test_merge_enforces_0600_mode(tmp_path: Path) -> None:
+    """The atomic rewrite forces 0600 (symmetric with .secrets) — it never
+    preserves looser bits from the file it replaces, and a fresh file is born
+    0600 too. settings.json carries the user's SEC identity and custom provider
+    endpoints; other local users have no business reading it."""
     path = tmp_path / "settings.json"
     path.write_text("{}")
-    os.chmod(path, 0o644)
+    os.chmod(path, 0o644)  # drifted-loose existing file
 
     _merge_non_secret_settings(path, {"model_name": "openai:gpt-4o"})
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
-    assert stat.S_IMODE(path.stat().st_mode) == 0o644
+    fresh = tmp_path / "fresh-settings.json"
+    _merge_non_secret_settings(fresh, {"model_name": "openai:gpt-4o"})
+    assert stat.S_IMODE(fresh.stat().st_mode) == 0o600
+
+
+def test_load_tightens_drifted_mode_on_boot_read(tmp_path: Path) -> None:
+    """The boot read self-heals a loose settings.json immediately (mirroring
+    FileSecretStore) instead of waiting for the next save."""
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps({"model_name": "openai:gpt-4o"}))
+    os.chmod(path, 0o644)
+
+    overrides, error = load_non_secret_settings_with_error(path)
+
+    assert error is None
+    assert overrides == {"model_name": "openai:gpt-4o"}
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
 
 # ---------------------------------------------------------------------------

@@ -116,6 +116,24 @@ async def test_prune_run_events_drops_old_terminal_events_keeps_runs(store: RunS
     assert await store.prune_run_events(retention_days=7) == 0
 
 
+async def test_remove_artifact_links_drops_only_the_deleted_artifact(store: RunStore) -> None:
+    """DELETE /api/artifacts/{id} must not leave dangling run_artifacts rows —
+    and must not touch links to OTHER artifacts of the same run."""
+    record = await store.create_run("dcf", "AAPL")
+    await store.add_artifact(
+        record.run_id, artifact_type="dcf", format="json", file_path="/api/artifacts/art_dead"
+    )
+    await store.add_artifact(
+        record.run_id, artifact_type="comps", format="json", file_path="/api/artifacts/art_alive"
+    )
+
+    assert await store.remove_artifact_links("art_dead") == 1
+    remaining = await store.list_artifacts(record.run_id)
+    assert [a.file_path for a in remaining] == ["/api/artifacts/art_alive"]
+    # Idempotent — nothing left to remove for that id.
+    assert await store.remove_artifact_links("art_dead") == 0
+
+
 async def test_prune_run_events_skips_failed_with_recent_completed_at(store: RunStore) -> None:
     """A failed run is terminal too, but only pruned once it's past retention."""
     now = datetime.now(tz=timezone.utc)

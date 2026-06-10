@@ -177,6 +177,21 @@ class TestDeleteArtifact:
         resp = client.delete("/api/artifacts/nonexistent_id")
         assert resp.status_code == 404
 
+    def test_delete_drops_run_artifact_links(
+        self, client: TestClient, store: ArtifactStore, sample_artifact: Artifact
+    ) -> None:
+        """Deleting the canonical artifact also removes the runs.db link rows —
+        otherwise GET /api/runs/{id} keeps listing a ghost whose open-report
+        path 404s forever."""
+        from unittest.mock import AsyncMock
+
+        _save_sync(store, sample_artifact)
+        run_store = AsyncMock()
+        client.app.state.run_store = run_store  # type: ignore[attr-defined]
+        resp = client.delete(f"/api/artifacts/{sample_artifact.id}")
+        assert resp.status_code == 200
+        run_store.remove_artifact_links.assert_awaited_once_with(sample_artifact.id)
+
 
 class TestDiff:
     def test_diff_identical_artifacts_flagged_identical(

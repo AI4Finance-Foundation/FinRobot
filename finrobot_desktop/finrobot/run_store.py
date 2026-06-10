@@ -502,6 +502,29 @@ class RunStore:
             logger.exception("Failed to add artifact to run %s", run_id)
             raise
 
+    async def remove_artifact_links(self, artifact_id: str) -> int:
+        """Drop run_artifacts rows pointing at a deleted canonical artifact.
+
+        run_artifacts only records which artifact a run produced (the body
+        lives in artifacts.db). When DELETE /api/artifacts/{id} removes the
+        canonical artifact, the link rows here used to dangle forever — GET
+        /api/runs/{run_id} kept listing the artifact and the UI's open-report
+        path 404'd on a ghost. Linkage is by the stored API path (the only
+        artifact identity this table holds). Returns the rows removed.
+        """
+        try:
+            conn = await self._ensure_connection()
+            async with conn.execute(
+                "DELETE FROM run_artifacts WHERE file_path = ?",
+                (f"/api/artifacts/{artifact_id}",),
+            ) as cursor:
+                count = cursor.rowcount
+            await conn.commit()
+            return count
+        except aiosqlite.OperationalError:
+            logger.exception("Failed to remove run_artifacts links for %s", artifact_id)
+            raise
+
     async def list_artifacts(self, run_id: str) -> list[ArtifactRecord]:
         conn = await self._ensure_connection()
         async with conn.execute(

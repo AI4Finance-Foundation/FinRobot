@@ -224,6 +224,13 @@ async def delete_artifact(artifact_id: str, request: Request) -> dict[str, str]:
     deleted = await store.delete(artifact_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Artifact not found: {artifact_id}")
+    # The canonical artifact is gone — drop the run_artifacts link rows in
+    # runs.db too, or GET /api/runs/{run_id} keeps listing a ghost whose
+    # open-report path 404s forever. Absent run_store (router mounted bare in
+    # tests) just means there are no links to clean.
+    run_store = getattr(request.app.state, "run_store", None)
+    if run_store is not None:
+        await run_store.remove_artifact_links(artifact_id)
     # Removing an artifact changes the landing hit-rate buckets and may drop a
     # ticker card off the recent-research strip — bust the dashboard TTL caches
     # so it reflects the deletion immediately (BUG-20260602-030). Local import

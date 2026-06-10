@@ -33,7 +33,8 @@ import asyncio
 import logging
 import sqlite3
 import re
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Iterable
+from contextlib import asynccontextmanager
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -107,28 +108,52 @@ def _issuer_key(value: str | None) -> str:
     return " ".join(filtered or tokens)
 
 
+async def _open_connection() -> aiosqlite.Connection:
+    """Open + configure a connection and ensure the schema. Caller owns it."""
+    _paths.ensure_home()
+    db = _paths.SEC_HOLDINGS_DB
+    Path(db).parent.mkdir(parents=True, exist_ok=True)
+    c = await aiosqlite.connect(str(db))
+    try:
+        await _paths.configure_connection(c)
+        # executescript not supported across all aiosqlite paths;
+        # split into individual statements.
+        for stmt in [s.strip() for s in _SCHEMA.split(";") if s.strip()]:
+            await c.execute(stmt)
+        await c.commit()
+    except BaseException:
+        await c.close()
+        raise
+    return c
+
+
 async def _conn() -> aiosqlite.Connection:
     global _GLOBAL_CONN
     if _GLOBAL_CONN is not None:
         return _GLOBAL_CONN
     async with _CONN_LOCK:
         if _GLOBAL_CONN is None:
-            _paths.ensure_home()
-            db = _paths.SEC_HOLDINGS_DB
-            Path(db).parent.mkdir(parents=True, exist_ok=True)
-            c = await aiosqlite.connect(str(db))
-            try:
-                await _paths.configure_connection(c)
-                # executescript not supported across all aiosqlite paths;
-                # split into individual statements.
-                for stmt in [s.strip() for s in _SCHEMA.split(";") if s.strip()]:
-                    await c.execute(stmt)
-                await c.commit()
-            except BaseException:
-                await c.close()
-                raise
-            _GLOBAL_CONN = c
+            _GLOBAL_CONN = await _open_connection()
     return _GLOBAL_CONN
+
+
+@asynccontextmanager
+async def ephemeral_connection() -> AsyncIterator[aiosqlite.Connection]:
+    """Open-use-close connection for ``asyncio.run`` islands (BUG-082 sibling).
+
+    The process-wide singleton is bound to the event loop that first created
+    it. ``EdgarProvider._fetch_13f_sync`` runs inside ``asyncio.to_thread`` and
+    spins up a BRAND-NEW loop per call via ``asyncio.run``; awaiting the
+    singleton from that loop (or poisoning the singleton by creating it on a
+    loop that immediately dies) deadlocks every later caller. Cross-loop
+    callers must scope their I/O to this context manager; main-loop callers
+    (routes/sec_holdings, sec_holdings_sync) keep the singleton's performance.
+    """
+    c = await _open_connection()
+    try:
+        yield c
+    finally:
+        await c.close()
 
 
 async def close_singleton() -> None:
@@ -191,6 +216,8 @@ async def lookup_holders_for_ticker(
     issuer_name: str | None = None,
     period_end: date | None = None,
     limit: int = 20,
+    *,
+    conn: aiosqlite.Connection | None = None,
 ) -> list[dict[str, Any]]:
     """Return list of institutions holding ``ticker`` at ``period_end``.
 
@@ -202,12 +229,15 @@ async def lookup_holders_for_ticker(
     Caller (Chapter 12.2) MUST handle the empty-list case as "data
     unavailable — refresh job not yet run", NOT as "no institutions hold
     this stock".
+
+    ``conn``: cross-loop callers (``asyncio.run`` islands) must pass an
+    ``ephemeral_connection()``; None uses the main-loop singleton.
     """
     tkr = ticker.strip().upper()
     if not tkr:
         return []
 
-    c = await _conn()
+    c = conn if conn is not None else await _conn()
 
     issuer_key = _issuer_key(issuer_name)
 
@@ -331,7 +361,7 @@ async def bulk_upsert_holdings(rows: Iterable[dict[str, Any]]) -> int:
     return count
 
 
-async def cache_status() -> dict[str, Any]:
+async def cache_status(*, conn: aiosqlite.Connection | None = None) -> dict[str, Any]:
     """Quick health probe for /api/health/sec-holdings or Settings page.
 
     Returns ``{"populated": bool, "row_count": int, "latest_period_end":
@@ -351,7 +381,7 @@ async def cache_status() -> dict[str, Any]:
     means.
     """
     expected = expected_latest_period_end(date.today()).isoformat()
-    c = await _conn()
+    c = conn if conn is not None else await _conn()
     async with c.execute(
         "SELECT COUNT(*), MAX(period_end), COUNT(DISTINCT cusip) FROM holdings"
     ) as cur:

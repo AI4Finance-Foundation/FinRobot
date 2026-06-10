@@ -204,3 +204,50 @@ async def test_lookup_uses_issuer_name_when_ticker_unresolved(_isolated_cache) -
     assert len(rows) == 1
     assert rows[0]["holder_name"] == "Bridgewater"
     assert rows[0]["name_of_issuer"] == "NVIDIA CORP"
+
+
+def test_ephemeral_connection_survives_sequential_asyncio_run_loops(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """BUG-082 sibling: EdgarProvider._fetch_13f_sync runs each 13F fetch in a
+    BRAND-NEW asyncio.run loop (inside asyncio.to_thread). Sharing the global
+    singleton across those loop islands is a time bomb (probed on aiosqlite
+    0.22.1): any in-flight future whose loop dies first makes the worker's
+    call_soon_threadsafe raise, which kills the worker thread and bricks the
+    connection for EVERY later caller — including the server's main loop.
+    The 13F path must therefore never touch the singleton: each island scopes
+    its I/O to an ephemeral open-use-close connection. wait_for(5s) turns a
+    regression into a fast failure instead of a hung CI."""
+    monkeypatch.setattr(_paths, "SEC_HOLDINGS_DB", tmp_path / "sec_holdings.db")
+    cache_mod.reset_singleton_sync()
+
+    async def _island() -> tuple[list[dict], dict]:
+        async def _go() -> tuple[list[dict], dict]:
+            async with cache_mod.ephemeral_connection() as conn:
+                holders = await cache_mod.lookup_holders_for_ticker("NVDA", conn=conn)
+                status = await cache_mod.cache_status(conn=conn)
+            return holders, status
+
+        return await asyncio.wait_for(_go(), timeout=5)
+
+    try:
+        # Bind the singleton to loop #1 via the main-path write API; loop #1
+        # dies when run() returns — the exact state the server is in when a
+        # 13F island starts.
+        async def _bind_singleton_then_seed() -> None:
+            await asyncio.wait_for(cache_mod.bulk_upsert_holdings([_row()]), timeout=5)
+
+        asyncio.run(_bind_singleton_then_seed())
+
+        # Two sequential islands — the production cadence (one per 13F fetch).
+        holders_1, status_1 = asyncio.run(_island())
+        holders_2, status_2 = asyncio.run(_island())
+
+        assert holders_1 == holders_2
+        assert holders_1[0]["holder_name"] == "Bridgewater Associates LP"
+        assert status_1["populated"] is True and status_2["populated"] is True
+    finally:
+        # Close the singleton for real: its worker thread is NON-daemon, so a
+        # merely-dropped reference (reset_singleton_sync) blocks interpreter
+        # exit forever on SimpleQueue.get() — pytest would hang after green.
+        asyncio.run(asyncio.wait_for(cache_mod.close_singleton(), timeout=5))

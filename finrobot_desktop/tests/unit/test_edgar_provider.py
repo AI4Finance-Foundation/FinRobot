@@ -1351,16 +1351,25 @@ class TestFetch13FStaleWarning:
 
     @staticmethod
     def _wire(monkeypatch: pytest.MonkeyPatch, holders: list[dict], status: dict) -> None:
+        from contextlib import asynccontextmanager
+
         from finrobot.engine.data import sec_holdings_cache as cache_mod
 
         async def _holders(*_a: Any, **_k: Any) -> list[dict]:
             return holders
 
-        async def _status() -> dict:
+        async def _status(*_a: Any, **_k: Any) -> dict:
             return status
+
+        # _fetch_13f_sync scopes its I/O to an ephemeral connection (BUG-082
+        # sibling); stub it out so the test never opens the real home-dir DB.
+        @asynccontextmanager
+        async def _no_conn() -> Any:
+            yield None
 
         monkeypatch.setattr(cache_mod, "lookup_holders_for_ticker", _holders)
         monkeypatch.setattr(cache_mod, "cache_status", _status)
+        monkeypatch.setattr(cache_mod, "ephemeral_connection", _no_conn)
 
     def test_stale_cache_emits_warning(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._wire(

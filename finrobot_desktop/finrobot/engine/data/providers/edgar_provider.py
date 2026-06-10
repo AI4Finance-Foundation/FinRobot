@@ -1195,19 +1195,26 @@ class EdgarToolsProvider(DataProvider):
         # inside asyncio.to_thread so a `nest_asyncio` re-entrant call is
         # safe. The lookup function itself is async (aiosqlite).
         from finrobot.engine.data.sec_holdings_cache import (
+            ephemeral_connection,
             lookup_holders_for_ticker,
             cache_status,
         )
 
         async def _go() -> tuple[list[dict[str, Any]], dict[str, Any]]:
-            return (
-                await lookup_holders_for_ticker(
-                    ticker,
-                    issuer_name=company_name,
-                    limit=20,
-                ),
-                await cache_status(),
-            )
+            # Each call here runs under a fresh asyncio.run loop; the module's
+            # singleton connection belongs to the server's main loop and an
+            # aiosqlite connection awaited cross-loop hangs (BUG-082 sibling).
+            # Scope all I/O to a private open-use-close connection instead.
+            async with ephemeral_connection() as conn:
+                return (
+                    await lookup_holders_for_ticker(
+                        ticker,
+                        issuer_name=company_name,
+                        limit=20,
+                        conn=conn,
+                    ),
+                    await cache_status(conn=conn),
+                )
 
         try:
             holders, status = asyncio.run(_go())

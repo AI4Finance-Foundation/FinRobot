@@ -562,9 +562,22 @@ class Pipeline:
             else:
                 assert validation is not None  # invariant: one of the two is set
                 error_label = validation.error or ""
+                # The retry prompt must carry the FULL original task — step
+                # data tables, methodology, structured context, and the
+                # trailing language directive — not just the error + failing
+                # output. The old error-only re-prompt amputated all of it, so
+                # a zh run's retry lost "Respond in Chinese" (and every data
+                # table), letting the retried step come back in English with
+                # numbers the model could only hallucinate from its own prior
+                # output.
                 retry_prompt = (
-                    f"Previous output failed validation: {validation.error}\n"
-                    f"Fix the issues and try again.\n\n{results.get(step.name, '')}"
+                    f"{prompt}\n\n"
+                    "---\n"
+                    f"Your previous attempt failed validation: {validation.error}\n"
+                    "Previous (failing) output:\n"
+                    f"{results.get(step.name, '')}\n\n"
+                    "Fix the issues and produce a corrected output that still follows "
+                    "every instruction above, including the language directive."
                 )
 
             logger.warning(

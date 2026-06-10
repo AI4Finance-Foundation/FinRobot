@@ -694,6 +694,48 @@ async def test_retry_with_custom_executor():
 
 
 @pytest.mark.asyncio
+async def test_validation_retry_prompt_carries_original_task_context():
+    """The validation-retry prompt must embed the FULL original step prompt —
+    including the trailing language directive — not just error + prior output.
+    The old error-only re-prompt made a zh run's retry come back in English
+    and stripped every data table the step was supposed to work from."""
+    prompts: list[str] = []
+
+    async def my_fn(agent, deps, prompt, structured_context, ticker):
+        prompts.append(prompt)
+        if len(prompts) == 1:
+            return StepOutput(text="bad first draft", structured=None)
+        return StepOutput(text="good output with enough content", structured=None)
+
+    def my_validate(text):
+        if text == "bad first draft":
+            return ValidationResult(passed=False, error="too short")
+        return ValidationResult(passed=True)
+
+    step = PipelineStep(
+        name="test_step",
+        agent=MagicMock(),
+        validator=TextValidator(my_validate),
+        executor=my_fn,
+    )
+    pipeline = Pipeline(steps=[step], max_retries=2)
+    mock_deps = MagicMock()
+    mock_deps.skill_runtime = None
+
+    result = await pipeline.execute(mock_deps, "AAPL", lang="zh")
+    assert result.steps["test_step"] == "good output with enough content"
+    assert len(prompts) == 2
+    original, retry = prompts
+    # The entire original prompt — task framing AND the zh language directive —
+    # is embedded verbatim in the retry prompt.
+    assert original in retry
+    assert "Respond in Chinese" in retry
+    # Plus the validation feedback and the failing output to correct.
+    assert "too short" in retry
+    assert "bad first draft" in retry
+
+
+@pytest.mark.asyncio
 async def test_retry_revalidates_structured_data():
     """Retry path with StructuredValidator: re-validates structured data on retry."""
     call_count = []

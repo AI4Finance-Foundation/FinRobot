@@ -2885,22 +2885,6 @@ msgstr ""
 #~ msgstr "Context"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.context.add"
-#~ msgstr "+ Add"
-
-#. js-lingui-explicit-id
-#~ msgid "chatpanel.context.remove"
-#~ msgstr "Remove"
-
-#. js-lingui-explicit-id
-#~ msgid "chatpanel.context.openTabs"
-#~ msgstr "Open tabs"
-
-#. js-lingui-explicit-id
-#~ msgid "chatpanel.context.empty"
-#~ msgstr "No context available to attach"
-
-#. js-lingui-explicit-id
 #~ msgid "chatpanel.chip.report.dcf"
 #~ msgstr "Explain this report's DCF assumptions"
 

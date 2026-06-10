@@ -1020,7 +1020,6 @@ describe('RightChatPanel — panel header', () => {
 // (BUG-20260602-038 / 048)
 // ──────────────────────────────────────────────────────────────
 
-import { useUiStore } from '../stores/uiStore'
 import { useUiPrefs } from '../i18n'
 
 describe('RightChatPanel — transport body context (038/048)', () => {
@@ -1039,21 +1038,7 @@ describe('RightChatPanel — transport body context (038/048)', () => {
     expect(body.context_bundle).toBeTruthy()
     const bundle = body.context_bundle as Record<string, unknown>
     expect(bundle.ticker).toBe('AAPL')
-    expect(Array.isArray(bundle.pinned)).toBe(true)
     expect(typeof bundle.route).toBe('string')
-  })
-
-  it('context_bundle carries pinned items from the uiStore', () => {
-    useUiPrefs.setState({ locale: 'en' })
-    useUiStore.getState().addPinned({ kind: 'report', id: 'art_42', label: 'NVDA DCF' })
-    renderPanel({ ticker: 'NVDA' })
-
-    const body = (lastTransportOptions.current?.body as () => Record<string, unknown>)()
-    const bundle = body.context_bundle as { pinned: Array<{ id: string; label: string }> }
-    expect(bundle.pinned.some((p) => p.id === 'art_42' && p.label === 'NVDA DCF')).toBe(true)
-
-    // cleanup so other tests start from a clean pinned list
-    useUiStore.getState().removePinned('art_42')
   })
 })
 

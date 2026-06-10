@@ -46,17 +46,15 @@ function isContextOverflowError(message: string): boolean {
 
 // ──────────────────────────────────────────────────────────────
 // Context bundle — the structured context the ContextBar shows is sent to
-// /chat on every turn so the model actually has the report/selection the user
+// /chat on every turn so the model actually has the report/route the user
 // thinks it does (BUG-20260602-038). Derived live (not memoised) inside the
-// transport `body` thunk so each send captures the current route + store.
+// transport `body` thunk so each send captures the current route.
 // ──────────────────────────────────────────────────────────────
 
 interface ChatContextBundle {
   route: string
   ticker: string | null
   artifact_id: string | null
-  pinned: Array<{ kind: string; id: string; label: string }>
-  selected_text?: string
 }
 
 /** Pull the artifactId out of a /stocks/:ticker/runs/:artifactId path. */
@@ -169,9 +167,9 @@ export function AiChatTab({
   //
   // `body` is a THUNK (resolved per-send by the AI SDK) so every turn carries
   // the LIVE UI locale (BUG-20260602-048) and the LIVE ContextBar bundle —
-  // current route, open report artifact id, focused ticker, pinned items,
-  // selected text (BUG-20260602-038). A static object would freeze these at
-  // transport-construction time and the model would never see route/selection
+  // current route, open report artifact id, focused ticker
+  // (BUG-20260602-038). A static object would freeze these at
+  // transport-construction time and the model would never see route
   // changes within a session.
   const transport = useMemo(
     () =>
@@ -182,19 +180,10 @@ export function AiChatTab({
         fetch: fetchBackendStream,
         body: () => {
           const { pathname } = window.location
-          const store = useUiStore.getState()
-          const pinned = store.contextBundle.pinned.map((p) => ({
-            kind: p.kind,
-            id: p.id,
-            label: p.label,
-          }))
-          const selected = store.contextBundle.selected_text?.trim() || undefined
           const context_bundle: ChatContextBundle = {
             route: pathname,
             ticker: ticker ?? null,
             artifact_id: artifactIdFromPath(pathname),
-            pinned,
-            ...(selected ? { selected_text: selected } : {}),
           }
           // No `model` field: the backend records the model from its own
           // authoritative settings (= what the user picked, = what the agent

@@ -12,7 +12,7 @@
 
 import { useNavigate } from 'react-router-dom'
 import { useHistoryBack } from '../../../hooks/useHistoryBack'
-import { useRunStreamStore } from '../../../stores/runStreamStore'
+import { useRunStreamStore, selectRunByTicker } from '../../../stores/runStreamStore'
 import { useToastStore } from '../../../stores/toastStore'
 import { useI18n } from '../../../i18n'
 import { formatDate } from '../../../utils/format'
@@ -50,6 +50,11 @@ export function ReportToolbar({
   // ticker workspace on a cold-start / deep link, the report's natural parent.
   const goBack = useHistoryBack(`/stocks/${ticker}`)
   const startRun = useRunStreamStore((s) => s.startRun)
+  // Disable Re-run while this ticker already has a live run. startRun itself
+  // refuses duplicates (the store-level lock is the real guard); this is the
+  // UX feedback layer so the button reads as unavailable instead of erroring.
+  const activeRun = useRunStreamStore(selectRunByTicker(ticker))
+  const isRunActive = activeRun?.status === 'running'
   const addToast = useToastStore((s) => s.addToast)
   const { t, locale } = useI18n()
 
@@ -78,6 +83,11 @@ export function ReportToolbar({
   }
 
   async function handleRerun(): Promise<void> {
+    // Fresh store read, not the render-scope flag: a double-click's second
+    // event can land before React re-commits the disabled button, but the
+    // first click's occupation is already in the store (written synchronously
+    // by startRun), so this read catches it and skips the duplicate toast.
+    if (useRunStreamStore.getState().runs[ticker]?.status === 'running') return
     const pipelineType = reportTypeToPipelineType(reportType)
     try {
       // Pass the current artifact as the re-run source so the new version's
@@ -196,8 +206,15 @@ export function ReportToolbar({
       </ToolbarButton>
 
       {/* Primary actions — Re-run is the focal CTA. Version comparison lives
-          inline in the report body (VersionDiffBanner), not as a toolbar modal. */}
-      <ToolbarButton onClick={handleRerun} primary>
+          inline in the report body (VersionDiffBanner), not as a toolbar modal.
+          Disabled while the ticker already has a live run: a second click would
+          be refused by the store lock anyway, but the button must say so. */}
+      <ToolbarButton
+        onClick={handleRerun}
+        primary
+        disabled={isRunActive}
+        title={isRunActive ? t('report.toolbar.rerunRunningTitle', { ticker }) : undefined}
+      >
         ↻ {t('report.toolbar.rerun')}
       </ToolbarButton>
       {/* Version comparison moved inline: the VersionDiffBanner at the top of the

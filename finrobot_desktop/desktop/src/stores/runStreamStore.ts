@@ -13,15 +13,19 @@
 // EventSource auto-reconnect will pick up where it left off on network
 // hiccups — without any extra code here.
 //
-// Concurrency: one active run per ticker (Map keyed by ticker). Starting a run
-// for a ticker that already has one closes the old SSE first.
+// Concurrency: one active run per ticker (Map keyed by ticker). startRun
+// REFUSES to start while the ticker already has a live run — a second POST
+// would spawn a second minute-scale LLM pipeline whose attachSse orphans the
+// first (it keeps burning on the backend with no UI attached). The lock lives
+// HERE, not per button, so every caller (ReportToolbar / AIZone / future
+// surfaces) inherits it; see startRun.
 
 import { create } from 'zustand'
 import { BASE_URL } from '../api/client'
 import { withCapabilityToken } from '../api/capability'
 import { fetchWithTimeout } from '../api/fetch'
 import { FetchHttpError } from '../utils/errorMessage'
-import { useUiPrefs } from '../i18n'
+import { tSync, useUiPrefs } from '../i18n'
 
 export interface RunStep {
   name: string
@@ -157,6 +161,14 @@ function setStepAt(steps: RunStep[], index: number, next: RunStep): RunStep[] {
 // ── Module-level EventSource registry (not in store: not serialisable) ──────
 
 const sources = new Map<string, EventSource>()
+
+// Per-ticker in-flight startRun promises. startRun writes its 'running'
+// occupation into the store synchronously BEFORE the POST, but a true
+// double-call in the same tick (double-click before React commits the
+// disabled state) would still need a verdict — the first call parks its
+// promise here and any same-ticker call during the POST window reuses it:
+// idempotent, both callers resolve to the same run_id, exactly ONE POST fires.
+const inflightStarts = new Map<string, Promise<string>>()
 
 // Per-ticker onerror counts. After SSE_ERROR_LIMIT errors with status still
 // 'running', we force-fail the run so the UI doesn't spin indefinitely.
@@ -369,44 +381,30 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
   return {
     runs: {},
 
-    startRun: async (pipelineType, ticker, sourceArtifactId) => {
-      const resp = await fetchWithTimeout(
-        `${BASE_URL}/api/runs`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          // Generate the report's prose in the current UI language. The backend
-          // stamps this onto artifact.meta.language; the detail view then renders
-          // the body in this language regardless of later UI-locale switches.
-          // source_artifact_id (set on re-run) records the version lineage so the
-          // diff view can default to comparing against the version re-run from.
-          body: JSON.stringify({
-            pipeline_type: pipelineType,
-            ticker,
-            language: useUiPrefs.getState().locale,
-            ...(sourceArtifactId ? { source_artifact_id: sourceArtifactId } : {}),
-          }),
-        },
-        5_000,
-      )
-      if (!resp.ok) {
-        // Prefer the backend's human-readable `detail` (e.g. the 503 from
-        // BUG-056's startup_error gate carries an actionable message). When it's
-        // absent, throw a typed FetchHttpError so mapErrorToUserMessage renders
-        // a friendly localised string instead of leaking "Run creation failed
-        // (500)" to the toast (BUG-027).
-        const body = (await resp.json().catch(() => ({}))) as { detail?: string }
-        const detail = typeof body.detail === 'string' ? body.detail.trim() : ''
-        if (detail) throw new Error(detail)
-        throw new FetchHttpError(resp.status, resp.statusText)
+    startRun: (pipelineType, ticker, sourceArtifactId) => {
+      // ── Store-level duplicate-start lock ──────────────────────────────────
+      // Two POSTs = two minute-scale LLM pipelines, and the second attachSse
+      // orphans the first (backend keeps burning, UI loses it). The POST
+      // round-trip (100ms-1s) used to be a hole: run state was only written
+      // after it resolved, so every isRunning check passed in the window.
+      // Now: (1) a same-ticker call during the window reuses the in-flight
+      // promise, (2) the 'running' occupation is written synchronously below,
+      // before any await, so subscribers flip to disabled immediately.
+      const inflight = inflightStarts.get(ticker)
+      if (inflight) return inflight
+      if (get().runs[ticker]?.status === 'running') {
+        return Promise.reject(new Error(tSync('runs.error.alreadyActive', { ticker })))
       }
-      const { run_id }: { run_id: string } = await resp.json()
 
+      // Synchronous occupation. runId is patched in once the POST resolves;
+      // `prev` (a resident completed/failed run kept for the badge/history)
+      // is restored if the POST fails, so a failed re-run doesn't wipe it.
+      const prev = get().runs[ticker]
       set((s) => ({
         runs: {
           ...s.runs,
           [ticker]: {
-            runId: run_id,
+            runId: '',
             ticker,
             pipelineType,
             steps: [],
@@ -421,8 +419,60 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
         },
       }))
 
-      await attachSse(run_id, ticker)
-      return run_id
+      const start = (async (): Promise<string> => {
+        try {
+          const resp = await fetchWithTimeout(
+            `${BASE_URL}/api/runs`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              // Generate the report's prose in the current UI language. The backend
+              // stamps this onto artifact.meta.language; the detail view then renders
+              // the body in this language regardless of later UI-locale switches.
+              // source_artifact_id (set on re-run) records the version lineage so the
+              // diff view can default to comparing against the version re-run from.
+              body: JSON.stringify({
+                pipeline_type: pipelineType,
+                ticker,
+                language: useUiPrefs.getState().locale,
+                ...(sourceArtifactId ? { source_artifact_id: sourceArtifactId } : {}),
+              }),
+            },
+            5_000,
+          )
+          if (!resp.ok) {
+            // Prefer the backend's human-readable `detail` (e.g. the 503 from
+            // BUG-056's startup_error gate carries an actionable message). When it's
+            // absent, throw a typed FetchHttpError so mapErrorToUserMessage renders
+            // a friendly localised string instead of leaking "Run creation failed
+            // (500)" to the toast (BUG-027).
+            const body = (await resp.json().catch(() => ({}))) as { detail?: string }
+            const detail = typeof body.detail === 'string' ? body.detail.trim() : ''
+            if (detail) throw new Error(detail)
+            throw new FetchHttpError(resp.status, resp.statusText)
+          }
+          const { run_id }: { run_id: string } = await resp.json()
+
+          patch(ticker, { runId: run_id })
+          await attachSse(run_id, ticker)
+          return run_id
+        } catch (err) {
+          // Roll the occupation back: restore whatever was resident before, or
+          // clear the slot — the next click must be able to start fresh.
+          set((s) => {
+            const next = { ...s.runs }
+            if (prev) next[ticker] = prev
+            else delete next[ticker]
+            return { runs: next }
+          })
+          throw err
+        } finally {
+          inflightStarts.delete(ticker)
+        }
+      })()
+
+      inflightStarts.set(ticker, start)
+      return start
     },
 
     dismiss: (ticker) => {

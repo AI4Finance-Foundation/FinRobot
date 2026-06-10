@@ -3863,3 +3863,15 @@ msgstr ""
 #. js-lingui-explicit-id
 #~ msgid "coverage.refresh.aria"
 #~ msgstr "Refresh market data"
+
+#. js-lingui-explicit-id
+#~ msgid "runs.error.alreadyActive"
+#~ msgstr "A run for {ticker} is already in progress."
+
+#. js-lingui-explicit-id
+#~ msgid "ic.error.alreadyRunning"
+#~ msgstr "A debate for this report is already in progress."
+
+#. js-lingui-explicit-id
+#~ msgid "report.toolbar.rerunRunningTitle"
+#~ msgstr "A run for {ticker} is already in progress"

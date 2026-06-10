@@ -199,7 +199,13 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
   }
 
   async function launchResearch(): Promise<void> {
-    if (isRunning) {
+    // Fresh store read, not the render-scope `isRunning`: a double-click's
+    // second event can fire before React re-renders the disabled button. The
+    // first click's occupation is written synchronously by startRun (before
+    // its POST even leaves), so this read closes the POST round-trip window
+    // that used to let both clicks through. startRun's own lock is the final
+    // backstop — it reuses the in-flight promise instead of double-POSTing.
+    if (useRunStreamStore.getState().runs[ticker]?.status === 'running') {
       addToast({
         type: 'info',
         title: t('workspace.ai.toast.alreadyRunning', { ticker }),

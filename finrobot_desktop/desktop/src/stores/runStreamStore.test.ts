@@ -204,6 +204,82 @@ describe('terminal-side-effect dedupe (BUG-085)', () => {
   })
 })
 
+describe('duplicate-start lock (P1-30)', () => {
+  it('two same-tick startRun calls fire exactly ONE POST and share the run_id', async () => {
+    const p1 = useRunStreamStore.getState().startRun('research', TICKER)
+    const p2 = useRunStreamStore.getState().startRun('research', TICKER)
+    const [r1, r2] = await Promise.all([p1, p2])
+
+    expect(r1).toBe('run-test-1')
+    expect(r2).toBe('run-test-1')
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+    // One run, one SSE connection — the second attach used to orphan the first.
+    expect(FakeEventSource.instances).toHaveLength(1)
+  })
+
+  it('occupies the run slot synchronously, before the POST resolves', () => {
+    const p = useRunStreamStore.getState().startRun('research', TICKER)
+    // No await yet: the in-flight POST window must already read as running,
+    // so isRunning guards and disabled buttons close the double-click hole.
+    expect(stepsState()?.status).toBe('running')
+    return p
+  })
+
+  it('refuses to start while the ticker already has a live run (no POST)', async () => {
+    await startRun('research')
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
+    fetchMock.mockClear()
+
+    await expect(useRunStreamStore.getState().startRun('research', TICKER)).rejects.toThrow(
+      /already in progress/,
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+    // The live run is untouched.
+    expect(stepsState().status).toBe('running')
+  })
+
+  it('a failed POST rolls the occupation back so the next attempt can start', async () => {
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
+    fetchMock.mockRejectedValueOnce(new Error('network down'))
+
+    await expect(useRunStreamStore.getState().startRun('research', TICKER)).rejects.toThrow(
+      'network down',
+    )
+    // Slot cleared — not left as a phantom 'running' that blocks retries.
+    expect(stepsState()).toBeUndefined()
+
+    // Retry succeeds against the restored default mock.
+    await expect(useRunStreamStore.getState().startRun('research', TICKER)).resolves.toBe(
+      'run-test-1',
+    )
+    expect(stepsState().status).toBe('running')
+  })
+
+  it('a failed re-run restores the resident completed run instead of wiping it', async () => {
+    const completed = {
+      runId: 'run-done',
+      ticker: TICKER,
+      pipelineType: 'research',
+      steps: [],
+      status: 'completed' as const,
+      progress: 1,
+      error: null,
+      startedAt: Date.now(),
+      dismissed: false,
+      artifactId: 'art_prev',
+      artifactType: 'equity_research',
+    }
+    useRunStreamStore.setState((s) => ({ runs: { ...s.runs, [TICKER]: completed } }))
+
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
+    fetchMock.mockRejectedValueOnce(new Error('boom'))
+    await expect(useRunStreamStore.getState().startRun('research', TICKER)).rejects.toThrow('boom')
+
+    // The badge/history state survives the failed re-run attempt.
+    expect(stepsState()).toEqual(completed)
+  })
+})
+
 describe('SSE error counting (BUG-044 sibling)', () => {
   function triggerError(es: FakeEventSource): void {
     es.onerror?.()

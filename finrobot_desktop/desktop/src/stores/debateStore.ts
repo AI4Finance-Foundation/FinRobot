@@ -13,8 +13,10 @@
 // specific artifact's structured outputs (see engine/debate/evidence.py), so
 // two reports for the same ticker yield DIFFERENT debates and must NOT share
 // state — keying by ticker alone would make report B silently show report A's
-// verdict and evidence. Starting a new debate for the same (ticker, artifact)
-// closes its prior SSE connection before opening a new one.
+// verdict and evidence. startDebate refuses to start while the same
+// (ticker, artifact) already has a live debate — a duplicate POST would spawn
+// a second LLM debate whose attachSse closes the first's stream, and debates
+// are ephemeral (no persistence), so the first's output would be lost outright.
 //
 // Module-level EventSource registry mirrors the pattern in runStreamStore:
 // EventSource instances are not serialisable, so they live outside the store
@@ -24,6 +26,7 @@ import { create } from 'zustand'
 import { BASE_URL } from '../api/client'
 import { fetchWithTimeout } from '../api/fetch'
 import { withCapabilityToken } from '../api/capability'
+import { tSync } from '../i18n'
 
 // ── Event shapes (from POST /api/debate response + SSE stream) ───────────────
 
@@ -110,6 +113,12 @@ function debateKey(ticker: string, artifactId: string): string {
 // ── Module-level EventSource registry ────────────────────────────────────────
 
 const sources = new Map<string, EventSource>()
+
+// Per-key in-flight startDebate promises (mirrors runStreamStore). startDebate
+// writes its 'running' occupation synchronously before the POST; a same-key
+// call landing inside the POST window reuses the in-flight promise instead of
+// firing a second POST — one double-click, one debate.
+const inflightStarts = new Map<string, Promise<void>>()
 const sseErrorCounts = new Map<string, number>()
 const sseSuccessStreaks = new Map<string, number>()
 const SSE_ERROR_LIMIT = 8
@@ -246,37 +255,71 @@ export const useDebateStore = create<DebateStoreState>((set, get) => {
   return {
     debates: {},
 
-    startDebate: async (ticker, artifactId) => {
-      const resp = await fetchWithTimeout(
-        `${BASE_URL}/api/debate`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ticker, artifact_id: artifactId }),
-        },
-        8_000,
-      )
-      if (!resp.ok) {
-        const body = (await resp.json().catch(() => ({}))) as { detail?: string }
-        const msg = body.detail || `Debate creation failed (${resp.status})`
-        throw new Error(msg)
-      }
-      const { run_id }: { run_id: string } = await resp.json()
-
+    startDebate: (ticker, artifactId) => {
       const key = debateKey(ticker, artifactId)
+
+      // ── Store-level duplicate-start lock (mirrors runStreamStore.startRun) ──
+      // The run state used to be written only after the POST resolved, so two
+      // clicks inside the POST round-trip both passed every isRunning check —
+      // two LLM debates, the second's SSE attach killing the first's stream.
+      const inflight = inflightStarts.get(key)
+      if (inflight) return inflight
+      if (get().debates[key]?.status === 'running') {
+        return Promise.reject(new Error(tSync('ic.error.alreadyRunning')))
+      }
+
+      // Synchronous occupation: status flips to 'running' before any await, so
+      // the StartPanel swaps to the streaming view immediately. runId is
+      // patched in once the POST resolves; on failure the slot is rolled back
+      // (restoring a resident completed debate if one existed).
+      const prev = get().debates[key]
       set((s) => ({
         debates: {
           ...s.debates,
           [key]: {
             ...INITIAL_DEBATE_STATE,
-            runId: run_id,
+            runId: null,
             artifactId,
             status: 'running',
           },
         },
       }))
 
-      await attachSse(run_id, key)
+      const start = (async (): Promise<void> => {
+        try {
+          const resp = await fetchWithTimeout(
+            `${BASE_URL}/api/debate`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ ticker, artifact_id: artifactId }),
+            },
+            8_000,
+          )
+          if (!resp.ok) {
+            const body = (await resp.json().catch(() => ({}))) as { detail?: string }
+            const msg = body.detail || `Debate creation failed (${resp.status})`
+            throw new Error(msg)
+          }
+          const { run_id }: { run_id: string } = await resp.json()
+
+          patch(key, { runId: run_id })
+          await attachSse(run_id, key)
+        } catch (err) {
+          set((s) => {
+            const next = { ...s.debates }
+            if (prev) next[key] = prev
+            else delete next[key]
+            return { debates: next }
+          })
+          throw err
+        } finally {
+          inflightStarts.delete(key)
+        }
+      })()
+
+      inflightStarts.set(key, start)
+      return start
     },
 
     reset: (ticker, artifactId) => {

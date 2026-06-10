@@ -188,3 +188,74 @@ describe('SSE error counting (BUG-044)', () => {
     expect(debateStatus()).toBe('failed')
   })
 })
+
+// ── Duplicate-start lock (P1-30) ─────────────────────────────────────────────
+//
+// startDebate used to write its 'running' state only AFTER the POST resolved,
+// so two clicks inside the POST round-trip both passed every status check —
+// two LLM debates, the second's SSE attach closing the first's stream. Debates
+// are ephemeral (no persistence), so the first's output was lost outright.
+
+describe('duplicate-start lock (P1-30)', () => {
+  beforeEach(() => {
+    useDebateStore.setState({ debates: {} })
+    FakeEventSource.instances = []
+    vi.stubGlobal('EventSource', FakeEventSource as unknown as typeof EventSource)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ run_id: 'run-d-1' }),
+      })) as unknown as typeof fetch,
+    )
+  })
+
+  afterEach(() => {
+    useDebateStore.getState().reset('AAPL', 'art_sse')
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+  })
+
+  it('two same-tick startDebate calls fire exactly ONE POST', async () => {
+    const p1 = useDebateStore.getState().startDebate('AAPL', 'art_sse')
+    const p2 = useDebateStore.getState().startDebate('AAPL', 'art_sse')
+    await Promise.all([p1, p2])
+
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+    expect(FakeEventSource.instances).toHaveLength(1)
+    expect(debateStatus()).toBe('running')
+  })
+
+  it('occupies the debate slot synchronously, before the POST resolves', () => {
+    const p = useDebateStore.getState().startDebate('AAPL', 'art_sse')
+    expect(debateStatus()).toBe('running')
+    return p
+  })
+
+  it('refuses to start while the same (ticker, artifact) debate is live', async () => {
+    await startDebateWithFakeSse()
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
+    fetchMock.mockClear()
+
+    await expect(useDebateStore.getState().startDebate('AAPL', 'art_sse')).rejects.toThrow(
+      /already in progress/,
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(debateStatus()).toBe('running')
+  })
+
+  it('a failed POST rolls the occupation back to idle so retry can start', async () => {
+    const fetchMock = globalThis.fetch as unknown as ReturnType<typeof vi.fn>
+    fetchMock.mockRejectedValueOnce(new Error('network down'))
+
+    await expect(useDebateStore.getState().startDebate('AAPL', 'art_sse')).rejects.toThrow(
+      'network down',
+    )
+    // Slot cleared — the StartPanel returns, not a phantom 'running' debate.
+    expect(selectDebate('AAPL', 'art_sse')(useDebateStore.getState())).toBeNull()
+
+    // Retry succeeds against the restored default mock.
+    await useDebateStore.getState().startDebate('AAPL', 'art_sse')
+    expect(debateStatus()).toBe('running')
+  })
+})

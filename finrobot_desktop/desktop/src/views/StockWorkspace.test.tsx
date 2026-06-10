@@ -57,21 +57,27 @@ function makeRunState(overrides: Record<string, unknown> = {}) {
   }
 }
 
-vi.mock('../stores/runStreamStore', () => ({
-  useRunStreamStore: <T,>(selector: (s: unknown) => T) =>
-    selector({
-      runs: mockRunState ? { NVDA: mockRunState } : {},
-      startRun: startRunMock,
-      dismiss: vi.fn(),
-      clear: vi.fn(),
-      // BUG-085: terminal side-effects (toast + invalidations) dedupe at the
-      // store level. Default to "first time" so the completion effect runs;
-      // the dedupe-across-remount behaviour is covered in runStreamStore.test.
-      markTerminalNotified: markTerminalNotifiedMock,
-    }),
-  selectRunByTicker: (ticker: string) => (s: { runs?: Record<string, unknown> }) =>
-    s.runs?.[ticker],
-}))
+vi.mock('../stores/runStreamStore', () => {
+  const storeState = () => ({
+    runs: mockRunState ? { NVDA: mockRunState } : {},
+    startRun: startRunMock,
+    dismiss: vi.fn(),
+    clear: vi.fn(),
+    // BUG-085: terminal side-effects (toast + invalidations) dedupe at the
+    // store level. Default to "first time" so the completion effect runs;
+    // the dedupe-across-remount behaviour is covered in runStreamStore.test.
+    markTerminalNotified: markTerminalNotifiedMock,
+  })
+  const useRunStreamStore = <T,>(selector: (s: unknown) => T) => selector(storeState())
+  // launchResearch's duplicate-click guard reads the store imperatively
+  // (useRunStreamStore.getState()) — mirror zustand's static API.
+  useRunStreamStore.getState = storeState
+  return {
+    useRunStreamStore,
+    selectRunByTicker: (ticker: string) => (s: { runs?: Record<string, unknown> }) =>
+      s.runs?.[ticker],
+  }
+})
 
 vi.mock('../stores/toastStore', () => ({
   useToastStore: <T,>(selector: (s: unknown) => T) =>

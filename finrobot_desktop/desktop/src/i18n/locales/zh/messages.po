@@ -3863,3 +3863,15 @@ msgstr ""
 #. js-lingui-explicit-id
 #~ msgid "coverage.refresh.aria"
 #~ msgstr "刷新行情数据"
+
+#. js-lingui-explicit-id
+#~ msgid "runs.error.alreadyActive"
+#~ msgstr "{ticker} 已有任务正在运行。"
+
+#. js-lingui-explicit-id
+#~ msgid "ic.error.alreadyRunning"
+#~ msgstr "该报告的辩论已在进行中。"
+
+#. js-lingui-explicit-id
+#~ msgid "report.toolbar.rerunRunningTitle"
+#~ msgstr "{ticker} 已有任务正在运行"

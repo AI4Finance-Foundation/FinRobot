@@ -367,3 +367,36 @@ class TestFinnhubRateLimiter:
         assert len(sleep_durations) == 1
         assert sleep_durations[0] <= _MIN_INTERVAL
         assert sleep_durations[0] > 0
+
+    @pytest.mark.asyncio
+    async def test_get_does_not_serialize_concurrent_http(self, provider, monkeypatch):
+        """Sibling of the FMP fix: the lock paces request STARTS but must not wrap
+        the HTTP round-trip, so concurrent _get calls are all in flight at once.
+        Pre-fix they ran one-at-a-time → this would deadlock and trip the timeout."""
+        import asyncio
+
+        monkeypatch.setattr(asyncio, "sleep", AsyncMock())  # don't wait real pacing
+        provider._last_call = 0.0
+
+        n = 3
+        in_flight = 0
+        max_in_flight = 0
+        all_in = asyncio.Event()
+
+        async def slow_get(*args, **kwargs):
+            nonlocal in_flight, max_in_flight
+            in_flight += 1
+            max_in_flight = max(max_in_flight, in_flight)
+            if in_flight >= n:
+                all_in.set()
+            await all_in.wait()
+            in_flight -= 1
+            resp = MagicMock()
+            resp.raise_for_status = MagicMock()
+            return resp
+
+        provider._client.get = slow_get
+        await asyncio.wait_for(
+            asyncio.gather(*[provider._get(f"/p{i}") for i in range(n)]), timeout=2.0
+        )
+        assert max_in_flight == n

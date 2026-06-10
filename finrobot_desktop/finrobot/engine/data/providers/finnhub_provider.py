@@ -238,17 +238,20 @@ class FinnhubProvider(DataProvider):
         Serialises concurrent calls via asyncio.Lock and enforces a minimum
         inter-request interval (_MIN_INTERVAL) to respect the 60 req/min free-tier limit.
         """
+        # Hold the lock ONLY for the rate-limit gate (paces request STARTS to
+        # _MIN_INTERVAL apart); release it BEFORE the HTTP round-trip so concurrent
+        # requests overlap. Holding it across self._client.get() serialized all
+        # Finnhub traffic and head-of-line-blocked on any single slow request.
+        # httpx.AsyncClient is safe for concurrent requests.
         async with self._lock:
             elapsed = time.monotonic() - self._last_call
             if elapsed < _MIN_INTERVAL:
                 await asyncio.sleep(_MIN_INTERVAL - elapsed)
             self._last_call = time.monotonic()
-            headers = {"X-Finnhub-Token": self._api_key}
-            resp = await self._client.get(
-                f"{_BASE_URL}{path}", params=params or {}, headers=headers
-            )
-            resp.raise_for_status()
-            return resp
+        headers = {"X-Finnhub-Token": self._api_key}
+        resp = await self._client.get(f"{_BASE_URL}{path}", params=params or {}, headers=headers)
+        resp.raise_for_status()
+        return resp
 
     async def close(self) -> None:
         """Release the shared httpx client. Called from DataLayer.close()."""

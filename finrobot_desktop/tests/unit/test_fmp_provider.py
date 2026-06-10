@@ -1401,6 +1401,41 @@ class TestFMPRateLimiter:
         assert sleep_durations[0] <= _MIN_INTERVAL
         assert sleep_durations[0] > 0
 
+    @pytest.mark.asyncio
+    async def test_get_does_not_serialize_concurrent_http(self, provider, monkeypatch):
+        """The pacing lock must guard ONLY the rate-limit gate, not the HTTP
+        round-trip: concurrent _get calls are all in flight at once. Pre-fix the
+        lock wrapped self._client.get, so they ran strictly one-at-a-time — which
+        here would deadlock and trip the wait_for timeout (a clean failure)."""
+        import asyncio
+
+        # Neutralise the real pacing sleep so the test isn't gated on wall-clock.
+        monkeypatch.setattr(asyncio, "sleep", AsyncMock())
+        provider._last_call = 0.0
+
+        n = 3
+        in_flight = 0
+        max_in_flight = 0
+        all_in = asyncio.Event()
+
+        async def slow_get(*args, **kwargs):
+            nonlocal in_flight, max_in_flight
+            in_flight += 1
+            max_in_flight = max(max_in_flight, in_flight)
+            if in_flight >= n:
+                all_in.set()
+            await all_in.wait()  # hold until every sibling is concurrently in-flight
+            in_flight -= 1
+            resp = MagicMock()
+            resp.raise_for_status = MagicMock()
+            return resp
+
+        provider._client.get = slow_get
+        await asyncio.wait_for(
+            asyncio.gather(*[provider._get(f"/p{i}") for i in range(n)]), timeout=2.0
+        )
+        assert max_in_flight == n  # all HTTP round-trips overlapped
+
 
 class TestFMPHistoricalPerYear:
     """years>1 path must use each year's OWN balance sheet for net debt, and must

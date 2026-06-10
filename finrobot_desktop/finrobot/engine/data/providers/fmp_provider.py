@@ -1109,17 +1109,24 @@ class FMPProvider(DataProvider):
         ``base`` selects the host (default v3; pass _STABLE_BASE for stable-only
         endpoints like /earnings).
         """
+        # Hold the lock ONLY for the rate-limit gate — it paces request STARTS to
+        # _MIN_INTERVAL apart. Release it BEFORE the HTTP round-trip so concurrent
+        # requests' network I/O overlaps. Holding it across self._client.get()
+        # fully serialized all FMP traffic and head-of-line-blocked on any single
+        # slow request (effective ~1/(interval+RTT) req/s instead of the intended
+        # 6). httpx.AsyncClient is built for concurrent requests, so the GET is
+        # safe outside the lock.
         async with self._lock:
             elapsed = time.monotonic() - self._last_call
             if elapsed < _MIN_INTERVAL:
                 await asyncio.sleep(_MIN_INTERVAL - elapsed)
             self._last_call = time.monotonic()
-            p: dict[str, Any] = {"apikey": self._api_key}
-            if params:
-                p.update(params)
-            resp = await self._client.get(f"{base}{path}", params=p)
-            resp.raise_for_status()
-            return resp
+        p: dict[str, Any] = {"apikey": self._api_key}
+        if params:
+            p.update(params)
+        resp = await self._client.get(f"{base}{path}", params=p)
+        resp.raise_for_status()
+        return resp
 
     async def close(self) -> None:
         """Release the shared httpx client. Called from DataLayer.close()."""

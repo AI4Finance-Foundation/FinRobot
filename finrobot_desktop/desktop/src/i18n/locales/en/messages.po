@@ -2825,6 +2825,14 @@ msgstr ""
 #~ msgstr "Horizon · fix growth + WACC"
 
 #. js-lingui-explicit-id
+#~ msgid "ic.implied.tooltip.growth"
+#~ msgstr "{g}% growth"
+
+#. js-lingui-explicit-id
+#~ msgid "ic.implied.tooltip.impliedYears"
+#~ msgstr "Implied years"
+
+#. js-lingui-explicit-id
 #~ msgid "ic.implied.unreachable"
 #~ msgstr "unreachable"
 
@@ -3851,6 +3859,14 @@ msgstr ""
 #. js-lingui-explicit-id
 #~ msgid "runs.error.alreadyActive"
 #~ msgstr "A run for {ticker} is already in progress."
+
+#. js-lingui-explicit-id
+#~ msgid "ic.error.debateFailed"
+#~ msgstr "Debate failed. Please retry."
+
+#. js-lingui-explicit-id
+#~ msgid "ic.error.sseDropped"
+#~ msgstr "Stream connection lost ({n} consecutive errors). Check the backend service and retry."
 
 #. js-lingui-explicit-id
 #~ msgid "ic.error.alreadyRunning"

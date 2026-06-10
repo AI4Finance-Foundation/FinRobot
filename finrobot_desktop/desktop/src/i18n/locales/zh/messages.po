@@ -2825,6 +2825,14 @@ msgstr ""
 #~ msgstr "年限轴 · 固定增长 + WACC"
 
 #. js-lingui-explicit-id
+#~ msgid "ic.implied.tooltip.growth"
+#~ msgstr "{g}% 增长"
+
+#. js-lingui-explicit-id
+#~ msgid "ic.implied.tooltip.impliedYears"
+#~ msgstr "隐含年限"
+
+#. js-lingui-explicit-id
 #~ msgid "ic.implied.unreachable"
 #~ msgstr "够不着"
 
@@ -3851,6 +3859,14 @@ msgstr ""
 #. js-lingui-explicit-id
 #~ msgid "runs.error.alreadyActive"
 #~ msgstr "{ticker} 已有任务正在运行。"
+
+#. js-lingui-explicit-id
+#~ msgid "ic.error.debateFailed"
+#~ msgstr "投委会辩论失败，请重试"
+
+#. js-lingui-explicit-id
+#~ msgid "ic.error.sseDropped"
+#~ msgstr "SSE 连接中断（连续 {n} 次错误）。请检查后端服务后重试。"
 
 #. js-lingui-explicit-id
 #~ msgid "ic.error.alreadyRunning"

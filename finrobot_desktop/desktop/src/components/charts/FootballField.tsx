@@ -177,7 +177,7 @@ export default function FootballField({
             price: fmtPrice(cp),
             mid: fmtPrice(dataMid),
           })}{' '}
-          <strong>{(((cp - dataMid) / dataMid) * 100).toFixed(0)}%</strong> ——
+          <strong>{(((cp - dataMid) / dataMid) * 100).toFixed(0)}%</strong> —
           {cp > dataMid
             ? t('chart.footballField.overvalued')
             : t('chart.footballField.undervalued')}

@@ -224,7 +224,7 @@ export const useDebateStore = create<DebateStoreState>((set, get) => {
       const data = JSON.parse((e as MessageEvent).data) as { error?: string }
       patch(key, {
         status: 'failed',
-        error: data.error || '投委会辩论失败，请重试',
+        error: data.error || tSync('ic.error.debateFailed'),
       })
       closeAndForget(key)
     })
@@ -245,7 +245,7 @@ export const useDebateStore = create<DebateStoreState>((set, get) => {
       if (count >= SSE_ERROR_LIMIT) {
         patch(key, {
           status: 'failed',
-          error: `SSE 连接中断（连续 ${SSE_ERROR_LIMIT} 次错误）。请检查后端服务后重试。`,
+          error: tSync('ic.error.sseDropped', { n: SSE_ERROR_LIMIT }),
         })
         closeAndForget(key)
       }

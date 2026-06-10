@@ -313,7 +313,7 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
                         tickCount={5}
                       />
                       <Tooltip
-                        content={<LineTooltip yearsLabel={t('ic.implied.years')} />}
+                        content={<LineTooltip />}
                         cursor={{ stroke: 'var(--border-glow)' }}
                       />
                       <Line
@@ -460,20 +460,21 @@ interface LineTooltipItem {
 function LineTooltip({
   active,
   payload,
-  yearsLabel,
 }: {
   active?: boolean
   payload?: LineTooltipItem[]
-  yearsLabel?: string
 }): React.ReactElement | null {
+  const { t } = useI18n()
   if (!active || !payload || payload.length === 0) return null
   const p = payload[0].payload
   return (
-    <CosmicTooltipShell label={`${p.g.toFixed(0)}% 增长`}>
+    <CosmicTooltipShell label={t('ic.implied.tooltip.growth', { g: p.g.toFixed(0) })}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
-        <span style={{ color: 'var(--text-secondary)' }}>隐含年限</span>
+        <span style={{ color: 'var(--text-secondary)' }}>
+          {t('ic.implied.tooltip.impliedYears')}
+        </span>
         <span style={{ color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-          {p.h != null ? `${p.h.toFixed(1)} ${yearsLabel ?? 'y'}` : '够不着'}
+          {p.h != null ? `${p.h.toFixed(1)} ${t('ic.implied.years')}` : t('ic.implied.unreachable')}
         </span>
       </div>
     </CosmicTooltipShell>

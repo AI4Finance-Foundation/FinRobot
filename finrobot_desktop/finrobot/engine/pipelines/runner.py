@@ -308,6 +308,11 @@ class Pipeline:
         results: dict[str, str] = {}
         structured_results: dict[str, object] = {}
         failed_validations: list[dict[str, str]] = []
+        # Step-level warnings (StepOutput.warnings) accumulated across the run —
+        # lands on PipelineResult.warnings, which the artifact builder harvests
+        # FIRST in _collect_warnings. The channel for honest degrades that have
+        # no structured model to carry a .warnings field.
+        run_warnings: list[str] = []
         total = len(self.steps)
 
         # Resolve output language: explicit arg > settings > default "en"
@@ -357,6 +362,7 @@ class Pipeline:
                     step_index=i,
                     progress=progress,
                     step_kwargs=step_kwargs,
+                    run_warnings=run_warnings,
                 )
             except _STEP_BOUNDARY_EXCEPTIONS as exc:
                 # Non-recoverable executor exception. Critical step → re-raise
@@ -419,7 +425,10 @@ class Pipeline:
                 logger.info(f"Step {i}/{total}: {step.name} ✓")
 
         pipeline_result = PipelineResult(
-            steps=results, structured_data=structured_results, failed_validations=failed_validations
+            steps=results,
+            structured_data=structured_results,
+            failed_validations=failed_validations,
+            warnings=run_warnings,
         )
 
         # Auto-persist artifact if store is available (non-blocking on failure)
@@ -465,6 +474,7 @@ class Pipeline:
         results: dict[str, str],
         structured_results: dict[str, object],
         step_kwargs: dict[str, object] | None = None,
+        run_warnings: list[str] | None = None,
     ) -> ValidationResult:
         """Run executor + store output + validate. Returns the validation result.
 
@@ -475,7 +485,7 @@ class Pipeline:
         output = await step.executor(
             step.agent, deps, prompt, structured_results, ticker, **(step_kwargs or {})
         )
-        self._store_output(step.name, output, results, structured_results)
+        self._store_output(step.name, output, results, structured_results, run_warnings)
         return self._validate_step(step, step.name, results, structured_results)
 
     @staticmethod
@@ -484,10 +494,16 @@ class Pipeline:
         output: StepOutput | str,
         results: dict[str, str],
         structured_results: dict[str, object],
+        run_warnings: list[str] | None = None,
     ) -> None:
         """Parse step output and store text/structured data into the result dicts."""
         if isinstance(output, StepOutput):
             results[step_name] = output.text
+            if run_warnings is not None:
+                # Dedup across retries: a step re-attempted after a validation
+                # failure re-emits the same warnings; the artifact must not
+                # list them N times.
+                run_warnings.extend(w for w in output.warnings if w not in run_warnings)
             if output.structured is not None:
                 structured_results[step_name] = output.structured
                 logger.info(
@@ -521,6 +537,7 @@ class Pipeline:
         step_index: int = 0,
         progress: ProgressCallback | None = None,
         step_kwargs: dict[str, object] | None = None,
+        run_warnings: list[str] | None = None,
     ) -> str | None:
         """Execute a single pipeline step with retry logic.
 
@@ -554,7 +571,14 @@ class Pipeline:
             """
             try:
                 val = await self._attempt(
-                    step, deps, current_prompt, ticker, results, structured_results, step_kwargs
+                    step,
+                    deps,
+                    current_prompt,
+                    ticker,
+                    results,
+                    structured_results,
+                    step_kwargs,
+                    run_warnings=run_warnings,
                 )
                 return val, None, budget
             except BaseException as exc:

@@ -1485,3 +1485,44 @@ async def test_failed_validation_purges_structured_output():
     assert "financial_modeling" not in result.structured_data
     assert result.steps["financial_modeling"] == "prose stays"
     assert any(fv["step"] == "financial_modeling" for fv in result.failed_validations)
+
+
+@pytest.mark.asyncio
+async def test_step_output_warnings_reach_pipeline_result():
+    """StepOutput.warnings is the channel for honest degrades with
+    structured=None (financial_modeling when the DCF is not applicable):
+    builder harvesting only walks structured models' .warnings, so without
+    this the degrade reason lived exclusively in server logs (MU
+    run_5dd152487973) and the UI showed 'DCF FAIR VALUE —' with no cause."""
+
+    async def degraded_fn(agent, deps, prompt, structured_context, ticker):
+        return StepOutput(
+            text="DCF not applicable: …",
+            structured=None,
+            warnings=["financial_modeling skipped: DCF not applicable — terminal FCF < 0"],
+        )
+
+    step = PipelineStep(
+        name="financial_modeling",
+        agent=MagicMock(),
+        validator=TextValidator(validate_is_non_empty),
+        executor=degraded_fn,
+    )
+    pipeline = Pipeline(steps=[step])
+    mock_deps = MagicMock()
+    mock_deps.skill_runtime = None
+
+    result = await pipeline.execute(mock_deps, "MU")
+    assert result.warnings == ["financial_modeling skipped: DCF not applicable — terminal FCF < 0"]
+
+
+def test_store_output_dedups_warnings_across_retries():
+    """A step re-attempted after a validation failure re-emits identical
+    warnings; the artifact must not list them N times."""
+    from finrobot.engine.pipelines.base import Pipeline as _P
+
+    run_warnings: list[str] = []
+    out = StepOutput(text="t", warnings=["w1", "w2"])
+    _P._store_output("s", out, {}, {}, run_warnings)
+    _P._store_output("s", out, {}, {}, run_warnings)
+    assert run_warnings == ["w1", "w2"]

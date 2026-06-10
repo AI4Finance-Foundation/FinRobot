@@ -545,6 +545,11 @@ async def _execute_financial_modeling(
                 f"relative valuation (peer multiples, historical valuation range)."
             ),
             structured=None,
+            # The artifact-visible reason. Without it the degrade lived only in
+            # server logs: the UI showed "DCF FAIR VALUE —" plus the downstream
+            # technical_analysis marker, and the user could never see WHY the
+            # DCF was missing (MU run_5dd152487973, 2026-06-10).
+            warnings=[f"financial_modeling skipped: DCF not applicable — {e}"],
         )
     wacc_range, tg_range = build_sensitivity_ranges(
         dcf_result.wacc, dcf_result.inputs.terminal_growth_rate

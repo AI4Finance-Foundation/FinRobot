@@ -104,6 +104,68 @@ async def hydrate_settings_from_secrets(settings: Any, secret_store: SecretStore
     return settings
 
 
+# Hard cap for the startup quote-cache warmup: if yfinance is rate-limited or
+# otherwise slow, warmup must not delay the rest of boot. After the cap we
+# surrender and mark warmed=True so the UI stops polling; the first dashboard
+# request lazy-fetches any tickers we didn't get. Module-level so the H3
+# timeout branch is unit-testable (tests pass a tiny budget_seconds).
+_WARMUP_BUDGET_SECONDS = 8.0
+
+
+async def warm_quote_cache(
+    app: Any,
+    artifact_store: Any,
+    data_layer: Any,
+    *,
+    budget_seconds: float = _WARMUP_BUDGET_SECONDS,
+) -> None:
+    """Warm the QuoteCache for every studied ticker (startup background step).
+
+    The first landing-page load otherwise pays the cold yfinance penalty
+    (4-5s pre-fix). Cache TTL is 60s; touching the dashboard before warmup
+    completes falls through to the same fetch it would have made anyway, so
+    this is a strict latency improvement — never a correctness dependency.
+
+    The ``quotes_warmed`` flag flips True in ``finally`` so a provider outage,
+    a budget timeout or a store failure can never leave the frontend's
+    /api/health/quotes-warmed poll spinning forever.
+
+    ``app``/``artifact_store``/``data_layer`` are duck-typed (``app.state``
+    attributes, ``list_by_ticker``, the DataLayer passed through to
+    ``fetch_quotes_batch_cached``) so the unit tests can drive the timeout
+    branch without booting a real lifespan.
+    """
+    ticker_count = 0
+    try:
+        summaries = await artifact_store.list_by_ticker(
+            ticker=None, include_archived=False, limit=500
+        )
+        tickers = sorted({s.ticker for s in summaries if s.ticker})
+        ticker_count = len(tickers)
+        if not tickers:
+            return
+        from finrobot.engine.data.quote_batch import fetch_quotes_batch_cached
+
+        try:
+            await asyncio.wait_for(
+                fetch_quotes_batch_cached(tickers, data_layer),
+                timeout=budget_seconds,
+            )
+            logger.info("Quote cache warmed for %d studied tickers", len(tickers))
+        except asyncio.TimeoutError:
+            logger.warning(
+                "Quote cache warmup exceeded %.1fs budget for %d tickers — "
+                "lazy fetch will fill the gap",
+                budget_seconds,
+                len(tickers),
+            )
+    except (OSError, ValueError, TypeError, RuntimeError):
+        logger.exception("Quote cache warmup failed — non-fatal")
+    finally:
+        app.state.quotes_warmed = True
+        app.state.quotes_warmed_ticker_count = ticker_count
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Ensure ~/.finrobot/ exists before any storage class tries to open a
@@ -330,64 +392,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.quotes_warmed = False
     app.state.quotes_warmed_ticker_count = 0
 
-    # Warm the QuoteCache for every studied ticker so the first landing
-    # page load doesn't pay the cold yfinance penalty (4-5s pre-fix). The
-    # cache TTL is 60s; if the user touches the dashboard before warmup
-    # completes they fall through to the same fetch they would have made
-    # without this hook, so the warmup is a strict latency improvement —
-    # never a correctness dependency.
-    #
-    # Sequenced AFTER the legacy artifact migration so that, on the very
-    # first boot after upgrading, the warmup sees the migrated tickers
-    # instead of an empty SQLite. Without this await, an upgrading user
-    # paid the cold yfinance cost on their first dashboard load.
-    #
-    # The `warmed` flag is set in a `finally` block so a yfinance outage
-    # or one-off exception cannot leave the frontend polling forever.
-    #
-    # Hard cap (_WARMUP_BUDGET_SECONDS): if yfinance is rate-limited or
-    # otherwise slow, warmup must not delay the rest of boot. After the
-    # cap we surrender and mark warmed=True so the UI stops polling; the
-    # first dashboard request will lazy-fetch any tickers we didn't get.
-    _WARMUP_BUDGET_SECONDS = 8.0
-
-    async def _warm_quote_cache_background() -> None:
-        ticker_count = 0
-        try:
-            summaries = await artifact_store.list_by_ticker(
-                ticker=None, include_archived=False, limit=500
-            )
-            tickers = sorted({s.ticker for s in summaries if s.ticker})
-            ticker_count = len(tickers)
-            if not tickers:
-                return
-            from finrobot.engine.data.quote_batch import fetch_quotes_batch_cached
-
-            try:
-                await asyncio.wait_for(
-                    fetch_quotes_batch_cached(tickers, data_layer),
-                    timeout=_WARMUP_BUDGET_SECONDS,
-                )
-                logger.info("Quote cache warmed for %d studied tickers", len(tickers))
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "Quote cache warmup exceeded %.1fs budget for %d tickers — "
-                    "lazy fetch will fill the gap",
-                    _WARMUP_BUDGET_SECONDS,
-                    len(tickers),
-                )
-        except (OSError, ValueError, TypeError, RuntimeError):
-            logger.exception("Quote cache warmup failed — non-fatal")
-        finally:
-            app.state.quotes_warmed = True
-            app.state.quotes_warmed_ticker_count = ticker_count
-
     async def _migrate_then_warm_background() -> None:
         await _migrate_legacy_artifacts_background()
         # Sequenced AFTER the migration so freshly-migrated legacy rows are
-        # included in the projection version gate (BUG-065).
+        # included in the projection version gate (BUG-065) and the quote
+        # warmup (module-level warm_quote_cache, H3) sees the migrated
+        # tickers instead of an empty SQLite on first post-upgrade boot.
         await _rebuild_summaries_background()
-        await _warm_quote_cache_background()
+        await warm_quote_cache(app, artifact_store, data_layer)
 
     # Background task: evict long-stale rows from the data cache (BUG-049).
     # The TTL only marks rows stale at read time and never deletes, so

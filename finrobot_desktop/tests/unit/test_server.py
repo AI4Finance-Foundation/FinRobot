@@ -289,3 +289,74 @@ class TestSubAgentsCaching:
                         "routes/runs.py still imports create_sub_agents — "
                         "it should use request.app.state.sub_agents instead"
                     )
+
+
+class TestQuoteWarmupBudget:
+    """H3 (yfinance 路线图 门五③): the startup quote warmup must surrender after
+    its time budget — a rate-limited/slow yfinance must never delay boot — and
+    the ``quotes_warmed`` flag must flip True either way so the frontend's
+    /api/health/quotes-warmed poll terminates instead of spinning forever."""
+
+    class _Store:
+        async def list_by_ticker(self, ticker, include_archived, limit):
+            from types import SimpleNamespace
+
+            return [SimpleNamespace(ticker="AAPL"), SimpleNamespace(ticker="MSFT")]
+
+    @staticmethod
+    def _app():
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            state=SimpleNamespace(quotes_warmed=False, quotes_warmed_ticker_count=0)
+        )
+
+    @pytest.mark.asyncio
+    async def test_budget_exceeded_marks_warmed_and_warns(self, caplog, monkeypatch):
+        import asyncio
+        import logging
+
+        from finrobot import server as server_mod
+        from finrobot.engine.data import quote_batch
+
+        async def _hangs(tickers, data_layer):
+            await asyncio.sleep(30)  # far past the test budget — must be cut off
+
+        monkeypatch.setattr(quote_batch, "fetch_quotes_batch_cached", _hangs)
+        app_ns = self._app()
+        with caplog.at_level(logging.WARNING, logger="finrobot.server"):
+            await server_mod.warm_quote_cache(app_ns, self._Store(), None, budget_seconds=0.05)
+        assert app_ns.state.quotes_warmed is True
+        assert app_ns.state.quotes_warmed_ticker_count == 2
+        assert any("budget" in rec.getMessage() for rec in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_fast_path_marks_warmed_with_ticker_count(self, monkeypatch):
+        from finrobot import server as server_mod
+        from finrobot.engine.data import quote_batch
+
+        seen: dict[str, object] = {}
+
+        async def _fast(tickers, data_layer):
+            seen["tickers"] = tickers
+
+        monkeypatch.setattr(quote_batch, "fetch_quotes_batch_cached", _fast)
+        app_ns = self._app()
+        await server_mod.warm_quote_cache(app_ns, self._Store(), None, budget_seconds=5.0)
+        assert app_ns.state.quotes_warmed is True
+        assert app_ns.state.quotes_warmed_ticker_count == 2
+        assert seen["tickers"] == ["AAPL", "MSFT"]
+
+    @pytest.mark.asyncio
+    async def test_store_failure_still_flips_warmed_flag(self, monkeypatch):
+        """A store outage must not leave the frontend polling forever."""
+        from finrobot import server as server_mod
+
+        class _BrokenStore:
+            async def list_by_ticker(self, ticker, include_archived, limit):
+                raise OSError("artifacts.db unreadable")
+
+        app_ns = self._app()
+        await server_mod.warm_quote_cache(app_ns, _BrokenStore(), None, budget_seconds=5.0)
+        assert app_ns.state.quotes_warmed is True
+        assert app_ns.state.quotes_warmed_ticker_count == 0

@@ -33,7 +33,8 @@ from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.debate.agents import build_debate_agents
 from finrobot.engine.debate.evidence import build_evidence_set
 from finrobot.engine.debate.service import run_debate
-from finrobot.events import RunCompleted, RunEvent, RunFailed, RunStarted
+from finrobot.events import RunCancelled, RunCompleted, RunEvent, RunFailed, RunStarted
+from finrobot.routes.runs import cancel_requested_set
 from finrobot.run_store import RunStore
 
 logger = logging.getLogger(__name__)
@@ -201,6 +202,25 @@ async def _run_debate_task(
             completed_at=datetime.now(tz=timezone.utc).isoformat(),
             duration_s=duration_s,
         )
+    except asyncio.CancelledError:
+        # Mirrors runs.py::_run_pipeline_impl — POST /api/runs/{id}/cancel
+        # works for debate runs too (they register in the same
+        # app.state.run_tasks). User-requested cancels (recorded in
+        # app.state.cancel_requested before task.cancel()) persist the
+        # `cancelled` terminal state; shutdown cancels re-raise untouched and
+        # the next startup's reconciler collects the orphan.
+        if run_id in cancel_requested_set(request):
+            try:
+                await run_store.finish_run(
+                    run_id,
+                    RunCancelled(event="run.cancelled", run_id=run_id, ticker=evidence_set.ticker),
+                    status="cancelled",
+                    completed_at=datetime.now(tz=timezone.utc).isoformat(),
+                    duration_s=round(time.monotonic() - started, 1),
+                )
+            except sqlite3.Error:
+                logger.exception("Debate run %s: failed to persist cancelled state", run_id)
+        raise
     except (
         ProviderError,
         ValidationError,
@@ -243,3 +263,4 @@ async def _run_debate_task(
             logger.exception("Debate run %s: failed to persist terminal state", run_id)
     finally:
         request.app.state.run_tasks.pop(run_id, None)
+        cancel_requested_set(request).discard(run_id)

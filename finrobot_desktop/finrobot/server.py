@@ -229,6 +229,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.settings_path = settings_path
     app.state.run_store = RunStore()
     app.state.run_tasks = {}
+    # run_ids whose cancellation was requested via POST /api/runs/{id}/cancel.
+    # The run task's CancelledError handler consults this to tell a user cancel
+    # (persist terminal status `cancelled`) from a shutdown cancel (re-raise;
+    # the next startup's reconciler marks the orphan failed). Entries are
+    # removed in the task's `finally`.
+    app.state.cancel_requested = set()
     # Same Semaphore instance that deps carries (built above). The REST path
     # (routes/runs.py) no longer wraps the pipeline in its own `async with`;
     # instead every run acquires the cap exactly once inside Pipeline.execute

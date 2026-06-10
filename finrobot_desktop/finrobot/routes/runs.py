@@ -23,6 +23,7 @@ from finrobot.engine.pipelines.base import Pipeline, PipelineResult
 from finrobot.engine.pipelines.registry import get_pipeline_factories
 from finrobot.events import (
     ArtifactReady,
+    RunCancelled,
     RunCompleted,
     RunEvent,
     RunFailed,
@@ -32,7 +33,7 @@ from finrobot.events import (
     StepStarted,
 )
 from finrobot.obs import bind_run
-from finrobot.run_store import RunRecord, RunStore
+from finrobot.run_store import TERMINAL_RUN_STATUSES, RunRecord, RunStore
 
 logger = logging.getLogger(__name__)
 
@@ -192,7 +193,7 @@ async def create_run(request_body: CreateRunRequest, request: Request) -> Create
     )
 
 
-_VALID_RUN_STATUSES = {"created", "running", "completed", "failed"}
+_VALID_RUN_STATUSES = {"created", "running", *TERMINAL_RUN_STATUSES}
 
 
 class RunSummary(BaseModel):
@@ -365,7 +366,7 @@ async def stream_runs_events(ids: str, request: Request) -> StreamingResponse:
                     yield _format_multiplex_sse(cursors, run_id, tickers[run_id], stored.event)
 
                 record = await store.get_run(run_id)
-                if record is None or record.status in {"completed", "failed"}:
+                if record is None or record.status in TERMINAL_RUN_STATUSES:
                     # Flush any trailing events that landed between the read
                     # above and the status read, then mark this id done.
                     trailing = await store.get_events_after(run_id, cursors[run_id])
@@ -424,6 +425,67 @@ async def get_run(run_id: str, request: Request) -> RunDetail:
     )
 
 
+class CancelRunResponse(BaseModel):
+    run_id: str
+    status: str
+    """``cancelling`` when the cancel was delivered to a live task (the
+    terminal ``cancelled`` state lands moments later via SSE / re-poll),
+    ``cancelled`` when this call itself finalised an orphaned record, or the
+    run's existing terminal status when it had already finished (idempotent
+    no-op — cancelling a completed run does not rewrite history)."""
+
+
+@router.post("/{run_id}/cancel", response_model=CancelRunResponse)
+async def cancel_run(run_id: str, request: Request) -> CancelRunResponse:
+    """Cancel an in-flight run — the stop button for money-burning pipelines.
+
+    Works for every task registered in app.state.run_tasks (research/dcf/lbo
+    pipelines AND debate runs — debate.py registers there too). Cancellation
+    is asyncio-native: the task unwinds at its next await (LLM/provider calls
+    are httpx awaits, so spend stops within one chunk), its CancelledError
+    handler persists the ``cancelled`` terminal state, and the SSE stream
+    closes like any other terminal path. A run whose task is gone (e.g. the
+    record was orphaned by a crash between restarts) is finalised directly so
+    the row can't stay wedged in "running" with nothing left to cancel.
+    """
+    store: RunStore = request.app.state.run_store
+    record = await store.get_run(run_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Run not found: {run_id}")
+    if record.status in TERMINAL_RUN_STATUSES:
+        return CancelRunResponse(run_id=run_id, status=record.status)
+
+    task = request.app.state.run_tasks.get(run_id)
+    if task is not None and not task.done():
+        # Record user intent BEFORE delivering the cancel so the task's
+        # CancelledError handler can distinguish this from a shutdown cancel.
+        cancel_requested_set(request).add(run_id)
+        if task.cancel():
+            return CancelRunResponse(run_id=run_id, status="cancelling")
+        # cancel() returned False: the task finished in the race window.
+        cancel_requested_set(request).discard(run_id)
+        refreshed = await store.get_run(run_id)
+        if refreshed is not None and refreshed.status in TERMINAL_RUN_STATUSES:
+            return CancelRunResponse(run_id=run_id, status=refreshed.status)
+
+    # No live task but the record is non-terminal: an orphan (in-memory task
+    # map lost in a crash, or a row the reconciler hasn't collected). Re-read
+    # the status first — the task may have finished normally between the
+    # record read and the task-map read, and finalising then would overwrite a
+    # legitimate `completed` with `cancelled`. Then finalise here — same
+    # event-before-status contract via finish_run.
+    refreshed = await store.get_run(run_id)
+    if refreshed is not None and refreshed.status in TERMINAL_RUN_STATUSES:
+        return CancelRunResponse(run_id=run_id, status=refreshed.status)
+    await store.finish_run(
+        run_id,
+        RunCancelled(event="run.cancelled", run_id=run_id, ticker=record.ticker),
+        status="cancelled",
+        completed_at=_iso_now(),
+    )
+    return CancelRunResponse(run_id=run_id, status="cancelled")
+
+
 @router.get("/{run_id}/events")
 async def stream_run_events(run_id: str, request: Request) -> StreamingResponse:
     store: RunStore = request.app.state.run_store
@@ -454,7 +516,7 @@ async def stream_run_events(run_id: str, request: Request) -> StreamingResponse:
                 yield _format_sse(stored.seq, stored.event)
 
             record = await store.get_run(run_id)
-            if record and record.status in {"completed", "failed"}:
+            if record and record.status in TERMINAL_RUN_STATUSES:
                 trailing = await store.get_events_after(run_id, current_seq)
                 for stored in trailing:
                     current_seq = stored.seq
@@ -507,6 +569,29 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
             ),
         )
         await _execute_pipeline_run(run_id, request, store, record, pipeline, started)
+    except asyncio.CancelledError:
+        # Two callers cancel run tasks: POST /api/runs/{id}/cancel (records
+        # intent in app.state.cancel_requested first) and server shutdown
+        # (doesn't). Only the user-requested path persists the `cancelled`
+        # terminal state here — event-before-status via finish_run, same
+        # BUG-034 invariant as every terminal point — so the SSE stream closes
+        # cleanly and the UI flips to a neutral "cancelled" card. On shutdown
+        # we re-raise untouched: the store is being torn down, and the next
+        # startup's reconciler marks the orphan failed("interrupted by server
+        # restart"). Re-raise unconditionally — swallowing CancelledError
+        # would break asyncio's cancellation contract.
+        if run_id in cancel_requested_set(request):
+            try:
+                await store.finish_run(
+                    run_id,
+                    RunCancelled(event="run.cancelled", run_id=run_id, ticker=record.ticker),
+                    status="cancelled",
+                    completed_at=_iso_now(),
+                    duration_s=round(time.monotonic() - started, 1),
+                )
+            except sqlite3.Error:
+                logger.exception("Run %s: failed to persist cancelled state", run_id)
+        raise
     except (
         ProviderError,
         ValidationError,
@@ -553,6 +638,20 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
             logger.exception("Run %s: failed to persist terminal state", run_id)
     finally:
         request.app.state.run_tasks.pop(run_id, None)
+        cancel_requested_set(request).discard(run_id)
+
+
+def cancel_requested_set(request: Request) -> set[str]:
+    """The run_ids whose cancellation was user-requested (vs shutdown).
+
+    Lives on app.state next to run_tasks; lazily created so test apps that
+    build the router without the full server lifespan still work.
+    """
+    existing: set[str] | None = getattr(request.app.state, "cancel_requested", None)
+    if existing is None:
+        existing = set()
+        request.app.state.cancel_requested = existing
+    return existing
 
 
 async def _execute_pipeline_run(

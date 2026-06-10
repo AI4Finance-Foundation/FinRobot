@@ -336,6 +336,8 @@ def _make_app_with_store(store: Any) -> FastAPI:
     app.state.run_tasks = {}
     app.state.sub_agents = {}
     app.state.startup_error = None
+    app.state.deps = MagicMock()
+    app.state.artifact_store = None
     return app
 
 
@@ -427,13 +429,13 @@ class _OrderRecordingStore:
 
     async def append_event(self, run_id: str, event: Any) -> int:
         ev = event.get("event") if isinstance(event, dict) else getattr(event, "event", None)
-        if ev in {"run.completed", "run.failed"}:
+        if ev in {"run.completed", "run.failed", "run.cancelled"}:
             self.order.append(f"event:{ev}")
         return await self._inner.append_event(run_id, event)
 
     async def update_run(self, run_id: str, **kwargs: Any) -> Any:
         status = kwargs.get("status")
-        if status in {"completed", "failed"}:
+        if status in {"completed", "failed", "cancelled"}:
             self.order.append(f"status:{status}")
         return await self._inner.update_run(run_id, **kwargs)
 
@@ -641,3 +643,276 @@ def test_next_poll_interval_backs_off_exponentially_to_ceiling() -> None:
         runs_mod._next_poll_interval(runs_mod._SSE_POLL_MAX_INTERVAL, had_events=False)
         == runs_mod._SSE_POLL_MAX_INTERVAL
     )
+
+
+# ---------------------------------------------------------------------------
+# POST /api/runs/{run_id}/cancel — the stop button for money-burning pipelines.
+# A live task is cancelled (CancelledError handler persists the `cancelled`
+# terminal state, event-before-status), an orphaned record is finalised
+# directly, and a run that already finished is an idempotent no-op.
+# ---------------------------------------------------------------------------
+
+
+def _sleeping_pipeline() -> MagicMock:
+    """A pipeline whose execute blocks until cancelled — a stand-in for a
+    long LLM call that the user wants to stop paying for."""
+    import asyncio as _asyncio
+
+    pipeline = MagicMock()
+    pipeline.steps = [MagicMock()]
+
+    async def _block(*args: Any, **kwargs: Any) -> Any:
+        await _asyncio.sleep(60)
+        raise AssertionError("pipeline was not cancelled")
+
+    pipeline.execute = AsyncMock(side_effect=_block)
+    return pipeline
+
+
+@pytest.mark.asyncio
+async def test_cancel_running_run_persists_cancelled_state(tmp_path: Any, monkeypatch: Any) -> None:
+    """End-to-end: create a run on a blocking pipeline, cancel it, and the run
+    lands on status='cancelled' with a run.cancelled terminal event."""
+    import asyncio as _asyncio
+
+    from finrobot.routes import runs as runs_mod
+    from finrobot.run_store import RunStore
+
+    monkeypatch.setattr(
+        runs_mod,
+        "get_pipeline_factories",
+        lambda: {"research": lambda agents: _sleeping_pipeline()},
+    )
+    store = RunStore(tmp_path / "runs.db")
+    app = _make_app_with_store(store)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        created = await c.post("/api/runs", json={"pipeline_type": "research", "ticker": "AAPL"})
+        assert created.status_code == 200, created.text
+        run_id = created.json()["run_id"]
+
+        # Give the task a tick to reach the blocking await.
+        for _ in range(50):
+            await _asyncio.sleep(0.01)
+            record = await store.get_run(run_id)
+            assert record is not None
+            if record.status == "running":
+                break
+        task = app.state.run_tasks[run_id]
+
+        resp = await c.post(f"/api/runs/{run_id}/cancel")
+        assert resp.status_code == 200, resp.text
+        assert resp.json() == {"run_id": run_id, "status": "cancelling"}
+
+        # Wait for the task to unwind through its CancelledError handler.
+        with pytest.raises(_asyncio.CancelledError):
+            await task
+
+        final = await store.get_run(run_id)
+        assert final is not None and final.status == "cancelled"
+        # A cancel is not an error — no error text on the record.
+        assert final.error is None
+        assert final.completed_at is not None
+        events = await store.get_events_after(run_id, 0)
+        cancelled = [e for e in events if e.event.get("event") == "run.cancelled"]
+        assert len(cancelled) == 1
+        assert cancelled[0].event.get("ticker") == "AAPL"
+        # Bookkeeping: task map and cancel-intent set are both cleaned up.
+        assert run_id not in app.state.run_tasks
+        assert run_id not in app.state.cancel_requested
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_event_appended_before_status_flip(tmp_path: Any) -> None:
+    """The cancelled terminal path honours the BUG-034 ordering invariant:
+    run.cancelled is committed BEFORE the status flips to 'cancelled'."""
+    import asyncio as _asyncio
+
+    from finrobot.routes import runs as runs_mod
+    from finrobot.run_store import RunStore
+
+    inner = RunStore(tmp_path / "runs.db")
+    record = await inner.create_run("research", "AAPL")
+    store = _OrderRecordingStore(inner)
+
+    request = _make_request_for_impl(store)
+    request.app.state.cancel_requested = {record.run_id}
+
+    pipeline = _sleeping_pipeline()
+    factories = {"research": lambda agents: pipeline}
+
+    async def _impl() -> None:
+        import unittest.mock as _mock
+
+        with _mock.patch.object(runs_mod, "get_pipeline_factories", lambda: factories):
+            await runs_mod._run_pipeline_impl(record.run_id, request)
+
+    task = _asyncio.create_task(_impl())
+    for _ in range(50):
+        await _asyncio.sleep(0.01)
+        current = await inner.get_run(record.run_id)
+        assert current is not None
+        if current.status == "running":
+            break
+    task.cancel()
+    with pytest.raises(_asyncio.CancelledError):
+        await task
+
+    assert store.order == ["event:run.cancelled", "status:cancelled"]
+    final = await inner.get_run(record.run_id)
+    assert final is not None and final.status == "cancelled"
+    await inner.close()
+
+
+@pytest.mark.asyncio
+async def test_shutdown_cancel_does_not_mark_cancelled(tmp_path: Any) -> None:
+    """A cancel WITHOUT user intent (server shutdown) must NOT write the
+    `cancelled` terminal state — the row stays non-terminal for the next
+    startup's reconciler to mark failed('interrupted by server restart')."""
+    import asyncio as _asyncio
+
+    from finrobot.routes import runs as runs_mod
+    from finrobot.run_store import RunStore
+
+    store = RunStore(tmp_path / "runs.db")
+    record = await store.create_run("research", "AAPL")
+
+    request = _make_request_for_impl(store)
+    request.app.state.cancel_requested = set()  # no user intent recorded
+
+    pipeline = _sleeping_pipeline()
+    factories = {"research": lambda agents: pipeline}
+
+    async def _impl() -> None:
+        import unittest.mock as _mock
+
+        with _mock.patch.object(runs_mod, "get_pipeline_factories", lambda: factories):
+            await runs_mod._run_pipeline_impl(record.run_id, request)
+
+    task = _asyncio.create_task(_impl())
+    for _ in range(50):
+        await _asyncio.sleep(0.01)
+        current = await store.get_run(record.run_id)
+        assert current is not None
+        if current.status == "running":
+            break
+    task.cancel()
+    with pytest.raises(_asyncio.CancelledError):
+        await task
+
+    final = await store.get_run(record.run_id)
+    assert final is not None and final.status == "running"  # reconciler's job
+    events = await store.get_events_after(record.run_id, 0)
+    assert not any(e.event.get("event") == "run.cancelled" for e in events)
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_cancel_terminal_run_is_idempotent_noop(tmp_path: Any) -> None:
+    """Cancelling an already-finished run reports its real status and appends
+    nothing — history is not rewritten."""
+    from finrobot.run_store import RunStore
+
+    store = RunStore(tmp_path / "runs.db")
+    run_id = await _seed_completed_run(store, "AAPL")
+    app = _make_app_with_store(store)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.post(f"/api/runs/{run_id}/cancel")
+    assert resp.status_code == 200
+    assert resp.json() == {"run_id": run_id, "status": "completed"}
+    events = await store.get_events_after(run_id, 0)
+    assert not any(e.event.get("event") == "run.cancelled" for e in events)
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_cancel_unknown_run_404() -> None:
+    app = _make_app(None)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.post("/api/runs/does-not-exist/cancel")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_cancel_orphaned_record_finalises_directly(tmp_path: Any) -> None:
+    """A non-terminal row with no live task (crash orphan) is finalised to
+    'cancelled' by the endpoint itself instead of staying wedged."""
+    from finrobot.run_store import RunStore
+
+    store = RunStore(tmp_path / "runs.db")
+    record = await store.create_run("research", "AAPL")
+    await store.update_run(record.run_id, status="running")
+    app = _make_app_with_store(store)  # run_tasks empty — no live task
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.post(f"/api/runs/{record.run_id}/cancel")
+    assert resp.status_code == 200
+    assert resp.json() == {"run_id": record.run_id, "status": "cancelled"}
+
+    final = await store.get_run(record.run_id)
+    assert final is not None and final.status == "cancelled"
+    events = await store.get_events_after(record.run_id, 0)
+    assert any(e.event.get("event") == "run.cancelled" for e in events)
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_sse_stream_closes_on_cancelled_run(tmp_path: Any) -> None:
+    """`cancelled` is terminal for the SSE poll loop: the single-run stream
+    emits the run.cancelled frame and then closes instead of polling forever
+    (the wedge that {completed,failed} literals would reintroduce)."""
+    from finrobot.events import RunCancelled, RunStarted
+    from finrobot.run_store import RunStore
+
+    store = RunStore(tmp_path / "runs.db")
+    record = await store.create_run("research", "AAPL")
+    run_id = record.run_id
+    await store.append_event(
+        run_id,
+        RunStarted(
+            event="run.started",
+            run_id=run_id,
+            pipeline_type="research",
+            ticker="AAPL",
+            total_steps=1,
+        ),
+    )
+    await store.finish_run(
+        run_id,
+        RunCancelled(event="run.cancelled", run_id=run_id, ticker="AAPL"),
+        status="cancelled",
+        completed_at="2026-06-10T00:00:00+00:00",
+    )
+    app = _make_app_with_store(store)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.get(f"/api/runs/{run_id}/events")
+    assert resp.status_code == 200  # the GET returning at all proves the close
+    frames = _parse_sse(resp.text)
+    assert [f["event"] for f in frames] == ["run.started", "run.cancelled"]
+    await store.close()
+
+
+@pytest.mark.asyncio
+async def test_list_runs_accepts_cancelled_status_filter(tmp_path: Any) -> None:
+    """?status=cancelled is a valid filter (T8: backend enum chain extended)."""
+    from finrobot.events import RunCancelled
+    from finrobot.run_store import RunStore
+
+    store = RunStore(tmp_path / "runs.db")
+    record = await store.create_run("research", "AAPL")
+    await store.finish_run(
+        record.run_id,
+        RunCancelled(event="run.cancelled", run_id=record.run_id, ticker="AAPL"),
+        status="cancelled",
+        completed_at="2026-06-10T00:00:00+00:00",
+    )
+    app = _make_app_with_store(store)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.get("/api/runs?status=cancelled")
+    assert resp.status_code == 200, resp.text
+    assert [row["run_id"] for row in resp.json()] == [record.run_id]
+    await store.close()

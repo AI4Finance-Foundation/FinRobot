@@ -83,6 +83,21 @@ class RunFailed(TypedDict):
     error: str
 
 
+class RunCancelled(TypedDict):
+    """Terminal event for a user-requested cancellation.
+
+    Distinct from RunFailed on purpose: a cancelled run is not an error — the
+    UI renders it neutrally (no red badge, no error text) and retry semantics
+    differ (nothing to diagnose). Appended via RunStore.finish_run so the
+    event-before-status ordering invariant (BUG-034) holds like every other
+    terminal path.
+    """
+
+    event: Literal["run.cancelled"]
+    run_id: str
+    ticker: str
+
+
 class DebateEvidence(TypedDict):
     event: Literal["debate.evidence"]
     run_id: str
@@ -119,6 +134,7 @@ RunEvent: TypeAlias = (
     | ArtifactReady
     | RunCompleted
     | RunFailed
+    | RunCancelled
     | DebateEvidence
     | DebatePoint
     | DebateVerdict

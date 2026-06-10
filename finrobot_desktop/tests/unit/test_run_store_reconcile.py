@@ -33,6 +33,17 @@ async def test_reconcile_fails_orphaned_running_and_created(store: RunStore) -> 
     # idempotent — nothing left to reconcile
     assert await store.reconcile_orphaned_runs() == 0
 
+    # Each orphan got a run.failed TERMINAL EVENT, not just a status flip — a
+    # desktop reattaching the run's SSE stream after the restart needs the
+    # event or its card hangs on the last pre-restart step forever.
+    for orphan in (created, running):
+        events = await store.get_events_after(orphan.run_id, 0)
+        failed = [e for e in events if e.event.get("event") == "run.failed"]
+        assert len(failed) == 1
+        assert failed[0].event.get("error") == "interrupted by server restart"
+    # The already-terminal run got no spurious terminal event.
+    assert await store.get_events_after(done.run_id, 0) == []
+
 
 async def test_latest_runs_by_ticker_returns_newest_per_ticker(store: RunStore) -> None:
     old = await store.create_run("dcf", "AAPL")

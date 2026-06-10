@@ -17,7 +17,14 @@ from finrobot.paths import configure_connection
 
 logger = logging.getLogger(__name__)
 
-RunStatus = Literal["created", "running", "completed", "failed"]
+RunStatus = Literal["created", "running", "completed", "failed", "cancelled"]
+
+# Single authority for "this run will never change again". Every consumer that
+# branches on terminality (SSE poll loops, reattach filters, event pruning)
+# imports this set instead of hand-writing {completed, failed} — that literal
+# pair is exactly how `cancelled` would get silently excluded and wedge an SSE
+# stream forever.
+TERMINAL_RUN_STATUSES: frozenset[str] = frozenset({"completed", "failed", "cancelled"})
 
 # How long the per-run SSE event log is retained after a run reaches a terminal
 # state. run_events accumulates ~12-22 rows per run and was never cleaned, so a
@@ -34,7 +41,7 @@ CREATE TABLE IF NOT EXISTS runs (
     run_id        TEXT PRIMARY KEY,
     pipeline_type TEXT NOT NULL,
     ticker        TEXT NOT NULL,
-    status        TEXT NOT NULL CHECK (status IN ('created', 'running', 'completed', 'failed')),
+    status        TEXT NOT NULL CHECK (status IN ('created', 'running', 'completed', 'failed', 'cancelled')),
     created_at    TEXT NOT NULL,
     completed_at  TEXT,
     duration_s    REAL,
@@ -161,11 +168,18 @@ class RunStore:
                 try:
                     await configure_connection(conn)
                     await conn.execute(_CREATE_RUNS)
+                    # Column migrations BEFORE the CHECK rebuild: the rebuild
+                    # copies an explicit 12-column list, so a legacy table must
+                    # gain language/source_artifact_id first.
+                    await _apply_run_column_migrations(conn)
+                    await _migrate_runs_status_check(conn)
                     await conn.execute(_CREATE_RUN_EVENTS)
                     await conn.execute(_CREATE_ARTIFACTS)
+                    # Indexes AFTER the CHECK rebuild — DROP TABLE inside the
+                    # rebuild drops the runs indexes with it; IF NOT EXISTS
+                    # recreates them here.
                     for stmt in _CREATE_INDEXES:
                         await conn.execute(stmt)
-                    await _apply_run_column_migrations(conn)
                     await conn.commit()
                 except BaseException:
                     await conn.close()
@@ -266,23 +280,38 @@ class RunStore:
         Run tasks live in ``app.state.run_tasks`` (in-memory), so a server
         restart abandons every ``created``/``running`` row — the asyncio task
         is gone but the DB still says "running", which would wedge the SSE
-        stream forever (it only breaks on completed/failed) and show phantom
+        stream forever (it only breaks on a terminal status) and show phantom
         in-progress runs in the Coverage overview. Called once on startup to
         mark them ``failed``. Returns the number reconciled.
+
+        Goes through ``finish_run`` per orphan rather than one bulk UPDATE:
+        the bulk path flipped status without appending a ``run.failed`` event,
+        so a desktop that reattached to the run's SSE stream right after the
+        restart saw the stream close with no terminal event — the UI card hung
+        on its last pre-restart step forever instead of showing the failure.
+        finish_run also preserves the event-before-status ordering invariant
+        (BUG-034) that the bulk UPDATE bypassed.
         """
+        from finrobot.events import RunFailed
+
+        error_msg = "interrupted by server restart"
         conn = await self._ensure_connection()
         async with conn.execute(
-            """
-            UPDATE runs SET status = 'failed', error = ?, completed_at = ?
-            WHERE status IN ('created', 'running')
-            """,
-            ("interrupted by server restart", _now()),
+            "SELECT run_id FROM runs WHERE status IN ('created', 'running')"
         ) as cursor:
-            count = cursor.rowcount
-        await conn.commit()
-        if count:
-            logger.info("Reconciled %d orphaned run(s) to failed on startup", count)
-        return count
+            orphan_ids = [str(row[0]) for row in await cursor.fetchall()]
+        completed_at = _now()
+        for run_id in orphan_ids:
+            await self.finish_run(
+                run_id,
+                RunFailed(event="run.failed", run_id=run_id, error=error_msg),
+                status="failed",
+                completed_at=completed_at,
+                error=error_msg,
+            )
+        if orphan_ids:
+            logger.info("Reconciled %d orphaned run(s) to failed on startup", len(orphan_ids))
+        return len(orphan_ids)
 
     async def prune_run_events(self, retention_days: int = RUN_EVENT_RETENTION_DAYS) -> int:
         """Delete the SSE event log of long-finished runs.
@@ -303,7 +332,7 @@ class RunStore:
             DELETE FROM run_events
             WHERE run_id IN (
                 SELECT run_id FROM runs
-                WHERE status IN ('completed', 'failed')
+                WHERE status IN ('completed', 'failed', 'cancelled')
                   AND completed_at IS NOT NULL
                   AND completed_at < ?
             )
@@ -383,7 +412,7 @@ class RunStore:
         """Transition a run to a terminal state — event FIRST, status second.
 
         The BUG-034 ordering invariant, made mechanical: the SSE poll loop
-        breaks the moment it observes status∈{completed,failed} and then
+        breaks the moment it observes status∈TERMINAL_RUN_STATUSES and then
         fetches trailing events, so the terminal event MUST be committed
         before the status flip or a poll landing in the gap never emits it
         (the client EventSource then reconnect-storms into the "请检查后端服务"
@@ -521,6 +550,51 @@ def _row_to_run(row: Any) -> RunRecord:
         language=row[10],
         source_artifact_id=row[11],
     )
+
+
+async def _migrate_runs_status_check(conn: aiosqlite.Connection) -> None:
+    """Rebuild ``runs`` when its CHECK constraint predates the 'cancelled' status.
+
+    SQLite cannot ALTER a CHECK constraint, so on-disk DBs created before the
+    cancel feature would reject ``UPDATE runs SET status='cancelled'`` with an
+    IntegrityError forever. Detection reads the stored CREATE sql from
+    sqlite_master; a fresh DB (created by today's ``_CREATE_RUNS``) already
+    contains 'cancelled' and skips the rebuild entirely.
+
+    Rebuild pattern: CREATE new → INSERT…SELECT → DROP old → RENAME new. The
+    old ``runs`` table is never RENAMEd (only dropped), because SQLite ≥3.25
+    rewrites other tables' REFERENCES clauses to follow a rename —
+    run_events/run_artifacts must keep pointing at the name ``runs``. The whole
+    dance runs inside one IMMEDIATE transaction so a crash mid-migration can't
+    strand the data in the temp table; a leftover temp from a previous crashed
+    attempt is dropped before retrying.
+    """
+    async with conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='runs'"
+    ) as cursor:
+        row = await cursor.fetchone()
+    if row is None or row[0] is None or "'cancelled'" in row[0]:
+        return
+    logger.info("Migrating runs table: rebuilding status CHECK to admit 'cancelled'")
+    await conn.execute("DROP TABLE IF EXISTS runs_check_migration_new")
+    await conn.execute("BEGIN IMMEDIATE")
+    try:
+        await conn.execute(
+            _CREATE_RUNS.replace(
+                "CREATE TABLE IF NOT EXISTS runs ",
+                "CREATE TABLE runs_check_migration_new ",
+            )
+        )
+        await conn.execute(
+            f"INSERT INTO runs_check_migration_new ({_RUN_SELECT_COLUMNS}) "
+            f"SELECT {_RUN_SELECT_COLUMNS} FROM runs"
+        )
+        await conn.execute("DROP TABLE runs")
+        await conn.execute("ALTER TABLE runs_check_migration_new RENAME TO runs")
+        await conn.commit()
+    except BaseException:
+        await conn.rollback()
+        raise
 
 
 async def _apply_run_column_migrations(conn: aiosqlite.Connection) -> None:

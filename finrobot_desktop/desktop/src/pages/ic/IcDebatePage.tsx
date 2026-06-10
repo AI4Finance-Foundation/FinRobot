@@ -214,7 +214,8 @@ export function IcDebatePage() {
           {/* Market-implied expectations — reverse-DCF expert probe. The
               confirmable evidence base for the judge's one-line SWING_FACTOR:
               shown below the verdict, default-collapsed, never feeding the
-              verdict itself. */}
+              verdict itself. (The panel resets its own cached state on ticker
+              change — no key= needed at mount sites.) */}
           {isCompleted && <MarketImpliedPanel ticker={symbol} />}
 
           {/* Two-column bull / bear layout */}

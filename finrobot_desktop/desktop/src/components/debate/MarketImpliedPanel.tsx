@@ -121,6 +121,22 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
     [ticker],
   )
 
+  // Reset the cached probe state when the ticker changes. The lazy-load
+  // effect below guards on `seed`, so without this reset a mount point that
+  // survives navigation (/ic/AAPL → /ic/MSFT renders the same element) kept
+  // showing AAPL's market-implied growth/WACC under MSFT's header — a
+  // wrong-ticker number on an analyst-facing panel.
+  const lastTicker = useRef(ticker)
+  useEffect(() => {
+    if (lastTicker.current === ticker) return
+    lastTicker.current = ticker
+    setOpen(false)
+    setSeed(null)
+    setLine(null)
+    setWacc(null)
+    setError(null)
+  }, [ticker])
+
   // Lazy: only fetch when the analyst opens the probe.
   useEffect(() => {
     if (!open || seed) return

@@ -762,7 +762,14 @@ class CatalystAnalysis(BaseModel):
     overall_sentiment: Literal["bullish", "bearish", "neutral"]
     key_catalysts: list[str]
     # P6 additions
-    net_sentiment: float = Field(default=0.0, description="Sum of expected impacts, -5 to +5 scale")
+    net_sentiment: float = Field(
+        default=0.0,
+        description=(
+            "Mean expected impact per event (impact × probability × sign), clamped "
+            "to [-5, 5]. Mean, not sum — a 30-event news day must not saturate the "
+            "scale (see summarize_catalyst_outlook)."
+        ),
+    )
     category_breakdown: dict[str, int] = Field(default_factory=dict)
     top_positive: list[CatalystEvent] = Field(default_factory=list)
     top_negative: list[CatalystEvent] = Field(default_factory=list)

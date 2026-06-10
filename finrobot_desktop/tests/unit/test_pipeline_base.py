@@ -1311,3 +1311,99 @@ async def test_deterministic_first_attempt_pass_is_unaffected():
     assert result.failed_validations == []
     assert progress.ends == [("technical_analysis", None)]
     assert progress.retries == []
+
+
+@pytest.mark.asyncio
+async def test_non_critical_step_non_recoverable_exception_degrades_not_kills():
+    """A NON-critical step whose executor raises a non-recoverable (non-fatal)
+    exception must DEGRADE — recorded in failed_validations, later steps still
+    run. Multiple executors were written assuming this contract (peer selection
+    raises ValueError with a docstring saying "the step must degrade"); the
+    runner used to let it propagate and kill the whole run at step 1, burning
+    every LLM dollar with no artifact."""
+
+    async def dead_peer_executor(agent, deps, prompt, structured_context, ticker):
+        raise ValueError("peer screen returned no usable peers")
+
+    async def ok_executor(agent, deps, prompt, structured_context, ticker):
+        return "narrative continues"
+
+    steps = [
+        PipelineStep(
+            name="peer_analysis",
+            agent=MagicMock(),
+            validator=TextValidator(validate_is_non_empty),
+            executor=dead_peer_executor,
+        ),
+        PipelineStep(
+            name="report",
+            agent=MagicMock(),
+            validator=TextValidator(validate_is_non_empty),
+            executor=ok_executor,
+        ),
+    ]
+    pipeline = Pipeline(steps=steps, max_retries=2)
+    mock_deps = MagicMock()
+    mock_deps.skill_runtime = None
+
+    result = await pipeline.execute(mock_deps, "AAPL")
+
+    assert result.steps["report"] == "narrative continues"
+    assert any(fv["step"] == "peer_analysis" for fv in result.failed_validations)
+
+
+@pytest.mark.asyncio
+async def test_critical_step_non_recoverable_exception_still_aborts():
+    """The degrade contract is for non-critical steps only — a critical step's
+    non-recoverable exception keeps aborting the run."""
+
+    async def dead_executor(agent, deps, prompt, structured_context, ticker):
+        raise ValueError("canonical data unavailable")
+
+    step = PipelineStep(
+        name="data_collection",
+        agent=MagicMock(),
+        validator=TextValidator(validate_is_non_empty),
+        executor=dead_executor,
+        critical=True,
+    )
+    pipeline = Pipeline(steps=[step], max_retries=2)
+    mock_deps = MagicMock()
+    mock_deps.skill_runtime = None
+
+    with pytest.raises(ValueError, match="canonical data unavailable"):
+        await pipeline.execute(mock_deps, "AAPL")
+
+
+@pytest.mark.asyncio
+async def test_failed_validation_purges_structured_output():
+    """Numbers that failed validation must NOT feed downstream computation or
+    the artifact (数据正确性: 对不上禁止进 artifact). _attempt stores the
+    structured payload BEFORE validating, so a step that exhausted its retries
+    used to leave its last INVALID payload in structured_data — Monte Carlo
+    seeding / valuation synthesis / the builder all consumed it as if it had
+    passed. The degraded prose stays; the structured numbers are purged."""
+    from finrobot.engine.models.financial import StepOutput
+    from finrobot.engine.pipelines.validators import ValidationResult
+
+    async def bad_numbers_executor(agent, deps, prompt, structured_context, ticker):
+        return StepOutput(text="prose stays", structured={"implied_price": -1.0})
+
+    def reject_all(output: object) -> ValidationResult:
+        return ValidationResult(passed=False, error="implied_price out of bounds")
+
+    step = PipelineStep(
+        name="financial_modeling",
+        agent=MagicMock(),
+        validator=reject_all,
+        executor=bad_numbers_executor,
+    )
+    pipeline = Pipeline(steps=[step], max_retries=1)
+    mock_deps = MagicMock()
+    mock_deps.skill_runtime = None
+
+    result = await pipeline.execute(mock_deps, "AAPL")
+
+    assert "financial_modeling" not in result.structured_data
+    assert result.steps["financial_modeling"] == "prose stays"
+    assert any(fv["step"] == "financial_modeling" for fv in result.failed_validations)

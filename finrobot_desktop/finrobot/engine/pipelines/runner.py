@@ -12,7 +12,8 @@ if TYPE_CHECKING:
     from finrobot.engine.deps import FinRobotDeps
 
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
+from pydantic_ai import UnexpectedModelBehavior
 from pydantic_ai.exceptions import AgentRunError
 
 from finrobot.artifact.contract import enforce_artifact_contract
@@ -58,6 +59,30 @@ _FATAL_SUBSTRINGS = (
     "permission",
     "model not found",
     "does not exist",
+)
+
+# The step-boundary exception set: a NON-critical step whose executor raises a
+# non-recoverable error must DEGRADE (failed_validations + continue), not kill
+# the whole run — multiple executors were written assuming this contract
+# (peer selection raises ValueError with a docstring saying "the step must
+# degrade"; builders ship a no-FMP-key REVIEW_ONLY artifact that was
+# unreachable because the run died at peer_analysis first). Critical steps
+# still abort. Same broad-but-explicit shape as the run-task boundary in
+# routes/runs.py (bare `except Exception` is forbidden by the architecture
+# audit); CancelledError is excluded so shutdown propagates.
+_STEP_BOUNDARY_EXCEPTIONS = (
+    ProviderError,
+    ValidationError,
+    ValueError,
+    TypeError,
+    KeyError,
+    AttributeError,
+    RuntimeError,
+    UnexpectedModelBehavior,
+    AgentRunError,
+    OSError,
+    json.JSONDecodeError,
+    httpx.HTTPError,
 )
 
 _PROMPT_MAX_STRING_CHARS = 1200
@@ -286,19 +311,51 @@ class Pipeline:
             )
 
             t0 = time.monotonic()
-            validation_error = await self._run_step(
-                step,
-                deps,
-                prompt,
-                ticker,
-                results,
-                structured_results,
-                step_index=i,
-                progress=progress,
-                step_kwargs=step_kwargs,
-            )
+            try:
+                validation_error = await self._run_step(
+                    step,
+                    deps,
+                    prompt,
+                    ticker,
+                    results,
+                    structured_results,
+                    step_index=i,
+                    progress=progress,
+                    step_kwargs=step_kwargs,
+                )
+            except _STEP_BOUNDARY_EXCEPTIONS as exc:
+                # Non-recoverable executor exception. Critical step → re-raise
+                # unchanged (the run-task boundary marks the run failed, same
+                # as before). A FATAL-substring error (billing / auth / model
+                # config) also re-raises regardless of criticality: every
+                # later LLM step would fail identically, so degrading just
+                # burns latency to ship a fully degenerate artifact. Everything
+                # else on a non-critical step takes the degrade contract:
+                # record it like an exhausted-validation failure and continue,
+                # so a dead peer screen / a degenerate DCF doesn't vaporize
+                # the seven other chapters and every LLM dollar spent.
+                if step.critical or any(s in str(exc).lower() for s in _FATAL_SUBSTRINGS):
+                    raise
+                validation_error = (
+                    f"executor 异常(不可恢复,降级继续): " f"{type(exc).__name__}: {str(exc)[:400]}"
+                )
+                logger.warning(
+                    "Step '%s' (non-critical) raised non-recoverable %s — degrading: %s",
+                    step.name,
+                    type(exc).__name__,
+                    exc,
+                )
             elapsed = time.monotonic() - t0
             if validation_error:
+                # Numbers that failed validation must NOT feed downstream
+                # computation or the artifact (数据正确性: 对不上禁止进 artifact).
+                # _attempt stores the structured output BEFORE validating, so a
+                # step that exhausted its retries left its last INVALID payload
+                # in structured_results — Monte Carlo seeding, valuation
+                # synthesis and the artifact builder all consumed it as if it
+                # had passed. The degraded step's prose (results[name]) stays:
+                # text is narrative with a visible warning block, not numbers.
+                structured_results.pop(step.name, None)
                 failed_validations.append({"step": step.name, "error": validation_error})
                 # A critical step is a hard prerequisite — continuing past its
                 # failure only produces a confusing crash several steps later

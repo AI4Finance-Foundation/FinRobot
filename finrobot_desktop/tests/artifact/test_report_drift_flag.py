@@ -79,3 +79,60 @@ def test_missing_report_step_means_no_scan() -> None:
     )
     artifact = build_equity_research_artifact(result, "AAPL", cast(Any, None))
     assert "report_drift" not in artifact.outputs.structured
+
+
+def test_data_collection_narrative_is_scanned_too() -> None:
+    """data_collection is ALSO an LLM free-text narrative and format_summary()
+    puts it FIRST in summary_text — it used to be the one narrative the drift
+    scan skipped."""
+    result = PipelineResult(
+        steps={
+            "data_collection": "The data shows a $777.77 fair value emerging.",
+            "report": "All figures consistent: revenue USD 391.0B.",
+        },
+        structured_data={"data_collection": _financial_data()},
+    )
+    artifact = build_equity_research_artifact(result, "AAPL", cast(Any, None))
+
+    drift = artifact.outputs.structured.get("report_drift")
+    assert drift is not None and drift["unmatched_count"] == 1
+    assert drift["unmatched"][0]["token"] == "$777.77"
+
+
+def test_earnings_builder_scans_its_two_narrative_steps() -> None:
+    """The earnings builder was the ONE builder outside the shared drift sink
+    ('no artifact type is silently left unscanned'). Its two LLM narrative
+    steps must be scanned against the artifact's frozen leaves."""
+    from finrobot.artifact.builders import build_earnings_artifact
+
+    result = PipelineResult(
+        steps={
+            "financial_context": "ok",
+            "earnings_analysis": "EPS beat driven by a fabricated $123.45 figure.",
+            "forward_outlook": "Outlook implies $678.90 next quarter.",
+        },
+        structured_data={"financial_context": _financial_data()},
+    )
+    artifact = build_earnings_artifact(result, "AAPL", cast(Any, None))
+
+    drift = artifact.outputs.structured.get("report_drift")
+    assert drift is not None
+    tokens = {f["token"] for f in drift["unmatched"]}
+    assert {"$123.45", "$678.90"} <= tokens
+    assert any(w.startswith("[REPORT-DRIFT") for w in artifact.outputs.warnings)
+
+
+def test_failed_validations_surface_in_artifact_warnings() -> None:
+    """A degraded step (validation failed after retries) used to exist only in
+    summary_text prose — the machine-readable warnings array said nothing, so
+    UI/coverage consumers treated a half-degraded report like a clean one."""
+    result = PipelineResult(
+        steps={"data_collection": "ok", "report": "clean"},
+        structured_data={"data_collection": _financial_data()},
+        failed_validations=[{"step": "peer_analysis", "error": "no usable peers"}],
+    )
+    artifact = build_equity_research_artifact(result, "AAPL", cast(Any, None))
+
+    assert any(
+        "peer_analysis" in w and "降级" in w for w in artifact.outputs.warnings
+    ), artifact.outputs.warnings

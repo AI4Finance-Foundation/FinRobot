@@ -221,6 +221,13 @@ def create_ic_memo_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[],
                 validator=StructuredValidator(_validate_ic_financials, validate_is_non_empty),
                 executor=_execute_ic_financials,
+                # The deterministic financial core of the memo. Without
+                # ICFinancials the recommendation step's IRR hurdle gate can't
+                # run — the LLM's INVEST/PASS would ship UNGATED, which is the
+                # exact failure the gate exists to prevent. Abort instead of
+                # degrading (same precedent as equity_research's
+                # data_collection).
+                critical=True,
             ),
             PipelineStep(
                 name="investment_thesis",

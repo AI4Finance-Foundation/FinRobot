@@ -300,8 +300,19 @@ def _make_base_compute_version(
 
 
 def _collect_warnings(result: "PipelineResult") -> list[str]:
-    """Collect warnings from all structured data objects in the result."""
+    """Collect warnings from all structured data objects in the result.
+
+    ``failed_validations`` is part of the haul: a step that degraded after
+    exhausting its retries previously existed only in summary_text's prose
+    warning block — the artifact's machine-readable ``warnings`` array said
+    nothing, so the desktop UI / coverage consumers treated a half-degraded
+    report exactly like a clean one.
+    """
     warnings: list[str] = list(result.warnings)
+    for fv in result.failed_validations:
+        line = f"步骤 {fv.get('step', '?')} 降级(验证未通过): {fv.get('error', '')}"
+        if line not in warnings:
+            warnings.append(line)
     for val in result.structured_data.values():
         if hasattr(val, "warnings"):
             for w in val.warnings:
@@ -548,6 +559,15 @@ def build_earnings_artifact(
             "beat_threshold_pct": 2.0,
         }
 
+    # Two LLM free-text narrative steps (earnings_analysis / forward_outlook)
+    # feed this artifact — it was the ONE builder outside the shared drift
+    # sink, directly contradicting the sink's "no artifact type is silently
+    # left unscanned" symmetry rule.
+    structured_out = _safe_dump(earnings)
+    drift_warnings = _report_drift_flag(
+        structured_out, raw_data, result, "earnings_analysis", "forward_outlook"
+    )
+
     return Artifact(
         id=_make_artifact_id(ticker, "earnings"),
         ticker=ticker.upper(),
@@ -560,9 +580,9 @@ def build_earnings_artifact(
         assumptions=ArtifactAssumptions(parameters=params),
         compute_version=_make_base_compute_version("earnings_surprise_v1"),
         outputs=ArtifactOutputs(
-            structured=_safe_dump(earnings),
+            structured=structured_out,
             summary_text=result.format_summary()[:2000],
-            warnings=_collect_warnings(result),
+            warnings=_collect_warnings(result) + drift_warnings,
         ),
         meta=ArtifactMeta(
             created_at=_now(),
@@ -698,7 +718,12 @@ def build_equity_research_artifact(
         rich_withhold=_withhold_equity_research,
     )
 
-    audit_warnings += _report_drift_flag(structured_out, raw_data, result, "report")
+    # data_collection is ALSO an LLM free-text narrative (the data agent's
+    # prose summary) and format_summary() puts it FIRST — the artifact's
+    # summary_text opened with the one narrative the drift scan skipped.
+    audit_warnings += _report_drift_flag(
+        structured_out, raw_data, result, "report", "data_collection"
+    )
 
     return Artifact(
         id=_make_artifact_id(ticker, "equity_research"),

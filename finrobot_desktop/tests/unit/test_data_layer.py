@@ -101,6 +101,37 @@ class TestFetchFromProvider:
         assert provider.fetch_called == 0
         assert result.ticker == "AAPL"
 
+    async def test_kwargs_variants_get_distinct_cache_slots(self, cache):
+        """Cache identity must include every kwarg that varies the provider
+        payload. Live bug: /api/sentiment days=7 vs days=30 both reached
+        fetch(SENTIMENT, ticker, days_back=…) but cached by ticker alone, so a
+        30-day request served the cached 7-day aggregate until TTL."""
+
+        class EchoKwargsProvider(MockProvider):
+            async def fetch(self, ticker: str, data_type: str, **kwargs) -> DataResult:
+                self.fetch_called += 1
+                return DataResult(
+                    data={"echo": dict(kwargs)},
+                    provider=self._name,
+                    ticker=ticker,
+                    data_type=data_type,
+                    timestamp=datetime.now(tz=timezone.utc),
+                )
+
+        provider = EchoKwargsProvider("adanos", ["sentiment"])
+        layer = DataLayer([provider], cache)
+
+        r7 = await layer.fetch("sentiment", "AAPL", days_back=7)
+        r30 = await layer.fetch("sentiment", "AAPL", days_back=30)
+        assert r7.data["echo"] == {"days_back": 7}
+        assert r30.data["echo"] == {"days_back": 30}, "30d window served the 7d slot"
+        assert provider.fetch_called == 2
+
+        # Same kwargs again → cache hit, provider not called a third time.
+        again = await layer.fetch("sentiment", "AAPL", days_back=7)
+        assert provider.fetch_called == 2
+        assert again.data["echo"] == {"days_back": 7}
+
     async def test_stale_cache_calls_provider_and_updates_cache(self, cache, tmp_path):
         import aiosqlite
         from datetime import timedelta

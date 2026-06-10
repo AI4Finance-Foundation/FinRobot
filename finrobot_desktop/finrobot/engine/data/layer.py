@@ -126,10 +126,17 @@ class DataLayer:
         # cache keys use the canonical enum value, not a raw string literal.
         data_type = DataType(data_type)
 
+        # Cache identity must include every kwarg that varies the provider
+        # payload (sentiment days_back=7 vs 30 collided in one ticker slot and
+        # served the wrong window until TTL). Sorted for call-order stability;
+        # kwarg-less calls keep the bare ticker key, so existing slots stay
+        # reachable.
+        cache_key = ticker + "".join(f":{k}={v}" for k, v in sorted(kwargs.items()))
+
         # 1. Fresh cache hit — raw slot; staleness is by TTL only. Canonical
         # slots use version-tagged keys (ADR-0006 C1) that auto-invalidate on
         # schema bumps, so a fresh hit needs no contract-shape check.
-        cached = await self._cache.get(data_type, ticker)
+        cached = await self._cache.get(data_type, cache_key)
         if cached is not None and not cached.is_stale:
             return cached.data
 
@@ -223,7 +230,7 @@ class DataLayer:
                 primary_result = primary_result.model_copy(
                     update={"circuit_open_providers": circuit_open}
                 )
-            await self._cache.set(data_type, ticker, primary_result)
+            await self._cache.set(data_type, cache_key, primary_result)
             return primary_result
 
         # 3. All providers failed — return stale cache with PROMINENT warning

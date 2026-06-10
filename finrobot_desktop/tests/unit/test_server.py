@@ -64,6 +64,42 @@ class TestChatEndpoint:
             app.state.startup_error = None
 
 
+class TestHydrateSettingsKeychainRefusal:
+    """Boot hydration must survive a keychain that refuses at runtime.
+
+    The constructor probe only proves the backend worked once; the user can
+    click "Deny" on the macOS access prompt afterwards. KeychainSecretStore.get
+    then degrades to None, so hydrate_settings_from_secrets proceeds with no
+    keys (the missing-key consequence surfaces via the startup_error banner)
+    instead of crashing the lifespan and killing the server.
+    """
+
+    async def test_hydrate_does_not_crash_when_keychain_denied(self):
+        import keyring.errors
+
+        from finrobot.config import get_settings
+        from finrobot.secret_store import KeychainSecretStore
+        from finrobot.server import hydrate_settings_from_secrets
+
+        class _RefusingKeyring:
+            errors = keyring.errors
+
+            def get_password(self, service: str, key: str) -> str | None:
+                raise keyring.errors.KeyringLocked("user denied access")
+
+        store = KeychainSecretStore.__new__(KeychainSecretStore)
+        store._keyring = _RefusingKeyring()  # type: ignore[assignment]
+        store._service_name = "FinRobotTest"
+        store._degraded_keys = set()
+
+        settings = get_settings(model_name="openai:gpt-4o")
+        hydrated = await hydrate_settings_from_secrets(settings, store)
+
+        # No crash; nothing hydrated — settings pass through unchanged.
+        assert hydrated.fmp_api_key == settings.fmp_api_key
+        assert hydrated.model_name == "openai:gpt-4o"
+
+
 class TestArchitecturalRedLines:
     """Static guards that survive the SSE endpoint reshuffle.
 

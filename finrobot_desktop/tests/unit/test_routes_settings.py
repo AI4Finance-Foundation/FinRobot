@@ -1035,6 +1035,93 @@ async def test_settings_update_non_logging_field_skips_reapply(
 
 
 # ---------------------------------------------------------------------------
+# Keychain refusal at runtime — reads degrade (GET stays 200), writes surface
+# a user-visible error (a failed key save must never look like success).
+# ---------------------------------------------------------------------------
+
+
+def _denied_keychain_store() -> Any:
+    """A real KeychainSecretStore whose backend refuses every call (user hit
+    "Deny" on the OS prompt), built without touching the actual OS keychain."""
+    import keyring.errors
+
+    from finrobot.secret_store import KeychainSecretStore
+
+    class _RefusingKeyring:
+        errors = keyring.errors
+
+        def get_password(self, service: str, key: str) -> str | None:
+            raise keyring.errors.KeyringLocked("user denied access")
+
+        def set_password(self, service: str, key: str, value: str) -> None:
+            raise keyring.errors.KeyringLocked("user denied access")
+
+        def delete_password(self, service: str, key: str) -> None:
+            raise keyring.errors.KeyringLocked("user denied access")
+
+    store = KeychainSecretStore.__new__(KeychainSecretStore)
+    store._keyring = _RefusingKeyring()  # type: ignore[assignment]
+    store._service_name = "FinRobotTest"
+    store._degraded_keys = set()
+    return store
+
+
+@pytest.mark.asyncio
+async def test_get_settings_stays_200_when_keychain_denied(tmp_path: Path) -> None:
+    """secret_store.has() refusal degrades to key_set=False instead of a 500."""
+    app = _make_app(tmp_path, secret_store=_denied_keychain_store())
+    async with _client(app) as c:
+        resp = await c.get("/api/settings")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["fmp_api_key_set"] is False
+    # The active model's key is injected in runtime settings, so key_set stays
+    # True via the settings fallback even though the keychain read degraded.
+    providers = {p["id"]: p for p in body["providers"]}
+    assert providers["openai"]["key_set"] is True
+
+
+@pytest.mark.asyncio
+async def test_put_keychain_set_failure_is_user_visible(tmp_path: Path, monkeypatch: Any) -> None:
+    """A denied keychain write fails the PUT with the real reason — the key was
+    NOT saved and the response must say so (no fake success, no opaque 500)."""
+    app = _make_app(tmp_path, secret_store=_denied_keychain_store())
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
+
+    async with _client(app) as c:
+        resp = await c.put("/api/settings", json={"fmp_api_key": "fmp-key-123"})
+
+    assert resp.status_code == 500
+    detail = resp.json()["detail"]
+    assert "fmp_api_key" in detail and "keychain" in detail
+    assert "fmp-key-123" not in detail  # the secret value never leaks
+
+
+@pytest.mark.asyncio
+async def test_clear_secret_keychain_failure_is_user_visible(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A keychain that refuses the delete must fail the clear loudly — the
+    secret is still stored, so pretending success would lie to the user."""
+    from finrobot.secret_store import SecretStoreError
+
+    secret_store = AsyncMock()
+    secret_store.has = AsyncMock(return_value=False)
+    secret_store.get = AsyncMock(return_value=None)
+    secret_store.delete = AsyncMock(
+        side_effect=SecretStoreError("Failed to delete secret 'fmp_api_key' from the OS keychain")
+    )
+    app = _make_app(tmp_path, secret_store=secret_store)
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", AsyncMock())
+
+    async with _client(app) as c:
+        resp = await c.post("/api/settings/clear-secret", json={"field": "fmp_api_key"})
+
+    assert resp.status_code == 500
+    assert "fmp_api_key" in resp.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
 # POST /api/settings/test-provider — live connectivity check
 # ---------------------------------------------------------------------------
 

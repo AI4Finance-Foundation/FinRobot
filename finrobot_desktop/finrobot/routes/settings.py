@@ -22,7 +22,7 @@ from finrobot.config import (
     LogLevel,
     ProviderConfig,
 )
-from finrobot.secret_store import SecretStorageMode
+from finrobot.secret_store import SecretStorageMode, SecretStoreError
 from finrobot.engine.data.factory import build_data_layer
 from finrobot.engine.agents.factory import create_sub_agents
 from finrobot.engine.orchestrator import create_lead_agent
@@ -282,12 +282,19 @@ async def put_settings_route(update: SettingsUpdate, request: Request) -> Settin
     # PUT is "no change", NOT "delete" (BUG-005) — the common case is the user
     # editing an unrelated field with the masked key input left blank. Deleting a
     # secret is the explicit POST /api/settings/clear-secret action.
-    for key, value in data_secret_updates.items():
-        if value:
-            await secret_store.set(key, value)
-    for provider_id, value in provider_key_updates.items():
-        if value:
-            await secret_store.set(_provider_key_name(provider_id), value)
+    try:
+        for key, value in data_secret_updates.items():
+            if value:
+                await secret_store.set(key, value)
+        for provider_id, value in provider_key_updates.items():
+            if value:
+                await secret_store.set(_provider_key_name(provider_id), value)
+    except SecretStoreError as exc:
+        # The keychain refused the write (user denied the OS prompt / keychain
+        # locked). The key was NOT saved — say so explicitly instead of letting
+        # an opaque 500 pretend "something broke somewhere". Runtime settings
+        # are intentionally untouched: nothing was persisted, so nothing changes.
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     _merge_non_secret_settings(
         request.app.state.settings_path,
@@ -343,7 +350,12 @@ async def clear_secret_route(body: ClearSecretRequest, request: Request) -> Sett
     secret_store = request.app.state.secret_store
     settings_path: Path = request.app.state.settings_path
 
-    await secret_store.delete(body.field)
+    try:
+        await secret_store.delete(body.field)
+    except SecretStoreError as exc:
+        # Keychain refused the delete — the secret is still stored, so the
+        # clear must fail loudly with the real reason, not pretend success.
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     # Rebuild settings so the cleared secret is dropped from the in-memory
     # object. Mirrors /reset: pydantic-settings only re-reads .env on

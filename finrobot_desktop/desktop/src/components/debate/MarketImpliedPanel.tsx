@@ -16,8 +16,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Line, LineChart, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { BASE_URL } from '../../api/client'
+import { extractErrorDetail } from '../../api/errors'
 import { fetchWithTimeout } from '../../api/fetch'
 import { useI18n } from '../../i18n'
+import { FetchHttpError, mapErrorToUserMessage } from '../../utils/errorMessage'
 import { CosmicTooltipShell } from '../charts/chartTooltip'
 
 interface ReverseResult {
@@ -62,7 +64,12 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error(`${path} → ${res.status}`)
+  if (!res.ok) {
+    // Carry the backend's user-facing `detail` into the typed error so the
+    // panel surfaces the real reason via mapErrorToUserMessage instead of a
+    // dev string like "/api/compute/dcf-seed → 503".
+    throw new FetchHttpError(res.status, res.statusText, await extractErrorDetail(res, ''))
+  }
   return (await res.json()) as T
 }
 
@@ -115,7 +122,7 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
         setLine(l)
         if (waccOverride === null) setWacc(l.wacc)
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
+        setError(mapErrorToUserMessage(e))
       }
     },
     [ticker],
@@ -149,7 +156,7 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
         setSeed(s)
         await fetchLine(null)
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
+        setError(mapErrorToUserMessage(e))
       }
     })()
   }, [open, seed, ticker, fetchLine])

@@ -4,6 +4,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
+import { extractErrorDetail } from '../api/errors'
 import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../api/fetch'
 import { FetchHttpError } from '../utils/errorMessage'
 import type { ArtifactSummaryV5 } from '../types/v5'
@@ -11,7 +12,9 @@ import type { ArtifactSummaryV5 } from '../types/v5'
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   const resp = await fetchWithTimeout(url, { signal }, HEAVY_API_TIMEOUT_MS)
   if (!resp.ok) {
-    throw new FetchHttpError(resp.status, resp.statusText)
+    // Read the backend's user-facing `detail` once and carry it in the typed
+    // error so consumers (AIZone) can surface the real reason (BUG-053 pattern).
+    throw new FetchHttpError(resp.status, resp.statusText, await extractErrorDetail(resp, ''))
   }
   return (await resp.json()) as T
 }

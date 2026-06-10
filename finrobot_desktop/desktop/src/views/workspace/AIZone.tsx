@@ -286,7 +286,7 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
               marginBottom: 14,
             }}
           >
-            {artifactErr instanceof Error ? artifactErr.message : t('workspace.ai.error.hint')}
+            {artifactErr ? mapErrorToUserMessage(artifactErr) : t('workspace.ai.error.hint')}
           </div>
           <button
             type="button"

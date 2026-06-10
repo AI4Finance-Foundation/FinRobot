@@ -66,23 +66,65 @@ export const useUiPrefs = create<UiPrefsState>()(
 // uses real translations. zustand's persist may overwrite this once rehydrated.
 i18n.activate(useUiPrefs.getState().locale)
 
+// ── Missing-key guard ─────────────────────────────────────────────────
+// Lingui's _() falls back to the raw dotted id ("coverage.reason.quote_stale")
+// when a key is absent — developer language on an analyst-facing surface.
+// Several call sites build keys dynamically (t(`prefix.${backendValue}`)), so
+// a new backend enum value must degrade to READABLE copy, not a raw key.
+// This guard is the single throat for that rule: every t()/tSync() goes
+// through it, so no per-call-site whitelist can drift.
+
+const CATALOGS: Record<Locale, Record<string, unknown>> = {
+  zh: zhMessages as Record<string, unknown>,
+  en: enMessages as Record<string, unknown>,
+}
+
+/** Readable fallback for a missing key: last dot-segment, with underscores /
+ * hyphens / camelCase split into plain words ("quote_stale" → "quote stale"). */
+function humanizeKey(key: string): string {
+  const last = key.split('.').pop() ?? key
+  return last
+    .replace(/[_-]+/g, ' ')
+    .replace(/([a-z\d])([A-Z])/g, '$1 $2')
+    .toLowerCase()
+    .trim()
+}
+
+function translate(key: string, params?: Record<string, string | number>): string {
+  const { locale } = useUiPrefs.getState()
+  if (key in CATALOGS[locale]) return i18n._(key, params ?? {})
+  // Active catalog misses the key — try the other locale before humanizing so
+  // a partially-translated key still shows real copy rather than a guess.
+  const other: Locale = locale === 'zh' ? 'en' : 'zh'
+  if (key in CATALOGS[other]) {
+    const saved = i18n.locale
+    i18n.activate(other)
+    try {
+      return i18n._(key, params ?? {})
+    } finally {
+      i18n.activate(saved)
+    }
+  }
+  if (import.meta.env?.DEV) {
+    console.warn(`[i18n] missing catalog key: ${key}`)
+  }
+  return humanizeKey(key)
+}
+
 // ── React hook ────────────────────────────────────────────────────────
 export function useI18n() {
   const locale = useUiPrefs((s) => s.locale)
   const setLocale = useUiPrefs((s) => s.setLocale)
-  const t = (key: string, params?: Record<string, string | number>): string => {
-    // Lingui's _() returns the translated string. Missing keys fall back to the
-    // key itself (Lingui's default), matching old translate() behaviour.
-    return i18n._(key, params ?? {})
-  }
+  const t = (key: string, params?: Record<string, string | number>): string =>
+    translate(key, params)
   return { locale, setLocale, t }
 }
 
 // Helper for non-React code — reads the latest zustand snapshot.
 export function tSync(key: string, params?: Record<string, string | number>): string {
   // i18n is already activated for the current locale via zustand setLocale;
-  // calling _() directly gets the current locale's translation.
-  return i18n._(key, params ?? {})
+  // the guard reads the same snapshot, so both paths share one fallback rule.
+  return translate(key, params)
 }
 
 // Re-export the Lingui core instance for advanced consumers (e.g. tests).

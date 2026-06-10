@@ -11,8 +11,10 @@ describe('i18n / lingui runtime', () => {
     expect(tSync('nav.research')).toBe('研究台')
   })
 
-  it('falls back to key when missing', () => {
-    expect(tSync('this.key.does.not.exist')).toBe('this.key.does.not.exist')
+  it('falls back to readable copy (not the raw dotted key) when missing', () => {
+    // The missing-key guard humanizes the last segment — see
+    // missing-key-fallback.test.ts for the full contract.
+    expect(tSync('this.key.does.not.exist')).toBe('exist')
   })
 
   it('interpolates {param} placeholders', () => {

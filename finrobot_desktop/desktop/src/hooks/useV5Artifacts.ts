@@ -48,11 +48,7 @@ export function useV5ArtifactTimeline(ticker: string, limit?: number) {
  * the timeline can pass the SAME limit and share one query/request — two
  * different limits on one surface meant two HTTP fetches with two truncation
  * calibers for the same ticker (the AIZone 50-vs-200 split). */
-export function useLatestArtifact(
-  ticker: string,
-  type: ArtifactSummaryV5['type'],
-  limit?: number,
-) {
+export function useLatestArtifact(ticker: string, type: ArtifactSummaryV5['type'], limit?: number) {
   const query = useV5ArtifactTimeline(ticker, limit)
   const latest = query.data?.find((a) => a.type === type) ?? null
   return { ...query, latest }

@@ -36,6 +36,10 @@ from finrobot.artifact.models import (
     ArtifactMeta,
     ArtifactOutputs,
 )
+from finrobot.engine.compute.operators.report_drift import (
+    collect_numeric_leaves,
+    detect_report_drift,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -216,6 +220,46 @@ def _attach_numeric_audit(
     return _numeric_audit_warnings(audit) + capability_warnings
 
 
+def _report_drift_flag(
+    structured_out: dict[str, Any],
+    raw_data: dict[str, Any],
+    result: "PipelineResult",
+    *narrative_steps: str,
+) -> list[str]:
+    """Plan-B report reconcile — the shared sink for every builder whose pipeline
+    has LLM narrative steps, so no artifact type is silently left unscanned
+    (same symmetry rule as ``_attach_numeric_audit``).
+
+    Every $-amount an LLM narrative prints should trace to SOME numeric leaf of
+    what the artifact freezes (structured snapshot + raw FinancialData — exactly
+    the numbers the agent was allowed to assemble). Unmatched amounts are
+    FLAGGED, never rewritten: unlike the thesis guard there is no single
+    canonical target to rewrite TO, and a false-positive rewrite would corrupt a
+    legitimate figure. The flag does not gate ``artifact_status`` either — an
+    LLM restating "$391.0B" as "roughly $400B" is triage-worthy, not
+    withhold-worthy. On drift: warning returned + a ``report_drift`` provenance
+    block recorded in ``structured_out``.
+    """
+    text = "\n\n".join(
+        step_text for name in narrative_steps if (step_text := result.steps.get(name))
+    )
+    if not text:
+        return []
+    drift = detect_report_drift(
+        text,
+        collect_numeric_leaves({"structured": structured_out, "raw": raw_data}),
+    )
+    if not drift.unmatched_count:
+        return []
+    structured_out["report_drift"] = drift.model_dump(mode="json")
+    examples = ", ".join(f.token for f in drift.unmatched[:5])
+    return [
+        f"[REPORT-DRIFT/review] {drift.unmatched_count}/{drift.total_dollar_amounts} "
+        f"narrative $-amounts match no computed value ({examples}) — verify the "
+        f"narrative before publishing"
+    ]
+
+
 def _data_capability_warnings(deps: Any) -> list[str]:
     settings = getattr(deps, "settings", None)
     if settings is None or not hasattr(settings, "fmp_api_key"):
@@ -297,6 +341,7 @@ def build_dcf_artifact(
         "historical_data",
         withhold_keys=("implied_price",),
     )
+    audit_warnings += _report_drift_flag(structured_out, raw_data, result, "output_gen")
 
     return Artifact(
         id=_make_artifact_id(ticker, "dcf"),
@@ -352,6 +397,7 @@ def build_lbo_artifact(
     audit_warnings = _attach_numeric_audit(
         structured_out, result, deps, "data_collection", withhold_keys=("irr", "moic")
     )
+    audit_warnings += _report_drift_flag(structured_out, raw_data, result, "lbo_narrative")
 
     return Artifact(
         id=_make_artifact_id(ticker, "lbo"),
@@ -400,6 +446,7 @@ def build_comps_artifact(
         cross_tickers = [p.ticker for p in peer_comps.peers]
     structured_out = _safe_dump(peer_comps)
     audit_warnings = _attach_numeric_audit(structured_out, result, deps, "target_data")
+    audit_warnings += _report_drift_flag(structured_out, raw_data, result, "output_gen")
 
     return Artifact(
         id=_make_artifact_id(ticker, "comps"),
@@ -449,6 +496,7 @@ def build_ddm_artifact(
         "historical_data",
         withhold_keys=("equity_value_per_share",),
     )
+    audit_warnings += _report_drift_flag(structured_out, raw_data, result, "ddm_narrative")
 
     return Artifact(
         id=_make_artifact_id(ticker, "ddm"),
@@ -650,6 +698,8 @@ def build_equity_research_artifact(
         rich_withhold=_withhold_equity_research,
     )
 
+    audit_warnings += _report_drift_flag(structured_out, raw_data, result, "report")
+
     return Artifact(
         id=_make_artifact_id(ticker, "equity_research"),
         ticker=ticker.upper(),
@@ -728,6 +778,15 @@ def build_ic_memo_artifact(
         audit_warnings = _attach_numeric_audit(
             structured_out, result, deps, snapshot=ic.financial_data
         )
+    audit_warnings += _report_drift_flag(
+        structured_out,
+        raw_data,
+        result,
+        "situation_overview",
+        "investment_thesis",
+        "risk_factors",
+        "recommendation",
+    )
 
     return Artifact(
         id=_make_artifact_id(ticker, "ic_memo"),

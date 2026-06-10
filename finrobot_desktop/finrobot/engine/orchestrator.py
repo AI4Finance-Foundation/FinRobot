@@ -1,3 +1,4 @@
+import json
 import logging
 from collections.abc import Awaitable, Callable
 from pathlib import Path
@@ -20,6 +21,7 @@ from finrobot.engine.compute.coordinators.dcf_seed import seed_dcf_inputs_for_ti
 from finrobot.engine.compute.operators.monte_carlo import MonteCarloResult
 from finrobot.engine.compute.operators.monte_carlo import run_monte_carlo as run_monte_carlo_sim
 from finrobot.engine.data.interface import ProviderError
+from finrobot.engine.data.normalize import NormalizedPrice
 from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
@@ -244,6 +246,24 @@ def create_lead_agent(
             raise ModelRetry(
                 f"Unknown data_type {data_type!r}. Valid values: {[d.value for d in DataType]}"
             ) from exc
+        # PRICE / FINANCIALS MUST come through the canonical (validated,
+        # provenance-stamped) contract — the SAME path the pipeline and the
+        # sub-agent tool use (fetch_canonical, ADR-0006). Bare fetch() here was
+        # a SECOND, un-validated quote source: chat could narrate a different
+        # "current price" than the report for the same ticker (the exact
+        # two-prices-in-one-artifact failure fixed in agents/factory.py — this
+        # Mode A twin was the unsynced sibling).
+        if dt in (DataType.PRICE, DataType.FINANCIALS):
+            normalized = await ctx.deps.data_layer.fetch_canonical(dt, norm)
+            if isinstance(normalized, NormalizedPrice):
+                body = json.dumps(normalized.to_prompt_summary(), indent=2, default=str)
+            else:
+                body = normalized.model_dump_json(indent=2)
+            return (
+                f"[canonical] {dt.value} (normalized contract — the single "
+                f"source of truth; quote these figures verbatim)\n"
+                f"```json\n{body}\n```"
+            )
         result = await ctx.deps.data_layer.fetch(dt, norm)
         return result.to_context_string()
 

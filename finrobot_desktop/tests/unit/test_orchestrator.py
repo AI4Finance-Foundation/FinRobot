@@ -22,6 +22,7 @@ from finrobot.artifact.semantic_diff import (
 from finrobot.config import get_settings
 from finrobot.engine.backtest.engine import BacktestResult
 from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import DCFInputs
 from finrobot.engine.orchestrator import create_lead_agent
@@ -35,6 +36,13 @@ FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "skills"
 # ---------------------------------------------------------------------------
 
 
+class FakeCanonical:
+    """Stub for the normalized canonical contract objects."""
+
+    def model_dump_json(self, indent: int | None = None) -> str:
+        return '{"current_price": 123.45}'
+
+
 class FakeDataLayer:
     async def fetch(self, data_type: str, ticker: str, **kwargs) -> DataResult:
         return DataResult(
@@ -44,6 +52,9 @@ class FakeDataLayer:
             data_type=data_type,
             timestamp=datetime.now(tz=timezone.utc),
         )
+
+    async def fetch_canonical(self, data_type, ticker: str, **kwargs) -> FakeCanonical:
+        return FakeCanonical()
 
 
 def _settings():
@@ -230,6 +241,50 @@ class TestAgentRouting:
 # the model) instead of a bare ValueError that would tear down the live /chat
 # SSE stream. A bad ticker must RETURN a string, not raise, for the same reason.
 # ---------------------------------------------------------------------------
+
+
+class TestQueryFinancialDataCanonicalRouting:
+    """Mode A twin of the sub-agent contract (agents/factory.py): PRICE /
+    FINANCIALS must route through fetch_canonical so chat narrates the SAME
+    validated quote the pipeline's structured fields use — bare fetch() was a
+    second, un-validated price source (the orchestrator was the unsynced
+    sibling of the 2026-06-09 TSLA two-prices fix)."""
+
+    async def test_price_routes_through_canonical(self):
+        agent = _agent()
+        fn = _query_financial_data_fn(agent)
+        ctx = _run_context(_deps())
+        ctx.deps.data_layer = MagicMock()
+        normalized = MagicMock(spec_set=["model_dump_json"])
+        normalized.model_dump_json.return_value = '{"current_price": 408.95}'
+        ctx.deps.data_layer.fetch_canonical = AsyncMock(return_value=normalized)
+        ctx.deps.data_layer.fetch = AsyncMock()
+
+        out = await fn(ctx, "TSLA", "price")
+
+        ctx.deps.data_layer.fetch_canonical.assert_awaited_once_with(DataType.PRICE, "TSLA")
+        ctx.deps.data_layer.fetch.assert_not_awaited()
+        assert "canonical" in out and "408.95" in out
+
+    async def test_financials_route_through_canonical_and_news_stays_raw(self):
+        agent = _agent()
+        fn = _query_financial_data_fn(agent)
+        ctx = _run_context(_deps())
+        ctx.deps.data_layer = MagicMock()
+        normalized = MagicMock(spec_set=["model_dump_json"])
+        normalized.model_dump_json.return_value = '{"revenue": 1}'
+        ctx.deps.data_layer.fetch_canonical = AsyncMock(return_value=normalized)
+        ctx.deps.data_layer.fetch = AsyncMock(
+            return_value=MagicMock(to_context_string=lambda: "news text")
+        )
+
+        out_fin = await fn(ctx, "TSLA", "financials")
+        ctx.deps.data_layer.fetch_canonical.assert_awaited_once_with(DataType.FINANCIALS, "TSLA")
+        assert "canonical" in out_fin
+
+        out_news = await fn(ctx, "TSLA", "news")
+        ctx.deps.data_layer.fetch.assert_awaited_once_with(DataType.NEWS, "TSLA")
+        assert out_news == "news text"
 
 
 class TestQueryFinancialDataErrorHandling:

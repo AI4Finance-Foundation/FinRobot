@@ -328,3 +328,37 @@ class TestRawSlotVersion:
         await cache.set("proxy_statement", "NVDA", _result("NVDA", "proxy_statement"))
         hit = await cache.get("proxy_statement", "NVDA")
         assert hit is not None and hit.data.ticker == "NVDA"
+
+
+class TestWriteErrorsAreNonFatal:
+    """A cache WRITE is an optimization, not the deliverable — a disk-full /
+    SQLITE_FULL error on it must never propagate and turn a successful provider
+    fetch (or a read's corrupt-row self-heal) into a 500."""
+
+    async def test_set_and_delete_swallow_sqlite_errors(self, cache, monkeypatch):
+        import sqlite3
+
+        conn = await cache._ensure_connection()  # build conn + table BEFORE patching
+
+        async def boom(*args, **kwargs):
+            raise sqlite3.OperationalError("database or disk is full")
+
+        monkeypatch.setattr(conn, "execute", boom)
+
+        # None of these write paths may raise — the fetch's real data is already
+        # in hand, the cache write is best-effort.
+        await cache.set("financials", "AAPL", _result())  # _set_slot
+        await cache.set_canonical("financials", "AAPL", '{"ticker": "AAPL"}')  # _set_slot
+        await cache._delete_slot(raw_slot_key("financials"), "AAPL")  # read self-heal write
+
+    async def test_evict_expired_returns_zero_on_write_error(self, cache, monkeypatch):
+        import sqlite3
+
+        conn = await cache._ensure_connection()
+
+        async def boom(*args, **kwargs):
+            raise sqlite3.OperationalError("disk I/O error")
+
+        monkeypatch.setattr(conn, "execute", boom)
+        # Background housekeeping must not crash; it reports 0 deleted and retries.
+        assert await cache.evict_expired() == 0

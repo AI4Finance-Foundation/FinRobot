@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sqlite3
 import weakref
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta, timezone
@@ -262,26 +263,49 @@ class DataCache:
         row would keep poisoning reads until the 30-day evict.
         """
         conn = await self._ensure_connection()
-        await conn.execute(
-            "DELETE FROM cache WHERE data_type = ? AND ticker = ?",
-            (slot_key, ticker),
-        )
-        await conn.commit()
+        try:
+            await conn.execute(
+                "DELETE FROM cache WHERE data_type = ? AND ticker = ?",
+                (slot_key, ticker),
+            )
+            await conn.commit()
+        except sqlite3.Error as exc:
+            # Best-effort, same contract as _set_slot: this runs inside a READ's
+            # corrupt-row self-heal, so a write failure (disk full, I/O error)
+            # must not turn a cache read into a 500 — the read already treats the
+            # row as a miss and refetches.
+            logger.warning(
+                "data_cache delete failed for %s/%s (non-fatal): %s", slot_key, ticker, exc
+            )
 
     async def _set_slot(self, slot_key: str, ticker: str, payload_json: str) -> None:
         cached_at = datetime.now(tz=timezone.utc).isoformat()
         conn = await self._ensure_connection()
-        await conn.execute(
-            """
-            INSERT INTO cache (data_type, ticker, data, cached_at)
-            VALUES (?, ?, ?, ?)
-            ON CONFLICT(data_type, ticker) DO UPDATE SET
-                data = excluded.data,
-                cached_at = excluded.cached_at
-            """,
-            (slot_key, ticker, payload_json, cached_at),
-        )
-        await conn.commit()
+        try:
+            await conn.execute(
+                """
+                INSERT INTO cache (data_type, ticker, data, cached_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(data_type, ticker) DO UPDATE SET
+                    data = excluded.data,
+                    cached_at = excluded.cached_at
+                """,
+                (slot_key, ticker, payload_json, cached_at),
+            )
+            await conn.commit()
+        except sqlite3.Error as exc:
+            # A cache WRITE is an optimization, not the deliverable: never let its
+            # failure (disk full / SQLITE_FULL, I/O error) propagate and turn a
+            # SUCCESSFUL provider fetch into a 500 — DataLayer.fetch writes the row
+            # only AFTER it already holds real data. Log + swallow; the next write
+            # retries. (QuoteCache armors its L2 write the same way.) The
+            # connection stays healthy for a disk-full, so it is reused as-is.
+            logger.warning(
+                "data_cache write failed for %s/%s (non-fatal, data still served): %s",
+                slot_key,
+                ticker,
+                exc,
+            )
 
     async def get(
         self,
@@ -384,9 +408,16 @@ class DataCache:
         """
         cutoff_iso = (datetime.now(tz=timezone.utc) - timedelta(days=max_age_days)).isoformat()
         conn = await self._ensure_connection()
-        cur = await conn.execute("DELETE FROM cache WHERE cached_at < ?", (cutoff_iso,))
-        deleted = cur.rowcount
-        await conn.commit()
+        try:
+            cur = await conn.execute("DELETE FROM cache WHERE cached_at < ?", (cutoff_iso,))
+            deleted = cur.rowcount
+            await conn.commit()
+        except sqlite3.Error as exc:
+            # Best-effort housekeeping: a write failure (disk full — ironically
+            # when eviction is most needed) must not crash the background pass.
+            # Log + report 0 deleted; the next scheduled pass retries.
+            logger.warning("data_cache evict_expired DELETE failed (non-fatal): %s", exc)
+            return 0
         if deleted:
             # Reclaim the freed pages so the .db file actually shrinks rather
             # than leaving them as reusable slack. The DB is opened with the

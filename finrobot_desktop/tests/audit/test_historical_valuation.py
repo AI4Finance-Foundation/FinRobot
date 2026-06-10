@@ -18,6 +18,7 @@ Three high-value contracts pinned:
 
 from __future__ import annotations
 
+import math
 import re
 from datetime import date
 from pathlib import Path
@@ -109,6 +110,51 @@ class TestEvEbitdaBand:
         # (the standalone /historical-bands route) can't silently flip 贵/合理/
         # 便宜 on an annual basis against the report's TTM verdict.
         assert any("年报" in w or "TTM" in w for w in band.warnings), band.warnings
+
+    def test_nan_close_does_not_poison_band_quantiles(self) -> None:
+        """A single NaN close (halted session / bad provider row) used to slip
+        past `is None or <= 0` (NaN comparisons are False) and poison every
+        quantile of the band — median/p25/p75 all NaN feeding the 贵/合理/便宜
+        classifier. The NaN sample must simply be dropped."""
+        yearly = [_yearly(2023, ebitda=20), _yearly(2024, ebitda=25), _yearly(2025, ebitda=30)]
+        prices = [
+            _price(date(2024, 6, 1), 100.0),
+            _price(date(2025, 6, 1), float("nan")),
+            _price(date(2026, 1, 1), 120.0),
+        ]
+        band = compute_historical_band(
+            metric="ev_ebitda",
+            yearly=yearly,
+            prices=prices,
+            shares_outstanding=10,
+        )
+        assert band.sample_count == 2
+        assert band.median is not None and math.isfinite(band.median)
+        assert band.p25 is not None and math.isfinite(band.p25)
+        assert band.p75 is not None and math.isfinite(band.p75)
+        assert all(math.isfinite(v) for _, v in band.timeline)
+
+    def test_nan_net_debt_sample_is_dropped(self) -> None:
+        """NaN can also enter via the financial leg (net_debt) — the EV sum
+        propagates it; the isfinite gate must drop that sample too."""
+        yearly = [
+            _yearly(2023, ebitda=20),
+            _yearly(2024, ebitda=25, debt=float("nan")),
+            _yearly(2025, ebitda=30),
+        ]
+        prices = [
+            _price(date(2024, 6, 1), 100.0),
+            _price(date(2025, 6, 1), 110.0),
+            _price(date(2026, 1, 1), 120.0),
+        ]
+        band = compute_historical_band(
+            metric="ev_ebitda",
+            yearly=yearly,
+            prices=prices,
+            shares_outstanding=10,
+        )
+        assert band.sample_count == 2
+        assert band.median is not None and math.isfinite(band.median)
 
     def test_current_override_replaces_current_and_discloses_basis(self) -> None:
         """B2: a TTM current_override replaces the band's current point only.

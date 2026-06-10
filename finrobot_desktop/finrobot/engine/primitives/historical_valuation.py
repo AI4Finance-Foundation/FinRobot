@@ -20,6 +20,7 @@ classification has to be reproducible — same inputs, same answer, no LLM.
 from __future__ import annotations
 
 import bisect
+import math
 import statistics
 from dataclasses import dataclass
 from datetime import date
@@ -122,7 +123,11 @@ def compute_historical_band(
             skipped_no_financial += 1
             continue
         multiple = _compute_multiple(metric, point, fy, shares_outstanding)
-        if multiple is None or multiple <= 0:
+        # math.isfinite: a single NaN close (halted session / bad provider row)
+        # passes both `is None` and `<= 0` (NaN comparisons are False) and
+        # poisons every quantile of the band — same family as the peer-median
+        # NaN fix in operators/multiples.
+        if multiple is None or not math.isfinite(multiple) or multiple <= 0:
             continue
         samples.append((point.sample_date, multiple))
 

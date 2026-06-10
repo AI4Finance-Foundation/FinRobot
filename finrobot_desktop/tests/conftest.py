@@ -76,6 +76,20 @@ async def _close_quote_cache_singleton_between_tests():
     await quote_batch.close_quote_cache_singleton()
 
 
+@pytest.fixture(autouse=True)
+def _reset_fx_cache():
+    """Clear the module-global spot-FX cache around every test. The cache is keyed
+    by currency with a wall-clock TTL, so without this a rate set by one test (or
+    a lock bound to that test's now-dead event loop) would leak into the next —
+    e.g. a TWD rate cached as 0.03125 by one case would mask another's expected
+    raise. Lazy import so conftest load doesn't pull yfinance unconditionally."""
+    from finrobot.engine.data.providers.fx import clear_fx_cache
+
+    clear_fx_cache()
+    yield
+    clear_fx_cache()
+
+
 @pytest.fixture
 async def app_with_deps(tmp_path):
     """Yield the FastAPI app with a minimal ``state.deps`` set up.

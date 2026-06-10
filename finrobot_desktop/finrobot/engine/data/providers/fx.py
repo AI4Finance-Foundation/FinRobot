@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 
 import httpx
 import yfinance as yf
@@ -30,6 +31,43 @@ from finrobot.engine.data.interface import ProviderError
 logger = logging.getLogger(__name__)
 
 _FX_TICKER_SUFFIX = "=X"
+
+# In-process spot-FX cache. A comps fan-out converts many same-currency peers
+# (10 EUR-reporting peers → one EUR→USD spot), and the FX read shares Yahoo's
+# rate-limit budget — re-pulling it per peer is exactly what triggers a 429 storm
+# (the very failure mode that strands foreign-listed peers). Spot moves far less
+# than the ~2-3% MVP normalization noise floor intraday, so a short TTL is safe.
+# Module-global because callers hit fetch_fx_rate_to_usd directly from many sites
+# (extractor per-peer, ddm, valuation route, DataLayer) — no single instance to
+# hang an instance cache on. Only SUCCESSES are cached (a transient 429 must not
+# poison the slot). clear_fx_cache() resets it for test isolation.
+_FX_CACHE_TTL_SECONDS = 900.0  # 15 min
+_fx_cache: dict[str, tuple[float, float]] = {}  # ccy -> (rate_to_usd, expires_at_monotonic)
+_fx_locks: dict[str, asyncio.Lock] = {}
+_fx_locks_guard = asyncio.Lock()
+
+
+def clear_fx_cache() -> None:
+    """Reset the in-process FX cache + locks. An autouse conftest fixture calls
+    this around every test so a cached rate (or a lock bound to a finished test's
+    event loop) never leaks across cases."""
+    _fx_cache.clear()
+    _fx_locks.clear()
+
+
+async def _fx_lock(ccy: str) -> asyncio.Lock:
+    """Per-currency lock so concurrent identical FX misses (a peer fan-out hitting
+    the cold cache at once) collapse onto a single upstream fetch."""
+    lock = _fx_locks.get(ccy)
+    if lock is not None:
+        return lock
+    async with _fx_locks_guard:
+        lock = _fx_locks.get(ccy)
+        if lock is None:
+            lock = asyncio.Lock()
+            _fx_locks[ccy] = lock
+        return lock
+
 
 # FMP forex fallback. yfinance is the primary FX source, but it shares Yahoo's
 # rate-limit budget with every equity/peer quote — under a 429 storm the FX read
@@ -118,11 +156,35 @@ async def fetch_fx_rate_to_usd(from_ccy: str, *, fmp_api_key: str | None = None)
     sources return no usable quote — the caller is expected to drop the affected
     peer from the comp set rather than fall back to ``1.0`` and silently mis-state
     the multiples.
+
+    Backed by a short-TTL in-process cache + per-currency single-flight (see the
+    module-level cache notes), so a comps fan-out reads each currency's spot once
+    instead of once per peer. Only successful rates are cached; a failure re-tries
+    on the next call.
     """
     src = from_ccy.upper()
     if src == "USD":
         return 1.0
 
+    hit = _fx_cache.get(src)
+    if hit is not None and hit[1] > time.monotonic():
+        return hit[0]
+
+    lock = await _fx_lock(src)
+    async with lock:
+        # Re-check: a sibling fetch may have populated the slot while we queued.
+        hit = _fx_cache.get(src)
+        if hit is not None and hit[1] > time.monotonic():
+            return hit[0]
+        rate = await _fetch_fx_rate_to_usd_uncached(src, fmp_api_key)
+        _fx_cache[src] = (rate, time.monotonic() + _FX_CACHE_TTL_SECONDS)
+        return rate
+
+
+async def _fetch_fx_rate_to_usd_uncached(src: str, fmp_api_key: str | None) -> float:
+    """yfinance spot → FMP fallback → raise. The network body of
+    :func:`fetch_fx_rate_to_usd`, which wraps it in the TTL cache + single-flight.
+    ``src`` is already upper-cased and known not to be USD."""
     ticker = _fx_ticker(src, "USD")
     rate = await asyncio.to_thread(_yf_spot, ticker)
     if rate is not None:

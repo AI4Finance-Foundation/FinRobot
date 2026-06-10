@@ -161,3 +161,83 @@ class TestFmpFallback:
         monkeypatch.setattr(fx_module, "_fmp_quote_price", _fake_quote)
         rate = await fx_module._fmp_fx_rate_to_usd("CNY", "key123")
         assert rate == pytest.approx(1.0 / 6.77)
+
+
+class TestFxCaching:
+    @pytest.mark.asyncio
+    async def test_repeat_currency_fetches_spot_once(self, monkeypatch):
+        """A comps fan-out converting many same-currency peers reads the spot once,
+        not once per peer — the bug this fixes."""
+        calls = {"n": 0}
+
+        def _make(symbol):
+            calls["n"] += 1
+            return _FakeTicker(0.03125)
+
+        monkeypatch.setattr(fx_module.yf, "Ticker", _make)
+        r1 = await fetch_fx_rate_to_usd("TWD")
+        r2 = await fetch_fx_rate_to_usd("TWD")
+        r3 = await fetch_fx_rate_to_usd("TWD")
+        assert r1 == r2 == r3 == 0.03125
+        assert calls["n"] == 1  # cached after the first
+
+    @pytest.mark.asyncio
+    async def test_concurrent_same_currency_single_flight(self, monkeypatch):
+        """Concurrent identical misses (a peer fan-out hitting the cold cache at
+        once) collapse onto a single upstream fetch."""
+        import asyncio
+
+        calls = {"n": 0}
+
+        def _make(symbol):
+            calls["n"] += 1
+            return _FakeTicker(1.08)
+
+        monkeypatch.setattr(fx_module.yf, "Ticker", _make)
+        rates = await asyncio.gather(*[fetch_fx_rate_to_usd("EUR") for _ in range(6)])
+        assert all(r == 1.08 for r in rates)
+        assert calls["n"] == 1
+
+    @pytest.mark.asyncio
+    async def test_distinct_currencies_cached_independently(self, monkeypatch):
+        seen: list[str] = []
+
+        def _make(symbol):
+            seen.append(symbol)
+            return _FakeTicker(2.0 if symbol.startswith("GBP") else 0.5)
+
+        monkeypatch.setattr(fx_module.yf, "Ticker", _make)
+        await fetch_fx_rate_to_usd("GBP")
+        await fetch_fx_rate_to_usd("JPY")
+        await fetch_fx_rate_to_usd("GBP")  # cached
+        await fetch_fx_rate_to_usd("JPY")  # cached
+        assert sorted(seen) == ["GBPUSD=X", "JPYUSD=X"]
+
+    @pytest.mark.asyncio
+    async def test_failure_is_not_cached(self, monkeypatch):
+        """A transient failure must not poison the slot — only successes are
+        cached, so a 429-stranded rate can recover on the next call."""
+        state: dict[str, float | None] = {"price": None}
+
+        def _make(symbol):
+            return _FakeTicker(state["price"])
+
+        monkeypatch.setattr(fx_module.yf, "Ticker", _make)
+        with pytest.raises(ProviderError):
+            await fetch_fx_rate_to_usd("TWD")  # no quote, no fmp key → raises, NOT cached
+        state["price"] = 0.03  # source recovers
+        assert await fetch_fx_rate_to_usd("TWD") == 0.03
+
+    @pytest.mark.asyncio
+    async def test_clear_fx_cache_forces_refetch(self, monkeypatch):
+        calls = {"n": 0}
+
+        def _make(symbol):
+            calls["n"] += 1
+            return _FakeTicker(0.9)
+
+        monkeypatch.setattr(fx_module.yf, "Ticker", _make)
+        await fetch_fx_rate_to_usd("CHF")
+        fx_module.clear_fx_cache()
+        await fetch_fx_rate_to_usd("CHF")
+        assert calls["n"] == 2

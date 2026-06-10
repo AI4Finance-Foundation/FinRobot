@@ -23,6 +23,7 @@ from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.providers.adanos_provider import AlignmentToken
 from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.data.types import DataType
+from finrobot.ratelimit import enforce_live_data_limit
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,7 @@ async def get_sentiment(
     (typically because the API key is missing) — the UI hides the section
     and shows a "configure Adanos" link, per the v5 cold-start rules.
     """
+    enforce_live_data_limit(request)
     data_layer = _data_layer(request)
     try:
         ticker = validate_ticker(ticker.lstrip("$"))

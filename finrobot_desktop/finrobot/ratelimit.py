@@ -32,6 +32,10 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from starlette.requests import Request
 
 # Per-minute budgets. Sized WELL above the largest legitimate burst so 429 only
 # fires under abnormal volume (a runaway loop / retry storm), never normal use:
@@ -43,8 +47,16 @@ from dataclasses import dataclass
 # - CHAT: each POST /chat opens one LLM stream. A human types a handful of
 #   messages a minute; 60/min is generous for a real session yet stops a page
 #   hammering the chat endpoint in a loop.
+# - LIVE_DATA: read-only GETs (/api/data/*, /api/sentiment/*) spend no LLM
+#   money, but each cache MISS burns provider quota (FMP free tier is a daily
+#   budget) — an unguarded loop could exhaust it in minutes. The budget is
+#   deliberately MUCH wider than runs/chat because reads are mostly cache hits
+#   and the desktop legitimately bursts dozens of GETs on a dashboard cold
+#   load: 240/min (~4/s sustained) never throttles a human-driven UI, yet caps
+#   a runaway script at a rate the provider-side caches can absorb.
 _RUNS_PER_MINUTE = 120.0
 _CHAT_PER_MINUTE = 60.0
+_LIVE_DATA_PER_MINUTE = 240.0
 
 
 @dataclass
@@ -99,6 +111,7 @@ class RunRateLimiter:
         *,
         runs_per_minute: float = _RUNS_PER_MINUTE,
         chat_per_minute: float = _CHAT_PER_MINUTE,
+        live_data_per_minute: float = _LIVE_DATA_PER_MINUTE,
         time_fn: Callable[[], float] | None = None,
     ) -> None:
         # Injectable clock for deterministic tests; defaults to wall time.
@@ -116,6 +129,12 @@ class RunRateLimiter:
             tokens=chat_per_minute,
             updated_at=now,
         )
+        self._live_data = _Bucket(
+            capacity=live_data_per_minute,
+            refill_per_sec=live_data_per_minute / 60.0,
+            tokens=live_data_per_minute,
+            updated_at=now,
+        )
 
     def allow_runs(self, count: int = 1) -> bool:
         """Try to admit ``count`` pipeline runs (one token per run started).
@@ -128,3 +147,26 @@ class RunRateLimiter:
     def allow_chat(self) -> bool:
         """Try to admit one chat request (one LLM stream)."""
         return self._chat.try_consume(1.0, self._now())
+
+    def allow_live_data(self) -> bool:
+        """Try to admit one read-only data GET (provider-quota guard)."""
+        return self._live_data.try_consume(1.0, self._now())
+
+
+def enforce_live_data_limit(request: "Request") -> None:
+    """Shared 429 guard for read-only live-data GETs.
+
+    One call at the top of every provider-backed GET route (/api/data/*,
+    /api/sentiment/*) so the bucket, the message, and the no-limiter-configured
+    fallback (tests build bare apps without app.state.run_rate_limiter) stay
+    identical across routes. Raises ``HTTPException(429)`` when the bucket is
+    drained.
+    """
+    limiter = getattr(request.app.state, "run_rate_limiter", None)
+    if limiter is not None and not limiter.allow_live_data():
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=429,
+            detail="数据请求过于频繁，已触发只读限流——请稍候重试。",
+        )

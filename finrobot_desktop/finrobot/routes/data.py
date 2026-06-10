@@ -32,6 +32,7 @@ from finrobot.engine.models.financial import (
     HistoricalMetrics,
 )
 from finrobot.engine.services.market_data import fetch_price_history
+from finrobot.ratelimit import enforce_live_data_limit
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,7 @@ async def get_catalysts(
         ticker: Stock ticker symbol.
         min_importance: Minimum news importance to become a catalyst (1-5).
     """
+    enforce_live_data_limit(request)
     deps = request.app.state.deps
     data_layer = deps.data_layer
     cache = data_layer.cache
@@ -132,6 +134,7 @@ async def get_catalysts(
 
 @router.get("/{ticker}/financials", response_model=FinancialData)
 async def get_financials(ticker: str, request: Request) -> FinancialData:
+    enforce_live_data_limit(request)
     data_layer: DataLayer = request.app.state.deps.data_layer
     try:
         _fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker.upper())
@@ -166,6 +169,7 @@ async def get_price(ticker: str, request: Request, period: PricePeriod = "1y") -
       - ValueError         → 422 (invalid ticker)
       - ProviderError      → 502 (yfinance service down)
     """
+    enforce_live_data_limit(request)
     data_layer = request.app.state.deps.data_layer
     cache = data_layer.cache
     ticker_upper = ticker.upper()
@@ -217,6 +221,7 @@ async def get_historical(ticker: str, request: Request) -> HistoricalMetrics:
 
     Cached for 24h — annual financials only refresh after each 10-K filing.
     """
+    enforce_live_data_limit(request)
     data_layer = request.app.state.deps.data_layer
     cache = data_layer.cache
     ticker_upper = ticker.upper()
@@ -254,6 +259,7 @@ async def get_earnings_calls(
     flow into the FMP request AND the cache key, so an unbounded value both
     hammers the provider quota and mints unbounded cache rows on disk.
     """
+    enforce_live_data_limit(request)
     data_layer = request.app.state.deps.data_layer
 
     # Check if any provider supports earnings transcripts

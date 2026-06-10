@@ -221,3 +221,65 @@ async def test_coverage_batch_within_budget_runs(coverage_client: AsyncClient) -
         json={"pipeline_type": "research", "tickers": ["G"]},
     )
     assert r2.status_code == 429
+
+
+# ── Live-data GET bucket (P2 audit 2026-06-10) ───────────────────────────────
+# Read-only GETs spend no LLM money but each cache miss burns provider quota
+# (FMP free tier is a daily budget). The live_data bucket is independent of
+# runs/chat and guards /api/data/* + /api/sentiment/* via
+# enforce_live_data_limit.
+
+
+def test_live_data_bucket_independent_and_bounded() -> None:
+    clock = _FakeClock()
+    limiter = RunRateLimiter(
+        runs_per_minute=10.0,
+        chat_per_minute=10.0,
+        live_data_per_minute=5.0,
+        time_fn=clock,
+    )
+    assert all(limiter.allow_live_data() for _ in range(5))
+    assert not limiter.allow_live_data()  # drained
+    # Draining live-data must not touch the runs/chat buckets.
+    assert limiter.allow_runs(1)
+    assert limiter.allow_chat()
+    # Refills at the per-minute rate.
+    clock.advance(60.0)
+    assert all(limiter.allow_live_data() for _ in range(5))
+
+
+@pytest.mark.asyncio
+async def test_data_get_over_limit_returns_429() -> None:
+    """Every provider-backed GET in routes/data.py + the sentiment GET runs
+    through enforce_live_data_limit — a drained bucket means 429, and an app
+    without a limiter configured (bare test apps) is never throttled."""
+    from finrobot.routes.data import router as data_router
+    from finrobot.routes.sentiment import router as sentiment_router
+
+    clock = _FakeClock()
+    app = FastAPI()
+    app.include_router(data_router)
+    app.include_router(sentiment_router)
+    app.state.deps = SimpleNamespace(data_layer=SimpleNamespace(_providers=[]))
+    app.state.run_rate_limiter = RunRateLimiter(live_data_per_minute=2.0, time_fn=clock)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Two tokens: the first two GETs pass the limiter (then fail later in
+        # the handler for unrelated reasons — 503 no transcript provider).
+        assert (await client.get("/api/data/AAPL/earnings-calls")).status_code == 503
+        assert (await client.get("/api/data/AAPL/earnings-calls")).status_code == 503
+        # Bucket drained → 429 before any handler work, on every guarded route.
+        assert (await client.get("/api/data/AAPL/earnings-calls")).status_code == 429
+        assert (await client.get("/api/sentiment/AAPL")).status_code == 429
+
+        clock.advance(60.0)
+        assert (await client.get("/api/data/AAPL/earnings-calls")).status_code == 503
+
+    # No limiter configured → guard is a no-op (bare apps in older tests).
+    app2 = FastAPI()
+    app2.include_router(data_router)
+    app2.state.deps = SimpleNamespace(data_layer=SimpleNamespace(_providers=[]))
+    transport2 = ASGITransport(app=app2)
+    async with AsyncClient(transport=transport2, base_url="http://test") as client2:
+        assert (await client2.get("/api/data/AAPL/earnings-calls")).status_code == 503

@@ -40,12 +40,27 @@ class TestCalculateCagr:
     def test_cagr_negative_years(self):
         assert calculate_cagr(100, 200, -3) is None
 
-    def test_cagr_negative_end(self):
-        """Negative end value: formula still valid (declining revenue)."""
+    def test_cagr_declining_positive_end(self):
+        """Declining but still-positive end: formula valid (negative CAGR)."""
         # (50/100)^(1/3) - 1 = 0.7937.. - 1 = -0.2063
         result = calculate_cagr(100, 50, 3)
         assert result is not None
         assert result == pytest.approx(-0.2063, abs=0.001)
+
+    def test_cagr_negative_end(self):
+        """Negative end (e.g. revenue restated negative): geometric-mean growth is
+        mathematically undefined — old code raised TypeError via float(complex).
+        Honest missing (None), never a fabricated rate."""
+        assert calculate_cagr(100, -50, 3) is None
+
+    def test_cagr_zero_end(self):
+        """Zero end is a degenerate -100% no compounding rate represents — None."""
+        assert calculate_cagr(100, 0, 3) is None
+
+    def test_cagr_inf_inputs(self):
+        """Inf endpoints are upstream garbage, not a growth observation — None."""
+        assert calculate_cagr(float("inf"), 100, 3) is None
+        assert calculate_cagr(100, float("inf"), 3) is None
 
     def test_cagr_same_value(self):
         """No growth: CAGR = 0."""

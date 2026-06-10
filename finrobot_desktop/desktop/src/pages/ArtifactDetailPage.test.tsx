@@ -63,9 +63,6 @@ vi.mock('./artifact-detail/shell/ReportTOC', () => ({
 vi.mock('./artifact-detail/shell/ReportRightRail', () => ({
   ReportRightRail: () => <div data-testid="mock-right-rail" />,
 }))
-vi.mock('./artifact-detail/shell/ReportStatusBar', () => ({
-  ReportStatusBar: () => <div data-testid="mock-status-bar" />,
-}))
 vi.mock('./artifact-detail/ReportChapters', () => ({
   ReportChapters: () => <div data-testid="mock-report-chapters" />,
 }))
@@ -168,7 +165,6 @@ describe('ArtifactDetailPage type branch (BUG-039)', () => {
     expect(screen.queryByTestId('mock-report-chapters')).toBeNull()
     expect(screen.queryByTestId('mock-toc')).toBeNull()
     expect(screen.queryByTestId('mock-right-rail')).toBeNull()
-    expect(screen.queryByTestId('mock-status-bar')).toBeNull()
   })
 
   it('still renders the 13-chapter shell for equity_research', () => {

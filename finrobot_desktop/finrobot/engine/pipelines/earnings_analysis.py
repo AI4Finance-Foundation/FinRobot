@@ -86,6 +86,11 @@ def create_earnings_analysis_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 required_data=[],
                 validator=StructuredValidator(_validate_earnings_result, validate_is_non_empty),
                 executor=_execute_earnings_data,
+                # Pure surprise-statistics compute, zero LLM calls; a fetch
+                # miss degrades to empty history INSIDE the executor (and then
+                # passes validation), so a validation failure here is always a
+                # pure-compute fact a retry cannot change (BUG-059).
+                deterministic=True,
             ),
             PipelineStep(
                 name="financial_context",

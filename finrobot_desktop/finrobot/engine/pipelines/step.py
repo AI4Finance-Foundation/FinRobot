@@ -46,8 +46,12 @@ class PipelineStep:
     steps a validation failure short-circuits straight to degrade. The
     EXCEPTION-retry path is untouched: a transient provider/FX error (429,
     timeout) genuinely may succeed on a back-off retry, so those still loop.
-    Do NOT set on steps whose executor consumes the re-prompt (peer_analysis
-    re-selects peers; LLM-narrative steps reword)."""
+    Do NOT set on steps where a re-run can legitimately differ: any executor
+    that consumes the re-prompt or makes an LLM call anywhere in its call
+    chain (LLM-narrative steps reword; catalyst_analysis re-classifies news),
+    and any executor that swallows transient per-item fetch errors into a
+    smaller-but-valid output (peer_analysis drops failed peers, so a
+    min_peers validation failure may be provider flakiness a retry fixes)."""
     critical: bool = False
     """When True, a failure after all retries ABORTS the pipeline (raises
     PipelineStepError) rather than appending to failed_validations and

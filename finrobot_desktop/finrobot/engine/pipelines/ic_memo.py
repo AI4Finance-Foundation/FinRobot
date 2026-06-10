@@ -228,6 +228,12 @@ def create_ic_memo_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 # degrading (same precedent as equity_research's
                 # data_collection).
                 critical=True,
+                # Pure DCF+LBO compute, zero LLM calls — a validation failure
+                # re-produces byte-identical output, so retrying burns three
+                # full provider re-fetch rounds for no chance of a different
+                # result (BUG-059). With critical=True this aborts immediately
+                # instead of after the wasted budget.
+                deterministic=True,
             ),
             PipelineStep(
                 name="investment_thesis",

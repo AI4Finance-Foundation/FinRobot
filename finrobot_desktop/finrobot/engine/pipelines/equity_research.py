@@ -1132,10 +1132,12 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
                     validate_is_non_empty,
                 ),
                 executor=_execute_catalyst_analysis,
-                # Deterministic: recomputes catalysts from news + structured
-                # context, ignores the re-prompt → no point retrying a
-                # validation failure (BUG-059).
-                deterministic=True,
+                # NOT deterministic: the executor calls classify_news, an LLM
+                # classification whose re-run can legitimately produce
+                # different (passing) output — a validation retry has a real
+                # chance of success, unlike the pure-compute steps below. The
+                # deterministic flag is reserved for executors with zero LLM
+                # calls (see PipelineStep.deterministic docstring).
             ),
             PipelineStep(
                 name="peer_analysis",

@@ -84,6 +84,14 @@ export interface RunState {
 interface RunStreamState {
   runs: Record<string, RunState>
   startRun: (pipelineType: string, ticker: string, sourceArtifactId?: string) => Promise<string>
+  /** App-startup recovery: GET /api/runs?status=created,running and re-subscribe
+   *  each active run's SSE stream. A webview reload / app restart drops this
+   *  in-memory store while the backend pipelines keep executing (and billing) —
+   *  without reattach the UI falls back to the cold launch CTA and invites a
+   *  duplicate run. Best-effort: a backend that isn't reachable yet has no live
+   *  runs to reattach (its startup reconciler fails every orphaned row), so
+   *  fetch errors are swallowed. Called from main.tsx bootstrap. */
+  reattachActiveRuns: () => Promise<void>
   dismiss: (ticker: string) => void
   clear: (ticker: string) => void
   /** Store-level dedupe for a run's terminal (completed/failed) side-effects
@@ -169,6 +177,19 @@ const sources = new Map<string, EventSource>()
 // promise here and any same-ticker call during the POST window reuses it:
 // idempotent, both callers resolve to the same run_id, exactly ONE POST fires.
 const inflightStarts = new Map<string, Promise<string>>()
+
+// Single-flight guard for reattachActiveRuns: React StrictMode (dev) and any
+// future second caller share one GET instead of double-attaching streams.
+let inflightReattach: Promise<void> | null = null
+
+/** The GET /api/runs rows this store consumes (routes/runs.py RunSummary). */
+interface BackendRunSummary {
+  run_id: string
+  status: string
+  pipeline_type: string
+  ticker: string
+  created_at: string
+}
 
 // Per-ticker onerror counts. After SSE_ERROR_LIMIT errors with status still
 // 'running', we force-fail the run so the UI doesn't spin indefinitely.
@@ -473,6 +494,64 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
 
       inflightStarts.set(ticker, start)
       return start
+    },
+
+    reattachActiveRuns: () => {
+      if (inflightReattach) return inflightReattach
+      inflightReattach = (async (): Promise<void> => {
+        let summaries: BackendRunSummary[]
+        try {
+          const resp = await fetchWithTimeout(
+            `${BASE_URL}/api/runs?status=created,running`,
+            {},
+            5_000,
+          )
+          if (!resp.ok) return
+          summaries = (await resp.json()) as BackendRunSummary[]
+        } catch {
+          // Best-effort by design: if the backend isn't up yet, there are no
+          // live pipelines to reattach — its startup reconciler has already
+          // failed every orphaned row. Nothing actionable to surface.
+          return
+        }
+        for (const run of summaries) {
+          // Defensive re-filter: only non-terminal runs may be resurrected.
+          if (run.status !== 'running' && run.status !== 'created') continue
+          // Debates are a different surface (debateStore) and ephemeral by
+          // design — resurrecting one here would render garbage pipeline steps
+          // and inflate the active-runs badge.
+          if (run.pipeline_type === 'debate') continue
+          // Rows arrive newest-first: the first row per ticker wins, and a run
+          // this session is already tracking live is never clobbered.
+          if (get().runs[run.ticker]?.status === 'running') continue
+          const startedAt = Date.parse(run.created_at)
+          set((s) => ({
+            runs: {
+              ...s.runs,
+              [run.ticker]: {
+                runId: run.run_id,
+                ticker: run.ticker,
+                pipelineType: run.pipeline_type,
+                steps: [],
+                status: 'running',
+                progress: 0,
+                error: null,
+                startedAt: Number.isNaN(startedAt) ? Date.now() : startedAt,
+                dismissed: false,
+                artifactId: null,
+                artifactType: null,
+              },
+            },
+          }))
+          // A fresh EventSource carries no Last-Event-ID, so the backend
+          // replays the run's whole event log from seq 0 — steps and progress
+          // rebuild fully without any extra state endpoint.
+          await attachSse(run.run_id, run.ticker)
+        }
+      })().finally(() => {
+        inflightReattach = null
+      })
+      return inflightReattach
     },
 
     dismiss: (ticker) => {

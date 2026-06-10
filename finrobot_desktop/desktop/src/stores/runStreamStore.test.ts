@@ -280,6 +280,113 @@ describe('duplicate-start lock (P1-30)', () => {
   })
 })
 
+describe('restart reattach (P1-30)', () => {
+  function fetchReturning(rows: unknown): void {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => rows,
+      })) as unknown as typeof fetch,
+    )
+  }
+
+  afterEach(() => {
+    // Tests here use tickers beyond the shared TICKER — drop everything.
+    useRunStreamStore.setState({ runs: {} })
+  })
+
+  it('rebuilds RunState + SSE subscription from the backend active-run list', async () => {
+    fetchReturning([
+      {
+        run_id: 'run-live-1',
+        status: 'running',
+        pipeline_type: 'research',
+        ticker: 'AAPL',
+        created_at: '2026-06-10T01:02:03+00:00',
+      },
+    ])
+
+    await useRunStreamStore.getState().reattachActiveRuns()
+
+    const run = useRunStreamStore.getState().runs['AAPL']
+    expect(run).toBeDefined()
+    expect(run.runId).toBe('run-live-1')
+    expect(run.status).toBe('running')
+    expect(run.pipelineType).toBe('research')
+    expect(run.startedAt).toBe(Date.parse('2026-06-10T01:02:03+00:00'))
+
+    // One SSE subscription against THIS run's stream…
+    expect(FakeEventSource.instances).toHaveLength(1)
+    expect(FakeEventSource.instances[0].url).toContain('/api/runs/run-live-1/events')
+    // …and the replayed event log (no Last-Event-ID → from seq 0) rebuilds steps.
+    FakeEventSource.instances[0].emit('run.started', { total_steps: 8 })
+    expect(useRunStreamStore.getState().runs['AAPL'].steps).toHaveLength(8)
+  })
+
+  it('skips terminal rows, debate runs, and tickers already tracked live', async () => {
+    // A live run this session already tracks must not be clobbered.
+    await useRunStreamStore.getState().startRun('research', TICKER)
+    const liveRunId = useRunStreamStore.getState().runs[TICKER].runId
+    const attachedBefore = FakeEventSource.instances.length
+
+    fetchReturning([
+      // newest row for the already-live ticker — must be ignored
+      {
+        run_id: 'run-other',
+        status: 'running',
+        pipeline_type: 'dcf',
+        ticker: TICKER,
+        created_at: '2026-06-10T00:00:02+00:00',
+      },
+      // terminal row — must be ignored (defensive: backend already filters)
+      {
+        run_id: 'run-done',
+        status: 'completed',
+        pipeline_type: 'research',
+        ticker: 'MSFT',
+        created_at: '2026-06-10T00:00:01+00:00',
+      },
+      // debate run — different surface (debateStore), ephemeral by design
+      {
+        run_id: 'run-debate',
+        status: 'running',
+        pipeline_type: 'debate',
+        ticker: 'NVDA',
+        created_at: '2026-06-10T00:00:00+00:00',
+      },
+    ])
+    await useRunStreamStore.getState().reattachActiveRuns()
+
+    const runs = useRunStreamStore.getState().runs
+    expect(runs[TICKER].runId).toBe(liveRunId)
+    expect(runs['MSFT']).toBeUndefined()
+    expect(runs['NVDA']).toBeUndefined()
+    expect(FakeEventSource.instances).toHaveLength(attachedBefore)
+  })
+
+  it('is a silent no-op when the backend is unreachable', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('ECONNREFUSED')
+      }) as unknown as typeof fetch,
+    )
+
+    await expect(useRunStreamStore.getState().reattachActiveRuns()).resolves.toBeUndefined()
+    expect(useRunStreamStore.getState().runs).toEqual({})
+    expect(FakeEventSource.instances).toHaveLength(0)
+  })
+
+  it('concurrent calls share one GET (StrictMode double-fire)', async () => {
+    fetchReturning([])
+    const p1 = useRunStreamStore.getState().reattachActiveRuns()
+    const p2 = useRunStreamStore.getState().reattachActiveRuns()
+    await Promise.all([p1, p2])
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('SSE error counting (BUG-044 sibling)', () => {
   function triggerError(es: FakeEventSource): void {
     es.onerror?.()

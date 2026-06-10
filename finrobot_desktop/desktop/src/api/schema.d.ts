@@ -475,7 +475,16 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    get?: never
+    /**
+     * List Runs
+     * @description Recent runs, newest first.
+     *
+     *     ``status`` filters to a comma-separated status set — the desktop's
+     *     restart-reattach asks for ``created,running`` on startup to find pipelines
+     *     still executing after a webview reload and re-subscribe their SSE streams.
+     *     Unknown status values are a 400, not a silent empty match.
+     */
+    get: operations['list_runs_api_runs_get']
     put?: never
     /** Create Run */
     post: operations['create_run_api_runs_post']
@@ -3221,6 +3230,26 @@ export interface components {
         [key: string]: unknown
       } | null
     }
+    /**
+     * RunSummary
+     * @description One GET /api/runs row — the run registry view, no result payload.
+     */
+    RunSummary: {
+      /** Run Id */
+      run_id: string
+      /** Status */
+      status: string
+      /** Pipeline Type */
+      pipeline_type: string
+      /** Ticker */
+      ticker: string
+      /** Created At */
+      created_at: string
+      /** Completed At */
+      completed_at?: string | null
+      /** Error */
+      error?: string | null
+    }
     /** SearchResponse */
     SearchResponse: {
       /** Query */
@@ -3263,6 +3292,10 @@ export interface components {
       latest_period_end: string | null
       /** Distinct Tickers */
       distinct_tickers: number
+      /** Expected Period End */
+      expected_period_end: string | null
+      /** Stale */
+      stale: boolean
       /** Identity Configured */
       identity_configured: boolean
       /** Auto Refresh */
@@ -4395,6 +4428,38 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['TestProviderResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_runs_api_runs_get: {
+    parameters: {
+      query?: {
+        status?: string | null
+        limit?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['RunSummary'][]
         }
       }
       /** @description Validation Error */

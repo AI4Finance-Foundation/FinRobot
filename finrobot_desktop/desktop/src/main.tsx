@@ -27,6 +27,7 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 // Importing the i18n module runs its side effects (load catalogs + activate the
 // default locale) before the first render.
 import { useUiPrefs } from './i18n'
+import { useRunStreamStore } from './stores/runStreamStore'
 import './App.css'
 import './styles/tabs.css'
 
@@ -36,6 +37,13 @@ import './styles/tabs.css'
 // the persisted choice — the i18n machinery is otherwise untouched.
 async function bootstrap(): Promise<void> {
   useUiPrefs.getState().setLocale('en')
+
+  // Reattach to pipeline runs still executing on the backend (P1-30): a
+  // webview reload / app restart drops the in-memory run map while the
+  // backend keeps burning — without this the workspace shows the cold launch
+  // CTA over a live pipeline and invites a duplicate run. Fire-and-forget:
+  // render never waits, and an unreachable backend is a silent no-op.
+  void useRunStreamStore.getState().reattachActiveRuns()
 
   const root = document.getElementById('root')
   if (!(root instanceof HTMLElement)) {

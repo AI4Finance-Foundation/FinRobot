@@ -16,8 +16,54 @@ into the snapshot — exactly the silent defect the deterministic sanity bounds 
 
 from __future__ import annotations
 
+from finrobot.engine.data.normalize.contracts import DEGRADED_FX_NORMALIZED
 from finrobot.engine.models.financial import FinancialData
 from finrobot.engine.models.numeric_claim import Finding
+
+# Probes 2026-06-06 + 2026-06-10: FMP /profile country is ISO-2 ("US"/"TW"/"CN"),
+# yfinance .info country is a full name ("United States"/"Taiwan"). Cover both.
+_US_COUNTRY_TOKENS = frozenset({"US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA"})
+
+
+def audit_foreign_issuer_usd_tags(fin: FinancialData) -> list[Finding]:
+    """Foreign issuer whose snapshot shows BOTH currency tags "USD" with no
+    FX-normalization trace → ``review``.
+
+    A double-USD foreign snapshot is unverifiable from the tags alone: either
+    yfinance mis-tagged a home-currency reporter as USD/USD — then every ratio
+    closes on the wrong currency and ``audit_currency_caliber`` is blind
+    because the tags agree (the red-team BP case) — or the issuer genuinely
+    reports in USD (SHEL/BP/LULU class). Both deserve an analyst's eye, neither
+    deserves a withheld target, hence severity ``review`` (banner only).
+
+    Two deliberate suppressions:
+    - ``fx_normalized`` in provenance: the canonical FX gate converted a
+      reporting≠quote snapshot to single-currency and rewrote the tag — that
+      double-USD is constructed, not suspicious.
+    - country missing/blank: "unknown" is not "foreign"; never guess.
+    """
+    if fin.reporting_currency != "USD" or fin.quote_currency != "USD":
+        return []  # mixed tags are audit_currency_caliber's jurisdiction
+    degraded = fin.provenance.degraded if fin.provenance is not None else []
+    if DEGRADED_FX_NORMALIZED in degraded:
+        return []
+    country = (fin.market.country or "").strip()
+    if not country or country.upper() in _US_COUNTRY_TOKENS:
+        return []
+    return [
+        Finding(
+            field_key="reporting_currency",
+            check="foreign_issuer_usd_tags",
+            severity="review",
+            evidence=(
+                f"{fin.ticker}: issuer country is {country!r} but both reporting_currency "
+                f"and quote_currency read USD with no FX-normalization trace. Either the "
+                f"provider mis-tagged a home-currency reporter as USD (ratios would close "
+                f"on the wrong currency) or the issuer genuinely reports in USD — verify "
+                f"the filing currency before relying on cross-statement ratios."
+            ),
+        )
+    ]
 
 
 def audit_currency_caliber(fin: FinancialData) -> list[Finding]:

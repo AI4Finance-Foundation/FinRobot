@@ -266,6 +266,7 @@ def extract_financial_data(
             price_52w_low=low_52w,
             industry=fin.industry,
             sector=fin.sector,
+            country=fin.country,
             beta=fin.beta,
         ),
         valuation=ValuationMetrics(

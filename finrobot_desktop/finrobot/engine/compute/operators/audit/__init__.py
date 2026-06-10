@@ -8,7 +8,10 @@ the data-layer ``validator.py`` + the yfinance throttle roadmap, not here.
 
 from __future__ import annotations
 
-from finrobot.engine.compute.operators.audit.currency_caliber import audit_currency_caliber
+from finrobot.engine.compute.operators.audit.currency_caliber import (
+    audit_currency_caliber,
+    audit_foreign_issuer_usd_tags,
+)
 from finrobot.engine.compute.operators.audit.ev_bridge import audit_ev_bridge
 from finrobot.engine.compute.operators.audit.sector_sign import audit_sector_sign
 from finrobot.engine.compute.operators.audit.ttm_period import audit_ttm_period
@@ -20,6 +23,7 @@ __all__ = [
     "audit_company",
     "audit_currency_caliber",
     "audit_ev_bridge",
+    "audit_foreign_issuer_usd_tags",
     "audit_sector_sign",
     "audit_ttm_period",
 ]
@@ -31,6 +35,7 @@ def audit_company(fin: FinancialData) -> list[Finding]:
     findings: list[Finding] = []
     findings.extend(audit_sector_sign(fin))
     findings.extend(audit_currency_caliber(fin))
+    findings.extend(audit_foreign_issuer_usd_tags(fin))
     findings.extend(audit_ev_bridge(fin))
     findings.extend(audit_ttm_period(fin))
     return findings

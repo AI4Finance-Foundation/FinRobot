@@ -16,8 +16,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from finrobot.engine.compute.operators.audit.currency_caliber import audit_currency_caliber
+from finrobot.engine.compute.operators.audit.currency_caliber import (
+    audit_currency_caliber,
+    audit_foreign_issuer_usd_tags,
+)
+from finrobot.engine.data.normalize.contracts import DEGRADED_FX_NORMALIZED
 from finrobot.engine.models.financial import (
+    DataProvenance,
     FinancialData,
     IncomeStatement,
     MarketData,
@@ -33,17 +38,24 @@ def _fd(
     enterprise_value: float | None = None,
     ev_ebitda: float | None = None,
     ev_revenue: float | None = None,
+    country: str | None = None,
+    degraded: tuple[str, ...] = (),
 ) -> FinancialData:
     fd = FinancialData(
         ticker="X",
         timestamp=datetime.now(tz=timezone.utc),
         income=IncomeStatement(revenue=100e9, net_income=20e9),
         market=MarketData(
-            market_cap=500e9, shares_outstanding=5e9, current_price=100.0, pe_ratio=pe_ratio
+            market_cap=500e9,
+            shares_outstanding=5e9,
+            current_price=100.0,
+            pe_ratio=pe_ratio,
+            country=country,
         ),
         valuation=ValuationMetrics(
             enterprise_value=enterprise_value, ev_ebitda=ev_ebitda, ev_revenue=ev_revenue
         ),
+        provenance=DataProvenance(provider="test", degraded=list(degraded)),
         # Construct single-currency so the FinancialData invariant keeps the ratios,
         reporting_currency="USD",
         quote_currency="USD",
@@ -92,3 +104,58 @@ class TestCrossCurrencyRatio:
         # Currencies disagree but no derived ratio was computed → nothing to flag.
         f = audit_currency_caliber(_fd(reporting_currency="TWD", quote_currency="USD"))
         assert f == []
+
+
+class TestForeignIssuerUsdTags:
+    """Family-1 country acceptor: a foreign issuer whose snapshot shows BOTH
+    tags USD with no FX-normalization trace is unverifiable from tags alone —
+    either yfinance mis-tagged a home-currency reporter as USD/USD (the red-team
+    BP class: ratios close on the wrong currency and the cross_currency check
+    is blind because the tags agree) or it is a genuine USD reporter
+    (SHEL/BP/LULU). Severity ``review`` only — banner, target stays.
+
+    Country string evidence (probes 2026-06-06 + 2026-06-10): FMP /profile
+    returns ISO-2 ("US"/"TW"/"CN"); yfinance .info returns full names
+    ("United States"/"Taiwan"/"United Kingdom"). The US set covers both.
+    """
+
+    def test_foreign_iso2_double_usd_review(self):
+        f = audit_foreign_issuer_usd_tags(_fd(country="TW"))
+        assert _checks(f) == {("reporting_currency", "foreign_issuer_usd_tags", "review")}
+
+    def test_foreign_full_name_double_usd_review(self):
+        f = audit_foreign_issuer_usd_tags(_fd(country="United Kingdom"))
+        assert _checks(f) == {("reporting_currency", "foreign_issuer_usd_tags", "review")}
+
+    def test_us_issuer_clean(self):
+        assert audit_foreign_issuer_usd_tags(_fd(country="US")) == []
+        assert audit_foreign_issuer_usd_tags(_fd(country="United States")) == []
+
+    def test_unknown_country_clean(self):
+        # Absent country is "unknown", not "foreign" — never guess.
+        assert audit_foreign_issuer_usd_tags(_fd(country=None)) == []
+        assert audit_foreign_issuer_usd_tags(_fd(country="  ")) == []
+
+    def test_fx_normalized_foreign_clean(self):
+        # SAP via the canonical FX gate: was EUR/USD, converted to USD/USD with
+        # the fx_normalized provenance marker — single-currency by construction,
+        # NOT a suspicious double-USD original.
+        f = audit_foreign_issuer_usd_tags(
+            _fd(country="Germany", degraded=(DEGRADED_FX_NORMALIZED,))
+        )
+        assert f == []
+
+    def test_mixed_tags_owned_by_cross_currency_check(self):
+        # reporting≠quote belongs to cross_currency_ratio — no double flag here.
+        f = audit_foreign_issuer_usd_tags(
+            _fd(reporting_currency="TWD", quote_currency="USD", country="TW")
+        )
+        assert f == []
+
+    def test_no_provenance_object_still_fires(self):
+        # provenance=None (model_construct / bypass path) carries no trace —
+        # treat as un-normalized, same philosophy as the backstop fixtures.
+        fd = _fd(country="TW")
+        fd.provenance = None
+        f = audit_foreign_issuer_usd_tags(fd)
+        assert _checks(f) == {("reporting_currency", "foreign_issuer_usd_tags", "review")}

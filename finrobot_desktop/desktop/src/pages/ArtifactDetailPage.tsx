@@ -107,7 +107,7 @@ export function ArtifactDetailPage(): React.ReactElement {
   // Fire-and-forget: a network blip must never block reading the report; a
   // 404/410 just means it's already gone. Guard by id so re-renders / hash
   // navigations don't re-POST, and so switching to a sibling version fires once
-  // for the new id. On success we invalidate the lists that surface archive
+  // for the new id. On success we invalidate the timeline that surfaces archive
   // state so an un-archive shows up immediately.
   const loadedId = data?.id ?? null
   const viewedIdRef = useRef<string | null>(null)
@@ -118,8 +118,6 @@ export function ArtifactDetailPage(): React.ReactElement {
     markArtifactViewed(loadedId)
       .then(() => {
         void queryClient.invalidateQueries({ queryKey: ['v5-artifacts-timeline', symbol] })
-        void queryClient.invalidateQueries({ queryKey: ['studied-tickers'] })
-        void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       })
       .catch((err) => {
         console.error('[ArtifactDetailPage] markArtifactViewed failed', err)

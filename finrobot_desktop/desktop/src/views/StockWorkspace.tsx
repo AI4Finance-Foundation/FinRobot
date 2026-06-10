@@ -69,17 +69,11 @@ export function StockWorkspace(): React.ReactElement {
     if (runState.status === 'completed') {
       // Refetch every read model that an equity_research artifact touches.
       // Artifacts are immutable per-id but the *list* of artifacts for a
-      // ticker grows on every run, so the timeline / studied-tickers /
-      // recent-research queries must invalidate too.
-      // react-query invalidates by key-prefix match, so partial keys cover
-      // every limit / window variant. Keys must mirror the hooks exactly:
+      // ticker grows on every run, so the timeline query must invalidate too.
+      // react-query invalidates by key-prefix match, so the partial key covers
+      // every limit variant. Key must mirror the hook exactly:
       //   useV5ArtifactTimeline:      ['v5-artifacts-timeline', ticker]
-      //   useStudiedTickers:          ['studied-tickers', limit]
-      //   useDashboardHitRate:        ['dashboard', 'hit-rate', window]
-      //   useDashboardRecentResearch: ['dashboard', 'recent-research', limit]
       queryClient.invalidateQueries({ queryKey: ['v5-artifacts-timeline', symbol] })
-      queryClient.invalidateQueries({ queryKey: ['studied-tickers'] })
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       addToast({
         type: 'success',
         title: t('workspace.toast.reportDone', { ticker: symbol }),

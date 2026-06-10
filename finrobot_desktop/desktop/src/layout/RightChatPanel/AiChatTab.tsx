@@ -245,15 +245,12 @@ export function AiChatTab({
   // path refreshes ─────────────────────────────────────────────────────────
   // When an AI panel tool (DCF / comps / equity_research / …) finishes and
   // its output carries an artifact_id, a new immutable artifact now exists
-  // server-side. The workspace AIZone / dashboard / studied-tickers queries
-  // (staleTime: Infinity on the immutable timeline) would otherwise keep
-  // serving their pre-run snapshot, leaving the AI-made artifact an island
-  // the UI never reflects. Mirror StockWorkspace's completion invalidation
-  // exactly (key-prefix match covers every limit/window variant):
+  // server-side. The workspace AIZone timeline query (staleTime: Infinity on
+  // the immutable timeline) would otherwise keep serving its pre-run
+  // snapshot, leaving the AI-made artifact an island the UI never reflects.
+  // Mirror StockWorkspace's completion invalidation exactly (key-prefix match
+  // covers every limit variant):
   //   useV5ArtifactTimeline:      ['v5-artifacts-timeline', ticker]
-  //   useStudiedTickers:          ['studied-tickers', limit]
-  //   useDashboardHitRate:        ['dashboard', 'hit-rate', window]
-  //   useDashboardRecentResearch: ['dashboard', 'recent-research', limit]
   // Guard: each artifact_id is invalidated once (a Set ref), so the effect
   // re-running on every streamed token / render doesn't re-fire.
   const invalidatedArtifactsRef = useRef<Set<string>>(new Set())
@@ -278,8 +275,6 @@ export function AiChatTab({
         if (symbol) {
           void queryClient.invalidateQueries({ queryKey: ['v5-artifacts-timeline', symbol] })
         }
-        void queryClient.invalidateQueries({ queryKey: ['studied-tickers'] })
-        void queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       }
     }
   }, [messages, ticker, queryClient])

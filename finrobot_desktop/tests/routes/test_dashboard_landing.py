@@ -876,6 +876,49 @@ def test_invalidate_dashboard_caches_clears_both_caches() -> None:
     assert dashboard_mod._RECENT_CACHE == {}
 
 
+def test_hit_rate_cache_is_bounded_evicts_expired_then_oldest() -> None:
+    """The hit-rate cache key embeds the caller's ``tickers`` string verbatim,
+    so without a cap every distinct comma-list grows the dict forever (TTL only
+    stops reuse, not growth). Inserts past the cap must evict expired entries
+    first, then the oldest live one — never exceed _HIT_RATE_CACHE_MAX."""
+    dashboard_mod.invalidate_dashboard_caches()
+    cap = dashboard_mod._HIT_RATE_CACHE_MAX
+    base_ts = 1_000_000.0
+    try:
+        # Fill to cap with live entries (strictly increasing timestamps,
+        # 0.5s apart so the whole span stays inside the 60s TTL — nothing
+        # is expired, forcing the oldest-live eviction branch).
+        for i in range(cap):
+            dashboard_mod._hit_rate_cache_put(
+                f"all|T{i}",
+                (base_ts + i * 0.5, object()),  # type: ignore[arg-type]
+            )
+        assert len(dashboard_mod._HIT_RATE_CACHE) == cap
+
+        new_ts = base_ts + cap * 0.5
+        dashboard_mod._hit_rate_cache_put("all|FRESH", (new_ts, object()))  # type: ignore[arg-type]
+        assert len(dashboard_mod._HIT_RATE_CACHE) <= cap
+        assert "all|FRESH" in dashboard_mod._HIT_RATE_CACHE
+        assert "all|T0" not in dashboard_mod._HIT_RATE_CACHE  # oldest gone
+
+        # Expired entries are swept before any live eviction.
+        dashboard_mod.invalidate_dashboard_caches()
+        for i in range(cap):
+            dashboard_mod._hit_rate_cache_put(
+                f"all|OLD{i}",
+                (base_ts, object()),  # type: ignore[arg-type]
+            )
+        far_future = base_ts + dashboard_mod._LANDING_CACHE_TTL_S + 1
+        dashboard_mod._hit_rate_cache_put("all|NEW", (far_future, object()))  # type: ignore[arg-type]
+        assert set(dashboard_mod._HIT_RATE_CACHE) == {"all|NEW"}
+
+        # Updating an existing key never triggers eviction churn.
+        dashboard_mod._hit_rate_cache_put("all|NEW", (far_future + 1, object()))  # type: ignore[arg-type]
+        assert set(dashboard_mod._HIT_RATE_CACHE) == {"all|NEW"}
+    finally:
+        dashboard_mod.invalidate_dashboard_caches()
+
+
 def test_recent_research_shows_new_artifact_after_invalidation(
     client: TestClient,
     store: ArtifactStore,

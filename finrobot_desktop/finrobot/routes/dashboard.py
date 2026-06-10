@@ -123,6 +123,29 @@ _HIT_RATE_CACHE: dict[str, tuple[float, HitRateOverview]] = {}
 _RECENT_CACHE: dict[tuple[int, bool], tuple[float, RecentResearchResponse]] = {}
 _LANDING_CACHE_TTL_S = 60.0
 
+# _HIT_RATE_CACHE keys embed the caller-supplied ``tickers`` scope verbatim, so
+# the key space is attacker/typo-unbounded (every distinct comma-list is a new
+# entry that lives forever — TTL only stops REUSE, not growth). Cap the dict:
+# on insert past the cap, drop expired entries first, then oldest-by-timestamp.
+# 64 comfortably covers window×coverage-group combinations a desktop ever uses.
+# _RECENT_CACHE needs no cap — its key space is bounded by construction
+# (limit ∈ 1..20 × include_archived bool → ≤ 40 keys).
+_HIT_RATE_CACHE_MAX = 64
+
+
+def _hit_rate_cache_put(key: str, entry: tuple[float, HitRateOverview]) -> None:
+    if key not in _HIT_RATE_CACHE and len(_HIT_RATE_CACHE) >= _HIT_RATE_CACHE_MAX:
+        now_ts = entry[0]
+        expired = [
+            k for k, (ts, _) in _HIT_RATE_CACHE.items() if now_ts - ts >= _LANDING_CACHE_TTL_S
+        ]
+        for k in expired:
+            del _HIT_RATE_CACHE[k]
+        while len(_HIT_RATE_CACHE) >= _HIT_RATE_CACHE_MAX:
+            oldest = min(_HIT_RATE_CACHE, key=lambda k: _HIT_RATE_CACHE[k][0])
+            del _HIT_RATE_CACHE[oldest]
+    _HIT_RATE_CACHE[key] = entry
+
 
 def invalidate_dashboard_caches() -> None:
     """Drop the landing-page TTL caches so the next GET recomputes from store.
@@ -222,7 +245,7 @@ async def hit_rate(
         },
         generated_at=stats.generated_at,
     )
-    _HIT_RATE_CACHE[cache_key] = (now_ts, overview)
+    _hit_rate_cache_put(cache_key, (now_ts, overview))
     return overview
 
 

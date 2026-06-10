@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import aiosqlite
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.contracts import CANONICAL_CONTRACT_VERSION
@@ -218,6 +218,11 @@ class DataCache:
         canonical). ``ttl_data_type`` is the base type used for the TTL lookup
         (a canonical slot still ages on its base type's freshness budget).
         Returns ``(payload_json, cached_at, is_stale)`` or None on miss.
+
+        A row whose ``cached_at`` won't parse is corrupt: it is deleted and
+        treated as a miss (self-heal, BUG: a raised ValueError here fires
+        BEFORE the DataLayer's provider loop, so the slot would stay broken
+        until the 30-day evict — see ``get`` for the payload-side twin).
         """
         conn = await self._ensure_connection()
         async with conn.execute(
@@ -228,7 +233,16 @@ class DataCache:
         if row is None:
             return None
         payload_json, cached_at_str = row
-        cached_at = datetime.fromisoformat(cached_at_str)
+        try:
+            cached_at = datetime.fromisoformat(cached_at_str)
+        except ValueError:
+            logger.warning(
+                "Corrupt cache row (unparseable cached_at) for %s/%s — deleting (self-heal)",
+                slot_key,
+                ticker,
+            )
+            await self._delete_slot(slot_key, ticker)
+            return None
         if cached_at.tzinfo is None:
             cached_at = cached_at.replace(tzinfo=timezone.utc)
         age_seconds = (datetime.now(tz=timezone.utc) - cached_at).total_seconds()
@@ -237,6 +251,22 @@ class DataCache:
         else:
             is_stale = age_seconds > _get_ttl_seconds(ttl_data_type)
         return payload_json, cached_at, is_stale
+
+    async def _delete_slot(self, slot_key: str, ticker: str) -> None:
+        """Physically remove one cache row — the corrupt-row self-heal path.
+
+        A row that no longer parses (broken JSON, schema drift without a
+        version bump, mangled timestamp) must be deleted, not just skipped:
+        every read happens BEFORE the DataLayer's provider loop, and a fresh
+        fetch only overwrites the row on success — so a merely-skipped corrupt
+        row would keep poisoning reads until the 30-day evict.
+        """
+        conn = await self._ensure_connection()
+        await conn.execute(
+            "DELETE FROM cache WHERE data_type = ? AND ticker = ?",
+            (slot_key, ticker),
+        )
+        await conn.commit()
 
     async def _set_slot(self, slot_key: str, ticker: str, payload_json: str) -> None:
         cached_at = datetime.now(tz=timezone.utc).isoformat()
@@ -264,13 +294,29 @@ class DataCache:
         TTL is determined automatically from the data_type (see ``_TTL_SECONDS``).
         The ``max_age_hours`` parameter is kept for backwards compatibility and
         test convenience: when provided it overrides the data-type TTL.
+
+        A row whose payload no longer validates as ``DataResult`` (corrupt
+        JSON, schema drift without a raw-slot version bump) is deleted and
+        treated as a miss (self-heal): ``DataLayer.fetch`` reads the cache as
+        its FIRST step, so a raised ValidationError would never reach the
+        provider loop and the slot could only recover via the 30-day evict.
         """
         slot = await self._get_slot(raw_slot_key(data_type), ticker, data_type, max_age_hours)
         if slot is None:
             return None
         payload_json, cached_at, is_stale = slot
+        try:
+            data = DataResult.model_validate_json(payload_json)
+        except ValidationError:
+            logger.warning(
+                "Corrupt raw cache payload for %s/%s — deleting (self-heal)",
+                raw_slot_key(data_type),
+                ticker,
+            )
+            await self._delete_slot(raw_slot_key(data_type), ticker)
+            return None
         return CachedResult(
-            data=DataResult.model_validate_json(payload_json),
+            data=data,
             is_stale=is_stale,
             cached_at=cached_at,
         )
@@ -288,7 +334,10 @@ class DataCache:
 
         Staleness uses the BASE data_type's TTL (the canonical key itself isn't
         in ``_TTL_SECONDS``). Returns the JSON string; the DataLayer validates
-        it into ``NormalizedPrice`` / ``NormalizedFinancials``.
+        it into ``NormalizedPrice`` / ``NormalizedFinancials`` — and on a
+        ValidationError calls :meth:`delete_canonical` so the corrupt row
+        self-heals instead of blocking the slot (the cache stays model-agnostic,
+        so the payload twin of ``get``'s self-heal lives at the validation site).
         """
         slot = await self._get_slot(canonical_key(data_type), ticker, data_type, max_age_hours)
         if slot is None:
@@ -302,6 +351,12 @@ class DataCache:
         """Store a normalized payload (``Normalized*.model_dump_json()``) in the
         versioned canonical slot, isolated from the raw slot."""
         await self._set_slot(canonical_key(data_type), ticker, payload_json)
+
+    async def delete_canonical(self, data_type: str | DataType, ticker: str) -> None:
+        """Drop one canonical row — the DataLayer's self-heal hook for a payload
+        that no longer validates as its ``Normalized*`` contract (see
+        ``get_canonical``)."""
+        await self._delete_slot(canonical_key(data_type), ticker)
 
     async def clear(self, ticker: str | None = None) -> None:
         conn = await self._ensure_connection()

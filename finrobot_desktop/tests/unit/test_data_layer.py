@@ -690,6 +690,54 @@ class TestReadCanonicalCached:
             await layer.read_canonical_cached(DataType.NEWS, "AAPL")
 
 
+class TestCorruptCacheSelfHeal:
+    """Bug 13: DataLayer.fetch / fetch_canonical read the cache as their FIRST
+    step — a corrupt row that raised there never reached the provider loop and
+    never got overwritten, bricking the (data_type, ticker) slot until the
+    30-day evict. A corrupt row must read as a miss, get deleted, and the
+    provider chain must repopulate the slot."""
+
+    async def test_fetch_skips_corrupt_raw_row_and_hits_provider(self, cache):
+        await cache._set_slot(raw_slot_key("financials"), "AAPL", "{corrupt payload")
+        provider = MockProvider("mock", ["financials"])
+        layer = DataLayer([provider], cache)
+
+        result = await layer.fetch("financials", "AAPL")
+        assert provider.fetch_called == 1
+        assert result.provider == "mock"
+
+        # Slot healed: next read serves the fresh provider row from cache.
+        provider.fetch_called = 0
+        again = await layer.fetch("financials", "AAPL")
+        assert provider.fetch_called == 0
+        assert again.ticker == "AAPL"
+
+    async def test_fetch_canonical_heals_corrupt_canonical_row(self, cache):
+        await cache.set_canonical(DataType.PRICE, "AAPL", '{"not": "a NormalizedPrice"}')
+        p = MockProvider("mock", ["price", "quote"], result=_price_result())
+        layer = DataLayer([p], cache)
+
+        out = await layer.fetch_canonical(DataType.PRICE, "AAPL")
+        assert isinstance(out, NormalizedPrice)
+        assert out.current_price == 175.0
+        assert p.fetch_called >= 1  # corrupt row fell through to the provider
+
+        # Canonical slot repopulated with a valid contract.
+        hit = await layer.read_canonical_cached(DataType.PRICE, "AAPL")
+        assert hit is not None
+        normalized, is_stale = hit
+        assert isinstance(normalized, NormalizedPrice)
+        assert is_stale is False
+
+    async def test_read_canonical_cached_corrupt_row_is_miss_and_deleted(self, cache):
+        await cache.set_canonical(DataType.PRICE, "AAPL", "{mangled json")
+        layer = DataLayer([], cache)
+
+        assert await layer.read_canonical_cached(DataType.PRICE, "AAPL") is None
+        # Row physically gone — the underlying canonical slot reads as a miss.
+        assert await cache.get_canonical(DataType.PRICE, "AAPL") is None
+
+
 class TestCanonicalStaleNoLaundering:
     """A stale-fallback fetch must NOT reset the canonical freshness clock.
 

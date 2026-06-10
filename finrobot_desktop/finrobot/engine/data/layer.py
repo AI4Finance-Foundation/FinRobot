@@ -3,6 +3,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Literal, overload
 
+from pydantic import ValidationError
+
 from finrobot.engine.data.cache import DataCache, cached_fetch
 from finrobot.engine.data.interface import (
     DataProvider,
@@ -313,7 +315,19 @@ class DataLayer:
 
         cached = await self._cache.get_canonical(data_type, ticker)
         if cached is not None and not cached.is_stale:
-            return self._deserialize_canonical(data_type, cached.payload_json, from_cache=True)
+            try:
+                return self._deserialize_canonical(data_type, cached.payload_json, from_cache=True)
+            except ValidationError:
+                # Corrupt canonical row (mangled JSON / contract drift without a
+                # version bump). Delete it and fall through to the provider path
+                # (self-heal) — re-raising here would block the slot until the
+                # 30-day evict, since this read precedes every provider fetch.
+                logger.warning(
+                    "Corrupt canonical cache row for %s/%s — deleting and refetching (self-heal)",
+                    ticker,
+                    data_type,
+                )
+                await self._cache.delete_canonical(data_type, ticker)
 
         # Cache miss/stale → single-flight the provider fetch: exactly one
         # in-flight call per (data_type, ticker); concurrent callers ride the
@@ -499,7 +513,20 @@ class DataLayer:
         cached = await self._cache.get_canonical(data_type, ticker)
         if cached is None:
             return None
-        normalized = self._deserialize_canonical(data_type, cached.payload_json, from_cache=True)
+        try:
+            normalized = self._deserialize_canonical(
+                data_type, cached.payload_json, from_cache=True
+            )
+        except ValidationError:
+            # Same self-heal as fetch_canonical: a corrupt row reads as a miss
+            # and is deleted, so the next fetch_canonical repopulates the slot.
+            logger.warning(
+                "Corrupt canonical cache row for %s/%s — deleting (self-heal)",
+                ticker,
+                data_type,
+            )
+            await self._cache.delete_canonical(data_type, ticker)
+            return None
         return normalized, cached.is_stale
 
     @staticmethod

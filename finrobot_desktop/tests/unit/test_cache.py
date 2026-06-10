@@ -2,7 +2,12 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from finrobot.engine.data.cache import CANONICAL_CONTRACT_VERSION, DataCache, canonical_key
+from finrobot.engine.data.cache import (
+    CANONICAL_CONTRACT_VERSION,
+    DataCache,
+    canonical_key,
+    raw_slot_key,
+)
 from finrobot.engine.data.interface import DataResult
 
 
@@ -92,6 +97,86 @@ class TestStaleness:
 
         cached = await cache.get("financials", "AAPL", max_age_hours=24)
         assert cached.data.data["revenue"] == 385_000_000_000
+
+
+class TestCorruptRowSelfHeal:
+    """Bug 13: a corrupt cache row used to raise (ValidationError / ValueError)
+    out of get() BEFORE the DataLayer's provider loop, so the (data_type,
+    ticker) slot stayed permanently broken — nothing ever overwrote it and the
+    only recovery was the 30-day evict. Corrupt rows must read as a miss AND be
+    physically deleted (self-heal)."""
+
+    @staticmethod
+    async def _row_count(cache: DataCache, slot_key: str, ticker: str) -> int:
+        import aiosqlite
+
+        async with aiosqlite.connect(cache._db_path) as conn:
+            async with conn.execute(
+                "SELECT COUNT(*) FROM cache WHERE data_type = ? AND ticker = ?",
+                (slot_key, ticker),
+            ) as cur:
+                row = await cur.fetchone()
+        return int(row[0])
+
+    async def test_broken_json_payload_is_miss_and_deleted(self, cache):
+        await cache._set_slot(raw_slot_key("financials"), "AAPL", "{truncated json")
+        assert await cache.get("financials", "AAPL") is None
+        assert await self._row_count(cache, raw_slot_key("financials"), "AAPL") == 0
+
+    async def test_schema_incompatible_payload_is_miss_and_deleted(self, cache):
+        """Valid JSON that no longer matches the DataResult schema (drift
+        without a raw-slot version bump) is the same disease as broken JSON."""
+        await cache._set_slot(raw_slot_key("financials"), "AAPL", '{"foo": 1}')
+        assert await cache.get("financials", "AAPL") is None
+        assert await self._row_count(cache, raw_slot_key("financials"), "AAPL") == 0
+
+    async def test_unparseable_cached_at_is_miss_and_deleted(self, cache):
+        import aiosqlite
+
+        await cache.set("financials", "AAPL", _result())
+        async with aiosqlite.connect(cache._db_path) as conn:
+            await conn.execute(
+                "UPDATE cache SET cached_at = 'not-a-timestamp' WHERE ticker = ?",
+                ("AAPL",),
+            )
+            await conn.commit()
+        assert await cache.get("financials", "AAPL") is None
+        assert await self._row_count(cache, raw_slot_key("financials"), "AAPL") == 0
+
+    async def test_corrupt_canonical_cached_at_is_miss_and_deleted(self, cache):
+        """get_canonical shares _get_slot — the timestamp self-heal covers it too."""
+        import aiosqlite
+
+        await cache.set_canonical("financials", "AAPL", '{"any": "payload"}')
+        async with aiosqlite.connect(cache._db_path) as conn:
+            await conn.execute(
+                "UPDATE cache SET cached_at = 'garbage' WHERE ticker = ?",
+                ("AAPL",),
+            )
+            await conn.commit()
+        assert await cache.get_canonical("financials", "AAPL") is None
+        assert await self._row_count(cache, canonical_key("financials"), "AAPL") == 0
+
+    async def test_slot_recovers_after_corruption(self, cache):
+        """The whole point of self-heal: the slot works again immediately —
+        a fresh set() lands in a clean row and the next get() serves it."""
+        await cache._set_slot(raw_slot_key("financials"), "AAPL", "{corrupt")
+        assert await cache.get("financials", "AAPL") is None
+        await cache.set("financials", "AAPL", _result())
+        cached = await cache.get("financials", "AAPL")
+        assert cached is not None
+        assert cached.data.data["revenue"] == 385_000_000_000
+
+    async def test_corruption_is_slot_scoped(self, cache):
+        """Deleting the corrupt row must not touch sibling rows (other ticker /
+        other data_type)."""
+        await cache.set("financials", "MSFT", _result(ticker="MSFT"))
+        await cache.set("news", "AAPL", _result(data_type="news"))
+        await cache._set_slot(raw_slot_key("financials"), "AAPL", "{corrupt")
+
+        assert await cache.get("financials", "AAPL") is None
+        assert (await cache.get("financials", "MSFT")) is not None
+        assert (await cache.get("news", "AAPL")) is not None
 
 
 class TestWalMode:

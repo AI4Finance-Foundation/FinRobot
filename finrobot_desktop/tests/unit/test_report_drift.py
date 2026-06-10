@@ -95,3 +95,49 @@ class TestDetectReportDrift:
     def test_comma_grouped_amounts_parse(self):
         drift = detect_report_drift("debt of $1,234.50M", {1_234_500_000.0})
         assert drift.unmatched_count == 0
+
+
+class TestNegativeAmounts:
+    """Negative leaves are legitimate (negative FCF, loss-quarter NI, net-cash
+    net debt); the parser must round-trip every written negative shape back to
+    the signed leaf instead of dropping the sign and flagging the citation."""
+
+    def test_leading_minus_matches_negative_leaf(self):
+        # -$5.00B citing FCF leaf -5e9: sign-aware round trip, no flag.
+        drift = detect_report_drift("FY1 FCF of -$5.00B on heavy capex.", {-5_000_000_000.0})
+        assert drift.unmatched_count == 0
+        assert drift.total_dollar_amounts == 1
+
+    def test_unicode_minus_matches_negative_leaf(self):
+        drift = detect_report_drift("FCF of −$5.00B.", {-5_000_000_000.0})
+        assert drift.unmatched_count == 0
+
+    def test_post_symbol_minus_matches_negative_leaf(self):
+        # The shape live narratives actually printed: "implies $-1512.42" (BUG-074).
+        drift = detect_report_drift("implies $-1512.42 per share", {-1512.42})
+        assert drift.unmatched_count == 0
+
+    def test_accounting_parens_match_either_sign(self):
+        # ($5.00B) is accounting-negative in tables but a plain parenthetical in
+        # prose — flag-only guard accepts either sign rather than false-flagging.
+        drift_neg = detect_report_drift("net loss ($5.00B) for FY1", {-5_000_000_000.0})
+        assert drift_neg.unmatched_count == 0
+        drift_pos = detect_report_drift("revenue ($5.00B) grew 12%", {5_000_000_000.0})
+        assert drift_pos.unmatched_count == 0
+
+    def test_explicit_minus_does_not_match_positive_leaf(self):
+        # Sign contradiction IS drift: prose "-$5.00B" with only +5e9 computed.
+        drift = detect_report_drift("FCF of -$5.00B.", {5_000_000_000.0})
+        assert drift.unmatched_count == 1
+        assert drift.unmatched[0].value == -5_000_000_000.0
+        assert drift.unmatched[0].token == "-$5.00B"
+
+    def test_minus_with_iso_code(self):
+        drift = detect_report_drift("net debt of USD -3.2B (net cash).", {-3_200_000_000.0})
+        assert drift.unmatched_count == 0
+
+    def test_unclosed_paren_is_not_negative(self):
+        # "(see $5.00B above)" — paren not closed adjacent to the amount; the
+        # value stays positive-only and matches the positive leaf.
+        drift = detect_report_drift("(see $5.00B above for detail)", {5_000_000_000.0})
+        assert drift.unmatched_count == 0

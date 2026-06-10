@@ -762,7 +762,15 @@ async def _execute_technical_analysis(
 # per-share target, so the reconciler skips it entirely; fabricated big
 # amounts are the report-level drift scanner's job (operators/report_drift),
 # which parses the same suffixes and compares against all numeric leaves.
+# The optional leading-minus group ([-−]\s?, ASCII or U+2212) exists to be
+# SKIPPED, mirroring the suffix rule above: "-$1.20" (loss-quarter EPS, negative
+# FCF/share) is categorically not a restatement of the positive canonical price
+# target, and rewriting just the "$1.20" span used to print the sign-corrupted
+# "-$276.43". ("$-1.20" never matched — the digit class rejects the inner minus.
+# Sign-aware validation of negative amounts against ALL leaves is the report-
+# level drift scanner's job; this reconciler only guards the target.)
 _DOLLAR_RE = re.compile(
+    r"([-−]\s?)?"
     r"\$\s?(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
     r"(\s?(?:[KMBT]\b|million\b|billion\b|trillion\b|bn\b|mn\b|tn\b))?",
     re.IGNORECASE,
@@ -824,12 +832,17 @@ def _reconcile_narrative_targets(
 
         def _sub(match: re.Match[str]) -> str:
             nonlocal drift_found
+            # Minus-prefixed amounts (-$1.20 loss-quarter EPS) are never the
+            # positive canonical target; rewriting the "$1.20" span alone would
+            # ship the sign-corrupted "-$276.43". Skip, like suffixed amounts.
+            if match.group(1):
+                return match.group(0)
             # Magnitude-suffixed amounts ($3.41T market cap, $391.0B EV) are
             # never per-share targets — out of scope for target reconciliation.
-            if match.group(2):
+            if match.group(3):
                 return match.group(0)
             try:
-                value = float(match.group(1).replace(",", ""))
+                value = float(match.group(2).replace(",", ""))
             except ValueError:
                 return match.group(0)
             if _is_allowed(value):

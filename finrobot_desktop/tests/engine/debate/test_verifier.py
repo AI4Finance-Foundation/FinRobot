@@ -117,8 +117,8 @@ def test_suffixed_amount_matching_evidence_scales_and_passes() -> None:
 
 
 def test_negative_dollar_evidence_endorses_its_magnitude() -> None:
-    """The amount regex captures sign-less digits, so a negative $-leaf
-    (e.g. per-share net-debt drag of -15.33) must endorse '$15.33' via abs()."""
+    """Sign-less prose restating a negative $-leaf (per-share net-debt drag of
+    -15.33 written as '$15.33') stays endorsed via the magnitude."""
     es = _es()
     es.items.append(
         Evidence(evidence_id="method.NAV.net_debt_ps", label="每股净债", value=-15.33, unit="$")
@@ -126,3 +126,28 @@ def test_negative_dollar_evidence_endorses_its_magnitude() -> None:
     args = [Argument(claim="每股净债拖累 $15.33", evidence_ids=["method.NAV.net_debt_ps"])]
     out = verify_arguments("bear", args, es)
     assert out[0].verified is True
+
+
+def test_negative_dollar_evidence_endorses_signed_spelling() -> None:
+    """The amount parser is sign-aware: '-$15.33' parses to -15.33 and must hit
+    the signed -15.33 leaf — abs()-only leaves would falsely reject the honest
+    signed spelling of the same evidence."""
+    es = _es()
+    es.items.append(
+        Evidence(evidence_id="method.NAV.net_debt_ps", label="每股净债", value=-15.33, unit="$")
+    )
+    args = [Argument(claim="每股净债 -$15.33 压制 NAV", evidence_ids=["method.NAV.net_debt_ps"])]
+    out = verify_arguments("bear", args, es)
+    assert out[0].verified is True
+
+
+def test_fabricated_negative_amount_still_flagged() -> None:
+    """Sign support must not whitewash fabrication: -$99.99 matches no leaf of
+    either sign → verified=False."""
+    es = _es()
+    es.items.append(
+        Evidence(evidence_id="method.NAV.net_debt_ps", label="每股净债", value=-15.33, unit="$")
+    )
+    args = [Argument(claim="每股净债 -$99.99", evidence_ids=["method.NAV.net_debt_ps"])]
+    out = verify_arguments("bear", args, es)
+    assert out[0].verified is False

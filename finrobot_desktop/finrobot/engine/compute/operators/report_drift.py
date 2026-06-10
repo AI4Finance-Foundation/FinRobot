@@ -30,11 +30,26 @@ from finrobot.engine.models.reconcile_tolerances import NARRATIVE_DRIFT_TOLERANC
 # an optional magnitude suffix. The number-discipline contract makes agents
 # write "USD 150B" rather than a bare "$150B", so both spellings must count.
 # Suffix is captured so the parsed value scales to absolute before matching.
+#
+# Negative shapes are first-class (negative leaves are legitimate: negative FCF,
+# loss-quarter net income, net-cash net debt):
+#   -$5.00B / −$5.00B   leading minus, ASCII or U+2212 (LLMs emit both)
+#   $-5.00B             minus after the symbol — the shape live narratives
+#                       actually printed ("implies $-1512.42 per share", BUG-074)
+#   ($5.00B)            accounting-parentheses negative
+# Without these the sign was silently dropped: "-$5.00B" parsed as +5.00B,
+# matched nothing (the leaf is -5.00B) and a LEGITIMATE citation flagged as
+# drift on every loss-making report.
 _CURRENCY_CODES = "USD|EUR|JPY|GBP|CNY|HKD|TWD|KRW|INR|CHF|CAD|AUD|SEK|NOK|DKK|BRL|MXN|ILS|SGD|ZAR"
 _AMOUNT_RE = re.compile(
+    rf"(?P<paren>\()?"
+    rf"(?P<neg_pre>[-−]\s?)?"  # whitespace tied INTO the minus group, else an
+    # absent minus lets a bare \s? swallow the preceding space into group(0)
     rf"(?:\$\s?|(?:{_CURRENCY_CODES})\s)"
-    r"(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
-    r"\s?([KMBT])?\b"
+    r"(?P<neg_post>[-−])?"
+    r"(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
+    r"\s?(?P<suffix>[KMBT])?\b"
+    r"(?P<close>\))?"
 )
 
 _SUFFIX_SCALE = {"K": 1e3, "M": 1e6, "B": 1e9, "T": 1e12}
@@ -50,7 +65,11 @@ class ReportDriftFinding(BaseModel):
     """One monetary token in the report that matched no computed value."""
 
     token: str = Field(description="Literal matched text, e.g. '$280.00' / 'USD 400B'.")
-    value: float = Field(description="Parsed absolute value (unit-suffix scaled).")
+    value: float = Field(
+        description="Parsed value, unit-suffix scaled; negative when an explicit "
+        "minus was written (accounting parens keep the positive face value — the "
+        "token shows the parens)."
+    )
 
 
 class ReportDrift(BaseModel):
@@ -114,18 +133,30 @@ def detect_report_drift(
     unmatched_count = 0
     for match in _AMOUNT_RE.finditer(report_text):
         try:
-            value = float(match.group(1).replace(",", ""))
+            value = float(match.group("num").replace(",", ""))
         except ValueError:
             continue
-        suffix = match.group(2)
+        suffix = match.group("suffix")
         if suffix:
             value *= _SUFFIX_SCALE[suffix]
+        # An explicit minus is unambiguous → the signed value only. Accounting
+        # parentheses are ambiguous in prose (a parenthetical aside also wraps
+        # amounts: "(see $5.00B above)" never closes adjacent, but "revenue
+        # ($5.00B)" does), so a paren-wrapped amount matches a leaf of EITHER
+        # sign — flag-only guard: the sign false-accept costs nothing, a false
+        # flag on every parenthetical aside costs a triage glance each.
+        if match.group("neg_pre") or match.group("neg_post"):
+            candidates: tuple[float, ...] = (-value,)
+        elif match.group("paren") and match.group("close"):
+            candidates = (value, -value)
+        else:
+            candidates = (value,)
         total += 1
-        if _matches(value):
+        if any(_matches(v) for v in candidates):
             continue
         unmatched_count += 1
         if len(findings) < max_findings:
-            findings.append(ReportDriftFinding(token=match.group(0).rstrip(), value=value))
+            findings.append(ReportDriftFinding(token=match.group(0).rstrip(), value=candidates[0]))
 
     return ReportDrift(
         total_dollar_amounts=total,

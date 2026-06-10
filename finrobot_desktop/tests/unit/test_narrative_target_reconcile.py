@@ -79,6 +79,24 @@ def test_magnitude_suffixed_amounts_are_never_rewritten() -> None:
     assert out.competitor_analysis == thesis.competitor_analysis
 
 
+def test_minus_prefixed_amounts_are_never_rewritten() -> None:
+    """-$1.20 (loss-quarter EPS / negative FCF per share) is categorically not a
+    restatement of the positive canonical target. The reconciler used to match
+    only the "$1.20" span, fail the whitelist, and rewrite it — shipping the
+    sign-corrupted "-$276.43". Minus-prefixed amounts are out of scope (the
+    report-level drift scanner validates them sign-aware against all leaves)."""
+    thesis = _thesis(
+        valuation_overview=("FY1 EPS of -$1.20 and FCF/share of −$0.85 keep the DCF inapplicable."),
+    )
+
+    out, drift = _reconcile_narrative_targets(
+        thesis, canonical_target=276.43, allowed_mids=[260.0, 295.0]
+    )
+
+    assert drift is False
+    assert out.valuation_overview == thesis.valuation_overview
+
+
 def test_plain_drift_amount_followed_by_word_still_rewritten() -> None:
     """The optional-suffix group must not swallow ordinary words: "$280 Buyback"
     is still a plain drifting per-share amount (B is followed by word chars, so

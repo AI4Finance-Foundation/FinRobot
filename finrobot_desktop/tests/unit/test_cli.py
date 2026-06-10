@@ -105,12 +105,19 @@ class FakeDataLayer:
 
     async def fetch_canonical(self, data_type, ticker, **kwargs):
         """Return NormalizedFinancials / NormalizedPrice (ADR-0006 canonical contract)."""
+        from finrobot.engine.data.interface import ProviderError
         from finrobot.engine.data.normalize.financials import normalize_financials
         from finrobot.engine.data.normalize.price import normalize_price
         from finrobot.engine.data.types import DataType
 
+        dtype = DataType(data_type)
+        if dtype not in (DataType.PRICE, DataType.FINANCIALS):
+            # FORWARD_ESTIMATES etc. (638a8164 canonical gate, unwrapped via
+            # .payload()): refuse honestly so callers take their tolerated
+            # "unavailable" branch instead of crashing on the wrong contract.
+            raise ProviderError(f"no canonical fake for {dtype}")
         raw = await self.fetch(str(data_type), ticker, **kwargs)
-        if DataType(data_type) == DataType.PRICE:
+        if dtype == DataType.PRICE:
             return normalize_price(raw)
         return normalize_financials(raw)
 
@@ -156,6 +163,19 @@ def _patch_build_deps(monkeypatch):
         return fake_deps
 
     monkeypatch.setattr("finrobot.cli._build_deps", mock_build_deps)
+    # Sub-agents built from these settings must not actually CALL tools:
+    # query_financial_data raises ModelRetry on a bad data_type so a real
+    # model can self-correct (b9b26d24), but TestModel keeps re-sending the
+    # schema placeholder ("a") and burns max_retries — failing the critical
+    # data step. These are CLI smoke tests ("doesn't crash"), not tool tests.
+    monkeypatch.setattr(
+        type(fake_deps.settings),
+        "create_model",
+        lambda self: TestModel(
+            custom_output_text="revenue 385B ebitda 130B test analysis output",
+            call_tools=[],
+        ),
+    )
     return fake_deps
 
 
@@ -437,9 +457,9 @@ class TestCliProgress:
         output = capsys.readouterr().out
         lines = output.strip().split("\n")
         # Last line should contain both the step label and "done"
-        assert "Data Collection" in lines[-1] and "done" in lines[-1], (
-            f"Expected step label before 'done' on last line, got: {lines[-1]}"
-        )
+        assert (
+            "Data Collection" in lines[-1] and "done" in lines[-1]
+        ), f"Expected step label before 'done' on last line, got: {lines[-1]}"
 
 
 class TestBacktestCommand:

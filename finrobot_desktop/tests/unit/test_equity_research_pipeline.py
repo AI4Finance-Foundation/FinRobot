@@ -47,12 +47,21 @@ class FakeDataLayer:
 
     async def fetch_canonical(self, data_type, ticker, **kwargs):
         """Return NormalizedFinancials / NormalizedPrice (ADR-0006 canonical contract)."""
+        from finrobot.engine.data.interface import ProviderError
         from finrobot.engine.data.normalize.financials import normalize_financials
         from finrobot.engine.data.normalize.price import normalize_price
         from finrobot.engine.data.types import DataType
 
+        dtype = DataType(data_type)
+        if dtype not in (DataType.PRICE, DataType.FINANCIALS):
+            # 638a8164: FORWARD_ESTIMATES (and any future type) goes through the
+            # canonical gate and is unwrapped via .payload() — this fake only
+            # speaks the two snapshot contracts, so refuse honestly and let the
+            # caller take its tolerated "unavailable" branch instead of handing
+            # back a NormalizedFinancials that lacks .payload().
+            raise ProviderError(f"no canonical fake for {dtype}")
         raw = await self.fetch(str(data_type), ticker, **kwargs)
-        if DataType(data_type) == DataType.PRICE:
+        if dtype == DataType.PRICE:
             return normalize_price(raw)
         return normalize_financials(raw)
 
@@ -339,7 +348,17 @@ async def test_step1_produces_financial_data(mock_deps):
     from finrobot.engine.data.types import DataType
 
     async def mock_fetch_canonical(data_type, ticker):
-        return norm_fin if DataType(data_type) == DataType.FINANCIALS else norm_price
+        dtype = DataType(data_type)
+        if dtype == DataType.FINANCIALS:
+            return norm_fin
+        if dtype == DataType.PRICE:
+            return norm_price
+        # FORWARD_ESTIMATES etc. (638a8164 canonical gate): refuse honestly —
+        # the caller's tolerated branch handles it; returning norm_price here
+        # would crash on the .payload() unwrap.
+        from finrobot.engine.data.interface import ProviderError
+
+        raise ProviderError(f"no canonical fake for {dtype}")
 
     mock_deps.data_layer.fetch_canonical = mock_fetch_canonical
     # fetch_historical is still raw; return empty to skip HistoricalMetrics build.
@@ -456,7 +475,19 @@ async def test_peer_analysis_raises_when_target_financials_missing(mock_deps):
         timestamp=datetime.now(tz=timezone.utc),
     )
     norm_fin = normalize_financials(fin_raw)
-    mock_deps.data_layer.fetch_canonical = AsyncMock(return_value=norm_fin)
+
+    async def _canon(data_type, ticker, **kw):
+        from finrobot.engine.data.interface import ProviderError
+        from finrobot.engine.data.types import DataType as _DT
+
+        # FORWARD_ESTIMATES (638a8164 canonical gate) is unwrapped via
+        # .payload() — refuse it honestly so the enricher takes its tolerated
+        # "forward unavailable" branch instead of crashing on norm_fin.
+        if _DT(data_type) != _DT.FINANCIALS:
+            raise ProviderError(f"no canonical fake for {data_type}")
+        return norm_fin
+
+    mock_deps.data_layer.fetch_canonical = AsyncMock(side_effect=_canon)
     # XBRL is still a raw fetch
     mock_deps.data_layer.fetch = AsyncMock(
         return_value=DataResult(
@@ -1389,7 +1420,14 @@ async def test_peer_analysis_excludes_target_and_names_dropped_peers(mock_deps):
             )
         )
 
-    async def _canon(_dt, t):
+    async def _canon(_dt, t, **kw):
+        from finrobot.engine.data.interface import ProviderError
+        from finrobot.engine.data.types import DataType as _DT
+
+        if _DT(_dt) != _DT.FINANCIALS:
+            # FORWARD_ESTIMATES (638a8164): refuse honestly — the enricher's
+            # tolerated branch handles it; a NormalizedFinancials has no .payload().
+            raise ProviderError(f"no canonical fake for {_dt}")
         if t == "FAILME":
             raise ValueError("simulated FX rate-limit for FAILME")
         # If target-dedup regressed, AAPL would be fetched here and leak into peers.

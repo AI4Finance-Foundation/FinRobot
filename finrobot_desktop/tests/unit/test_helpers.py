@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from finrobot.engine.data.interface import DataResult
+from finrobot.engine.data.interface import DataResult, ProviderError
 from finrobot.engine.data.normalize.financials import normalize_financials
 from finrobot.engine.data.normalize.price import normalize_price
 from finrobot.engine.data.types import DataType
@@ -93,6 +93,25 @@ def _price_raw() -> DataResult:
     )
 
 
+def _canonical_router(norm_fin: object, norm_price: object):
+    """fetch_canonical side_effect that speaks the post-638a8164 contract.
+
+    FINANCIALS/PRICE return the prepared canonical objects; every OTHER type
+    (FORWARD_ESTIMATES since the canonical gate) raises ProviderError — the
+    tolerated "forward unavailable" branch — instead of leaking norm_price into
+    a ``.payload()`` call that doesn't exist on it."""
+
+    def _route(dt: object, ticker: str, **kw: object) -> object:
+        dtype = DataType(dt)  # type: ignore[arg-type]
+        if dtype == DataType.FINANCIALS:
+            return norm_fin
+        if dtype == DataType.PRICE:
+            return norm_price
+        raise ProviderError(f"no canonical fake for {dtype}")
+
+    return _route
+
+
 def _yearly_result(year: int, revenue: float = 1e9) -> DataResult:
     """Build a single-year financials DataResult shaped like fetch_historical's
     output — the canonical normalized per-year dict that historical_extractor's
@@ -145,11 +164,7 @@ async def test_cross_validation_warnings_merged_into_financial_data():
     mock_agent.run = AsyncMock(return_value=mock_agent_result)
 
     mock_data_layer = MagicMock()
-    mock_data_layer.fetch_canonical = AsyncMock(
-        side_effect=lambda dt, ticker, **kw: (
-            norm_fin if DataType(dt) == DataType.FINANCIALS else norm_price
-        )
-    )
+    mock_data_layer.fetch_canonical = AsyncMock(side_effect=_canonical_router(norm_fin, norm_price))
     mock_data_layer.fetch_historical = AsyncMock(return_value=[])
 
     mock_deps = MagicMock()
@@ -185,11 +200,7 @@ async def test_historical_metrics_injected_into_structured_context():
     mock_agent.run = AsyncMock(return_value=mock_agent_result)
 
     mock_data_layer = MagicMock()
-    mock_data_layer.fetch_canonical = AsyncMock(
-        side_effect=lambda dt, ticker, **kw: (
-            norm_fin if DataType(dt) == DataType.FINANCIALS else norm_price
-        )
-    )
+    mock_data_layer.fetch_canonical = AsyncMock(side_effect=_canonical_router(norm_fin, norm_price))
     mock_data_layer.fetch_historical = AsyncMock(return_value=yearly)
 
     mock_deps = MagicMock()
@@ -240,11 +251,7 @@ async def test_no_duplicate_warnings_when_extractor_and_provider_share():
     mock_agent.run = AsyncMock(return_value=mock_agent_result)
 
     mock_data_layer = MagicMock()
-    mock_data_layer.fetch_canonical = AsyncMock(
-        side_effect=lambda dt, ticker, **kw: (
-            norm_fin if DataType(dt) == DataType.FINANCIALS else norm_price
-        )
-    )
+    mock_data_layer.fetch_canonical = AsyncMock(side_effect=_canonical_router(norm_fin, norm_price))
     mock_data_layer.fetch_historical = AsyncMock(return_value=[])
 
     mock_deps = MagicMock()
@@ -276,7 +283,12 @@ async def test_enrich_company_forward_populates_row(monkeypatch):
     fwd = SimpleNamespace(forward_eps=8.7514, forward_net_income=1.31e11)
     monkeypatch.setattr(_helpers, "get_forward_financials", lambda **kw: fwd)
     deps = SimpleNamespace(
-        data_layer=SimpleNamespace(fetch=AsyncMock(return_value=SimpleNamespace(data={})))
+        data_layer=SimpleNamespace(
+            fetch=AsyncMock(return_value=SimpleNamespace(data={})),
+            # 638a8164: the enricher reads FORWARD_ESTIMATES via the canonical
+            # gate and unwraps .payload() — the fake must speak that protocol.
+            fetch_canonical=AsyncMock(return_value=SimpleNamespace(payload=lambda: {})),
+        )
     )
 
     company = CompanyFinancials(ticker="AAPL", revenue=4.51e11, market_cap=4.5e12)

@@ -1,6 +1,6 @@
-// Regression test for the MarketEventsZone loading + honest-failure states.
-// (Catalyst calendar + retail sentiment now live in MarketEventsZone — the
-// full-width band below the workspace grid — split out of MarketDataZone.)
+// Regression test for the catalyst-calendar + retail-sentiment loading and
+// honest-failure states (both cards live in MarketDataZone — the workspace's
+// LEFT market column).
 //
 // Two bugs are pinned here:
 //   1. The catalyst calendar (~12s endpoint) used to render the "No recent
@@ -27,7 +27,7 @@ vi.mock('../../hooks/useTickerSentiment', () => ({
   useTickerSentiment: vi.fn(),
 }))
 
-import { MarketEventsZone } from './MarketDataZone'
+import { MarketDataZone } from './MarketDataZone'
 import { useTickerPrice, useTickerFinancials, useTickerCatalysts } from '../../hooks/useTickerData'
 import { useTickerSentiment, type SentimentSnapshot } from '../../hooks/useTickerSentiment'
 
@@ -63,7 +63,7 @@ function sentiment(partial: Partial<SentimentSnapshot>): SentimentSnapshot {
 function renderZone() {
   return render(
     <MemoryRouter>
-      <MarketEventsZone ticker="NVDA" />
+      <MarketDataZone ticker="NVDA" />
     </MemoryRouter>,
   )
 }
@@ -75,7 +75,7 @@ beforeEach(() => {
   vi.mocked(useTickerSentiment).mockReturnValue(settled(SENTIMENT_OK) as never)
 })
 
-describe('MarketEventsZone — catalyst calendar loading state', () => {
+describe('MarketDataZone — catalyst calendar loading state', () => {
   it('shows a skeleton while catalysts are loading, not the empty copy', () => {
     vi.mocked(useTickerCatalysts).mockReturnValue(pending() as never)
     renderZone()
@@ -95,7 +95,7 @@ describe('MarketEventsZone — catalyst calendar loading state', () => {
 // before it returns. After a threshold the skeleton must surface a "classifying
 // news" hint — but NOT immediately, so a warm-cache fetch returning in 1–2s
 // never flashes copy that would itself look like a stall.
-describe('MarketEventsZone — catalyst skeleton progress hint', () => {
+describe('MarketDataZone — catalyst skeleton progress hint', () => {
   afterEach(() => {
     vi.useRealTimers()
   })
@@ -120,7 +120,7 @@ describe('MarketEventsZone — catalyst skeleton progress hint', () => {
   })
 })
 
-describe('MarketEventsZone — retail sentiment honest states', () => {
+describe('MarketDataZone — retail sentiment honest states', () => {
   it('loading → skeleton, never the unconfigured CTA', () => {
     vi.mocked(useTickerSentiment).mockReturnValue(pending() as never)
     renderZone()

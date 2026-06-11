@@ -2,13 +2,14 @@
 // independent of any AI research run — kept refreshing from yfinance / SEC /
 // FMP / Adanos whether or not a pipeline has run on this ticker.
 //
-// Two exports, placed differently by StockWorkspace:
-//   • MarketDataZone   — LEFT column of the top grid: quote snapshot, price
-//                        trend, financials TTM (pure financial cards).
-//   • MarketEventsZone — FULL-WIDTH band below the grid: catalyst calendar +
-//                        retail sentiment (event / 舆情 surfaces, width-hungry).
-// Split so the long left rail no longer outruns the AI column (trailing
-// whitespace) and event/sentiment lives in its own full-width 2-up row.
+// One export: MarketDataZone — the LEFT column of the workspace grid, carrying
+// EVERY live (Non-AI) surface: quote snapshot, price trend, financials TTM,
+// catalyst calendar, retail sentiment. The right column is the AI/report side
+// (AIZone) — the semantic split is market vs report, full stop. (An earlier
+// layout moved catalysts + sentiment to a full-width band below the grid for
+// column-height symmetry; that read as "catalysts = market, sentiment = AI",
+// crossing the semantic line. AIZone is sticky instead, so the shorter report
+// column tracks the scroll rather than leaving trailing whitespace.)
 
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -43,6 +44,19 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
     error: finErr,
     refetch: refetchFin,
   } = useTickerFinancials(ticker)
+  const {
+    data: catalysts,
+    isError: catalystsError,
+    error: catalystsErr,
+    isPending: catalystsPending,
+    refetch: refetchCatalysts,
+  } = useTickerCatalysts(ticker)
+  const {
+    data: sentiment,
+    isPending: sentimentPending,
+    isError: sentimentError,
+    refetch: refetchSentiment,
+  } = useTickerSentiment(ticker)
   const { t, locale } = useI18n()
 
   return (
@@ -100,6 +114,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
               sessionState={price?.session_state}
             />
             <TechnicalsStrip tech={price?.technicals} />
+            <WarningLines warnings={price?.warnings} />
           </>
         )}
       </MktCard>
@@ -144,136 +159,77 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
           </>
         )}
       </MktCard>
-    </section>
-  )
-}
 
-// Market events + retail舆情, rendered as a FULL-WIDTH band below the
-// 2-column [MarketData | AIZone] grid (see StockWorkspace). Catalyst calendar
-// and retail sentiment are event / sentiment surfaces — different in kind from
-// the pure financial snapshot above — and they're width-hungry (long headlines,
-// per-platform rows), so they read better spanning the page in their own 2-up
-// grid than crammed into the narrow left rail (which also left the AI column
-// trailing whitespace). Still "Non-AI": live widgets, not the research report.
-export function MarketEventsZone({ ticker }: MarketDataZoneProps): React.ReactElement {
-  const {
-    data: catalysts,
-    isError: catalystsError,
-    error: catalystsErr,
-    isPending: catalystsPending,
-    refetch: refetchCatalysts,
-  } = useTickerCatalysts(ticker)
-  const {
-    data: sentiment,
-    isPending: sentimentPending,
-    isError: sentimentError,
-    refetch: refetchSentiment,
-  } = useTickerSentiment(ticker)
-  const { t } = useI18n()
-
-  return (
-    <section
-      data-testid="market-events-zone"
-      style={{
-        marginTop: 24,
-        paddingTop: 24,
-        borderTop: '1px solid var(--border-faint)',
-      }}
-    >
-      {/* Orienting label — the band sits below the AI column, so without it a
-          reader scrolling down can't tell these are live data widgets vs report
-          output. Mirrors the MarketDataZone "· Non-AI" framing. */}
-      <div
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10.5,
-          color: 'var(--text-muted)',
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          marginBottom: 12,
-        }}
-      >
-        {t('workspace.market.eventsZoneHeader')}
-      </div>
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-          gap: 24,
-          alignItems: 'start',
-        }}
-      >
-        {/* Catalyst calendar */}
-        <MktCard title={t('workspace.market.catalystCalendar')}>
-          {catalystsError ? (
-            <CardError
-              message={t('workspace.market.catalystError')}
-              status={catalystsErr?.status}
-              onRetry={() => void refetchCatalysts()}
-            />
-          ) : catalystsPending ? (
-            <CatalystSkeleton />
-          ) : catalysts && catalysts.length > 0 ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {catalysts.slice(0, 5).map((c, i) => (
-                <div
-                  key={`${i}-${c.headline ?? 'event'}`}
+      {/* Catalyst calendar — event surface, but still market-side (Non-AI). */}
+      <MktCard title={t('workspace.market.catalystCalendar')}>
+        {catalystsError ? (
+          <CardError
+            message={t('workspace.market.catalystError')}
+            status={catalystsErr?.status}
+            onRetry={() => void refetchCatalysts()}
+          />
+        ) : catalystsPending ? (
+          <CatalystSkeleton />
+        ) : catalysts && catalysts.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {catalysts.slice(0, 5).map((c, i) => (
+              <div
+                key={`${i}-${c.headline ?? 'event'}`}
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr auto auto',
+                  gap: 10,
+                  alignItems: 'center',
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11.5,
+                  padding: '7px 10px',
+                  background: 'var(--bg-card-50)',
+                  borderRadius: 6,
+                }}
+              >
+                <span
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr auto auto',
-                    gap: 10,
-                    alignItems: 'center',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 11.5,
-                    padding: '7px 10px',
-                    background: 'var(--bg-card-50)',
-                    borderRadius: 6,
+                    color: 'var(--text-secondary)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
                   }}
                 >
-                  <span
-                    style={{
-                      color: 'var(--text-secondary)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {c.headline ?? t('workspace.market.unnamedEvent')}
-                  </span>
-                  <span
-                    style={{
-                      color:
-                        c.sentiment === 'positive'
-                          ? 'var(--success)'
-                          : c.sentiment === 'negative'
-                            ? 'var(--danger)'
-                            : 'var(--text-muted)',
-                      fontSize: 10.5,
-                    }}
-                  >
-                    {c.category ?? '—'}
-                  </span>
-                  <span style={{ color: 'var(--accent-amber)', fontSize: 10.5 }}>
-                    {typeof c.impact_score === 'number' ? `★ ${c.impact_score}` : ''}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <Empty>{t('workspace.market.noCatalysts')}</Empty>
-          )}
-        </MktCard>
+                  {c.headline ?? t('workspace.market.unnamedEvent')}
+                </span>
+                <span
+                  style={{
+                    color:
+                      c.sentiment === 'positive'
+                        ? 'var(--success)'
+                        : c.sentiment === 'negative'
+                          ? 'var(--danger)'
+                          : 'var(--text-muted)',
+                    fontSize: 10.5,
+                  }}
+                >
+                  {c.category ?? '—'}
+                </span>
+                <span style={{ color: 'var(--accent-amber)', fontSize: 10.5 }}>
+                  {typeof c.impact_score === 'number' ? `★ ${c.impact_score}` : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Empty>{t('workspace.market.noCatalysts')}</Empty>
+        )}
+      </MktCard>
 
-        {/* Retail sentiment (Adanos: Reddit / X.com / Polymarket) */}
-        <MktCard title={t('workspace.market.sentiment')}>
-          <SentimentCard
-            snapshot={sentiment}
-            isPending={sentimentPending}
-            isError={sentimentError}
-            onRetry={() => void refetchSentiment()}
-          />
-        </MktCard>
-      </div>
+      {/* Retail sentiment (Adanos: Reddit / X.com / Polymarket) */}
+      <MktCard title={t('workspace.market.sentiment')}>
+        <SentimentCard
+          snapshot={sentiment}
+          isPending={sentimentPending}
+          isError={sentimentError}
+          onRetry={() => void refetchSentiment()}
+        />
+      </MktCard>
     </section>
   )
 }
@@ -521,23 +477,31 @@ function SentimentCard({
         <Empty>{t('workspace.market.sentimentNoSources')}</Empty>
       )}
 
-      {snapshot.warnings.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {snapshot.warnings.map((w, i) => (
-            <span
-              key={i}
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 9.5,
-                color: 'var(--accent-amber)',
-                lineHeight: 1.5,
-              }}
-            >
-              ⚠ {w}
-            </span>
-          ))}
-        </div>
-      )}
+      <WarningLines warnings={snapshot.warnings} />
+    </div>
+  )
+}
+
+// Amber per-line degradation notices under a card body — the data still flows,
+// but its caliber is reduced (stale graft, cross-source divergence, …) and a
+// degraded surface must be visibly degraded (可溯源 red-line).
+function WarningLines({ warnings }: { warnings?: string[] }): React.ReactElement | null {
+  if (!warnings || warnings.length === 0) return null
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 8 }}>
+      {warnings.map((w, i) => (
+        <span
+          key={i}
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9.5,
+            color: 'var(--accent-amber)',
+            lineHeight: 1.5,
+          }}
+        >
+          ⚠ {w}
+        </span>
+      ))}
     </div>
   )
 }

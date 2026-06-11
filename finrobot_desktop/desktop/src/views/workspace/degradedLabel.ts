@@ -15,6 +15,7 @@ const EXACT_LABEL_KEYS: Record<string, string> = {
   ccy_inferred: 'ccyInferred',
   price_fallback_close: 'priceFallbackClose',
   period_basis_unknown: 'periodBasisUnknown',
+  price_history_stale: 'priceHistoryStale',
 }
 
 export function degradedLabel(t: Translate, flag: string): string {

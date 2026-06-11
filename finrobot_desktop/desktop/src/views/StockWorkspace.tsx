@@ -28,7 +28,7 @@ import { FetchHttpError, mapErrorToUserMessage } from '../utils/errorMessage'
 import { TickerNotFoundView } from './workspace/TickerNotFoundView'
 import { WorkspaceBackBar } from './workspace/WorkspaceBackBar'
 import { TickerHero } from './TickerHero'
-import { MarketDataZone, MarketEventsZone } from './workspace/MarketDataZone'
+import { MarketDataZone } from './workspace/MarketDataZone'
 import { AIZone } from './workspace/AIZone'
 import { useI18n } from '../i18n'
 
@@ -197,20 +197,21 @@ export function StockWorkspace(): React.ReactElement {
             alignItems: 'start',
           }}
         >
-          {/* Top row: pure financial cards (left) vs AI verdict + chapters
-              (right) — comparable heights, so neither column trails the other
-              in whitespace. Event / sentiment surfaces moved to the full-width
-              band below (MarketEventsZone). */}
+          {/* Semantic split: LEFT = every live market surface (quote, chart,
+              financials, catalysts, sentiment — all Non-AI), RIGHT = the AI
+              report column. The right column is sticky so when the longer
+              market rail scrolls, the report stays in view instead of leaving
+              trailing whitespace (it only pins while shorter than the
+              viewport — the hot multi-chapter state simply scrolls). */}
           <MarketDataZone ticker={symbol} />
           {/* PipelineProgressPanel is rendered inside AIZone — it shares
               the AI column's visual real estate (cold / running / hot are
               three states of the same surface) instead of stacking on
               top of MarketDataZone where it stole vertical room. */}
-          <AIZone ticker={symbol} />
+          <div style={{ position: 'sticky', top: 24 }}>
+            <AIZone ticker={symbol} />
+          </div>
         </div>
-
-        {/* Full-width: catalyst calendar + retail sentiment, side by side. */}
-        <MarketEventsZone ticker={symbol} />
       </main>
     </div>
   )

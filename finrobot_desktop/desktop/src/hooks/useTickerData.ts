@@ -65,6 +65,10 @@ export interface PriceData {
   session_state?: 'live' | 'closed' | null
   /** Which provider actually served this payload ("fmp" / "yfinance" / "<provider>:provider-cache"). */
   data_source?: string | null
+  /** Free-text degradation notices from the data layer (e.g. grafted stale
+   *  history when the live source served quote-only). Rendered under the
+   *  price-trend card — a degraded chart must be visibly degraded. */
+  warnings?: string[]
   /** SMA stack + trend + 52w range snapshot from the price bars. */
   technicals?: Technicals
 }

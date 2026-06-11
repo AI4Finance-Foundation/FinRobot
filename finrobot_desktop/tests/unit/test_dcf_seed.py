@@ -20,6 +20,7 @@ from datetime import datetime, timezone
 
 import pytest
 
+from finrobot.engine.compute.operators.dcf import calculate_dcf, solve_for_implied_growth
 from finrobot.engine.compute.operators.dcf_seed import (
     COST_OF_DEBT_CAP,
     COST_OF_DEBT_FLOOR,
@@ -29,8 +30,10 @@ from finrobot.engine.compute.operators.dcf_seed import (
     _median_ratio,
     _terminal_nwc_pct,
     _median_recent,
+    _weighted_ratio,
     seed_dcf_inputs,
 )
+from finrobot.engine.compute.operators.monte_carlo import run_monte_carlo
 from finrobot.engine.models.financial import (
     BalanceSheet,
     FinancialData,
@@ -820,3 +823,269 @@ class TestSeedTerminalNwc:
         assert inputs.terminal_nwc_pct_revenue is None
         prov = inputs.assumption_provenance["terminal_nwc_pct_revenue"]
         assert "沿用" in prov
+
+
+# ---------------------------------------------------------------------------
+# Cyclical through-cycle normalization (改动点 2/3) — MU-like memory fixture.
+#
+# A commodity-cyclical's EBITDA margin / CapEx% / D&A% must be taken across the
+# FULL peak→trough→recovery window, not the trailing 3y (which for memory is
+# whichever phase the cycle is in NOW). The earnings base differs from the
+# non-cyclical path ONLY when cyclical=True; cyclical=False must be逐位 identical
+# to the unchanged trailing-3y path (KO 不许崩). Anchored to the SEC-verified MU
+# op-margin cycle (FY2017→FY2025): peak 49.3% FY2018, trough −37.0% FY2023,
+# recovery FY2024/25 (scripts/_cyclical_normalization_validation.py).
+# ---------------------------------------------------------------------------
+
+
+def _mu_financials() -> FinancialData:
+    """MU-like snapshot: current TTM revenue ~$58B (AI super-cycle run-rate, NOT
+    the trough FY), generic "Semiconductors" tag (the seed path's ticker anchor
+    is what makes it cyclical — the tag alone can't separate MU from NVDA)."""
+    return FinancialData(
+        ticker="MU",
+        company_name="Micron Technology, Inc.",
+        timestamp=datetime.now(tz=timezone.utc),
+        income=IncomeStatement(
+            revenue=58_120_000_000,
+            ebitda=29_000_000_000,
+            net_income=8_539_000_000,
+            gross_margin=0.40,
+            operating_margin=0.26,
+            depreciation_amortization=8_352_000_000,
+            interest_expense=500_000_000,
+            income_tax_expense=900_000_000,
+        ),
+        balance=BalanceSheet(
+            total_debt=13_000_000_000,
+            total_cash=9_600_000_000,
+        ),
+        market=MarketData(
+            market_cap=1_070_000_000_000,
+            shares_outstanding=1_127_734_051,
+            current_price=949.88,
+            pe_ratio=11.0,
+            industry="Semiconductors",
+            sector="Technology",
+            beta=1.30,
+        ),
+        valuation=ValuationMetrics(),
+    )
+
+
+def _mu_cyclical_historical() -> HistoricalMetrics:
+    """9-year MU history (FY2017→FY2025, oldest first), SEC-anchored op margins.
+
+    op_margin: 28.9, 49.3(peak), 31.5, 14.0, 22.7, 31.5, −37.0(trough), 5.2, 26.1.
+    EBITDA margin = op_margin + D&A% per year. The trailing-3y window (FY23/24/25:
+    −37/5.2/26.1 op → low EBITDA margins) differs sharply from the full-cycle
+    median, so cyclical=True vs False is detectable on this fixture.
+    """
+    revenue = [
+        20_322e6,
+        30_391e6,
+        23_406e6,
+        21_435e6,
+        27_705e6,
+        30_758e6,
+        15_540e6,
+        25_111e6,
+        37_378e6,
+    ]
+    op_income = [
+        5_868e6,
+        14_994e6,
+        7_376e6,
+        3_003e6,
+        6_283e6,
+        9_702e6,
+        -5_745e6,
+        1_304e6,
+        9_770e6,
+    ]
+    da = [
+        3_861e6,
+        4_759e6,
+        5_424e6,
+        5_650e6,
+        6_214e6,
+        7_116e6,
+        7_756e6,
+        7_780e6,
+        8_352e6,
+    ]
+    capex = [
+        4_734e6,
+        8_879e6,
+        9_780e6,
+        8_223e6,
+        10_030e6,
+        12_067e6,
+        7_676e6,
+        8_386e6,
+        15_857e6,
+    ]
+    # EBITDA = operating income + D&A; margin = EBITDA / revenue.
+    ebitda = [oi + d for oi, d in zip(op_income, da)]
+    ebitda_margin = [e / r for e, r in zip(ebitda, revenue)]
+    op_margin = [oi / r for oi, r in zip(op_income, revenue)]
+    years = [2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
+    return HistoricalMetrics(
+        years=years,
+        revenue=revenue,
+        revenue_growth_yoy=[None] + [None] * 8,
+        cogs=[r * 0.7 for r in revenue],
+        gross_profit=[r * 0.3 for r in revenue],
+        gross_margin=[0.3] * 9,
+        sga=[r * 0.05 for r in revenue],
+        sga_ratio=[0.05] * 9,
+        ebitda=ebitda,
+        ebitda_margin=ebitda_margin,
+        operating_income=op_income,
+        operating_margin=op_margin,
+        net_income=op_income,  # proxy; not read by the earnings-base path
+        eps=[1.0] * 9,
+        pe_ratio=[None] * 8 + [11.0],
+        cagr_revenue=0.08,
+        ticker="MU",
+        operating_cash_flow=[r * 0.3 for r in revenue],
+        investing_cash_flow=[-c for c in capex],
+        financing_cash_flow=[0.0] * 9,
+        depreciation_amortization=da,
+        capital_expenditure=capex,
+        change_in_working_capital=[-500e6] * 9,
+    )
+
+
+class TestWeightedRatio:
+    """Revenue-weighted Σnum/Σden — the cyclical D&A% normalizer."""
+
+    def test_weights_by_denominator_not_per_year_mean(self):
+        # Weighted = Σnum/Σden = (10+30)/(100+300) = 40/400 = 0.10, vs the per-year
+        # ratio mean (0.10, 0.10 → 0.10 by construction). Use a big-denominator,
+        # low-ratio year against a small-denominator, high-ratio year to separate:
+        # ratios 1% and 50%; weighted = (10+50)/(1000+100) = 60/1100 ≈ 5.45%, far
+        # below the per-year mean (25.5%) — the large year dominates.
+        result = _weighted_ratio([10, 50], [1000, 100], window=12)
+        assert result is not None
+        ratio, n = result
+        assert ratio == pytest.approx(60 / 1100)
+        assert n == 2
+
+    def test_downweights_trough_spiked_ratio(self):
+        # Trough year: D&A 50 on collapsed revenue 100 → 50% ratio; two normal
+        # years: 24 on 1000 → 2.4%. Weighted Σ(24+24+50)/Σ(1000+1000+100) =
+        # 98/2100 ≈ 4.67%, far below the 50% trough spike a naive max would see.
+        result = _weighted_ratio([24, 24, 50], [1000, 1000, 100], window=12)
+        assert result is not None
+        ratio, n = result
+        assert ratio == pytest.approx(98 / 2100)
+        assert n == 3
+
+    def test_skips_zero_and_nan_rows(self):
+        # 0 (missing-row convention) and NaN are dropped; the two real rows remain
+        # → Σ(20+40)/Σ(100+100) = 0.30 over 2 usable pairs.
+        result = _weighted_ratio([0, float("nan"), 20, 40], [100, 100, 100, 100], window=12)
+        assert result == (pytest.approx(0.30), 2)
+
+    def test_none_when_too_few_samples(self):
+        assert _weighted_ratio([10], [100], window=12) is None
+
+
+class TestCyclicalNormalization:
+    def test_cyclical_uses_full_cycle_window_not_trailing_3y(self):
+        """The cyclical EBITDA margin must straddle the whole cycle, so it differs
+        from the trailing-3y (recovery-phase) median this fixture would otherwise
+        give. Full-cycle median EBITDA margin sits well above the depressed
+        trailing-3y (FY23/24/25) median — the normalization is doing real work."""
+        cyc = seed_dcf_inputs(_mu_financials(), _mu_cyclical_historical(), cyclical=True)
+        non = seed_dcf_inputs(_mu_financials(), _mu_cyclical_historical(), cyclical=False)
+        # Trailing-3y EBITDA margins (FY23/24/25) on the fixture: low/negative-op
+        # years pull the 3y median below the full-cycle median.
+        assert cyc.ebitda_margin != pytest.approx(non.ebitda_margin)
+        # Full-cycle median EBITDA margin is the median of all 9 years.
+        full = sorted(m for m in _mu_cyclical_historical().ebitda_margin)
+        expected_full_median = full[len(full) // 2]
+        assert cyc.ebitda_margin == pytest.approx(expected_full_median, abs=0.005)
+
+    def test_cyclical_da_is_revenue_weighted_through_cycle(self):
+        """D&A% uses Σ D&A / Σ revenue across the cycle (down-weights the trough's
+        spiked D&A/revenue), not the trailing-3y per-year median."""
+        cyc = seed_dcf_inputs(_mu_financials(), _mu_cyclical_historical(), cyclical=True)
+        hist = _mu_cyclical_historical()
+        expected = sum(hist.depreciation_amortization) / sum(hist.revenue)
+        # da_pct clamped to [0.005, 0.40]; expected ~22% is inside.
+        assert cyc.da_pct_revenue == pytest.approx(expected, abs=0.005)
+
+    def test_cyclical_provenance_exposes_cycle_shape(self):
+        """Provenance must carry the peak/trough/median the normalized base
+        straddles (the analyst 下钻 传感器) + the Damodaran口径 marker."""
+        cyc = seed_dcf_inputs(_mu_financials(), _mu_cyclical_historical(), cyclical=True)
+        prov = cyc.assumption_provenance
+        assert "cyclical_normalization" in prov
+        assert "through-cycle" in prov["ebitda_margin"]
+        assert "峰" in prov["ebitda_margin"] and "谷" in prov["ebitda_margin"]
+        # Damodaran normalization marker, not the trailing-3y wording.
+        assert "非近 3 年中位" in prov["ebitda_margin"]
+
+    def test_non_cyclical_path_is_bit_identical_to_default(self):
+        """KO 不许崩: a non-cyclical seeded with cyclical=False must be byte-for-
+        byte identical to the default call (no cyclical kwarg). The cyclical
+        branch must not perturb the established trailing-3y path at all."""
+        # Same instances on both calls — _aapl_financials() stamps a fresh now()
+        # timestamp each call, so reuse one snapshot to isolate the cyclical flag.
+        fin = _aapl_financials()
+        hist = _aapl_historical()
+        default = seed_dcf_inputs(fin, hist)
+        explicit_false = seed_dcf_inputs(fin, hist, cyclical=False)
+        assert explicit_false.model_dump() == default.model_dump()
+
+    def test_non_cyclical_has_no_cycle_provenance(self):
+        non = seed_dcf_inputs(_aapl_financials(), _aapl_historical(), cyclical=False)
+        assert "cyclical_normalization" not in non.assumption_provenance
+        assert "through-cycle" not in non.assumption_provenance["ebitda_margin"]
+
+
+class TestCyclicalSeedEquivalence:
+    """改动点 3: the five seed consumers (MC / sensitivity / reverse / REST /
+    report) all consume the SAME DCFInputs —改 the seed earnings base and they
+    inherit the through-cycle口径. Pin that the cyclical seed round-trips through
+    calculate_dcf, MC, and the reverse solver exactly as the non-cyclical one."""
+
+    def test_mc_collapses_to_dcf_on_cyclical_inputs(self):
+        """Perturbation→0: the MC distribution for cyclical-seeded inputs must
+        collapse onto calculate_dcf's implied price — the same equivalence gate
+        the non-cyclical path passes, proving MC inherits the normalized base
+        with no separate earnings recomputation."""
+        inputs = seed_dcf_inputs(_mu_financials(), _mu_cyclical_historical(), cyclical=True)
+        deterministic = calculate_dcf(inputs).implied_price
+        result = run_monte_carlo(
+            inputs,
+            current_price=949.88,
+            n_simulations=200,
+            revenue_growth_std=0.0,
+            ebitda_margin_std=0.0,
+            wacc_std=0.0,
+            terminal_growth_std=0.0,
+            seed=42,
+        )
+        expected = round(deterministic, 2)
+        assert result.percentiles["50"] == pytest.approx(expected, abs=0.01)
+        assert result.mean == pytest.approx(expected, abs=0.01)
+        assert result.std == pytest.approx(0.0, abs=0.01)
+
+    def test_reverse_growth_round_trips_on_cyclical_inputs(self):
+        """solve_for_implied_growth(inputs, forward_price) recovers the seed's own
+        explicit growth — the reverse solver speaks the same forward map on the
+        cyclical-seeded inputs (the normalization changed only the earnings base,
+        not the growth schedule contract)."""
+        inputs = seed_dcf_inputs(_mu_financials(), _mu_cyclical_historical(), cyclical=True)
+        forward = calculate_dcf(inputs, wacc_override=0.10)
+        reverse = solve_for_implied_growth(
+            inputs,
+            target_price=forward.implied_price,
+            horizon_years=len(inputs.revenue_growth_rates),
+            wacc_override=0.10,
+        )
+        assert reverse["implied_growth"] is not None
+        assert abs(reverse["computed_price"] - forward.implied_price) < 0.10

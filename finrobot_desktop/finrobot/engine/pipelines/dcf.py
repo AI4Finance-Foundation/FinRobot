@@ -35,6 +35,7 @@ from finrobot.engine.compute.coordinators.historical_extractor import (
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import FinancialData, StepOutput
+from finrobot.engine.primitives.industry import is_commodity_cyclical
 from finrobot.engine.pipelines._helpers import (
     build_sensitivity_ranges,
     execute_financial_data_step,
@@ -96,7 +97,18 @@ async def _execute_dcf_calc(
     forward_growth = (
         get_forward_revenue_growth(forward_raw) if isinstance(forward_raw, dict) else []
     )
-    dcf_inputs = seed_dcf_inputs(financial_data, historical, forward_growth=forward_growth)
+    # Commodity-cyclical (memory/storage/steel/oil…) → through-cycle earnings
+    # normalization in the seed so the DCF anchors on normalized through-cycle
+    # earnings power, not whatever phase the cycle is in now. Ticker anchor covers
+    # memory under the generic "Semiconductors" tag; industry covers the rest.
+    cyclical = is_commodity_cyclical(
+        industry=financial_data.market.industry,
+        sector=financial_data.market.sector,
+        ticker=ticker,
+    )
+    dcf_inputs = seed_dcf_inputs(
+        financial_data, historical, forward_growth=forward_growth, cyclical=cyclical
+    )
 
     # Gordon Growth terminal value is undefined when terminal growth >= WACC,
     # which arises for very low-WACC profiles (low-beta, high-leverage utilities /

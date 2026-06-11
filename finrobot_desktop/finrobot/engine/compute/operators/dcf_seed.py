@@ -84,6 +84,15 @@ _MIN_HISTORY_SAMPLES: Final[int] = 2
 # the provenance then honestly reports the real count (2), never the window (3).
 _MEDIAN_WINDOW_YEARS: Final[int] = 3
 
+# THROUGH-CYCLE window for commodity-cyclicals (Damodaran cyclical normalization):
+# the earnings base must be the median across a FULL peak→trough→recovery cycle,
+# NOT the trailing-3y regime (which for memory is whichever phase the cycle is in
+# now). The extractor pulls 10y for cyclicals (_CYCLICAL_HISTORY_YEARS); this
+# window is ≥ that so the median takes EVERY available year. Larger than the fetch
+# is intentional — a short-history cyclical (SNDK: 1y) just yields a small-N median
+# whose real count provenance reports, never the nominal window.
+_CYCLICAL_MEDIAN_WINDOW_YEARS: Final[int] = 12
+
 logger = logging.getLogger(__name__)
 
 
@@ -139,6 +148,50 @@ def _median_ratio(
     if not ratios:
         return None
     return statistics.median(ratios), len(ratios)
+
+
+def _weighted_ratio(
+    numerator: list[float],
+    denominator: list[float],
+    *,
+    window: int,
+    min_samples: int = _MIN_HISTORY_SAMPLES,
+) -> tuple[float, int] | None:
+    """Revenue-WEIGHTED ratio Σnum / Σden over the last *window* years.
+
+    For a cyclical's D&A / revenue: D&A is a sticky stock that lags revenue, so
+    D&A/revenue SPIKES at the trough (MU FY2023 49.9% only because revenue
+    collapsed). A simple median of per-year ratios over-weights that trough
+    artifact; the revenue-weighted ratio (Σ D&A / Σ revenue) instead reflects the
+    steady-state reinvestment intensity across the cycle (MU → ~24%). Same NaN /
+    zero-row hygiene as ``_median_ratio``.
+
+    Returns ``(weighted_ratio, count)`` over the usable paired years, or None when
+    fewer than ``min_samples`` usable pairs exist or the revenue sum is non-positive.
+    """
+    n = min(len(numerator), len(denominator))
+    if n < min_samples:
+        return None
+    nums = numerator[-window:]
+    dens = denominator[-window:]
+    num_sum = 0.0
+    den_sum = 0.0
+    count = 0
+    for num, den in zip(nums, dens):
+        if math.isnan(num) or math.isnan(den):
+            continue
+        if den <= 0:
+            continue
+        if num == 0:
+            # An all-zero row is a missing cash-flow line (extractor convention),
+            # not a real 0 — skip so it doesn't dilute the weighted ratio.
+            continue
+        num_sum += num
+        den_sum += den
+        count += 1
+    if count < min_samples or den_sum <= 0:
+        return None
+    return num_sum / den_sum, count
 
 
 def _decay_growth_schedule(
@@ -240,6 +293,7 @@ def seed_dcf_inputs(
     terminal_growth_rate: float = DEFAULT_TERMINAL_GROWTH,
     projection_years: int = DEFAULT_PROJECTION_YEARS,
     forward_growth: list[float] | None = None,
+    cyclical: bool = False,
 ) -> DCFInputs:
     """Build a complete DCFInputs from one ticker's financials + historical data.
 
@@ -267,6 +321,17 @@ def seed_dcf_inputs(
             looking CAGR otherwise ignores a consensus re-acceleration the rest
             of the pipeline already fetched (the AAPL 3.3%-vs-+14.9% gap).
             None / empty / all-non-finite → trailing-CAGR seeding, unchanged.
+        cyclical: True for a commodity / deep-cyclical (memory, steel, shipping,
+            oil&gas E&P…) — computed upstream by ``is_commodity_cyclical`` and
+            threaded through by the coordinator/pipeline. Switches the EARNINGS
+            BASE to a THROUGH-CYCLE normalization (Damodaran cyclical口径): the
+            EBITDA margin, explicit-window CapEx% and D&A% are taken across the
+            FULL cycle window (not the trailing 3y), so the DCF anchors on a
+            normalized through-cycle earnings power rather than whatever phase the
+            cycle is in now. ``revenue_base`` is DELIBERATELY left at the current
+            TTM — Damodaran applies the normalized MARGIN to CURRENT revenue;
+            re-basing revenue too would double-count the cycle phase. False is the
+            unchanged trailing-3y path for every non-cyclical (KO逐位 identical).
 
     Returns:
         DCFInputs ready to pass to ``calculate_dcf``. The ``da_pct_revenue``
@@ -274,6 +339,21 @@ def seed_dcf_inputs(
     """
     industry: IndustryDefault = get_industry_default(financials.market.industry)
     prov: dict[str, str] = {}
+
+    # Through-cycle window for a cyclical (full peak→trough→recovery), trailing-3y
+    # for everyone else. Drives the EBITDA-margin / CapEx% / D&A% medians below; the
+    # WACC / tax / growth derivation is regime-current for both (the cycle position
+    # doesn't change the discount rate). _CYCLICAL_MEDIAN_WINDOW_YEARS ≥ the 10y
+    # cyclical fetch so the median sees every available year.
+    earnings_window = _CYCLICAL_MEDIAN_WINDOW_YEARS if cyclical else _MEDIAN_WINDOW_YEARS
+    _cycle_note = "through-cycle 中位（罩完整 峰→谷→恢复 周期）" if cyclical else None
+    if cyclical:
+        prov["cyclical_normalization"] = (
+            "判定为大宗周期股(memory/storage 白名单/关键词命中) → 盈利基底走 "
+            "through-cycle 正常化:EBITDA 利润率取完整周期中位、D&A 营收加权 through-cycle、"
+            "显式期 CapEx 取 through-cycle 中位;营收基保持当前 TTM(Damodaran 口径 3:"
+            "正常化 margin × 当前营收,不重基营收以免数两遍周期相位)。"
+        )
 
     # ----- revenue_base ------------------------------------------------------
     # Label the basis HONESTLY: revenue_base is the canonical financials' revenue,
@@ -366,8 +446,12 @@ def seed_dcf_inputs(
         )
 
     # ----- ebitda_margin ----------------------------------------------------
+    # Cyclical: median EBITDA margin across the FULL cycle window (peak→trough→
+    # recovery) — the normalized through-cycle earnings power, not the current
+    # phase. Non-cyclical: unchanged trailing-3y median.
+    _ebitda_suffix = "EBITDA 利润率 through-cycle 中位" if cyclical else "EBITDA 利润率中位数"
     ebitda_ticker, ebitda_value, ebitda_label = _ticker_median_with_label(
-        _median_recent(historical.ebitda_margin), "EBITDA 利润率中位数"
+        _median_recent(historical.ebitda_margin, window=earnings_window), _ebitda_suffix
     )
     ebitda_margin, ebitda_source = _pick_with_provenance(
         ticker_value=ebitda_value,
@@ -375,11 +459,22 @@ def seed_dcf_inputs(
         industry_value=industry.ebitda_pct_revenue,
         industry_label=f"{industry.industry} 行业中位数",
     )
-    prov["ebitda_margin"] = f"{ebitda_margin:.1%}（{ebitda_source}）"
+    if cyclical and ebitda_ticker is not None:
+        _through = _cycle_stats(historical.ebitda_margin, window=earnings_window)
+        prov["ebitda_margin"] = (
+            f"{ebitda_margin:.1%}（{ebitda_source}；{_cycle_note}"
+            f"{_through}；大宗周期股 Damodaran 正常化口径,非近 3 年中位）"
+        )
+    else:
+        prov["ebitda_margin"] = f"{ebitda_margin:.1%}（{ebitda_source}）"
 
     # ----- capex_pct_revenue -----------------------------------------------
+    # Cyclical: explicit-window CapEx% over the FULL cycle (avoid anchoring on a
+    # single peak/trough year's capex/revenue). Non-cyclical: trailing-3y median.
+    _capex_suffix = "CapEx / 营收 through-cycle 中位" if cyclical else "CapEx / 营收 中位数"
     capex_ticker, capex_value, capex_label = _ticker_median_with_label(
-        _median_ratio(historical.capital_expenditure, historical.revenue), "CapEx / 营收 中位数"
+        _median_ratio(historical.capital_expenditure, historical.revenue, window=earnings_window),
+        _capex_suffix,
     )
     capex_pct, capex_source = _pick_with_provenance(
         ticker_value=capex_value,
@@ -405,10 +500,19 @@ def seed_dcf_inputs(
         prov["capex_pct_revenue"] = f"{capex_pct:.1%}（{capex_source}）"
 
     # ----- da_pct_revenue ---------------------------------------------------
-    _da_ticker, da_value, da_label = _ticker_median_with_label(
-        _median_ratio(historical.depreciation_amortization, historical.revenue),
-        "D&A / 营收 中位数",
-    )
+    # Cyclical: revenue-WEIGHTED through-cycle D&A% (Σ D&A / Σ revenue). D&A is a
+    # sticky stock, so D&A/revenue spikes at the trough when revenue collapses
+    # (MU FY2023 49.9% is a trough artifact, not the run-rate ~24%); the weighted
+    # ratio down-weights that. Non-cyclical: unchanged trailing-3y per-year median.
+    if cyclical:
+        _da_result = _weighted_ratio(
+            historical.depreciation_amortization, historical.revenue, window=earnings_window
+        )
+        _da_suffix = "D&A / 营收 营收加权 through-cycle"
+    else:
+        _da_result = _median_ratio(historical.depreciation_amortization, historical.revenue)
+        _da_suffix = "D&A / 营收 中位数"
+    _da_ticker, da_value, da_label = _ticker_median_with_label(_da_result, _da_suffix)
     da_pct, da_source = _pick_with_provenance(
         ticker_value=da_value,
         ticker_label=da_label,
@@ -626,6 +730,24 @@ def _median_recent(
     if not recent:
         return None
     return statistics.median(recent), len(recent)
+
+
+def _cycle_stats(values: list[float | None], *, window: int) -> str:
+    """Provenance fragment exposing the cycle shape behind a normalized median.
+
+    Returns "（峰 X% / 谷 Y% / 中位 Z% / 均值 W%，N 年）" over the usable entries in
+    the window, so a UI下钻 can see the trough and peak the normalized base
+    straddles (the analyst-facing传感器 for "is this a real cycle or a fluke?").
+    Empty fragment when no usable entry exists.
+    """
+    usable = [v for v in values[-window:] if v is not None and not math.isnan(v)]
+    if not usable:
+        return ""
+    return (
+        f"（峰 {max(usable):.1%} / 谷 {min(usable):.1%} / 中位 "
+        f"{statistics.median(usable):.1%} / 均值 {statistics.mean(usable):.1%}，"
+        f"{len(usable)} 年）"
+    )
 
 
 def _ticker_median_with_label(

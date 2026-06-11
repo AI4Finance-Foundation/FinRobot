@@ -23,6 +23,7 @@ from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import DCFInputs, FinancialData, HistoricalMetrics
+from finrobot.engine.primitives.industry import is_commodity_cyclical
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,15 @@ async def seed_dcf_inputs_for_ticker(
         )
 
     forward_growth = await fetch_forward_growth(data_layer, ticker)
+    # Commodity-cyclical → through-cycle earnings normalization in the seed. The
+    # ticker anchor covers memory/storage even when the provider industry tag is
+    # the generic "Semiconductors" (which it is for MU); industry/sector cover the
+    # rest (steel/oil/shipping). Same gate the historical window-extension uses.
+    cyclical = is_commodity_cyclical(
+        industry=financial_data.market.industry,
+        sector=financial_data.market.sector,
+        ticker=ticker,
+    )
     return financial_data, seed_dcf_inputs(
-        financial_data, historical, forward_growth=forward_growth
+        financial_data, historical, forward_growth=forward_growth, cyclical=cyclical
     )

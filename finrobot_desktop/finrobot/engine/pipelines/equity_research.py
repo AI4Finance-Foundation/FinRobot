@@ -68,6 +68,7 @@ from finrobot.engine.pipelines._helpers import (
     execute_peer_analysis,
 )
 from finrobot.engine.pipelines._thesis_prompt import build_thesis_prompt
+from finrobot.engine.primitives.industry import is_commodity_cyclical
 from finrobot.engine.pipelines.validators import (
     validate_catalyst_analysis,
     validate_has_fields,
@@ -514,7 +515,18 @@ async def _execute_financial_modeling(
     forward_growth = (
         get_forward_revenue_growth(forward_raw) if isinstance(forward_raw, dict) else []
     )
-    dcf_inputs = seed_dcf_inputs(financial_data, historical, forward_growth=forward_growth)
+    # Commodity-cyclical (memory/storage/steel/oil…) → through-cycle earnings
+    # normalization in the seed so the DCF anchors on normalized through-cycle
+    # earnings power, not whatever phase the cycle is in now. Ticker anchor covers
+    # memory under the generic "Semiconductors" tag; industry covers the rest.
+    cyclical = is_commodity_cyclical(
+        industry=financial_data.market.industry,
+        sector=financial_data.market.sector,
+        ticker=ticker,
+    )
+    dcf_inputs = seed_dcf_inputs(
+        financial_data, historical, forward_growth=forward_growth, cyclical=cyclical
+    )
     try:
         dcf_result = calculate_dcf(dcf_inputs)
     except (ValueError, ArithmeticError) as e:

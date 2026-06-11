@@ -7,7 +7,12 @@ from typing import Any
 
 import httpx
 
-from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
+from finrobot.engine.data.interface import (
+    DataProvider,
+    DataResult,
+    ProviderError,
+    RateLimitedProviderError,
+)
 from finrobot.engine.data.types import DataType
 
 _BASE_URL = "https://finnhub.io/api/v1"
@@ -74,6 +79,15 @@ class FinnhubProvider(DataProvider):
         except httpx.TimeoutException as e:
             raise ProviderError(f"Finnhub timeout for '{ticker}': {e}") from e
         except httpx.HTTPStatusError as e:
+            # Finnhub free tier signals throttling with HTTP 429 (60 req/min).
+            # ONLY 429 maps to the typed RateLimitedProviderError; 403 here
+            # means endpoint-not-on-plan (e.g. /stock/candle premium gate),
+            # which is a capability gap, not throttling. Auth is via the
+            # X-Finnhub-Token header, so interpolating ``e`` leaks no key.
+            if e.response.status_code == 429:
+                raise RateLimitedProviderError(
+                    f"Finnhub rate limited (HTTP 429) for '{ticker}': {e}"
+                ) from e
             raise ProviderError(f"Finnhub API error for '{ticker}': {e}") from e
         except (
             httpx.ConnectError,

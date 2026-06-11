@@ -9,7 +9,12 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.interface import (
+    DataResult,
+    ProviderError,
+    RateLimitedProviderError,
+    is_rate_limit_error,
+)
 from finrobot.engine.data.providers.yfinance_provider import YFinanceProvider
 
 
@@ -379,20 +384,26 @@ class TestRateLimitBehavior:
 
         # Mock t.info to raise YFRateLimitError so the error path fires.
         # We use PropertyMock so the access pattern (t.info inside the
-        # asyncio.to_thread lambda) matches production.
+        # asyncio.to_thread lambda) matches production. NOTE: yfinance 1.x's
+        # YFRateLimitError takes NO message argument (fixed text) — passing one
+        # raised TypeError inside the lambda, which the generic except arm also
+        # wrapped into ProviderError, so the old test was green WITHOUT ever
+        # exercising the rate-limit path (fake-green, caught 2026-06-11).
         provider = YFinanceProvider()
         mock_ticker = MagicMock()
-        type(mock_ticker).info = property(
-            lambda self: (_ for _ in ()).throw(YFRateLimitError("Too Many Requests"))
-        )
+        type(mock_ticker).info = property(lambda self: (_ for _ in ()).throw(YFRateLimitError()))
 
         start = time.monotonic()
         with patch(
             "finrobot.engine.data.providers.yfinance_provider.yf.Ticker",
             return_value=mock_ticker,
         ):
-            with pytest.raises(ProviderError, match="Failed to fetch ticker"):
+            # The typed YFRateLimitError must map to RateLimitedProviderError
+            # (primary classification path — survives Yahoo rewording the
+            # message), and the classifier must recognise it structurally.
+            with pytest.raises(RateLimitedProviderError, match="Failed to fetch ticker") as ei:
                 await provider.fetch("AAPL", "financials")
+        assert is_rate_limit_error(ei.value)
         elapsed = time.monotonic() - start
         assert elapsed < 1.0, (
             f"Provider took {elapsed:.2f}s — retry loop must stay deleted. "

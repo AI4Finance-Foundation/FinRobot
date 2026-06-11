@@ -22,7 +22,11 @@ from unittest.mock import MagicMock
 import httpx
 import pytest
 
-from finrobot.engine.data.interface import ProviderError
+from finrobot.engine.data.interface import (
+    ProviderError,
+    RateLimitedProviderError,
+    is_rate_limit_error,
+)
 from finrobot.engine.data.providers.edgar_provider import (
     EdgarToolsProvider,
     _MIN_VALID_SECTION_CHARS,
@@ -172,6 +176,44 @@ async def test_fetch_wraps_httpx_error_into_provider_error(
     monkeypatch.setattr("finrobot.engine.data.providers.edgar_provider.Company", _boom)
     with pytest.raises(ProviderError, match="edgartools"):
         await p.fetch("AAPL", DataType.FILINGS_8K, n=10)
+
+
+@pytest.mark.asyncio
+async def test_fetch_http_429_raises_typed_rate_limited_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A wrapped HTTP 429 from edgartools' own httpx client must surface as the
+    TYPED RateLimitedProviderError (primary classification path) so the
+    circuit-breaker / quote-batch recognise throttling structurally. ONLY a
+    literal 429 maps — SEC's 403 stays a plain ProviderError because 403 is
+    also the generic forbidden/missing-identity status."""
+    p = EdgarToolsProvider("Jane Doe jane@example.com")
+    request = httpx.Request("GET", "https://www.sec.gov/cgi-bin/browse-edgar")
+
+    def _boom_429(_ticker: str) -> Any:
+        raise httpx.HTTPStatusError(
+            "429 Too Many Requests",
+            request=request,
+            response=httpx.Response(429, request=request),
+        )
+
+    monkeypatch.setattr("finrobot.engine.data.providers.edgar_provider.Company", _boom_429)
+    with pytest.raises(RateLimitedProviderError, match="edgartools") as exc_info:
+        await p.fetch("AAPL", DataType.FILINGS_8K, n=10)
+    assert is_rate_limit_error(exc_info.value)
+
+    def _boom_403(_ticker: str) -> Any:
+        raise httpx.HTTPStatusError(
+            "403 Forbidden",
+            request=request,
+            response=httpx.Response(403, request=request),
+        )
+
+    monkeypatch.setattr("finrobot.engine.data.providers.edgar_provider.Company", _boom_403)
+    with pytest.raises(ProviderError, match="edgartools") as exc_info_403:
+        await p.fetch("AAPL", DataType.FILINGS_8K, n=10)
+    assert not isinstance(exc_info_403.value, RateLimitedProviderError)
+    assert not is_rate_limit_error(exc_info_403.value)
 
 
 @pytest.mark.asyncio

@@ -4,7 +4,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.interface import (
+    DataResult,
+    ProviderError,
+    RateLimitedProviderError,
+    is_rate_limit_error,
+)
 from finrobot.engine.data.providers.news_aggregator import NewsAggregatorProvider
 from finrobot.engine.data.types import DataType
 from finrobot.engine.compute.coordinators.news import (
@@ -624,6 +629,10 @@ class TestNewsAggregatorKeyDoesNotLeak:
         assert "apikey" not in msg.lower()
         assert "429" in msg
         assert "AAPL" in msg
+        # A structural 429 must also carry rate-limit semantics BY TYPE
+        # (primary path; the "429" substring above is fallback only).
+        assert isinstance(exc_info.value, RateLimitedProviderError)
+        assert is_rate_limit_error(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_all_sources_failed_message_omits_api_key(self):

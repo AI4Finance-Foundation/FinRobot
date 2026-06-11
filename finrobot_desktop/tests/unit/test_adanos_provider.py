@@ -5,7 +5,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.interface import (
+    DataResult,
+    ProviderError,
+    RateLimitedProviderError,
+    is_rate_limit_error,
+)
 from finrobot.engine.data.providers.adanos_provider import (
     _PLATFORM_SPECS,
     AdanosProvider,
@@ -154,6 +159,26 @@ class TestAdanosFetch:
     async def test_unsupported_type_raises(self, provider):
         with pytest.raises(ProviderError, match="not supported"):
             await provider.fetch("AAPL", "financials")
+
+    @pytest.mark.asyncio
+    async def test_platform_429_raises_typed_rate_limited_error(self, provider):
+        """An Adanos 429 at the per-platform wrap point must surface as the
+        TYPED RateLimitedProviderError (fetch() currently folds it into a
+        warning, but the wrap point owns the structural classification)."""
+        request = httpx.Request("GET", "https://adanos.example/api/reddit")
+        response = httpx.Response(429, request=request)
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(
+                side_effect=httpx.HTTPStatusError(
+                    "429 Too Many Requests", request=request, response=response
+                )
+            ),
+        ):
+            with pytest.raises(RateLimitedProviderError) as exc_info:
+                await provider._fetch_one_platform(_PLATFORM_SPECS[0], "AAPL", 7)
+        assert is_rate_limit_error(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_ticker_normalization(self, provider):

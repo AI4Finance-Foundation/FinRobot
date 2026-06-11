@@ -61,7 +61,12 @@ except ImportError:  # pragma: no cover — defensive; we always pin edgartools
     set_identity = None
     _EDGAR_AVAILABLE = False
 
-from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
+from finrobot.engine.data.interface import (
+    DataProvider,
+    DataResult,
+    ProviderError,
+    RateLimitedProviderError,
+)
 from finrobot.engine.data.types import DataType
 
 logger = logging.getLogger(__name__)
@@ -169,6 +174,23 @@ _ADAPTER_CATCH = (
     TypeError,
     httpx.HTTPError,
 )
+
+
+def _provider_error(msg: str, cause: BaseException) -> ProviderError:
+    """ProviderError factory that preserves rate-limit semantics BY TYPE.
+
+    A wrapped ``httpx.HTTPStatusError`` carrying HTTP 429 becomes
+    ``RateLimitedProviderError`` so the circuit-breaker / quote-batch classify
+    it structurally instead of sniffing the message. ONLY a literal 429 maps:
+    SEC throttling historically answers 403 "Request Rate Threshold Exceeded",
+    but 403 is also the generic forbidden/missing-identity status — typing it
+    as rate-limit would mis-classify identity failures as transient, so those
+    stay plain ``ProviderError`` (the message fallback never matched them
+    either; behaviour unchanged).
+    """
+    if isinstance(cause, httpx.HTTPStatusError) and cause.response.status_code == 429:
+        return RateLimitedProviderError(msg)
+    return ProviderError(msg)
 
 
 # Min char threshold below which we treat a typed section attribute as
@@ -1207,7 +1229,7 @@ class EdgarToolsProvider(DataProvider):
                 kwargs,
             )
         except _ADAPTER_CATCH as e:
-            raise ProviderError(f"edgartools {data_type} for {ticker}: {e}") from e
+            raise _provider_error(f"edgartools {data_type} for {ticker}: {e}", e) from e
         return DataResult(
             data=data,
             provider=self.name,
@@ -1255,7 +1277,7 @@ class EdgarToolsProvider(DataProvider):
                 r.raise_for_status()
                 facts = r.json()
         except httpx.HTTPError as e:
-            raise ProviderError(f"SEC companyfacts fetch for {ticker} (CIK {cik}): {e}") from e
+            raise _provider_error(f"SEC companyfacts fetch for {ticker} (CIK {cik}): {e}", e) from e
         yearly = _build_sec_yearly_financials(facts, years)
         if not yearly:
             raise ProviderError(
@@ -1298,7 +1320,9 @@ class EdgarToolsProvider(DataProvider):
         try:
             c = Company(ticker)
         except _ADAPTER_CATCH as e:
-            raise ProviderError(f"SEC segments: company lookup failed for {ticker}: {e}") from e
+            raise _provider_error(
+                f"SEC segments: company lookup failed for {ticker}: {e}", e
+            ) from e
         # ORIGINAL 10-K — a 10-K/A's XBRL is incomplete for dimensioned segments.
         filing = c.get_filings(form="10-K", amendments=False).latest(1)
         if isinstance(filing, list):
@@ -1308,7 +1332,7 @@ class EdgarToolsProvider(DataProvider):
         try:
             xbrl = filing.xbrl()
         except _ADAPTER_CATCH as e:
-            raise ProviderError(f"SEC segments: XBRL parse failed for {ticker}: {e}") from e
+            raise _provider_error(f"SEC segments: XBRL parse failed for {ticker}: {e}", e) from e
         if xbrl is None:
             raise ProviderError(f"SEC segments: 10-K has no XBRL for {ticker}")
         data, warnings = extract_segment_facts(xbrl)

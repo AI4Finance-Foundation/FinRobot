@@ -89,7 +89,16 @@ def _fx_ticker(from_ccy: str, to_ccy: str) -> str:
 
 
 def _yf_spot(ticker: str) -> float | None:
-    """Today's spot from yfinance ``fast_info.last_price``; None on any failure."""
+    """Today's spot from yfinance ``fast_info.last_price``; None on any failure.
+
+    Deliberately NOT typed for rate limits: a Yahoo 429 (YFRateLimitError ⊂
+    YFException) collapses to None like any other failure so the caller falls
+    through to the FMP leg. The aggregate raise in
+    ``_fetch_fx_rate_to_usd_uncached`` covers BOTH legs and cannot attribute a
+    single upstream status, and no FX consumer classifies via
+    ``is_rate_limit_error`` (FX errors never enter the provider-chain /
+    quote-batch paths), so a typed error here would have no consumer.
+    """
     t = yf.Ticker(ticker)
     try:
         price = t.fast_info.last_price

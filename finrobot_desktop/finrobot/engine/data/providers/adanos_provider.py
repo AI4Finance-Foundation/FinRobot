@@ -16,7 +16,12 @@ from typing import Any, Literal
 
 import httpx
 
-from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
+from finrobot.engine.data.interface import (
+    DataProvider,
+    DataResult,
+    ProviderError,
+    RateLimitedProviderError,
+)
 from finrobot.engine.data.types import DataType
 
 logger = logging.getLogger(__name__)
@@ -136,6 +141,15 @@ class AdanosProvider(DataProvider):
         except httpx.TimeoutException as e:
             raise ProviderError(f"Adanos timeout for {spec['label']}: {e}") from e
         except httpx.HTTPStatusError as e:
+            # ONLY 429 carries throttling semantics; other 4xx/5xx stay generic.
+            # _fetch_all currently folds per-platform failures into warnings,
+            # but the wrap point types the error anyway so any future caller
+            # that propagates it (or reads the warning text) classifies the
+            # 429 structurally instead of by message wording.
+            if e.response.status_code == 429:
+                raise RateLimitedProviderError(
+                    f"Adanos rate limited (HTTP 429) for {spec['label']}: {e}"
+                ) from e
             raise ProviderError(f"Adanos API error for {spec['label']}: {e}") from e
 
         payload = resp.json()

@@ -95,21 +95,37 @@ class ProviderError(Exception):
 class RateLimitedProviderError(ProviderError):
     """A ProviderError that carries rate-limit semantics BY CONSTRUCTION.
 
-    Raised where the data layer itself knows the failure is throttling-shaped
-    and there is no wrapped upstream message to sniff — e.g. every capable
-    provider sits in an open circuit-breaker cooldown, so no provider was even
-    attempted. ``is_rate_limit_error`` recognises the type directly (no marker
-    matching), so callers preserve stale values (QuoteCache cooldown) instead
-    of tomb-stoning the ticker as delisted.
+    The PRIMARY rate-limit signal across the data layer. Raised in two places:
+
+    1. Provider HTTP wrap points, whenever the upstream failure is structurally
+       known to be throttling — an httpx 429 status (FMP / Finnhub / Adanos /
+       SEC companyfacts / Alpha Vantage) or yfinance's typed
+       ``YFRateLimitError``. ONLY 429 maps here: provider 4xx semantics differ
+       (FMP 401 = invalid key, 403 = plan/legacy restriction — neither is
+       throttling), so a blanket 4xx mapping would mis-classify auth/plan
+       failures as transient.
+    2. The data layer itself, where the failure is throttling-shaped and there
+       is no wrapped upstream message to sniff — e.g. every capable provider
+       sits in an open circuit-breaker cooldown, so no provider was even
+       attempted.
+
+    ``is_rate_limit_error`` recognises the type directly (no marker matching),
+    so callers preserve stale values (QuoteCache cooldown) instead of
+    tomb-stoning the ticker as delisted.
     """
 
 
 # Substrings that mark a provider failure as upstream rate-limiting (HTTP 429)
-# rather than a bad ticker. Providers wrap the upstream error into ProviderError,
-# so message-sniffing is the reliable cross-provider signal. Union of every
-# variant the data layer has seen ("throttl" from yfinance, "rate-limit"/"rate
-# limit" from FMP/Finnhub, the bare "429" status) so the quote-batch fetcher and
-# the ProviderHealth circuit-breaker classify the same 429 text identically.
+# rather than a bad ticker. FALLBACK ONLY: wrap points that see a structural 429
+# (status code / typed library exception) raise RateLimitedProviderError, which
+# is recognised by type before any marker is consulted. Message-sniffing remains
+# for failure shapes no wrap point can type — Alpha Vantage's HTTP-200 body
+# notes ("rate limit is 25 requests per day"), aggregate multi-source failure
+# strings, and any legacy path still wrapping into a plain ProviderError. Union
+# of every variant the data layer has seen ("throttl" from yfinance,
+# "rate-limit"/"rate limit" from FMP/Finnhub, the bare "429" status) so the
+# quote-batch fetcher and the ProviderHealth circuit-breaker classify the same
+# 429 text identically.
 _RATE_LIMIT_MARKERS: tuple[str, ...] = (
     "429",
     "too many requests",
@@ -125,10 +141,12 @@ def is_rate_limit_error(exc: BaseException) -> bool:
     Shared across the data layer: the quote-batch fetcher maps it to
     ``QuoteFetchRateLimited`` (preserve stale, open cooldown), and the
     ``ProviderHealth`` circuit-breaker uses the same classifier to decide when
-    to trip a provider. Message-based so it works on a wrapped ``ProviderError``
-    regardless of the originating provider/library; a typed
-    ``RateLimitedProviderError`` is recognised structurally, independent of its
-    message wording.
+    to trip a provider. A typed ``RateLimitedProviderError`` is the PRIMARY
+    path — recognised structurally, independent of message wording, so an
+    upstream rewording can't break classification. The marker scan is the
+    fallback for failures no wrap point could type (HTTP-200 body notes,
+    aggregate failure strings, third-party libraries without a typed
+    rate-limit exception).
     """
     if isinstance(exc, RateLimitedProviderError):
         return True

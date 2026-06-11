@@ -5,7 +5,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.interface import (
+    DataResult,
+    ProviderError,
+    RateLimitedProviderError,
+    is_rate_limit_error,
+)
 from finrobot.engine.data.providers.fmp_provider import FMPProvider
 
 
@@ -549,6 +554,47 @@ class TestFMPFetch:
         assert "apikey" not in msg.lower()
         assert "403" in msg
         assert "AAPL" in msg
+
+    @pytest.mark.asyncio
+    async def test_http_429_raises_typed_rate_limited_error(self, provider):
+        """An upstream FMP 429 must surface as the TYPED RateLimitedProviderError
+        (primary classification path), not a generic ProviderError whose message
+        happens to contain "429" (substring matching is fallback only)."""
+        request = httpx.Request("GET", "https://financialmodelingprep.com/stable/quote")
+        response = httpx.Response(429, request=request)
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(
+                side_effect=httpx.HTTPStatusError(
+                    "429 Too Many Requests", request=request, response=response
+                )
+            ),
+        ):
+            with pytest.raises(RateLimitedProviderError) as exc_info:
+                await provider.fetch("AAPL", "financials")
+        assert is_rate_limit_error(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_http_403_is_not_rate_limited(self, provider):
+        """FMP 403 = plan/legacy restriction (强制清单 T2#1), NOT throttling: it
+        must never carry rate-limit semantics, or callers would preserve stale
+        forever waiting for a cooldown that can't fix a plan gap."""
+        request = httpx.Request("GET", "https://financialmodelingprep.com/stable/quote")
+        response = httpx.Response(403, request=request)
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(
+                side_effect=httpx.HTTPStatusError(
+                    "403 Forbidden", request=request, response=response
+                )
+            ),
+        ):
+            with pytest.raises(ProviderError) as exc_info:
+                await provider.fetch("AAPL", "financials")
+        assert not isinstance(exc_info.value, RateLimitedProviderError)
+        assert not is_rate_limit_error(exc_info.value)
 
 
 def _fmp_multi_year_income(ticker="AAPL", years=3):

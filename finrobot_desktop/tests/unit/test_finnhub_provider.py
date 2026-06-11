@@ -5,7 +5,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from finrobot.engine.data.interface import DataResult, ProviderError
+from finrobot.engine.data.interface import (
+    DataResult,
+    ProviderError,
+    RateLimitedProviderError,
+    is_rate_limit_error,
+)
 from finrobot.engine.data.providers.finnhub_provider import FinnhubProvider
 
 
@@ -327,6 +332,26 @@ class TestFinnhubNetworkErrors:
         ):
             with pytest.raises(ProviderError, match="network error"):
                 await provider.fetch("AAPL", "price")
+
+    @pytest.mark.asyncio
+    async def test_http_429_raises_typed_rate_limited_error(self, provider):
+        """A Finnhub 429 (60 req/min free tier) must surface as the TYPED
+        RateLimitedProviderError so classification survives any upstream
+        rewording; substring matching is fallback only."""
+        request = httpx.Request("GET", "https://finnhub.io/api/v1/quote")
+        response = httpx.Response(429, request=request)
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(
+                side_effect=httpx.HTTPStatusError(
+                    "429 Too Many Requests", request=request, response=response
+                )
+            ),
+        ):
+            with pytest.raises(RateLimitedProviderError) as exc_info:
+                await provider.fetch("AAPL", "price")
+        assert is_rate_limit_error(exc_info.value)
 
 
 class TestFinnhubRateLimiter:

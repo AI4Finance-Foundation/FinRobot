@@ -7,9 +7,14 @@ from typing import Any, cast
 
 import pandas as pd
 import yfinance as yf
-from yfinance.exceptions import YFException
+from yfinance.exceptions import YFException, YFRateLimitError
 
-from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
+from finrobot.engine.data.interface import (
+    DataProvider,
+    DataResult,
+    ProviderError,
+    RateLimitedProviderError,
+)
 from finrobot.engine.data.types import DataType
 
 logger = logging.getLogger(__name__)
@@ -274,6 +279,11 @@ class YFinanceProvider(DataProvider):
                 raise ProviderError(f"Ticker '{ticker}' not found or returned no data")
         except ProviderError:
             raise
+        # Yahoo 429 arrives as the TYPED YFRateLimitError (yfinance ≥0.2.x);
+        # map it to RateLimitedProviderError BEFORE the generic YFException arm
+        # so callers classify it structurally (message wording is the fallback).
+        except YFRateLimitError as e:
+            raise RateLimitedProviderError(f"Failed to fetch ticker '{ticker}': {e}") from e
         except (
             ValueError,
             KeyError,
@@ -313,9 +323,10 @@ class YFinanceProvider(DataProvider):
     async def _fetch_quote(self, ticker: str) -> DataResult:
         """Lightweight current price via ``fast_info`` — no ``.info`` round-trip.
 
-        Raises ProviderError on any failure (including Yahoo 429, which arrives
-        as a YFException subclass and is wrapped here); the message carries the
-        rate-limit signal so callers can classify it via ``is_rate_limit_error``.
+        Raises ProviderError on any failure. A Yahoo 429 arrives as the typed
+        ``YFRateLimitError`` and is mapped to ``RateLimitedProviderError`` so
+        ``is_rate_limit_error`` classifies it structurally; the message text is
+        only the legacy fallback.
         """
 
         def _blocking() -> float | None:
@@ -328,6 +339,8 @@ class YFinanceProvider(DataProvider):
 
         try:
             price = await asyncio.to_thread(_blocking)
+        except YFRateLimitError as e:
+            raise RateLimitedProviderError(f"Failed to fetch quote for '{ticker}': {e}") from e
         except (
             ValueError,
             KeyError,
@@ -484,6 +497,8 @@ class YFinanceProvider(DataProvider):
                         "volume": row["Volume"],
                     }
                 )
+        except YFRateLimitError as e:
+            raise RateLimitedProviderError(f"Failed to fetch price for '{ticker}': {e}") from e
         except (
             ValueError,
             KeyError,
@@ -561,6 +576,10 @@ class YFinanceProvider(DataProvider):
                 )
         except ProviderError:
             raise
+        except YFRateLimitError as e:
+            raise RateLimitedProviderError(
+                f"Failed to fetch price range for '{ticker}': {e}"
+            ) from e
         except (
             ValueError,
             KeyError,
@@ -612,6 +631,8 @@ class YFinanceProvider(DataProvider):
                         "url": (content.get("canonicalUrl", {}).get("url") or item.get("link", "")),
                     }
                 )
+        except YFRateLimitError as e:
+            raise RateLimitedProviderError(f"Failed to fetch news for '{ticker}': {e}") from e
         except (
             ValueError,
             KeyError,

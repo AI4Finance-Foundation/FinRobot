@@ -11,7 +11,12 @@ import httpx
 
 from finrobot.engine.primitives.ebitda import calculate_ebitda_operating
 from finrobot.engine.primitives.industry import bank_net_revenue, is_bank
-from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
+from finrobot.engine.data.interface import (
+    DataProvider,
+    DataResult,
+    ProviderError,
+    RateLimitedProviderError,
+)
 from finrobot.engine.data.types import DataType
 
 _BASE_URL = "https://financialmodelingprep.com/api/v3"
@@ -1062,6 +1067,13 @@ class FMPProvider(DataProvider):
         except httpx.TimeoutException as e:
             raise ProviderError(f"FMP timeout during {op} for '{ticker}'") from e
         except httpx.HTTPStatusError as e:
+            # FMP status semantics (live-verified, 强制清单 T2#1): 401 = invalid
+            # key, 403 = plan/legacy restriction, 429 = bandwidth/rate limit.
+            # ONLY 429 maps to the typed RateLimitedProviderError — a blanket
+            # 4xx mapping would mis-classify auth/plan failures as transient
+            # throttling and make callers preserve stale forever.
+            if e.response.status_code == 429:
+                raise RateLimitedProviderError(f"FMP HTTP 429 during {op} for '{ticker}'") from e
             raise ProviderError(
                 f"FMP HTTP {e.response.status_code} during {op} for '{ticker}'"
             ) from e

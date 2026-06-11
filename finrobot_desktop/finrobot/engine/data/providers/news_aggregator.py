@@ -34,7 +34,12 @@ from typing import Any
 
 import httpx
 
-from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
+from finrobot.engine.data.interface import (
+    DataProvider,
+    DataResult,
+    ProviderError,
+    RateLimitedProviderError,
+)
 from finrobot.engine.primitives.sentiment import score_headline
 from finrobot.engine.data.providers.yfinance_provider import YFinanceProvider
 from finrobot.engine.data.types import DataType
@@ -180,6 +185,10 @@ class NewsAggregatorProvider(DataProvider):
         except httpx.TimeoutException as e:
             raise ProviderError(f"Alpha Vantage timeout for '{ticker}'") from e
         except httpx.HTTPStatusError as e:
+            # ONLY a structural 429 maps to the typed RateLimitedProviderError;
+            # other statuses stay generic (the sanitized message keeps the code).
+            if e.response.status_code == 429:
+                raise RateLimitedProviderError(f"Alpha Vantage HTTP 429 for '{ticker}'") from e
             raise ProviderError(
                 f"Alpha Vantage HTTP {e.response.status_code} for '{ticker}'"
             ) from e
@@ -187,7 +196,12 @@ class NewsAggregatorProvider(DataProvider):
         data = resp.json()
         if "feed" not in data:
             # Alpha Vantage returns {"Note": "..."} or {"Information": "..."} on
-            # rate-limit / invalid key, not an HTTP error status.
+            # rate-limit / invalid key, not an HTTP error status. Neither key is
+            # a reliable rate-limit discriminator (newer AV puts the daily-limit
+            # notice under "Information" too), so this stays a plain
+            # ProviderError — the note text ("rate limit is 25 requests per
+            # day") is exactly what the is_rate_limit_error substring fallback
+            # exists to catch.
             note = data.get("Note") or data.get("Information") or "No feed in response"
             raise ProviderError(f"Alpha Vantage: {note}")
 

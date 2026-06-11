@@ -92,6 +92,31 @@ def build_thesis_prompt(
     market_implied_line = ""
     if isinstance(dcf_ctx, DCFResult) and dcf_ctx.market_implied is not None:
         mi = dcf_ctx.market_implied
+        # Commodity-cyclical (memory/storage/...) reframes the unreachable-price
+        # narrative: the gap is NOT "the market needs a margin above the historical
+        # peak" — a single super-cycle quarter (MU FQ2026Q2: 67.6% GAAP operating
+        # margin) has already exceeded the implied steady-state, so "above peak =
+        # impossible" gets reversed by the latest 10-Q. The honest, unfalsifiable
+        # framing: the price requires that peak margin held as a PERPETUAL steady
+        # state, while the through-cycle ANNUAL record (the峰/谷/中位 band already in
+        # the ebitda_margin provenance below) never sustained it. The seed's cyclical
+        # normalization is what makes this name option-value rather than mispriced.
+        prov = dcf_ctx.inputs.assumption_provenance
+        is_cyclical = "cyclical_normalization" in prov
+        cyclical_clause = ""
+        if is_cyclical:
+            cycle_band = prov.get("ebitda_margin", "")
+            cyclical_clause = (
+                " This is a COMMODITY-CYCLICAL: frame the gap as the market pricing the "
+                "super-cycle PEAK earnings power as a PERPETUAL steady state, NOT as an "
+                "impossible margin. Cite the through-cycle 峰/谷/中位 band from the "
+                f"ebitda_margin provenance ({cycle_band}) as the ANNUAL record, and say "
+                "explicitly that the price requires the cyclical PEAK to hold forever while "
+                "the industry has never sustained that on a full-year basis — even though a "
+                "single super-cycle quarter can exceed it (so do NOT claim the implied "
+                "margin is 'above the historical peak / impossible' — that is reversible by "
+                "the latest quarter; the un-attackable point is permanence, not the level)."
+            )
         if mi.growth_unreachable and mi.ceiling_price is not None:
             market_implied_line = (
                 f"\nAUTHORITATIVE MARKET-IMPLIED GROWTH (computed, cite verbatim, do "
@@ -100,7 +125,7 @@ def build_thesis_prompt(
                 f"implies only ${mi.ceiling_price:.2f}. The market is pricing in growth/"
                 f"optionality no cash-flow model can capture (a story/option-value "
                 f"stock). Use this to explain, concretely, WHY a fundamentals target "
-                f"is not meaningful here."
+                f"is not meaningful here.{cyclical_clause}"
             )
         elif mi.implied_growth is not None:
             market_implied_line = (

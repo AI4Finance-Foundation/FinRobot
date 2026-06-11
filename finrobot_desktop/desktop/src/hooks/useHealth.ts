@@ -19,7 +19,7 @@ import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
 import { fetchWithTimeout } from '../api/fetch'
 
-export type HealthLevel = 'connected' | 'degraded' | 'offline'
+export type HealthLevel = 'starting' | 'connected' | 'degraded' | 'offline'
 
 export interface HealthState {
   level: HealthLevel
@@ -50,30 +50,50 @@ interface SettingsHealthShape {
   model_configured: boolean
 }
 
-const OFFLINE: HealthState = {
-  level: 'offline',
-  backendReachable: false,
-  quotesWarmed: false,
-  availableProviders: [],
-  startupError: null,
-  // Optimistic default: never show onboarding/preflight nags until the backend
-  // actually says the model is unconfigured.
-  modelConfigured: true,
+// WebView module-load time ≈ app launch. The Python sidecar needs a few
+// seconds after that before :8321 answers (one-dir PyInstaller boot; the very
+// first launch after install can add a one-time Gatekeeper scan).
+const BOOT_TIME = Date.now()
+
+// How long an unreachable backend counts as "still starting" instead of dead.
+// lib.rs exits the whole app if the sidecar misses its 90 s readiness window,
+// so anything still unreachable past this is a genuinely broken backend (or a
+// browser-dev session with no `dev.sh` server).
+const STARTUP_GRACE_MS = 120_000
+
+// Latch: once the backend has answered ONCE this session, a later failed probe
+// means the backend died (offline), never "starting".
+let backendSeenOnce = false
+
+function unreachableState(): HealthState {
+  const starting = !backendSeenOnce && Date.now() - BOOT_TIME < STARTUP_GRACE_MS
+  return {
+    level: starting ? 'starting' : 'offline',
+    backendReachable: false,
+    quotesWarmed: false,
+    availableProviders: [],
+    startupError: null,
+    // Optimistic default: never show onboarding/preflight nags until the
+    // backend actually says the model is unconfigured.
+    modelConfigured: true,
+  }
 }
 
 export function useHealth() {
   return useQuery<HealthState>({
     queryKey: ['health'],
     queryFn: async ({ signal }): Promise<HealthState> => {
-      // 1) Reachability + warmup. If this throws/!ok the backend is offline.
+      // 1) Reachability + warmup. If this throws/!ok the backend is offline
+      //    (or, before the first successful contact, still starting).
       let warmed: QuotesWarmedShape
       try {
         const r = await fetchWithTimeout(`${BASE_URL}/api/health/quotes-warmed`, { signal })
-        if (!r.ok) return OFFLINE
+        if (!r.ok) return unreachableState()
         warmed = (await r.json()) as QuotesWarmedShape
       } catch {
-        return OFFLINE
+        return unreachableState()
       }
+      backendSeenOnce = true
 
       // 2) Honest provider/config snapshot. Backend is already reachable, so a
       //    failure here is a soft-miss — keep the connection green but report
@@ -108,10 +128,12 @@ export function useHealth() {
         modelConfigured,
       }
     },
-    // Eagerly retry from a cold/offline state, then settle into a calm poll.
+    // Poll fast while the backend hasn't answered yet (sidecar booting — the
+    // BootGate splash clears the moment this flips), then settle into a calm
+    // 15 s heartbeat.
     staleTime: 15_000,
-    refetchInterval: 15_000,
+    refetchInterval: (query) => (query.state.data?.backendReachable ? 15_000 : 1_500),
     retry: false,
-    placeholderData: OFFLINE,
+    placeholderData: unreachableState,
   })
 }

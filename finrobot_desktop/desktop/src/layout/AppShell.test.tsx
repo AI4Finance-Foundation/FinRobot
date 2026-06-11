@@ -12,6 +12,23 @@ vi.mock('../lib/tauri', () => ({
   DEFAULT_WORKSPACE_PATH: '~/finrobot',
 }))
 
+// Controllable health so the boot gate can be exercised; defaults to a live
+// backend (the pre-gate behavior every structural test below assumes).
+let mockHealthLevel: 'starting' | 'connected' | 'degraded' | 'offline' = 'connected'
+vi.mock('../hooks/useHealth', () => ({
+  useHealth: () => ({
+    data: {
+      level: mockHealthLevel,
+      backendReachable: mockHealthLevel === 'connected' || mockHealthLevel === 'degraded',
+      quotesWarmed: true,
+      availableProviders: ['fmp'],
+      startupError: null,
+      modelConfigured: true,
+    },
+    isPlaceholderData: false,
+  }),
+}))
+
 function renderWithProviders(initialPath = '/') {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -26,6 +43,32 @@ function renderWithProviders(initialPath = '/') {
     </QueryClientProvider>,
   )
 }
+
+describe('AppShell — sidecar boot gate', () => {
+  afterEach(() => {
+    mockHealthLevel = 'connected'
+  })
+
+  it('renders the BootSplash instead of the routed page while starting', () => {
+    mockHealthLevel = 'starting'
+    renderWithProviders()
+    expect(screen.getByTestId('boot-splash')).toBeInTheDocument()
+    // The shell chrome stays mounted — only the content area is gated.
+    expect(screen.getByTestId('titlebar')).toBeInTheDocument()
+  })
+
+  it('drops the gate once the backend has answered', () => {
+    mockHealthLevel = 'connected'
+    renderWithProviders()
+    expect(screen.queryByTestId('boot-splash')).not.toBeInTheDocument()
+  })
+
+  it('does NOT gate on a dead backend (offline ≠ starting)', () => {
+    mockHealthLevel = 'offline'
+    renderWithProviders()
+    expect(screen.queryByTestId('boot-splash')).not.toBeInTheDocument()
+  })
+})
 
 describe('AppShell — simplified shell structure', () => {
   it('renders core shell regions', () => {

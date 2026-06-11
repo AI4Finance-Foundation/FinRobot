@@ -11,6 +11,8 @@ import { ErrorBoundary } from '../components/ErrorBoundary'
 import ToastContainer from '../components/Toast'
 import { MandatoryUpdateGate } from '../components/MandatoryUpdateGate'
 import { AiOnboardingGate } from '../components/AiOnboardingGate'
+import { BootSplash } from '../components/BootSplash'
+import { useHealth } from '../hooks/useHealth'
 import { useUiStore } from '../stores/uiStore'
 import { useUpdaterStore } from '../stores/updaterStore'
 import { pickDirectory, isTauri, DEFAULT_WORKSPACE_PATH } from '../lib/tauri'
@@ -22,6 +24,13 @@ export function AppShell(): React.ReactElement {
   const workspacePath = useUiStore((s) => s.workspacePath)
   const setWorkspacePath = useUiStore((s) => s.setWorkspacePath)
   const location = useLocation()
+
+  // Sidecar boot gate: while the backend has never answered this session (and
+  // the startup grace window is still open), render the BootSplash INSTEAD of
+  // the routed page — pages then mount fresh against a live backend instead of
+  // erroring against a booting one. See useHealth for the 'starting' contract.
+  const { data: health } = useHealth()
+  const booting = health?.level === 'starting'
 
   // The Research homepage is the luminous cockpit: paint the cockpit glow at
   // the SHELL level (behind the title bar too, so it frosts into it rather
@@ -89,11 +98,15 @@ export function AppShell(): React.ReactElement {
       <TitleBar />
       <div className="app-body">
         <main id="main-scroll" className="main-content">
-          <ErrorBoundary>
-            <Outlet />
-          </ErrorBoundary>
+          {booting ? (
+            <BootSplash />
+          ) : (
+            <ErrorBoundary>
+              <Outlet />
+            </ErrorBoundary>
+          )}
         </main>
-        {AI_CHAT_ENABLED ? <RightChatPanel /> : null}
+        {AI_CHAT_ENABLED && !booting ? <RightChatPanel /> : null}
       </div>
       {/* v5: toast portal — mounted at shell level so every page / section
           can pop toasts (pipeline launch / completion / errors). */}

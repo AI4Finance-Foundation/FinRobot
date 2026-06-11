@@ -31,7 +31,7 @@ jobs:
         run: uv run ruff check finrobot/
 
       - name: Format check
-        run: uv run ruff format --check finrobot/
+        run: uv tool run pre-commit run ruff-format --all-files
 
       - name: Type check
         run: uv run mypy finrobot/ --strict

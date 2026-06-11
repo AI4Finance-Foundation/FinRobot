@@ -10,7 +10,8 @@ pastes "no findings" and the red-line scan is dead. This script makes that rot
 loud.
 
 Checks:
-  1. No harness file references the non-existent `finagent/` package
+  1. No harness or active knowledge file references legacy live-code roots
+     such as `finagent/` or `ui/src/`
      (the real package is `finrobot/`).
   2. Every fully-qualified path token (finrobot/ specs/ docs/ project-memory/
      tests/ desktop/ scripts/) referenced in the harness actually exists on disk.
@@ -38,6 +39,18 @@ HARNESS_FILES = [
     ROOT / "CLAUDE.md",
     ROOT / "AGENTS.md",
 ]
+
+KNOWLEDGE_ROOTS = ("project-memory", "docs", "specs")
+KNOWLEDGE_EXCLUDE_PARTS = {
+    "project-memory/飞轮/快照",
+    "project-memory/飞轮/变更日志.md",
+    "project-memory/飞轮/复发台账.md",
+    "specs/research/归档",
+}
+LEGACY_LIVE_ROOTS = {
+    "finagent/": "finrobot/",
+    "ui/src/": "desktop/src/",
+}
 
 # Roots whose fully-qualified references we verify exist on disk.
 PATH_ROOTS = (
@@ -81,20 +94,45 @@ def candidate_paths(token: str) -> list[str]:
     return [token] if token else []
 
 
+def active_knowledge_files() -> list[Path]:
+    files: list[Path] = []
+    for root in KNOWLEDGE_ROOTS:
+        base = ROOT / root
+        if not base.exists():
+            continue
+        for path in sorted(p for p in base.rglob("*") if p.is_file()):
+            rel = path.relative_to(ROOT).as_posix()
+            if any(rel == part or rel.startswith(f"{part}/") for part in KNOWLEDGE_EXCLUDE_PARTS):
+                continue
+            files.append(path)
+    return files
+
+
+def check_legacy_live_roots(files: list[Path], violations: list[str]) -> None:
+    for f in files:
+        if not f.exists():
+            continue
+        text = f.read_text(encoding="utf-8")
+        rel = f.relative_to(ROOT)
+        for ln, line in enumerate(text.splitlines(), 1):
+            for legacy, current in LEGACY_LIVE_ROOTS.items():
+                if legacy in line:
+                    violations.append(
+                        f"{rel}:{ln}: references legacy `{legacy}` live-code root; use `{current}`"
+                    )
+
+
 def main() -> int:
     violations: list[str] = []
+    knowledge_files = active_knowledge_files()
+
+    check_legacy_live_roots([*HARNESS_FILES, *knowledge_files], violations)
 
     for f in HARNESS_FILES:
         if not f.exists():
             continue
         text = f.read_text(encoding="utf-8")
         rel = f.relative_to(ROOT)
-
-        for ln, line in enumerate(text.splitlines(), 1):
-            if "finagent/" in line:
-                violations.append(
-                    f"{rel}:{ln}: references non-existent `finagent/` (package is `finrobot/`)"
-                )
 
         seen: set[str] = set()
         for raw in TOKEN_RE.findall(text):
@@ -136,7 +174,9 @@ def main() -> int:
             "harness drift check: no local harness files present (gitignored / fresh checkout) — nothing to validate"
         )
         return 0
-    print(f"harness drift check: OK ({present} files, all referenced paths exist)")
+    print(
+        f"harness drift check: OK ({present} harness files, {len(knowledge_files)} active knowledge files)"
+    )
     return 0
 
 

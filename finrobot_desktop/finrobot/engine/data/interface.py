@@ -39,6 +39,16 @@ class DataResult(BaseModel):
     # close read as a live intraday quote with no warning). Stays False on every
     # genuine provider fetch — only the two stale-fallback returns set it.
     from_stale_cache: bool = False
+    # True when the PRICE result's ``price_history`` bars were grafted from the
+    # last cached row because the live provider served a quote WITHOUT history
+    # (Finnhub free tier: /quote works, /stock/candle is premium-403). The
+    # current_price stays live — only the bars are stale, so ``from_stale_cache``
+    # (which means the WHOLE row is a cache fallback) would over-claim. The
+    # canonical关卡 treats it like from_stale_cache for caching (refuses to
+    # re-cache, keeping the prior bar-carrying row honestly stale so the next
+    # read retries the recovered chain) and stamps a price_history_stale
+    # degraded marker on the provenance.
+    stale_history: bool = False
 
     def to_context_string(self) -> str:
         """Format data for LLM consumption. Human-readable, includes warnings."""

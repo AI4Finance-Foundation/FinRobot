@@ -62,6 +62,12 @@ DEGRADED_PRICE_FALLBACK_CLOSE = "price_fallback_close"
 # the session, not the minute. Distinct from a missing PRICE: the number is real,
 # only its observation time is approximate.
 DEGRADED_QUOTE_TS_MISSING = "quote_ts_missing"
+# The live provider served a quote WITHOUT history bars (Finnhub free tier:
+# /quote works, /stock/candle is premium-403) and the layer grafted the bars
+# from the last cached PRICE row instead of letting the chart go blank.
+# current_price is live; bars / 52w range / session change are as-of the stale
+# row. Stale-but-complete beats fresh-but-empty, but it must be FLAGGED.
+DEGRADED_PRICE_HISTORY_STALE = "price_history_stale"
 # Two live quote sources disagreed beyond tolerance on the current price. The
 # primary value still flows as a flagged number; downstream publish gates can
 # inspect the field-suffixed marker instead of parsing warning prose.

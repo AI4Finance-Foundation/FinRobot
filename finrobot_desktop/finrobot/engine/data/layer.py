@@ -28,6 +28,7 @@ from finrobot.engine.data.normalize.currency import normalize_canonical_financia
 from finrobot.engine.data.normalize.contracts import (
     DEGRADED_FX_NORMALIZED,
     DEGRADED_FX_UNAVAILABLE,
+    DEGRADED_PRICE_HISTORY_STALE,
     degraded_circuit_open,
     degraded_price_divergence,
     degraded_provider_divergence,
@@ -477,6 +478,12 @@ class DataLayer:
             marker = degraded_price_divergence(field)
             if marker not in normalized.provenance.degraded:
                 normalized.provenance.degraded.append(marker)
+        # PRICE bars grafted from the stale cached row (provider was quote-only) —
+        # a property of the DATA (the bars genuinely lag), unlike the ephemeral
+        # circuit markers below. The row is never cached (see tail), so stamping
+        # here can't freeze it into a long-TTL slot.
+        if raw.stale_history and DEGRADED_PRICE_HISTORY_STALE not in normalized.provenance.degraded:
+            normalized.provenance.degraded.append(DEGRADED_PRICE_HISTORY_STALE)
         # NOTE: degraded_circuit_open markers are deliberately NOT stamped here —
         # they are appended AFTER the cache write (see tail) because the breaker
         # state is ephemeral and must not be frozen into the cached snapshot.
@@ -495,7 +502,10 @@ class DataLayer:
         # price into a "fresh"-reading quote (the 2026-06-08 in-market bug). Leaving
         # the prior canonical row untouched keeps it honestly is_stale=True, so the
         # next read retries the (hopefully recovered) provider chain.
-        if not raw.from_stale_cache:
+        # stale_history (bars grafted from the stale row, quote live) is refused
+        # for the same reason: re-caching would reset the freshness clock on bars
+        # that genuinely lag, and would freeze the degraded marker past recovery.
+        if not raw.from_stale_cache and not raw.stale_history:
             await self._cache.set_canonical(data_type, ticker, normalized.model_dump_json())
         # Circuit-open is an EPHEMERAL infra observation about THIS fetch (the
         # breaker recovers in seconds), not a property of the data — stamp it onto
@@ -920,11 +930,48 @@ class DataLayer:
                         ],
                     }
                 )
-            # Cache the PRICE row CLEAN of circuit_open_providers (ephemeral
-            # breaker state, not a property of the data — see fetch()); stamp it
-            # onto the returned copy only, so a recovered provider isn't read as
-            # degraded from a still-fresh cached quote.
-            await self._cache.set(DataType.PRICE, ticker, result)
+            # Quote-only守卫: a provider can legitimately serve a live quote with
+            # ZERO history bars (Finnhub free tier: /quote works, /stock/candle is
+            # premium-403 → degrades to quote-only by design). Letting that row
+            # overwrite a bar-carrying cached row destroys the chart/52w range for
+            # every consumer until the better providers recover (2026-06-11: FMP
+            # daily bandwidth exhausted + yfinance burst-429 → finnhub quote-only
+            # displaced the 1y history). Stale-but-complete beats fresh-but-empty:
+            # graft the cached bars onto the live quote, FLAG it (warning +
+            # stale_history → canonical stamps price_history_stale), and skip the
+            # cache write so the prior row stays honestly stale and the next read
+            # retries the (hopefully recovered) chain.
+            fresh_data = result.data if isinstance(result.data, dict) else {}
+            fresh_history = fresh_data.get("price_history") or []
+            prior_data = (
+                cached.data.data
+                if cached is not None and isinstance(cached.data.data, dict)
+                else {}
+            )
+            prior_history = prior_data.get("price_history") or []
+            if not fresh_history and prior_history and cached is not None:
+                age_hours = (
+                    datetime.now(tz=timezone.utc) - cached.cached_at
+                ).total_seconds() / 3600
+                graft_warning = (
+                    f"'{provider.name}' served a live quote without price history; "
+                    f"chart/52w range use cached history from {age_hours:.0f}h ago "
+                    f"({ticker} / PRICE). Retry later for fresh history."
+                )
+                logger.warning(graft_warning)
+                result = result.model_copy(
+                    update={
+                        "data": {**fresh_data, "price_history": prior_history},
+                        "warnings": [*result.warnings, graft_warning],
+                        "stale_history": True,
+                    }
+                )
+            else:
+                # Cache the PRICE row CLEAN of circuit_open_providers (ephemeral
+                # breaker state, not a property of the data — see fetch()); stamp it
+                # onto the returned copy only, so a recovered provider isn't read as
+                # degraded from a still-fresh cached quote.
+                await self._cache.set(DataType.PRICE, ticker, result)
             if circuit_open:
                 result = result.model_copy(update={"circuit_open_providers": circuit_open})
             return result

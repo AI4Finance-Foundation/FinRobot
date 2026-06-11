@@ -1196,6 +1196,119 @@ class TestFetchPriceRaises:
             await layer.fetch_price("AAPL")
 
 
+class TestQuoteOnlyHistoryGraft:
+    """Quote-only守卫 (2026-06-11): a provider can legitimately serve a live
+    quote with ZERO history bars (Finnhub free tier: /quote works,
+    /stock/candle is premium-403). That result must not blank the chart nor
+    overwrite the bar-carrying cached row — stale-but-complete beats
+    fresh-but-empty, flagged. Production trigger: FMP daily bandwidth
+    exhausted + yfinance burst-429 → finnhub quote-only displaced the 1y
+    history for every ticker."""
+
+    @staticmethod
+    def _quote_only_result(provider: str = "finnhub") -> DataResult:
+        return DataResult(
+            data={"current_price": 291.58, "price_history": [], "exchange": "NASDAQ"},
+            provider=provider,
+            ticker="AAPL",
+            data_type="price",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+    @staticmethod
+    async def _backdate_raw_price(tmp_path, hours: float = 1.0) -> None:
+        import aiosqlite
+        from datetime import timedelta
+
+        old_time = (datetime.now(tz=timezone.utc) - timedelta(hours=hours)).isoformat()
+        async with aiosqlite.connect(str(tmp_path / "layer_test.db")) as conn:
+            await conn.execute(
+                "UPDATE cache SET cached_at = ? WHERE data_type = ? AND ticker = ?",
+                (old_time, raw_slot_key("price"), "AAPL"),
+            )
+            await conn.commit()
+
+    async def test_graft_carries_cached_bars_live_quote_and_warning(self, cache, tmp_path):
+        seed = MockProvider("fmp", ["price"], result=_price_result(provider="fmp"))
+        await DataLayer([seed], cache).fetch_price("AAPL")
+        await self._backdate_raw_price(tmp_path)
+
+        quote_only = MockProvider("finnhub", ["price"], result=self._quote_only_result())
+        result = await DataLayer([quote_only], cache).fetch_price("AAPL")
+
+        assert result.provider == "finnhub"
+        assert result.data["current_price"] == 291.58  # live quote kept
+        assert len(result.data["price_history"]) == 2  # bars grafted from cache
+        assert result.stale_history is True
+        assert result.from_stale_cache is False  # quote is live — only bars lag
+        graft = next(w for w in result.warnings if "without price history" in w)
+        assert "cached history" in graft
+
+    async def test_graft_does_not_overwrite_cached_bar_row(self, cache, tmp_path):
+        seed = MockProvider("fmp", ["price"], result=_price_result(provider="fmp"))
+        await DataLayer([seed], cache).fetch_price("AAPL")
+        await self._backdate_raw_price(tmp_path)
+
+        quote_only = MockProvider("finnhub", ["price"], result=self._quote_only_result())
+        layer = DataLayer([quote_only], cache)
+        await layer.fetch_price("AAPL")
+
+        # The bar-carrying row must survive, honestly stale — so this next read
+        # walks the (hopefully recovered) chain again instead of serving a
+        # fresh-looking quote-only row for the whole TTL.
+        await layer.fetch_price("AAPL")
+        assert quote_only.fetch_called == 2
+        row = await cache.get(DataType.PRICE, "AAPL")
+        assert row is not None
+        assert len(row.data.data["price_history"]) == 2
+        assert row.data.provider == "fmp"
+
+    async def test_quote_only_with_no_prior_bars_caches_as_before(self, cache):
+        quote_only = MockProvider("finnhub", ["price"], result=self._quote_only_result())
+        layer = DataLayer([quote_only], cache)
+        result = await layer.fetch_price("AAPL")
+
+        assert result.stale_history is False
+        assert result.data["price_history"] == []
+        # Cached normally: second call is a fresh-cache hit, no provider call.
+        await layer.fetch_price("AAPL")
+        assert quote_only.fetch_called == 1
+
+    async def test_canonical_graft_stamps_degraded_marker_and_skips_recache(self, cache, tmp_path):
+        import aiosqlite
+        from datetime import timedelta
+
+        from finrobot.engine.data.cache import canonical_key
+        from finrobot.engine.data.normalize.contracts import DEGRADED_PRICE_HISTORY_STALE
+
+        seed = MockProvider("fmp", ["price"], result=_price_result(provider="fmp"))
+        await DataLayer([seed], cache).fetch_canonical("price", "AAPL")
+        # Backdate BOTH slots so the canonical read misses and the raw fetch
+        # walks the provider chain.
+        old_time = (datetime.now(tz=timezone.utc) - timedelta(hours=1)).isoformat()
+        async with aiosqlite.connect(str(tmp_path / "layer_test.db")) as conn:
+            for slot in (raw_slot_key("price"), canonical_key("price")):
+                await conn.execute(
+                    "UPDATE cache SET cached_at = ? WHERE data_type = ? AND ticker = ?",
+                    (old_time, slot, "AAPL"),
+                )
+            await conn.commit()
+
+        quote_only = MockProvider("finnhub", ["price"], result=self._quote_only_result())
+        out = await DataLayer([quote_only], cache).fetch_canonical("price", "AAPL")
+
+        assert isinstance(out, NormalizedPrice)
+        assert out.current_price == 291.58
+        assert len(out.bars) == 2  # chart keeps rendering
+        assert DEGRADED_PRICE_HISTORY_STALE in out.provenance.degraded
+        # Canonical slot must NOT be re-cached (freshness-clock laundering):
+        # the prior fmp row stays, honestly stale.
+        cached_row = await cache.get_canonical("price", "AAPL")
+        assert cached_row is not None
+        assert cached_row.is_stale is True
+        assert '"provider":"fmp"' in cached_row.payload_json.replace(" ", "")
+
+
 def _price_result(provider: str = "mock") -> DataResult:
     return DataResult(
         data={

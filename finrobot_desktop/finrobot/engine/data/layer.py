@@ -738,6 +738,41 @@ class DataLayer:
         await self._cache.set(DataType.HISTORICAL, cache_key, result)
         return self._split_yearly(result)
 
+    async def fetch_segments(self, ticker: str) -> DataResult | None:
+        """ASC 280 reportable-segment revenue + gross profit from SEC, or None.
+
+        The SOTP-floor augmentation (Batch 3B v1): segment-level revenue AND gross
+        profit from the original 10-K's XBRL, routed EXPLICITLY to the SEC EDGAR
+        provider's ``fetch_annual_segments`` — NOT the priority chain — so SOTP
+        floor data comes from the authoritative 10-K without SEC ever displacing
+        FMP/yfinance as the primary source.
+
+        Returns None (not raise) when SEC is unwired (no valid identity → provider
+        absent) or the fetch fails / yields no segments, so the SOTP gate cleanly
+        drops the name. Cached in the FILINGS_10K slot family under a distinct
+        ``:segments`` suffix (key folds only ``(type, ticker)`` per the cache
+        discipline — no parameterization, cold-miss single-flight, cache success
+        only).
+        """
+        provider = next((p for p in self._providers if isinstance(p, EdgarToolsProvider)), None)
+        if provider is None:
+            return None
+        if self._health_gated(provider):
+            return None
+        cache_key = f"{ticker}:segments"
+        cached = await self._cache.get(DataType.FILINGS_10K, cache_key)
+        if cached is not None and not cached.is_stale:
+            return cached.data
+        try:
+            result = await provider.fetch_annual_segments(ticker)
+        except ProviderError as e:
+            self._health.record_failure(provider.name, rate_limited=is_rate_limit_error(e))
+            logger.warning("SEC segments failed for %s: %s", ticker, e)
+            return cached.data if cached is not None else None
+        self._health.record_success(provider.name)
+        await self._cache.set(DataType.FILINGS_10K, cache_key, result)
+        return result
+
     async def fetch_quote(self, ticker: str) -> DataResult:
         """Lightweight current-price fetch that PROPAGATES provider failure.
 

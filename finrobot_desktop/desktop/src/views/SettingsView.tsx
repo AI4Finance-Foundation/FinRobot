@@ -81,7 +81,6 @@ function Icon({ d }: { d: string }) {
 const ICON_MODEL = 'M8 1.5 14 5v6l-6 3.5L2 11V5l6-3.5ZM8 8 14 5M8 8v6.5M8 8 2 5'
 const ICON_DATA =
   'M2.5 4c0-1.1 2.5-2 5.5-2s5.5.9 5.5 2-2.5 2-5.5 2-5.5-.9-5.5-2Zm0 0v8c0 1.1 2.5 2 5.5 2s5.5-.9 5.5-2V4'
-const ICON_SEC = 'M8 1.5 13.5 4v4c0 3.5-2.4 5.6-5.5 6.5C4.9 13.6 2.5 11.5 2.5 8V4L8 1.5Z'
 const ICON_UPDATE = 'M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2.5V5H11'
 
 // ─── Password input with show/hide toggle ────────────────────────────────────
@@ -259,14 +258,17 @@ function ProviderDropdown({
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
-// ─── Section nav (left rail) ─────────────────────────────────────────────────
+// ─── Panel nav (left rail) ────────────────────────────────────────────────────
+// True tabbed panels, not a scroll-spy over one long page: clicking a nav item
+// renders ONLY that panel. SEC 13F holdings lives inside Data Sources.
 
 const NAV_ITEMS = [
   { id: 'aiModel', icon: ICON_MODEL, labelKey: 'settings.section.aiModel' },
   { id: 'dataSources', icon: ICON_DATA, labelKey: 'settings.section.dataSources' },
-  { id: 'secHoldings', icon: ICON_SEC, labelKey: 'settings.nav.secHoldings' },
   { id: 'updates', icon: ICON_UPDATE, labelKey: 'settings.nav.updates' },
 ] as const
+
+type SettingsPanel = (typeof NAV_ITEMS)[number]['id']
 
 // ─── Main component ────────────────────────────────────────────────────────
 
@@ -350,9 +352,8 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   const initializedRef = useRef(false)
   const lastPayloadRef = useRef<Record<string, unknown> | null>(null)
 
-  // ── Active nav section (scroll-spy) ──────────────────────────────────────
-  const [activeSection, setActiveSection] = useState<string>('aiModel')
-  const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
+  // ── Active panel (tabbed nav — only the selected panel renders) ──────────
+  const [activePanel, setActivePanel] = useState<SettingsPanel>('aiModel')
 
   // Populate editable fields from the server on first load.
   useEffect(() => {
@@ -361,33 +362,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     if (settingsResp.model_name) setModelName(settingsResp.model_name)
     if (settingsResp.sec_user_agent) setSecUserAgent(settingsResp.sec_user_agent)
   }, [settingsResp])
-
-  // Highlight the nav item for whichever section is nearest the top.
-  useEffect(() => {
-    if (isLoading || isError) return
-    if (typeof IntersectionObserver === 'undefined') return // jsdom / older runtimes
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
-        if (visible[0]?.target instanceof HTMLElement) {
-          const id = visible[0].target.dataset.section
-          if (id) setActiveSection(id)
-        }
-      },
-      { rootMargin: '-10% 0px -70% 0px', threshold: 0 },
-    )
-    for (const el of Object.values(sectionRefs.current)) {
-      if (el) observer.observe(el)
-    }
-    return () => observer.disconnect()
-  }, [isLoading, isError, settingsResp])
-
-  const scrollToSection = (id: string) => {
-    setActiveSection(id)
-    sectionRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
 
   // ── PUT /api/settings mutation (debounced auto-save) ─────────────────────
   const settingsMutation = useMutation({
@@ -847,10 +821,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
     )
   }
 
-  const setSectionRef = (id: string) => (el: HTMLElement | null) => {
-    sectionRefs.current[id] = el
-  }
-
   return (
     <div className="settings-shell">
       <div className="settings-frame">
@@ -908,8 +878,9 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               <button
                 key={item.id}
                 type="button"
-                className={`settings-nav-item${activeSection === item.id ? ' active' : ''}`}
-                onClick={() => scrollToSection(item.id)}
+                className={`settings-nav-item${activePanel === item.id ? ' active' : ''}`}
+                aria-current={activePanel === item.id ? 'page' : undefined}
+                onClick={() => setActivePanel(item.id)}
               >
                 <Icon d={item.icon} />
                 {t(item.labelKey)}
@@ -917,436 +888,436 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
             ))}
           </nav>
 
-          {/* Right content */}
+          {/* Right content — only the selected panel renders */}
           <div className="settings-content">
             {/* ── AI Model ── */}
-            <section
-              className="settings-section"
-              data-section="aiModel"
-              ref={setSectionRef('aiModel')}
-            >
-              <h2 className="settings-section-title">{t('settings.section.aiModel')}</h2>
+            {activePanel === 'aiModel' && (
+              <section className="settings-section" data-section="aiModel">
+                <h2 className="settings-section-title">{t('settings.section.aiModel')}</h2>
 
-              {!llmKeyConfigured && (
-                <div className="settings-onboard">
-                  <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden>
-                    <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3" />
-                    <path
-                      d="M8 5v3.5"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
+                {!llmKeyConfigured && (
+                  <div className="settings-onboard">
+                    <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden>
+                      <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.3" />
+                      <path
+                        d="M8 5v3.5"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
+                      <circle cx="8" cy="11" r="0.6" fill="currentColor" />
+                    </svg>
+                    <div>
+                      <p className="settings-onboard-title">{t('settings.onboarding.title')}</p>
+                      <p className="settings-onboard-body">{t('settings.onboarding.body')}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="settings-fields">
+                  {/* Provider — custom dropdown (built-ins + customs + "add") */}
+                  <div className="settings-field">
+                    <label className="settings-field-label">
+                      <span className="label-text">{t('settings.provider.label')}</span>
+                    </label>
+                    <ProviderDropdown
+                      options={providerOptions}
+                      value={currentProviderId}
+                      onSelect={handleProviderChange}
+                      onAddCustom={() => setAddingCustom(true)}
                     />
-                    <circle cx="8" cy="11" r="0.6" fill="currentColor" />
-                  </svg>
-                  <div>
-                    <p className="settings-onboard-title">{t('settings.onboarding.title')}</p>
-                    <p className="settings-onboard-body">{t('settings.onboarding.body')}</p>
                   </div>
-                </div>
-              )}
 
-              <div className="settings-fields">
-                {/* Provider — custom dropdown (built-ins + customs + "add") */}
-                <div className="settings-field">
-                  <label className="settings-field-label">
-                    <span className="label-text">{t('settings.provider.label')}</span>
-                  </label>
-                  <ProviderDropdown
-                    options={providerOptions}
-                    value={currentProviderId}
-                    onSelect={handleProviderChange}
-                    onAddCustom={() => setAddingCustom(true)}
-                  />
-                </div>
-
-                {addingCustom ? (
-                  /* Add a custom OpenAI-compatible provider */
-                  <div className="settings-custom-box">
-                    <p className="settings-custom-box-title">
-                      {t('settings.customProvider.title')}
-                    </p>
-                    <div className="settings-field">
-                      <label className="settings-field-label">
-                        <span className="label-text">{t('settings.customProvider.name')}</span>
-                      </label>
-                      <input
-                        className="settings-input"
-                        value={draftProvider.name}
-                        onChange={(e) => setDraftProvider((d) => ({ ...d, name: e.target.value }))}
-                        placeholder="OpenRouter"
-                        autoComplete="off"
-                      />
-                    </div>
-                    <div className="settings-field">
-                      <label className="settings-field-label">
-                        <span className="label-text">{t('settings.customProvider.baseUrl')}</span>
-                      </label>
-                      <input
-                        className="settings-input"
-                        value={draftProvider.baseUrl}
-                        onChange={(e) =>
-                          setDraftProvider((d) => ({ ...d, baseUrl: e.target.value.trim() }))
-                        }
-                        placeholder="https://openrouter.ai/api/v1"
-                        autoComplete="off"
-                        spellCheck={false}
-                      />
-                    </div>
-                    <div className="settings-field">
-                      <label className="settings-field-label">
-                        <span className="label-text">{t('settings.model.label')}</span>
-                      </label>
-                      <input
-                        className="settings-input"
-                        value={draftProvider.modelId}
-                        onChange={(e) =>
-                          setDraftProvider((d) => ({ ...d, modelId: e.target.value.trim() }))
-                        }
-                        placeholder={t('settings.model.idPlaceholder')}
-                        autoComplete="off"
-                        spellCheck={false}
-                      />
-                    </div>
-                    <div className="settings-field">
-                      <label className="settings-field-label">
-                        <span className="label-text">{t('settings.customProvider.apiKey')}</span>
-                      </label>
-                      <SecretInput
-                        value={draftProvider.apiKey}
-                        onChange={(v) => setDraftProvider((d) => ({ ...d, apiKey: v }))}
-                        placeholder={t('settings.customProvider.apiKeyPlaceholder')}
-                      />
-                    </div>
-                    <div className="settings-form-actions">
-                      <button
-                        type="button"
-                        className="settings-btn is-primary"
-                        onClick={handleAddCustomProvider}
-                      >
-                        {t('settings.customProvider.add')}
-                      </button>
-                      <button
-                        type="button"
-                        className="settings-btn"
-                        onClick={() => {
-                          setAddingCustom(false)
-                          setDraftProvider({ name: '', baseUrl: '', modelId: '', apiKey: '' })
-                        }}
-                      >
-                        {t('settings.customProvider.cancel')}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    {/* Model id — free text, with the provider's models as hints */}
-                    <div className="settings-field">
-                      <label className="settings-field-label">
-                        <span className="label-text">{t('settings.model.label')}</span>
-                      </label>
-                      <input
-                        className="settings-input"
-                        list="model-id-suggestions"
-                        value={currentModelId}
-                        onChange={(e) => handleModelIdChange(e.target.value)}
-                        placeholder={t('settings.model.idPlaceholder')}
-                        autoComplete="off"
-                        spellCheck={false}
-                      />
-                      <datalist id="model-id-suggestions">
-                        {(currentProviderInfo?.models ?? []).map((m) => (
-                          <option key={m} value={m} />
-                        ))}
-                      </datalist>
-                    </div>
-
-                    {/* Custom provider: editable base_url + delete (the model id
-                        is the shared input above). */}
-                    {currentIsCustom && currentProviderInfo && (
-                      <div className="settings-custom-box">
-                        <div className="settings-field">
-                          <label className="settings-field-label">
-                            <span className="label-text">
-                              {t('settings.customProvider.baseUrl')}
-                            </span>
-                          </label>
-                          <input
-                            className="settings-input"
-                            defaultValue={currentProviderInfo.base_url ?? ''}
-                            onBlur={(e) =>
-                              handleEditCustomBaseUrl(currentProviderId, e.target.value)
-                            }
-                            autoComplete="off"
-                            spellCheck={false}
-                          />
-                        </div>
+                  {addingCustom ? (
+                    /* Add a custom OpenAI-compatible provider */
+                    <div className="settings-custom-box">
+                      <p className="settings-custom-box-title">
+                        {t('settings.customProvider.title')}
+                      </p>
+                      <div className="settings-field">
+                        <label className="settings-field-label">
+                          <span className="label-text">{t('settings.customProvider.name')}</span>
+                        </label>
+                        <input
+                          className="settings-input"
+                          value={draftProvider.name}
+                          onChange={(e) =>
+                            setDraftProvider((d) => ({ ...d, name: e.target.value }))
+                          }
+                          placeholder="OpenRouter"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div className="settings-field">
+                        <label className="settings-field-label">
+                          <span className="label-text">{t('settings.customProvider.baseUrl')}</span>
+                        </label>
+                        <input
+                          className="settings-input"
+                          value={draftProvider.baseUrl}
+                          onChange={(e) =>
+                            setDraftProvider((d) => ({ ...d, baseUrl: e.target.value.trim() }))
+                          }
+                          placeholder="https://openrouter.ai/api/v1"
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                      </div>
+                      <div className="settings-field">
+                        <label className="settings-field-label">
+                          <span className="label-text">{t('settings.model.label')}</span>
+                        </label>
+                        <input
+                          className="settings-input"
+                          value={draftProvider.modelId}
+                          onChange={(e) =>
+                            setDraftProvider((d) => ({ ...d, modelId: e.target.value.trim() }))
+                          }
+                          placeholder={t('settings.model.idPlaceholder')}
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                      </div>
+                      <div className="settings-field">
+                        <label className="settings-field-label">
+                          <span className="label-text">{t('settings.customProvider.apiKey')}</span>
+                        </label>
+                        <SecretInput
+                          value={draftProvider.apiKey}
+                          onChange={(v) => setDraftProvider((d) => ({ ...d, apiKey: v }))}
+                          placeholder={t('settings.customProvider.apiKeyPlaceholder')}
+                        />
+                      </div>
+                      <div className="settings-form-actions">
                         <button
                           type="button"
-                          className="settings-delete-link"
-                          onClick={() => handleDeleteCustomProvider(currentProviderId)}
+                          className="settings-btn is-primary"
+                          onClick={handleAddCustomProvider}
                         >
-                          {t('settings.customProvider.remove')}
+                          {t('settings.customProvider.add')}
                         </button>
-                      </div>
-                    )}
-
-                    {/* API key for the selected provider */}
-                    <div className="settings-field">
-                      <label className="settings-field-label">
-                        <span className="label-text">
-                          {t('settings.llm.apiKeyLabelFor', {
-                            provider: currentProviderInfo?.label ?? currentProviderId,
-                          })}
-                        </span>
-                        {llmKeyConfigured ? (
-                          <span className="settings-badge is-ok">
-                            {t('settings.badge.configured')}
-                          </span>
-                        ) : (
-                          <span className="settings-badge is-required">
-                            {t('settings.badge.required')}
-                          </span>
-                        )}
-                        {llmKeyConfigured && (
-                          <button
-                            type="button"
-                            className="settings-clear-btn"
-                            onClick={() => handleClearSecret(`provider_key:${currentProviderId}`)}
-                          >
-                            {t('settings.clearKey.button')}
-                          </button>
-                        )}
-                      </label>
-                      <SecretInput
-                        value={llmApiKey}
-                        onChange={handleLlmKeyChange}
-                        placeholder={
-                          llmKeyConfigured
-                            ? '••••••••'
-                            : t('settings.llm.apiKeyPlaceholder', {
-                                provider: currentProviderInfo?.label ?? currentProviderId,
-                              })
-                        }
-                      />
-                      <div className="settings-test-row">
                         <button
                           type="button"
                           className="settings-btn"
-                          onClick={handleTestConnection}
-                          disabled={testState.status === 'testing'}
+                          onClick={() => {
+                            setAddingCustom(false)
+                            setDraftProvider({ name: '', baseUrl: '', modelId: '', apiKey: '' })
+                          }}
                         >
-                          {testState.status === 'testing'
-                            ? t('settings.test.testing')
-                            : t('settings.test.button')}
+                          {t('settings.customProvider.cancel')}
                         </button>
-                        {testState.status === 'done' && (
-                          <span
-                            className={`settings-test-result${testState.ok ? ' is-ok' : ' is-bad'}`}
-                          >
-                            {testState.ok ? '✓ ' : '✗ '}
-                            {t(`settings.test.result.${testState.code ?? 'unknown'}`)}
-                            {!testState.ok && testState.detail && testState.code === 'http'
-                              ? ` (${testState.detail})`
-                              : ''}
-                          </span>
-                        )}
                       </div>
                     </div>
-                  </>
-                )}
-              </div>
-            </section>
+                  ) : (
+                    <>
+                      {/* Model id — free text, with the provider's models as hints */}
+                      <div className="settings-field">
+                        <label className="settings-field-label">
+                          <span className="label-text">{t('settings.model.label')}</span>
+                        </label>
+                        <input
+                          className="settings-input"
+                          list="model-id-suggestions"
+                          value={currentModelId}
+                          onChange={(e) => handleModelIdChange(e.target.value)}
+                          placeholder={t('settings.model.idPlaceholder')}
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                        <datalist id="model-id-suggestions">
+                          {(currentProviderInfo?.models ?? []).map((m) => (
+                            <option key={m} value={m} />
+                          ))}
+                        </datalist>
+                      </div>
+
+                      {/* Custom provider: editable base_url + delete (the model id
+                        is the shared input above). */}
+                      {currentIsCustom && currentProviderInfo && (
+                        <div className="settings-custom-box">
+                          <div className="settings-field">
+                            <label className="settings-field-label">
+                              <span className="label-text">
+                                {t('settings.customProvider.baseUrl')}
+                              </span>
+                            </label>
+                            <input
+                              className="settings-input"
+                              defaultValue={currentProviderInfo.base_url ?? ''}
+                              onBlur={(e) =>
+                                handleEditCustomBaseUrl(currentProviderId, e.target.value)
+                              }
+                              autoComplete="off"
+                              spellCheck={false}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            className="settings-delete-link"
+                            onClick={() => handleDeleteCustomProvider(currentProviderId)}
+                          >
+                            {t('settings.customProvider.remove')}
+                          </button>
+                        </div>
+                      )}
+
+                      {/* API key for the selected provider */}
+                      <div className="settings-field">
+                        <label className="settings-field-label">
+                          <span className="label-text">
+                            {t('settings.llm.apiKeyLabelFor', {
+                              provider: currentProviderInfo?.label ?? currentProviderId,
+                            })}
+                          </span>
+                          {llmKeyConfigured ? (
+                            <span className="settings-badge is-ok">
+                              {t('settings.badge.configured')}
+                            </span>
+                          ) : (
+                            <span className="settings-badge is-required">
+                              {t('settings.badge.required')}
+                            </span>
+                          )}
+                          {llmKeyConfigured && (
+                            <button
+                              type="button"
+                              className="settings-clear-btn"
+                              onClick={() => handleClearSecret(`provider_key:${currentProviderId}`)}
+                            >
+                              {t('settings.clearKey.button')}
+                            </button>
+                          )}
+                        </label>
+                        <SecretInput
+                          value={llmApiKey}
+                          onChange={handleLlmKeyChange}
+                          placeholder={
+                            llmKeyConfigured
+                              ? '••••••••'
+                              : t('settings.llm.apiKeyPlaceholder', {
+                                  provider: currentProviderInfo?.label ?? currentProviderId,
+                                })
+                          }
+                        />
+                        <div className="settings-test-row">
+                          <button
+                            type="button"
+                            className="settings-btn"
+                            onClick={handleTestConnection}
+                            disabled={testState.status === 'testing'}
+                          >
+                            {testState.status === 'testing'
+                              ? t('settings.test.testing')
+                              : t('settings.test.button')}
+                          </button>
+                          {testState.status === 'done' && (
+                            <span
+                              className={`settings-test-result${testState.ok ? ' is-ok' : ' is-bad'}`}
+                            >
+                              {testState.ok ? '✓ ' : '✗ '}
+                              {t(`settings.test.result.${testState.code ?? 'unknown'}`)}
+                              {!testState.ok && testState.detail && testState.code === 'http'
+                                ? ` (${testState.detail})`
+                                : ''}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </section>
+            )}
 
             {/* ── Data Sources — one row per provider: live circuit dot + key
                 state + inline key entry + test. Merges the old read-only status
                 panel with the tiered key form below it, which listed the same
-                providers twice. */}
-            <section
-              className="settings-section"
-              data-section="dataSources"
-              ref={setSectionRef('dataSources')}
-            >
-              <h2 className="settings-section-title">{t('settings.section.dataSources')}</h2>
+                providers twice. SEC 13F holdings lives in this panel too. */}
+            {activePanel === 'dataSources' && (
+              <>
+                <section className="settings-section" data-section="dataSources">
+                  <h2 className="settings-section-title">{t('settings.section.dataSources')}</h2>
 
-              {healthError && (
-                <p className="settings-hint">{t('settings.providerStatus.unavailable')}</p>
-              )}
+                  {healthError && (
+                    <p className="settings-hint">{t('settings.providerStatus.unavailable')}</p>
+                  )}
 
-              <div className="settings-provider-list">
-                {/* Always-on baseline: the app works with zero keys — Yahoo
+                  <div className="settings-provider-list">
+                    {/* Always-on baseline: the app works with zero keys — Yahoo
                     Finance covers prices, financials & news for free. */}
-                <DataSourceRow
-                  health={healthByName.get('yfinance')}
-                  name={PROVIDER_DISPLAY_NAMES.yfinance}
-                  badge={
-                    <span className="settings-badge is-always">
-                      {t('settings.dataSources.baselineBadge')}
-                    </span>
-                  }
-                  hint={t('settings.dataSources.baselineHint')}
-                />
-
-                <DataSourceRow
-                  health={healthByName.get('fmp')}
-                  name={PROVIDER_DISPLAY_NAMES.fmp}
-                  badge={renderKeyBadge(fmpConfigured, 'core')}
-                  control={renderKeyControl({
-                    labelKey: 'settings.fmp.label',
-                    placeholderKey: 'settings.fmp.placeholder',
-                    configured: fmpConfigured,
-                    value: fmpKey,
-                    onChange: handleFmpKeyChange,
-                    clearField: 'fmp_api_key',
-                    testProvider: 'fmp',
-                    testField: 'fmp_api_key',
-                  })}
-                  result={renderTestResult('fmp')}
-                  hint={
-                    <>
-                      {t('settings.fmp.hint')}
-                      {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.fmp)}
-                    </>
-                  }
-                />
-
-                <DataSourceRow
-                  health={healthByName.get('finnhub')}
-                  name={PROVIDER_DISPLAY_NAMES.finnhub}
-                  badge={renderKeyBadge(finnhubConfigured, 'optional')}
-                  control={renderKeyControl({
-                    labelKey: 'settings.finnhub.label',
-                    placeholderKey: 'settings.finnhub.placeholder',
-                    configured: finnhubConfigured,
-                    value: finnhubKey,
-                    onChange: handleFinnhubKeyChange,
-                    clearField: 'finnhub_api_key',
-                    testProvider: 'finnhub',
-                    testField: 'finnhub_api_key',
-                  })}
-                  result={renderTestResult('finnhub')}
-                  hint={
-                    <>
-                      {t('settings.finnhub.hint')}
-                      {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.finnhub)}
-                    </>
-                  }
-                />
-
-                <DataSourceRow
-                  health={healthByName.get('adanos')}
-                  name={PROVIDER_DISPLAY_NAMES.adanos}
-                  badge={renderKeyBadge(adanosConfigured, 'optional')}
-                  control={renderKeyControl({
-                    labelKey: 'settings.adanos.label',
-                    placeholderKey: 'settings.adanos.placeholder',
-                    configured: adanosConfigured,
-                    value: adanosKey,
-                    onChange: handleAdanosKeyChange,
-                    clearField: 'adanos_api_key',
-                    testProvider: 'adanos',
-                    testField: 'adanos_api_key',
-                  })}
-                  result={renderTestResult('adanos')}
-                  hint={
-                    <>
-                      {t('settings.adanos.hint')}
-                      {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.adanos)}
-                    </>
-                  }
-                />
-
-                {/* Alpha Vantage has a key but no entry in the live breaker
-                    feed — dim dot, key entry still works. */}
-                <DataSourceRow
-                  health={healthByName.get('alpha_vantage')}
-                  name={PROVIDER_DISPLAY_NAMES.alpha_vantage}
-                  badge={renderKeyBadge(alphaVantageConfigured, 'optional')}
-                  control={renderKeyControl({
-                    labelKey: 'settings.alphaVantage.label',
-                    placeholderKey: 'settings.alphaVantage.placeholder',
-                    configured: alphaVantageConfigured,
-                    value: alphaVantageKey,
-                    onChange: handleAlphaVantageKeyChange,
-                    clearField: 'alpha_vantage_api_key',
-                    testProvider: 'alpha_vantage',
-                    testField: 'alpha_vantage_api_key',
-                  })}
-                  result={renderTestResult('alpha_vantage')}
-                  hint={
-                    <>
-                      {t('settings.alphaVantage.hint')}
-                      {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.alphaVantage)}
-                    </>
-                  }
-                />
-
-                {/* Remaining live-feed providers with no key to configure
-                    (e.g. news_aggregator) — status row only. */}
-                {healthEntries
-                  .filter((p) => !KEYED_PROVIDER_ROWS.has(p.name))
-                  .map((p) => (
                     <DataSourceRow
-                      key={p.name}
-                      health={p}
-                      name={PROVIDER_DISPLAY_NAMES[p.name] ?? p.name}
+                      health={healthByName.get('yfinance')}
+                      name={PROVIDER_DISPLAY_NAMES.yfinance}
+                      badge={
+                        <span className="settings-badge is-always">
+                          {t('settings.dataSources.baselineBadge')}
+                        </span>
+                      }
+                      hint={t('settings.dataSources.baselineHint')}
                     />
-                  ))}
 
-                {/* SEC EDGAR identity — not a secret key (unlocks 10-K / 10-Q /
+                    <DataSourceRow
+                      health={healthByName.get('fmp')}
+                      name={PROVIDER_DISPLAY_NAMES.fmp}
+                      badge={renderKeyBadge(fmpConfigured, 'core')}
+                      control={renderKeyControl({
+                        labelKey: 'settings.fmp.label',
+                        placeholderKey: 'settings.fmp.placeholder',
+                        configured: fmpConfigured,
+                        value: fmpKey,
+                        onChange: handleFmpKeyChange,
+                        clearField: 'fmp_api_key',
+                        testProvider: 'fmp',
+                        testField: 'fmp_api_key',
+                      })}
+                      result={renderTestResult('fmp')}
+                      hint={
+                        <>
+                          {t('settings.fmp.hint')}
+                          {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.fmp)}
+                        </>
+                      }
+                    />
+
+                    <DataSourceRow
+                      health={healthByName.get('finnhub')}
+                      name={PROVIDER_DISPLAY_NAMES.finnhub}
+                      badge={renderKeyBadge(finnhubConfigured, 'optional')}
+                      control={renderKeyControl({
+                        labelKey: 'settings.finnhub.label',
+                        placeholderKey: 'settings.finnhub.placeholder',
+                        configured: finnhubConfigured,
+                        value: finnhubKey,
+                        onChange: handleFinnhubKeyChange,
+                        clearField: 'finnhub_api_key',
+                        testProvider: 'finnhub',
+                        testField: 'finnhub_api_key',
+                      })}
+                      result={renderTestResult('finnhub')}
+                      hint={
+                        <>
+                          {t('settings.finnhub.hint')}
+                          {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.finnhub)}
+                        </>
+                      }
+                    />
+
+                    <DataSourceRow
+                      health={healthByName.get('adanos')}
+                      name={PROVIDER_DISPLAY_NAMES.adanos}
+                      badge={renderKeyBadge(adanosConfigured, 'optional')}
+                      control={renderKeyControl({
+                        labelKey: 'settings.adanos.label',
+                        placeholderKey: 'settings.adanos.placeholder',
+                        configured: adanosConfigured,
+                        value: adanosKey,
+                        onChange: handleAdanosKeyChange,
+                        clearField: 'adanos_api_key',
+                        testProvider: 'adanos',
+                        testField: 'adanos_api_key',
+                      })}
+                      result={renderTestResult('adanos')}
+                      hint={
+                        <>
+                          {t('settings.adanos.hint')}
+                          {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.adanos)}
+                        </>
+                      }
+                    />
+
+                    {/* Alpha Vantage has a key but no entry in the live breaker
+                    feed — dim dot, key entry still works. */}
+                    <DataSourceRow
+                      health={healthByName.get('alpha_vantage')}
+                      name={PROVIDER_DISPLAY_NAMES.alpha_vantage}
+                      badge={renderKeyBadge(alphaVantageConfigured, 'optional')}
+                      control={renderKeyControl({
+                        labelKey: 'settings.alphaVantage.label',
+                        placeholderKey: 'settings.alphaVantage.placeholder',
+                        configured: alphaVantageConfigured,
+                        value: alphaVantageKey,
+                        onChange: handleAlphaVantageKeyChange,
+                        clearField: 'alpha_vantage_api_key',
+                        testProvider: 'alpha_vantage',
+                        testField: 'alpha_vantage_api_key',
+                      })}
+                      result={renderTestResult('alpha_vantage')}
+                      hint={
+                        <>
+                          {t('settings.alphaVantage.hint')}
+                          {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.alphaVantage)}
+                        </>
+                      }
+                    />
+
+                    {/* Remaining live-feed providers with no key to configure
+                    (e.g. news_aggregator) — status row only. */}
+                    {healthEntries
+                      .filter((p) => !KEYED_PROVIDER_ROWS.has(p.name))
+                      .map((p) => (
+                        <DataSourceRow
+                          key={p.name}
+                          health={p}
+                          name={PROVIDER_DISPLAY_NAMES[p.name] ?? p.name}
+                        />
+                      ))}
+
+                    {/* SEC EDGAR identity — not a secret key (unlocks 10-K / 10-Q /
                     8-K / Form 4 / 13F filings); its two-part hint runs taller
                     than the key rows, so it anchors the list. */}
-                <DataSourceRow
-                  health={healthByName.get('edgar_tools')}
-                  name={PROVIDER_DISPLAY_NAMES.edgar_tools}
-                  badge={
-                    secIdentityActive ? (
-                      <span className="settings-badge is-ok">{t('settings.badge.active')}</span>
-                    ) : secIdentityLocallyValid ? (
-                      <span className="settings-badge is-pending">
-                        {t('settings.badge.pending')}
-                      </span>
-                    ) : (
-                      <span className="settings-badge is-recommended">
-                        {t('settings.badge.recommended')}
-                      </span>
-                    )
-                  }
-                  control={
-                    <input
-                      className={`settings-input${secIdentityInvalidInput ? ' is-invalid' : ''}`}
-                      type="text"
-                      value={secUserAgent}
-                      onChange={(e) => handleSecAgentChange(e.target.value)}
-                      placeholder={t('settings.sec.placeholder')}
-                      autoComplete="off"
-                      spellCheck={false}
-                      aria-invalid={secIdentityInvalidInput}
-                      aria-label={t('settings.sec.label')}
+                    <DataSourceRow
+                      health={healthByName.get('edgar_tools')}
+                      name={PROVIDER_DISPLAY_NAMES.edgar_tools}
+                      badge={
+                        secIdentityActive ? (
+                          <span className="settings-badge is-ok">{t('settings.badge.active')}</span>
+                        ) : secIdentityLocallyValid ? (
+                          <span className="settings-badge is-pending">
+                            {t('settings.badge.pending')}
+                          </span>
+                        ) : (
+                          <span className="settings-badge is-recommended">
+                            {t('settings.badge.recommended')}
+                          </span>
+                        )
+                      }
+                      control={
+                        <input
+                          className={`settings-input${secIdentityInvalidInput ? ' is-invalid' : ''}`}
+                          type="text"
+                          value={secUserAgent}
+                          onChange={(e) => handleSecAgentChange(e.target.value)}
+                          placeholder={t('settings.sec.placeholder')}
+                          autoComplete="off"
+                          spellCheck={false}
+                          aria-invalid={secIdentityInvalidInput}
+                          aria-label={t('settings.sec.label')}
+                        />
+                      }
+                      hint={
+                        <>
+                          <span className={`settings-hint ${secIdentityHint.cls}`}>
+                            {secIdentityHint.text}
+                          </span>
+                          {secIdentityPreview && (
+                            <span className="settings-hint">
+                              {t('settings.sec.preview')}
+                              {secIdentityPreview}
+                            </span>
+                          )}
+                        </>
+                      }
                     />
-                  }
-                  hint={
-                    <>
-                      <span className={`settings-hint ${secIdentityHint.cls}`}>
-                        {secIdentityHint.text}
-                      </span>
-                      {secIdentityPreview && (
-                        <span className="settings-hint">
-                          {t('settings.sec.preview')}
-                          {secIdentityPreview}
-                        </span>
-                      )}
-                    </>
-                  }
-                />
-              </div>
-            </section>
+                  </div>
+                </section>
 
-            {/* ── SEC 13F holdings ── */}
-            <SecHoldingsSection sectionRef={setSectionRef('secHoldings')} />
+                {/* SEC 13F holdings — part of the Data Sources panel */}
+                <SecHoldingsSection />
+              </>
+            )}
 
             {/* ── Updates ── */}
-            <UpdatesSection sectionRef={setSectionRef('updates')} />
+            {activePanel === 'updates' && <UpdatesSection />}
           </div>
         </div>
       </div>
@@ -1571,11 +1542,7 @@ interface SecHoldingsStatusShape {
   refresh: RefreshRuntime
 }
 
-function SecHoldingsSection({
-  sectionRef,
-}: {
-  sectionRef: (el: HTMLElement | null) => void
-}): React.ReactElement {
+function SecHoldingsSection(): React.ReactElement {
   const { t } = useI18n()
   const queryClient = useQueryClient()
   const addToast = useToastStore((s) => s.addToast)
@@ -1659,7 +1626,7 @@ function SecHoldingsSection({
   })()
 
   return (
-    <section className="settings-section" data-section="secHoldings" ref={sectionRef}>
+    <section className="settings-section" data-section="secHoldings">
       <h2 className="settings-section-title">{t('settings.section.secHoldings')}</h2>
       <p className="settings-section-desc">{t('settings.secHoldings.intro')}</p>
 
@@ -1824,11 +1791,7 @@ function SecHoldingsConfirmModal({
 // same updaterStore as the silent startup check; a found update surfaces as the
 // TitleBar pill (UpdatePill), and this section toasts the outcome.
 
-function UpdatesSection({
-  sectionRef,
-}: {
-  sectionRef: (el: HTMLElement | null) => void
-}): React.ReactElement {
+function UpdatesSection(): React.ReactElement {
   const { t } = useI18n()
   const phase = useUpdaterStore((s) => s.phase)
   const check = useUpdaterStore((s) => s.check)
@@ -1863,7 +1826,7 @@ function UpdatesSection({
   }
 
   return (
-    <section className="settings-section" data-section="updates" ref={sectionRef}>
+    <section className="settings-section" data-section="updates">
       <h2 className="settings-section-title">{t('settings.section.updates')}</h2>
       <p className="settings-section-desc">{t('settings.updates.intro')}</p>
 

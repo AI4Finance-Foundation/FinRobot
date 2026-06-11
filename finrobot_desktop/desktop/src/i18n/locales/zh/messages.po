@@ -3717,10 +3717,6 @@ msgstr ""
 #~ msgstr "隐藏"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.nav.secHoldings"
-#~ msgstr "SEC 持仓"
-
-#. js-lingui-explicit-id
 #~ msgid "settings.provider.label"
 #~ msgstr "服务商"
 

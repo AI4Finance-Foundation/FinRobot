@@ -3717,10 +3717,6 @@ msgstr ""
 #~ msgstr "Hide"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.nav.secHoldings"
-#~ msgstr "SEC Holdings"
-
-#. js-lingui-explicit-id
 #~ msgid "settings.provider.label"
 #~ msgstr "Provider"
 

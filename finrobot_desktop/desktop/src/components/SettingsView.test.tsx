@@ -114,8 +114,11 @@ describe('SettingsView', () => {
     expect(await screen.findByRole('heading', { name: 'AI Model' })).toBeInTheDocument()
   })
 
+  // The settings page is tabbed: only the selected panel renders, so data-source
+  // assertions must first switch panels via the left nav.
   it('renders unified data-source rows: live circuit state + inline key config', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Data Sources' }))
     // fmp row: name + inline key input + test button on the same row.
     expect(await screen.findByText('FMP')).toBeInTheDocument()
     expect(screen.getByLabelText('FMP API Key')).toBeInTheDocument()
@@ -126,9 +129,16 @@ describe('SettingsView', () => {
     expect(screen.queryByText('Always on')).not.toBeInTheDocument()
   })
 
-  it('renders 数据源 section', async () => {
+  it('shows only the selected panel: Data Sources hidden until its nav item is clicked', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
+    // Landing panel is AI Model; no Data Sources heading yet.
+    expect(await screen.findByRole('heading', { name: 'AI Model' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Data Sources' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Data Sources' }))
     expect(await screen.findByRole('heading', { name: 'Data Sources' })).toBeInTheDocument()
+    // …and the AI Model panel is gone; 13F holdings lives inside Data Sources.
+    expect(screen.queryByRole('heading', { name: 'AI Model' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'SEC 13F Holdings' })).toBeInTheDocument()
   })
 
   // 外观 section removed in v5; theme controls are outside this settings surface.
@@ -158,7 +168,12 @@ describe('SettingsView', () => {
   it('requires confirmation before calling the 13F refresh endpoint', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
 
+    // 13F holdings lives inside the Data Sources panel now. The panel mounts
+    // on click, so wait out the brief disabled window while its status query
+    // resolves before clicking Sync.
+    fireEvent.click(await screen.findByRole('button', { name: 'Data Sources' }))
     const syncBtn = await screen.findByRole('button', { name: /Sync now/i })
+    await waitFor(() => expect(syncBtn).toBeEnabled())
 
     const fetchMock = vi.mocked(fetch)
     const refreshCalls = () =>

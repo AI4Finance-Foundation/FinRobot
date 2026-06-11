@@ -43,6 +43,10 @@ _ALLOWED: set[Path] = {
     # news.py parses DataType.NEWS (not PRICE/FINANCIALS) — no canonical contract
     # for NEWS by design (ADR-0006 §3 — only PRICE/FINANCIALS have contracts).
     COMPUTE / "coordinators" / "news.py",
+    # segment_extractor.py parses the SOTP segment payload (FILINGS_10K
+    # ``:segments`` slot — ASC 280 reportable segments, not PRICE/FINANCIALS).
+    # Same footing as NEWS: no canonical contract by design (ADR-0006 §3).
+    COMPUTE / "coordinators" / "segment_extractor.py",
 }
 
 _RAW_GET_PATTERN = re.compile(r"\.data\.get\(")
@@ -84,8 +88,7 @@ class TestNoRawDataGetInComputeOrServices:
         extractor = COMPUTE / "coordinators" / "extractor.py"
         text = extractor.read_text()
         violations = [
-            f"line {text[:m.start()].count(chr(10)) + 1}"
-            for m in _RAW_GET_PATTERN.finditer(text)
+            f"line {text[:m.start()].count(chr(10)) + 1}" for m in _RAW_GET_PATTERN.finditer(text)
         ]
         assert not violations, (
             "extractor.py still has raw .data.get() — ADR-0006 Step 4 not complete.\n"

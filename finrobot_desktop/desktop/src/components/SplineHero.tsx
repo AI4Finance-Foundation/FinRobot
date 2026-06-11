@@ -28,6 +28,14 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 // self-hosted: the viewer hardcodes the unpkg WASM URL); the tightened CSP in
 // tauri.conf.json constrains those to the specific spline.design / unpkg hosts.
 //
+// CSP requires 'unsafe-eval' in script-src: the runtime's ndarray/cwise layer
+// compiles kernels via `new Function` at scene load (5 call sites in the
+// vendored bundle). Without it the scene downloads fine but load-complete never
+// fires — WebKit rejects the eval, the LOAD_TIMEOUT_MS budget expires, and every
+// packaged install degrades to the rings while dev (devCsp: null) looks healthy.
+// Script SOURCES stay locked to 'self', so eval is only reachable from our own
+// bundled code, not injected scripts.
+//
 // The import is DYNAMIC (see the effect in the component), NOT a top-level
 // `import '@splinetool/viewer'`: the viewer drags in ~1.9MB of three.js +
 // physics/navmesh runtime. A static import welds that whole graph onto the eager

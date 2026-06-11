@@ -212,7 +212,9 @@ def _lbo_artifact() -> Artifact:
             ).model_dump(mode="json"),
         ),
         compute_version=ArtifactComputeVersion(version="0.1.0", formula_id="lbo"),
-        outputs=ArtifactOutputs(structured={"lbo_calculation": lbo.model_dump(mode="json")}),
+        # build_lbo_artifact dumps LBOResult FLAT at the top of structured, not
+        # under lbo_calculation. The route must parse the real artifact shape.
+        outputs=ArtifactOutputs(structured=lbo.model_dump(mode="json")),
         meta=ArtifactMeta(created_at=NOW, source="pipeline:lbo"),
     )
 

@@ -315,13 +315,19 @@ def _parse_lbo(latest: dict[str, Artifact]) -> LBOResult | None:
     if artifact is None:
         return None
     structured = artifact.outputs.structured
-    for key in ("lbo_calculation", "lbo_result"):
-        candidate = structured.get(key)
+    # Standalone build_lbo_artifact dumps LBOResult FLAT at the top level;
+    # IC memo stores it under lbo_result, and older route fixtures used
+    # lbo_calculation. Accept all real producer shapes, validated by Pydantic.
+    for candidate in (
+        structured.get("lbo_calculation"),
+        structured.get("lbo_result"),
+        structured,
+    ):
         if isinstance(candidate, dict):
             try:
                 return LBOResult.model_validate(candidate)
             except (TypeError, ValueError) as exc:
-                logger.debug("LBOResult parse failed at %s: %s", key, exc)
+                logger.debug("LBOResult parse failed: %s", exc)
                 continue
     return None
 

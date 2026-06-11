@@ -15,6 +15,10 @@ from finrobot.engine.models.financial import (
     CompanyFinancials,
     DCFInputs,
     DCFResult,
+    DDMInputs,
+    DDMResult,
+    LBOResult,
+    LBOYear,
     PeerComps,
     ValuationMethod,
 )
@@ -87,6 +91,72 @@ def _peer_comps() -> PeerComps:
     )
 
 
+def _ddm() -> DDMResult:
+    return DDMResult(
+        cost_of_equity=0.10,
+        projected_dividends=[2.0, 2.1, 2.2],
+        pv_dividends=[1.8, 1.7, 1.6],
+        pv_dividends_total=5.1,
+        terminal_dividend=2.4,
+        terminal_value=40.0,
+        pv_terminal=30.0,
+        equity_value_per_share=120.0,
+        inputs=DDMInputs(
+            dividend_per_share=2.0,
+            dividend_growth_rates=[0.05, 0.04, 0.03],
+            payout_ratio=0.5,
+            risk_free_rate=0.04,
+            beta=1.0,
+            equity_risk_premium=0.05,
+            terminal_growth_rate=0.02,
+            shares_outstanding=15.4e9,
+            current_price=110.0,
+        ),
+    )
+
+
+def _lbo() -> LBOResult:
+    schedule = [
+        LBOYear(
+            year=i,
+            revenue=100.0,
+            ebitda=30.0,
+            da=4.0,
+            ebit=26.0,
+            interest_expense=8.0,
+            ebt=18.0,
+            taxes=4.0,
+            net_income=14.0,
+            capex=4.0,
+            delta_nwc=1.0,
+            fcf=15.0,
+            mandatory_amort=2.0,
+            cash_sweep_amount=10.0,
+            total_debt_paydown=12.0,
+            ending_debt=max(0.0, 150.0 - 12.0 * i),
+        )
+        for i in range(1, 6)
+    ]
+    return LBOResult(
+        entry_ev=300.0,
+        entry_debt=150.0,
+        entry_equity=150.0,
+        schedule=schedule,
+        exit_ebitda=40.0,
+        exit_ev=480.0,
+        exit_equity=400.0,
+        moic=2.67,
+        irr=0.21,
+        sensitivity={
+            "entry_multiples": [9.0, 10.0, 11.0],
+            "exit_multiples": [10.0, 11.0, 12.0],
+            "irr_grid": [[0.18, 0.20, 0.22]] * 3,
+            "moic_grid": [[2.3, 2.5, 2.7]] * 3,
+        },
+        irr_formula_warning=None,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Contract 1: DCF appears in methods when DCFResult is in context
 # ---------------------------------------------------------------------------
@@ -150,6 +220,26 @@ class TestMinMethodCount:
             vs.weighted_price is not None
         ), "weighted_price must be a float when ≥2 methods are present"
         assert vs.weighted_price > 0
+
+    def test_ddm_calc_step_name_reaches_synthesis(self) -> None:
+        structured_context: dict[str, object] = {
+            "financial_modeling": _dcf(150.0),
+            "ddm_calc": _ddm(),
+        }
+        vs = build_valuation_synthesis(structured_context, current_price=170.0, ticker="JPM")
+        assert vs is not None
+        method_names = {m.name for m in vs.methods}
+        assert "ddm" in method_names
+
+    def test_lbo_calculation_step_name_reaches_synthesis(self) -> None:
+        structured_context: dict[str, object] = {
+            "financial_modeling": _dcf(150.0),
+            "lbo_calculation": _lbo(),
+        }
+        vs = build_valuation_synthesis(structured_context, current_price=170.0, ticker="AAPL")
+        assert vs is not None
+        method_names = {m.name for m in vs.methods}
+        assert "lbo" in method_names
 
 
 # ---------------------------------------------------------------------------

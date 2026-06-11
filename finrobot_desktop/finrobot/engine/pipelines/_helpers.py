@@ -688,7 +688,7 @@ def build_valuation_synthesis(
     dcf = structured_context.get("financial_modeling")
     peers = structured_context.get("peer_analysis")
     ddm = structured_context.get("ddm_calc")
-    lbo = structured_context.get("lbo_calc")
+    lbo = structured_context.get("lbo_calculation") or structured_context.get("lbo_result")
 
     financial_data = structured_context.get("data_collection")
     shares: float | None = None

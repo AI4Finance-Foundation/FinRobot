@@ -549,6 +549,29 @@ def seed_dcf_inputs(
     )
     prov["da_pct_revenue"] = f"{da_pct:.1%}（{da_source}）"
 
+    # ----- cyclical explicit-window capex → maintenance anchor ---------------
+    # A cyclical normalized to THROUGH-CYCLE earnings power must also normalize
+    # reinvestment to MAINTENANCE level. Its through-cycle CapEx% bakes in the
+    # current-regime GROWTH capex (MU FY2024-25 capacity build during the AI
+    # super-cycle): CapEx 38.4% vs D&A 24.5% — a 14pt wedge that is pure expansion,
+    # not maintenance. Holding 38% flat across the 10y explicit window assumes MU
+    # expands at super-cycle pace forever, contradicting the through-cycle premise
+    # and crushing FCF (implied $116 vs the validated ~$176 at maintenance). The
+    # maintenance anchor is the SAME min(D&A, CapEx) Damodaran proxy the TERMINAL
+    # value already uses (dcf._terminal_fcf): D&A is the steady-state reinvestment a
+    # mature cyclical sustains. Only LOWERS capex (never raises a low-capex name like
+    # WDC/STX, whose CapEx ≈ D&A already → no-op), and only for cyclicals — every
+    # non-cyclical's trailing-3y capex is untouched. Skipped on the industry-fallback
+    # path (the EBITDA-cap guard above already governs that).
+    if cyclical and capex_ticker is not None and da_pct > 0 and capex_pct > da_pct:
+        _full_capex = capex_pct
+        capex_pct = da_pct
+        prov["capex_pct_revenue"] = (
+            f"{capex_pct:.1%}（through-cycle CapEx {_full_capex:.1%} 收敛到维护性再投资 "
+            f"min(D&A, CapEx)={da_pct:.1%}——周期股正常化:超级周期的扩张 CapEx 不进永续基底,"
+            f"与终值 min(D&A,CapEx) 锚同口径）"
+        )
+
     # ----- nwc_pct_revenue --------------------------------------------------
     # FMP changeInWorkingCapital carries the cash-flow sign: negative = NWC grew
     # = cash consumed. Negate so nwc_pct_revenue means "NWC build as % of revenue,

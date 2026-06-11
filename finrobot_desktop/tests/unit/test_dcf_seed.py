@@ -1017,6 +1017,36 @@ class TestCyclicalNormalization:
         # da_pct clamped to [0.005, 0.40]; expected ~22% is inside.
         assert cyc.da_pct_revenue == pytest.approx(expected, abs=0.005)
 
+    def test_cyclical_capex_converges_to_maintenance_anchor(self):
+        """MU's through-cycle CapEx (~38%) is growth-capex inflated (vs D&A ~24%);
+        a cyclical normalized to through-cycle earnings must reinvest at the
+        maintenance level min(D&A, CapEx) — the same anchor terminal value uses —
+        so the explicit-window CapEx is pulled down to D&A%, not the full 38%."""
+        cyc = seed_dcf_inputs(_mu_financials(), _mu_cyclical_historical(), cyclical=True)
+        # CapEx is capped at D&A (maintenance), so they coincide for MU.
+        assert cyc.capex_pct_revenue == pytest.approx(cyc.da_pct_revenue, abs=1e-9)
+        # And it is materially below the raw through-cycle CapEx median (~38%).
+        hist = _mu_cyclical_historical()
+        raw_capex_pairs = sorted(c / r for c, r in zip(hist.capital_expenditure, hist.revenue))
+        raw_capex_median = raw_capex_pairs[len(raw_capex_pairs) // 2]
+        assert cyc.capex_pct_revenue < raw_capex_median - 0.05
+        assert "维护性再投资" in cyc.assumption_provenance["capex_pct_revenue"]
+
+    def test_cyclical_capex_anchor_is_noop_when_capex_below_da(self):
+        """A low-capex cyclical (WDC/STX: CapEx ≈ D&A already) is NOT raised — the
+        maintenance anchor only ever LOWERS capex, never invents reinvestment."""
+        hist = _mu_cyclical_historical()
+        # Force capex well below D&A so min(D&A, CapEx) = CapEx (the WDC/STX shape).
+        low_capex = [d * 0.3 for d in hist.depreciation_amortization]
+        low = hist.model_copy(update={"capital_expenditure": low_capex})
+        cyc = seed_dcf_inputs(_mu_financials(), low, cyclical=True)
+        expected_capex_median = sorted(c / r for c, r in zip(low_capex, hist.revenue))[
+            len(low_capex) // 2
+        ]
+        # Unchanged from the raw through-cycle CapEx median (no maintenance cap).
+        assert cyc.capex_pct_revenue == pytest.approx(expected_capex_median, abs=0.005)
+        assert "维护性再投资" not in cyc.assumption_provenance["capex_pct_revenue"]
+
     def test_cyclical_provenance_exposes_cycle_shape(self):
         """Provenance must carry the peak/trough/median the normalized base
         straddles (the analyst 下钻 传感器) + the Damodaran口径 marker."""

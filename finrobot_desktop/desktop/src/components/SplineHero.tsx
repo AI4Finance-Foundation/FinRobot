@@ -3,7 +3,7 @@
 // Loads @splinetool/viewer via its UMD bundle (the React wrapper hauls in
 // extra dependencies we don't need for one scene). Failure paths:
 //   - script fails to load → render the fake-robot double-ring fallback
-//   - scene fails to load   → ditto via timeout (8s)
+//   - scene fails to load   → ditto via timeout (LOAD_TIMEOUT_MS)
 //
 // Sizing: caller sets the bounding box (typically 40% width inside the
 // hero grid); SplineHero fills it.
@@ -36,7 +36,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 // the hero is actually allowed to mount, keeping the runtime off cold start.
 
 const SCENE_SRC = 'https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode'
-const LOAD_TIMEOUT_MS = 8000
+// Scene-load budget. The scene is 1.35 MB served with max-age=1y, so only the
+// FIRST load ever pays the network: measured 6.4-8.1 s on a slow/proxied
+// route, which a 8 s budget lost to (robot permanently degraded to rings on
+// fresh installs). The rings fallback already covers the wait, so a generous
+// budget costs nothing visually — after one success the HTTP cache makes
+// every later launch instant.
+const LOAD_TIMEOUT_MS = 30_000
 
 interface Props {
   /** Per spec §5.4 mode + landing addition:
@@ -173,7 +179,7 @@ export function SplineHero({ variant = 'hero', showStatusChip }: Props): React.R
     }
   }, [allowed, viewerModuleReady])
 
-  // 8s scene-load budget — armed only once the element is registered AND
+  // Scene-load budget — armed only once the element is registered AND
   // mounting, so the timeout covers SCENE load (its original intent), not the
   // one-time module download which has no fixed budget on a cold network.
   useEffect(() => {

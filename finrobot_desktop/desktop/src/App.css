@@ -4951,32 +4951,6 @@ select.settings-input {
 .ai-panel-expand-btn:hover .expand-icon {
   color: var(--accent);
 }
-.ai-panel-expand-btn .expand-hint {
-  font-family: var(--font-mono);
-  font-size: 8px;
-  color: var(--text-3);
-  writing-mode: vertical-rl;
-  text-orientation: mixed;
-  letter-spacing: 0.05em;
-  transform: rotate(180deg);
-}
-.ai-panel-expand-btn .expand-badge {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--red);
-  color: var(--text-on-primary);
-  font-size: 9px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-
 .ai-header {
   position: relative;
   z-index: 6;

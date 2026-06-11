@@ -97,11 +97,10 @@ export function RightChatPanel({
           data-testid="expand-btn"
           className="ai-panel-expand-btn"
           onClick={handleToggle}
-          title={t('chatpanel.expand.shortcut')}
+          title={t('chatpanel.expand.open')}
           type="button"
         >
           <span className="expand-icon">◈</span>
-          <span className="expand-hint">⌘L</span>
         </button>
       )}
 

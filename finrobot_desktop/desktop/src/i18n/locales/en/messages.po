@@ -3005,12 +3005,8 @@ msgstr ""
 #~ msgstr "Send (↵ · Shift+↵ for newline)"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.expand.shortcut"
-#~ msgstr "Open chat (⌘L)"
-
-#. js-lingui-explicit-id
-#~ msgid "chatpanel.collapse.shortcut"
-#~ msgstr "Collapse (⌘L)"
+msgid "chatpanel.expand.open"
+msgstr "Open chat"
 
 #. js-lingui-explicit-id
 #~ msgid "chatpanel.assistant"

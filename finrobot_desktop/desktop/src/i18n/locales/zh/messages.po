@@ -3005,12 +3005,8 @@ msgstr ""
 #~ msgstr "发送 (↵ · Shift+↵ 换行)"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.expand.shortcut"
-#~ msgstr "展开 (⌘L)"
-
-#. js-lingui-explicit-id
-#~ msgid "chatpanel.collapse.shortcut"
-#~ msgstr "收起 (⌘L)"
+msgid "chatpanel.expand.open"
+msgstr "展开聊天"
 
 #. js-lingui-explicit-id
 #~ msgid "chatpanel.assistant"

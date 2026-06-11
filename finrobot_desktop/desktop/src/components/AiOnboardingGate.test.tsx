@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 
-// First-run onboarding overlay: shows ONCE when a fresh install has no LLM model
-// configured, and never again once a model is set or the user dismisses it. These
-// lock the several AND-ed trigger conditions so a future refactor can't silently
-// start nagging configured users (or hiding the gate from fresh ones).
+// First-run onboarding overlay: shows when a launch has no LLM model configured,
+// stays closed for the rest of THAT session once dismissed, and never shows once
+// a model is set. Dismissal is session-only (in-memory) on purpose — a relaunch
+// with still no model re-prompts. These lock the AND-ed trigger conditions so a
+// future refactor can't silently nag configured users or hide it from fresh ones.
 
 const navigate = vi.fn()
 let pathname = '/research'
@@ -37,7 +38,6 @@ beforeEach(() => {
   pathname = '/research'
   isPlaceholderData = false
   health = { ...NO_MODEL }
-  localStorage.clear()
 })
 afterEach(() => localStorage.clear())
 
@@ -75,23 +75,35 @@ describe('AiOnboardingGate', () => {
     expect(shown()).toBe(false)
   })
 
-  it('stays hidden after a previous dismissal this install', () => {
+  it('re-prompts on a fresh mount (relaunch) while still no model — no persistence', () => {
+    // A prior session's dismissal must NOT leak across launches: dismissal is
+    // in-memory only, so a stale persisted flag can never suppress a fresh mount.
     localStorage.setItem('finrobot-ai-onboarding-dismissed', 'true')
     render(<AiOnboardingGate />)
-    expect(shown()).toBe(false)
+    expect(shown()).toBe(true)
   })
 
-  it('"Pick an AI model" navigates to Settings and remembers the dismissal', () => {
+  it('"Pick an AI model" navigates to Settings and dismisses for the session', () => {
     render(<AiOnboardingGate />)
     fireEvent.click(screen.getByText('Pick an AI model'))
     expect(navigate).toHaveBeenCalledWith('/settings')
-    expect(localStorage.getItem('finrobot-ai-onboarding-dismissed')).toBe('true')
+    expect(shown()).toBe(false)
   })
 
-  it('"Explore data first" dismisses without navigating', () => {
+  it('"Explore data first" dismisses for the session without navigating', () => {
     render(<AiOnboardingGate />)
     fireEvent.click(screen.getByText('Explore data first'))
     expect(navigate).not.toHaveBeenCalled()
+    expect(shown()).toBe(false)
+  })
+
+  it('stays dismissed across re-renders within the same session (route changes)', () => {
+    const { rerender } = render(<AiOnboardingGate />)
+    fireEvent.click(screen.getByText('Explore data first'))
+    expect(shown()).toBe(false)
+    // Simulate a route change re-render of the still-mounted component.
+    pathname = '/coverage'
+    rerender(<AiOnboardingGate />)
     expect(shown()).toBe(false)
   })
 })

@@ -5,9 +5,15 @@
 // model. The overlay just makes the unlock obvious; the per-ticker report CTA
 // (AIZone preflight) is the always-on backstop if they dismiss and try AI later.
 //
-// Trigger: backend reachable + model NOT configured + not already dismissed this
-// install + not already sitting on the Settings page (which has its own notice).
-// Once a model is configured the overlay never returns, regardless of the flag.
+// Trigger: backend reachable + model NOT configured + not dismissed THIS session
+// + not already sitting on the Settings page (which has its own notice).
+//
+// Dismissal is SESSION-ONLY (in-memory), deliberately NOT persisted: as long as
+// no model is configured the whole AI surface is locked, so every fresh launch
+// re-prompts (the component remounts → `dismissed` resets to false). Within one
+// session, closing it keeps it closed across route changes (this lives in
+// AppShell, outside the router Outlet, so its state survives navigation). Once a
+// model is configured `modelConfigured` is true and it never returns.
 
 import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -15,14 +21,12 @@ import { useHealth } from '../hooks/useHealth'
 import { useI18n } from '../i18n'
 import { AI_CHAT_ENABLED } from '../config/features'
 
-const DISMISSED_KEY = 'finrobot-ai-onboarding-dismissed'
-
 export function AiOnboardingGate(): React.ReactElement | null {
   const { locale } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
   const { data: health, isPlaceholderData } = useHealth()
-  const [dismissed, setDismissed] = useState(() => localStorage.getItem(DISMISSED_KEY) === 'true')
+  const [dismissed, setDismissed] = useState(false)
 
   const zh = locale === 'zh'
   // Never gate on the seeded placeholder (modelConfigured defaults true there
@@ -41,7 +45,6 @@ export function AiOnboardingGate(): React.ReactElement | null {
   }
 
   function remember(): void {
-    localStorage.setItem(DISMISSED_KEY, 'true')
     setDismissed(true)
   }
 

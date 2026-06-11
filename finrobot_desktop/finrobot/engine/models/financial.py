@@ -1273,3 +1273,100 @@ class ValuationAggregate(BaseModel):
     forward_fiscal_period: str | None = None
     forward_confidence: str | None = None
     forward_source: str | None = None
+
+
+# ---------------------------------------------------------------------------
+# Scenario SOTP — reverse-SOTP market-implied decomposition (Batch 3B v1)
+# ---------------------------------------------------------------------------
+#
+# For "option-value" names (TSLA-class: no growth in the reverse-DCF bracket
+# reaches the live price), a fundamentals point target is dishonest. SOTP gives
+# the publishable, sourceable alternative: a deterministic cash-flow FLOOR from
+# SEC-filed reportable segments × comparable multiples, then a pure-subtraction
+# reverse decomposition of how much of the live market cap the floor does NOT
+# explain (= the market's implied option value for robotaxi/FSD/Optimus).
+#
+# v1 is 100% sourceable, zero fabricated forward assumptions. It is an
+# independent option-value CHANNEL (structured_context["sotp_breakdown"] /
+# football-field SOTP row) — it does NOT enter confidence-weighted point-target
+# synthesis, so it never trips _RELIABILITY_RATIO_K against the DCF floor.
+# verdict stays REVIEW. All fields are COMPUTED (deterministic arithmetic),
+# never LLM-narrated — scalars only, the bilingual UI renders the sentence.
+
+
+class SegmentValuation(BaseModel):
+    """One reportable segment's cash-flow valuation leg of the SOTP floor.
+
+    Every field is sourceable: ``metric_value`` traces to a 10-K accession +
+    XBRL concept + dimension member; ``multiple``/``multiple_source`` to the
+    comparable basis. ``implied_ev = metric_value × multiple`` (pure product).
+    """
+
+    name: str
+    """Canonical segment name, e.g. "Automotive" / "Energy generation and storage"."""
+    metric_label: str
+    """Caliber string for the metric, e.g. "FY2025 segment gross profit"."""
+    metric_value: float
+    """Absolute USD value of the valuation metric (segment gross profit / EBIT)."""
+    multiple: float
+    """Deterministic comparable multiple applied (e.g. peer-median EV/gross-profit)."""
+    multiple_source: str
+    """Sourceable caliber for the multiple, e.g. "auto OEM peer median EV/gross-profit"."""
+    implied_ev: float
+    """metric_value × multiple — this segment's EV contribution to the floor."""
+
+
+class SOTPBreakdown(BaseModel):
+    """Reverse-SOTP market-implied decomposition for an option-value name.
+
+    The publishable REVIEW-state product: a deterministic cash-flow floor
+    (modelable segments × comparable multiples) plus the pure-subtraction
+    implied option value the market assigns above that floor. NOT a point target
+    — ``price_floor`` is a floor, not a forecast; it lives in basis narrative,
+    never in ``thesis.price_target``, so the headline [0.5×,2×]/[0.25×,4×] gates
+    are no-ops here (no headline per-share target is produced).
+
+    All fields COMPUTED, no baked prose (mirrors MarketImpliedCheck/Nature).
+    Tolerant of extremes by design: ``implied_option_pct`` may exceed 1 (a
+    cash-burning name whose floor is tiny) or go negative (floor above market →
+    ``floor_exceeds_market``); no ``ge=0/le=1`` guard that would reject a legal
+    extreme (spec §8#6).
+    """
+
+    ticker: str
+    as_of: datetime
+    modelable_segments: list[SegmentValuation]
+    """Cash-flow-modelable segments (Automotive / Energy …); the floor's legs."""
+    ev_floor: float
+    """Σ modelable_segments.implied_ev — the deterministic enterprise-value floor."""
+    net_debt: float
+    """Net debt subtracted to bridge EV floor → equity floor (negative = net cash)."""
+    equity_floor: float
+    """ev_floor − net_debt."""
+    price_floor: float
+    """equity_floor / shares_outstanding — the per-share cash-flow floor (NOT a target)."""
+    shares_outstanding: float
+    current_price: float
+    market_equity: float
+    """current_price × shares_outstanding."""
+    implied_option_ev: float
+    """market_equity − equity_floor — the value the market assigns to the option
+    segment (robotaxi/FSD/Optimus), reverse-derived, zero fabricated forward."""
+    implied_option_pct: float
+    """implied_option_ev / market_equity — option value as a share of live cap.
+    May exceed 1 or go negative; not clamped (see class docstring)."""
+    # Implied success probability (optional second leg; needs an external anchor):
+    option_ev_if_success: float | None = None
+    """External sell-side SOTP ceiling for the success state (source string set)."""
+    option_anchor_source: str | None = None
+    implied_success_probability: float | None = None
+    """implied_option_ev / option_ev_if_success — the market-IMPLIED success
+    probability (reverse-derived from price, NOT a forecast we authored)."""
+    # Degeneracy / rejection signals (mirror MarketImpliedCheck.growth_unreachable):
+    floor_exceeds_market: bool = False
+    """equity_floor > market_equity → not an option-premium name; SOTP option
+    decomposition does not apply (it should go through ordinary multi-method)."""
+    market_exceeds_success_ceiling: bool = False
+    """implied_success_probability > 1 → live price exceeds even the full success
+    SOTP ceiling — a stronger over-pricing signal than reverse-DCF unreachable."""
+    warnings: list[str] = Field(default_factory=list)

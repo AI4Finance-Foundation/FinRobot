@@ -253,6 +253,31 @@ class TestDegradation:
         )
         assert out.confidence == "unavailable"
 
+    def test_fmp_empty_rows_falls_back_to_yfinance_forward_eps(self) -> None:
+        out = get_forward_financials(
+            ticker="NVDA",
+            yf_info={"forwardEps": 12.5},
+            fmp_analyst_estimates={"rows": []},
+            as_of=AS_OF,
+        )
+        assert out.forward_eps == 12.5
+        assert out.forward_revenue is None
+        assert out.forward_ebitda is None
+        assert out.forward_fcf is None
+        assert out.confidence == "low"
+        assert "yfinance" in out.source
+        assert any("FMP analyst-estimates 不可用" in w for w in out.warnings)
+
+    def test_fmp_malformed_rows_falls_back_to_yfinance_forward_eps(self) -> None:
+        out = get_forward_financials(
+            ticker="NVDA",
+            yf_info={"forward_eps": 11.0},
+            fmp_analyst_estimates={"rows": ["bad-row"]},
+            as_of=AS_OF,
+        )
+        assert out.forward_eps == 11.0
+        assert out.confidence == "low"
+
 
 class TestForwardPeriodSelection:
     """FMP returns many fiscal years; the leaf must pick FY1 (nearest upcoming

@@ -105,15 +105,47 @@ def get_forward_financials(
     """
     warnings: list[str] = []
 
-    if fmp_analyst_estimates:
-        return _from_fmp(ticker, fmp_analyst_estimates, warnings, as_of or date.today())
+    if fmp_analyst_estimates is not None:
+        fmp_result = _from_fmp(ticker, fmp_analyst_estimates, warnings, as_of or date.today())
+        if fmp_result.confidence != "unavailable" or not yf_info:
+            return fmp_result
+        return _from_yfinance(
+            ticker,
+            yf_info,
+            historical_ebitda_margins,
+            historical_fcf_margins,
+            initial_warnings=[
+                "FMP analyst-estimates 不可用："
+                + "；".join(fmp_result.warnings)
+                + " — 降级到 yfinance forward EPS"
+            ],
+        )
 
     if not yf_info:
         return _unavailable(ticker, "无 yfinance info — forward 全部不可得")
 
+    return _from_yfinance(
+        ticker,
+        yf_info,
+        historical_ebitda_margins,
+        historical_fcf_margins,
+        initial_warnings=[],
+    )
+
+
+def _from_yfinance(
+    ticker: str,
+    yf_info: dict[str, Any],
+    historical_ebitda_margins: list[float] | None,
+    historical_fcf_margins: list[float] | None,
+    *,
+    initial_warnings: list[str],
+) -> ForwardFinancials:
+    warnings = list(initial_warnings)
+
     forward_eps = _coerce_positive_float(yf_info.get("forward_eps") or yf_info.get("forwardEps"))
     if forward_eps is None:
-        warnings.append("forward_eps 不可得 — FMP /v3/analyst-estimates 待集成（PR4c.2）")
+        warnings.append("forward_eps 不可得 — FMP analyst-estimates / yfinance 均未提供可用值")
 
     # Without FMP we have no consensus forward revenue, so forward EBITDA / FCF
     # can't be derived either. Stay honest rather than back-fill.
@@ -134,7 +166,7 @@ def get_forward_financials(
         confidence = "low"
 
     source = (
-        "yfinance.info.forwardEps (degraded · FMP consensus 待集成)"
+        "yfinance.info.forwardEps (degraded · FMP consensus 不可用)"
         if forward_eps is not None
         else "无可用 forward 数据源"
     )

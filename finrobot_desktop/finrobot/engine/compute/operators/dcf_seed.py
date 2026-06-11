@@ -496,6 +496,7 @@ def seed_dcf_inputs(
         ticker_label=ebitda_label,
         industry_value=industry.ebitda_pct_revenue,
         industry_label=f"{industry.industry} 行业中位数",
+        rejected_ticker_reason="为非正，亏损/缺 EBITDA 年份不作为 going-concern 正常化利润率",
     )
     if cyclical and ebitda_ticker is not None:
         _through = _cycle_stats(historical.ebitda_margin, window=earnings_window)
@@ -880,10 +881,16 @@ def _pick_with_provenance(
     industry_value: float,
     industry_label: str,
     floor: float = 0.0,
+    rejected_ticker_reason: str | None = None,
 ) -> tuple[float, str]:
     """Pick ticker_value when reasonable, else industry_value. Return (value, source_label)."""
     if ticker_value is not None and ticker_value > floor:
         return ticker_value, ticker_label
+    if ticker_value is not None and rejected_ticker_reason is not None:
+        return (
+            industry_value,
+            f"{industry_label}；{ticker_label} {ticker_value:.1%} {rejected_ticker_reason}",
+        )
     return industry_value, industry_label
 
 

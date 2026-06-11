@@ -99,9 +99,14 @@ def seed_lbo_inputs(
         # LBO model requires positive EBITDA — when missing (None) or
         # non-positive, fall back to industry-implied value via
         # revenue × industry EBITDA margin. Prov flag this clearly.
+        ltm_ebitda_note = (
+            "最新 EBITDA 不可得"
+            if ltm_ebitda is None
+            else f"最新 EBITDA ${ltm_ebitda / 1e9:.1f}B 为非正"
+        )
         ltm_ebitda = max(revenue_base * industry.ebitda_pct_revenue, 1.0)
         prov["ltm_ebitda"] = (
-            f"${ltm_ebitda / 1e9:.1f}B（最新 EBITDA 不可得，按"
+            f"${ltm_ebitda / 1e9:.1f}B（{ltm_ebitda_note}，按"
             f" {industry.industry} 行业 EBITDA 利润率 {industry.ebitda_pct_revenue:.1%} 估算）"
         )
     else:
@@ -131,6 +136,7 @@ def seed_lbo_inputs(
         ticker_label=ebitda_label,
         industry_value=industry.ebitda_pct_revenue,
         industry_label=f"{industry.industry} 行业中位数",
+        rejected_ticker_reason="为非正，亏损/缺 EBITDA 年份不作为 LBO 正常化利润率",
     )
     prov["ebitda_margin"] = f"{ebitda_margin:.1%}（{ebitda_source}）"
 

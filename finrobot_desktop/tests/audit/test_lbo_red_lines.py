@@ -60,9 +60,9 @@ def test_ic_memo_financials_step_uses_seed_lbo_inputs():
     src = (REPO_ROOT / "finrobot" / "engine" / "pipelines" / "ic_memo.py").read_text()
 
     func_marker = "async def _execute_ic_financials("
-    assert func_marker in src, (
-        "_execute_ic_financials function missing from ic_memo.py — did you rename it?"
-    )
+    assert (
+        func_marker in src
+    ), "_execute_ic_financials function missing from ic_memo.py — did you rename it?"
     start = src.index(func_marker)
     next_func = src.find("\nasync def ", start + 1)
     if next_func == -1:
@@ -71,9 +71,9 @@ def test_ic_memo_financials_step_uses_seed_lbo_inputs():
         next_func = len(src)
     body = src[start:next_func]
 
-    assert "seed_lbo_inputs" in body, (
-        "_execute_ic_financials must call seed_lbo_inputs() to construct LBOInputs."
-    )
+    assert (
+        "seed_lbo_inputs" in body
+    ), "_execute_ic_financials must call seed_lbo_inputs() to construct LBOInputs."
 
     body_no_docstring = re.sub(r'"""[\s\S]*?"""', "", body, count=1)
     banned = {
@@ -99,9 +99,9 @@ def test_lbo_pipeline_uses_seed_lbo_inputs():
     src = (REPO_ROOT / "finrobot" / "engine" / "pipelines" / "lbo.py").read_text()
 
     func_marker = "async def _execute_lbo_params("
-    assert func_marker in src, (
-        "_execute_lbo_params function missing from pipelines/lbo.py — did you rename it?"
-    )
+    assert (
+        func_marker in src
+    ), "_execute_lbo_params function missing from pipelines/lbo.py — did you rename it?"
 
     start = src.index(func_marker)
     next_func = src.find("\nasync def ", start + 1)
@@ -239,6 +239,25 @@ def test_lbo_missing_ebitda_falls_back_to_industry_estimate():
     inputs = seed_lbo_inputs(fin, _empty_historical())
     assert inputs.ltm_ebitda > 0
     assert "不可得" in inputs.assumption_provenance["ltm_ebitda"]
+
+
+def test_lbo_loss_maker_profitability_fallback_is_disclosed():
+    fin = _minimal_financials()
+    fin.income.ebitda = -100_000_000
+    hist = _empty_historical().model_copy(
+        update={
+            "years": [2022, 2023, 2024],
+            "ebitda_margin": [-0.30, -0.20, -0.10],
+        }
+    )
+
+    inputs = seed_lbo_inputs(fin, hist)
+
+    assert inputs.ltm_ebitda > 0
+    assert "为非正" in inputs.assumption_provenance["ltm_ebitda"]
+    assert inputs.ebitda_margin > 0
+    assert "-20.0%" in inputs.assumption_provenance["ebitda_margin"]
+    assert "为非正" in inputs.assumption_provenance["ebitda_margin"]
 
 
 if __name__ == "__main__":

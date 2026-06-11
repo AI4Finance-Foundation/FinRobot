@@ -397,6 +397,16 @@ class TestSeedDcfInputsIndustryFallback:
         assert "行业" in inputs.assumption_provenance["capex_pct_revenue"]
         assert "行业" in inputs.assumption_provenance["da_pct_revenue"]
 
+    def test_negative_company_ebitda_margin_rejection_is_disclosed(self):
+        hist = _aapl_historical().model_copy(update={"ebitda_margin": [-0.30, -0.20, -0.10, -0.05]})
+        inputs = seed_dcf_inputs(_aapl_financials(), hist)
+        provenance = inputs.assumption_provenance["ebitda_margin"]
+
+        assert inputs.ebitda_margin > 0
+        assert "行业中位数" in provenance
+        assert "-10.0%" in provenance
+        assert "为非正" in provenance
+
 
 class TestSeedDcfInputsUnknownIndustry:
     """Total Market fallback when industry doesn't map to any Damodaran row."""

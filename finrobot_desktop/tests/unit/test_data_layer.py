@@ -1603,6 +1603,33 @@ class TestCircuitBreakerWiring:
         assert r.provider == "only"
         assert only.fetch_called == 1
 
+    async def test_plan_gated_failure_never_charges_breaker(self, cache):
+        """A typed ProviderPlanError (key valid, endpoint outside the plan — e.g.
+        NEWS on a free FMP key) is a deterministic capability gap, not provider
+        ill-health: it must fall through the chain WITHOUT counting toward the
+        breaker, or a news burst would open the breaker and block the endpoints
+        the plan CAN serve (financials / profile / price)."""
+        from finrobot.engine.data.interface import ProviderPlanError
+
+        health = ProviderHealth(failure_threshold=2, base_cooldown_s=600)
+        gated = MockProvider(
+            "fmp", ["news"], raises=ProviderPlanError("FMP plan does not include /news/stock")
+        )
+        fallback = MockProvider(
+            "aggregator", ["news"], result=_make_result(data_type="news", provider="aggregator")
+        )
+        layer = DataLayer([gated, fallback], cache, health=health)
+
+        for ticker in ("AAA", "BBB", "CCC", "DDD"):
+            r = await layer.fetch("news", ticker)
+            assert r.provider == "aggregator"
+
+        # Four consecutive plan-gated failures, breaker untouched: the provider
+        # was attempted every call (never cooled down) and no failure recorded.
+        assert gated.fetch_called == 4
+        assert health.snapshot("fmp").consecutive_failures == 0
+        assert health.snapshot("fmp").cooldown_until is None
+
     async def test_breaker_shared_across_fetch_methods(self, cache):
         """A trip recorded via fetch() also gates fetch_quote()/fetch_price() —
         the breaker is one instance shared by every loop."""

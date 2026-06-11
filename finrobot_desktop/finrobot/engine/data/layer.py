@@ -10,6 +10,7 @@ from finrobot.engine.data.interface import (
     DataProvider,
     DataResult,
     ProviderError,
+    ProviderPlanError,
     RateLimitedProviderError,
     is_rate_limit_error,
 )
@@ -80,6 +81,23 @@ class DataLayer:
         # so distinct kwargs don't share a flight. Collapses a cold-cache
         # stampede the canonical registry above doesn't cover.
         self._inflight_raw: dict[tuple[DataType, str], asyncio.Future[DataResult]] = {}
+
+    def _record_provider_failure(self, provider_name: str, exc: ProviderError) -> None:
+        """Charge the circuit breaker for a provider failure — with one carve-out.
+
+        A typed plan gap (``ProviderPlanError``: key valid, endpoint outside the
+        subscription tier) is a DETERMINISTIC capability boundary, not provider
+        ill-health. Charging it would let a burst of plan-gated calls (e.g. NEWS
+        on a free FMP key — paywalled on stable) open the breaker and block the
+        endpoints the plan CAN serve (financials / profile / price). Every
+        provider-loop failure path must call THIS helper rather than
+        ``self._health.record_failure`` directly, so the carve-out can't be
+        missed by a future sibling.
+        """
+        if isinstance(exc, ProviderPlanError):
+            logger.info("Provider '%s' plan-gated (no breaker charge): %s", provider_name, exc)
+            return
+        self._health.record_failure(provider_name, rate_limited=is_rate_limit_error(exc))
 
     def _health_gated(self, provider: DataProvider) -> bool:
         """True if ``provider`` is in an open cooldown window and should be skipped.
@@ -214,7 +232,7 @@ class DataLayer:
             try:
                 result = await provider.fetch(ticker, data_type, **kwargs)
             except ProviderError as e:
-                self._health.record_failure(provider.name, rate_limited=is_rate_limit_error(e))
+                self._record_provider_failure(provider.name, e)
                 logger.warning(f"Provider '{provider.name}' failed for {ticker}/{data_type}: {e}")
                 continue
             self._health.record_success(provider.name)
@@ -686,7 +704,7 @@ class DataLayer:
             try:
                 result = await provider.fetch(ticker, data_type, years=years, **kwargs)
             except ProviderError as e:
-                self._health.record_failure(provider.name, rate_limited=is_rate_limit_error(e))
+                self._record_provider_failure(provider.name, e)
                 logger.warning(
                     f"Provider '{provider.name}' failed for {ticker}/{data_type} "
                     f"(historical, {years}y): {e}"
@@ -741,7 +759,7 @@ class DataLayer:
         try:
             result = await provider.fetch_annual_financials(ticker, years)
         except ProviderError as e:
-            self._health.record_failure(provider.name, rate_limited=is_rate_limit_error(e))
+            self._record_provider_failure(provider.name, e)
             logger.warning("SEC deep-history failed for %s (%dy): %s", ticker, years, e)
             return self._split_yearly(cached.data) if cached is not None else None
         self._health.record_success(provider.name)
@@ -776,7 +794,7 @@ class DataLayer:
         try:
             result = await provider.fetch_annual_segments(ticker)
         except ProviderError as e:
-            self._health.record_failure(provider.name, rate_limited=is_rate_limit_error(e))
+            self._record_provider_failure(provider.name, e)
             logger.warning("SEC segments failed for %s: %s", ticker, e)
             return cached.data if cached is not None else None
         self._health.record_success(provider.name)
@@ -806,7 +824,7 @@ class DataLayer:
             try:
                 result = await provider.fetch(ticker, DataType.QUOTE)
             except ProviderError as e:
-                self._health.record_failure(provider.name, rate_limited=is_rate_limit_error(e))
+                self._record_provider_failure(provider.name, e)
                 logger.warning(f"Provider '{provider.name}' QUOTE failed for {ticker}: {e}")
                 last_error = e
                 continue
@@ -856,7 +874,7 @@ class DataLayer:
                         ticker, DataType.PRICE_RANGE, start=start, end=end, interval=interval
                     )
                 except ProviderError as e:
-                    self._health.record_failure(provider.name, rate_limited=is_rate_limit_error(e))
+                    self._record_provider_failure(provider.name, e)
                     logger.warning(
                         f"Provider '{provider.name}' PRICE_RANGE failed for "
                         f"{ticker} {start}..{end}: {e}"
@@ -915,7 +933,7 @@ class DataLayer:
             try:
                 result = await provider.fetch(ticker, DataType.PRICE)
             except ProviderError as e:
-                self._health.record_failure(provider.name, rate_limited=is_rate_limit_error(e))
+                self._record_provider_failure(provider.name, e)
                 logger.warning(f"Provider '{provider.name}' PRICE failed for {ticker}: {e}")
                 last_error = e
                 continue

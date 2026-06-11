@@ -115,6 +115,19 @@ class RateLimitedProviderError(ProviderError):
     """
 
 
+class ProviderPlanError(ProviderError):
+    """The key is VALID but the account's plan cannot use this endpoint.
+
+    FMP answers HTTP 403 with a key-free "Exclusive Endpoint" / "Legacy
+    Endpoint" body for endpoints outside the subscription tier (e.g. stock
+    news / screener / transcripts on the free plan). This is a DETERMINISTIC
+    capability gap, not provider ill-health: the data layer must fall through
+    to the next provider WITHOUT charging the circuit breaker — otherwise a
+    burst of plan-gated calls (3 consecutive) opens the breaker and blocks
+    the endpoints the plan CAN serve (financials / profile / price).
+    """
+
+
 # Substrings that mark a provider failure as upstream rate-limiting (HTTP 429)
 # rather than a bad ticker. FALLBACK ONLY: wrap points that see a structural 429
 # (status code / typed library exception) raise RateLimitedProviderError, which

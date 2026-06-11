@@ -642,7 +642,18 @@ async def _execute_financial_modeling(
                     shares_outstanding=dcf_inputs.shares_outstanding,
                     current_price=current_price,
                 )
-            except Exception as e:  # noqa: BLE001 — SOTP is augmentation; never crash the seed
+            except (
+                ProviderError,
+                ValidationError,
+                ValueError,
+                KeyError,
+                TypeError,
+                AttributeError,
+                RuntimeError,
+                OSError,
+            ) as e:
+                # SOTP is augmentation; never crash the seed. Concrete types only
+                # (red line D1) — CancelledError must propagate.
                 logger.warning("SOTP breakdown failed for %s: %s", ticker, e)
                 sotp = None
             if sotp is not None:

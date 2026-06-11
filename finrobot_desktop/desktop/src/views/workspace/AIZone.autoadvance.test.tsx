@@ -38,7 +38,12 @@ vi.mock('../../hooks/useV5Artifacts', () => ({
 }))
 vi.mock('../../hooks/useHealth', () => ({
   useHealth: () => ({
-    data: { backendReachable: true, startupError: null, availableProviders: ['fmp'] },
+    data: {
+      backendReachable: true,
+      startupError: null,
+      availableProviders: ['fmp'],
+      modelConfigured: true,
+    },
     isPlaceholderData: false,
   }),
 }))

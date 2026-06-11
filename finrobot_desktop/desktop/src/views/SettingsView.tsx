@@ -42,7 +42,7 @@ type SettingsPanel = (typeof NAV_ITEMS)[number]['id']
 // ─── Main component ────────────────────────────────────────────────────────
 
 export default function SettingsView() {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const queryClient = useQueryClient()
   const addToast = useToastStore((s) => s.addToast)
 
@@ -174,6 +174,14 @@ export default function SettingsView() {
   const adanosConfigured = settingsResp?.adanos_api_key_set ?? false
   const alphaVantageConfigured = settingsResp?.alpha_vantage_api_key_set ?? false
   const startupError = settingsResp?.startup_error ?? null
+  // True when a usable LLM is selected. False on a fresh install (no model yet)
+  // — that's onboarding, NOT an error, so it gets a friendly notice rather than
+  // the red startupError banner. Default true while settings load (no flash).
+  const modelConfigured = settingsResp?.model_configured ?? true
+  // The AI Model nav item flags an attention dot whenever the LLM needs the
+  // user: a hard config error (startupError) OR the first-run "no model" state.
+  // So the cue survives even when the user is on another panel.
+  const aiModelNeedsAttention = startupError != null || !modelConfigured
 
   // ── Loading / load-error gates ──────────────────────────────────────────
   if (isLoading) {
@@ -255,8 +263,12 @@ export default function SettingsView() {
           </div>
         </div>
 
-        {/* Startup error banner (validate_runtime_config failure at boot) */}
-        {startupError && (
+        {/* Startup error banner (a chosen-but-broken LLM config). Scoped to the
+            AI Model panel — a boot config error is an LLM concern, so dangling
+            it over Data Sources / Updates only confused (it read like every
+            panel was broken). The nav rail keeps a dot so it stays discoverable
+            from other panels. */}
+        {startupError && activePanel === 'aiModel' && (
           <div
             style={{
               background: 'var(--negative-bg)',
@@ -281,6 +293,38 @@ export default function SettingsView() {
           </div>
         )}
 
+        {/* First-run notice (no model chosen yet) — friendly, NOT an error.
+            Distinct from startupError: empty model_name is the expected fresh
+            install state. Tells the user what works without any key vs what
+            needs a model, so picking one below feels optional-but-unlocking. */}
+        {!startupError && !modelConfigured && activePanel === 'aiModel' && (
+          <div
+            style={{
+              background: 'color-mix(in srgb, var(--accent) 8%, transparent)',
+              border: '1px solid var(--accent)',
+              borderRadius: 'var(--r-md)',
+              padding: '12px 16px',
+              marginBottom: 'var(--sp-5)',
+              fontSize: 12,
+              color: 'var(--text-primary)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+            }}
+          >
+            <div style={{ fontWeight: 600, color: 'var(--accent)' }}>
+              {locale === 'zh'
+                ? '选一个 AI 模型即可解锁研报'
+                : 'Pick an AI model to unlock reports'}
+            </div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 11, lineHeight: 1.5 }}>
+              {locale === 'zh'
+                ? '价格、财务、估值(DCF / LBO / 可比公司)等所有确定性数字无需配置即可使用;只有 AI 研报、AI 对话、投委会辩论需要一个模型。在下方选择 provider、填入 key 即可开始。'
+                : 'Prices, financials, and valuations (DCF / LBO / comps) — every deterministic number — work with no key. Only AI reports, AI chat, and the IC debate need a model. Pick a provider below and add its key to begin.'}
+            </div>
+          </div>
+        )}
+
         <div className="settings-body">
           {/* Left nav rail */}
           <nav className="settings-nav" aria-label={t('settings.title')}>
@@ -294,6 +338,22 @@ export default function SettingsView() {
               >
                 <Icon d={item.icon} />
                 {t(item.labelKey)}
+                {/* Attention dot: AI Model needs the user (no model chosen, or a
+                    broken key). Stays visible from any panel so the cue isn't
+                    lost when the banner is scoped away to the AI Model panel. */}
+                {item.id === 'aiModel' && aiModelNeedsAttention && (
+                  <span
+                    aria-hidden
+                    style={{
+                      marginLeft: 'auto',
+                      width: 7,
+                      height: 7,
+                      borderRadius: '50%',
+                      background: startupError ? 'var(--negative)' : 'var(--accent)',
+                      boxShadow: startupError ? '0 0 6px var(--negative)' : '0 0 6px var(--accent)',
+                    }}
+                  />
+                )}
               </button>
             ))}
           </nav>

@@ -3601,6 +3601,11 @@ export interface components {
       /** Startup Error */
       startup_error?: string | null
       /**
+       * Model Configured
+       * @default false
+       */
+      model_configured: boolean
+      /**
        * Secret Storage Mode
        * @default keychain
        * @enum {string}

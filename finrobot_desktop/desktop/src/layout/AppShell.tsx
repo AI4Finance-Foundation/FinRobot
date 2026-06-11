@@ -10,6 +10,7 @@ import { RightChatPanel } from './RightChatPanel'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import ToastContainer from '../components/Toast'
 import { MandatoryUpdateGate } from '../components/MandatoryUpdateGate'
+import { AiOnboardingGate } from '../components/AiOnboardingGate'
 import { useUiStore } from '../stores/uiStore'
 import { useUpdaterStore } from '../stores/updaterStore'
 import { pickDirectory, isTauri, DEFAULT_WORKSPACE_PATH } from '../lib/tauri'
@@ -103,6 +104,9 @@ export function AppShell(): React.ReactElement {
       {/* Mandatory-update gate — full-screen block when the installed version is
           below the published floor. Renders null unless mandatory. */}
       <MandatoryUpdateGate />
+      {/* First-run AI onboarding — dismissible overlay shown once when no LLM
+          model is configured yet. Renders null once a model is set. */}
+      <AiOnboardingGate />
     </div>
   )
 }

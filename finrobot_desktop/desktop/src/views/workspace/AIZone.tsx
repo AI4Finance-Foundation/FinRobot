@@ -46,16 +46,19 @@ function artifactTypeLabel(type: string, locale: Locale): string {
 // Friendly, actionable copy for each preflight failure (BUG-027) — what's
 // wrong + that Settings is where to fix it. Inline literals per the
 // VersionDiffBanner precedent.
-function preflightDescription(
-  reason: 'offline' | 'config' | 'providers' | null,
-  locale: Locale,
-): string {
+type PreflightReason = 'offline' | 'needsModel' | 'config' | 'providers' | null
+
+function preflightDescription(reason: PreflightReason, locale: Locale): string {
   const zh = locale === 'zh'
   switch (reason) {
     case 'offline':
       return zh
         ? '后端服务未连接。请确认 finrobot serve 正在运行后重试。'
         : 'Backend is offline. Make sure finrobot serve is running, then retry.'
+    case 'needsModel':
+      return zh
+        ? '还没配置 AI 模型。研报与 AI 分析需要一个模型;价格 / 财务 / 估值数字无需配置即可查看。去设置选一个模型并填好 key。'
+        : 'No AI model configured yet. Reports and AI analysis need one; prices / financials / valuation numbers work without any key. Pick a model in Settings and add its key.'
     case 'config':
       return zh
         ? '后端配置有误(LLM / 数据源密钥)。请到设置补全后重试。'
@@ -169,18 +172,24 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
   const preflightBlocked =
     health != null &&
     (!health.backendReachable ||
+      !health.modelConfigured ||
       health.startupError != null ||
       health.availableProviders.length === 0)
-  const preflightReason: 'offline' | 'config' | 'providers' | null =
+  // Order matters: offline first, then the first-run "no model" case (the most
+  // common fresh-install block — and the only one that's NOT an error), then
+  // hard config errors, then missing data providers.
+  const preflightReason: PreflightReason =
     health == null
       ? null
       : !health.backendReachable
         ? 'offline'
-        : health.startupError != null
-          ? 'config'
-          : health.availableProviders.length === 0
-            ? 'providers'
-            : null
+        : !health.modelConfigured
+          ? 'needsModel'
+          : health.startupError != null
+            ? 'config'
+            : health.availableProviders.length === 0
+              ? 'providers'
+              : null
   // A completed run whose artifact is NOT equity_research (DCF/LBO/comps/
   // earnings/…). Its result lives behind the PipelineProgressPanel's CTA
   // (run.artifactId), so we must not fall through to ColdState and bury it.
@@ -388,7 +397,7 @@ function NoReportYetState({
 }: {
   ticker: string
   preflightBlocked: boolean
-  preflightReason: 'offline' | 'config' | 'providers' | null
+  preflightReason: PreflightReason
   isRunning: boolean
   onLaunch: () => void
 }): React.ReactElement {
@@ -606,7 +615,7 @@ function ColdState({
   isRunning: boolean
   isQuerying: boolean
   preflightBlocked: boolean
-  preflightReason: 'offline' | 'config' | 'providers' | null
+  preflightReason: PreflightReason
   onLaunch: () => void
 }): React.ReactElement {
   const { t } = useI18n()
@@ -695,7 +704,7 @@ function RunCta({
   compact,
 }: {
   preflightBlocked: boolean
-  preflightReason: 'offline' | 'config' | 'providers' | null
+  preflightReason: PreflightReason
   isRunning: boolean
   onLaunch: () => void
   compact?: boolean

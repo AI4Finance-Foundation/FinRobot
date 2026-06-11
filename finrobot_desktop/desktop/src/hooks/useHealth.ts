@@ -32,6 +32,11 @@ export interface HealthState {
   availableProviders: string[]
   /** Boot-time config error surfaced by /api/settings, if any. */
   startupError: string | null
+  /** True when a usable LLM is selected (model chosen AND keyed). False on a
+   *  fresh install — distinct from `startupError` (a chosen-but-broken model).
+   *  Drives the first-run onboarding overlay + the AI-CTA preflight. Defaults
+   *  to `true` while unknown/offline so we never nag before the real answer. */
+  modelConfigured: boolean
 }
 
 interface QuotesWarmedShape {
@@ -42,6 +47,7 @@ interface QuotesWarmedShape {
 interface SettingsHealthShape {
   available_providers: string[]
   startup_error: string | null
+  model_configured: boolean
 }
 
 const OFFLINE: HealthState = {
@@ -50,6 +56,9 @@ const OFFLINE: HealthState = {
   quotesWarmed: false,
   availableProviders: [],
   startupError: null,
+  // Optimistic default: never show onboarding/preflight nags until the backend
+  // actually says the model is unconfigured.
+  modelConfigured: true,
 }
 
 export function useHealth() {
@@ -71,12 +80,14 @@ export function useHealth() {
       //    no specific providers rather than guessing.
       let providers: string[] = []
       let startupError: string | null = null
+      let modelConfigured = true
       try {
         const r = await fetchWithTimeout(`${BASE_URL}/api/settings`, { signal })
         if (r.ok) {
           const s = (await r.json()) as SettingsHealthShape
           providers = Array.isArray(s.available_providers) ? s.available_providers : []
           startupError = s.startup_error ?? null
+          modelConfigured = s.model_configured ?? true
         }
       } catch {
         // ignore — reachability already established
@@ -94,6 +105,7 @@ export function useHealth() {
         quotesWarmed,
         availableProviders: providers,
         startupError,
+        modelConfigured,
       }
     },
     // Eagerly retry from a cold/offline state, then settle into a calm poll.

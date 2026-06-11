@@ -14,6 +14,7 @@ import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
+from finrobot.llm_probe import LlmProbeGate
 from finrobot.routes.runs import router as runs_router
 
 
@@ -42,7 +43,13 @@ def _make_app(run_record: Any | None = None, *, startup_error: str | None = None
     # Default to a usable model; tests that exercise the no-model 503 override it.
     deps = MagicMock()
     deps.settings.is_model_configured = True
+    # The key-validity gate (ensure_llm_reachable) parses model_name and skips
+    # the live probe for kind="test" providers — give it a passing default;
+    # the gate-specific tests below override these.
+    deps.settings.model_name = "test:stub"
+    deps.settings.provider_by_id.return_value.kind = "test"
     app.state.deps = deps
+    app.state.llm_probe_gate = LlmProbeGate()
     return app
 
 
@@ -180,6 +187,91 @@ async def test_create_run_503_when_model_not_configured() -> None:
     assert "No AI model configured" in resp.json()["detail"]
     store.create_run.assert_not_awaited()
     assert app.state.run_tasks == {}
+
+
+def _configure_live_provider(app: FastAPI) -> None:
+    """Point the mock settings at a NON-test provider so the live probe runs."""
+    settings = app.state.deps.settings
+    settings.model_name = "openai:gpt-4o"
+    settings.provider_by_id.return_value.kind = "openai-compatible"
+    settings.provider_key.return_value = "aa"
+
+
+@pytest.mark.asyncio
+async def test_create_run_503_when_key_fails_live_probe(monkeypatch: Any) -> None:
+    """A key that EXISTS but cannot authenticate must reject the run at submit
+    time (classified reason in the detail), not minutes later inside the first
+    agent LLM step — and must not persist an orphan run row."""
+    from finrobot import llm_probe
+
+    app = _make_app()
+    _configure_live_provider(app)
+
+    async def fake_probe(*_args: Any) -> tuple[bool, str, str]:
+        return False, "auth", "status_code: 401, body: invalid api key"
+
+    monkeypatch.setattr(llm_probe, "probe_model", fake_probe)
+    store = app.state.run_store
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.post("/api/runs", json={"pipeline_type": "full_analysis", "ticker": "AAPL"})
+
+    assert resp.status_code == 503, resp.text
+    assert "auth" in resp.json()["detail"]
+    assert "Settings" in resp.json()["detail"]
+    store.create_run.assert_not_awaited()
+    assert app.state.run_tasks == {}
+
+
+@pytest.mark.asyncio
+async def test_llm_probe_success_cached_per_fingerprint(monkeypatch: Any) -> None:
+    """One green probe per (model, key) fingerprint: the second submit makes no
+    extra LLM call; a key change invalidates the cache (new fingerprint)."""
+    from finrobot import llm_probe
+
+    app = _make_app()
+    _configure_live_provider(app)
+
+    calls = 0
+
+    async def fake_probe(*_args: Any) -> tuple[bool, str, str]:
+        nonlocal calls
+        calls += 1
+        return True, "ok", ""
+
+    monkeypatch.setattr(llm_probe, "probe_model", fake_probe)
+    monkeypatch.setattr(
+        "finrobot.routes.runs.get_pipeline_factories",
+        lambda: {"full_analysis": lambda agents: MagicMock()},
+    )
+    app.state.run_store.create_run = AsyncMock(return_value=_make_run_record(status="created"))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        first = await c.post("/api/runs", json={"pipeline_type": "full_analysis", "ticker": "AAPL"})
+        second = await c.post(
+            "/api/runs", json={"pipeline_type": "full_analysis", "ticker": "MSFT"}
+        )
+        assert first.status_code == 200, first.text
+        assert second.status_code == 200, second.text
+        assert calls == 1
+
+        app.state.deps.settings.provider_key.return_value = "rotated-key"
+        third = await c.post("/api/runs", json={"pipeline_type": "full_analysis", "ticker": "KO"})
+        assert third.status_code == 200, third.text
+        assert calls == 2
+
+
+def test_mark_verified_only_seeds_the_selected_model() -> None:
+    """A green Settings test seeds the gate ONLY for the configured model_name —
+    testing a provider being edited but not selected must not green-light runs."""
+    gate = LlmProbeGate()
+    settings = MagicMock()
+    settings.model_name = "openai:gpt-4o"
+    settings.provider_key.return_value = "k"
+
+    gate.mark_verified(settings, "anthropic", "claude-sonnet-4-6")
+    assert gate._verified == set()
+
+    gate.mark_verified(settings, "openai", "gpt-4o")
+    assert ("openai:gpt-4o", "k") in gate._verified
 
 
 @pytest.mark.asyncio
@@ -358,7 +450,12 @@ def _make_app_with_store(store: Any) -> FastAPI:
     app.state.run_tasks = {}
     app.state.sub_agents = {}
     app.state.startup_error = None
-    app.state.deps = MagicMock()
+    deps = MagicMock()
+    # Key-validity gate: kind="test" skips the live probe (mirrors _make_app).
+    deps.settings.model_name = "test:stub"
+    deps.settings.provider_by_id.return_value.kind = "test"
+    app.state.deps = deps
+    app.state.llm_probe_gate = LlmProbeGate()
     app.state.artifact_store = None
     return app
 

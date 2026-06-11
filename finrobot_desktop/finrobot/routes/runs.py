@@ -19,6 +19,7 @@ from starlette.responses import StreamingResponse
 
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.ticker import validate_ticker
+from finrobot.llm_probe import LlmProbeGate
 from finrobot.engine.pipelines.base import Pipeline, PipelineResult
 from finrobot.engine.pipelines.registry import get_pipeline_factories
 from finrobot.events import (
@@ -52,6 +53,35 @@ _SSE_POLL_BACKOFF_FACTOR = 2.0
 # Max run ids one aggregated /api/runs/events stream may multiplex — see the
 # cap check in stream_runs_events.
 _MAX_MULTIPLEX_IDS = 50
+
+
+async def ensure_llm_reachable(request: Request) -> None:
+    """503 unless the configured (model, key) has passed one live probe.
+
+    Shared by every endpoint that spawns multi-step LLM work (runs, debate).
+    ``is_model_configured`` only proves a key EXISTS; this proves it can
+    authenticate, so a garbage key is rejected at submit time with the same
+    classified reason the Settings ✗ shows — instead of burning minutes of data
+    collection and dying inside the first agent step. ``LlmProbeGate`` caches
+    success per (model, key) fingerprint (pre-seeded by a green Settings
+    auto-test), so steady-state submits make no extra LLM calls.
+    """
+    # getattr tolerance mirrors run_rate_limiter: unit-test apps skip the server
+    # lifespan that normally creates the gate. Unlike the limiter we don't skip
+    # enforcement — attach a fresh gate so the probe always runs.
+    gate: LlmProbeGate | None = getattr(request.app.state, "llm_probe_gate", None)
+    if gate is None:
+        gate = LlmProbeGate()
+        request.app.state.llm_probe_gate = gate
+    ok, code, detail = await gate.ensure(request.app.state.deps.settings)
+    if not ok:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"AI model connection check failed ({code}): "
+                f"{detail or 'provider unreachable'} — fix the API key in Settings → AI Model."
+            ),
+        )
 
 
 def _next_poll_interval(interval: float, *, had_events: bool) -> float:
@@ -155,6 +185,13 @@ async def spawn_run(
             status_code=503,
             detail="No AI model configured. Choose one in Settings → AI Model.",
         )
+    # Key-validity gate: is_model_configured only proves a key EXISTS. A key
+    # that cannot authenticate used to be accepted here, burn minutes of data
+    # collection, then die inside the first agent LLM step — exactly the "假成功
+    # 等到跑研报才炸" the Settings auto-test was added to kill. Probe once per
+    # (model, key) fingerprint; success is cached (and pre-seeded by a green
+    # Settings test), so steady-state submits stay free.
+    await ensure_llm_reachable(request)
 
     factories = get_pipeline_factories()
     if pipeline_type not in factories:

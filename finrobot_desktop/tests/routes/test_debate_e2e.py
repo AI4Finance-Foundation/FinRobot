@@ -55,6 +55,7 @@ from finrobot.engine.debate.models import (
     SideCase,
     Verdict,
 )
+from finrobot.llm_probe import LlmProbeGate
 from finrobot.routes.debate import router
 from finrobot.run_store import RunStore
 
@@ -121,7 +122,9 @@ def _e2e_stub_agents() -> dict[str, Any]:
             )
         ),
         "judge": _StubAgent(
-            Verdict(call="HOLD", conviction=0.5, swing_factor="估值分歧", change_my_mind="超预期营收")
+            Verdict(
+                call="HOLD", conviction=0.5, swing_factor="估值分歧", change_my_mind="超预期营收"
+            )
         ),
     }
 
@@ -143,7 +146,7 @@ def _seeded_artifact(artifact_id: str = "e2e-art-01", ticker: str = "NVDA") -> A
             "ticker": ticker,
             "current_price": 900.0,
             "reliable": True,
-            "upside_downside": 15.5,   # → evidence_id "synthesis.upside_downside"
+            "upside_downside": 15.5,  # → evidence_id "synthesis.upside_downside"
             "weighted_price": 1035.0,  # → evidence_id "synthesis.weighted_price"
             "methods": [
                 {"name": "DCF", "mid": 1050.0, "source": "dcf"},
@@ -195,8 +198,12 @@ def _make_e2e_app(run_store: RunStore, artifact: Artifact) -> FastAPI:
     settings = MagicMock()
     settings.create_model = MagicMock(return_value=MagicMock())
     settings.get_model_for_role = MagicMock(return_value=None)
+    # Key-validity gate (ensure_llm_reachable): kind="test" skips the live probe.
+    settings.model_name = "test:stub"
+    settings.provider_by_id.return_value.kind = "test"
     deps.settings = settings
     app.state.deps = deps
+    app.state.llm_probe_gate = LlmProbeGate()
 
     return app
 
@@ -231,7 +238,9 @@ async def test_debate_e2e_full_flow(tmp_path: Any) -> None:
             "finrobot.routes.debate.build_debate_agents",
             return_value=_e2e_stub_agents(),
         ):
-            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/api/debate",
                     json={"ticker": "NVDA", "artifact_id": "e2e-art-01"},
@@ -270,9 +279,9 @@ async def test_debate_e2e_full_flow(tmp_path: Any) -> None:
             f"Expected exactly 1 debate.verdict, got {len(verdict_events)}. "
             f"All events: {[e.get('event') for e in events]}"
         )
-        assert verdict_events[0]["call"] == "HOLD", (
-            f"Expected verdict call=HOLD, got {verdict_events[0]['call']!r}"
-        )
+        assert (
+            verdict_events[0]["call"] == "HOLD"
+        ), f"Expected verdict call=HOLD, got {verdict_events[0]['call']!r}"
 
         # ── Assertion 3: ungrounded bull argument → verified=False ──────────────
         # The bull stub has one Argument with evidence_ids=[] → verifier must mark
@@ -283,34 +292,30 @@ async def test_debate_e2e_full_flow(tmp_path: Any) -> None:
             f"Expected exactly 1 ungrounded bull argument, found {len(ungrounded)}. "
             f"Bull points: {bull_points}"
         )
-        assert ungrounded[0]["verified"] is False, (
-            f"Ungrounded bull argument must have verified=False, got {ungrounded[0]['verified']!r}"
-        )
+        assert (
+            ungrounded[0]["verified"] is False
+        ), f"Ungrounded bull argument must have verified=False, got {ungrounded[0]['verified']!r}"
 
         # ── Assertion 4: grounded bull argument → verified=True ─────────────────
-        grounded_bull = [
-            e for e in bull_points if _EV_UPSIDE in (e.get("evidence_ids") or [])
-        ]
+        grounded_bull = [e for e in bull_points if _EV_UPSIDE in (e.get("evidence_ids") or [])]
         assert len(grounded_bull) == 1, (
             f"Expected 1 grounded bull argument citing {_EV_UPSIDE!r}, "
             f"found {len(grounded_bull)}. Bull points: {bull_points}"
         )
-        assert grounded_bull[0]["verified"] is True, (
-            f"Grounded bull argument must have verified=True, got {grounded_bull[0]['verified']!r}"
-        )
+        assert (
+            grounded_bull[0]["verified"] is True
+        ), f"Grounded bull argument must have verified=True, got {grounded_bull[0]['verified']!r}"
 
         # ── Assertion 5: grounded bear argument → verified=True ─────────────────
         bear_points = [e for e in point_events if e.get("side") == "bear"]
-        grounded_bear = [
-            e for e in bear_points if _EV_WEIGHTED in (e.get("evidence_ids") or [])
-        ]
+        grounded_bear = [e for e in bear_points if _EV_WEIGHTED in (e.get("evidence_ids") or [])]
         assert len(grounded_bear) == 1, (
             f"Expected 1 grounded bear argument citing {_EV_WEIGHTED!r}, "
             f"found {len(grounded_bear)}. Bear points: {bear_points}"
         )
-        assert grounded_bear[0]["verified"] is True, (
-            f"Grounded bear argument must have verified=True, got {grounded_bear[0]['verified']!r}"
-        )
+        assert (
+            grounded_bear[0]["verified"] is True
+        ), f"Grounded bear argument must have verified=True, got {grounded_bear[0]['verified']!r}"
 
         # ── Assertion 6: run status == "completed" ───────────────────────────────
         run_record = await run_store.get_run(run_id)
@@ -322,9 +327,9 @@ async def test_debate_e2e_full_flow(tmp_path: Any) -> None:
 
         # ── Assertion 7: run_tasks cleaned up ───────────────────────────────────
         # The finally block in _run_debate_task pops run_id from run_tasks.
-        assert run_id not in app.state.run_tasks, (
-            f"run_id {run_id!r} still in run_tasks after task completion"
-        )
+        assert (
+            run_id not in app.state.run_tasks
+        ), f"run_id {run_id!r} still in run_tasks after task completion"
 
     finally:
         # Close the aiosqlite connection inside the still-live event loop so

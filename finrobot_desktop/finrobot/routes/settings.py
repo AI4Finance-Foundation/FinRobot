@@ -23,6 +23,7 @@ from finrobot.config import (
     LogLevel,
     ProviderConfig,
 )
+from finrobot.llm_probe import LlmProbeGate, probe_model
 from finrobot.secret_store import SecretStorageMode, SecretStoreError
 from finrobot.engine.data.factory import build_data_layer
 from finrobot.engine.agents.factory import create_sub_agents
@@ -455,28 +456,6 @@ class TestProviderResponse(BaseModel):
     detail: str = ""
 
 
-def _classify_provider_error(exc: BaseException) -> tuple[str, str]:
-    """Map a provider call failure to (code, raw English detail)."""
-    import httpx
-    from pydantic_ai.exceptions import ModelHTTPError
-
-    detail = str(exc)[:200] or type(exc).__name__
-    if isinstance(exc, ModelHTTPError):
-        if exc.status_code in (401, 403):
-            return "auth", detail
-        if exc.status_code == 404:
-            return "not_found", detail
-        return "http", detail
-    if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout)):
-        return "connect", detail
-    low = str(exc).lower()
-    if any(s in low for s in ("api key", "api_key", "unauthorized", "authentication")):
-        return "auth", detail
-    if any(s in low for s in ("not found", "does not exist", "no such model")):
-        return "not_found", detail
-    return "unknown", detail
-
-
 @router.post("/test-provider", response_model=TestProviderResponse)
 async def test_provider_route(body: TestProviderRequest, request: Request) -> TestProviderResponse:
     """Make a tiny live LLM call to verify a provider's key / base_url / model.
@@ -495,22 +474,15 @@ async def test_provider_route(body: TestProviderRequest, request: Request) -> Te
     if not model_id:
         return TestProviderResponse(ok=False, code="no_model")
 
-    from pydantic_ai.direct import model_request
-    from pydantic_ai.messages import ModelRequest, UserPromptPart
-
-    try:
-        model = settings.create_model(f"{body.provider_id}:{model_id}")
-        await model_request(
-            model,
-            [ModelRequest(parts=[UserPromptPart(content="ping")])],
-            model_settings={"max_tokens": 8},
-        )
-    except (asyncio.CancelledError, KeyboardInterrupt, SystemExit):
-        raise  # never swallow control-flow / shutdown signals (red-line N2)
-    except BaseException as exc:  # noqa: BLE001 — classify any provider failure for the UI
-        code, detail = _classify_provider_error(exc)
-        return TestProviderResponse(ok=False, code=code, detail=detail)
-    return TestProviderResponse(ok=True, code="ok")
+    ok, code, detail = await probe_model(settings, body.provider_id, model_id)
+    if ok:
+        # Seed the run-submit gate: a green Settings test on the SELECTED model
+        # is the same evidence the gate would buy with its own ping — don't make
+        # the first run pay for a second one.
+        gate: LlmProbeGate | None = getattr(request.app.state, "llm_probe_gate", None)
+        if gate is not None:
+            gate.mark_verified(settings, body.provider_id, model_id)
+    return TestProviderResponse(ok=ok, code=code, detail=detail)
 
 
 # ── Data-source connectivity test ────────────────────────────────────────────
@@ -597,7 +569,7 @@ _DATA_PROBES: dict[str, tuple[str, Callable[[str], Awaitable[None]]]] = {
 def _classify_data_provider_error(exc: BaseException) -> tuple[str, str]:
     """Map a data-provider probe failure to (code, key-free detail).
 
-    Returns the same ``code`` vocabulary as _classify_provider_error so the UI
+    Returns the same ``code`` vocabulary as llm_probe.classify_provider_error so the UI
     reuses one set of localized strings. NEVER returns the raw exception text:
     the request URL (which httpx embeds in the message) carries the live key.
     """

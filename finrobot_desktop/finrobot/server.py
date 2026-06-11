@@ -21,6 +21,7 @@ from pydantic_ai.ui.vercel_ai import VercelAIAdapter
 
 from finrobot.auth import CapabilityAuthMiddleware
 from finrobot.config import DATA_PROVIDER_SECRET_FIELDS, get_settings
+from finrobot.llm_probe import LlmProbeGate
 from finrobot.obs import bind_session, setup_logging
 from finrobot.obs.middleware import RequestTraceMiddleware
 from finrobot.engine.data.factory import build_data_layer
@@ -316,6 +317,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # full (BUG-043). 429 only fires under abnormal volume — buckets are sized
     # well above the largest legitimate coverage batch.
     app.state.run_rate_limiter = RunRateLimiter()
+    # Submit-time LLM key-validity gate for the run-spawning endpoints (runs,
+    # debate): is_model_configured proves a key exists, this proves it can
+    # authenticate. Success cached per (model, key) fingerprint; a green
+    # Settings auto-test pre-seeds it. See finrobot/llm_probe.py.
+    app.state.llm_probe_gate = LlmProbeGate()
     # Fail runs abandoned by a previous process (run_tasks is in-memory, so a
     # restart orphans every running row → wedged SSE + phantom in-progress in
     # the Coverage overview). M4b.

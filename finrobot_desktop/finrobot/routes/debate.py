@@ -34,7 +34,7 @@ from finrobot.engine.debate.agents import build_debate_agents
 from finrobot.engine.debate.evidence import build_evidence_set
 from finrobot.engine.debate.service import run_debate
 from finrobot.events import RunCancelled, RunCompleted, RunEvent, RunFailed, RunStarted
-from finrobot.routes.runs import cancel_requested_set
+from finrobot.routes.runs import cancel_requested_set, ensure_llm_reachable
 from finrobot.run_store import RunStore
 
 logger = logging.getLogger(__name__)
@@ -87,6 +87,10 @@ async def create_debate(body: DebateRequest, request: Request) -> DebateResponse
             status_code=503,
             detail="No AI model configured. Choose one in Settings → AI Model.",
         )
+    # Key-validity gate (mirrors POST /api/runs): a key that exists but cannot
+    # authenticate must reject the debate at submit time, not after the bull
+    # agent's first LLM call. Cached per (model, key) fingerprint.
+    await ensure_llm_reachable(request)
     limiter = getattr(request.app.state, "run_rate_limiter", None)
     if limiter is not None and not limiter.allow_runs(1):
         raise HTTPException(

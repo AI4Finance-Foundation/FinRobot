@@ -34,6 +34,7 @@ from finrobot.engine.debate.models import (
     SideCase,
     Verdict,
 )
+from finrobot.llm_probe import LlmProbeGate
 from finrobot.routes.debate import DebateRequest, router
 
 _UTC = timezone.utc
@@ -139,8 +140,12 @@ def _make_app(
     settings = MagicMock()
     settings.create_model = MagicMock(return_value=MagicMock())
     settings.get_model_for_role = MagicMock(return_value=None)
+    # Key-validity gate (ensure_llm_reachable): kind="test" skips the live probe.
+    settings.model_name = "test:stub"
+    settings.provider_by_id.return_value.kind = "test"
     deps.settings = settings
     app.state.deps = deps
+    app.state.llm_probe_gate = LlmProbeGate()
 
     return app
 

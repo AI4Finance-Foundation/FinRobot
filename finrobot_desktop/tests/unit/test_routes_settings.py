@@ -1464,7 +1464,7 @@ class TestClassifyProviderError:
     def test_http_401_403_is_auth(self) -> None:
         from pydantic_ai.exceptions import ModelHTTPError
 
-        from finrobot.routes.settings import _classify_provider_error
+        from finrobot.llm_probe import classify_provider_error as _classify_provider_error
 
         for status in (401, 403):
             code, _ = _classify_provider_error(
@@ -1475,7 +1475,7 @@ class TestClassifyProviderError:
     def test_http_404_is_not_found(self) -> None:
         from pydantic_ai.exceptions import ModelHTTPError
 
-        from finrobot.routes.settings import _classify_provider_error
+        from finrobot.llm_probe import classify_provider_error as _classify_provider_error
 
         code, _ = _classify_provider_error(
             ModelHTTPError(status_code=404, model_name="m", body=None)
@@ -1485,7 +1485,7 @@ class TestClassifyProviderError:
     def test_other_http_is_http(self) -> None:
         from pydantic_ai.exceptions import ModelHTTPError
 
-        from finrobot.routes.settings import _classify_provider_error
+        from finrobot.llm_probe import classify_provider_error as _classify_provider_error
 
         code, _ = _classify_provider_error(
             ModelHTTPError(status_code=500, model_name="m", body=None)
@@ -1495,19 +1495,19 @@ class TestClassifyProviderError:
     def test_connect_error_is_connect(self) -> None:
         import httpx
 
-        from finrobot.routes.settings import _classify_provider_error
+        from finrobot.llm_probe import classify_provider_error as _classify_provider_error
 
         code, _ = _classify_provider_error(httpx.ConnectError("refused"))
         assert code == "connect"
 
     def test_api_key_text_falls_back_to_auth(self) -> None:
-        from finrobot.routes.settings import _classify_provider_error
+        from finrobot.llm_probe import classify_provider_error as _classify_provider_error
 
         code, _ = _classify_provider_error(ValueError("Invalid api_key provided"))
         assert code == "auth"
 
     def test_unrecognised_is_unknown(self) -> None:
-        from finrobot.routes.settings import _classify_provider_error
+        from finrobot.llm_probe import classify_provider_error as _classify_provider_error
 
         code, detail = _classify_provider_error(RuntimeError("weird"))
         assert code == "unknown"

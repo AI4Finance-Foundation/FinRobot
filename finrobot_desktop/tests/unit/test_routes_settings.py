@@ -1273,6 +1273,86 @@ async def test_test_data_provider_maps_auth_and_hides_key(tmp_path: Path, monkey
 
 
 @pytest.mark.asyncio
+async def test_test_data_provider_maps_plan_restriction(tmp_path: Path, monkeypatch: Any) -> None:
+    """FMP's 403 "Legacy Endpoint" body means the key is VALID but the account's
+    plan can't use the endpoint (post-2025-08-31 accounts lost /api/v3) — that
+    must classify as 'plan', not 'auth', or the user chases the wrong fix."""
+    import httpx
+
+    secret = "valid-but-new-account-key"
+    request = httpx.Request(
+        "GET", f"https://financialmodelingprep.com/api/v3/profile/AAPL?apikey={secret}"
+    )
+    response = httpx.Response(
+        403,
+        request=request,
+        text='{"Error Message": "Legacy Endpoint : Due to Legacy endpoints being no longer supported..."}',
+    )
+    monkeypatch.setitem(
+        _DATA_PROBES,
+        "fmp",
+        (
+            "fmp_api_key",
+            AsyncMock(side_effect=httpx.HTTPStatusError("403", request=request, response=response)),
+        ),
+    )
+    app = _make_app(tmp_path, settings=_settings(fmp_api_key=secret))
+    async with _client(app) as c:
+        resp = await c.post("/api/settings/test-data-provider", json={"provider": "fmp"})
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["ok"] is False
+    assert body["code"] == "plan"
+    assert body["detail"] == "HTTP 403"
+    assert secret not in body["detail"]
+
+
+@pytest.mark.asyncio
+async def test_test_data_provider_maps_bare_403_to_auth(tmp_path: Path, monkeypatch: Any) -> None:
+    """A 403 without a plan-restriction marker body still reads as 'auth'."""
+    import httpx
+
+    request = httpx.Request("GET", "https://example.com/probe?apikey=k")
+    response = httpx.Response(403, request=request, text="Forbidden")
+    monkeypatch.setitem(
+        _DATA_PROBES,
+        "fmp",
+        (
+            "fmp_api_key",
+            AsyncMock(side_effect=httpx.HTTPStatusError("403", request=request, response=response)),
+        ),
+    )
+    app = _make_app(tmp_path, settings=_settings(fmp_api_key="k"))
+    async with _client(app) as c:
+        resp = await c.post("/api/settings/test-data-provider", json={"provider": "fmp"})
+    assert resp.json()["code"] == "auth"
+
+
+@pytest.mark.asyncio
+async def test_test_data_provider_maps_rate_limit(tmp_path: Path, monkeypatch: Any) -> None:
+    """A 429 (e.g. FMP "Bandwidth Limit Reach") classifies as 'rate_limited'."""
+    import httpx
+
+    request = httpx.Request("GET", "https://example.com/probe?apikey=k")
+    response = httpx.Response(429, request=request)
+    monkeypatch.setitem(
+        _DATA_PROBES,
+        "fmp",
+        (
+            "fmp_api_key",
+            AsyncMock(side_effect=httpx.HTTPStatusError("429", request=request, response=response)),
+        ),
+    )
+    app = _make_app(tmp_path, settings=_settings(fmp_api_key="k"))
+    async with _client(app) as c:
+        resp = await c.post("/api/settings/test-data-provider", json={"provider": "fmp"})
+    body = resp.json()
+    assert body["ok"] is False
+    assert body["code"] == "rate_limited"
+    assert body["detail"] == "HTTP 429"
+
+
+@pytest.mark.asyncio
 async def test_test_data_provider_maps_connect_error(tmp_path: Path, monkeypatch: Any) -> None:
     import httpx
 

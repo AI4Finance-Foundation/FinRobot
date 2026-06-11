@@ -603,10 +603,24 @@ def _classify_data_provider_error(exc: BaseException) -> tuple[str, str]:
 
     if isinstance(exc, httpx.HTTPStatusError):
         sc = exc.response.status_code
-        if sc in (401, 403):
+        if sc == 403:
+            # FMP answers 403 with a key-free "Legacy Endpoint" / "Exclusive
+            # Endpoint" body when the key is VALID but the account's plan can't
+            # use the endpoint (accounts created after 2025-08-31 lost /api/v3).
+            # Calling that "invalid key" sends the user chasing the wrong fix.
+            try:
+                body = exc.response.text[:500].lower()
+            except httpx.ResponseNotRead:
+                body = ""
+            if any(s in body for s in ("legacy endpoint", "exclusive endpoint", "subscription")):
+                return "plan", f"HTTP {sc}"
+            return "auth", f"HTTP {sc}"
+        if sc == 401:
             return "auth", f"HTTP {sc}"
         if sc == 404:
             return "not_found", f"HTTP {sc}"
+        if sc == 429:
+            return "rate_limited", f"HTTP {sc}"
         return "http", f"HTTP {sc}"
     if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout, httpx.TimeoutException)):
         return "connect", type(exc).__name__
@@ -912,6 +926,7 @@ _PROVIDER_KEY_FIELDS: dict[str, str] = {
     "fmp": "fmp_api_key",
     "finnhub": "finnhub_api_key",
     "edgar_tools": "sec_user_agent",
+    "adanos": "adanos_api_key",
 }
 
 

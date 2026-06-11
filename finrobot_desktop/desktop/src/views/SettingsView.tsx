@@ -91,11 +91,13 @@ function SecretInput({
   onChange,
   placeholder,
   invalid,
+  ariaLabel,
 }: {
   value: string
   onChange: (v: string) => void
   placeholder?: string
   invalid?: boolean
+  ariaLabel?: string
 }) {
   const { t } = useI18n()
   const [revealed, setRevealed] = useState(false)
@@ -109,6 +111,7 @@ function SecretInput({
         placeholder={placeholder}
         autoComplete="off"
         spellCheck={false}
+        aria-label={ariaLabel}
       />
       <button
         type="button"
@@ -286,6 +289,21 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       if (error) throw new Error(tSync('settings.loadFailed'))
       return data
     },
+  })
+
+  // ── Live provider health (门五②) ──────────────────────────────────────────
+  // Real ProviderHealth breaker signals for the unified data-source rows,
+  // never a mocked green panel. Failure degrades to dim dots, not a crash.
+  const { data: healthResp, isError: healthError } = useQuery<{
+    providers: ProviderHealthEntryShape[]
+  }>({
+    queryKey: ['provider-health'],
+    queryFn: async () => {
+      const resp = await fetchWithTimeout(`${BASE_URL}/api/settings/provider-health`)
+      if (!resp.ok) throw new FetchHttpError(resp.status, resp.statusText)
+      return (await resp.json()) as { providers: ProviderHealthEntryShape[] }
+    },
+    refetchInterval: 30_000,
   })
 
   // ── Editable local state ───────────────────────────────────────────────────
@@ -647,28 +665,75 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       }))
     }
   }
-  const renderDataTestRow = (provider: string, field: string, key: string): React.ReactElement => {
-    const st = dataTestState[provider] ?? { status: 'idle' as const }
+  /** Inline key controls for one unified data-source row: secret input + test
+   * button + clear on the row's single line. The test OUTCOME deliberately
+   * lives on the row's status line (renderTestResult) — inline it would
+   * squeeze the input and wrap the buttons. FMP / Finnhub / Adanos / Alpha
+   * Vantage are structurally identical — they only differ in copy, the
+   * configured flag, and the settings field names. */
+  const renderKeyControl = (cfg: {
+    labelKey: string
+    placeholderKey: string
+    configured: boolean
+    value: string
+    onChange: (v: string) => void
+    clearField: string
+    testProvider: string
+    testField: string
+  }): React.ReactElement => {
+    const st = dataTestState[cfg.testProvider] ?? { status: 'idle' as const }
     return (
-      <div className="settings-test-row">
+      <>
+        <SecretInput
+          value={cfg.value}
+          onChange={cfg.onChange}
+          placeholder={cfg.configured ? '••••••••' : t(cfg.placeholderKey)}
+          ariaLabel={t(cfg.labelKey)}
+        />
         <button
           type="button"
           className="settings-btn"
-          onClick={() => handleTestDataProvider(provider, field, key)}
+          onClick={() => handleTestDataProvider(cfg.testProvider, cfg.testField, cfg.value)}
           disabled={st.status === 'testing'}
         >
           {st.status === 'testing' ? t('settings.test.testing') : t('settings.test.button')}
         </button>
-        {st.status === 'done' && (
-          <span className={`settings-test-result${st.ok ? ' is-ok' : ' is-bad'}`}>
-            {st.ok ? '✓ ' : '✗ '}
-            {t(`settings.dataTest.result.${st.code ?? 'unknown'}`)}
-            {!st.ok && st.detail && st.code === 'http' ? ` (${st.detail})` : ''}
-          </span>
+        {cfg.configured && (
+          <button
+            type="button"
+            className="settings-clear-btn"
+            onClick={() => handleClearSecret(cfg.clearField)}
+          >
+            {t('settings.clearKey.button')}
+          </button>
         )}
-      </div>
+      </>
     )
   }
+  /** Test outcome for a data-source row — rendered on the row's status line
+   * (below the control line), so a long result message can never squeeze the
+   * input or wrap the buttons. */
+  const renderTestResult = (provider: string): React.ReactNode => {
+    const st = dataTestState[provider]
+    if (st?.status !== 'done') return null
+    return (
+      <span className={`settings-test-result${st.ok ? ' is-ok' : ' is-bad'}`}>
+        {st.ok ? '✓ ' : '✗ '}
+        {t(`settings.dataTest.result.${st.code ?? 'unknown'}`)}
+        {!st.ok && st.detail && st.code === 'http' ? ` (${st.detail})` : ''}
+      </span>
+    )
+  }
+  /** Key-state badge for a data-source row: configured wins; an empty key reads
+   * as "Recommended" (core tier) or "Optional" (enrichment tier). */
+  const renderKeyBadge = (configured: boolean, tier: 'core' | 'optional'): React.ReactElement =>
+    configured ? (
+      <span className="settings-badge is-ok">{t('settings.badge.configured')}</span>
+    ) : tier === 'core' ? (
+      <span className="settings-badge is-recommended">{t('settings.badge.recommended')}</span>
+    ) : (
+      <span className="settings-badge is-optional">{t('settings.badge.optional')}</span>
+    )
   /** Trailing "· Get a key ↗" link appended to a data-source hint. Opens the
    * provider's signup page in the system browser (Tauri shell / window.open). */
   const renderSignupLink = (url: string): React.ReactElement => (
@@ -686,55 +751,6 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
       </a>
     </>
   )
-  /** One API-key field (label + status badge + secret input + hint + test row).
-   * FMP / Finnhub / Adanos / Alpha Vantage are structurally identical — they
-   * only differ in copy, the configured flag, and whether an empty key reads as
-   * "Recommended" (core tier) or "Optional" (enrichment tier). */
-  const renderKeyField = (cfg: {
-    labelKey: string
-    placeholderKey: string
-    hintKey: string
-    configured: boolean
-    value: string
-    onChange: (v: string) => void
-    signupUrl: string
-    clearField: string
-    testProvider: string
-    testField: string
-    tier: 'core' | 'optional'
-  }): React.ReactElement => (
-    <div className="settings-field">
-      <label className="settings-field-label">
-        <span className="label-text">{t(cfg.labelKey)}</span>
-        {cfg.configured ? (
-          <span className="settings-badge is-ok">{t('settings.badge.configured')}</span>
-        ) : cfg.tier === 'core' ? (
-          <span className="settings-badge is-recommended">{t('settings.badge.recommended')}</span>
-        ) : (
-          <span className="settings-badge is-optional">{t('settings.badge.optional')}</span>
-        )}
-        {cfg.configured && (
-          <button
-            type="button"
-            className="settings-clear-btn"
-            onClick={() => handleClearSecret(cfg.clearField)}
-          >
-            {t('settings.clearKey.button')}
-          </button>
-        )}
-      </label>
-      <SecretInput
-        value={cfg.value}
-        onChange={cfg.onChange}
-        placeholder={cfg.configured ? '••••••••' : t(cfg.placeholderKey)}
-      />
-      <p className="settings-hint">
-        {t(cfg.hintKey)}
-        {renderSignupLink(cfg.signupUrl)}
-      </p>
-      {renderDataTestRow(cfg.testProvider, cfg.testField, cfg.value)}
-    </div>
-  )
   const handleSecAgentChange = (v: string) => {
     setSecUserAgent(v)
     scheduleStandardSave({ sec_user_agent: v })
@@ -744,6 +760,10 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
   }
 
   // ── Derived ──────────────────────────────────────────────────────────────
+  // Shape-guard, not just null-guard: an unexpected health payload (proxy
+  // error page, wrong endpoint) must degrade to dim dots, never crash.
+  const healthEntries = Array.isArray(healthResp?.providers) ? healthResp.providers : []
+  const healthByName = new Map(healthEntries.map((p) => [p.name, p]))
   const fmpConfigured = settingsResp?.fmp_api_key_set ?? false
   const finnhubConfigured = settingsResp?.finnhub_api_key_set ?? false
   const adanosConfigured = settingsResp?.adanos_api_key_set ?? false
@@ -1138,7 +1158,10 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
               </div>
             </section>
 
-            {/* ── Data Sources ── */}
+            {/* ── Data Sources — one row per provider: live circuit dot + key
+                state + inline key entry + test. Merges the old read-only status
+                panel with the tiered key form below it, which listed the same
+                providers twice. */}
             <section
               className="settings-section"
               data-section="dataSources"
@@ -1146,79 +1169,150 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
             >
               <h2 className="settings-section-title">{t('settings.section.dataSources')}</h2>
 
-              {/* Always-on baseline: the app works with zero keys — Yahoo Finance
-                  covers prices, financials & news for free. Spelling this out kills
-                  the "do I have to fill all of these?" cold-start anxiety. */}
-              <div className="settings-baseline">
-                <span className="settings-baseline-icon" aria-hidden="true">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <circle cx="8" cy="8" r="6.5" stroke="currentColor" strokeWidth="1.4" />
-                    <path
-                      d="M5.2 8.2 7 10l3.8-4"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </span>
-                <div className="settings-baseline-body">
-                  <div className="settings-baseline-head">
-                    <span className="settings-baseline-name">
-                      {t('settings.dataSources.baselineName')}
-                    </span>
+              {healthError && (
+                <p className="settings-hint">{t('settings.providerStatus.unavailable')}</p>
+              )}
+
+              <div className="settings-provider-list">
+                {/* Always-on baseline: the app works with zero keys — Yahoo
+                    Finance covers prices, financials & news for free. */}
+                <DataSourceRow
+                  health={healthByName.get('yfinance')}
+                  name={PROVIDER_DISPLAY_NAMES.yfinance}
+                  badge={
                     <span className="settings-badge is-always">
                       {t('settings.dataSources.baselineBadge')}
                     </span>
-                  </div>
-                  <p className="settings-hint">{t('settings.dataSources.baselineHint')}</p>
-                </div>
-              </div>
+                  }
+                  hint={t('settings.dataSources.baselineHint')}
+                />
 
-              {/* Live circuit/key state per provider — feeds from the real
-                  ProviderHealth breaker (门五②), never a mocked green panel. */}
-              <ProviderStatusPanel />
-
-              {/* Core tier — keys that materially sharpen the numbers analysts trust. */}
-              <div className="settings-tier">
-                <div className="settings-tier-head">
-                  <span className="settings-tier-label is-core">
-                    {t('settings.dataSources.coreLabel')}
-                  </span>
-                  <span className="settings-tier-note">{t('settings.dataSources.coreNote')}</span>
-                </div>
-                <div className="settings-fields">
-                  {renderKeyField({
+                <DataSourceRow
+                  health={healthByName.get('fmp')}
+                  name={PROVIDER_DISPLAY_NAMES.fmp}
+                  badge={renderKeyBadge(fmpConfigured, 'core')}
+                  control={renderKeyControl({
                     labelKey: 'settings.fmp.label',
                     placeholderKey: 'settings.fmp.placeholder',
-                    hintKey: 'settings.fmp.hint',
                     configured: fmpConfigured,
                     value: fmpKey,
                     onChange: handleFmpKeyChange,
-                    signupUrl: DATA_SOURCE_SIGNUP_URLS.fmp,
                     clearField: 'fmp_api_key',
                     testProvider: 'fmp',
                     testField: 'fmp_api_key',
-                    tier: 'core',
                   })}
+                  result={renderTestResult('fmp')}
+                  hint={
+                    <>
+                      {t('settings.fmp.hint')}
+                      {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.fmp)}
+                    </>
+                  }
+                />
 
-                  {/* SEC EDGAR identity — not a secret key, but core: unlocks all
-                      10-K / 10-Q / 8-K / Form 4 / 13F filings. */}
-                  <div className="settings-field">
-                    <label className="settings-field-label">
-                      <span className="label-text">{t('settings.sec.label')}</span>
-                      {secIdentityActive ? (
-                        <span className="settings-badge is-ok">{t('settings.badge.active')}</span>
-                      ) : secIdentityLocallyValid ? (
-                        <span className="settings-badge is-pending">
-                          {t('settings.badge.pending')}
-                        </span>
-                      ) : (
-                        <span className="settings-badge is-recommended">
-                          {t('settings.badge.recommended')}
-                        </span>
-                      )}
-                    </label>
+                <DataSourceRow
+                  health={healthByName.get('finnhub')}
+                  name={PROVIDER_DISPLAY_NAMES.finnhub}
+                  badge={renderKeyBadge(finnhubConfigured, 'optional')}
+                  control={renderKeyControl({
+                    labelKey: 'settings.finnhub.label',
+                    placeholderKey: 'settings.finnhub.placeholder',
+                    configured: finnhubConfigured,
+                    value: finnhubKey,
+                    onChange: handleFinnhubKeyChange,
+                    clearField: 'finnhub_api_key',
+                    testProvider: 'finnhub',
+                    testField: 'finnhub_api_key',
+                  })}
+                  result={renderTestResult('finnhub')}
+                  hint={
+                    <>
+                      {t('settings.finnhub.hint')}
+                      {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.finnhub)}
+                    </>
+                  }
+                />
+
+                <DataSourceRow
+                  health={healthByName.get('adanos')}
+                  name={PROVIDER_DISPLAY_NAMES.adanos}
+                  badge={renderKeyBadge(adanosConfigured, 'optional')}
+                  control={renderKeyControl({
+                    labelKey: 'settings.adanos.label',
+                    placeholderKey: 'settings.adanos.placeholder',
+                    configured: adanosConfigured,
+                    value: adanosKey,
+                    onChange: handleAdanosKeyChange,
+                    clearField: 'adanos_api_key',
+                    testProvider: 'adanos',
+                    testField: 'adanos_api_key',
+                  })}
+                  result={renderTestResult('adanos')}
+                  hint={
+                    <>
+                      {t('settings.adanos.hint')}
+                      {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.adanos)}
+                    </>
+                  }
+                />
+
+                {/* Alpha Vantage has a key but no entry in the live breaker
+                    feed — dim dot, key entry still works. */}
+                <DataSourceRow
+                  health={healthByName.get('alpha_vantage')}
+                  name={PROVIDER_DISPLAY_NAMES.alpha_vantage}
+                  badge={renderKeyBadge(alphaVantageConfigured, 'optional')}
+                  control={renderKeyControl({
+                    labelKey: 'settings.alphaVantage.label',
+                    placeholderKey: 'settings.alphaVantage.placeholder',
+                    configured: alphaVantageConfigured,
+                    value: alphaVantageKey,
+                    onChange: handleAlphaVantageKeyChange,
+                    clearField: 'alpha_vantage_api_key',
+                    testProvider: 'alpha_vantage',
+                    testField: 'alpha_vantage_api_key',
+                  })}
+                  result={renderTestResult('alpha_vantage')}
+                  hint={
+                    <>
+                      {t('settings.alphaVantage.hint')}
+                      {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.alphaVantage)}
+                    </>
+                  }
+                />
+
+                {/* Remaining live-feed providers with no key to configure
+                    (e.g. news_aggregator) — status row only. */}
+                {healthEntries
+                  .filter((p) => !KEYED_PROVIDER_ROWS.has(p.name))
+                  .map((p) => (
+                    <DataSourceRow
+                      key={p.name}
+                      health={p}
+                      name={PROVIDER_DISPLAY_NAMES[p.name] ?? p.name}
+                    />
+                  ))}
+
+                {/* SEC EDGAR identity — not a secret key (unlocks 10-K / 10-Q /
+                    8-K / Form 4 / 13F filings); its two-part hint runs taller
+                    than the key rows, so it anchors the list. */}
+                <DataSourceRow
+                  health={healthByName.get('edgar_tools')}
+                  name={PROVIDER_DISPLAY_NAMES.edgar_tools}
+                  badge={
+                    secIdentityActive ? (
+                      <span className="settings-badge is-ok">{t('settings.badge.active')}</span>
+                    ) : secIdentityLocallyValid ? (
+                      <span className="settings-badge is-pending">
+                        {t('settings.badge.pending')}
+                      </span>
+                    ) : (
+                      <span className="settings-badge is-recommended">
+                        {t('settings.badge.recommended')}
+                      </span>
+                    )
+                  }
+                  control={
                     <input
                       className={`settings-input${secIdentityInvalidInput ? ' is-invalid' : ''}`}
                       type="text"
@@ -1228,69 +1322,23 @@ export default function SettingsView({ onComplete: _onComplete }: Props) {
                       autoComplete="off"
                       spellCheck={false}
                       aria-invalid={secIdentityInvalidInput}
+                      aria-label={t('settings.sec.label')}
                     />
-                    <p className={`settings-hint ${secIdentityHint.cls}`}>{secIdentityHint.text}</p>
-                    {secIdentityPreview && (
-                      <p className="settings-hint">
-                        {t('settings.sec.preview')}
-                        {secIdentityPreview}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Optional tier — enrichment (extra news & sentiment), safe to skip. */}
-              <div className="settings-tier is-optional">
-                <div className="settings-tier-head">
-                  <span className="settings-tier-label is-optional">
-                    {t('settings.dataSources.optionalLabel')}
-                  </span>
-                  <span className="settings-tier-note">
-                    {t('settings.dataSources.optionalNote')}
-                  </span>
-                </div>
-                <div className="settings-fields">
-                  {renderKeyField({
-                    labelKey: 'settings.finnhub.label',
-                    placeholderKey: 'settings.finnhub.placeholder',
-                    hintKey: 'settings.finnhub.hint',
-                    configured: finnhubConfigured,
-                    value: finnhubKey,
-                    onChange: handleFinnhubKeyChange,
-                    signupUrl: DATA_SOURCE_SIGNUP_URLS.finnhub,
-                    clearField: 'finnhub_api_key',
-                    testProvider: 'finnhub',
-                    testField: 'finnhub_api_key',
-                    tier: 'optional',
-                  })}
-                  {renderKeyField({
-                    labelKey: 'settings.adanos.label',
-                    placeholderKey: 'settings.adanos.placeholder',
-                    hintKey: 'settings.adanos.hint',
-                    configured: adanosConfigured,
-                    value: adanosKey,
-                    onChange: handleAdanosKeyChange,
-                    signupUrl: DATA_SOURCE_SIGNUP_URLS.adanos,
-                    clearField: 'adanos_api_key',
-                    testProvider: 'adanos',
-                    testField: 'adanos_api_key',
-                    tier: 'optional',
-                  })}
-                  {renderKeyField({
-                    labelKey: 'settings.alphaVantage.label',
-                    placeholderKey: 'settings.alphaVantage.placeholder',
-                    hintKey: 'settings.alphaVantage.hint',
-                    configured: alphaVantageConfigured,
-                    value: alphaVantageKey,
-                    onChange: handleAlphaVantageKeyChange,
-                    signupUrl: DATA_SOURCE_SIGNUP_URLS.alphaVantage,
-                    clearField: 'alpha_vantage_api_key',
-                    testProvider: 'alpha_vantage',
-                    testField: 'alpha_vantage_api_key',
-                    tier: 'optional',
-                  })}
-                </div>
+                  }
+                  hint={
+                    <>
+                      <span className={`settings-hint ${secIdentityHint.cls}`}>
+                        {secIdentityHint.text}
+                      </span>
+                      {secIdentityPreview && (
+                        <span className="settings-hint">
+                          {t('settings.sec.preview')}
+                          {secIdentityPreview}
+                        </span>
+                      )}
+                    </>
+                  }
+                />
               </div>
             </section>
 
@@ -1392,7 +1440,7 @@ function ClearKeyConfirmModal({
 // quarter of market-wide filings — ~1-2h). This section shows cache state,
 // flips auto-sync, and triggers a manual build behind a confirm (BUG-009).
 
-// ── Data Provider Status panel (门五②) ──────────────────────────────────────
+// ── Unified data-source row (门五②) ─────────────────────────────────────────
 // Mirror of finrobot.routes.settings.ProviderHealthEntry — live ProviderHealth
 // breaker signals, never mocked. circuit_state tokens: 'closed' | 'open'.
 interface ProviderHealthEntryShape {
@@ -1414,95 +1462,71 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   yfinance: 'Yahoo Finance',
   finnhub: 'Finnhub',
   edgar_tools: 'SEC EDGAR',
+  adanos: 'Adanos',
+  alpha_vantage: 'Alpha Vantage',
+  news_aggregator: 'News Aggregator',
 }
 
-function ProviderStatusPanel(): React.ReactElement | null {
+// Providers that already get a dedicated config row in the Data Sources list;
+// live-feed entries outside this set render as plain status rows at the end.
+const KEYED_PROVIDER_ROWS = new Set([
+  'yfinance',
+  'fmp',
+  'edgar_tools',
+  'finnhub',
+  'adanos',
+  'alpha_vantage',
+])
+
+/** One data-source row: live circuit dot + name + state badge + inline config
+ * controls on a single line, hint copy underneath. `health` undefined = the
+ * provider isn't in the live breaker feed (dim dot, config still works). The
+ * row deliberately shows no last-call timestamp — the dot already carries the
+ * live state; per-call telemetry is noise here. */
+function DataSourceRow({
+  health,
+  name,
+  badge,
+  control,
+  result,
+  hint,
+}: {
+  health: ProviderHealthEntryShape | undefined
+  name: string
+  badge?: React.ReactNode
+  control?: React.ReactNode
+  /** Test outcome / transient feedback — own status line under the controls,
+   * so a long message can never squeeze the input or wrap the buttons. */
+  result?: React.ReactNode
+  hint?: React.ReactNode
+}): React.ReactElement {
   const { t, locale } = useI18n()
-  const { data, isError } = useQuery<{ providers: ProviderHealthEntryShape[] }>({
-    queryKey: ['provider-health'],
-    queryFn: async () => {
-      const resp = await fetchWithTimeout(`${BASE_URL}/api/settings/provider-health`)
-      if (!resp.ok) throw new FetchHttpError(resp.status, resp.statusText)
-      return (await resp.json()) as { providers: ProviderHealthEntryShape[] }
-    },
-    refetchInterval: 30_000,
-  })
-
-  if (isError) {
-    return <p className="settings-hint">{t('settings.providerStatus.unavailable')}</p>
-  }
-  // Shape-guard, not just null-guard: an unexpected payload (proxy error page,
-  // wrong endpoint) must degrade to "no panel", never crash the whole view.
-  const providers = data?.providers
-  if (!Array.isArray(providers) || providers.length === 0) return null
-
+  const open = health?.circuit_state === 'open'
+  const dot = health === undefined ? 'is-na' : open ? 'is-bad' : 'is-ok'
+  const cooldownText =
+    open && health?.cooldown_until
+      ? `${t('settings.providerStatus.cooldownUntil')} ${formatDate(health.cooldown_until, locale, 'datetime')}${health.last_rate_limited ? ' · 429' : ''}`
+      : null
   return (
-    <div className="settings-tier">
-      <div className="settings-tier-head">
-        <span className="settings-tier-label is-core">{t('settings.providerStatus.title')}</span>
-        <span className="settings-tier-note">{t('settings.providerStatus.hint')}</span>
+    <div className="settings-provider-row">
+      <div className="settings-provider-line">
+        <span className={`settings-provider-dot ${dot}`} aria-hidden="true" />
+        <span className="settings-provider-name">{name}</span>
+        {open && (
+          <span className="settings-badge is-required">
+            {t('settings.providerStatus.cooldown')}
+          </span>
+        )}
+        {badge}
+        {control && <div className="settings-provider-control">{control}</div>}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {providers.map((p) => {
-          const open = p.circuit_state === 'open'
-          const detail = open
-            ? `${t('settings.providerStatus.cooldownUntil')} ${formatDate(p.cooldown_until, locale, 'datetime')}${p.last_rate_limited ? ' · 429' : ''}`
-            : p.last_success
-              ? `${t('settings.providerStatus.lastSuccess')} ${formatDate(p.last_success, locale, 'datetime')}`
-              : t('settings.providerStatus.noCalls')
-          return (
-            <div
-              key={p.name}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '7px 10px',
-                borderRadius: 8,
-                background: 'var(--bg-2)',
-                border: '1px solid var(--border-subtle)',
-              }}
-            >
-              <span
-                aria-hidden="true"
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: '50%',
-                  background: open ? 'var(--danger)' : 'var(--success)',
-                  boxShadow: open ? '0 0 6px var(--danger-soft)' : '0 0 6px var(--success-soft)',
-                  flexShrink: 0,
-                }}
-              />
-              <span style={{ fontWeight: 600, fontSize: 12.5, minWidth: 110 }}>
-                {PROVIDER_DISPLAY_NAMES[p.name] ?? p.name}
-              </span>
-              <span className={`settings-badge ${open ? 'is-required' : 'is-ok'}`}>
-                {open ? t('settings.providerStatus.cooldown') : t('settings.providerStatus.ok')}
-              </span>
-              {p.key_required && (
-                <span className={`settings-badge ${p.key_configured ? 'is-ok' : 'is-pending'}`}>
-                  {p.key_configured
-                    ? t('settings.providerStatus.keyConfigured')
-                    : t('settings.providerStatus.noKey')}
-                </span>
-              )}
-              <span
-                style={{
-                  marginLeft: 'auto',
-                  color: 'var(--text-muted)',
-                  fontSize: 11,
-                  fontFamily: 'var(--font-mono)',
-                  textAlign: 'right',
-                  maxWidth: 220,
-                }}
-              >
-                {detail}
-              </span>
-            </div>
-          )
-        })}
-      </div>
+      {(cooldownText || result) && (
+        <div className="settings-provider-status">
+          {cooldownText && <span className="settings-provider-cooldown">{cooldownText}</span>}
+          {result}
+        </div>
+      )}
+      {hint && <div className="settings-provider-hint">{hint}</div>}
     </div>
   )
 }

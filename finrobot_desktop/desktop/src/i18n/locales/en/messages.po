@@ -1853,32 +1853,12 @@ msgstr ""
 #~ msgstr "Data Sources"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.dataSources.baselineName"
-#~ msgstr "Yahoo Finance"
-
-#. js-lingui-explicit-id
 #~ msgid "settings.dataSources.baselineBadge"
 #~ msgstr "Always on"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.dataSources.baselineHint"
 #~ msgstr "Live prices, financials & news — works with no key."
-
-#. js-lingui-explicit-id
-#~ msgid "settings.dataSources.coreLabel"
-#~ msgstr "Core"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.dataSources.coreNote"
-#~ msgstr "Sharpens the numbers — free, ~2 min to set up"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.dataSources.optionalLabel"
-#~ msgstr "Optional"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.dataSources.optionalNote"
-#~ msgstr "Extra news & sentiment — safe to skip"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.section.aiModel"
@@ -3861,6 +3841,14 @@ msgstr ""
 #~ msgstr "The data source returned an error"
 
 #. js-lingui-explicit-id
+#~ msgid "settings.dataTest.result.plan"
+#~ msgstr "Key looks valid, but your FMP plan can't access this endpoint (legacy/premium restriction)"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.dataTest.result.rate_limited"
+#~ msgstr "Rate limited by the data source — try again later"
+
+#. js-lingui-explicit-id
 #~ msgid "settings.dataTest.result.unknown"
 #~ msgstr "Connection test failed"
 
@@ -4025,41 +4013,17 @@ msgstr ""
 #~ msgstr "A run for {ticker} is already in progress"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.title"
-#~ msgstr "Data Provider Status"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.hint"
-#~ msgstr "Live circuit state per source — a tripped breaker is skipped until its cooldown ends"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.ok"
-#~ msgstr "OK"
-
-#. js-lingui-explicit-id
 #~ msgid "settings.providerStatus.cooldown"
 #~ msgstr "Cooldown"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.keyConfigured"
-#~ msgstr "Key set"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.noKey"
-#~ msgstr "No key"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.lastSuccess"
-#~ msgstr "last success"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.providerStatus.cooldownUntil"
 #~ msgstr "cooldown until"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.noCalls"
-#~ msgstr "no calls this session yet"
-
-#. js-lingui-explicit-id
 #~ msgid "settings.providerStatus.unavailable"
 #~ msgstr "Provider status unavailable — backend unreachable."
+
+#. js-lingui-explicit-id
+#~ msgid "workspace.market.degraded.priceHistoryStale"
+#~ msgstr "Stale history · chart & 52w range from last cached bars (live source served quote only)"

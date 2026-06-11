@@ -78,7 +78,7 @@ const PROVIDER_HEALTH = {
 
 beforeEach(() => {
   vi.mocked(api.GET).mockResolvedValue({ data: OK_SETTINGS, error: undefined } as never)
-  // SecHoldingsSection / ProviderStatusPanel / reset mutation use raw fetch;
+  // SecHoldingsSection / provider-health rows / reset mutation use raw fetch;
   // dispatch on URL so each consumer gets its own payload shape.
   vi.stubGlobal(
     'fetch',
@@ -114,14 +114,15 @@ describe('SettingsView', () => {
     expect(await screen.findByRole('heading', { name: 'AI Model' })).toBeInTheDocument()
   })
 
-  it('renders provider status rows from the live breaker feed', async () => {
+  it('renders unified data-source rows: live circuit state + inline key config', async () => {
     renderWithQuery(<SettingsView onComplete={() => {}} />)
-    // fmp: circuit closed + key configured
+    // fmp row: name + inline key input + test button on the same row.
     expect(await screen.findByText('FMP')).toBeInTheDocument()
-    expect(screen.getByText('Key set')).toBeInTheDocument()
-    // yfinance: tripped breaker surfaces a cooldown badge, never a green dot.
-    // (The baseline blurb also says "Yahoo Finance", so assert on the badge.)
+    expect(screen.getByLabelText('FMP API Key')).toBeInTheDocument()
+    // yfinance row: tripped breaker surfaces a cooldown badge, never a green
+    // dot — and the always-on baseline badge lives on the same row now.
     expect(screen.getByText('Cooldown')).toBeInTheDocument()
+    expect(screen.getByText('Always on')).toBeInTheDocument()
   })
 
   it('renders 数据源 section', async () => {

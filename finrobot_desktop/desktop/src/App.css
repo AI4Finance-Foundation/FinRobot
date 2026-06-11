@@ -1796,79 +1796,100 @@ select.settings-input {
   color: var(--success);
 }
 
-/* ── Data Sources: always-on baseline + tiered key groups ─────────────── */
-/* The baseline row makes it obvious the app works with zero keys (Yahoo
-   Finance is always on); the Core / Optional tiers below tell the user which
-   keys actually move the needle on number accuracy vs. which are enrichment. */
-.settings-baseline {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--sp-3);
-  padding: var(--sp-3) var(--sp-4);
-  margin-bottom: var(--sp-5);
-  background: var(--success-soft);
-  border: 1px solid var(--success-glow-soft);
-  border-radius: var(--r-md);
-}
-.settings-baseline-icon {
-  flex-shrink: 0;
-  margin-top: 1px;
-  color: var(--success);
-}
-.settings-baseline-body {
+/* ── Data Sources: unified per-provider rows ──────────────────────────── */
+/* One row per source: live circuit dot + name + state badge + inline key
+   input + test + clear on a single line, hint copy underneath. Replaces the
+   old read-only status panel + separate tiered key form (same providers were
+   listed twice). */
+.settings-provider-list {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: var(--sp-2);
 }
-.settings-baseline-head {
+.settings-provider-row {
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  background: var(--bg-2);
+  border: 1px solid var(--border-subtle);
+}
+.settings-provider-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.settings-provider-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.settings-provider-dot.is-ok {
+  background: var(--success);
+  box-shadow: 0 0 6px var(--success-soft);
+}
+.settings-provider-dot.is-bad {
+  background: var(--danger);
+  box-shadow: 0 0 6px var(--danger-soft);
+}
+.settings-provider-dot.is-na {
+  background: var(--text-dim);
+}
+.settings-provider-name {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  min-width: 118px;
+}
+.settings-provider-cooldown {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--danger);
+}
+/* Inline config cluster: input grows, test/clear trail on the line. Buttons
+   never shrink or wrap their label — variable-width content (test outcome,
+   cooldown detail) lives on the status line below, so this line stays put. */
+.settings-provider-control {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+  flex: 1;
+  min-width: 280px;
 }
-.settings-baseline-name {
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--text-primary);
+.settings-provider-control .settings-input-wrap,
+.settings-provider-control > .settings-input {
+  flex: 1;
+  min-width: 200px;
 }
-
-.settings-tier + .settings-tier {
-  margin-top: var(--sp-6);
+.settings-provider-control .settings-input {
+  padding: 6px 10px;
+  font-size: 0.78rem;
 }
-.settings-tier-head {
+.settings-provider-control .settings-btn,
+.settings-provider-control .settings-clear-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.settings-provider-control .settings-clear-btn {
+  margin-left: 0;
+}
+/* Status line: cooldown detail + test outcome — long messages wrap here
+   without disturbing the control line above. */
+.settings-provider-status {
   display: flex;
   align-items: baseline;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-4);
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+  margin: 6px 0 0 18px; /* align past the dot (8px) + line gap (10px) */
 }
-.settings-tier-label {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  padding: 2px 8px;
-  border-radius: var(--r-pill);
-}
-.settings-tier-label.is-core {
-  background: var(--accent-dim);
-  color: var(--accent);
-}
-.settings-tier-label.is-optional {
-  background: var(--bg-3);
-  color: var(--text-muted);
-}
-.settings-tier-note {
+.settings-provider-hint {
+  margin: 6px 0 0 18px; /* align past the dot (8px) + line gap (10px) */
   font-size: 0.75rem;
   color: var(--text-muted);
+  line-height: 1.55;
 }
-/* Optional keys are genuinely skippable — render them a touch quieter so the
-   eye lands on the Core tier first. */
-.settings-tier.is-optional .settings-fields {
-  opacity: 0.82;
-}
-.settings-tier.is-optional .settings-fields:hover,
-.settings-tier.is-optional .settings-fields:focus-within {
-  opacity: 1;
+.settings-provider-hint .settings-hint {
+  display: block;
 }
 
 /* Small ghost "clear key" button next to a configured secret */

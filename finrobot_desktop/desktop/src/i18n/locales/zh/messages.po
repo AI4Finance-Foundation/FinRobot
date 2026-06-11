@@ -1853,32 +1853,12 @@ msgstr ""
 #~ msgstr "数据源"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.dataSources.baselineName"
-#~ msgstr "Yahoo Finance"
-
-#. js-lingui-explicit-id
 #~ msgid "settings.dataSources.baselineBadge"
 #~ msgstr "默认在线"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.dataSources.baselineHint"
 #~ msgstr "实时行情、财报与新闻 — 无需任何密钥即可使用。"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.dataSources.coreLabel"
-#~ msgstr "核心"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.dataSources.coreNote"
-#~ msgstr "让数字更准 — 免费、约 2 分钟配好"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.dataSources.optionalLabel"
-#~ msgstr "可选"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.dataSources.optionalNote"
-#~ msgstr "额外新闻与情绪 — 不配也无妨"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.section.aiModel"
@@ -3861,6 +3841,14 @@ msgstr ""
 #~ msgstr "数据源返回错误"
 
 #. js-lingui-explicit-id
+#~ msgid "settings.dataTest.result.plan"
+#~ msgstr "key 看起来有效，但所在 FMP 套餐无权访问该端点（legacy/付费限制）"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.dataTest.result.rate_limited"
+#~ msgstr "数据源限流（429）——稍后再试"
+
+#. js-lingui-explicit-id
 #~ msgid "settings.dataTest.result.unknown"
 #~ msgstr "连接测试失败"
 
@@ -4025,41 +4013,17 @@ msgstr ""
 #~ msgstr "{ticker} 已有任务正在运行"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.title"
-#~ msgstr "数据源健康状态"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.hint"
-#~ msgstr "各数据源实时熔断状态——跳闸的源会被跳过,冷却结束后自动恢复"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.ok"
-#~ msgstr "正常"
-
-#. js-lingui-explicit-id
 #~ msgid "settings.providerStatus.cooldown"
 #~ msgstr "冷却中"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.keyConfigured"
-#~ msgstr "已配置 Key"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.noKey"
-#~ msgstr "未配置 Key"
-
-#. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.lastSuccess"
-#~ msgstr "上次成功"
 
 #. js-lingui-explicit-id
 #~ msgid "settings.providerStatus.cooldownUntil"
 #~ msgstr "冷却至"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.noCalls"
-#~ msgstr "本次会话尚无调用"
-
-#. js-lingui-explicit-id
 #~ msgid "settings.providerStatus.unavailable"
 #~ msgstr "数据源状态不可用——后端未连接。"
+
+#. js-lingui-explicit-id
+#~ msgid "workspace.market.degraded.priceHistoryStale"
+#~ msgstr "历史K线为缓存旧数据 · 实时源仅提供现价"

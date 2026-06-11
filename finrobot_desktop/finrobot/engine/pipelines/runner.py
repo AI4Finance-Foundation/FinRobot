@@ -92,9 +92,54 @@ _STEP_BOUNDARY_EXCEPTIONS = (
 
 _PROMPT_MAX_STRING_CHARS = 1200
 _PROMPT_MAX_LIST_ITEMS = 8
-_PROMPT_MAX_DICT_KEYS = 30
+# Must comfortably exceed len(NormalizedFinancials.model_fields) (44 today):
+# the canonical FINANCIALS dump is the bedrock numeric payload and must render
+# WHOLE at the loosest level — a 30-key cap silently dropped its last 14 fields
+# (including provenance and warnings, gutting traceability). Total prompt size
+# is bounded structurally by _render_structured_prompt_value's shrink loop, so
+# this cap only shapes pathological raw dicts, it is not the budget enforcer.
+# Guarded by test_financials_contract_fits_dict_cap.
+_PROMPT_MAX_DICT_KEYS = 50
 _PROMPT_MAX_DEPTH = 6
 _PROMPT_MAX_STRUCTURED_CHARS = 16_000
+# Cap on how many dropped key NAMES the _omitted_keys marker lists — the model
+# must know WHAT was dropped, but the marker itself must not become a payload.
+_PROMPT_MAX_OMITTED_KEY_NAMES = 40
+
+# Dict keys that survive key-cap pressure at EVERY compaction level. These are
+# the financial line items, caliber tags and lineage fields an analyst-facing
+# LLM step can never reason without; positional truncation (dict insertion
+# order) must not be allowed to evict them in favor of junk keys that merely
+# appear earlier in a raw provider payload.
+_PROMPT_PRIORITY_DICT_KEYS = frozenset(
+    {
+        "ticker",
+        "reporting_currency",
+        "quote_currency",
+        "period_end",
+        "period_basis",
+        "as_of",
+        "revenue",
+        "ebitda",
+        "net_income",
+        "operating_income",
+        "market_cap",
+        "shares_outstanding",
+        "current_price",
+        "total_debt",
+        "total_cash",
+        "operating_cash_flow",
+        "capital_expenditure",
+        "provenance",
+        "warnings",
+    }
+)
+
+# Divisors applied to the per-element caps (string chars / list items / dict
+# keys) on each successive render attempt. Structure-preserving shrink: the
+# model must ALWAYS see legal JSON, so over-budget payloads are re-compacted
+# tighter and re-dumped — never sliced as a string.
+_PROMPT_COMPACTION_DIVISORS = (1, 2, 4)
 
 # Per-item cap for raw ``required_data`` text dumped into a step prompt by
 # _gather_data. Structured context already had a 16k/item cap; required_data did
@@ -141,13 +186,32 @@ def _is_recoverable_exception(exc: BaseException) -> bool:
 logger = logging.getLogger(__name__)
 
 
-def _compact_for_prompt(value: object, depth: int = 0) -> object:
-    """Return a JSON-safe bounded representation for LLM prompt context."""
+def _compact_for_prompt(
+    value: object,
+    depth: int = 0,
+    *,
+    max_string_chars: int = _PROMPT_MAX_STRING_CHARS,
+    max_list_items: int = _PROMPT_MAX_LIST_ITEMS,
+    max_dict_keys: int = _PROMPT_MAX_DICT_KEYS,
+) -> object:
+    """Return a JSON-safe bounded representation for LLM prompt context.
+
+    The caps are parameters (defaults = module constants) because the render
+    loop re-invokes this with progressively tighter limits when a payload
+    overshoots the structured-prompt budget — shrinking must happen INSIDE the
+    JSON structure, never by slicing the dumped string.
+    """
     if depth >= _PROMPT_MAX_DEPTH:
         return f"[{type(value).__name__} omitted at depth {_PROMPT_MAX_DEPTH}]"
 
     if isinstance(value, BaseModel):
-        return _compact_for_prompt(value.model_dump(mode="json"), depth)
+        return _compact_for_prompt(
+            value.model_dump(mode="json"),
+            depth,
+            max_string_chars=max_string_chars,
+            max_list_items=max_list_items,
+            max_dict_keys=max_dict_keys,
+        )
 
     # Duck-typed objects exposing ``model_dump_json`` (Pydantic-shaped without
     # subclassing BaseModel, e.g. test doubles or proxy wrappers). Try parsing
@@ -155,30 +219,76 @@ def _compact_for_prompt(value: object, depth: int = 0) -> object:
     # string on parse failure.
     if hasattr(value, "model_dump_json") and callable(value.model_dump_json):
         try:
-            return _compact_for_prompt(json.loads(value.model_dump_json()), depth)
+            return _compact_for_prompt(
+                json.loads(value.model_dump_json()),
+                depth,
+                max_string_chars=max_string_chars,
+                max_list_items=max_list_items,
+                max_dict_keys=max_dict_keys,
+            )
         except (ValueError, TypeError):
             return str(value)
 
     if isinstance(value, dict):
-        out: dict[str, object] = {}
-        items = list(value.items())
-        for key, item in items[:_PROMPT_MAX_DICT_KEYS]:
-            out[str(key)] = _compact_for_prompt(item, depth + 1)
-        if len(items) > _PROMPT_MAX_DICT_KEYS:
-            out["_omitted_keys"] = len(items) - _PROMPT_MAX_DICT_KEYS
+        items = [(str(key), item) for key, item in value.items()]
+        if len(items) <= max_dict_keys:
+            kept_names = {key for key, _ in items}
+        else:
+            # Priority keys always survive; the cap squeezes the rest in
+            # insertion order. A financial dict must not lose revenue or
+            # provenance just because junk keys precede them.
+            kept_names = {key for key, _ in items if key in _PROMPT_PRIORITY_DICT_KEYS}
+            room = max(max_dict_keys - len(kept_names), 0)
+            for key, _ in items:
+                if room <= 0:
+                    break
+                if key not in kept_names:
+                    kept_names.add(key)
+                    room -= 1
+        out: dict[str, object] = {
+            key: _compact_for_prompt(
+                item,
+                depth + 1,
+                max_string_chars=max_string_chars,
+                max_list_items=max_list_items,
+                max_dict_keys=max_dict_keys,
+            )
+            for key, item in items
+            if key in kept_names
+        }
+        dropped = [key for key, _ in items if key not in kept_names]
+        if dropped:
+            # Names, not just a count: the model must know WHAT it cannot see,
+            # so it can say "field X was elided" instead of hallucinating it.
+            marker: dict[str, object] = {
+                "count": len(dropped),
+                "names": dropped[:_PROMPT_MAX_OMITTED_KEY_NAMES],
+            }
+            if len(dropped) > _PROMPT_MAX_OMITTED_KEY_NAMES:
+                marker["unnamed_count"] = len(dropped) - _PROMPT_MAX_OMITTED_KEY_NAMES
+            out["_omitted_keys"] = marker
         return out
 
     if isinstance(value, (list, tuple)):
-        list_out = [_compact_for_prompt(item, depth + 1) for item in value[:_PROMPT_MAX_LIST_ITEMS]]
-        if len(value) > _PROMPT_MAX_LIST_ITEMS:
-            list_out.append({"_omitted_items": len(value) - _PROMPT_MAX_LIST_ITEMS})
+        list_out = [
+            _compact_for_prompt(
+                item,
+                depth + 1,
+                max_string_chars=max_string_chars,
+                max_list_items=max_list_items,
+                max_dict_keys=max_dict_keys,
+            )
+            for item in value[:max_list_items]
+        ]
+        if len(value) > max_list_items:
+            list_out.append({"_omitted_items": len(value) - max_list_items})
         return list_out
 
     if isinstance(value, str):
-        if len(value) <= _PROMPT_MAX_STRING_CHARS:
+        if len(value) <= max_string_chars:
             return value
-        omitted = len(value) - _PROMPT_MAX_STRING_CHARS
-        return f"{value[:_PROMPT_MAX_STRING_CHARS]}... [truncated {omitted} chars]"
+        omitted = len(value) - max_string_chars
+        return f"{value[:max_string_chars]}... [truncated {omitted} chars]"
 
     if isinstance(value, (int, float, bool)) or value is None:
         return value
@@ -216,13 +326,34 @@ def _sanitize_catalyst_for_prompt(analysis: CatalystAnalysis) -> CatalystAnalysi
     )
 
 
-def _render_structured_prompt_value(value: object) -> str:
-    compacted = _compact_for_prompt(value)
-    rendered = json.dumps(compacted, ensure_ascii=False, indent=2, default=str)
-    if len(rendered) <= _PROMPT_MAX_STRUCTURED_CHARS:
-        return rendered
-    omitted = len(rendered) - _PROMPT_MAX_STRUCTURED_CHARS
-    return f"{rendered[:_PROMPT_MAX_STRUCTURED_CHARS]}\n... [structured item truncated {omitted} chars]"
+def _render_structured_prompt_value(
+    value: object, max_chars: int = _PROMPT_MAX_STRUCTURED_CHARS
+) -> str:
+    """Render *value* as legal JSON within *max_chars* — structure-preserving.
+
+    Over-budget payloads are re-compacted with progressively tighter caps and
+    re-dumped, NOT sliced: a string cut of a JSON dump hands the model a broken
+    document whose dangling tail it will happily misread as data. Every exit of
+    this function — including the last-resort stub — parses with json.loads.
+    """
+    loosest_chars = 0
+    for divisor in _PROMPT_COMPACTION_DIVISORS:
+        compacted = _compact_for_prompt(
+            value,
+            max_string_chars=max(_PROMPT_MAX_STRING_CHARS // divisor, 1),
+            max_list_items=max(_PROMPT_MAX_LIST_ITEMS // divisor, 1),
+            max_dict_keys=max(_PROMPT_MAX_DICT_KEYS // divisor, 1),
+        )
+        rendered = json.dumps(compacted, ensure_ascii=False, indent=2, default=str)
+        if divisor == _PROMPT_COMPACTION_DIVISORS[0]:
+            loosest_chars = len(rendered)
+        if len(rendered) <= max_chars:
+            return rendered
+    stub: dict[str, object] = {
+        "_omitted_payload": "structured item omitted after max compaction",
+        "_original_chars": loosest_chars,
+    }
+    return json.dumps(stub, ensure_ascii=False, indent=2)
 
 
 def _data_type_or_none(data_type: str | DataType) -> DataType | None:
@@ -244,12 +375,21 @@ def _canonical_context_string(data_type: DataType, value: object) -> str:
     bars), NOT the full 52-week ASCENDING bar series — the LLM computes nothing
     from raw bars, and the full series led the data agent to narrate the OLDEST
     bars as "recent" (the 2026-06-09 TSLA report's year-old price window).
+
+    The JSON budget is derived from _PROMPT_MAX_STEP_DATA_CHARS minus the
+    wrapper, because _gather_data pipes this whole string through
+    _truncate_for_prompt at that cap — rendering at the looser 16k budget would
+    hand the free-text truncator a JSON document to slice mid-structure.
     """
-    if isinstance(value, NormalizedPrice):
-        rendered = _render_structured_prompt_value(value.to_prompt_summary())
-        return f"[canonical] {data_type.value} (normalized contract)\n```json\n{rendered}\n```"
-    rendered = _render_structured_prompt_value(value)
-    return f"[canonical] {data_type.value} (normalized contract)\n```json\n{rendered}\n```"
+    header = f"[canonical] {data_type.value} (normalized contract)\n```json\n"
+    footer = "\n```"
+    budget = min(
+        _PROMPT_MAX_STRUCTURED_CHARS,
+        _PROMPT_MAX_STEP_DATA_CHARS - len(header) - len(footer),
+    )
+    payload = value.to_prompt_summary() if isinstance(value, NormalizedPrice) else value
+    rendered = _render_structured_prompt_value(payload, max_chars=budget)
+    return f"{header}{rendered}{footer}"
 
 
 @dataclass

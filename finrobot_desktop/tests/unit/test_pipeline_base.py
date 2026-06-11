@@ -4,6 +4,7 @@ Uses pydantic_ai TestModel for mock agents.
 Uses a FakeDeps / FakeDataLayer to avoid real network calls.
 """
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -32,6 +33,16 @@ from finrobot.engine.pipelines.base import (
     TextValidator,
     _PROMPT_MAX_STEP_DATA_CHARS,
     _is_recoverable_exception,
+)
+from finrobot.engine.pipelines.runner import (
+    _PROMPT_MAX_DICT_KEYS,
+    _PROMPT_MAX_OMITTED_KEY_NAMES,
+    _PROMPT_MAX_STRING_CHARS,
+    _PROMPT_MAX_STRUCTURED_CHARS,
+    _PROMPT_PRIORITY_DICT_KEYS,
+    _canonical_context_string,
+    _compact_for_prompt,
+    _render_structured_prompt_value,
 )
 from finrobot.engine.pipelines.validators import ValidationResult, validate_is_non_empty
 
@@ -1074,6 +1085,159 @@ async def test_step_data_is_truncated_to_cap():
     assert "truncated" in prompt
     # The raw payload was 3x the cap; the prompt must be far smaller than that.
     assert len(prompt) < _PROMPT_MAX_STEP_DATA_CHARS * 2
+
+
+# ---------------------------------------------------------------------------
+# Structure-preserving prompt compaction: the model must ALWAYS see legal JSON.
+# A string slice of a JSON dump (the old 16k hard cut) hands the model a broken
+# document whose dangling tail it will misread as data — every render path,
+# including the last-resort stub, must survive json.loads.
+# ---------------------------------------------------------------------------
+
+
+def _full_financials() -> NormalizedFinancials:
+    now = datetime.now(tz=timezone.utc)
+    return NormalizedFinancials(
+        ticker="AAPL",
+        company_name="Apple Inc.",
+        reporting_currency="USD",
+        quote_currency="USD",
+        as_of=now,
+        revenue=391_000_000_000.0,
+        ebitda=134_000_000_000.0,
+        net_income=93_700_000_000.0,
+        total_debt=106_000_000_000.0,
+        total_cash=65_000_000_000.0,
+        shares_outstanding=15_100_000_000.0,
+        market_cap=3_000_000_000_000.0,
+        beta=1.2,
+        sector="Technology",
+        warnings=["cross-provider revenue divergence 0.8%"],
+        provenance=Provenance(
+            provider="fmp",
+            as_of=now,
+            fetched_at=now,
+        ),
+    )
+
+
+class TestStructurePreservingCompaction:
+    def test_small_payload_renders_verbatim(self):
+        """Few-KB payloads (the normal canonical case) are untouched — no
+        markers, byte-identical to a plain indent-2 dump."""
+        value = {"revenue": 1_000.0, "currency": "USD", "items": [1, 2, 3]}
+        rendered = _render_structured_prompt_value(value)
+        assert rendered == json.dumps(value, ensure_ascii=False, indent=2, default=str)
+
+    def test_financials_contract_fits_dict_cap(self):
+        """Mechanical gate: the canonical FINANCIALS contract must render whole
+        at the loosest level. If a schema addition pushes the field count past
+        the dict cap, prompt rendering silently drops trailing fields (the
+        pre-fix state ate provenance and warnings) — bump the cap with it."""
+        assert len(NormalizedFinancials.model_fields) <= _PROMPT_MAX_DICT_KEYS
+
+    def test_canonical_financials_renders_every_field(self):
+        """All 40+ contract fields — provenance and warnings above all — reach
+        the prompt with no omission marker, and the wrapped string already fits
+        the step-data cap so the free-text truncator can never slice the JSON."""
+        rendered = _canonical_context_string(DataType.FINANCIALS, _full_financials())
+        assert len(rendered) <= _PROMPT_MAX_STEP_DATA_CHARS
+        inner = rendered.split("```json\n", 1)[1].rsplit("\n```", 1)[0]
+        parsed = json.loads(inner)
+        assert set(NormalizedFinancials.model_fields) <= set(parsed)
+        assert "_omitted_keys" not in parsed
+
+    def test_oversized_payload_shrinks_to_legal_json(self):
+        """A payload over 16k at the loosest level is re-compacted tighter and
+        re-dumped — the result parses, fits the budget, and carries visible
+        truncation markers instead of a severed JSON tail."""
+        value = {f"k{i}": "x" * 1200 for i in range(20)}
+        rendered = _render_structured_prompt_value(value)
+        assert len(rendered) <= _PROMPT_MAX_STRUCTURED_CHARS
+        parsed = json.loads(rendered)
+        assert any("[truncated" in str(v) for v in parsed.values())
+
+    def test_progressive_shrink_uses_tighter_string_cap(self):
+        """The second compaction level halves the per-string cap — kept values
+        must reflect the tighter limit, proving the shrink loop re-compacted
+        the structure rather than slicing the loosest dump."""
+        value = {f"k{i}": "x" * 1200 for i in range(20)}
+        rendered = _render_structured_prompt_value(value)
+        parsed = json.loads(rendered)
+        halved = _PROMPT_MAX_STRING_CHARS // 2
+        truncated_values = [v for v in parsed.values() if "[truncated" in str(v)]
+        assert truncated_values
+        for v in truncated_values:
+            assert str(v).startswith("x" * halved)
+            assert not str(v).startswith("x" * (halved + 1))
+
+    def test_stub_when_max_compaction_still_over_budget(self):
+        """When even the tightest level overshoots, the fallback is a legal
+        JSON stub naming the omission — never a truncated document."""
+        value = {f"a{i}": {f"b{j}": "y" * 1200 for j in range(50)} for i in range(50)}
+        rendered = _render_structured_prompt_value(value)
+        assert len(rendered) <= _PROMPT_MAX_STRUCTURED_CHARS
+        parsed = json.loads(rendered)
+        assert parsed["_omitted_payload"] == "structured item omitted after max compaction"
+        assert isinstance(parsed["_original_chars"], int)
+        assert parsed["_original_chars"] > _PROMPT_MAX_STRUCTURED_CHARS
+
+    def test_omitted_keys_marker_lists_names(self):
+        """The dict-cap marker must say WHAT was dropped, not just how many —
+        and the name list itself is bounded so the marker can't become a
+        payload of its own."""
+        value = {f"junk{i:03d}": i for i in range(_PROMPT_MAX_DICT_KEYS + 70)}
+        compacted = _compact_for_prompt(value)
+        marker = compacted["_omitted_keys"]
+        assert marker["count"] == 70
+        assert len(marker["names"]) == _PROMPT_MAX_OMITTED_KEY_NAMES
+        assert marker["names"][0] == f"junk{_PROMPT_MAX_DICT_KEYS:03d}"
+        assert marker["unnamed_count"] == 70 - _PROMPT_MAX_OMITTED_KEY_NAMES
+
+    def test_omitted_keys_names_complete_when_few(self):
+        value = {f"junk{i}": i for i in range(_PROMPT_MAX_DICT_KEYS + 3)}
+        compacted = _compact_for_prompt(value)
+        marker = compacted["_omitted_keys"]
+        assert marker["count"] == 3
+        assert len(marker["names"]) == 3
+        assert "unnamed_count" not in marker
+
+    def test_priority_financial_keys_survive_cap_pressure(self):
+        """Key line items / caliber tags / lineage fields appended AFTER a wall
+        of junk keys must still survive — insertion order alone must not decide
+        what the model gets to see."""
+        value: dict[str, object] = {f"junk{i}": i for i in range(100)}
+        value.update(
+            {
+                "revenue": 391.0,
+                "net_income": 93.7,
+                "ebitda": 134.0,
+                "total_debt": 106.0,
+                "total_cash": 65.0,
+                "shares_outstanding": 15.1,
+                "reporting_currency": "USD",
+                "quote_currency": "USD",
+                "warnings": ["w"],
+                "provenance": {"provider": "fmp"},
+            }
+        )
+        # Tightest shrink level the render loop can reach (divisor 4).
+        compacted = _compact_for_prompt(value, max_dict_keys=_PROMPT_MAX_DICT_KEYS // 4)
+        for key in (
+            "revenue",
+            "net_income",
+            "ebitda",
+            "total_debt",
+            "total_cash",
+            "shares_outstanding",
+            "reporting_currency",
+            "quote_currency",
+            "warnings",
+            "provenance",
+        ):
+            assert key in compacted, key
+        dropped_names = compacted["_omitted_keys"]["names"]
+        assert not _PROMPT_PRIORITY_DICT_KEYS & set(dropped_names)
 
 
 # ---------------------------------------------------------------------------

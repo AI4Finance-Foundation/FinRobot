@@ -335,7 +335,10 @@ export interface paths {
      * @description Fetch earnings call transcripts from FMP.
      *
      *     Requires an FMP API key. Returns up to ``limit`` most recent transcripts.
-     *     Optionally filter by specific quarter and year.
+     *     Optionally filter by specific quarter and year. All three params are
+     *     bounded at the edge (mirroring the sentiment route's ``days`` cap): they
+     *     flow into the FMP request AND the cache key, so an unbounded value both
+     *     hammers the provider quota and mints unbounded cache rows on disk.
      */
     get: operations['get_earnings_calls_api_data__ticker__earnings_calls_get']
     put?: never
@@ -378,7 +381,12 @@ export interface paths {
     }
     /** Get Settings Route */
     get: operations['get_settings_route_api_settings_get']
-    /** Put Settings Route */
+    /**
+     * Put Settings Route
+     * @description Apply a settings update. Serialised by ``_settings_mutation_lock`` —
+     *     the body is a read-modify-write over deps.settings + keychain +
+     *     settings.json, so concurrent PUTs would silently drop one caller's fields.
+     */
     put: operations['put_settings_route_api_settings_put']
     post?: never
     delete?: never
@@ -412,6 +420,10 @@ export interface paths {
      *     stops carrying the cleared value. If clearing the key leaves the runtime
      *     config invalid (e.g. the active LLM provider lost its key), the startup_error
      *     banner is set so the UI tells the user.
+     *
+     *     Serialised by ``_settings_mutation_lock`` like PUT — the rebuild reads the
+     *     keychain + settings.json and replaces runtime state, so racing a PUT could
+     *     resurrect the just-cleared key or drop the PUT's fields.
      */
     post: operations['clear_secret_route_api_settings_clear_secret_post']
     delete?: never
@@ -462,6 +474,28 @@ export interface paths {
      *     clear message rather than as missing data inside an analysis run.
      */
     post: operations['test_data_provider_route_api_settings_test_data_provider_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/settings/provider-health': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Provider Health Route
+     * @description Per-provider circuit/freshness signals from the live ProviderHealth
+     *     breaker — name, availability, cooldown window, last success/failure/429,
+     *     and whether the provider's credential is configured.
+     */
+    get: operations['provider_health_route_api_settings_provider_health_get']
+    put?: never
+    post?: never
     delete?: never
     options?: never
     head?: never
@@ -543,6 +577,35 @@ export interface paths {
     get: operations['get_run_api_runs__run_id__get']
     put?: never
     post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/runs/{run_id}/cancel': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Cancel Run
+     * @description Cancel an in-flight run — the stop button for money-burning pipelines.
+     *
+     *     Works for every task registered in app.state.run_tasks (research/dcf/lbo
+     *     pipelines AND debate runs — debate.py registers there too). Cancellation
+     *     is asyncio-native: the task unwinds at its next await (LLM/provider calls
+     *     are httpx awaits, so spend stops within one chunk), its CancelledError
+     *     handler persists the ``cancelled`` terminal state, and the SSE stream
+     *     closes like any other terminal path. A run whose task is gone (e.g. the
+     *     record was orphaned by a crash between restarts) is finalised directly so
+     *     the row can't stay wedged in "running" with nothing left to cancel.
+     */
+    post: operations['cancel_run_api_runs__run_id__cancel_post']
     delete?: never
     options?: never
     head?: never
@@ -672,7 +735,9 @@ export interface paths {
      *         The full Artifact.
      *
      *     Raises:
-     *         404: If the artifact is not found.
+     *         404: If the artifact was never stored.
+     *         410: If the row exists but its payload is unreadable (schema drift) —
+     *             the store archives it on detection so it leaves default lists.
      */
     get: operations['get_artifact_api_artifacts__artifact_id__get']
     put?: never
@@ -724,7 +789,8 @@ export interface paths {
      *         A SemanticDelta.
      *
      *     Raises:
-     *         404: If either artifact is not found.
+     *         404: If either artifact was never stored.
+     *         410: If either row exists but is unreadable (schema drift).
      */
     get: operations['diff_two_api_artifacts__a_id__diff__b_id__get']
     put?: never
@@ -758,7 +824,10 @@ export interface paths {
      *         ``{"status": "ok", "id": artifact_id}``
      *
      *     Raises:
-     *         404: If the artifact is not found.
+     *         404: If the artifact was never stored.
+     *         410: If the row exists but is unreadable (schema drift) — returning
+     *             before ``mark_viewed`` also keeps the un-archive side effect from
+     *             resurrecting a self-archived ghost into the default lists.
      */
     post: operations['mark_viewed_api_artifacts__artifact_id__view_post']
     delete?: never
@@ -776,10 +845,12 @@ export interface paths {
     }
     /**
      * Get Chat Sessions
-     * @description List past chat sessions, newest-first.
+     * @description List past chat sessions, newest-first, capped at ``limit``.
      *
      *     Reads the on-disk JSONL transcripts. Unreadable/corrupt files are skipped
-     *     by the persistence layer rather than 500-ing the whole list.
+     *     by the persistence layer rather than 500-ing the whole list. The cap keeps
+     *     the endpoint from parsing every transcript on disk per call (the
+     *     persistence layer stops scanning once the page is full).
      */
     get: operations['get_chat_sessions_api_chat_sessions_get']
     put?: never
@@ -1454,6 +1525,11 @@ export interface components {
        * @description ≤ 60 char shareable conclusion written by the synthesis_agent (narrative slot). Populated by summary_extractor.extract_tagline; lets the workspace AI zone hot-state card show the real LLM call instead of the truncated pipeline.format_summary preview that gets stored in `headline`. None for legacy artifacts produced before the narrative bump.
        */
       tagline?: string | null
+      /**
+       * Primary Provider
+       * @description Data provider that fed this artifact (inputs.data_source), mirrored into a summary column at save time (门四溯源半) so the Library list shows the source without payload reads. None for the builders' 'unknown' placeholder and for rows written before the column existed (backfilled by the projection rebuild).
+       */
+      primary_provider?: string | null
     }
     /**
      * Attribution
@@ -1569,6 +1645,13 @@ export interface components {
       skipped?: {
         [key: string]: string
       }[]
+    }
+    /** CancelRunResponse */
+    CancelRunResponse: {
+      /** Run Id */
+      run_id: string
+      /** Status */
+      status: string
     }
     /**
      * CatalystEvent
@@ -1913,6 +1996,11 @@ export interface components {
        */
       nwc_pct_revenue: number
       /**
+       * Terminal Nwc Pct Revenue
+       * @description Steady-state ΔNWC as % of revenue for the Gordon perpetuity, seeded as marginal NWC ratio median(ΔNWC/Δrevenue) × terminal growth. The explicit-window nwc_pct_revenue embeds the historical growth rate, so holding it into a low-growth perpetuity overstates the drag (or the subsidy) several-fold. None = fall back to nwc_pct_revenue (inputs built without multi-year history, e.g. direct REST payloads).
+       */
+      terminal_nwc_pct_revenue?: number | null
+      /**
        * Da Pct Revenue
        * @description D&A as % of revenue, carrying the tax shield in the FCF formula. Default 0.0 means no shield; seed_dcf_inputs always sets a non-zero value from 3y filings or Damodaran fallback. Direct callers may omit it.
        * @default 0
@@ -1961,6 +2049,11 @@ export interface components {
       assumption_provenance?: {
         [key: string]: string
       }
+      /**
+       * Inputs Fetched At
+       * @description Wall-clock time the market/financial inputs behind this seed were fetched (= FinancialData.timestamp, the canonical fetch time). Stamped by seed_dcf_inputs so every surface that prints a DCF/WACC (REST /dcf-seed, what-if, chat Monte-Carlo, artifacts via DCFResult.inputs) can show 'inputs as of X' — 门四溯源半. None for direct construction (user-supplied REST bodies have no fetch time; never fabricate a now()) and for JSON-round-tripped legacy artifacts (read-compat, ttm_quarter_ends precedent).
+       */
+      inputs_fetched_at?: string | null
     }
     /**
      * DCFResult
@@ -2449,6 +2542,12 @@ export interface components {
      * @description Multi-year historical financial metrics extracted from provider data.
      */
     HistoricalMetrics: {
+      /** Currency */
+      currency?: string | null
+      /** Data Source */
+      data_source?: string | null
+      /** Warnings */
+      warnings?: string[]
       /** Years */
       years: number[]
       /** Revenue */
@@ -2821,6 +2920,8 @@ export interface components {
       industry?: string | null
       /** Sector */
       sector?: string | null
+      /** Country */
+      country?: string | null
       /** Beta */
       beta?: number | null
     }
@@ -2946,6 +3047,11 @@ export interface components {
        * @default false
        */
       mid_year: boolean
+      /**
+       * Seed
+       * @description RNG seed for bit-identical reruns; recorded in assumptions_used.
+       */
+      seed?: number | null
     }
     /**
      * MonteCarloResult
@@ -3075,6 +3181,40 @@ export interface components {
       base_url?: string | null
       /** Models */
       models?: string[]
+    }
+    /** ProviderHealthEntry */
+    ProviderHealthEntry: {
+      /** Name */
+      name: string
+      /** Key Required */
+      key_required: boolean
+      /** Key Configured */
+      key_configured?: boolean | null
+      /** Available */
+      available: boolean
+      /** Circuit State */
+      circuit_state: string
+      /** Cooldown Until */
+      cooldown_until?: string | null
+      /**
+       * Consecutive Failures
+       * @default 0
+       */
+      consecutive_failures: number
+      /** Last Success */
+      last_success?: string | null
+      /** Last Failure */
+      last_failure?: string | null
+      /**
+       * Last Rate Limited
+       * @default false
+       */
+      last_rate_limited: boolean
+    }
+    /** ProviderHealthResponse */
+    ProviderHealthResponse: {
+      /** Providers */
+      providers: components['schemas']['ProviderHealthEntry'][]
     }
     /**
      * ProviderInfo
@@ -3693,7 +3833,7 @@ export interface components {
        * Method
        * @enum {string}
        */
-      method: 'dcf' | 'comps_pe' | 'lbo' | 'ddm' | 'ev_ebitda' | 'p_fcf'
+      method: 'dcf' | 'comps_pe' | 'comps_pb' | 'lbo' | 'ddm' | 'ev_ebitda' | 'p_fcf'
       /**
        * Method Type
        * @enum {string}
@@ -3740,6 +3880,8 @@ export interface components {
       ev_ebitda_reported?: number | null
       /** Ev Revenue */
       ev_revenue?: number | null
+      /** Book Value Per Share */
+      book_value_per_share?: number | null
     }
     /** WaccRequest */
     WaccRequest: {
@@ -4107,6 +4249,7 @@ export interface operations {
   get_catalysts_api_data__ticker__catalysts_get: {
     parameters: {
       query?: {
+        /** @description Minimum news importance to become a catalyst (1-5). */
         min_importance?: number
       }
       header?: never
@@ -4237,6 +4380,7 @@ export interface operations {
   get_earnings_calls_api_data__ticker__earnings_calls_get: {
     parameters: {
       query?: {
+        /** @description Most-recent transcripts to return (12 = three years of quarterly calls). */
         limit?: number
         quarter?: number | null
         year?: number | null
@@ -4441,6 +4585,26 @@ export interface operations {
       }
     }
   }
+  provider_health_route_api_settings_provider_health_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['ProviderHealthResponse']
+        }
+      }
+    }
+  }
   list_runs_api_runs_get: {
     parameters: {
       query?: {
@@ -4555,6 +4719,37 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['RunDetail']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  cancel_run_api_runs__run_id__cancel_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        run_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['CancelRunResponse']
         }
       }
       /** @description Validation Error */
@@ -4844,6 +5039,8 @@ export interface operations {
       query?: {
         /** @description Filter to sessions focused on this ticker (case-insensitive). */
         ticker?: string | null
+        /** @description Maximum number of sessions to return (newest first). */
+        limit?: number
       }
       header?: never
       path?: never

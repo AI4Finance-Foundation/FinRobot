@@ -119,10 +119,11 @@ describe('SettingsView', () => {
     // fmp row: name + inline key input + test button on the same row.
     expect(await screen.findByText('FMP')).toBeInTheDocument()
     expect(screen.getByLabelText('FMP API Key')).toBeInTheDocument()
-    // yfinance row: tripped breaker surfaces a cooldown badge, never a green
-    // dot — and the always-on baseline badge lives on the same row now.
-    expect(screen.getByText('Cooldown')).toBeInTheDocument()
-    expect(screen.getByText('Always on')).toBeInTheDocument()
+    // yfinance row: a tripped breaker takes over the row's single badge slot
+    // (COOLDOWN + 429 marker, cooldown-end time on hover) — the always-on
+    // badge yields to it until the circuit closes again.
+    expect(screen.getByText('Cooldown · 429')).toBeInTheDocument()
+    expect(screen.queryByText('Always on')).not.toBeInTheDocument()
   })
 
   it('renders 数据源 section', async () => {

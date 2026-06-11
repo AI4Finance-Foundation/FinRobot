@@ -1841,20 +1841,21 @@ select.settings-input {
   color: var(--text-primary);
   min-width: 118px;
 }
-.settings-provider-cooldown {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  color: var(--danger);
-}
 /* Inline config cluster: input grows, test/clear trail on the line. Buttons
-   never shrink or wrap their label — variable-width content (test outcome,
-   cooldown detail) lives on the status line below, so this line stays put. */
+   never shrink or wrap their label — variable-width content (the test
+   outcome) lives on the status line below, so this line stays put. Cooldown
+   detail lives inside the COOLDOWN badge: tripped rows keep the same height
+   as healthy ones. */
 .settings-provider-control {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   flex: 1;
-  min-width: 280px;
+  /* Must cover the cluster's true content minimum (input 200 + test ~150 +
+     clear ~60 + gaps) — anything smaller lets flex squeeze the box below its
+     children and the trailing button overflows the card instead of the whole
+     cluster wrapping to its own line. */
+  min-width: 430px;
 }
 .settings-provider-control .settings-input-wrap,
 .settings-provider-control > .settings-input {
@@ -1873,8 +1874,8 @@ select.settings-input {
 .settings-provider-control .settings-clear-btn {
   margin-left: 0;
 }
-/* Status line: cooldown detail + test outcome — long messages wrap here
-   without disturbing the control line above. */
+/* Status line: test outcome — long messages wrap here without disturbing
+   the control line above. Only present right after the user clicks Test. */
 .settings-provider-status {
   display: flex;
   align-items: baseline;

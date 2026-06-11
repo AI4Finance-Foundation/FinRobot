@@ -4017,6 +4017,18 @@ msgstr ""
 #~ msgstr "Cooldown"
 
 #. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.dotOk"
+#~ msgstr "Live: this source is responding normally"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.dotOpen"
+#~ msgstr "Live: recent calls failed — paused until the cooldown ends, then retried automatically"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.dotNa"
+#~ msgstr "No live telemetry for this source"
+
+#. js-lingui-explicit-id
 #~ msgid "settings.providerStatus.cooldownUntil"
 #~ msgstr "cooldown until"
 

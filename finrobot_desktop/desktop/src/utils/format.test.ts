@@ -151,4 +151,11 @@ describe('formatDate — date-only strings are TZ-safe (western-hemisphere off-b
     // still render in the viewer's local zone.
     expect(formatDate('2026-03-30T16:00:00Z', 'en', 'short')).toBe('2026-03-31')
   })
+
+  it('time style renders clock-only in the local zone (breaker cooldown badges)', () => {
+    proc.env.TZ = 'Asia/Shanghai'
+    // UTC 06:20 = 14:20 in Shanghai.
+    expect(formatDate('2026-06-11T06:20:00Z', 'zh', 'time')).toBe('14:20')
+    expect(formatDate('2026-06-11T06:20:00Z', 'en', 'time')).toBe('2:20 PM')
+  })
 })

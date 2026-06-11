@@ -1503,29 +1503,47 @@ function DataSourceRow({
   const { t, locale } = useI18n()
   const open = health?.circuit_state === 'open'
   const dot = health === undefined ? 'is-na' : open ? 'is-bad' : 'is-ok'
-  const cooldownText =
-    open && health?.cooldown_until
-      ? `${t('settings.providerStatus.cooldownUntil')} ${formatDate(health.cooldown_until, locale, 'datetime')}${health.last_rate_limited ? ' · 429' : ''}`
-      : null
+  // The dot is live telemetry (is the source answering right now), NOT config
+  // state — a saved key (CONFIGURED) with a tripped circuit (red dot) is a
+  // normal combination. Tooltip spells that out on hover.
+  const dotTitle =
+    health === undefined
+      ? t('settings.providerStatus.dotNa')
+      : open
+        ? t('settings.providerStatus.dotOpen')
+        : t('settings.providerStatus.dotOk')
   return (
     <div className="settings-provider-row">
       <div className="settings-provider-line">
-        <span className={`settings-provider-dot ${dot}`} aria-hidden="true" />
+        <span
+          className={`settings-provider-dot ${dot}`}
+          role="img"
+          aria-label={dotTitle}
+          title={dotTitle}
+        />
         <span className="settings-provider-name">{name}</span>
-        {open && (
-          <span className="settings-badge is-required">
+        {/* One badge slot per row — a live problem (COOLDOWN) outranks config
+            state; both at once is noisy AND overflows the ~750px column,
+            wrapping tripped rows taller than healthy ones. Cooldown-end time
+            on hover; a saved key still shows via Clear + the •••• placeholder. */}
+        {open ? (
+          <span
+            className="settings-badge is-required"
+            title={
+              health?.cooldown_until
+                ? `${t('settings.providerStatus.cooldownUntil')} ${formatDate(health.cooldown_until, locale, 'time')}`
+                : undefined
+            }
+          >
             {t('settings.providerStatus.cooldown')}
+            {health?.last_rate_limited ? ' · 429' : ''}
           </span>
+        ) : (
+          badge
         )}
-        {badge}
         {control && <div className="settings-provider-control">{control}</div>}
       </div>
-      {(cooldownText || result) && (
-        <div className="settings-provider-status">
-          {cooldownText && <span className="settings-provider-cooldown">{cooldownText}</span>}
-          {result}
-        </div>
-      )}
+      {result && <div className="settings-provider-status">{result}</div>}
       {hint && <div className="settings-provider-hint">{hint}</div>}
     </div>
   )

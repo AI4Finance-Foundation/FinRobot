@@ -4017,6 +4017,18 @@ msgstr ""
 #~ msgstr "冷却中"
 
 #. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.dotOk"
+#~ msgstr "实时状态：该数据源响应正常"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.dotOpen"
+#~ msgstr "实时状态：近期调用失败——冷却结束前暂停使用，之后自动重试"
+
+#. js-lingui-explicit-id
+#~ msgid "settings.providerStatus.dotNa"
+#~ msgstr "该数据源无实时遥测"
+
+#. js-lingui-explicit-id
 #~ msgid "settings.providerStatus.cooldownUntil"
 #~ msgstr "冷却至"
 

@@ -192,11 +192,13 @@ function parseDateInput(d: Date | string | number): Date {
  *   short ⇒ "2026-05-23" (ISO, locale-invariant — consistent for tables/lists)
  *   long  ⇒ "2026年5月23日" (zh) / "May 23, 2026" (en)
  *   datetime ⇒ "2026-05-23 14:30" (zh) / "May 23, 2026, 2:30 PM" (en)
+ *   time ⇒ "14:30" (zh) / "2:30 PM" (en) — minutes-scale moments (breaker
+ *          cooldown ends) where the date is implied to be today
  */
 export function formatDate(
   d: Date | string | number | null | undefined,
   locale: Locale,
-  style: 'short' | 'long' | 'datetime' = 'short',
+  style: 'short' | 'long' | 'datetime' | 'time' = 'short',
 ): string {
   if (d === null || d === undefined) return '—'
   const date = parseDateInput(d)
@@ -208,6 +210,18 @@ export function formatDate(
     const m = String(date.getMonth() + 1).padStart(2, '0')
     const day = String(date.getDate()).padStart(2, '0')
     return `${y}-${m}-${day}`
+  }
+
+  if (style === 'time') {
+    if (locale === 'zh') {
+      const h = String(date.getHours()).padStart(2, '0')
+      const min = String(date.getMinutes()).padStart(2, '0')
+      return `${h}:${min}`
+    }
+    return new Intl.DateTimeFormat(NF_LOCALE[locale], {
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(date)
   }
 
   if (style === 'long') {

@@ -35,6 +35,33 @@ def _unreachable_dcf(*, cyclical: bool) -> DCFResult:
     """A growth-unreachable (option-value) DCFResult. When ``cyclical`` the inputs
     carry the seed's cyclical_normalization + a through-cycle ebitda_margin band so
     the prompt can reframe the gap per the design's 审校修正 1."""
+    return _dcf_result(
+        cyclical=cyclical,
+        market_implied=MarketImpliedCheck(
+            horizon_years=5,
+            growth_unreachable=True,
+            growth_ceiling=0.50,
+            ceiling_price=406.0,
+        ),
+    )
+
+
+def _reachable_dcf(*, cyclical: bool) -> DCFResult:
+    """A solvable market-implied DCFResult (MU post deep-history: implied ~28%/yr
+    inside the bracket, growth_unreachable=False). The cyclical permanence reframe
+    must still fire on this branch."""
+    return _dcf_result(
+        cyclical=cyclical,
+        market_implied=MarketImpliedCheck(
+            horizon_years=10,
+            implied_growth=0.281,
+            implied_wacc=0.049,
+            growth_unreachable=False,
+        ),
+    )
+
+
+def _dcf_result(*, cyclical: bool, market_implied: MarketImpliedCheck) -> DCFResult:
     prov: dict[str, str] = {}
     if cyclical:
         prov["cyclical_normalization"] = "判定为大宗周期股(memory/storage) → through-cycle 正常化"
@@ -70,12 +97,7 @@ def _unreachable_dcf(*, cyclical: bool) -> DCFResult:
         enterprise_value=240e9,
         equity_value=230e9,
         implied_price=187.0,
-        market_implied=MarketImpliedCheck(
-            horizon_years=5,
-            growth_unreachable=True,
-            growth_ceiling=0.50,
-            ceiling_price=406.0,
-        ),
+        market_implied=market_implied,
         inputs=inputs,
     )
 
@@ -194,5 +216,50 @@ class TestBuildThesisPrompt:
         # the generic option-value narrative still fires
         assert "option-value" in prompt
         # but none of the cyclical-specific reframing
+        assert "COMMODITY-CYCLICAL" not in prompt
+        assert "PERPETUAL steady state" not in prompt
+
+    def test_cyclical_reachable_growth_still_reframes(self):
+        """MU post deep-history: the anchor rises and the implied growth becomes
+        solvable (~28%/yr, growth_unreachable=False) — yet a decade of that growth
+        at through-cycle margins is still the super-cycle priced as permanent. The
+        permanence reframe must fire on the reachable branch too, not only on
+        growth_unreachable."""
+        methods = [
+            ValuationMethod(name="DCF", low=200, mid=246, high=295, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="comps_pb", low=900, mid=1005, high=1100, confidence=0.6, source="Comps"
+            ),
+        ]
+        prompt = _build(
+            methods,
+            current_price=891.0,
+            ticker="MU",
+            extra_context={"financial_modeling": _reachable_dcf(cyclical=True)},
+        )
+        # the generic reality-check line carries the solved implied growth
+        assert "implies ~28.1%/yr" in prompt
+        # and the cyclical permanence reframe rides along
+        assert "COMMODITY-CYCLICAL" in prompt
+        assert "PERPETUAL steady state" in prompt
+        assert "峰 49.3% / 谷 -37.0%" in prompt
+        assert "permanence, not the level" in prompt
+
+    def test_non_cyclical_reachable_growth_has_no_cyclical_clause(self):
+        """A non-cyclical with solvable implied growth keeps the plain
+        reality-check line — no permanence reframe."""
+        methods = [
+            ValuationMethod(name="DCF", low=200, mid=246, high=295, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="comps_pe", low=210, mid=250, high=290, confidence=0.5, source="C"
+            ),
+        ]
+        prompt = _build(
+            methods,
+            current_price=260.0,
+            ticker="AAPL",
+            extra_context={"financial_modeling": _reachable_dcf(cyclical=False)},
+        )
+        assert "implies ~28.1%/yr" in prompt
         assert "COMMODITY-CYCLICAL" not in prompt
         assert "PERPETUAL steady state" not in prompt

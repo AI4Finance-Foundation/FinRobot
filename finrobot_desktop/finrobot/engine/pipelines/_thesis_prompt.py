@@ -101,6 +101,11 @@ def build_thesis_prompt(
         # state, while the through-cycle ANNUAL record (the峰/谷/中位 band already in
         # the ebitda_margin provenance below) never sustained it. The seed's cyclical
         # normalization is what makes this name option-value rather than mispriced.
+        # The reframe applies on BOTH market-implied branches: with a deep-history
+        # anchor the implied growth can be solvable inside the bracket (MU: ~28%/yr,
+        # growth_unreachable=False), but a decade of that growth at through-cycle
+        # margins is still the super-cycle priced as permanent — the permanence
+        # framing must not silently disappear just because the solver converged.
         prov = dcf_ctx.inputs.assumption_provenance
         is_cyclical = "cyclical_normalization" in prov
         cyclical_clause = ""
@@ -134,7 +139,7 @@ def build_thesis_prompt(
                 f"revenue growth over {mi.horizon_years}y"
                 + (f" (implied WACC ~{mi.implied_wacc:.1%})" if mi.implied_wacc is not None else "")
                 + ". State whether that growth is plausible for this company as the "
-                "reader's reality check on the gap between price and fair value."
+                "reader's reality check on the gap between price and fair value." + cyclical_clause
             )
 
     thesis_prompt = base_prompt

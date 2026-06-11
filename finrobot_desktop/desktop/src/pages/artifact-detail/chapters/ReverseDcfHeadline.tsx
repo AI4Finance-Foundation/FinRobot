@@ -232,7 +232,11 @@ function AnchorChip({
         style={{
           display: 'flex',
           alignItems: 'center',
+          // Let the badge wrap onto its own row when the chip is narrow — an
+          // unwrappable nowrap badge is what made adjacent chips collide.
+          flexWrap: 'wrap',
           gap: 7,
+          rowGap: 4,
           fontFamily: 'var(--font-mono)',
           fontSize: 9.5,
           letterSpacing: '0.1em',
@@ -242,7 +246,15 @@ function AnchorChip({
         }}
       >
         <span style={{ color: 'var(--text-dim)' }}>{index}</span>
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span
+          style={{
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            minWidth: 0,
+            flex: '1 1 auto',
+          }}
+        >
           {label}
         </span>
         <CredBadge kind={badge.kind} text={badge.text} />
@@ -251,14 +263,16 @@ function AnchorChip({
         style={{
           fontFamily: 'var(--font-mono)',
           fontVariantNumeric: 'tabular-nums',
-          fontSize: 24,
+          fontSize: 'clamp(18px, 3.2cqi, 24px)',
           fontWeight: 600,
           lineHeight: 1,
           color: valueColor,
           textShadow: valueGlow,
           display: 'flex',
           alignItems: 'baseline',
+          flexWrap: 'wrap',
           gap: 4,
+          minWidth: 0,
         }}
       >
         {value}
@@ -352,7 +366,12 @@ export function ReverseDcfHeadline({
       data-regime={unreachable ? 'unreachable' : 'reachable'}
       style={{
         display: 'grid',
-        gridTemplateColumns: '340px 1fr',
+        // Left ruler takes ~30% of whatever width the chapter gives us, bounded
+        // [216, 320] — a fixed 340px previously ate >half of a ~600px panel and
+        // crushed the right column until the anchor chips overlapped. The section
+        // is an inline-size container so children scale type with cqi units.
+        gridTemplateColumns: 'clamp(216px, 30%, 320px) minmax(0, 1fr)',
+        containerType: 'inline-size',
         gap: 0,
         marginTop: 18,
         borderRadius: 'var(--radius-lg)',
@@ -715,14 +734,21 @@ export function ReverseDcfHeadline({
       </div>
 
       {/* ── RIGHT: conclusion-first narrative + secondary anchor row ── */}
-      <div style={{ padding: '24px 26px 20px', display: 'flex', flexDirection: 'column' }}>
+      <div
+        style={{
+          padding: 'clamp(16px, 3cqi, 24px) clamp(14px, 3cqi, 26px) 18px',
+          display: 'flex',
+          flexDirection: 'column',
+          minWidth: 0,
+        }}
+      >
         {/* the conclusion-first lede (verdict, not a probe) */}
         {unreachable ? (
           <p
             style={{
               fontFamily: 'var(--font-display)',
               fontWeight: 500,
-              fontSize: 27,
+              fontSize: 'clamp(19px, 3.6cqi, 27px)',
               lineHeight: 1.24,
               letterSpacing: '0.2px',
               color: 'var(--text-primary)',
@@ -770,7 +796,7 @@ export function ReverseDcfHeadline({
             style={{
               fontFamily: 'var(--font-display)',
               fontWeight: 500,
-              fontSize: 30,
+              fontSize: 'clamp(20px, 4cqi, 30px)',
               lineHeight: 1.22,
               letterSpacing: '0.2px',
               color: 'var(--text-primary)',
@@ -809,8 +835,10 @@ export function ReverseDcfHeadline({
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1fr 1fr 1fr',
-            gap: 12,
+            // auto-fit instead of a hard 3-up: when the column can't give each
+            // chip ~150px the chips WRAP to 2+1 / 1-col instead of overlapping.
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+            gap: 10,
             marginBottom: 18,
           }}
         >

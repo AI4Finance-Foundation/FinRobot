@@ -322,3 +322,18 @@ def test_financials_missing_revenue_market_cap_stay_none():
     fin = normalize_financials(_fin_result(net_income=1.0e9))
     assert fin.revenue is None
     assert fin.market_cap is None
+
+
+def test_price_nan_close_bar_dropped_not_serialized():
+    """yfinance can hand an all-NaN OHLC session row (live 2026-06-11: AAPL
+    2026-06-10). A NaN close passes every `is None` gate, serializes to
+    close:null and crashes chart consumers — the canonical chokepoint must
+    treat non-finite as missing (守 None ≠ 守 finiteness) and drop the bar."""
+    hist = [
+        {"date": "2026-05-26", "close": 300.0, "high": 305.0, "low": 295.0},
+        {"date": "2026-05-27", "close": 440.0, "high": 450.0, "low": 430.0},
+        {"date": "2026-05-28", "close": float("nan"), "high": float("nan"), "low": float("nan")},
+    ]
+    out = normalize_price(_price_result(hist, current_price=441.0, quote_timestamp=FETCH))
+    assert [b.date.isoformat() for b in out.bars] == ["2026-05-26", "2026-05-27"]
+    assert all(b.close == b.close for b in out.bars)  # no NaN survived

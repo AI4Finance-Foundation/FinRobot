@@ -106,16 +106,16 @@ def _get_row(df: pd.DataFrame | None, names: Sequence[str]) -> pd.Series | None:
 
 
 def _safe_float(value: object) -> float | None:
-    """Convert a scalar to float; return None on any error or NaN.
+    """Convert a scalar to float; return None on any error or non-finite value.
 
-    NaN is treated as missing (not a legitimate 0) so the downstream consumer
-    can distinguish "row existed but empty" from "cell was zero".
+    NaN/±Inf are treated as missing (not a legitimate 0) so the downstream
+    consumer can distinguish "row existed but empty" from "cell was zero".
     """
     try:
         result = float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return None
-    if math.isnan(result):
+    if not math.isfinite(result):
         return None
     return result
 
@@ -467,6 +467,13 @@ class YFinanceProvider(DataProvider):
             hist = await asyncio.to_thread(t.history, period="1y")
             price_history = []
             for date, row in hist.iterrows():
+                # yfinance can hand back an all-NaN OHLC row for a session
+                # (observed live 2026-06-11: AAPL 2026-06-10 NaN close with a
+                # real volume). A bar without a finite close is not a bar —
+                # serialized it becomes close:null and crashes every chart
+                # consumer (PriceTrendChart toFixed). Skip it; never fabricate.
+                if _safe_float(row["Close"]) is None:
+                    continue
                 price_history.append(
                     {
                         "date": str(date.date()),

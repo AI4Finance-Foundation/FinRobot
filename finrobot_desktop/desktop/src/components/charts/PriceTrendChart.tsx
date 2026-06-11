@@ -46,11 +46,13 @@ function windowOneYear(points: PricePoint[]): PricePoint[] {
     0,
     points.findIndex((p) => new Date(p.date) >= cutoff),
   )
-  const windowed = points.slice(startIdx)
-  // Drop leading non-finite / non-positive closes (provider halt/sparse day):
-  // a 0 first close skews the Y domain and makes the 1Y change Infinity.
-  const firstValid = windowed.findIndex((p) => Number.isFinite(p.close) && p.close > 0)
-  return firstValid > 0 ? windowed.slice(firstValid) : windowed
+  // Drop EVERY non-finite / non-positive close, not just leading ones: the raw
+  // provider fast path (/price route provider-cache) bypasses the backend
+  // normalize chokepoint, and yfinance can hand an all-NaN OHLC session row
+  // (serialized close:null — crashed the footer's toFixed, 2026-06-11). A 0/null
+  // close anywhere skews the Y domain; trailing ones poison the last-close
+  // readout and the 1Y change anchor.
+  return points.slice(startIdx).filter((p) => Number.isFinite(p.close) && p.close > 0)
 }
 
 function fmtPrice(v: number): string {
@@ -117,7 +119,10 @@ export function PriceTrendChart({
   sessionState,
 }: Props): React.ReactElement {
   const { t } = useI18n()
-  if (!points || points.length < 2) {
+  // Guard on the FILTERED window, not the raw length — a payload can be
+  // non-empty yet all-null closes (windowOneYear drops those).
+  const data = points && points.length > 0 ? windowOneYear(points) : []
+  if (data.length < 2) {
     return (
       <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
         {t(loading ? 'chart.priceTrend.loading' : 'chart.priceTrend.empty')}
@@ -125,7 +130,6 @@ export function PriceTrendChart({
     )
   }
 
-  const data = windowOneYear(points)
   const closes = data.map((p) => p.close)
   const min = Math.min(...closes)
   const max = Math.max(...closes)

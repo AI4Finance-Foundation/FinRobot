@@ -10,6 +10,7 @@ age instead of overstating it by the hours from midnight to the close (~20h).
 
 from __future__ import annotations
 
+import math
 from datetime import date, datetime, time, timezone
 from typing import Any
 
@@ -27,12 +28,17 @@ from finrobot.engine.data.normalize.window import bar_date, trim_to_trailing_win
 
 
 def _f(v: Any) -> float | None:
+    """Scalar → finite float, else None. NaN/±Inf are missing data, not values:
+    a NaN close slips every ``is None`` gate, serializes to null, and crashes
+    chart consumers (yfinance handed an all-NaN OHLC session row, 2026-06-11).
+    守 None ≠ 守 finiteness — the canonical chokepoint must check both."""
     if v is None:
         return None
     try:
-        return float(v)
+        f = float(v)
     except (TypeError, ValueError):
         return None
+    return f if math.isfinite(f) else None
 
 
 def _date_to_dt(d: date) -> datetime:

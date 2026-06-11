@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from datetime import date, datetime
 from typing import Any, Literal, cast
 
@@ -582,6 +583,10 @@ def _price_change_from_history(history: list[Any]) -> tuple[float | None, float 
         try:
             close = float(raw_close)
         except (TypeError, ValueError):
+            continue
+        # NaN slips the isinstance gate (it IS a float) and would poison the
+        # change/changePct readout — 守 None ≠ 守 finiteness.
+        if not math.isfinite(close):
             continue
         closes.append(close)
     if len(closes) < 2:

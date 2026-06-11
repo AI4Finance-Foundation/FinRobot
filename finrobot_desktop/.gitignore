@@ -105,3 +105,8 @@ design-demos/
 # 1.1MB 超 pre-commit 的 500KB 限；生成出的全套图标（icons/ 下 icns/ico/PNG/
 # Windows tiles）已入库,这张母图本地留作重生成源,不进版本管理。
 desktop/src-tauri/icon-source.png
+
+# coverage measurement artifacts (pytest --cov, explicit runs only)
+.coverage
+.coverage.*
+htmlcov/

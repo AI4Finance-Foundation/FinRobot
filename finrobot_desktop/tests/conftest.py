@@ -1,6 +1,9 @@
 """Shared test fixtures for FinRobot test suite."""
 
 import asyncio
+import faulthandler
+import os
+import sys
 import weakref
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -10,6 +13,24 @@ import aiosqlite
 import pytest
 
 from finrobot.engine.data.cache import DataCache
+
+
+_PYTEST_SESSION_TIMEOUT_SECONDS = int(os.environ.get("FINROBOT_PYTEST_TIMEOUT_SECONDS", "600"))
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:
+    if _PYTEST_SESSION_TIMEOUT_SECONDS <= 0:
+        return
+    faulthandler.dump_traceback_later(
+        _PYTEST_SESSION_TIMEOUT_SECONDS,
+        repeat=False,
+        file=sys.__stderr__,
+        exit=True,
+    )
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    faulthandler.cancel_dump_traceback_later()
 
 
 @pytest.fixture(autouse=True)

@@ -13,6 +13,7 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useHealth } from '../hooks/useHealth'
 import { useI18n } from '../i18n'
+import { AI_CHAT_ENABLED } from '../config/features'
 
 const DISMISSED_KEY = 'finrobot-ai-onboarding-dismissed'
 
@@ -52,9 +53,15 @@ export function AiOnboardingGate(): React.ReactElement | null {
   const worksNow = zh
     ? ['实时价格与行情', '财务报表与历史', 'DCF / LBO / 可比公司估值']
     : ['Live prices & quotes', 'Financial statements & history', 'DCF / LBO / comps valuation']
+  // AI chat is release-gated (VITE_ENABLE_AI_CHAT) — only advertise it as an
+  // unlockable feature when it actually ships, else we'd promise a hidden panel.
   const needsModel = zh
-    ? ['AI 研报(13 章)', 'AI 对话分析', '投委会对抗辩论']
-    : ['AI research reports (13 ch.)', 'AI chat analysis', 'IC debate']
+    ? ['AI 研报(13 章)', ...(AI_CHAT_ENABLED ? ['AI 对话分析'] : []), '投委会对抗辩论']
+    : [
+        'AI research reports (13 ch.)',
+        ...(AI_CHAT_ENABLED ? ['AI chat analysis'] : []),
+        'IC debate',
+      ]
 
   return (
     <div
@@ -104,8 +111,8 @@ export function AiOnboardingGate(): React.ReactElement | null {
 
         <div style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
           {zh
-            ? 'FinRobot 的数字由确定性引擎算出、可逐项溯源——无需任何 API key 就能用。AI 研报与对话只是渲染口,需要你选一个模型并填好 key。'
-            : 'FinRobot’s numbers come from a deterministic, fully-traceable engine — usable with no API key at all. AI reports and chat are just a rendering layer on top; those need a model you pick and key.'}
+            ? 'FinRobot 的数字由确定性引擎算出、可逐项溯源——无需任何 API key 就能用。上层的 AI 分析只是渲染口,需要你选一个模型并填好 key。'
+            : 'FinRobot’s numbers come from a deterministic, fully-traceable engine — usable with no API key at all. The AI analysis layered on top is just a rendering layer; it needs a model you pick and key.'}
         </div>
 
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>

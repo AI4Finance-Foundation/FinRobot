@@ -451,22 +451,44 @@ class FinRobotSettings(BaseSettings):
         return bool(self.provider_key(provider_id))
 
     def runtime_config_error(self) -> str | None:
-        """The startup_error banner string, or None when there's nothing to
-        surface as an *error*.
+        """The startup_error banner string for a STRUCTURALLY broken config,
+        else None. Use on the server boot/PUT paths (NOT validate_runtime_config,
+        which hard-fails on any incompleteness — right for CLI/SDK, wrong here).
 
-        Crucially this returns None for the expected first-run state (no model
-        chosen yet) — that's onboarding, NOT a red error banner. A model that IS
-        chosen but whose key/provider is broken returns the precise message from
-        ``validate_runtime_config`` (so the user can fix exactly what's wrong).
-        Use this on the server boot/PUT paths; use ``validate_runtime_config``
-        directly only where empty-model must hard-fail (CLI/SDK).
+        Incomplete setup is NOT an error and must never raise the red banner:
+        - no model chosen yet (empty),
+        - a half-typed model id mid-setup (e.g. "openai:" right after picking a
+          provider, before choosing a model),
+        - a chosen model whose API key hasn't been pasted yet.
+        All three are the normal onboarding path — surfaced as the friendly
+        "add a key" notice + a 503 on AI routes (via ``is_model_configured``),
+        never an alarming "Startup configuration error". The user picking a
+        provider must not be punished with a red error before they can type the
+        key (a real complaint: it read like the app was broken / demanded a
+        specific model).
+
+        The ONLY thing worth alarming on is a model_name pointing at a provider
+        that doesn't exist — only reachable via a corrupt/hand-edited
+        settings.json, a genuine boot error.
         """
-        if not self.model_name.strip():
+        name = self.model_name.strip()
+        if not name:
             return None
         try:
-            self.validate_runtime_config()
-        except ValueError as exc:
-            return str(exc)
+            provider_id, _model_id = self._parse_model_name(name)
+        except ValueError:
+            # Half-typed during setup (e.g. "openai:") — onboarding, not an error.
+            return None
+        if provider_id == "test":
+            return None
+        cfg = self.provider_by_id(provider_id)
+        if cfg is None:
+            valid = ", ".join(p.id for p in self.providers)
+            return (
+                f"Model '{name}' references unknown provider '{provider_id}'. "
+                f"Configured providers: {valid}."
+            )
+        # Missing key reaches here → return None: it's onboarding, not a banner.
         return None
 
     def create_model(self, model_name: str | None = None) -> Model:

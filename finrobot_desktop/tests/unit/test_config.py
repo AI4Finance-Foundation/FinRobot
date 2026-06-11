@@ -335,11 +335,19 @@ class TestEmptyModelOnboarding:
         assert s.runtime_config_error() is None
         assert s.is_model_configured is False
 
-    def test_chosen_but_keyless_model_is_a_banner_error(self):
-        # A model the user DID choose but whose key is missing is a real error.
+    def test_chosen_but_keyless_model_is_not_a_banner_error(self):
+        # Picking a provider/model before pasting the key is normal onboarding —
+        # surfaced as the friendly "add a key" notice + a 503, NOT a red banner.
+        # (Regression: it used to fire "Startup configuration error" the instant
+        # the user selected a provider, before they could type the key.)
         s = get_settings(model_name="anthropic:claude-sonnet-4-6")
-        err = s.runtime_config_error()
-        assert err is not None and "anthropic" in err
+        assert s.runtime_config_error() is None
+        assert s.is_model_configured is False
+
+    def test_half_typed_model_id_is_not_a_banner_error(self):
+        # "openai:" — provider picked, model not chosen yet. Mid-setup, not error.
+        s = get_settings(model_name="openai:")
+        assert s.runtime_config_error() is None
         assert s.is_model_configured is False
 
     def test_fully_configured_model_is_ready(self):

@@ -418,10 +418,12 @@ async def test_put_data_key_succeeds_without_llm_key(tmp_path: Path, monkeypatch
         resp = await c.put("/api/settings", json={"fmp_api_key": "fmp-key-123"})
 
     assert resp.status_code == 200, resp.text
-    # The FMP key was stored despite the invalid LLM config...
+    # The FMP key was stored despite the incomplete LLM config...
     secret_store.set.assert_any_await("fmp_api_key", "fmp-key-123")
-    # ...and the missing-LLM-key surfaces as the non-blocking banner instead.
-    assert "No API key configured for provider 'openai'" in (app.state.startup_error or "")
+    # ...and a MISSING LLM key is NOT a red banner — it's onboarding (the friendly
+    # "add a key" notice + a 503 on AI routes via is_model_configured). The
+    # startup_error stays None so picking a provider mid-setup never alarms.
+    assert app.state.startup_error is None
 
 
 @pytest.mark.asyncio

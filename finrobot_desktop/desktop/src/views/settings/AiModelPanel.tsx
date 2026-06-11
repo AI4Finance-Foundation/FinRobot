@@ -103,19 +103,19 @@ export function AiModelPanel({
 
   const handleProviderChange = (providerId: string) => {
     const p = providers.find((x) => x.id === providerId)
-    // Keep the current model id if the new provider lists it, else fall back to
-    // its first suggested model, else leave blank for the user to type one.
-    const nextModel =
-      p && currentModelId && p.models.includes(currentModelId)
-        ? currentModelId
-        : (p?.models[0] ?? '')
+    // Keep the current model id only if the new provider actually lists it;
+    // otherwise leave it BLANK. We deliberately do NOT auto-fill models[0] —
+    // dumping a stale default (the old "gpt-4o on pick OpenAI") read as "you're
+    // locked to this model" and, worse, instantly made model_name non-empty so a
+    // red "no key" error fired before the user could type anything. Blank field
+    // + the suggestions datalist lets them consciously pick from the dropdown.
+    const nextModel = p && currentModelId && p.models.includes(currentModelId) ? currentModelId : ''
     const next = `${providerId}:${nextModel}`
     setModelName(next)
     setLlmApiKey('')
     setAddingCustom(false)
     setTestState({ status: 'idle' })
-    // Switching to a provider that's ALREADY keyed (key_set) with a model →
-    // auto-test it; otherwise wait for the user to enter a key.
+    // Auto-test only if the provider is ALREADY keyed AND a model carried over.
     const autoTest =
       p?.key_set && nextModel ? () => void testConnection(providerId, nextModel) : undefined
     scheduleStandardSave({ model_name: next }, autoTest)

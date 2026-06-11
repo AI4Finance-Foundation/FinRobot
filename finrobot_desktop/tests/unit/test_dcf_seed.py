@@ -1115,6 +1115,30 @@ class TestCyclicalNormalization:
         assert "cyclical_normalization" not in non.assumption_provenance
         assert "through-cycle" not in non.assumption_provenance["ebitda_margin"]
 
+    def test_memory_storage_arm_named_in_provenance(self):
+        """MU rides the generic "Semiconductors" tag (ticker anchor / keyword arm),
+        so its provenance names memory/storage — the substring the thesis prompt's
+        supercycle reframe gates on."""
+        cyc = seed_dcf_inputs(_mu_financials(), _mu_cyclical_historical(), cyclical=True)
+        note = cyc.assumption_provenance["cyclical_normalization"]
+        assert "memory/storage" in note
+        assert "行业白名单" not in note
+
+    def test_industry_arm_does_not_claim_memory_storage(self):
+        """An auto OEM (TSLA-like) qualifies via the UNCONDITIONAL industry
+        whitelist — its provenance must name that arm, NOT fabricate a
+        "memory/storage 命中" (live TSLA artifact 2fadab carried exactly that
+        fabricated claim). The thesis prompt's memory-supercycle reframe keys on
+        the substring, so the wrong arm wording also mis-frames the narrative."""
+        fin = _mu_financials().model_copy(deep=True)
+        fin.market.industry = "Auto Manufacturers"
+        cyc = seed_dcf_inputs(fin, _mu_cyclical_historical(), cyclical=True)
+        note = cyc.assumption_provenance["cyclical_normalization"]
+        assert "memory/storage" not in note
+        assert "行业白名单" in note
+        # Still a through-cycle normalization — only the arm label differs.
+        assert "through-cycle" in note
+
 
 class TestCyclicalSeedEquivalence:
     """改动点 3: the five seed consumers (MC / sensitivity / reverse / REST /

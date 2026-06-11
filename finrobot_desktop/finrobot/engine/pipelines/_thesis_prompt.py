@@ -107,9 +107,14 @@ def build_thesis_prompt(
         # margins is still the super-cycle priced as permanent — the permanence
         # framing must not silently disappear just because the solver converged.
         prov = dcf_ctx.inputs.assumption_provenance
-        is_cyclical = "cyclical_normalization" in prov
+        # Scoped to MEMORY/STORAGE cyclicals only (the arm is named in the seed's
+        # cyclical_normalization provenance). An industry-whitelist cyclical (auto
+        # OEM / steel / shipping — e.g. TSLA) keeps the generic implied-growth
+        # line: its price gap is a different story (option value / volume cycle),
+        # and the supercycle-margin-permanence framing would be fabricated there.
+        is_memory_storage_cyclical = "memory/storage" in str(prov.get("cyclical_normalization", ""))
         cyclical_clause = ""
-        if is_cyclical:
+        if is_memory_storage_cyclical:
             cycle_band = prov.get("ebitda_margin", "")
             cyclical_clause = (
                 " This is a COMMODITY-CYCLICAL: frame the gap as the market pricing the "

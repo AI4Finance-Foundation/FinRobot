@@ -25,6 +25,7 @@ import statistics
 from typing import Final
 
 from finrobot.engine.compute.operators.wacc import adjust_beta_blume
+from finrobot.engine.primitives.industry import commodity_cyclical_basis
 from finrobot.engine.data.industry_defaults import (
     IndustryDefault,
     get_industry_default,
@@ -375,8 +376,17 @@ def seed_dcf_inputs(
         else:
             _cycle_note = "through-cycle 中位（历史不足,退行业基准）"
             _coverage_cn = "历史不足,无法构造 through-cycle 窗口"
+        # Name the REAL arm that fired — an auto OEM (TSLA/F/GM) hits the industry
+        # whitelist, NOT the memory/storage keyword; claiming "memory/storage 命中"
+        # for it is fabricated provenance, and downstream the memory-supercycle
+        # narrative (审校修正 1) gates on this exact substring.
+        _arm_cn = (
+            "行业白名单命中:钢铁/航运/化工/油气/汽车等大宗周期"
+            if commodity_cyclical_basis(financials.market.industry) == "industry"
+            else "memory/storage 白名单/关键词命中"
+        )
         prov["cyclical_normalization"] = (
-            "判定为大宗周期股(memory/storage 白名单/关键词命中) → 盈利基底走 "
+            f"判定为大宗周期股({_arm_cn}) → 盈利基底走 "
             "through-cycle 正常化:EBITDA 利润率取周期中位、D&A 营收加权 through-cycle、"
             f"显式期 CapEx 取 through-cycle 中位;{_coverage_cn};"
             "营收基保持当前 TTM(Damodaran 口径 3:正常化 margin × 当前营收,"

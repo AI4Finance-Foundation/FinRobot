@@ -11,6 +11,7 @@ FMP serves gross revenue 73.661B and interestExpense 23.825B for that quarter;
 
 from finrobot.engine.primitives.industry import (
     bank_net_revenue,
+    commodity_cyclical_basis,
     is_bank,
     is_commodity_cyclical,
 )
@@ -136,6 +137,22 @@ class TestIsCommodityCyclical:
 
     def test_ticker_anchor_normalizes_case_and_whitespace(self) -> None:
         assert is_commodity_cyclical("Semiconductors", "Technology", ticker=" mu ") is True
+
+
+class TestCommodityCyclicalBasis:
+    """Which arm fired — drives honest provenance + the memory-supercycle
+    narrative scoping (TSLA must not read as a memory/storage name)."""
+
+    def test_industry_whitelist_arm(self) -> None:
+        assert commodity_cyclical_basis("Auto Manufacturers") == "industry"
+        assert commodity_cyclical_basis("Steel") == "industry"
+
+    def test_memory_storage_arm_for_generic_tags(self) -> None:
+        # MU/WDC ride generic buckets — a True verdict there came from the
+        # keyword收口 or the curated ticker anchor.
+        assert commodity_cyclical_basis("Semiconductors") == "memory_storage"
+        assert commodity_cyclical_basis("Computer Hardware") == "memory_storage"
+        assert commodity_cyclical_basis(None) == "memory_storage"
 
 
 class TestBankNetRevenue:

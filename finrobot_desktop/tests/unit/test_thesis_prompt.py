@@ -245,6 +245,35 @@ class TestBuildThesisPrompt:
         assert "峰 49.3% / 谷 -37.0%" in prompt
         assert "permanence, not the level" in prompt
 
+    def test_industry_cyclical_auto_oem_gets_no_supercycle_clause(self):
+        """A volume-cyclical auto OEM (TSLA — industry-whitelist arm, provenance
+        names 行业白名单 not memory/storage) must NOT inherit the memory-supercycle
+        permanence framing: its price gap is option value, not margin permanence.
+        Live TSLA artifact 2fadab regressed exactly this way ("Tesla's stock
+        pricing suggests a super-cycle peak")."""
+        dcf = _reachable_dcf(cyclical=True)
+        dcf.inputs.assumption_provenance["cyclical_normalization"] = (
+            "判定为大宗周期股(行业白名单命中:钢铁/航运/化工/油气/汽车等大宗周期) "
+            "→ 盈利基底走 through-cycle 正常化"
+        )
+        methods = [
+            ValuationMethod(name="DCF", low=40, mid=52, high=70, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="comps_pb", low=200, mid=254, high=300, confidence=0.6, source="Comps"
+            ),
+        ]
+        prompt = _build(
+            methods,
+            current_price=388.88,
+            ticker="TSLA",
+            extra_context={"financial_modeling": dcf},
+        )
+        # generic reality-check line still present
+        assert "implies ~28.1%/yr" in prompt
+        # no memory-supercycle permanence framing
+        assert "COMMODITY-CYCLICAL" not in prompt
+        assert "PERPETUAL steady state" not in prompt
+
     def test_non_cyclical_reachable_growth_has_no_cyclical_clause(self):
         """A non-cyclical with solvable implied growth keeps the plain
         reality-check line — no permanence reframe."""

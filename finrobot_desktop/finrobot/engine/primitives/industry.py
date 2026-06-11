@@ -194,6 +194,26 @@ def is_commodity_cyclical(
     return False
 
 
+def commodity_cyclical_basis(industry: str | None) -> str:
+    """Which arm of ``is_commodity_cyclical`` fired — for honest provenance.
+
+    Only meaningful when ``is_commodity_cyclical`` already returned True for the
+    name. ``"industry"`` when the industry label sits in the UNCONDITIONAL
+    commodity whitelist (steel / shipping / chemicals / oil&gas / autos…);
+    ``"memory_storage"`` otherwise — a True verdict that didn't come from the
+    industry list can only have come from the memory/storage keyword收口 or the
+    curated ticker anchor (both memory/storage mechanisms).
+
+    Downstream consumers use this to keep the memory-supercycle narrative
+    (审校修正 1: "peak priced as perpetual") scoped to memory/storage names —
+    a volume-cyclical auto OEM (TSLA/F/GM) must not inherit that framing, its
+    price gap is a different story (e.g. option value, not margin permanence).
+    """
+    if industry and industry in _COMMODITY_CYCLICAL_INDUSTRIES:
+        return "industry"
+    return "memory_storage"
+
+
 def is_bank(
     industry: str | None = None,
     sector: str | None = None,

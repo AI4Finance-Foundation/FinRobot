@@ -47,6 +47,8 @@ backtest = ["backtrader>=1.9"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",       # coverage 显式开启: pytest tests/ --cov=finrobot --cov-report=term-missing
+    "hypothesis>=6.100",     # property-based tests — see tests/unit/test_property_dcf.py
     "httpx>=0.27",
     "ruff>=0.8",
     "mypy>=1.10",
@@ -71,6 +73,31 @@ addopts = "-m 'not integration'"
 markers = [
     "integration: tests that call real external APIs (yfinance, LLM)",
     "slow: tests that take > 10 seconds",
+]
+
+# Coverage is measurement-only (no fail-under gate) and EXPLICITLY opted in —
+# never put --cov into pytest addopts: it slows every default `pytest tests/`
+# run shared by parallel sessions. Run it on demand:
+#   pytest tests/ --cov=finrobot --cov-report=term-missing
+# (full suite occasionally wedges under parallel sessions; split by directory,
+#  coverage data accumulates with --cov-append)
+[tool.coverage.run]
+source = ["finrobot"]
+branch = true
+omit = [
+    "finrobot/cli.py",                  # click entry points — exercised manually / via dev.sh
+    "finrobot/server.py",               # uvicorn bootstrap, integration-only surface
+    "finrobot/engine/backtest/backtrader_adapter.py",  # optional extra (backtrader)
+]
+
+[tool.coverage.report]
+precision = 1
+show_missing = false
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "@overload",
 ]
 
 [tool.ruff]

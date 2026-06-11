@@ -1445,3 +1445,223 @@ class TestFetch13FStaleWarning:
         _payload, warnings = p._fetch_13f_sync("NVDA")
         assert len(warnings) == 1
         assert "not built" in warnings[0]
+
+
+# ---------------------------------------------------------------------------
+# SEC XBRL companyfacts deep annual history (no network — pure facts→dict)
+# ---------------------------------------------------------------------------
+
+
+def _fact(
+    *, start: str, end: str, val: float, fy: int, fp: str = "FY", form: str = "10-K", filed: str
+) -> dict[str, Any]:
+    return {
+        "start": start,
+        "end": end,
+        "val": val,
+        "fy": fy,
+        "fp": fp,
+        "form": form,
+        "filed": filed,
+    }
+
+
+def _facts_with(concept: str, items: list[dict[str, Any]], unit: str = "USD") -> dict[str, Any]:
+    return {"facts": {"us-gaap": {concept: {"units": {unit: items}}}}}
+
+
+class TestCompanyfactsAnnualSeries:
+    """The deep-history extraction that feeds the through-cycle DCF window."""
+
+    def test_keys_by_period_end_not_filing_fy(self) -> None:
+        """fy-bug guard: a comparative tagged with a LATER filing's fy must land
+        on its OWN period-end year, never the filing fy. MU's FY2018 peak appears
+        in the FY2019 10-K tagged fy=2019; keying by fy would mislabel it.
+        """
+        from finrobot.engine.data.providers.edgar_provider import _companyfacts_annual_series
+
+        items = [
+            # The real FY2018 fact filed in the 2018 10-K (fy=2018).
+            _fact(start="2017-09-01", end="2018-08-30", val=30_391, fy=2018, filed="2018-10-01"),
+            # The SAME period restated as a comparative in the FY2019 10-K (fy=2019).
+            _fact(start="2017-09-01", end="2018-08-30", val=30_391, fy=2019, filed="2019-10-01"),
+            # FY2019 itself, filed 2019 (fy=2019).
+            _fact(start="2018-08-31", end="2019-08-29", val=23_406, fy=2019, filed="2019-10-01"),
+        ]
+        series = _companyfacts_annual_series(
+            _facts_with("RevenueFromContractWithCustomerExcludingAssessedTax", items),
+            ("RevenueFromContractWithCustomerExcludingAssessedTax",),
+        )
+        # Keyed by period-END year: 2018 and 2019 — NOT 2019 twice.
+        assert set(series.keys()) == {2018, 2019}
+        assert series[2018] == 30_391
+        assert series[2019] == 23_406
+
+    def test_latest_filed_comparative_wins(self) -> None:
+        from finrobot.engine.data.providers.edgar_provider import _companyfacts_annual_series
+
+        items = [
+            _fact(start="2022-01-01", end="2022-12-31", val=100, fy=2022, filed="2023-02-01"),
+            # A later 10-K restates the same FY with a corrected value.
+            _fact(start="2022-01-01", end="2022-12-31", val=110, fy=2023, filed="2024-02-01"),
+        ]
+        series = _companyfacts_annual_series(_facts_with("Revenues", items), ("Revenues",))
+        assert series[2022] == 110  # latest filed wins
+
+    def test_skips_non_usd_quarterly_and_non_10k(self) -> None:
+        from finrobot.engine.data.providers.edgar_provider import _companyfacts_annual_series
+
+        concept = "Revenues"
+        node_items = [
+            # quarterly (≈90 days) — too short for an annual flow
+            _fact(start="2023-01-01", end="2023-03-31", val=25, fy=2023, filed="2023-05-01"),
+            # 10-Q form — not an annual report
+            _fact(
+                start="2023-01-01",
+                end="2023-12-31",
+                val=999,
+                fy=2023,
+                form="10-Q",
+                filed="2024-01-15",
+            ),
+            # the real annual 10-K fact
+            _fact(start="2023-01-01", end="2023-12-31", val=100, fy=2023, filed="2024-02-01"),
+        ]
+        facts = _facts_with(concept, node_items)
+        series = _companyfacts_annual_series(facts, (concept,))
+        assert series == {2023: 100}
+
+        # Non-USD unit is ignored entirely.
+        eur = _facts_with(
+            concept,
+            [_fact(start="2023-01-01", end="2023-12-31", val=100, fy=2023, filed="2024-02-01")],
+            unit="EUR",
+        )
+        assert _companyfacts_annual_series(eur, (concept,)) == {}
+
+    def test_concept_fallback_first_nonempty_wins(self) -> None:
+        from finrobot.engine.data.providers.edgar_provider import _companyfacts_annual_series
+
+        # Primary concept absent; second candidate present.
+        facts = _facts_with(
+            "SalesRevenueNet",
+            [_fact(start="2020-01-01", end="2020-12-31", val=50, fy=2020, filed="2021-02-01")],
+        )
+        series = _companyfacts_annual_series(
+            facts,
+            ("RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"),
+        )
+        assert series == {2020: 50}
+
+
+class TestBuildSecYearlyFinancials:
+    """The newest-first per-year dict the provider-agnostic extractor consumes."""
+
+    def _multi_concept_facts(self) -> dict[str, Any]:
+        usgaap: dict[str, Any] = {}
+
+        def add(concept: str, by_year: dict[int, float], unit: str = "USD") -> None:
+            items = [
+                _fact(
+                    start=f"{y - 1}-12-31",
+                    end=f"{y}-12-31",
+                    val=v,
+                    fy=y,
+                    filed=f"{y + 1}-02-01",
+                )
+                for y, v in by_year.items()
+            ]
+            usgaap[concept] = {"units": {unit: items}}
+
+        add("Revenues", {2021: 1000, 2022: 1200, 2023: 800})
+        add("OperatingIncomeLoss", {2021: 200, 2022: 300, 2023: -100})
+        add("NetIncomeLoss", {2021: 150, 2022: 250, 2023: -120})
+        # capex reported as positive outflow magnitude by SEC
+        add("PaymentsToAcquirePropertyPlantAndEquipment", {2021: 90, 2022: 110, 2023: 70})
+        add("DepreciationDepletionAndAmortization", {2021: 60, 2022: 70, 2023: 80})
+        return {"facts": {"us-gaap": usgaap}}
+
+    def test_shape_keys_match_extractor_contract(self) -> None:
+        from finrobot.engine.data.providers.edgar_provider import _build_sec_yearly_financials
+
+        rows = _build_sec_yearly_financials(self._multi_concept_facts(), 10)
+        required = {
+            "fiscal_year",
+            "revenue",
+            "operating_income",
+            "operating_margin",
+            "net_income",
+            "depreciation_amortization",
+            "capital_expenditure",
+            "change_in_working_capital",
+            "financial_currency",
+            "quote_currency",
+        }
+        for row in rows:
+            assert required <= set(row.keys())
+
+    def test_newest_first_and_windowed(self) -> None:
+        from finrobot.engine.data.providers.edgar_provider import _build_sec_yearly_financials
+
+        rows = _build_sec_yearly_financials(self._multi_concept_facts(), 2)
+        # newest-first, windowed to 2 most-recent fiscal years
+        assert [r["fiscal_year"][:4] for r in rows] == ["2023", "2022"]
+
+    def test_margins_and_capex_sign(self) -> None:
+        from finrobot.engine.data.providers.edgar_provider import _build_sec_yearly_financials
+
+        rows = {
+            r["fiscal_year"][:4]: r
+            for r in _build_sec_yearly_financials(self._multi_concept_facts(), 10)
+        }
+        fy2023 = rows["2023"]
+        # trough year: operating margin is negative (−100 / 800)
+        assert fy2023["operating_margin"] == pytest.approx(-100 / 800)
+        # capex stays a positive magnitude (FCF convention)
+        assert fy2023["capital_expenditure"] == 70
+        # EBITDA reconstructed via the identity EBIT + D&A (−100 + 80 = −20), since
+        # SEC has no standalone EBITDA concept — faithful, not fabricated.
+        assert fy2023["ebitda"] == pytest.approx(-100 + 80)
+        assert rows["2021"]["ebitda"] == pytest.approx(200 + 60)
+        assert rows["2021"]["operating_margin"] == pytest.approx(200 / 1000)
+
+    def test_ebitda_none_when_component_missing(self) -> None:
+        from finrobot.engine.data.providers.edgar_provider import _build_sec_yearly_financials
+
+        # Revenue + operating income present, but NO D&A concept at all → the EBITDA
+        # identity can't be formed, so ebitda is None (never a fabricated value).
+        usgaap = {
+            "Revenues": {
+                "units": {
+                    "USD": [
+                        _fact(
+                            start="2022-01-01",
+                            end="2022-12-31",
+                            val=1000,
+                            fy=2022,
+                            filed="2023-02-01",
+                        )
+                    ]
+                }
+            },
+            "OperatingIncomeLoss": {
+                "units": {
+                    "USD": [
+                        _fact(
+                            start="2022-01-01",
+                            end="2022-12-31",
+                            val=200,
+                            fy=2022,
+                            filed="2023-02-01",
+                        )
+                    ]
+                }
+            },
+        }
+        rows = _build_sec_yearly_financials({"facts": {"us-gaap": usgaap}}, 10)
+        assert rows[0]["ebitda"] is None
+
+    def test_empty_facts_yield_no_rows(self) -> None:
+        from finrobot.engine.data.providers.edgar_provider import _build_sec_yearly_financials
+
+        assert _build_sec_yearly_financials({"facts": {"us-gaap": {}}}, 10) == []

@@ -781,6 +781,234 @@ def _opt_float(value: Any) -> float | None:
         return None
 
 
+# ---------------------------------------------------------------------------
+# SEC XBRL companyfacts — DEEP annual financials history (≥9 fiscal years)
+#
+# FMP / yfinance only field ~4 years of annual statements, which truncates the
+# through-cycle window a commodity-cyclical's DCF normalization needs (the MU
+# peak FY2018 + the FY2018-22 downturn fall off-window, so the trailing median
+# misprices — script _cyclical_probe_sec.py proved the spread). SEC companyfacts
+# carries the full filed history with no API key. This is the SAME extraction the
+# probe validated; it emits the canonical per-year ``yearly_data`` dict shape both
+# other providers emit, so the provider-agnostic historical_extractor consumes it
+# unchanged.
+# ---------------------------------------------------------------------------
+
+# us-gaap concept candidate lists for the annual flow series, in priority order
+# (first concept that yields data wins). Mirrors _cyclical_probe_sec.py.
+_HIST_REVENUE_CONCEPTS: tuple[str, ...] = (
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "Revenues",
+    "SalesRevenueNet",
+    "RevenueFromContractWithCustomerIncludingAssessedTax",
+)
+_HIST_GROSS_PROFIT_CONCEPTS: tuple[str, ...] = ("GrossProfit",)
+_HIST_OPERATING_INCOME_CONCEPTS: tuple[str, ...] = ("OperatingIncomeLoss",)
+_HIST_NET_INCOME_CONCEPTS: tuple[str, ...] = ("NetIncomeLoss", "ProfitLoss")
+_HIST_EPS_CONCEPTS: tuple[str, ...] = ("EarningsPerShareBasic", "EarningsPerShareBasicAndDiluted")
+_HIST_DA_CONCEPTS: tuple[str, ...] = (
+    "DepreciationDepletionAndAmortization",
+    "DepreciationAmortizationAndAccretionNet",
+    "DepreciationAndAmortization",
+    "DepreciationAmortizationAndDepletionNet",
+)
+_HIST_CAPEX_CONCEPTS: tuple[str, ...] = (
+    "PaymentsToAcquirePropertyPlantAndEquipment",
+    "PaymentsToAcquireProductiveAssets",
+)
+_HIST_OCF_CONCEPTS: tuple[str, ...] = (
+    "NetCashProvidedByUsedInOperatingActivities",
+    "NetCashProvidedByUsedInOperatingActivitiesContinuingOperations",
+)
+_HIST_ICF_CONCEPTS: tuple[str, ...] = (
+    "NetCashProvidedByUsedInInvestingActivities",
+    "NetCashProvidedByUsedInInvestingActivitiesContinuingOperations",
+)
+_HIST_FCF_CONCEPTS: tuple[str, ...] = (
+    "NetCashProvidedByUsedInFinancingActivities",
+    "NetCashProvidedByUsedInFinancingActivitiesContinuingOperations",
+)
+_HIST_SGA_CONCEPTS: tuple[str, ...] = (
+    "SellingGeneralAndAdministrativeExpense",
+    "GeneralAndAdministrativeExpense",
+)
+# Minimum full-year duration (days) for a fact to count as an ANNUAL flow rather
+# than a quarter / half-year frame.
+_ANNUAL_MIN_DURATION_DAYS = 300
+
+
+def _companyfacts_annual_series(
+    facts: dict[str, Any], concepts: tuple[str, ...]
+) -> dict[int, float]:
+    """Annual (10-K, full-year) values keyed by TRUE fiscal year (period-end year).
+
+    ⚠ KEY-BY-PERIOD-END, NOT THE ``fy`` FIELD (the fy-bug the probe fixed): the
+    SEC XBRL ``fy`` field is the fiscal year of the *FILING*, not of the data
+    period. A 10-K restates 2-3 prior years as comparatives and tags every one of
+    them with the FILING's ``fy``, so MU's $30.39B FY2018 peak appears tagged
+    fy=2019/2020 too — keying by ``fy`` shifts the labels off by ~2 years and
+    produces impossible labels (STX "FY2027"). The true fiscal year = calendar
+    year of the period END. Latest-filed value per fiscal year wins (a later 10-K's
+    restated comparative supersedes the original).
+
+    USD units only, form 10-K/10-K-A, fp=FY, duration ≥ ~1 year.
+    """
+    usgaap = facts.get("facts", {}).get("us-gaap", {})
+    out: dict[int, tuple[str, float]] = {}  # period_end_year -> (filed, val)
+    for concept in concepts:
+        node = usgaap.get(concept)
+        if not node:
+            continue
+        for unit_key, items in node.get("units", {}).items():
+            if "USD" not in unit_key:
+                continue
+            for it in items:
+                if it.get("form") not in ("10-K", "10-K/A"):
+                    continue
+                if it.get("fp") != "FY":
+                    continue
+                start, end, val = it.get("start"), it.get("end"), it.get("val")
+                if val is None or start is None or end is None:
+                    continue
+                try:
+                    d0 = date.fromisoformat(start)
+                    d1 = date.fromisoformat(end)
+                except ValueError:
+                    continue
+                if (d1 - d0).days < _ANNUAL_MIN_DURATION_DAYS:
+                    continue
+                fy = d1.year  # TRUE fiscal year = period-end calendar year
+                filed = it.get("filed", "")
+                prev = out.get(fy)
+                if prev is None or filed > prev[0]:
+                    out[fy] = (filed, float(val))
+        if out:
+            break  # first concept that yields data wins
+    return {fy: v for fy, (_, v) in out.items()}
+
+
+def _companyfacts_point_series(
+    facts: dict[str, Any], concepts: tuple[str, ...]
+) -> dict[int, float]:
+    """Per-fiscal-year POINT-IN-TIME (instant) values keyed by period-end year.
+
+    For balance-sheet / per-share instants (EPS is a duration flow but reported
+    once per FY at the annual frame; this also serves any instant concept). Picks
+    the 10-K FY fact whose period end falls in each calendar year, latest-filed
+    wins. Unlike :func:`_companyfacts_annual_series` it does NOT require a year
+    duration (instants have start==end or no start).
+    """
+    usgaap = facts.get("facts", {}).get("us-gaap", {})
+    out: dict[int, tuple[str, float]] = {}
+    for concept in concepts:
+        node = usgaap.get(concept)
+        if not node:
+            continue
+        for unit_key, items in node.get("units", {}).items():
+            for it in items:
+                if it.get("form") not in ("10-K", "10-K/A"):
+                    continue
+                if it.get("fp") != "FY":
+                    continue
+                end, val = it.get("end"), it.get("val")
+                if val is None or end is None:
+                    continue
+                # Duration EPS: keep only the full-year frame (skip quarters).
+                start = it.get("start")
+                if start is not None:
+                    try:
+                        if (date.fromisoformat(end) - date.fromisoformat(start)).days < (
+                            _ANNUAL_MIN_DURATION_DAYS
+                        ):
+                            continue
+                    except ValueError:
+                        continue
+                try:
+                    fy = date.fromisoformat(end).year
+                except ValueError:
+                    continue
+                filed = it.get("filed", "")
+                prev = out.get(fy)
+                if prev is None or filed > prev[0]:
+                    out[fy] = (filed, float(val))
+        if out:
+            break
+    return {fy: v for fy, (_, v) in out.items()}
+
+
+def _build_sec_yearly_financials(facts: dict[str, Any], max_years: int) -> list[dict[str, Any]]:
+    """Assemble newest-first per-year normalized dicts from SEC companyfacts.
+
+    Output shape is identical to ``fmp._build_single_year_data`` /
+    ``yfinance._build_yearly_financials`` (the keys ``historical_extractor.
+    _build_from_yearly`` reads), so the consumer is provider-agnostic. Emits None
+    for a missing cell — the extractor owns the None→0.0 fill and revenue-NaN-year
+    filtering. CapEx is reported by SEC as a positive outflow magnitude already
+    (PaymentsToAcquire…), matching the FCF "+ D&A − CapEx" positive convention.
+    All figures are native USD (SEC domestic filers report USD; the deep-history
+    path is gated to US issuers).
+    """
+    rev = _companyfacts_annual_series(facts, _HIST_REVENUE_CONCEPTS)
+    gp = _companyfacts_annual_series(facts, _HIST_GROSS_PROFIT_CONCEPTS)
+    oi = _companyfacts_annual_series(facts, _HIST_OPERATING_INCOME_CONCEPTS)
+    ni = _companyfacts_annual_series(facts, _HIST_NET_INCOME_CONCEPTS)
+    da = _companyfacts_annual_series(facts, _HIST_DA_CONCEPTS)
+    capex = _companyfacts_annual_series(facts, _HIST_CAPEX_CONCEPTS)
+    ocf = _companyfacts_annual_series(facts, _HIST_OCF_CONCEPTS)
+    icf = _companyfacts_annual_series(facts, _HIST_ICF_CONCEPTS)
+    fcf = _companyfacts_annual_series(facts, _HIST_FCF_CONCEPTS)
+    sga = _companyfacts_annual_series(facts, _HIST_SGA_CONCEPTS)
+    eps = _companyfacts_point_series(facts, _HIST_EPS_CONCEPTS)
+
+    years_desc = sorted(rev.keys(), reverse=True)[:max_years]
+    yearly: list[dict[str, Any]] = []
+    for y in years_desc:
+        r = rev.get(y)
+        g = gp.get(y)
+        o = oi.get(y)
+        d = da.get(y)
+        # EBITDA via the textbook identity EBITDA = EBIT + D&A. SEC companyfacts has
+        # no standalone EBITDA concept, but operating income (EBIT) and D&A are BOTH
+        # filed line items, so this is a faithful reconstruction, not a fabrication.
+        # Required because the through-cycle DCF anchors on the EBITDA margin: without
+        # it the SEC-sourced cyclical falls back to the industry EBITDA aggregate
+        # (MU 36.8% vs the real through-cycle 50.7% = op 26.1% + D&A 24.5%), which
+        # collapses the implied price (~$28 vs the validated ~$163). None when either
+        # component is missing — never a fabricated 0.
+        ebitda = (o + d) if (o is not None and d is not None) else None
+        yearly.append(
+            {
+                # period-end fiscal-year string; the extractor's _year_of reads
+                # the leading 4 digits, so a bare year is sufficient and unambiguous.
+                "fiscal_year": f"{y}-12-31" if y else None,
+                "revenue": r,
+                "gross_profit": g,
+                "operating_income": o,
+                "ebitda": ebitda,
+                "net_income": ni.get(y),
+                "eps": eps.get(y),
+                "sga_expense": sga.get(y),
+                "gross_margin": (g / r if (g is not None and r) else None),
+                "operating_margin": (o / r if (o is not None and r) else None),
+                "operating_cash_flow": ocf.get(y),
+                "investing_cash_flow": icf.get(y),
+                "financing_cash_flow": fcf.get(y),
+                "depreciation_amortization": da.get(y),
+                "capital_expenditure": capex.get(y),
+                # SEC has no single ΔNWC concept; the DCF FCF uses OCF directly when
+                # ΔNWC is absent, and the extractor zero-fills it (treated as
+                # "missing" by dcf_seed's median, not a real 0).
+                "change_in_working_capital": None,
+                # Native-currency tags: SEC domestic filers report USD, and the
+                # deep-history augmentation is gated to US issuers, so both tags are
+                # USD → the extractor's FX step is a no-op.
+                "financial_currency": "USD",
+                "quote_currency": "USD",
+            }
+        )
+    return yearly
+
+
 class EdgarToolsProvider(DataProvider):
     """SEC EDGAR data provider backed by edgartools 5.31.
 
@@ -832,6 +1060,76 @@ class EdgarToolsProvider(DataProvider):
             timestamp=datetime.now(tz=timezone.utc),
             warnings=warnings,
         )
+
+    # ------------------------------------------------------------------
+    # Deep annual financials history (SEC XBRL companyfacts, no API key)
+    # ------------------------------------------------------------------
+
+    async def fetch_annual_financials(self, ticker: str, years: int) -> DataResult:
+        """≥9 fiscal years of annual financials from SEC companyfacts.
+
+        The deep-history source the through-cycle DCF normalization needs: FMP /
+        yfinance only field ~4 annual periods, truncating a commodity-cyclical's
+        peak→trough window. Returns a DataResult whose ``data["yearly_data"]`` is a
+        newest-first list of canonical per-year dicts (same shape FMP / yfinance
+        emit), so the provider-agnostic ``historical_extractor`` consumes it
+        unchanged. Raises ``ProviderError`` on CIK-miss / SEC failure / empty facts
+        so the caller can fall back to the normal provider chain — a deep-history
+        gap must degrade to the shallow window, never crash the seed.
+
+        Not on ``capabilities()``: this is an EXPLICIT augmentation route invoked
+        by ``DataLayer.fetch_deep_history`` for cyclicals only. Leaving it off the
+        capability list keeps the canonical FINANCIALS chain (and every
+        non-cyclical historical fetch) byte-identical — SEC never silently displaces
+        FMP/yfinance as the primary financials source.
+        """
+        cik = await asyncio.to_thread(self._resolve_cik, ticker.upper())
+        if cik is None:
+            raise ProviderError(f"SEC companyfacts: no CIK for {ticker}")
+        url = f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik:010d}.json"
+        try:
+            async with httpx.AsyncClient(
+                headers={
+                    "User-Agent": self._header_identity,
+                    "Accept-Encoding": "gzip, deflate",
+                },
+                timeout=30.0,
+            ) as client:
+                r = await client.get(url)
+                r.raise_for_status()
+                facts = r.json()
+        except httpx.HTTPError as e:
+            raise ProviderError(f"SEC companyfacts fetch for {ticker} (CIK {cik}): {e}") from e
+        yearly = _build_sec_yearly_financials(facts, years)
+        if not yearly:
+            raise ProviderError(
+                f"SEC companyfacts for {ticker} (CIK {cik}) yielded no annual revenue series"
+            )
+        return DataResult(
+            data={"yearly_data": yearly},
+            provider=self.name,
+            ticker=ticker.upper(),
+            data_type=DataType.FINANCIALS,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+    def _resolve_cik(self, ticker: str) -> int | None:
+        """CIK for ``ticker`` via edgartools ``Company`` (sync, run in a thread).
+
+        Returns None on any miss so the async caller maps it to a ProviderError
+        and degrades to the shallow provider chain rather than crashing.
+        """
+        try:
+            c = Company(ticker)
+        except _ADAPTER_CATCH:
+            return None
+        cik_raw = getattr(c, "cik", None)
+        if cik_raw is None or cik_raw == "":
+            return None
+        try:
+            return int(cik_raw)
+        except (TypeError, ValueError):
+            return None
 
     # ------------------------------------------------------------------
     # Dispatch

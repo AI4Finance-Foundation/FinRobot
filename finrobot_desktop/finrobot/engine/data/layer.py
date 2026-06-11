@@ -32,6 +32,7 @@ from finrobot.engine.data.normalize.contracts import (
     degraded_price_divergence,
     degraded_provider_divergence,
 )
+from finrobot.engine.data.providers.edgar_provider import EdgarToolsProvider
 from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.validator import (
     cross_validate,
@@ -699,6 +700,43 @@ class DataLayer:
         msg = f"Historical data unavailable for {ticker}/{data_type}: all providers failed."
         logger.error(msg)
         return []
+
+    async def fetch_deep_history(self, ticker: str, years: int) -> list[DataResult] | None:
+        """≥9 fiscal years of annual FINANCIALS from SEC companyfacts, or None.
+
+        The deep-history augmentation for commodity-cyclicals (the through-cycle
+        DCF normalization window): FMP / yfinance only field ~4 annual periods,
+        which truncates a memory/storage name's peak→trough cycle (MU FY2018 peak +
+        the FY2018-22 downturn fall off-window). This routes EXPLICITLY to the SEC
+        EDGAR provider's ``fetch_annual_financials`` — NOT the priority chain — so
+        the depth comes from SEC without SEC ever displacing FMP/yfinance as the
+        primary financials source. The per-year dicts share the canonical shape, so
+        the caller splits them with ``_split_yearly`` exactly like ``fetch_historical``.
+
+        Returns None (not raise) when SEC is unwired (no valid identity → provider
+        absent) or the fetch fails / is empty, so the caller cleanly falls back to
+        the shallow provider-chain window. Cached in the same HISTORICAL slot family
+        as ``fetch_historical`` but under a distinct ``:sec`` suffix so it never
+        collides with the chain result.
+        """
+        provider = next((p for p in self._providers if isinstance(p, EdgarToolsProvider)), None)
+        if provider is None:
+            return None
+        if self._health_gated(provider):
+            return None
+        cache_key = f"{ticker}:historical:{DataType.FINANCIALS.value}:{years}:sec"
+        cached = await self._cache.get(DataType.HISTORICAL, cache_key)
+        if cached is not None and not cached.is_stale:
+            return self._split_yearly(cached.data)
+        try:
+            result = await provider.fetch_annual_financials(ticker, years)
+        except ProviderError as e:
+            self._health.record_failure(provider.name, rate_limited=is_rate_limit_error(e))
+            logger.warning("SEC deep-history failed for %s (%dy): %s", ticker, years, e)
+            return self._split_yearly(cached.data) if cached is not None else None
+        self._health.record_success(provider.name)
+        await self._cache.set(DataType.HISTORICAL, cache_key, result)
+        return self._split_yearly(result)
 
     async def fetch_quote(self, ticker: str) -> DataResult:
         """Lightweight current-price fetch that PROPAGATES provider failure.

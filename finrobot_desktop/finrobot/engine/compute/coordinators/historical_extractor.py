@@ -41,6 +41,15 @@ _DEFAULT_HISTORY_YEARS: int = 5
 # folds in ``years``, so 10 never collides with the 5-year slot — T6#2).
 _CYCLICAL_HISTORY_YEARS: int = 10
 
+# A cyclical whose chain fetch (FMP / yfinance) yields fewer usable years than this
+# is missing peak/trough phases — augment with SEC companyfacts deep history. The
+# memory cycle spans ~9 fiscal years (FY2018 peak → FY2023 trough → FY2025
+# recovery); 6 is the floor below which the trailing window can't straddle a full
+# peak→trough (it would catch only the current regime + one turn). FMP/yfinance
+# empirically field ~4, so this fires for every memory/storage name on the default
+# chain while never second-guessing a chain that already returned deep enough.
+_MIN_THROUGH_CYCLE_YEARS: int = 6
+
 
 async def fetch_historical_metrics(
     data_layer: DataLayer,
@@ -84,10 +93,23 @@ async def fetch_historical_metrics(
     # full cycle in-window. The ticker anchor covers memory/storage on every call
     # site (none of which carries a description); industry covers the rest when the
     # caller has it. An explicit ``years`` always wins (the UI /historical window).
+    cyclical = False
     if years is None:
         cyclical = is_commodity_cyclical(industry=industry, sector=sector, ticker=ticker)
         years = _CYCLICAL_HISTORY_YEARS if cyclical else _DEFAULT_HISTORY_YEARS
     results = await data_layer.fetch_historical(DataType.FINANCIALS, ticker, years=years)
+    # Deep-history augmentation: FMP / yfinance only field ~4 annual periods, which
+    # truncates a commodity-cyclical's through-cycle window (the MU FY2018 peak +
+    # FY2018-22 downturn fall off-window, so the trailing median misprices). When a
+    # cyclical's chain fetch is shallower than the window needs, pull the full SEC
+    # companyfacts history (≥9y, no API key) and use it when it is genuinely deeper.
+    # Non-cyclicals never touch SEC — their FMP/yfinance window stays byte-identical.
+    if cyclical and _usable_year_count(results) < _MIN_THROUGH_CYCLE_YEARS:
+        sec_results = await data_layer.fetch_deep_history(ticker, years)
+        if sec_results is not None and _usable_year_count(sec_results) > _usable_year_count(
+            results
+        ):
+            results = sec_results
     fx = await resolve_historical_fx(results, data_layer, ticker)
     # Trailing P/E + price_data_available come from the current-snapshot
     # financials (yfinance's info.trailingPE). Best-effort and normally a cache
@@ -322,6 +344,24 @@ def _empty_metrics(ticker: str) -> HistoricalMetrics:
 def _fx(value: float | None, rate: float) -> float | None:
     """Scale an optional monetary value by the FX rate, preserving None."""
     return value * rate if value is not None else None
+
+
+def _usable_year_count(results: list[DataResult]) -> int:
+    """How many rows carry a usable (positive, finite) revenue.
+
+    Mirrors the row filter in ``_build_from_yearly`` so the deep-history decision
+    counts the SAME years that will actually feed the medians — a DataResult list
+    whose rows are all revenue-less (an error/empty fetch) reads as 0, never as its
+    nominal length, so a shallow-but-nonempty chain result can't block the SEC
+    augmentation.
+    """
+    count = 0
+    for result in results:
+        data = result.data if isinstance(result.data, dict) else {}
+        rev = _safe_float(data.get("revenue"))
+        if rev is not None and rev > 0:
+            count += 1
+    return count
 
 
 def _safe_float(value: object) -> float | None:

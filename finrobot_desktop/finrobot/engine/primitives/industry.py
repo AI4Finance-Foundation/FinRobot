@@ -101,8 +101,8 @@ _COMMODITY_CYCLICAL_INDUSTRIES: frozenset[str] = frozenset(
 
 # Wide industry buckets that CONTAIN commodity-cyclicals but also non-cyclicals.
 # A name in one of these is cyclical ONLY when its business description carries a
-# memory/storage keyword (keyword收口, §2.3-A) — mirrors ``peer_screen.
-# _semiconductor_role`` which also gates on provider profile text.
+# memory/storage keyword (keyword收口, §2.3-A) — mirrors ``semiconductor_role``
+# below, which also gates on provider profile text.
 _AMBIGUOUS_CYCLICAL_BUCKETS: frozenset[str] = frozenset(
     {
         "Semiconductors",  # MU is here, so are NVDA/AMD/AVGO — keyword separates them
@@ -212,6 +212,105 @@ def commodity_cyclical_basis(industry: str | None) -> str:
     if industry and industry in _COMMODITY_CYCLICAL_INDUSTRIES:
         return "industry"
     return "memory_storage"
+
+
+def profile_text(profile: dict[str, object]) -> str:
+    """Lower-cased concatenation of the descriptive profile fields.
+
+    Tolerates both snake_case (``company_name``, our normalized dicts) and
+    camelCase (``companyName``, raw FMP rows) so callers don't need to
+    pre-normalize.
+    """
+    parts = [
+        profile.get("company_name"),
+        profile.get("companyName"),
+        profile.get("industry"),
+        profile.get("sector"),
+        profile.get("description"),
+    ]
+    return " ".join(str(p).lower() for p in parts if p)
+
+
+def semiconductor_role(profile: dict[str, object] | None) -> str | None:
+    """Classify semiconductor value-chain role from provider profile text.
+
+    Lives in ``primitives/`` because BOTH layers need the SAME predicate:
+    ``compute.operators.peer_screen`` uses it to reject value-chain partners
+    (foundry/equipment are suppliers, not trading comps), and ``fmp_provider``
+    uses it to decide whether per-candidate profile descriptions must be
+    fetched at all (FMP stable has no batch profile endpoint, so descriptions
+    cost one request per candidate — only semiconductor targets consult them).
+    Sharing one function makes "provider fetches profiles" ⇔ "operator reads
+    profiles" mechanically equivalent.
+
+    Intentionally narrow: the gate only activates when the target is
+    recognisably semiconductor-related; broad technology megacaps stay out of
+    a semiconductor comp set unless their profile actually describes chips.
+
+    The role split relies on DESCRIPTION text (e.g. TSM's industry tag is the
+    generic "Semiconductors"; only the description carries "foundry"), so a
+    candidate profile without a description cannot be classified — callers
+    treat that as role-unknown and exclude it rather than guess.
+    """
+    if not profile:
+        return None
+    text = profile_text(profile)
+    if not any(
+        token in text
+        for token in (
+            "semiconductor",
+            "integrated circuit",
+            "chip",
+            "gpu",
+            "processor",
+            "lithography",
+            "wafer",
+        )
+    ):
+        return None
+
+    equipment_terms = (
+        "semiconductor equipment",
+        "equipment systems",
+        "lithography",
+        "metrology",
+        "inspection systems",
+        "wafer processing equipment",
+        "deposition",
+        "etch",
+    )
+    if any(term in text for term in equipment_terms):
+        return "equipment"
+
+    foundry_terms = (
+        "foundry",
+        "wafer fabrication",
+        "fabrication processes",
+        "contract manufacturer",
+        "contract manufacturing",
+        "manufactures, packages, tests",
+        "manufactures, packages, and tests",
+        "manufactures, tests",
+    )
+    if any(term in text for term in foundry_terms):
+        return "foundry"
+
+    design_terms = (
+        "designs",
+        "develops",
+        "supplies semiconductor",
+        "integrated circuits",
+        "microprocessors",
+        "graphics processing",
+        "gpu",
+        "chipsets",
+        "system-on-chip",
+        "data center platforms",
+    )
+    if any(term in text for term in design_terms):
+        return "design"
+
+    return "semiconductor_other"
 
 
 def is_bank(

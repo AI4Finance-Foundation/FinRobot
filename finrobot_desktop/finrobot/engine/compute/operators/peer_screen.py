@@ -48,6 +48,8 @@ from __future__ import annotations
 import math
 from typing import Any, Final
 
+from finrobot.engine.primitives.industry import semiconductor_role
+
 from pydantic import BaseModel
 
 PEER_SCREEN_TOP_N: Final[int] = 7
@@ -130,94 +132,15 @@ def _median(values: list[float]) -> float | None:
     return s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2
 
 
-def _profile_text(profile: dict[str, Any]) -> str:
-    parts = [
-        profile.get("company_name"),
-        profile.get("companyName"),
-        profile.get("industry"),
-        profile.get("sector"),
-        profile.get("description"),
-    ]
-    return " ".join(str(p).lower() for p in parts if p)
-
-
-def _semiconductor_role(profile: dict[str, Any] | None) -> str | None:
-    """Classify semiconductor value-chain role from provider profile text.
-
-    This is intentionally narrow. The gate only activates when the target is
-    recognisably semiconductor-related; broad technology megacaps stay out of a
-    semiconductor comp set unless their profile actually describes chips.
-    """
-    if not profile:
-        return None
-    text = _profile_text(profile)
-    if not any(
-        token in text
-        for token in (
-            "semiconductor",
-            "integrated circuit",
-            "chip",
-            "gpu",
-            "processor",
-            "lithography",
-            "wafer",
-        )
-    ):
-        return None
-
-    equipment_terms = (
-        "semiconductor equipment",
-        "equipment systems",
-        "lithography",
-        "metrology",
-        "inspection systems",
-        "wafer processing equipment",
-        "deposition",
-        "etch",
-    )
-    if any(term in text for term in equipment_terms):
-        return "equipment"
-
-    foundry_terms = (
-        "foundry",
-        "wafer fabrication",
-        "fabrication processes",
-        "contract manufacturer",
-        "contract manufacturing",
-        "manufactures, packages, tests",
-        "manufactures, packages, and tests",
-        "manufactures, tests",
-    )
-    if any(term in text for term in foundry_terms):
-        return "foundry"
-
-    design_terms = (
-        "designs",
-        "develops",
-        "supplies semiconductor",
-        "integrated circuits",
-        "microprocessors",
-        "graphics processing",
-        "gpu",
-        "chipsets",
-        "system-on-chip",
-        "data center platforms",
-    )
-    if any(term in text for term in design_terms):
-        return "design"
-
-    return "semiconductor_other"
-
-
 def _value_chain_compatible(
     target_profile: dict[str, Any],
     candidate_profile: dict[str, Any] | None,
 ) -> bool:
-    target_role = _semiconductor_role(target_profile)
+    target_role = semiconductor_role(target_profile)
     if target_role is None:
         return True
 
-    candidate_role = _semiconductor_role(candidate_profile)
+    candidate_role = semiconductor_role(candidate_profile)
     if candidate_role is None:
         return False
 

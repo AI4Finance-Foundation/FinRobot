@@ -1,14 +1,19 @@
 # -*- mode: python ; coding: utf-8 -*-
 """PyInstaller spec for the FinRobot desktop sidecar.
 
-Produces a single-file ``finrobot-server`` binary that bundles a Python
-interpreter, every finrobot dependency, and the read-only ``skills/`` corpus.
-Tauri renames the output by platform triple (see build.sh) and spawns it as the
-backend; no Python install, no ``uv``, no source tree required on the target
-machine.
+Produces a one-dir ``finrobot-server`` bundle (exe + ``_internal/``) with a
+Python interpreter, every finrobot dependency, and the read-only ``skills/``
+corpus. Tauri ships the whole directory as a bundle resource and spawns the
+exe as the backend; no Python install, no ``uv``, no source tree required on
+the target machine.
 
-Build via ``desktop/src-tauri/sidecar/build.sh`` — do not call pyinstaller by hand, the
-script wires up the repo root and the triple-named copy into binaries/.
+One-dir, NOT one-file: the one-file bootloader re-extracts ~330 MB / 4200
+files to a temp dir on every launch, which measured 47-88 s before Python even
+started (macOS scans each fresh dylib). One-dir skips extraction entirely —
+Python itself boots in ~1 s.
+
+Build via ``desktop/src-tauri/sidecar/build.sh`` — do not call pyinstaller by
+hand, the script wires up the repo root and the dist layout Tauri bundles.
 """
 
 import os
@@ -90,19 +95,26 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name="finrobot-server",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    runtime_tmpdir=None,
     console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    name="finrobot-server",
 )

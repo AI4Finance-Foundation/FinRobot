@@ -104,8 +104,8 @@ if [[ "$BUILD_SIDECAR" == 1 ]]; then
     echo "[release] rebuilding sidecar…"
     "$SRC_TAURI/sidecar/build.sh"
 fi
-if [[ ! -f "$SRC_TAURI/binaries/finrobot-server-$TRIPLE" ]]; then
-    echo >&2 "ERROR: sidecar binaries/finrobot-server-$TRIPLE missing — run with --build-sidecar"
+if [[ ! -x "$SRC_TAURI/sidecar/dist/finrobot-server/finrobot-server" ]]; then
+    echo >&2 "ERROR: sidecar one-dir bundle missing at sidecar/dist/finrobot-server/ — run with --build-sidecar"
     exit 1
 fi
 

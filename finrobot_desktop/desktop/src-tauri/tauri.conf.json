@@ -43,7 +43,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/finrobot-server"]
+    "resources": { "sidecar/dist/finrobot-server": "finrobot-server" }
   },
   "plugins": {
     "updater": {

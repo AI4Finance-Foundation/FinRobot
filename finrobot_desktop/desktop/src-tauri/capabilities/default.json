@@ -9,16 +9,6 @@
     "core:default",
     "core:window:allow-start-dragging",
     "core:window:allow-toggle-maximize",
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        {
-          "name": "binaries/finrobot-server",
-          "sidecar": true,
-          "args": true
-        }
-      ]
-    },
     "shell:allow-open",
     "dialog:default",
     "dialog:allow-save",

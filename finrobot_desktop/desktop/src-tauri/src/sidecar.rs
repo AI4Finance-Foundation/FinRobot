@@ -1,14 +1,17 @@
 //! Python sidecar lifecycle manager.
 //!
-//! Spawns the bundled `finrobot-server` binary via `tauri-plugin-shell`,
-//! waits up to `READINESS_TIMEOUT_SECS` for `/health` to return 200, and
-//! returns the `CommandChild` handle so the caller can kill it on exit.
+//! Spawns the bundled `finrobot-server` exe (a PyInstaller one-dir bundle
+//! shipped under `Contents/Resources/finrobot-server/`) via
+//! `tauri-plugin-shell`, waits up to `READINESS_TIMEOUT_SECS` for `/health`
+//! to return 200, and returns the `CommandChild` handle so the caller can
+//! kill it on exit.
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use tauri::AppHandle;
+use tauri::path::BaseDirectory;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_shell::{process::CommandEvent, ShellExt};
 
 /// How many recent `[sidecar:err]` lines to keep in the ring buffer for
@@ -17,18 +20,16 @@ const STDERR_RING_CAPACITY: usize = 50;
 
 /// How long to wait for the sidecar's `/health` to return 200 before giving up.
 ///
-/// The sidecar is a PyInstaller one-file binary: on launch it unpacks ~140 MB
-/// to a temp dir, then imports a heavy dependency tree (pandas, edgartools,
-/// pydantic-ai) before FastAPI is ready. On the dev machine that is ~10-18 s,
-/// but a slower/older Mac — or one whose antivirus scans the freshly-extracted
-/// files — can take much longer. 30 s was too tight and surfaced as a bogus
-/// "sidecar did not become ready" on exactly the end-user machines we ship to.
+/// The sidecar is a PyInstaller one-dir bundle, so there is no per-launch
+/// extraction: importing the dependency tree (pandas, edgartools, pydantic-ai)
+/// takes ~1-5 s. The generous ceiling exists for the very first launch after
+/// install, when Gatekeeper/antivirus may verify every bundled dylib once.
 const READINESS_TIMEOUT_SECS: u64 = 90;
 
 /// Spawn the bundled `finrobot-server` sidecar and block until it is ready.
 ///
-/// The sidecar is resolved by Tauri's platform-triple matcher, e.g.
-/// `finrobot-server-aarch64-apple-darwin` on Apple Silicon.
+/// The exe lives inside the resource bundle at
+/// `finrobot-server/finrobot-server` (next to its `_internal/` runtime).
 ///
 /// Stdout/stderr from the sidecar are forwarded to the host process's stderr
 /// so they appear in the terminal during `cargo tauri dev`.
@@ -56,10 +57,39 @@ pub fn spawn_and_wait_for_ready(
     // can't be forwarded to the Python grandchild; the watchdog is the backstop
     // that also covers a shell *crash*.
     let parent_pid = std::process::id().to_string();
+
+    // Resolve the one-dir exe from the bundled resources. In a packaged app
+    // this is Contents/Resources/finrobot-server/finrobot-server; in
+    // `cargo tauri dev` the resource dir sits next to the debug binary.
+    let exe_path = app
+        .path()
+        .resolve("finrobot-server/finrobot-server", BaseDirectory::Resource)
+        .map_err(|e| format!("sidecar resource not found: {e}"))?;
+    if !exe_path.is_file() {
+        return Err(format!(
+            "sidecar exe missing at {} — run desktop/src-tauri/sidecar/build.sh",
+            exe_path.display()
+        ));
+    }
+
+    // The resource copy (bundler) and the updater's tar extraction are not
+    // guaranteed to preserve the executable bit; restore it before spawning.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = std::fs::metadata(&exe_path) {
+            let mut perms = meta.permissions();
+            if perms.mode() & 0o111 == 0 {
+                perms.set_mode(0o755);
+                std::fs::set_permissions(&exe_path, perms)
+                    .map_err(|e| format!("failed to mark sidecar executable: {e}"))?;
+            }
+        }
+    }
+
     let (mut rx, child) = app
         .shell()
-        .sidecar("finrobot-server")
-        .map_err(|e| format!("sidecar not found: {e}"))?
+        .command(&exe_path)
         // Hand the capability token to the server via env (never argv — argv is
         // world-readable via `ps`). The middleware enforces it on every request;
         // the readiness /health poll below stays exempt. See finrobot/auth.py.

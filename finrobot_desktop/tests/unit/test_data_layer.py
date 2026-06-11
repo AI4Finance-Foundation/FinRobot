@@ -1969,3 +1969,74 @@ class TestFetchDeepHistory:
         layer = DataLayer([stub], cache)
         assert await layer.fetch_deep_history("MU", 10) is None
         assert stub.calls == 1  # type: ignore[attr-defined]
+
+
+def _make_stub_edgar_segments(result=None, raises=None):
+    """EdgarToolsProvider subclass stubbing only ``fetch_annual_segments`` (the
+    method ``fetch_segments`` routes to), skipping the network-touching parent
+    __init__ — mirrors ``_make_stub_edgar`` for the SOTP-floor segments path."""
+    from finrobot.engine.data.providers.edgar_provider import EdgarToolsProvider
+
+    class _StubEdgarSeg(EdgarToolsProvider):
+        def __init__(self) -> None:
+            self._result = result
+            self._raises = raises
+            self.calls = 0
+
+        async def fetch_annual_segments(self, ticker: str) -> DataResult:
+            self.calls += 1
+            if self._raises is not None:
+                raise self._raises
+            assert self._result is not None
+            return self._result
+
+    return _StubEdgarSeg()
+
+
+class TestFetchSegments:
+    """SOTP-floor segment fetch: explicitly routed to SEC, degrades to None/stale
+    rather than raising so the SOTP gate cleanly drops the name."""
+
+    async def test_returns_none_when_no_edgar_provider(self, cache):
+        layer = DataLayer([MockProvider("fmp", ["financials"])], cache)
+        assert await layer.fetch_segments("AAPL") is None
+
+    async def test_health_gated_returns_none_without_fetch(self, cache, monkeypatch):
+        stub = _make_stub_edgar_segments(result=_make_result(data_type="filings_10k"))
+        layer = DataLayer([stub], cache)
+        monkeypatch.setattr(layer, "_health_gated", lambda p: True)
+        assert await layer.fetch_segments("AAPL") is None
+        assert stub.calls == 0  # gated before the network
+
+    async def test_success_caches_and_second_call_hits_cache(self, cache):
+        result = _make_result(ticker="AAPL", data_type="filings_10k", provider="sec-edgar")
+        stub = _make_stub_edgar_segments(result=result)
+        layer = DataLayer([stub], cache)
+        out = await layer.fetch_segments("AAPL")
+        assert out is result and stub.calls == 1
+        # cached under the :segments suffix — fresh hit, no refetch.
+        await layer.fetch_segments("AAPL")
+        assert stub.calls == 1
+
+    async def test_provider_error_no_cache_returns_none(self, cache):
+        stub = _make_stub_edgar_segments(raises=ProviderError("SEC segments down"))
+        layer = DataLayer([stub], cache)
+        assert await layer.fetch_segments("AAPL") is None
+        assert stub.calls == 1
+
+    async def test_provider_error_with_stale_cache_returns_stale(self, cache, monkeypatch):
+        """A failed refresh with a stale cached copy serves the stale segments
+        (last-known 10-K), not None — the SOTP floor survives a transient SEC 429."""
+        stub = _make_stub_edgar_segments(raises=ProviderError("SEC 429"))
+        layer = DataLayer([stub], cache)
+        stale = MagicMock()
+        stale.is_stale = True
+        stale.data = {"segments": [{"name": "iPhone"}]}
+
+        async def _get(_dt, _key):
+            return stale
+
+        monkeypatch.setattr(layer._cache, "get", _get)
+        out = await layer.fetch_segments("AAPL")
+        assert out == {"segments": [{"name": "iPhone"}]}
+        assert stub.calls == 1  # attempted the fetch, fell back to stale

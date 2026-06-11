@@ -1596,6 +1596,128 @@ class TestCompanyfactsAnnualSeries:
         assert series == {2020: 50}
 
 
+class TestCompanyfactsPointSeries:
+    """EPS instant/point series — keyed by period-end FY, 10-K FY facts only.
+    Unlike the annual-flow series it accepts true instants (no start) yet still
+    rejects sub-annual duration facts (a quarterly EPS frame)."""
+
+    EPS = "EarningsPerShareBasic"
+
+    def _series(self, items: list[dict[str, Any]], concepts: tuple[str, ...] = (EPS,)):
+        from finrobot.engine.data.providers.edgar_provider import _companyfacts_point_series
+
+        return _companyfacts_point_series(_facts_with(self.EPS, items), concepts)
+
+    def test_full_year_duration_eps_kept_by_period_end(self) -> None:
+        items = [_fact(start="2023-01-01", end="2023-12-31", val=5.25, fy=2023, filed="2024-02-01")]
+        assert self._series(items) == {2023: 5.25}
+
+    def test_instant_fact_without_start_accepted(self) -> None:
+        """A point-in-time fact (no start key) has no duration to validate."""
+        items = [
+            {
+                "end": "2022-12-31",
+                "val": 3.10,
+                "fy": 2022,
+                "fp": "FY",
+                "form": "10-K",
+                "filed": "2023-02-01",
+            }
+        ]
+        assert self._series(items) == {2022: 3.10}
+
+    def test_sub_annual_duration_eps_skipped(self) -> None:
+        """A ~90-day (quarterly) EPS frame must not pollute the annual point."""
+        items = [
+            _fact(
+                start="2023-07-01", end="2023-09-30", val=1.1, fy=2023, fp="Q3", filed="2023-11-01"
+            ),
+            _fact(start="2023-01-01", end="2023-12-31", val=4.4, fy=2023, filed="2024-02-01"),
+        ]
+        assert self._series(items) == {2023: 4.4}
+
+    def test_non_fy_period_skipped(self) -> None:
+        items = [
+            {
+                "end": "2023-12-31",
+                "val": 9.9,
+                "fy": 2023,
+                "fp": "Q4",
+                "form": "10-K",
+                "filed": "2024-02-01",
+            },
+            _fact(start="2023-01-01", end="2023-12-31", val=4.4, fy=2023, filed="2024-02-01"),
+        ]
+        assert self._series(items) == {2023: 4.4}
+
+    def test_non_10k_form_skipped_but_10ka_kept(self) -> None:
+        items = [
+            _fact(
+                start="2023-01-01",
+                end="2023-12-31",
+                val=1.0,
+                fy=2023,
+                form="10-Q",
+                filed="2024-01-15",
+            ),
+            _fact(
+                start="2021-01-01",
+                end="2021-12-31",
+                val=2.0,
+                fy=2021,
+                form="10-K/A",
+                filed="2022-03-01",
+            ),
+        ]
+        assert self._series(items) == {2021: 2.0}
+
+    def test_latest_filed_wins_for_same_year(self) -> None:
+        items = [
+            _fact(start="2022-01-01", end="2022-12-31", val=3.0, fy=2022, filed="2023-02-01"),
+            _fact(start="2022-01-01", end="2022-12-31", val=3.3, fy=2023, filed="2024-02-01"),
+        ]
+        assert self._series(items) == {2022: 3.3}
+
+    def test_missing_val_or_end_skipped(self) -> None:
+        items = [
+            {
+                "end": "2023-12-31",
+                "val": None,
+                "fy": 2023,
+                "fp": "FY",
+                "form": "10-K",
+                "filed": "2024-02-01",
+            },
+            {"val": 5.0, "fy": 2022, "fp": "FY", "form": "10-K", "filed": "2023-02-01"},
+            _fact(start="2021-01-01", end="2021-12-31", val=2.0, fy=2021, filed="2022-02-01"),
+        ]
+        assert self._series(items) == {2021: 2.0}
+
+    def test_unparseable_end_date_skipped(self) -> None:
+        items = [
+            {
+                "end": "not-a-date",
+                "val": 5.0,
+                "fy": 2023,
+                "fp": "FY",
+                "form": "10-K",
+                "filed": "2024-02-01",
+            },
+            _fact(start="2021-01-01", end="2021-12-31", val=2.0, fy=2021, filed="2022-02-01"),
+        ]
+        assert self._series(items) == {2021: 2.0}
+
+    def test_concept_fallback_first_nonempty_wins(self) -> None:
+        items = [_fact(start="2020-01-01", end="2020-12-31", val=1.5, fy=2020, filed="2021-02-01")]
+        # Primary concept absent (facts only carry EarningsPerShareBasic); the
+        # function tries each concept and stops at the first with data.
+        assert self._series(items, ("EarningsPerShareDiluted", self.EPS)) == {2020: 1.5}
+
+    def test_empty_when_no_concept_present(self) -> None:
+        items = [_fact(start="2020-01-01", end="2020-12-31", val=1.5, fy=2020, filed="2021-02-01")]
+        assert self._series(items, ("EarningsPerShareDiluted",)) == {}
+
+
 class TestBuildSecYearlyFinancials:
     """The newest-first per-year dict the provider-agnostic extractor consumes."""
 

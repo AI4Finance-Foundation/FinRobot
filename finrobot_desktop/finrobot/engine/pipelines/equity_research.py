@@ -34,8 +34,10 @@ from finrobot.engine.compute.operators.catalyst import (
 from finrobot.engine.compute.operators.dcf import (
     calculate_dcf,
     calculate_sensitivity,
+    classify_market_implied_nature,
     market_implied_check,
 )
+from finrobot.engine.compute.coordinators.segment_extractor import build_sotp_breakdown
 from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
 from finrobot.engine.compute.operators.forward_estimates import get_forward_revenue_growth
 from finrobot.engine.compute.operators.multiples import current_ev_ebitda
@@ -438,7 +440,7 @@ async def _execute_ownership_governance_analysis(
 
 async def _execute_financial_modeling(
     agent: Agent[Any, Any],  # noqa: ARG001 — kept for executor signature; unused
-    deps: FinRobotDeps,  # noqa: ARG001 — kept for executor signature; unused
+    deps: FinRobotDeps,
     prompt: str,  # noqa: ARG001 — kept for executor signature; unused
     structured_context: dict[str, object],
     ticker: str,
@@ -615,6 +617,36 @@ async def _execute_financial_modeling(
     # runs. Writing later (e.g. via _store_output after the executor returns)
     # leaves isinstance(dcf, DCFResult) False and silently drops DCF.
     structured_context["financial_modeling"] = dcf_result
+
+    # Scenario SOTP (Batch 3B v1) — the option-value CHANNEL for names a DCF point
+    # target can't honestly capture. Gated DETERMINISTICALLY on
+    # ``classify_market_implied_nature().kind == "option_value"`` (the same
+    # reverse-DCF classifier the Coverage desk uses — no growth in the bracket
+    # reaches the price AND that survives the most favourable WACC). For such a
+    # name we publish a SOURCEABLE decomposition instead of a fabricated target:
+    # a deterministic cash-flow floor (SEC-filed segments × conservative multiples)
+    # and the pure-subtraction market-implied option value above it. This is an
+    # INDEPENDENT channel — it lands in structured_context["sotp_breakdown"], NOT
+    # in the confidence-weighted point synthesis, so it never trips
+    # _RELIABILITY_RATIO_K against the DCF floor. verdict stays REVIEW.
+    if current_price > 0:
+        nature = classify_market_implied_nature(
+            dcf_inputs, current_price, horizon_years=dcf_result.projection_years
+        )
+        if nature.kind == "option_value":
+            try:
+                sotp = await build_sotp_breakdown(
+                    deps.data_layer,
+                    ticker,
+                    net_debt=dcf_inputs.net_debt,
+                    shares_outstanding=dcf_inputs.shares_outstanding,
+                    current_price=current_price,
+                )
+            except Exception as e:  # noqa: BLE001 — SOTP is augmentation; never crash the seed
+                logger.warning("SOTP breakdown failed for %s: %s", ticker, e)
+                sotp = None
+            if sotp is not None:
+                structured_context["sotp_breakdown"] = sotp
 
     # Build ValuationSynthesis from all available methods for the football field
     # chart. current_price was resolved above for the reverse-DCF check.

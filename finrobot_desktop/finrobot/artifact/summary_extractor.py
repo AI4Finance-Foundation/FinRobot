@@ -118,6 +118,25 @@ def extract_tagline(artifact: "Artifact") -> str | None:
     return stripped or None
 
 
+def extract_llm_narrative(artifact: "Artifact") -> dict[str, Any]:
+    """Best-effort mirror of ``structured.thesis`` for legacy artifacts."""
+    thesis = artifact.outputs.structured.get("thesis")
+    if not isinstance(thesis, dict):
+        return {}
+    keys = (
+        "tagline",
+        "key_takeaways",
+        "company_overview",
+        "valuation_overview",
+        "news_summary",
+        "competitor_analysis",
+        "recommendation",
+        "catalysts",
+        "risks",
+    )
+    return {key: thesis[key] for key in keys if key in thesis}
+
+
 def extract_target_date(artifact: "Artifact", target_price: float | None) -> datetime | None:
     """target_date defaults to created_at + 365d once a target exists."""
     if target_price is None:

@@ -44,6 +44,7 @@ from finrobot.artifact.models import Artifact, ArtifactSummary, ArtifactType
 from finrobot.engine.compute.operators.signal import Signal  # noqa: F401 — used in ArtifactSummary
 from finrobot.artifact.summary_extractor import (
     extract_entry_price,
+    extract_llm_narrative,
     extract_primary_provider,
     extract_tagline,
     extract_target_date,
@@ -328,6 +329,8 @@ class SqliteArtifactStore:
         # so realign the payload to the columns at read time.
         artifact.meta.archived = bool(row[1])
         artifact.meta.last_viewed_at = _parse_dt(row[2])
+        if not artifact.outputs.llm_narrative:
+            artifact.outputs.llm_narrative = extract_llm_narrative(artifact)
         return artifact
 
     async def exists(self, artifact_id: str) -> bool:

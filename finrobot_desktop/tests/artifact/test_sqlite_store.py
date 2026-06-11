@@ -538,6 +538,35 @@ async def test_summary_carries_primary_provider(store: SqliteArtifactStore) -> N
 
 
 @pytest.mark.asyncio
+async def test_get_hydrates_legacy_llm_narrative_from_thesis(
+    store: SqliteArtifactStore,
+) -> None:
+    """Legacy rows predate outputs.llm_narrative; hydrate from structured.thesis
+    at read time so consumers can use the semantic top-level key."""
+    art = _make_artifact(id="art_legacy_narrative", type="equity_research")
+    art.outputs.structured = {
+        "thesis": {
+            "tagline": "AI infrastructure play",
+            "recommendation": "BUY",
+            "valuation_overview": "DCF and comps corroborate.",
+            "risks": ["Export controls"],
+        }
+    }
+    art.outputs.llm_narrative = {}
+    await store.save(art)
+
+    loaded = await store.get(art.id)
+
+    assert loaded is not None
+    assert loaded.outputs.llm_narrative == {
+        "tagline": "AI infrastructure play",
+        "valuation_overview": "DCF and comps corroborate.",
+        "recommendation": "BUY",
+        "risks": ["Export controls"],
+    }
+
+
+@pytest.mark.asyncio
 async def test_unknown_provider_normalizes_to_none(store: SqliteArtifactStore) -> None:
     """builders fall back to data_source="unknown" when no structured step
     matched — that placeholder must not render as a fake provider chip."""

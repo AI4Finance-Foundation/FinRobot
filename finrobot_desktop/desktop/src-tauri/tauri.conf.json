@@ -43,7 +43,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": { "sidecar/dist/finrobot-server": "finrobot-server" }
+    "resources": { "sidecar/dist/finrobot-server": "sidecar" }
   },
   "plugins": {
     "updater": {

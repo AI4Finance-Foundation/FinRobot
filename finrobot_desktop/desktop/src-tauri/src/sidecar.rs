@@ -29,7 +29,7 @@ const READINESS_TIMEOUT_SECS: u64 = 90;
 /// Spawn the bundled `finrobot-server` sidecar and block until it is ready.
 ///
 /// The exe lives inside the resource bundle at
-/// `finrobot-server/finrobot-server` (next to its `_internal/` runtime).
+/// `sidecar/finrobot-server` (next to its `_internal/` runtime).
 ///
 /// Stdout/stderr from the sidecar are forwarded to the host process's stderr
 /// so they appear in the terminal during `cargo tauri dev`.
@@ -59,11 +59,14 @@ pub fn spawn_and_wait_for_ready(
     let parent_pid = std::process::id().to_string();
 
     // Resolve the one-dir exe from the bundled resources. In a packaged app
-    // this is Contents/Resources/finrobot-server/finrobot-server; in
-    // `cargo tauri dev` the resource dir sits next to the debug binary.
+    // this is Contents/Resources/sidecar/finrobot-server; in `cargo tauri dev`
+    // the resource dir sits next to the debug binary. The resource dir is
+    // named `sidecar`, NOT `finrobot-server`: the legacy externalBin config
+    // left a FILE called finrobot-server in old cargo target dirs, and the
+    // resource copier dies with "Not a directory" on the name collision.
     let exe_path = app
         .path()
-        .resolve("finrobot-server/finrobot-server", BaseDirectory::Resource)
+        .resolve("sidecar/finrobot-server", BaseDirectory::Resource)
         .map_err(|e| format!("sidecar resource not found: {e}"))?;
     if !exe_path.is_file() {
         return Err(format!(

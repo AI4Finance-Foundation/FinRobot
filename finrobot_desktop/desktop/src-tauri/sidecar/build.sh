@@ -3,8 +3,8 @@
 #
 # Output: desktop/src-tauri/sidecar/dist/finrobot-server/ — a PyInstaller
 # one-dir bundle (exe + _internal/). tauri.conf.json ships this directory as a
-# bundle resource ("resources"), and sidecar.rs spawns the exe from
-# Contents/Resources/finrobot-server/. One-dir (not one-file) because the
+# bundle resource ("resources", dest dir `sidecar/`), and sidecar.rs spawns the
+# exe from Contents/Resources/sidecar/. One-dir (not one-file) because the
 # one-file bootloader re-extracts ~330 MB on every launch → 47-88 s cold start.
 #
 # Prereq: the `package` extra is installed (`uv sync --extra package`), which

@@ -1009,6 +1009,162 @@ def _build_sec_yearly_financials(facts: dict[str, Any], max_years: int) -> list[
     return yearly
 
 
+# ---------------------------------------------------------------------------
+# Reportable-segment extraction (SOTP floor — Batch 3B v1)
+# ---------------------------------------------------------------------------
+#
+# ASC 280 reportable-segment revenue + gross profit from the ORIGINAL 10-K
+# (``amendments=False`` — the latched .latest() pitfall: a 10-K/A's XBRL is
+# incomplete and the dimensioned segment query comes back empty, §8#1).
+#
+# The join is the load-bearing subtlety: segment GROSS PROFIT is dimensioned on
+# ``us-gaap:StatementBusinessSegmentsAxis`` (members like AutomotiveSegmentMember)
+# while segment REVENUE is dimensioned on ``srt:ProductOrServiceAxis`` (members
+# like AutomotiveRevenuesMember). They are matched by a normalized member key
+# (strip ticker prefix + Member/Segment/Revenues suffixes), NOT by label string —
+# label strings differ ("Automotive segment" vs "Automotive Revenues"). The
+# segment axis (gross profit) is authoritative for which legs ARE reportable
+# segments; revenue is attached only where a member normalizes onto one.
+
+# XBRL concepts (mirror the TTM/latest lists' first entries; segment dimensioning
+# rides the same revenue concept post-ASC-606).
+_SEG_REVENUE_CONCEPT = "RevenueFromContractWithCustomerExcludingAssessedTax"
+_SEG_GROSS_PROFIT_CONCEPT = "GrossProfit"
+_SEG_AXIS_TOKEN = "BusinessSegmentsAxis"
+_SEG_PRODUCT_AXIS_TOKEN = "ProductOrServiceAxis"
+
+
+def _normalize_segment_member(member: str | None) -> str | None:
+    """Canonical join key from an XBRL dimension member URI/qname.
+
+    ``tsla:AutomotiveSegmentMember`` → ``Automotive``;
+    ``tsla:AutomotiveRevenuesMember`` → ``Automotive``;
+    ``tsla:EnergyGenerationAndStorageSegmentMember`` → ``EnergyGenerationAndStorage``.
+    Returns None for an empty member (never coerces to a bogus key — §T2).
+    """
+    if not member:
+        return None
+    m = member.split(":", 1)[-1]
+    if m.endswith("Member"):
+        m = m[: -len("Member")]
+    if m.endswith("Segment"):
+        m = m[: -len("Segment")]
+    if m.endswith("Revenues"):
+        m = m[: -len("Revenues")]
+    return m or None
+
+
+def _segment_period(facts: list[dict[str, Any]]) -> tuple[str, str] | None:
+    """Pick the latest FULL-YEAR (period span ≥ ~350d) period among segment facts.
+
+    Quarter facts also carry the segment axis; the SOTP floor wants the annual
+    figure, so prefer the longest span tied to the latest period_end.
+    """
+    from datetime import date as _date
+
+    spans: dict[tuple[str, str], int] = {}
+    for x in facts:
+        ps, pe = x.get("period_start"), x.get("period_end")
+        if not ps or not pe:
+            continue
+        try:
+            days = (_date.fromisoformat(pe) - _date.fromisoformat(ps)).days
+        except ValueError:
+            continue
+        spans[(ps, pe)] = days
+    full_year = {p: d for p, d in spans.items() if d >= 350}
+    pool = full_year or spans
+    if not pool:
+        return None
+    # latest period_end, then longest span
+    return max(pool, key=lambda p: (p[1], spans[p]))
+
+
+def extract_segment_facts(xbrl: Any) -> tuple[dict[str, Any], list[str]]:
+    """Reportable-segment revenue + gross profit from a parsed 10-K XBRL.
+
+    Returns a ``{"segments": {canonical: {revenue, gross_profit, label}}, "period",
+    "currency"}`` dict and a warnings list. Missing metrics stay None — never 0
+    (§T2#4). Pure given the parsed ``xbrl`` object (the network fetch is the
+    caller's). Raises nothing: a no-segment filing yields an empty segments dict
+    + a warning, so a single-segment issuer degrades cleanly (SOTP gating drops it).
+    """
+    warnings: list[str] = []
+
+    def _seg_facts(concept: str, axis_token: str) -> list[dict[str, Any]]:
+        try:
+            rows = xbrl.query().by_concept(concept).execute()
+        except _ADAPTER_CATCH as e:  # pragma: no cover — defensive
+            warnings.append(f"segment query failed for {concept}: {e}")
+            return []
+        out = []
+        for x in rows:
+            if not x.get("is_dimensioned"):
+                continue
+            dim = x.get("dimension") or ""
+            if axis_token not in dim:
+                continue
+            out.append(x)
+        return out
+
+    gp_facts = _seg_facts(_SEG_GROSS_PROFIT_CONCEPT, _SEG_AXIS_TOKEN)
+    if not gp_facts:
+        warnings.append(
+            "no segment-axis gross-profit facts (single-segment issuer or "
+            "non-dimensioned XBRL); SOTP floor not derivable"
+        )
+        return {"segments": {}, "period": None, "currency": None}, warnings
+
+    period = _segment_period(gp_facts)
+    if period is None:
+        warnings.append("could not resolve a segment reporting period")
+        return {"segments": {}, "period": None, "currency": None}, warnings
+
+    # Gross profit defines the reportable segments (authoritative leg).
+    segments: dict[str, dict[str, Any]] = {}
+    currency: str | None = None
+    for x in gp_facts:
+        if (x.get("period_start"), x.get("period_end")) != period:
+            continue
+        key = _normalize_segment_member(x.get("member"))
+        if key is None:
+            continue
+        currency = currency or _seg_unit_currency(x)
+        segments[key] = {
+            "label": x.get("dimension_member_label") or x.get("label") or key,
+            "gross_profit": x.get("numeric_value"),
+            "revenue": None,
+        }
+
+    # Attach revenue where a ProductOrService member normalizes onto a segment.
+    rev_facts = _seg_facts(_SEG_REVENUE_CONCEPT, _SEG_PRODUCT_AXIS_TOKEN)
+    for x in rev_facts:
+        if (x.get("period_start"), x.get("period_end")) != period:
+            continue
+        key = _normalize_segment_member(x.get("member"))
+        if key in segments and segments[key]["revenue"] is None:
+            segments[key]["revenue"] = x.get("numeric_value")
+
+    for key, seg in segments.items():
+        if seg["revenue"] is None:
+            warnings.append(f"segment {key!r}: no matching ProductOrService revenue member")
+
+    return {
+        "segments": segments,
+        "period": {"start": period[0], "end": period[1]},
+        "currency": currency,
+    }, warnings
+
+
+def _seg_unit_currency(fact: dict[str, Any]) -> str | None:
+    """Reporting currency from a fact's unit_ref (e.g. 'usd' → 'USD'). None if absent."""
+    unit = fact.get("unit_ref")
+    if not unit or not isinstance(unit, str):
+        return None
+    token = unit.split(":")[-1].split("_")[-1].upper()
+    return token if len(token) == 3 and token.isalpha() else None
+
+
 class EdgarToolsProvider(DataProvider):
     """SEC EDGAR data provider backed by edgartools 5.31.
 
@@ -1112,6 +1268,54 @@ class EdgarToolsProvider(DataProvider):
             data_type=DataType.FINANCIALS,
             timestamp=datetime.now(tz=timezone.utc),
         )
+
+    async def fetch_annual_segments(self, ticker: str) -> DataResult:
+        """ASC 280 reportable-segment revenue + gross profit from the latest 10-K.
+
+        The SOTP-floor source (Batch 3B v1): segment-level revenue AND gross profit
+        from the ORIGINAL 10-K's XBRL (``amendments=False`` — a 10-K/A's XBRL is
+        incomplete and the dimensioned segment query returns empty, §8#1). Returns
+        a DataResult whose ``data`` is the ``extract_segment_facts`` dict
+        (``{"segments": {...}, "period", "currency"}``). Raises ``ProviderError`` on
+        CIK-miss / no-10-K / parse failure so ``DataLayer.fetch_segments`` degrades
+        to None and the SOTP gate cleanly drops the name.
+
+        NOT on ``capabilities()``: an EXPLICIT augmentation route (like
+        ``fetch_annual_financials``) invoked only for option-value SOTP candidates,
+        so SEC never silently displaces FMP/yfinance as the primary source.
+        """
+        data, warnings = await asyncio.to_thread(self._fetch_segments_sync, ticker.upper())
+        return DataResult(
+            data=data,
+            provider=self.name,
+            ticker=ticker.upper(),
+            data_type=DataType.FILINGS_10K,
+            timestamp=datetime.now(tz=timezone.utc),
+            warnings=warnings,
+        )
+
+    def _fetch_segments_sync(self, ticker: str) -> tuple[dict[str, Any], list[str]]:
+        try:
+            c = Company(ticker)
+        except _ADAPTER_CATCH as e:
+            raise ProviderError(f"SEC segments: company lookup failed for {ticker}: {e}") from e
+        # ORIGINAL 10-K — a 10-K/A's XBRL is incomplete for dimensioned segments.
+        filing = c.get_filings(form="10-K", amendments=False).latest(1)
+        if isinstance(filing, list):
+            filing = filing[0] if filing else None
+        if filing is None:
+            raise ProviderError(f"SEC segments: no original 10-K for {ticker}")
+        try:
+            xbrl = filing.xbrl()
+        except _ADAPTER_CATCH as e:
+            raise ProviderError(f"SEC segments: XBRL parse failed for {ticker}: {e}") from e
+        if xbrl is None:
+            raise ProviderError(f"SEC segments: 10-K has no XBRL for {ticker}")
+        data, warnings = extract_segment_facts(xbrl)
+        data["accession"] = getattr(filing, "accession_no", None)
+        data["filing_date"] = str(getattr(filing, "filing_date", "") or "")
+        data["source_concept"] = _SEG_GROSS_PROFIT_CONCEPT
+        return data, warnings
 
     def _resolve_cik(self, ticker: str) -> int | None:
         """CIK for ``ticker`` via edgartools ``Company`` (sync, run in a thread).

@@ -13,10 +13,11 @@ it can't claim "实时" over a stale closing price.
 
 from __future__ import annotations
 
+import math
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # Canonical contract version. Bump whenever a Normalized* model changes shape
 # in a way that makes an old cached payload unsafe to deserialize/trust. The
@@ -129,7 +130,15 @@ class Provenance(BaseModel):
 
 
 class PriceBar(BaseModel):
-    """One OHLCV bar. ``open/high/low`` are None for close-only feeds."""
+    """One OHLCV bar. ``open/high/low`` are None for close-only feeds.
+
+    构造期不变量 (机械闸门, T4#5 二次复发升级 2026-06-11): a bar without a
+    finite close is not a bar. yfinance hands all-NaN OHLC session rows; NaN
+    slips every ``is None`` gate, serializes to close:null, and crashes chart
+    consumers. Producers must FILTER such rows out before constructing —
+    a non-finite ``close`` here raises (报错 > 编数字); non-finite optional
+    fields coerce to None (close-only bar stays legitimate).
+    """
 
     model_config = ConfigDict(frozen=False)
 
@@ -139,6 +148,18 @@ class PriceBar(BaseModel):
     high: float | None = None
     low: float | None = None
     volume: float | None = None
+
+    @field_validator("close")
+    @classmethod
+    def _close_must_be_finite(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("PriceBar.close must be finite — drop the bar, never fabricate")
+        return v
+
+    @field_validator("open", "high", "low", "volume")
+    @classmethod
+    def _optional_non_finite_to_none(cls, v: float | None) -> float | None:
+        return v if v is None or math.isfinite(v) else None
 
     def high_or_close(self) -> float:
         return self.high if self.high is not None else self.close

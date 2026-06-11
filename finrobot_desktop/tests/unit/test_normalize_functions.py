@@ -337,3 +337,18 @@ def test_price_nan_close_bar_dropped_not_serialized():
     out = normalize_price(_price_result(hist, current_price=441.0, quote_timestamp=FETCH))
     assert [b.date.isoformat() for b in out.bars] == ["2026-05-26", "2026-05-27"]
     assert all(b.close == b.close for b in out.bars)  # no NaN survived
+
+
+def test_pricebar_construction_invariant_rejects_non_finite_close():
+    """机械闸门 (T4#5 二次复发升级): a non-finite close cannot construct a
+    PriceBar — producers that forget to filter NaN session rows fail LOUD at
+    the contract instead of shipping close:null to the chart."""
+    import pytest as _pytest
+
+    from finrobot.engine.data.normalize.contracts import PriceBar
+
+    with _pytest.raises(ValueError, match="finite"):
+        PriceBar(date=date(2026, 6, 10), close=float("nan"))
+    # Optional OHLCV fields coerce non-finite → None (close-only bar stays legal).
+    bar = PriceBar(date=date(2026, 6, 10), close=100.0, open=float("nan"), volume=float("inf"))
+    assert bar.open is None and bar.volume is None and bar.close == 100.0

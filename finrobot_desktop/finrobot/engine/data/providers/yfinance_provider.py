@@ -544,6 +544,11 @@ class YFinanceProvider(DataProvider):
             if hasattr(hist.columns, "levels") and len(hist.columns.levels) > 1:
                 hist.columns = hist.columns.droplevel(1)
             for dt, row in hist.iterrows():
+                # Same NaN-session guard as _fetch_price: a bar without a finite
+                # close is not a bar, and these dicts feed PriceBar directly
+                # (whose close validator now refuses non-finite — 构造期不变量).
+                if _safe_float(row["Close"]) is None:
+                    continue
                 bars.append(
                     {
                         "date": str(dt.date()),

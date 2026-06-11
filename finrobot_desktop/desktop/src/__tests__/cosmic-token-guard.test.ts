@@ -38,6 +38,12 @@ import settingsUpdatesSrc from '../views/settings/UpdatesSection.tsx?raw'
 import settingsClearKeyModalSrc from '../views/settings/ClearKeyConfirmModal.tsx?raw'
 import versionDiffBannerSrc from '../components/VersionDiffBanner.tsx?raw'
 import aiChatTabSrc from '../layout/RightChatPanel/AiChatTab.tsx?raw'
+import chatHeaderSrc from '../layout/RightChatPanel/chat/AiPanelHeader.tsx?raw'
+import chatMessageListSrc from '../layout/RightChatPanel/chat/MessageList.tsx?raw'
+import chatMessageBubbleSrc from '../layout/RightChatPanel/chat/MessageBubble.tsx?raw'
+import chatStatusIndicatorSrc from '../layout/RightChatPanel/chat/StatusIndicator.tsx?raw'
+import chatInputAreaSrc from '../layout/RightChatPanel/chat/AiInputArea.tsx?raw'
+import chatIconColumnSrc from '../layout/RightChatPanel/chat/IconColumn.tsx?raw'
 import splineHeroSrc from '../components/SplineHero.tsx?raw'
 
 const GUARDED: Array<[string, string]> = [
@@ -54,7 +60,14 @@ const GUARDED: Array<[string, string]> = [
   ['views/settings/UpdatesSection.tsx', settingsUpdatesSrc],
   ['views/settings/ClearKeyConfirmModal.tsx', settingsClearKeyModalSrc],
   ['components/VersionDiffBanner.tsx', versionDiffBannerSrc],
+  // AiChatTab was split into chat/* (2026-06-11) — same guard, every shard.
   ['layout/RightChatPanel/AiChatTab.tsx', aiChatTabSrc],
+  ['layout/RightChatPanel/chat/AiPanelHeader.tsx', chatHeaderSrc],
+  ['layout/RightChatPanel/chat/MessageList.tsx', chatMessageListSrc],
+  ['layout/RightChatPanel/chat/MessageBubble.tsx', chatMessageBubbleSrc],
+  ['layout/RightChatPanel/chat/StatusIndicator.tsx', chatStatusIndicatorSrc],
+  ['layout/RightChatPanel/chat/AiInputArea.tsx', chatInputAreaSrc],
+  ['layout/RightChatPanel/chat/IconColumn.tsx', chatIconColumnSrc],
   // Hero/fallback gradients were de-hardcoded 2026-06-10 (P2 audit).
   ['components/SplineHero.tsx', splineHeroSrc],
 ]

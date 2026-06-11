@@ -49,6 +49,7 @@ function renderChapter(
       quoteCurrency="USD"
       reportingCurrency="USD"
       numericAudit={numericAudit}
+      sotpBreakdown={null}
     />,
   )
 }

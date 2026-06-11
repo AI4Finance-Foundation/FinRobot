@@ -459,6 +459,7 @@ export interface ArtifactStructured {
   sec_filings?: SecFilingsShape
   xbrl_facts_snapshot?: XbrlFactsSnapshotShape
   numeric_audit?: NumericAuditShape
+  sotp_breakdown?: SOTPBreakdownShape
   // Multi-year trend series, frozen at generation (builders.py persists the
   // pipeline's HistoricalMetrics) so ChapterFinancialAnalysis reads the charts
   // from the snapshot instead of a live ['historical'] refetch.

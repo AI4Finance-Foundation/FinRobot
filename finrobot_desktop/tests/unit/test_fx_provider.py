@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from typing import cast
+
+import httpx
 import pytest
 
 from finrobot.engine.data.interface import ProviderError
@@ -161,6 +164,144 @@ class TestFmpFallback:
         monkeypatch.setattr(fx_module, "_fmp_quote_price", _fake_quote)
         rate = await fx_module._fmp_fx_rate_to_usd("CNY", "key123")
         assert rate == pytest.approx(1.0 / 6.77)
+
+
+class _FakeResp:
+    """Minimal httpx.Response stand-in for _fmp_quote_price unit tests."""
+
+    def __init__(self, *, json_data=None, raise_for_status_exc=None, json_exc=None):
+        self._json_data = json_data
+        self._raise_for_status_exc = raise_for_status_exc
+        self._json_exc = json_exc
+
+    def raise_for_status(self):
+        if self._raise_for_status_exc is not None:
+            raise self._raise_for_status_exc
+
+    def json(self):
+        if self._json_exc is not None:
+            raise self._json_exc
+        return self._json_data
+
+
+class _FakeClient:
+    def __init__(self, resp):
+        self._resp = resp
+        self.calls: list[dict] = []
+
+    async def get(self, url, params=None):
+        self.calls.append({"url": url, "params": params})
+        return self._resp
+
+
+async def _quote(client: _FakeClient, pair: str = "USDCNY", api_key: str = "key") -> float | None:
+    """Call _fmp_quote_price with the fake client cast to its typed param."""
+    return await fx_module._fmp_quote_price(cast(httpx.AsyncClient, client), pair, api_key)
+
+
+class TestFmpQuotePriceBody:
+    """Direct coverage of _fmp_quote_price's HTTP/parse body — the existing
+    TestFmpFallback monkeypatches the whole function away, so its failure
+    branches (the yfinance-429-storm last-resort FX path) were untested."""
+
+    @pytest.mark.asyncio
+    async def test_valid_quote_returns_price(self):
+        client = _FakeClient(_FakeResp(json_data=[{"symbol": "USDCNY", "price": 6.77}]))
+        rate = await _quote(client)
+        assert rate == pytest.approx(6.77)
+        # query carries the pair symbol + key (key never asserted-printed elsewhere)
+        assert client.calls[0]["params"] == {"symbol": "USDCNY", "apikey": "key"}
+
+    @pytest.mark.asyncio
+    async def test_int_price_coerced_to_float(self):
+        client = _FakeClient(_FakeResp(json_data=[{"price": 1}]))
+        rate = await _quote(client, "EURUSD")
+        assert isinstance(rate, float) and rate == 1.0
+
+    @pytest.mark.asyncio
+    async def test_http_error_returns_none(self):
+        client = _FakeClient(_FakeResp(raise_for_status_exc=httpx.HTTPError("429")))
+        assert await _quote(client) is None
+
+    @pytest.mark.asyncio
+    async def test_json_decode_error_returns_none(self):
+        client = _FakeClient(_FakeResp(json_exc=ValueError("not json")))
+        assert await _quote(client) is None
+
+    @pytest.mark.asyncio
+    async def test_non_list_payload_returns_none(self):
+        client = _FakeClient(_FakeResp(json_data={"price": 6.77}))
+        assert await _quote(client) is None
+
+    @pytest.mark.asyncio
+    async def test_empty_list_returns_none(self):
+        client = _FakeClient(_FakeResp(json_data=[]))
+        assert await _quote(client) is None
+
+    @pytest.mark.asyncio
+    async def test_first_element_not_dict_returns_none(self):
+        client = _FakeClient(_FakeResp(json_data=["6.77"]))
+        assert await _quote(client) is None
+
+    @pytest.mark.asyncio
+    async def test_missing_price_key_returns_none(self):
+        client = _FakeClient(_FakeResp(json_data=[{"symbol": "USDCNY"}]))
+        assert await _quote(client) is None
+
+    @pytest.mark.asyncio
+    async def test_non_numeric_price_returns_none(self):
+        client = _FakeClient(_FakeResp(json_data=[{"price": "n/a"}]))
+        assert await _quote(client) is None
+
+    @pytest.mark.asyncio
+    async def test_zero_price_returns_none(self):
+        client = _FakeClient(_FakeResp(json_data=[{"price": 0}]))
+        assert await _quote(client) is None
+
+    @pytest.mark.asyncio
+    async def test_negative_price_returns_none(self):
+        client = _FakeClient(_FakeResp(json_data=[{"price": -1.0}]))
+        assert await _quote(client) is None
+
+    @pytest.mark.asyncio
+    async def test_nan_price_returns_none(self):
+        client = _FakeClient(_FakeResp(json_data=[{"price": float("nan")}]))
+        assert await _quote(client) is None
+
+
+class TestFmpFxRateDirectPair:
+    @pytest.mark.asyncio
+    async def test_direct_pair_used_without_inverse(self, monkeypatch):
+        """When {FROM}USD quotes directly (e.g. CNYUSD≈0.1478), use it as-is and
+        never consult the USD{FROM} inverse pair."""
+        seen: list[str] = []
+
+        async def _fake_quote(client, pair, api_key):
+            seen.append(pair)
+            return 0.1478 if pair == "CNYUSD" else pytest.fail(f"inverse hit: {pair}")
+
+        monkeypatch.setattr(fx_module, "_fmp_quote_price", _fake_quote)
+        rate = await fx_module._fmp_fx_rate_to_usd("CNY", "key")
+        assert rate == pytest.approx(0.1478)
+        assert seen == ["CNYUSD"]  # inverse never attempted
+
+    @pytest.mark.asyncio
+    async def test_both_pairs_miss_returns_none(self, monkeypatch):
+        async def _none(client, pair, api_key):
+            return None
+
+        monkeypatch.setattr(fx_module, "_fmp_quote_price", _none)
+        assert await fx_module._fmp_fx_rate_to_usd("CNY", "key") is None
+
+    @pytest.mark.asyncio
+    async def test_inverse_zero_guarded_returns_none(self, monkeypatch):
+        """A 0.0 inverse quote must not divide-by-zero — guarded to None."""
+
+        async def _quote(client, pair, api_key):
+            return 0.0 if pair == "USDCNY" else None
+
+        monkeypatch.setattr(fx_module, "_fmp_quote_price", _quote)
+        assert await fx_module._fmp_fx_rate_to_usd("CNY", "key") is None
 
 
 class TestFxCaching:

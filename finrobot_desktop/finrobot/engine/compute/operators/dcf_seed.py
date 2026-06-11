@@ -346,13 +346,41 @@ def seed_dcf_inputs(
     # doesn't change the discount rate). _CYCLICAL_MEDIAN_WINDOW_YEARS ≥ the 10y
     # cyclical fetch so the median sees every available year.
     earnings_window = _CYCLICAL_MEDIAN_WINDOW_YEARS if cyclical else _MEDIAN_WINDOW_YEARS
-    _cycle_note = "through-cycle 中位（罩完整 峰→谷→恢复 周期）" if cyclical else None
+    # Provenance must state the REAL window, never a template "完整周期" claim. With
+    # SEC deep history MU genuinely spans FY2017-25 (peak FY2018 / trough FY2023), but
+    # a short-history cyclical (SEC unwired, or a recent IPO) does NOT — so the claim
+    # is gated on the actual coverage the windowed margin series shows.
+    _cycle_note: str | None = None
     if cyclical:
+        _cyc_n, _cyc_full, _cyc_peak_fy, _cyc_trough_fy = _cycle_coverage(
+            historical.years, historical.operating_margin, window=earnings_window
+        )
+        if _cyc_full:
+            _cycle_note = (
+                f"through-cycle 中位（{_cyc_n} 年 罩完整周期:"
+                f"峰 FY{_cyc_peak_fy} / 谷 FY{_cyc_trough_fy}）"
+            )
+            _coverage_cn = f"窗口 {_cyc_n} 年罩完整 峰→谷→恢复 周期(峰 FY{_cyc_peak_fy} / 谷 FY{_cyc_trough_fy})"
+        elif _cyc_n > 0:
+            # Honest about a truncated window — name what we actually have, don't
+            # claim a full cycle the data can't support.
+            _cycle_note = (
+                f"through-cycle 中位（仅 {_cyc_n} 年,窗口未必罩完整周期:"
+                f"峰 FY{_cyc_peak_fy} / 谷 FY{_cyc_trough_fy}）"
+            )
+            _coverage_cn = (
+                f"窗口仅 {_cyc_n} 年,可能未罩完整周期"
+                f"(现有 峰 FY{_cyc_peak_fy} / 谷 FY{_cyc_trough_fy})"
+            )
+        else:
+            _cycle_note = "through-cycle 中位（历史不足,退行业基准）"
+            _coverage_cn = "历史不足,无法构造 through-cycle 窗口"
         prov["cyclical_normalization"] = (
             "判定为大宗周期股(memory/storage 白名单/关键词命中) → 盈利基底走 "
-            "through-cycle 正常化:EBITDA 利润率取完整周期中位、D&A 营收加权 through-cycle、"
-            "显式期 CapEx 取 through-cycle 中位;营收基保持当前 TTM(Damodaran 口径 3:"
-            "正常化 margin × 当前营收,不重基营收以免数两遍周期相位)。"
+            "through-cycle 正常化:EBITDA 利润率取周期中位、D&A 营收加权 through-cycle、"
+            f"显式期 CapEx 取 through-cycle 中位;{_coverage_cn};"
+            "营收基保持当前 TTM(Damodaran 口径 3:正常化 margin × 当前营收,"
+            "不重基营收以免数两遍周期相位)。"
         )
 
     # ----- revenue_base ------------------------------------------------------
@@ -748,6 +776,47 @@ def _cycle_stats(values: list[float | None], *, window: int) -> str:
         f"{statistics.median(usable):.1%} / 均值 {statistics.mean(usable):.1%}，"
         f"{len(usable)} 年）"
     )
+
+
+# A normalized base only "spans a full peak→trough→recovery cycle" when the window
+# is deep enough AND actually contains a real swing. <6 usable years can't straddle
+# a full memory cycle (~9y), and a <15pt op-margin spread is a flat regime, not a
+# cycle — claiming "完整周期" on either would be the overclaim the project forbids.
+_FULL_CYCLE_MIN_YEARS: Final[int] = 6
+_FULL_CYCLE_MIN_SPREAD: Final[float] = 0.15
+
+
+def _cycle_coverage(
+    years: list[int], operating_margin: list[float | None], *, window: int
+) -> tuple[int, bool, int | None, int | None]:
+    """Describe the ACTUAL cycle the window covers, so provenance never overclaims.
+
+    Returns ``(n_years, spans_full_cycle, peak_fy, trough_fy)`` over the windowed
+    operating-margin series (the most complete margin the extractor fields):
+      - ``n_years``: usable (non-None) margin years in the window.
+      - ``spans_full_cycle``: True only when the window is both deep enough
+        (≥ _FULL_CYCLE_MIN_YEARS) and carries a real peak→trough swing
+        (spread ≥ _FULL_CYCLE_MIN_SPREAD) — the gate for the "罩完整周期" claim.
+      - ``peak_fy`` / ``trough_fy``: the fiscal years of the max / min margin, so
+        the prose can name the REAL peak (MU FY2018) and trough (FY2023) instead of
+        an unconditional template phrase. None when no usable year exists.
+
+    Pairs years with margins positionally (both lists are time-aligned oldest-first
+    by the extractor) and windows the last ``window`` entries — the same slice the
+    medians use — so the disclosed shape is the shape that actually fed the number.
+    """
+    paired = [
+        (y, m) for y, m in zip(years, operating_margin) if m is not None and not math.isnan(m)
+    ]
+    paired = paired[-window:]
+    if not paired:
+        return 0, False, None, None
+    margins = [m for _, m in paired]
+    peak_fy = max(paired, key=lambda p: p[1])[0]
+    trough_fy = min(paired, key=lambda p: p[1])[0]
+    spread = max(margins) - min(margins)
+    spans = len(paired) >= _FULL_CYCLE_MIN_YEARS and spread >= _FULL_CYCLE_MIN_SPREAD
+    return len(paired), spans, peak_fy, trough_fy
 
 
 def _ticker_median_with_label(

@@ -1028,6 +1028,46 @@ class TestCyclicalNormalization:
         # Damodaran normalization marker, not the trailing-3y wording.
         assert "非近 3 年中位" in prov["ebitda_margin"]
 
+    def test_full_cycle_claim_names_real_peak_trough_fy(self):
+        """The 9y MU fixture genuinely spans a full cycle, so the provenance may
+        claim '罩完整周期' — and must name the REAL peak (FY2018) and trough
+        (FY2023) fiscal years, not an unconditional template phrase."""
+        cyc = seed_dcf_inputs(_mu_financials(), _mu_cyclical_historical(), cyclical=True)
+        note = cyc.assumption_provenance["cyclical_normalization"]
+        assert "罩完整" in note
+        assert "FY2018" in note  # peak
+        assert "FY2023" in note  # trough
+        # The disclosed window count = the 9 usable years actually in-window.
+        assert "9 年" in note
+
+    def test_truncated_window_does_not_claim_full_cycle(self):
+        """A short-history cyclical (only the recovery phase, <6y) must NOT claim a
+        full cycle — that was the overclaim. The provenance instead discloses the
+        truncated window honestly. Mirrors a name where SEC deep history is
+        unavailable and only the FMP/yfinance ~4y window survives."""
+        hist = _mu_cyclical_historical()
+        # Keep only the last 4 fiscal years (FY2022-25) — no FY2018 peak in-window.
+        trunc = hist.model_copy(
+            update={
+                "years": hist.years[-4:],
+                "revenue": hist.revenue[-4:],
+                "operating_income": hist.operating_income[-4:],
+                "operating_margin": hist.operating_margin[-4:],
+                "ebitda": hist.ebitda[-4:],
+                "ebitda_margin": hist.ebitda_margin[-4:],
+                "depreciation_amortization": hist.depreciation_amortization[-4:],
+                "capital_expenditure": hist.capital_expenditure[-4:],
+            }
+        )
+        cyc = seed_dcf_inputs(_mu_financials(), trunc, cyclical=True)
+        note = cyc.assumption_provenance["cyclical_normalization"]
+        # The depressed-recovery 4y window DOES carry a real swing (FY2023 trough →
+        # FY2025 recovery), but is too SHALLOW (<6y) to be a full cycle.
+        assert "罩完整 峰→谷→恢复 周期" not in note
+        assert "未必罩完整周期" in note or "可能未罩完整周期" in note
+        # Still names what it actually has.
+        assert "FY20" in note
+
     def test_non_cyclical_path_is_bit_identical_to_default(self):
         """KO 不许崩: a non-cyclical seeded with cyclical=False must be byte-for-
         byte identical to the default call (no cyclical kwarg). The cyclical

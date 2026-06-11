@@ -23,6 +23,7 @@ from finrobot.engine.compute.operators.multiples import (
 )
 from finrobot.engine.compute.operators.valuation_aggregator import (
     _comps_pb_method,
+    _comps_pe_method,
     aggregate_valuation,
 )
 from finrobot.engine.pipelines._helpers import _inject_cyclical_peers
@@ -234,3 +235,85 @@ class TestAggregatorCyclicalWiring:
             cyclical=False,
         )
         assert not any(m.method == "comps_pb" for m in agg.methods)
+
+
+class TestCyclicalCompsPeSuppression:
+    """Issue B: a commodity-cyclical must NOT price comps_pe off forward (cycle-PEAK)
+    EPS × growth-stock forward P/E — that口径 prints MU at $2974. Per design §5.2 the
+    fallback (b) is to suppress the forward comps_pe row for cyclicals and let
+    comps_pb (cycle-stable book value) + the through-cycle P/E (DCF anchor) carry the
+    relative-multiple slot. Non-cyclical comps_pe is untouched (forward path bit-exact).
+    """
+
+    def _comps_with_forward_pe(self) -> PeerComps:
+        # Mirrors the MU artifact shape: logic-semi peer forward median P/E 36.9x,
+        # target carries a forward P/E so the refusal guard has a real multiple.
+        target = CompanyFinancials(
+            ticker="MU",
+            revenue=58e9,
+            net_income=8e9,
+            market_cap=1000e9,
+            forward_pe=15.7,
+            book_value_per_share=40.0,
+            pb_ratio=2.5,
+        )
+        peers = [_peer(f"P{i}", market_cap=100e9, bvps=25.0, shares=1e9) for i in range(4)]
+        comps = PeerComps(target=target, peers=peers)
+        comps.median_forward_pe = 36.9
+        comps.forward_pe_sample_n = 4
+        comps.median_pb = 2.0
+        comps.pb_sample_n = 4
+        return comps
+
+    def test_cyclical_suppresses_forward_comps_pe(self):
+        # Forward EPS present (cycle-peak $58.9) — the pre-fix path would print
+        # 36.9x × 58.9 ≈ $2174. Cyclical suppresses it: method returns None.
+        warnings: list[str] = []
+        comps = self._comps_with_forward_pe()
+        m = _comps_pe_method(comps, 58.9, 1.13e9, warnings, cyclical=True)
+        assert m is None
+        # the suppression is口径-explicit and tagged comps_pe
+        assert any("comps_pe" in w and "周期股" in w and "抑制" in w for w in warnings)
+
+    def test_non_cyclical_forward_comps_pe_unchanged(self):
+        # Same inputs, cyclical=False → forward path runs exactly as before:
+        # median_forward_pe (36.9x) × forward EPS (58.9) = $2173.41, bit-exact.
+        warnings: list[str] = []
+        comps = self._comps_with_forward_pe()
+        m = _comps_pe_method(comps, 58.9, 1.13e9, warnings, cyclical=False)
+        assert m is not None
+        assert m.method == "comps_pe"
+        assert m.mid == pytest.approx(36.9 * 58.9)
+        # default cyclical kwarg also leaves the non-cyclical path untouched
+        m_default = _comps_pe_method(self._comps_with_forward_pe(), 58.9, 1.13e9, [])
+        assert m_default is not None
+        assert m_default.mid == pytest.approx(36.9 * 58.9)
+
+    def test_aggregator_cyclical_has_pb_not_pe(self):
+        agg = aggregate_valuation(
+            ticker="MU",
+            current_price=891.0,
+            peer_comps=self._comps_with_forward_pe(),
+            shares_outstanding=1.13e9,
+            forward_eps=58.9,
+            cyclical=True,
+        )
+        assert any(m.method == "comps_pb" for m in agg.methods)
+        assert not any(m.method == "comps_pe" for m in agg.methods)
+        # the misleading data-quality diagnostics ("net income ≤ 0" etc.) must NOT
+        # fire — the row was declined on口径, not on data
+        assert not any("net income ≤ 0" in w for w in agg.warnings)
+        assert any("周期股" in w and "抑制" in w for w in agg.warnings)
+
+    def test_aggregator_non_cyclical_keeps_pe_row(self):
+        agg = aggregate_valuation(
+            ticker="MU",
+            current_price=891.0,
+            peer_comps=self._comps_with_forward_pe(),
+            shares_outstanding=1.13e9,
+            forward_eps=58.9,
+            cyclical=False,
+        )
+        pe_rows = [m for m in agg.methods if m.method == "comps_pe"]
+        assert len(pe_rows) == 1
+        assert pe_rows[0].mid == pytest.approx(36.9 * 58.9)

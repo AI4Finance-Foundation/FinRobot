@@ -152,8 +152,19 @@ def aggregate_valuation(
     if cyclical and (m := _comps_pb_method(peer_comps, warnings)) is not None:
         methods.append(m)
 
-    if (m := _comps_pe_method(peer_comps, forward_eps, shares_outstanding, warnings)) is not None:
+    if (
+        m := _comps_pe_method(
+            peer_comps, forward_eps, shares_outstanding, warnings, cyclical=cyclical
+        )
+    ) is not None:
         methods.append(m)
+    elif cyclical:
+        # Suppressed by design for a commodity-cyclical: _comps_pe_method emitted
+        # its own口径 warning (forward P/E × cycle-peak EPS is the $2199/$2974 MU
+        # artifact). comps_pb is the primary multiple; the through-cycle P/E anchor
+        # ships via the DCF row. Do NOT fall through to the data-quality diagnostics
+        # below — the method didn't fail on data, it declined the forward-peak口径.
+        pass
     elif peer_comps is None:
         warnings.append("comps_pe: 无 peer_analysis artifact — 跑 AI 完整研报后此行展示")
     elif forward_eps is None:
@@ -288,6 +299,8 @@ def _comps_pe_method(
     forward_eps: float | None,
     shares_outstanding: float | None,
     warnings: list[str] | None = None,
+    *,
+    cyclical: bool = False,
 ) -> ValuationMethodRange | None:
     if peer_comps is None:
         return None
@@ -295,6 +308,26 @@ def _comps_pe_method(
     def _warn(msg: str) -> None:
         if warnings is not None:
             warnings.append(msg)
+
+    # Commodity-cyclical → SUPPRESS the forward / trailing P/E comps row entirely.
+    # Per design §5.2 the comps_pe for a cyclical must price off a mid-cycle EPS
+    # (= through-cycle net margin × current revenue / shares), NOT the analyst
+    # forward (cycle-PEAK) EPS that prints MU at $2974 (peer forward P/E 36.9x ×
+    # peak EPS) — the same two-sided-peak failure mode the $2199 artifact had.
+    # The through-cycle net margin is not plumbed to this leaf (only the DCF seed's
+    # through-cycle EBITDA margin exists, from which a clean net-income normalisation
+    # would require re-modelling D&A / interest / tax here — out of scope and not
+    # available at the call site), so we take the design's sanctioned fallback (b):
+    # suppress forward comps_pe and rely on comps_pb (primary, cycle-stable book
+    # value) + the through-cycle P/E that ships via the DCF anchor row. Non-cyclicals
+    # are untouched — the entire path below runs exactly as before.
+    if cyclical:
+        _warn(
+            "comps_pe: 周期股 — 抑制 forward P/E × 周期顶 EPS 口径"
+            "（成长股 forward 倍数 × 周期顶 EPS = MU $2974 伪值);"
+            "改由 comps_pb(账面价值,周期稳定)主导 + through-cycle P/E(DCF 锚)兜底"
+        )
+        return None
 
     used_forward = forward_eps is not None and forward_eps > 0
     has_shares = shares_outstanding is not None and shares_outstanding > 0

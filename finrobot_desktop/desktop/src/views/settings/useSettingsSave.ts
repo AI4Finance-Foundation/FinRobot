@@ -64,16 +64,27 @@ export function useSettingsSave() {
     settingsMutationRef.current = settingsMutation
   }, [settingsMutation])
 
-  const scheduleStandardSave = useCallback((payload: Record<string, unknown>) => {
-    if (!initializedRef.current) return
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    const merged = { ...(lastPayloadRef.current ?? {}), ...payload }
-    lastPayloadRef.current = merged
-    setSaveState('saving')
-    debounceRef.current = setTimeout(() => {
-      settingsMutationRef.current.mutate(merged as never)
-    }, 500)
-  }, [])
+  // `onSaved` fires once after THIS debounced PUT succeeds (react-query per-call
+  // onSuccess runs in addition to the mutation-level one). Used by the AI Model
+  // panel to auto-run the live connection test the instant the key/model lands
+  // server-side — so a wrong key is caught at config time, not 60s into a run.
+  // The debounce coalesces rapid edits, so only the final call's onSaved runs.
+  const scheduleStandardSave = useCallback(
+    (payload: Record<string, unknown>, onSaved?: () => void) => {
+      if (!initializedRef.current) return
+      if (debounceRef.current) clearTimeout(debounceRef.current)
+      const merged = { ...(lastPayloadRef.current ?? {}), ...payload }
+      lastPayloadRef.current = merged
+      setSaveState('saving')
+      debounceRef.current = setTimeout(() => {
+        settingsMutationRef.current.mutate(
+          merged as never,
+          onSaved ? { onSuccess: () => onSaved() } : undefined,
+        )
+      }, 500)
+    },
+    [],
+  )
 
   const retrySave = useCallback(() => {
     const payload = lastPayloadRef.current

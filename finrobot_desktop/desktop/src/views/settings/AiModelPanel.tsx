@@ -46,7 +46,7 @@ interface AiModelPanelProps {
   setDraftProvider: React.Dispatch<React.SetStateAction<DraftProvider>>
   testState: LlmTestState
   setTestState: (v: LlmTestState) => void
-  scheduleStandardSave: (payload: Record<string, unknown>) => void
+  scheduleStandardSave: (payload: Record<string, unknown>, onSaved?: () => void) => void
   onClearSecret: (field: string) => void
 }
 
@@ -84,6 +84,23 @@ export function AiModelPanel({
   }))
   const llmKeyConfigured = currentProviderInfo?.key_set ?? false
 
+  // Live connection probe (tiny "ping" LLM call). Takes explicit ids so the
+  // auto-test fired from a save callback uses the values at edit time, not a
+  // stale render closure. Soft-block: a failed test shows ✗ + reason but the key
+  // stays saved — the user fixes and it re-tests, no config rollback.
+  const testConnection = async (providerId: string, modelId: string | null) => {
+    setTestState({ status: 'testing' })
+    try {
+      const { data, error } = await api.POST('/api/settings/test-provider', {
+        body: { provider_id: providerId, model_id: modelId },
+      })
+      if (error || !data) throw new Error('test failed')
+      setTestState({ status: 'done', ok: data.ok, code: data.code, detail: data.detail })
+    } catch {
+      setTestState({ status: 'done', ok: false, code: 'unknown' })
+    }
+  }
+
   const handleProviderChange = (providerId: string) => {
     const p = providers.find((x) => x.id === providerId)
     // Keep the current model id if the new provider lists it, else fall back to
@@ -97,32 +114,35 @@ export function AiModelPanel({
     setLlmApiKey('')
     setAddingCustom(false)
     setTestState({ status: 'idle' })
-    scheduleStandardSave({ model_name: next })
+    // Switching to a provider that's ALREADY keyed (key_set) with a model →
+    // auto-test it; otherwise wait for the user to enter a key.
+    const autoTest =
+      p?.key_set && nextModel ? () => void testConnection(providerId, nextModel) : undefined
+    scheduleStandardSave({ model_name: next }, autoTest)
   }
   const handleModelIdChange = (mid: string) => {
     const next = `${currentProviderId}:${mid}`
     setModelName(next)
     setTestState({ status: 'idle' })
-    scheduleStandardSave({ model_name: next })
+    const pid = currentProviderId
+    // Auto-test once the model id lands — but only if the key is already saved
+    // (else the probe trivially fails with no_key while the user is mid-setup).
+    const autoTest = mid && llmKeyConfigured ? () => void testConnection(pid, mid) : undefined
+    scheduleStandardSave({ model_name: next }, autoTest)
   }
   const handleLlmKeyChange = (v: string) => {
     setLlmApiKey(v)
     setTestState({ status: 'idle' })
     if (!v.trim()) return
-    scheduleStandardSave({ provider_keys: { [currentProviderId]: v.trim() } })
+    const pid = currentProviderId
+    const mid = currentModelId
+    // The key is the last piece of a complete config — auto-test the moment it
+    // saves (debounce coalesces keystrokes, so one PUT, one ping). Needs a model
+    // chosen; without one the probe can't know what to call.
+    const autoTest = mid ? () => void testConnection(pid, mid) : undefined
+    scheduleStandardSave({ provider_keys: { [pid]: v.trim() } }, autoTest)
   }
-  const handleTestConnection = async () => {
-    setTestState({ status: 'testing' })
-    try {
-      const { data, error } = await api.POST('/api/settings/test-provider', {
-        body: { provider_id: currentProviderId, model_id: currentModelId || null },
-      })
-      if (error || !data) throw new Error('test failed')
-      setTestState({ status: 'done', ok: data.ok, code: data.code, detail: data.detail })
-    } catch {
-      setTestState({ status: 'done', ok: false, code: 'unknown' })
-    }
-  }
+  const handleTestConnection = () => void testConnection(currentProviderId, currentModelId || null)
 
   // ── Custom provider add / edit / delete (full-list replace) ───────────────
   // A custom provider's name doubles as its id (the "<id>:<model>" prefix), so
@@ -157,8 +177,11 @@ export function AiModelPanel({
       custom_providers: next,
       model_name: `${name}:${modelId}`,
     }
-    if (draftProvider.apiKey.trim()) payload.provider_keys = { [name]: draftProvider.apiKey.trim() }
-    scheduleStandardSave(payload)
+    const hasKey = !!draftProvider.apiKey.trim()
+    if (hasKey) payload.provider_keys = { [name]: draftProvider.apiKey.trim() }
+    // A custom provider added WITH a key + model is a complete config → auto-test.
+    const autoTest = hasKey && modelId ? () => void testConnection(name, modelId) : undefined
+    scheduleStandardSave(payload, autoTest)
     setModelName(`${name}:${modelId}`) // select the new provider
     setLlmApiKey('')
     setTestState({ status: 'idle' })

@@ -13,6 +13,7 @@ import { MandatoryUpdateGate } from '../components/MandatoryUpdateGate'
 import { useUiStore } from '../stores/uiStore'
 import { useUpdaterStore } from '../stores/updaterStore'
 import { pickDirectory, isTauri, DEFAULT_WORKSPACE_PATH } from '../lib/tauri'
+import { AI_CHAT_ENABLED } from '../config/features'
 
 const WELCOME_SHOWN_KEY = 'finrobot-welcome-shown'
 
@@ -91,7 +92,7 @@ export function AppShell(): React.ReactElement {
             <Outlet />
           </ErrorBoundary>
         </main>
-        <RightChatPanel />
+        {AI_CHAT_ENABLED ? <RightChatPanel /> : null}
       </div>
       {/* v5: toast portal — mounted at shell level so every page / section
           can pop toasts (pipeline launch / completion / errors). */}

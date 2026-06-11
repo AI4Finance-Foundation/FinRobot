@@ -110,14 +110,14 @@ describe('SettingsView', () => {
   // The section title and the left-nav item share the same label, so target
   // the section heading (h2) specifically rather than the ambiguous text.
   it('renders AI 模型 section', async () => {
-    renderWithQuery(<SettingsView onComplete={() => {}} />)
+    renderWithQuery(<SettingsView />)
     expect(await screen.findByRole('heading', { name: 'AI Model' })).toBeInTheDocument()
   })
 
   // The settings page is tabbed: only the selected panel renders, so data-source
   // assertions must first switch panels via the left nav.
   it('renders unified data-source rows: live circuit state + inline key config', async () => {
-    renderWithQuery(<SettingsView onComplete={() => {}} />)
+    renderWithQuery(<SettingsView />)
     fireEvent.click(await screen.findByRole('button', { name: 'Data Sources' }))
     // fmp row: name + inline key input + test button on the same row.
     expect(await screen.findByText('FMP')).toBeInTheDocument()
@@ -130,7 +130,7 @@ describe('SettingsView', () => {
   })
 
   it('shows only the selected panel: Data Sources hidden until its nav item is clicked', async () => {
-    renderWithQuery(<SettingsView onComplete={() => {}} />)
+    renderWithQuery(<SettingsView />)
     // Landing panel is AI Model; no Data Sources heading yet.
     expect(await screen.findByRole('heading', { name: 'AI Model' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Data Sources' })).not.toBeInTheDocument()
@@ -153,7 +153,7 @@ describe('SettingsView', () => {
       error: { detail: 'backend down' },
     } as never)
 
-    renderWithQuery(<SettingsView onComplete={() => {}} />)
+    renderWithQuery(<SettingsView />)
 
     // Error state visible…
     expect(await screen.findByText("Can't load settings")).toBeInTheDocument()
@@ -166,7 +166,7 @@ describe('SettingsView', () => {
   // BUG-009: clicking the 13F sync button must surface a confirmation BEFORE
   // firing the heavy multi-hour refresh request.
   it('requires confirmation before calling the 13F refresh endpoint', async () => {
-    renderWithQuery(<SettingsView onComplete={() => {}} />)
+    renderWithQuery(<SettingsView />)
 
     // 13F holdings lives inside the Data Sources panel now. The panel mounts
     // on click, so wait out the brief disabled window while its status query

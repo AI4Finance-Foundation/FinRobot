@@ -27,10 +27,6 @@ import { ClearKeyConfirmModal } from './settings/ClearKeyConfirmModal'
 // (`views/SettingsView`) for tests and any future consumer.
 export { isValidSecIdentity, secHeaderIdentityPreview } from './settings/secIdentity'
 
-interface Props {
-  onComplete: () => void
-}
-
 // ─── Panel nav (left rail) ────────────────────────────────────────────────────
 // True tabbed panels, not a scroll-spy over one long page: clicking a nav item
 // renders ONLY that panel. SEC 13F holdings lives inside Data Sources.
@@ -45,7 +41,7 @@ type SettingsPanel = (typeof NAV_ITEMS)[number]['id']
 
 // ─── Main component ────────────────────────────────────────────────────────
 
-export default function SettingsView({ onComplete: _onComplete }: Props) {
+export default function SettingsView() {
   const { t } = useI18n()
   const queryClient = useQueryClient()
   const addToast = useToastStore((s) => s.addToast)

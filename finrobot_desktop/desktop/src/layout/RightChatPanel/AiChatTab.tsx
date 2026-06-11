@@ -7,7 +7,7 @@
 // This file owns the expanded/collapsed prop shim, unread tracking for the
 // collapsed state, and the sessions drawer toggle.
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { useUiStore } from '../../stores/uiStore'
 import { ContextBar } from '../AIPanel/ContextBar'
@@ -42,9 +42,7 @@ export function AiChatTab({
 
   // ── uiStore bindings ────────────────────────────────────────
   const storeOpen = useUiStore((s) => s.aiPanelOpen)
-  const storeWidth = useUiStore((s) => s.aiPanelWidth)
   const toggleAiPanel = useUiStore((s) => s.toggleAiPanel)
-  const setAiPanelWidth = useUiStore((s) => s.setAiPanelWidth)
 
   // Prop-override: if caller supplies expanded/onToggle, use those.
   // Otherwise fall through to uiStore.
@@ -96,43 +94,6 @@ export function AiChatTab({
     }
   }, [messages, isExpanded])
 
-  // ── Resize handle ───────────────────────────────────────────
-  const panelRef = useRef<HTMLElement>(null)
-  const resizing = useRef(false)
-  const resizeStartX = useRef(0)
-  const resizeStartW = useRef(0)
-
-  const onResizeMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      resizing.current = true
-      resizeStartX.current = e.clientX
-      resizeStartW.current = storeWidth
-
-      const onMove = (ev: MouseEvent): void => {
-        if (!resizing.current) return
-        // Handle is on left edge: drag left = wider, drag right = narrower
-        const delta = resizeStartX.current - ev.clientX
-        setAiPanelWidth(resizeStartW.current + delta)
-      }
-      const onUp = (): void => {
-        resizing.current = false
-        window.removeEventListener('mousemove', onMove)
-        window.removeEventListener('mouseup', onUp)
-      }
-      window.addEventListener('mousemove', onMove)
-      window.addEventListener('mouseup', onUp)
-      e.preventDefault()
-    },
-    [storeWidth, setAiPanelWidth],
-  )
-
-  // ── Handle expand toggle for collapsed state ─────────────────
-  const handleExpandToggle = useCallback(() => {
-    handleToggle()
-    setUnreadCount(0)
-    lastSeenMessageCountRef.current = messages.filter((m) => m.role === 'assistant').length
-  }, [handleToggle, messages])
-
   // ── Collapsed: legacy/test path (prop injected) ───────────────
   // Tests that inject expanded={false} still expect an IconColumn; the
   // uiStore path renders nothing here because the splitter (index.tsx)
@@ -150,11 +111,6 @@ export function AiChatTab({
       />
     )
   }
-
-  // Reference held variables (read by tests / future floating-summary):
-  void panelRef
-  void onResizeMouseDown
-  void handleExpandToggle
 
   return (
     <div

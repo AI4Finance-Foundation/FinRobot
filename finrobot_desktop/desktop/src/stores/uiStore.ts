@@ -19,6 +19,7 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { DEFAULT_WORKSPACE_PATH } from '../lib/tauri'
+import { AI_CHAT_ENABLED } from '../config/features'
 
 // ─── Store shape ──────────────────────────────────────────────────
 
@@ -70,8 +71,11 @@ export const useUiStore = create<UiStoreState>()(
       pendingChatPrompt: null,
 
       // AI panel
-      setAiPanelOpen: (aiPanelOpen) => set({ aiPanelOpen }),
-      toggleAiPanel: () => set((s) => ({ aiPanelOpen: !s.aiPanelOpen })),
+      setAiPanelOpen: (aiPanelOpen) => set({ aiPanelOpen: AI_CHAT_ENABLED && aiPanelOpen }),
+      toggleAiPanel: () => {
+        if (!AI_CHAT_ENABLED) return
+        set((s) => ({ aiPanelOpen: !s.aiPanelOpen }))
+      },
       setAiPanelWidth: (w) => set({ aiPanelWidth: clamp(w, MIN_AIPANEL_W, MAX_AIPANEL_W) }),
 
       // workspace
@@ -79,10 +83,17 @@ export const useUiStore = create<UiStoreState>()(
 
       // chat handoff (Dashboard hero → RightChatPanel)
       sendChatPrompt: (text, autoSend = true) =>
-        set({
-          pendingChatPrompt: { text, autoSend },
-          aiPanelOpen: true,
-        }),
+        set(
+          AI_CHAT_ENABLED
+            ? {
+                pendingChatPrompt: { text, autoSend },
+                aiPanelOpen: true,
+              }
+            : {
+                pendingChatPrompt: null,
+                aiPanelOpen: false,
+              },
+        ),
       consumePendingChatPrompt: () => set({ pendingChatPrompt: null }),
     }),
     {
@@ -91,7 +102,7 @@ export const useUiStore = create<UiStoreState>()(
       // Persist only stable chrome prefs.
       partialize: (s) => ({
         aiPanelWidth: s.aiPanelWidth,
-        aiPanelOpen: s.aiPanelOpen,
+        aiPanelOpen: AI_CHAT_ENABLED && s.aiPanelOpen,
         workspacePath: s.workspacePath,
       }),
       onRehydrateStorage: () => () => {

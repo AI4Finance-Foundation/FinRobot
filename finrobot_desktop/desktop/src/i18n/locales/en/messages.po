@@ -13,4021 +13,4021 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. js-lingui-explicit-id
-#~ msgid "app.name"
-#~ msgstr "FinRobot"
+msgid "app.name"
+msgstr "FinRobot"
 
 #. js-lingui-explicit-id
-#~ msgid "app.tagline"
-#~ msgstr "AI-powered equity research workstation"
+msgid "app.tagline"
+msgstr "AI-powered equity research workstation"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.collapse"
-#~ msgstr "Collapse"
+msgid "chat.collapse"
+msgstr "Collapse"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.empty.body"
-#~ msgstr "I have access to live prices, financials, news and can run valuations."
+msgid "chat.empty.body"
+msgstr "I have access to live prices, financials, news and can run valuations."
 
 #. js-lingui-explicit-id
-#~ msgid "chat.empty.example.1"
-#~ msgstr "Why is {ticker} down today?"
+msgid "chat.empty.example.1"
+msgstr "Why is {ticker} down today?"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.empty.example.2"
-#~ msgstr "Summarize {ticker}'s last quarter"
+msgid "chat.empty.example.2"
+msgstr "Summarize {ticker}'s last quarter"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.empty.example.3"
-#~ msgstr "Compare {ticker} to its peers"
+msgid "chat.empty.example.3"
+msgstr "Compare {ticker} to its peers"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.empty.example.generic.1"
-#~ msgstr "Explain DCF in 30 seconds"
+msgid "chat.empty.example.generic.1"
+msgstr "Explain DCF in 30 seconds"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.empty.example.generic.2"
-#~ msgstr "What's the difference between LBO and DCF?"
+msgid "chat.empty.example.generic.2"
+msgstr "What's the difference between LBO and DCF?"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.empty.example.generic.3"
-#~ msgstr "How do you read a 10-K?"
+msgid "chat.empty.example.generic.3"
+msgstr "How do you read a 10-K?"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.empty.heading"
-#~ msgstr "Ask anything about finance"
+msgid "chat.empty.heading"
+msgstr "Ask anything about finance"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.error.context"
-#~ msgstr "Conversation too long. Start a new chat."
+msgid "chat.error.context"
+msgstr "Conversation too long. Start a new chat."
 
 #. js-lingui-explicit-id
-#~ msgid "chat.error.generic"
-#~ msgstr "Request failed."
+msgid "chat.error.generic"
+msgstr "Request failed."
 
 #. js-lingui-explicit-id
-#~ msgid "chat.error.unavailable"
-#~ msgstr "Service unavailable. Try again in a moment."
+msgid "chat.error.unavailable"
+msgstr "Service unavailable. Try again in a moment."
 
 #. js-lingui-explicit-id
-#~ msgid "chat.expand"
-#~ msgstr "Open chat"
+msgid "chat.expand"
+msgstr "Open chat"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.input.placeholder"
-#~ msgstr "Message FinRobot… (Enter to send, Shift+Enter for newline)"
+msgid "chat.input.placeholder"
+msgstr "Message FinRobot… (Enter to send, Shift+Enter for newline)"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.model.tooltip"
-#~ msgstr "Model"
+msgid "chat.model.tooltip"
+msgstr "Model"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.newSession"
-#~ msgstr "New chat"
+msgid "chat.newSession"
+msgstr "New chat"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.overlength"
-#~ msgstr "{count} / {max} characters"
+msgid "chat.overlength"
+msgstr "{count} / {max} characters"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.reasoning"
-#~ msgstr "Reasoning"
+msgid "chat.reasoning"
+msgstr "Reasoning"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.retry"
-#~ msgstr "Retry"
+msgid "chat.retry"
+msgstr "Retry"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.send"
-#~ msgstr "Send"
+msgid "chat.send"
+msgstr "Send"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.stop"
-#~ msgstr "Stop"
+msgid "chat.stop"
+msgstr "Stop"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.thinking"
-#~ msgstr "Thinking…"
+msgid "chat.thinking"
+msgstr "Thinking…"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.status.requesting"
-#~ msgstr "Requesting…"
+msgid "chat.status.requesting"
+msgstr "Requesting…"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.status.responding"
-#~ msgstr "Responding…"
+msgid "chat.status.responding"
+msgstr "Responding…"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.status.running"
-#~ msgstr "Running {tool}…"
+msgid "chat.status.running"
+msgstr "Running {tool}…"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.status.stalled"
-#~ msgstr "still waiting…"
+msgid "chat.status.stalled"
+msgstr "still waiting…"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.ticker.switched"
-#~ msgstr "Switched to {ticker} — previous chat saved to Library"
+msgid "chat.ticker.switched"
+msgstr "Switched to {ticker} — previous chat saved to Library"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.title.explore"
-#~ msgstr "Explore"
+msgid "chat.title.explore"
+msgstr "Explore"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.title.new"
-#~ msgstr "New chat"
+msgid "chat.title.new"
+msgstr "New chat"
 
 #. js-lingui-explicit-id
-#~ msgid "chat.tool.share"
-#~ msgstr "Share to chat"
+msgid "chat.tool.share"
+msgstr "Share to chat"
 
 #. js-lingui-explicit-id
-#~ msgid "common.cancel"
-#~ msgstr "Cancel"
+msgid "common.cancel"
+msgstr "Cancel"
 
 #. js-lingui-explicit-id
-#~ msgid "common.close"
-#~ msgstr "Close"
+msgid "common.close"
+msgstr "Close"
 
 #. js-lingui-explicit-id
-#~ msgid "common.delete"
-#~ msgstr "Delete"
+msgid "common.delete"
+msgstr "Delete"
 
 #. js-lingui-explicit-id
-#~ msgid "common.error"
-#~ msgstr "Error"
+msgid "common.error"
+msgstr "Error"
 
 #. js-lingui-explicit-id
-#~ msgid "common.loading"
-#~ msgstr "Loading…"
+msgid "common.loading"
+msgstr "Loading…"
 
 #. js-lingui-explicit-id
-#~ msgid "common.notAvailable"
-#~ msgstr "N/A"
+msgid "common.notAvailable"
+msgstr "N/A"
 
 #. js-lingui-explicit-id
-#~ msgid "common.open"
-#~ msgstr "Open"
+msgid "common.open"
+msgstr "Open"
 
 #. js-lingui-explicit-id
-#~ msgid "common.retry"
-#~ msgstr "Retry"
+msgid "common.retry"
+msgstr "Retry"
 
 #. js-lingui-explicit-id
-#~ msgid "library.delete"
-#~ msgstr "Delete"
+msgid "library.delete"
+msgstr "Delete"
 
 #. js-lingui-explicit-id
-#~ msgid "library.empty"
-#~ msgstr "No saved analyses yet. Run any tool to start filling your library."
+msgid "library.empty"
+msgstr "No saved analyses yet. Run any tool to start filling your library."
 
 #. js-lingui-explicit-id
-#~ msgid "library.export"
-#~ msgstr "Export"
+msgid "library.export"
+msgstr "Export"
 
 #. js-lingui-explicit-id
-#~ msgid "library.filter.all"
-#~ msgstr "All"
+msgid "library.filter.all"
+msgstr "All"
 
 #. js-lingui-explicit-id
-#~ msgid "library.filter.comps"
-#~ msgstr "Comps"
+msgid "library.filter.comps"
+msgstr "Comps"
 
 #. js-lingui-explicit-id
-#~ msgid "library.filter.dcf"
-#~ msgstr "DCF"
+msgid "library.filter.dcf"
+msgstr "DCF"
 
 #. js-lingui-explicit-id
-#~ msgid "library.filter.icmemo"
-#~ msgstr "IC memo"
+msgid "library.filter.icmemo"
+msgstr "IC memo"
 
 #. js-lingui-explicit-id
-#~ msgid "library.filter.lbo"
-#~ msgstr "LBO"
+msgid "library.filter.lbo"
+msgstr "LBO"
 
 #. js-lingui-explicit-id
-#~ msgid "library.filter.research"
-#~ msgstr "Research"
+msgid "library.filter.research"
+msgstr "Research"
 
 #. js-lingui-explicit-id
-#~ msgid "library.open"
-#~ msgstr "Open"
+msgid "library.open"
+msgstr "Open"
 
 #. js-lingui-explicit-id
-#~ msgid "library.title"
-#~ msgstr "Library"
+msgid "library.title"
+msgstr "Library"
 
 #. js-lingui-explicit-id
-#~ msgid "nav.library"
-#~ msgstr "Library"
+msgid "nav.library"
+msgstr "Library"
 
 #. js-lingui-explicit-id
-#~ msgid "nav.recent"
-#~ msgstr "Recent"
+msgid "nav.recent"
+msgstr "Recent"
 
 #. js-lingui-explicit-id
-#~ msgid "nav.recent.empty"
-#~ msgstr "Tickers you visit appear here"
+msgid "nav.recent.empty"
+msgstr "Tickers you visit appear here"
 
 #. js-lingui-explicit-id
-#~ msgid "nav.settings"
-#~ msgstr "Settings"
+msgid "nav.settings"
+msgstr "Settings"
 
 #. js-lingui-explicit-id
-#~ msgid "nav.research"
-#~ msgstr "Research"
+msgid "nav.research"
+msgstr "Research"
 
 #. js-lingui-explicit-id
-#~ msgid "nav.coverage"
-#~ msgstr "Coverage"
+msgid "nav.coverage"
+msgstr "Coverage"
 
 #. js-lingui-explicit-id
-#~ msgid "nav.back"
-#~ msgstr "Back"
+msgid "nav.back"
+msgstr "Back"
 
 #. js-lingui-explicit-id
-#~ msgid "peers.cta"
-#~ msgstr "Compare peers now"
+msgid "peers.cta"
+msgstr "Compare peers now"
 
 #. js-lingui-explicit-id
-#~ msgid "peers.empty"
-#~ msgstr "No peer comparison yet. Click \"Compare peers\" to analyze."
+msgid "peers.empty"
+msgstr "No peer comparison yet. Click \"Compare peers\" to analyze."
 
 #. js-lingui-explicit-id
-#~ msgid "research.ask"
-#~ msgstr "Ask"
+msgid "research.ask"
+msgstr "Ask"
 
 #. js-lingui-explicit-id
-#~ msgid "research.citations"
-#~ msgstr "Citations"
+msgid "research.citations"
+msgstr "Citations"
 
 #. js-lingui-explicit-id
-#~ msgid "research.empty"
-#~ msgstr "Ask a question about the SEC 10-K filing to get started."
+msgid "research.empty"
+msgstr "Ask a question about the SEC 10-K filing to get started."
 
 #. js-lingui-explicit-id
-#~ msgid "research.error"
-#~ msgstr "Unable to get an answer right now. Please try again later."
+msgid "research.error"
+msgstr "Unable to get an answer right now. Please try again later."
 
 #. js-lingui-explicit-id
-#~ msgid "research.heading"
-#~ msgstr "10-K Q&A"
+msgid "research.heading"
+msgstr "10-K Q&A"
 
 #. js-lingui-explicit-id
-#~ msgid "research.placeholder"
-#~ msgstr "Ask about this company's 10-K filing…"
+msgid "research.placeholder"
+msgstr "Ask about this company's 10-K filing…"
 
 #. js-lingui-explicit-id
-#~ msgid "research.relevance"
-#~ msgstr "relevance"
+msgid "research.relevance"
+msgstr "relevance"
 
 #. js-lingui-explicit-id
-#~ msgid "research.source"
-#~ msgstr "Source: SEC 10-K Filing"
+msgid "research.source"
+msgstr "Source: SEC 10-K Filing"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.apikey.anthropic"
-#~ msgstr "Anthropic API key"
+msgid "settings.apikey.anthropic"
+msgstr "Anthropic API key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.apikey.deepseek"
-#~ msgstr "DeepSeek API key"
+msgid "settings.apikey.deepseek"
+msgstr "DeepSeek API key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.apikey.notset"
-#~ msgstr "Not configured"
+msgid "settings.apikey.notset"
+msgstr "Not configured"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.apikey.openai"
-#~ msgstr "OpenAI API key"
+msgid "settings.apikey.openai"
+msgstr "OpenAI API key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.apikey.placeholder"
-#~ msgstr "sk-…"
+msgid "settings.apikey.placeholder"
+msgstr "sk-…"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.apikey.set"
-#~ msgstr "✓ Set"
+msgid "settings.apikey.set"
+msgstr "✓ Set"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.model.default"
-#~ msgstr "Default model"
+msgid "settings.model.default"
+msgstr "Default model"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.save"
-#~ msgstr "Save"
+msgid "settings.save"
+msgstr "Save"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.saveFailed"
-#~ msgstr "Save failed: {error}"
+msgid "settings.saveFailed"
+msgstr "Save failed: {error}"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.saved"
-#~ msgstr "Saved."
+msgid "settings.saved"
+msgstr "Saved."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.section.about"
-#~ msgstr "About"
+msgid "settings.section.about"
+msgstr "About"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.section.appearance"
-#~ msgstr "Appearance"
+msgid "settings.section.appearance"
+msgstr "Appearance"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.section.data"
-#~ msgstr "Data sources"
+msgid "settings.section.data"
+msgstr "Data sources"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.section.models"
-#~ msgstr "Models & API keys"
+msgid "settings.section.models"
+msgstr "Models & API keys"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.title"
-#~ msgstr "Settings"
+msgid "settings.title"
+msgstr "Settings"
 
 #. js-lingui-explicit-id
-#~ msgid "stock.error.retry"
-#~ msgstr "Retry"
+msgid "stock.error.retry"
+msgstr "Retry"
 
 #. js-lingui-explicit-id
-#~ msgid "stock.error.title"
-#~ msgstr "Could not load price data"
+msgid "stock.error.title"
+msgstr "Could not load price data"
 
 #. js-lingui-explicit-id
-#~ msgid "stock.loading"
-#~ msgstr "Loading market data…"
+msgid "stock.loading"
+msgstr "Loading market data…"
 
 #. js-lingui-explicit-id
-#~ msgid "stock.marketcap"
-#~ msgstr "Mkt cap"
+msgid "stock.marketcap"
+msgstr "Mkt cap"
 
 #. js-lingui-explicit-id
-#~ msgid "stocks.empty.analyze"
-#~ msgstr "Analyze"
+msgid "stocks.empty.analyze"
+msgstr "Analyze"
 
 #. js-lingui-explicit-id
-#~ msgid "stocks.empty.invalid"
-#~ msgstr "Letters, digits, . and - only (max 12 chars)"
+msgid "stocks.empty.invalid"
+msgstr "Letters, digits, . and - only (max 12 chars)"
 
 #. js-lingui-explicit-id
-#~ msgid "stocks.empty.placeholder"
-#~ msgstr "AAPL"
+msgid "stocks.empty.placeholder"
+msgstr "AAPL"
 
 #. js-lingui-explicit-id
-#~ msgid "stocks.empty.quick"
-#~ msgstr "Quick access"
+msgid "stocks.empty.quick"
+msgstr "Quick access"
 
 #. js-lingui-explicit-id
-#~ msgid "stocks.empty.recent"
-#~ msgstr "Recent"
+msgid "stocks.empty.recent"
+msgstr "Recent"
 
 #. js-lingui-explicit-id
-#~ msgid "stocks.empty.title"
-#~ msgstr "Type a ticker or pick one below"
+msgid "stocks.empty.title"
+msgstr "Type a ticker or pick one below"
 
 #. js-lingui-explicit-id
-#~ msgid "tab.comps"
-#~ msgstr "Comps"
+msgid "tab.comps"
+msgstr "Comps"
 
 #. js-lingui-explicit-id
-#~ msgid "tab.financials"
-#~ msgstr "Financials"
+msgid "tab.financials"
+msgstr "Financials"
 
 #. js-lingui-explicit-id
-#~ msgid "tab.history"
-#~ msgstr "History"
+msgid "tab.history"
+msgstr "History"
 
 #. js-lingui-explicit-id
-#~ msgid "tab.news"
-#~ msgstr "News"
+msgid "tab.news"
+msgstr "News"
 
 #. js-lingui-explicit-id
-#~ msgid "tab.overview"
-#~ msgstr "Overview"
+msgid "tab.overview"
+msgstr "Overview"
 
 #. js-lingui-explicit-id
-#~ msgid "tab.performance"
-#~ msgstr "Performance"
+msgid "tab.performance"
+msgstr "Performance"
 
 #. js-lingui-explicit-id
-#~ msgid "tab.research"
-#~ msgstr "10-K"
+msgid "tab.research"
+msgstr "10-K"
 
 #. js-lingui-explicit-id
-#~ msgid "tab.valuation"
-#~ msgstr "Valuation"
+msgid "tab.valuation"
+msgstr "Valuation"
 
 #. js-lingui-explicit-id
-#~ msgid "tool.error.cancelled"
-#~ msgstr "Request cancelled"
+msgid "tool.error.cancelled"
+msgstr "Request cancelled"
 
 #. js-lingui-explicit-id
-#~ msgid "tool.error.generic"
-#~ msgstr "{tool} failed. Please try again."
+msgid "tool.error.generic"
+msgstr "{tool} failed. Please try again."
 
 #. js-lingui-explicit-id
-#~ msgid "tool.error.invalid"
-#~ msgstr "Invalid inputs for {tool}"
+msgid "tool.error.invalid"
+msgstr "Invalid inputs for {tool}"
 
 #. js-lingui-explicit-id
-#~ msgid "tool.error.unavailable"
-#~ msgstr "Service temporarily unavailable. Please try again later."
+msgid "tool.error.unavailable"
+msgstr "Service temporarily unavailable. Please try again later."
 
 #. js-lingui-explicit-id
-#~ msgid "tool.error.unknown"
-#~ msgstr "Unknown error"
+msgid "tool.error.unknown"
+msgstr "Unknown error"
 
 #. js-lingui-explicit-id
-#~ msgid "tool.error.unsupported"
-#~ msgstr "{tool} is not yet supported"
+msgid "tool.error.unsupported"
+msgstr "{tool} is not yet supported"
 
 #. js-lingui-explicit-id
-#~ msgid "tool.toast.failure"
-#~ msgstr "{tool} failed"
+msgid "tool.toast.failure"
+msgstr "{tool} failed"
 
 #. js-lingui-explicit-id
-#~ msgid "tool.toast.success"
-#~ msgstr "{tool} complete — saved to Library"
+msgid "tool.toast.success"
+msgstr "{tool} complete — saved to Library"
 
 #. js-lingui-explicit-id
-#~ msgid "toolcard.failed"
-#~ msgstr "Tool call failed"
+msgid "toolcard.failed"
+msgstr "Tool call failed"
 
 #. js-lingui-explicit-id
-#~ msgid "toolcard.openArtifact"
-#~ msgstr "📁 Open report"
+msgid "toolcard.openArtifact"
+msgstr "📁 Open report"
 
 #. js-lingui-explicit-id
-#~ msgid "toolcard.retry"
-#~ msgstr "Retry"
+msgid "toolcard.retry"
+msgstr "Retry"
 
 #. js-lingui-explicit-id
-#~ msgid "topbar.account.tooltip"
-#~ msgstr "Account"
+msgid "topbar.account.tooltip"
+msgstr "Account"
 
 #. js-lingui-explicit-id
-#~ msgid "topbar.language.tooltip"
-#~ msgstr "Language"
+msgid "topbar.language.tooltip"
+msgstr "Language"
 
 #. js-lingui-explicit-id
-#~ msgid "topbar.search.placeholder"
-#~ msgstr "Search ticker or ask anything (⌘K)"
+msgid "topbar.search.placeholder"
+msgstr "Search ticker or ask anything (⌘K)"
 
 #. js-lingui-explicit-id
-#~ msgid "topbar.settings.tooltip"
-#~ msgstr "Settings"
+msgid "topbar.settings.tooltip"
+msgstr "Settings"
 
 #. js-lingui-explicit-id
-#~ msgid "valuation.comp.title"
-#~ msgstr "Comprehensive Valuation"
+msgid "valuation.comp.title"
+msgstr "Comprehensive Valuation"
 
 #. js-lingui-explicit-id
-#~ msgid "valuation.dcf.cta"
-#~ msgstr "Run DCF now"
+msgid "valuation.dcf.cta"
+msgstr "Run DCF now"
 
 #. js-lingui-explicit-id
-#~ msgid "valuation.dcf.empty"
-#~ msgstr "No DCF run yet. Click \"Run DCF\" above to value this company."
+msgid "valuation.dcf.empty"
+msgstr "No DCF run yet. Click \"Run DCF\" above to value this company."
 
 #. js-lingui-explicit-id
-#~ msgid "valuation.dcf.title"
-#~ msgstr "DCF Workspace"
+msgid "valuation.dcf.title"
+msgstr "DCF Workspace"
 
 #. js-lingui-explicit-id
-#~ msgid "valuation.lbo.title"
-#~ msgstr "LBO Analysis"
+msgid "valuation.lbo.title"
+msgstr "LBO Analysis"
 
 #. js-lingui-explicit-id
-#~ msgid "valuation.source.research"
-#~ msgstr "Valuation from Research analysis. Run standalone DCF for fresh assumptions."
+msgid "valuation.source.research"
+msgstr "Valuation from Research analysis. Run standalone DCF for fresh assumptions."
 
 #. js-lingui-explicit-id
-#~ msgid "valuation.source.standalone"
-#~ msgstr "Standalone DCF analysis."
+msgid "valuation.source.standalone"
+msgstr "Standalone DCF analysis."
 
 #. js-lingui-explicit-id
-#~ msgid "verb.ask-ai"
-#~ msgstr "Ask AI"
+msgid "verb.ask-ai"
+msgstr "Ask AI"
 
 #. js-lingui-explicit-id
-#~ msgid "verb.ask-ai.tooltip"
-#~ msgstr "Open the chat panel and ask anything about this stock"
+msgid "verb.ask-ai.tooltip"
+msgstr "Open the chat panel and ask anything about this stock"
 
 #. js-lingui-explicit-id
-#~ msgid "verb.catalysts"
-#~ msgstr "Find catalysts"
+msgid "verb.catalysts"
+msgstr "Find catalysts"
 
 #. js-lingui-explicit-id
-#~ msgid "verb.catalysts.tooltip"
-#~ msgstr "Extract upcoming catalysts from recent news and filings"
+msgid "verb.catalysts.tooltip"
+msgstr "Extract upcoming catalysts from recent news and filings"
 
 #. js-lingui-explicit-id
-#~ msgid "verb.comps"
-#~ msgstr "Compare peers"
+msgid "verb.comps"
+msgstr "Compare peers"
 
 #. js-lingui-explicit-id
-#~ msgid "verb.comps.tooltip"
-#~ msgstr "Run comparable company analysis — fetch peer multiples"
+msgid "verb.comps.tooltip"
+msgstr "Run comparable company analysis — fetch peer multiples"
 
 #. js-lingui-explicit-id
-#~ msgid "verb.dcf"
-#~ msgstr "Run DCF"
+msgid "verb.dcf"
+msgstr "Run DCF"
 
 #. js-lingui-explicit-id
-#~ msgid "verb.dcf.tooltip"
-#~ msgstr "Run discounted cash flow valuation with default assumptions + live financials"
+msgid "verb.dcf.tooltip"
+msgstr "Run discounted cash flow valuation with default assumptions + live financials"
 
 #. js-lingui-explicit-id
-#~ msgid "verb.ddm"
-#~ msgstr "Run DDM"
+msgid "verb.ddm"
+msgstr "Run DDM"
 
 #. js-lingui-explicit-id
-#~ msgid "verb.ddm.tooltip"
-#~ msgstr "Dividend discount model — best for banks and dividend-paying stocks"
+msgid "verb.ddm.tooltip"
+msgstr "Dividend discount model — best for banks and dividend-paying stocks"
 
 #. js-lingui-explicit-id
-#~ msgid "verb.earnings"
-#~ msgstr "Earnings"
+msgid "verb.earnings"
+msgstr "Earnings"
 
 #. js-lingui-explicit-id
-#~ msgid "verb.earnings.tooltip"
-#~ msgstr "Earnings analysis — beat/miss classification + trend across quarters"
+msgid "verb.earnings.tooltip"
+msgstr "Earnings analysis — beat/miss classification + trend across quarters"
 
 #. js-lingui-explicit-id
-#~ msgid "verb.ic-memo"
-#~ msgstr "IC memo"
+msgid "verb.ic-memo"
+msgstr "IC memo"
 
 #. js-lingui-explicit-id
-#~ msgid "verb.ic-memo.tooltip"
-#~ msgstr "Generate an Investment Committee memo: situation, thesis, risks, recommendation"
+msgid "verb.ic-memo.tooltip"
+msgstr "Generate an Investment Committee memo: situation, thesis, risks, recommendation"
 
 #. js-lingui-explicit-id
-#~ msgid "verb.lbo"
-#~ msgstr "Run LBO"
+msgid "verb.lbo"
+msgstr "Run LBO"
 
 #. js-lingui-explicit-id
-#~ msgid "verb.lbo.tooltip"
-#~ msgstr "Run leveraged buyout model: IRR, MOIC, debt schedule, sensitivity grid"
+msgid "verb.lbo.tooltip"
+msgstr "Run leveraged buyout model: IRR, MOIC, debt schedule, sensitivity grid"
 
 #. js-lingui-explicit-id
-#~ msgid "verb.more"
-#~ msgstr "More"
+msgid "verb.more"
+msgstr "More"
 
 #. js-lingui-explicit-id
-#~ msgid "verdict.buy"
-#~ msgstr "BUY"
+msgid "verdict.buy"
+msgstr "BUY"
 
 #. js-lingui-explicit-id
-#~ msgid "verdict.hold"
-#~ msgstr "HOLD"
+msgid "verdict.hold"
+msgstr "HOLD"
 
 #. js-lingui-explicit-id
-#~ msgid "verdict.review"
-#~ msgstr "REVIEW"
+msgid "verdict.review"
+msgstr "REVIEW"
 
 #. js-lingui-explicit-id
-#~ msgid "verdict.sell"
-#~ msgstr "SELL"
+msgid "verdict.sell"
+msgstr "SELL"
 
 #. js-lingui-explicit-id
-#~ msgid "errors.network.offline"
-#~ msgstr "Network connection failed. Please check your connection."
+msgid "errors.network.offline"
+msgstr "Network connection failed. Please check your connection."
 
 #. js-lingui-explicit-id
-#~ msgid "errors.server.unavailable"
-#~ msgstr "Service temporarily unavailable. Please try again later."
+msgid "errors.server.unavailable"
+msgstr "Service temporarily unavailable. Please try again later."
 
 #. js-lingui-explicit-id
-#~ msgid "errors.client.invalid"
-#~ msgstr "Request failed. Please refresh the page."
+msgid "errors.client.invalid"
+msgstr "Request failed. Please refresh the page."
 
 #. js-lingui-explicit-id
-#~ msgid "errors.notfound"
-#~ msgstr "Resource not found."
+msgid "errors.notfound"
+msgstr "Resource not found."
 
 #. js-lingui-explicit-id
-#~ msgid "errors.cancelled"
-#~ msgstr "Cancelled."
+msgid "errors.cancelled"
+msgstr "Cancelled."
 
 #. js-lingui-explicit-id
-#~ msgid "errors.unknown"
-#~ msgstr "Failed to load. Please try again later."
+msgid "errors.unknown"
+msgstr "Failed to load. Please try again later."
 
 #. js-lingui-explicit-id
-#~ msgid "errors.dataLoad.historical"
-#~ msgstr "Failed to load multi-year financials"
+msgid "errors.dataLoad.historical"
+msgstr "Failed to load multi-year financials"
 
 #. js-lingui-explicit-id
-#~ msgid "report.timeline.archived"
-#~ msgstr "archived"
+msgid "report.timeline.archived"
+msgstr "archived"
 
 #. js-lingui-explicit-id
-#~ msgid "report.timeline.current"
-#~ msgstr "current"
+msgid "report.timeline.current"
+msgstr "current"
 
 #. js-lingui-explicit-id
-#~ msgid "report.timeline.empty"
-#~ msgstr "No history yet. Run analysis again to build a timeline."
+msgid "report.timeline.empty"
+msgstr "No history yet. Run analysis again to build a timeline."
 
 #. js-lingui-explicit-id
-#~ msgid "report.timeline.versionCount"
-#~ msgstr "{count} versions"
+msgid "report.timeline.versionCount"
+msgstr "{count} versions"
 
 #. js-lingui-explicit-id
-#~ msgid "signal.hit"
-#~ msgstr "HIT"
+msgid "signal.hit"
+msgstr "HIT"
 
 #. js-lingui-explicit-id
-#~ msgid "signal.watching"
-#~ msgstr "WATCHING"
+msgid "signal.watching"
+msgstr "WATCHING"
 
 #. js-lingui-explicit-id
-#~ msgid "signal.failed"
-#~ msgstr "FAILED"
+msgid "signal.failed"
+msgstr "FAILED"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.recentResearch.error"
-#~ msgstr "Could not load research history. Check your connection and retry."
+msgid "landing.recentResearch.error"
+msgstr "Could not load research history. Check your connection and retry."
 
 #. js-lingui-explicit-id
-#~ msgid "landing.recentResearch.empty"
-#~ msgstr "No research yet. Search a ticker above to start analysis."
+msgid "landing.recentResearch.empty"
+msgstr "No research yet. Search a ticker above to start analysis."
 
 #. js-lingui-explicit-id
-#~ msgid "landing.warmup.label"
-#~ msgstr "Warming live quote cache ·"
+msgid "landing.warmup.label"
+msgstr "Warming live quote cache ·"
 
 #. js-lingui-explicit-id
-#~ msgid "report.toc.heading"
-#~ msgstr "REPORT NAV"
+msgid "report.toc.heading"
+msgstr "REPORT NAV"
 
 #. js-lingui-explicit-id
-#~ msgid "report.computeWarnings"
-#~ msgstr "COMPUTE WARNINGS"
+msgid "report.computeWarnings"
+msgstr "COMPUTE WARNINGS"
 
 #. js-lingui-explicit-id
-#~ msgid "report.audit.status.reviewOnly"
-#~ msgstr "Numeric Audit · Under Review"
+msgid "report.audit.status.reviewOnly"
+msgstr "Numeric Audit · Under Review"
 
 #. js-lingui-explicit-id
-#~ msgid "report.audit.status.unpublishable"
-#~ msgstr "Numeric Audit · Unpublishable"
+msgid "report.audit.status.unpublishable"
+msgstr "Numeric Audit · Unpublishable"
 
 #. js-lingui-explicit-id
-#~ msgid "report.audit.withheldNote"
-#~ msgstr "Some core numbers failed the audit, so the rating and price target are withheld (rating set to Under Review, target set to N/A). Reconcile the fields below before drawing a conclusion."
+msgid "report.audit.withheldNote"
+msgstr "Some core numbers failed the audit, so the rating and price target are withheld (rating set to Under Review, target set to N/A). Reconcile the fields below before drawing a conclusion."
 
 #. js-lingui-explicit-id
-#~ msgid "report.audit.severity.blocked"
-#~ msgstr "BLOCKED"
+msgid "report.audit.severity.blocked"
+msgstr "BLOCKED"
 
 #. js-lingui-explicit-id
-#~ msgid "report.audit.severity.review"
-#~ msgstr "REVIEW"
+msgid "report.audit.severity.review"
+msgstr "REVIEW"
 
 #. js-lingui-explicit-id
-#~ msgid "report.audit.severity.info"
-#~ msgstr "INFO"
+msgid "report.audit.severity.info"
+msgstr "INFO"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.kv.revenueBase"
-#~ msgstr "Revenue (Base)"
+msgid "chapter.financial.kv.revenueBase"
+msgstr "Revenue (Base)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.kv.netIncome"
-#~ msgstr "Net Income"
+msgid "chapter.financial.kv.netIncome"
+msgstr "Net Income"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.subheading.revenueEbitda"
-#~ msgstr "Revenue & EBITDA Trajectory"
+msgid "chapter.financial.subheading.revenueEbitda"
+msgstr "Revenue & EBITDA Trajectory"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.subheading.marginTrend"
-#~ msgstr "Margin Trend"
+msgid "chapter.financial.subheading.marginTrend"
+msgstr "Margin Trend"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.subheading.cashFlow"
-#~ msgstr "Cash Flow Composition"
+msgid "chapter.financial.subheading.cashFlow"
+msgstr "Cash Flow Composition"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.subheading.dcfForecast"
-#~ msgstr "DCF Forecast (Code-Computed)"
+msgid "chapter.financial.subheading.dcfForecast"
+msgstr "DCF Forecast (Code-Computed)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.chart.title.revenueEbitda"
-#~ msgstr "Historical + DCF Forecast"
+msgid "chapter.financial.chart.title.revenueEbitda"
+msgstr "Historical + DCF Forecast"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.chart.title.margin"
-#~ msgstr "Gross / EBITDA / Operating Margin"
+msgid "chapter.financial.chart.title.margin"
+msgstr "Gross / EBITDA / Operating Margin"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.chart.title.cashFlow"
-#~ msgstr "Operating / Investing / Financing"
+msgid "chapter.financial.chart.title.cashFlow"
+msgstr "Operating / Investing / Financing"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.table.yearPlus"
-#~ msgstr "Year +{n}"
+msgid "chapter.financial.table.yearPlus"
+msgstr "Year +{n}"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.table.revenue"
-#~ msgstr "Revenue"
+msgid "chapter.financial.table.revenue"
+msgstr "Revenue"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.table.fcf"
-#~ msgstr "Free Cash Flow"
+msgid "chapter.financial.table.fcf"
+msgstr "Free Cash Flow"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.table.source"
-#~ msgstr "Source: 10-K filings + compute/forward_estimates.py (deterministic)"
+msgid "chapter.financial.table.source"
+msgstr "Source: 10-K filings + compute/forward_estimates.py (deterministic)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.empty"
-#~ msgstr "No financial inputs saved in this report — re-run to populate."
+msgid "chapter.financial.empty"
+msgstr "No financial inputs saved in this report — re-run to populate."
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.kv.terminalGrowth"
-#~ msgstr "Terminal Growth"
+msgid "chapter.valuation.kv.terminalGrowth"
+msgstr "Terminal Growth"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.kv.taxRate"
-#~ msgstr "Tax Rate"
+msgid "chapter.valuation.kv.taxRate"
+msgstr "Tax Rate"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.kv.dcfImplied"
-#~ msgstr "DCF Implied Price"
+msgid "chapter.valuation.kv.dcfImplied"
+msgstr "DCF Implied Price"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.kv.enterpriseValue"
-#~ msgstr "Enterprise Value"
+msgid "chapter.valuation.kv.enterpriseValue"
+msgstr "Enterprise Value"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.kv.equityValue"
-#~ msgstr "Equity Value"
+msgid "chapter.valuation.kv.equityValue"
+msgstr "Equity Value"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.kv.marketImpliedGrowth"
-#~ msgstr "Market-Implied Growth"
+msgid "chapter.valuation.kv.marketImpliedGrowth"
+msgstr "Market-Implied Growth"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.marketImplied.horizon"
-#~ msgstr "over {n}y"
+msgid "chapter.valuation.marketImplied.horizon"
+msgstr "over {n}y"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.marketImplied.na"
-#~ msgstr "Unreachable"
+msgid "chapter.valuation.marketImplied.na"
+msgstr "Unreachable"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.marketImplied.unreachableNote"
-#~ msgstr "Market-implied growth is unreachable: even {ceiling} annual growth only implies {price} — the market is pricing optionality no cash-flow model can capture, so a DCF point value does not apply to this name."
+msgid "chapter.valuation.marketImplied.unreachableNote"
+msgstr "Market-implied growth is unreachable: even {ceiling} annual growth only implies {price} — the market is pricing optionality no cash-flow model can capture, so a DCF point value does not apply to this name."
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.empty"
-#~ msgstr "No DCF output in this report — re-run to generate the full valuation model."
+msgid "chapter.valuation.empty"
+msgstr "No DCF output in this report — re-run to generate the full valuation model."
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.subheading.football"
-#~ msgstr "Valuation Triangulation (Football Field)"
+msgid "chapter.valuation.subheading.football"
+msgstr "Valuation Triangulation (Football Field)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.football.title"
-#~ msgstr "DCF / Comps / DDM / LBO Target-Price Range"
+msgid "chapter.valuation.football.title"
+msgstr "DCF / Comps / DDM / LBO Target-Price Range"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.forwardEstimates"
-#~ msgstr "Forward Estimates"
+msgid "chapter.valuation.forwardEstimates"
+msgstr "Forward Estimates"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.subheading.bridge"
-#~ msgstr "DCF Value Bridge (Waterfall)"
+msgid "chapter.valuation.subheading.bridge"
+msgstr "DCF Value Bridge (Waterfall)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.bridge.title"
-#~ msgstr "DCF Bridge: PV of Cash Flows → Enterprise Value → Equity Value"
+msgid "chapter.valuation.bridge.title"
+msgstr "DCF Bridge: PV of Cash Flows → Enterprise Value → Equity Value"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.bridge.pvFcf"
-#~ msgstr "PV of FCF"
+msgid "chapter.valuation.bridge.pvFcf"
+msgstr "PV of FCF"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.bridge.pvTerminal"
-#~ msgstr "PV of Terminal"
+msgid "chapter.valuation.bridge.pvTerminal"
+msgstr "PV of Terminal"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.bridge.ev"
-#~ msgstr "Enterprise Value"
+msgid "chapter.valuation.bridge.ev"
+msgstr "Enterprise Value"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.bridge.netDebt"
-#~ msgstr "Less: Net Debt"
+msgid "chapter.valuation.bridge.netDebt"
+msgstr "Less: Net Debt"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.bridge.equity"
-#~ msgstr "Equity Value"
+msgid "chapter.valuation.bridge.equity"
+msgstr "Equity Value"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.sensitivity.subheading.assumptions"
-#~ msgstr "Key Assumptions"
+msgid "chapter.sensitivity.subheading.assumptions"
+msgstr "Key Assumptions"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.sensitivity.subheading.matrix"
-#~ msgstr "Sensitivity Matrix"
+msgid "chapter.sensitivity.subheading.matrix"
+msgstr "Sensitivity Matrix"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.sensitivity.subheading.notes"
-#~ msgstr "Sensitivity Notes"
+msgid "chapter.sensitivity.subheading.notes"
+msgstr "Sensitivity Notes"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.sensitivity.assumptions.lead"
-#~ msgstr "The DCF anchors on four pivots:"
+msgid "chapter.sensitivity.assumptions.lead"
+msgstr "The DCF anchors on four pivots:"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.sensitivity.assumptions.revenueCagr"
-#~ msgstr "revenue CAGR"
+msgid "chapter.sensitivity.assumptions.revenueCagr"
+msgstr "revenue CAGR"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.sensitivity.assumptions.ebitdaMargin"
-#~ msgstr "terminal EBITDA margin"
+msgid "chapter.sensitivity.assumptions.ebitdaMargin"
+msgstr "terminal EBITDA margin"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.sensitivity.assumptions.terminalGrowth"
-#~ msgstr "terminal growth"
+msgid "chapter.sensitivity.assumptions.terminalGrowth"
+msgstr "terminal growth"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.sensitivity.matrix.title"
-#~ msgstr "WACC × Terminal Growth → Implied Price"
+msgid "chapter.sensitivity.matrix.title"
+msgstr "WACC × Terminal Growth → Implied Price"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.sensitivity.empty"
-#~ msgstr "This report has no sensitivity analysis — regenerate it to get the WACC × terminal-growth grid."
+msgid "chapter.sensitivity.empty"
+msgstr "This report has no sensitivity analysis — regenerate it to get the WACC × terminal-growth grid."
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.sensitivity.notes.wacc"
-#~ msgstr "Varying WACC at base terminal growth, implied price ranges"
+msgid "chapter.sensitivity.notes.wacc"
+msgstr "Varying WACC at base terminal growth, implied price ranges"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.sensitivity.notes.tg"
-#~ msgstr "varying terminal growth at base WACC, it ranges"
+msgid "chapter.sensitivity.notes.tg"
+msgstr "varying terminal growth at base WACC, it ranges"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.sensitivity.notes.mostSensitive"
-#~ msgstr "The valuation is therefore most sensitive to {driver}."
+msgid "chapter.sensitivity.notes.mostSensitive"
+msgstr "The valuation is therefore most sensitive to {driver}."
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.sensitivity.driver.wacc"
-#~ msgstr "WACC"
+msgid "chapter.sensitivity.driver.wacc"
+msgstr "WACC"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.sensitivity.driver.tg"
-#~ msgstr "terminal growth"
+msgid "chapter.sensitivity.driver.tg"
+msgstr "terminal growth"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.priceTrend.close"
-#~ msgstr "Close"
+msgid "chart.priceTrend.close"
+msgstr "Close"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.priceTrend.ohlc"
-#~ msgstr "O/H/L"
+msgid "chart.priceTrend.ohlc"
+msgstr "O/H/L"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.priceTrend.volume"
-#~ msgstr "Volume"
+msgid "chart.priceTrend.volume"
+msgstr "Volume"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.priceTrend.empty"
-#~ msgstr "No price history available for this ticker"
+msgid "chart.priceTrend.empty"
+msgstr "No price history available for this ticker"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.priceTrend.loading"
-#~ msgstr "Loading…"
+msgid "chart.priceTrend.loading"
+msgstr "Loading…"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.priceTrend.trend"
-#~ msgstr "trend"
+msgid "chart.priceTrend.trend"
+msgstr "trend"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.priceTrend.last"
-#~ msgstr "Last close"
+msgid "chart.priceTrend.last"
+msgstr "Last close"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.priceTrend.latest"
-#~ msgstr "Latest"
+msgid "chart.priceTrend.latest"
+msgstr "Latest"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.valuation.target12m"
-#~ msgstr "12-Month Target:"
+msgid "chapter.valuation.target12m"
+msgstr "12-Month Target:"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.kv.currentPrice"
-#~ msgstr "Current Price"
+msgid "chapter.technical.kv.currentPrice"
+msgstr "Current Price"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.kv.low52w"
-#~ msgstr "52W Low"
+msgid "chapter.technical.kv.low52w"
+msgstr "52W Low"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.kv.high52w"
-#~ msgstr "52W High"
+msgid "chapter.technical.kv.high52w"
+msgstr "52W High"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.kv.position52w"
-#~ msgstr "52W Position"
+msgid "chapter.technical.kv.position52w"
+msgstr "52W Position"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.kv.beta5y"
-#~ msgstr "Beta (5Y)"
+msgid "chapter.technical.kv.beta5y"
+msgstr "Beta (5Y)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.kv.vsSpx"
-#~ msgstr "vs SPX"
+msgid "chapter.technical.kv.vsSpx"
+msgstr "vs SPX"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.position.nearHigh"
-#~ msgstr "near high"
+msgid "chapter.technical.position.nearHigh"
+msgstr "near high"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.position.nearLow"
-#~ msgstr "near low"
+msgid "chapter.technical.position.nearLow"
+msgstr "near low"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.position.midRange"
-#~ msgstr "mid-range"
+msgid "chapter.technical.position.midRange"
+msgstr "mid-range"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.empty.price"
-#~ msgstr "Price data unavailable — check ticker or retry later"
+msgid "chapter.technical.empty.price"
+msgstr "Price data unavailable — check ticker or retry later"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.empty.overlay"
-#~ msgstr "Quant overlays not yet generated · re-run to see Monte Carlo / sniper levels / historical bands"
+msgid "chapter.technical.empty.overlay"
+msgstr "Quant overlays not yet generated · re-run to see Monte Carlo / sniper levels / historical bands"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.subheading.monteCarlo"
-#~ msgstr "Monte Carlo Distribution"
+msgid "chapter.technical.subheading.monteCarlo"
+msgstr "Monte Carlo Distribution"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.subheading.sniper"
-#~ msgstr "Support / Resistance Levels"
+msgid "chapter.technical.subheading.sniper"
+msgstr "Support / Resistance Levels"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.subheading.historicalBands"
-#~ msgstr "Historical EV/EBITDA Bands"
+msgid "chapter.technical.subheading.historicalBands"
+msgstr "Historical EV/EBITDA Bands"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.mc.mean"
-#~ msgstr "Mean"
+msgid "chapter.technical.mc.mean"
+msgstr "Mean"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.mc.std"
-#~ msgstr "Std Dev"
+msgid "chapter.technical.mc.std"
+msgstr "Std Dev"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.mc.currentPct"
-#~ msgstr "Current Pct"
+msgid "chapter.technical.mc.currentPct"
+msgstr "Current Pct"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.mc.sims"
-#~ msgstr "Sims"
+msgid "chapter.technical.mc.sims"
+msgstr "Sims"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.idealBuy"
-#~ msgstr "Ideal Buy"
+msgid "chapter.technical.sniper.idealBuy"
+msgstr "Ideal Buy"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.safetyMargin"
-#~ msgstr "safety {pct}%"
+msgid "chapter.technical.sniper.safetyMargin"
+msgstr "safety {pct}%"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.secondaryBuy"
-#~ msgstr "Secondary Buy"
+msgid "chapter.technical.sniper.secondaryBuy"
+msgstr "Secondary Buy"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.atSupport"
-#~ msgstr "at support"
+msgid "chapter.technical.sniper.atSupport"
+msgstr "at support"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.stopLoss"
-#~ msgstr "Stop Loss"
+msgid "chapter.technical.sniper.stopLoss"
+msgstr "Stop Loss"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.takeProfit"
-#~ msgstr "Take Profit"
+msgid "chapter.technical.sniper.takeProfit"
+msgstr "Take Profit"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.dcfTarget"
-#~ msgstr "DCF target"
+msgid "chapter.technical.sniper.dcfTarget"
+msgstr "DCF target"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.idealShort"
-#~ msgstr "Ideal short"
+msgid "chapter.technical.sniper.idealShort"
+msgstr "Ideal short"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.secondaryShort"
-#~ msgstr "Add on bounce"
+msgid "chapter.technical.sniper.secondaryShort"
+msgstr "Add on bounce"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.atResistance"
-#~ msgstr "Near resistance"
+msgid "chapter.technical.sniper.atResistance"
+msgstr "Near resistance"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.coverTarget"
-#~ msgstr "Cover target"
+msgid "chapter.technical.sniper.coverTarget"
+msgstr "Cover target"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.dcfCover"
-#~ msgstr "DCF cover"
+msgid "chapter.technical.sniper.dcfCover"
+msgstr "DCF cover"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.withheldUnreliable"
-#~ msgstr "Directional sniper levels withheld: the valuation methods do not corroborate (DCF vs comps diverge too far — the headline target was withheld as REVIEW), so there is no defensible target to anchor a trade. Support / resistance below are shown for reference only."
+msgid "chapter.technical.sniper.withheldUnreliable"
+msgstr "Directional sniper levels withheld: the valuation methods do not corroborate (DCF vs comps diverge too far — the headline target was withheld as REVIEW), so there is no defensible target to anchor a trade. Support / resistance below are shown for reference only."
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.support20d"
-#~ msgstr "Support (20d)"
+msgid "chapter.technical.sniper.support20d"
+msgstr "Support (20d)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.resistance20d"
-#~ msgstr "Resistance (20d)"
+msgid "chapter.technical.sniper.resistance20d"
+msgstr "Resistance (20d)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.rrRatio"
-#~ msgstr "R / R Ratio"
+msgid "chapter.technical.sniper.rrRatio"
+msgstr "R / R Ratio"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.suggestedSize"
-#~ msgstr "Suggested Size"
+msgid "chapter.technical.sniper.suggestedSize"
+msgstr "Suggested Size"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.sniper.ofPortfolio"
-#~ msgstr "of portfolio"
+msgid "chapter.technical.sniper.ofPortfolio"
+msgstr "of portfolio"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.band.current"
-#~ msgstr "Current"
+msgid "chapter.technical.band.current"
+msgstr "Current"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.band.median"
-#~ msgstr "Median"
+msgid "chapter.technical.band.median"
+msgstr "Median"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.heading.insiders"
-#~ msgstr "Insider Transactions (Form 4)"
+msgid "chapter.ownership.heading.insiders"
+msgstr "Insider Transactions (Form 4)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.heading.institutions"
-#~ msgstr "Institutional Holdings (13F-HR)"
+msgid "chapter.ownership.heading.institutions"
+msgstr "Institutional Holdings (13F-HR)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.heading.compensation"
-#~ msgstr "Executive Compensation (DEF 14A)"
+msgid "chapter.ownership.heading.compensation"
+msgstr "Executive Compensation (DEF 14A)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.heading.alerts"
-#~ msgstr "5%+ Shareholder Events (13D / 13G)"
+msgid "chapter.ownership.heading.alerts"
+msgstr "5%+ Shareholder Events (13D / 13G)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.empty.title"
-#~ msgstr "SEC EDGAR identity required"
+msgid "chapter.ownership.empty.title"
+msgstr "SEC EDGAR identity required"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.empty.body"
-#~ msgstr "SEC EDGAR requires every data request to carry an identifiable User-Agent. Once configured, FinRobot pulls insider transactions, 13F institutional holdings, and proxy compensation automatically."
+msgid "chapter.ownership.empty.body"
+msgstr "SEC EDGAR requires every data request to carry an identifiable User-Agent. Once configured, FinRobot pulls insider transactions, 13F institutional holdings, and proxy compensation automatically."
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.empty.cta"
-#~ msgstr "Open Settings"
+msgid "chapter.ownership.empty.cta"
+msgstr "Open Settings"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.empty.insiders"
-#~ msgstr "No recent insider transactions"
+msgid "chapter.ownership.empty.insiders"
+msgstr "No recent insider transactions"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.empty.institutions"
-#~ msgstr "No 13F institutional holdings yet"
+msgid "chapter.ownership.empty.institutions"
+msgstr "No 13F institutional holdings yet"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.empty.compensation"
-#~ msgstr "No recent DEF 14A proxy data"
+msgid "chapter.ownership.empty.compensation"
+msgstr "No recent DEF 14A proxy data"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.empty.alerts"
-#~ msgstr "No 5%+ shareholder events"
+msgid "chapter.ownership.empty.alerts"
+msgstr "No 5%+ shareholder events"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.degraded.insiders"
-#~ msgstr "Form 4 data unavailable — this older report has no specific reason; re-run analysis for the latest SEC status"
+msgid "chapter.ownership.degraded.insiders"
+msgstr "Form 4 data unavailable — this older report has no specific reason; re-run analysis for the latest SEC status"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.degraded.institutions"
-#~ msgstr "13F holdings cache not built — this sync is off by default (it downloads a full quarter of market-wide filings); enable or trigger it in Settings, then re-run the analysis to populate it"
+msgid "chapter.ownership.degraded.institutions"
+msgstr "13F holdings cache not built — this sync is off by default (it downloads a full quarter of market-wide filings); enable or trigger it in Settings, then re-run the analysis to populate it"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.degraded.institutions.cta"
-#~ msgstr "Open Settings · SEC 13F"
+msgid "chapter.ownership.degraded.institutions.cta"
+msgstr "Open Settings · SEC 13F"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.degraded.compensation"
-#~ msgstr "DEF 14A parse failed — company may not have filed a recent proxy"
+msgid "chapter.ownership.degraded.compensation"
+msgstr "DEF 14A parse failed — company may not have filed a recent proxy"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.degraded.alerts"
-#~ msgstr "Schedule 13 data unavailable"
+msgid "chapter.ownership.degraded.alerts"
+msgstr "Schedule 13 data unavailable"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.degraded.insiders.identity_missing"
-#~ msgstr "Form 4 unavailable — SEC identity is not active; enter \"name or organization + email\" in Settings, then re-run analysis"
+msgid "chapter.ownership.degraded.insiders.identity_missing"
+msgstr "Form 4 unavailable — SEC identity is not active; enter \"name or organization + email\" in Settings, then re-run analysis"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.degraded.insiders.no_recent_filings"
-#~ msgstr "Form 4 unavailable — no insider transactions filed in the past 90 days"
+msgid "chapter.ownership.degraded.insiders.no_recent_filings"
+msgstr "Form 4 unavailable — no insider transactions filed in the past 90 days"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.degraded.insiders.fetch_error"
-#~ msgstr "Form 4 unavailable — SEC fetch error; re-run to retry"
+msgid "chapter.ownership.degraded.insiders.fetch_error"
+msgstr "Form 4 unavailable — SEC fetch error; re-run to retry"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.degraded.proxy.parse_failed"
-#~ msgstr "DEF 14A parse failed — no valid compensation data extracted from proxy statement"
+msgid "chapter.ownership.degraded.proxy.parse_failed"
+msgstr "DEF 14A parse failed — no valid compensation data extracted from proxy statement"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.col.date"
-#~ msgstr "Filed"
+msgid "chapter.ownership.col.date"
+msgstr "Filed"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.col.name"
-#~ msgstr "Name"
+msgid "chapter.ownership.col.name"
+msgstr "Name"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.col.role"
-#~ msgstr "Role"
+msgid "chapter.ownership.col.role"
+msgstr "Role"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.col.transaction"
-#~ msgstr "Type"
+msgid "chapter.ownership.col.transaction"
+msgstr "Type"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.col.shares"
-#~ msgstr "Shares"
+msgid "chapter.ownership.col.shares"
+msgstr "Shares"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.col.value"
-#~ msgstr "Value"
+msgid "chapter.ownership.col.value"
+msgstr "Value"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.col.holder"
-#~ msgstr "Holder"
+msgid "chapter.ownership.col.holder"
+msgstr "Holder"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.col.changePct"
-#~ msgstr "QoQ Δ"
+msgid "chapter.ownership.col.changePct"
+msgstr "QoQ Δ"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.col.periodEnd"
-#~ msgstr "Period End"
+msgid "chapter.ownership.col.periodEnd"
+msgstr "Period End"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.kv.ceoName"
-#~ msgstr "CEO"
+msgid "chapter.ownership.kv.ceoName"
+msgstr "CEO"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.kv.ceoComp"
-#~ msgstr "CEO Total Comp"
+msgid "chapter.ownership.kv.ceoComp"
+msgstr "CEO Total Comp"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.kv.payRatio"
-#~ msgstr "CEO Pay Ratio"
+msgid "chapter.ownership.kv.payRatio"
+msgstr "CEO Pay Ratio"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.sale"
-#~ msgstr "Sale"
+msgid "chapter.ownership.tx.sale"
+msgstr "Sale"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.purchase"
-#~ msgstr "Purchase"
+msgid "chapter.ownership.tx.purchase"
+msgstr "Purchase"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.exercise"
-#~ msgstr "Exercise"
+msgid "chapter.ownership.tx.exercise"
+msgstr "Exercise"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.other_disposition"
-#~ msgstr "Other Disposition"
+msgid "chapter.ownership.tx.other_disposition"
+msgstr "Other Disposition"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.grant"
-#~ msgstr "Grant"
+msgid "chapter.ownership.tx.grant"
+msgstr "Grant"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.award"
-#~ msgstr "Award"
+msgid "chapter.ownership.tx.award"
+msgstr "Award"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.tax_withholding"
-#~ msgstr "Tax withholding"
+msgid "chapter.ownership.tx.tax_withholding"
+msgstr "Tax withholding"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.conversion"
-#~ msgstr "Conversion"
+msgid "chapter.ownership.tx.conversion"
+msgstr "Conversion"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.exercise_otm"
-#~ msgstr "Exercise (OTM)"
+msgid "chapter.ownership.tx.exercise_otm"
+msgstr "Exercise (OTM)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.exercise_itm_atm"
-#~ msgstr "Exercise (ITM/ATM)"
+msgid "chapter.ownership.tx.exercise_itm_atm"
+msgstr "Exercise (ITM/ATM)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.disposition_to_issuer"
-#~ msgstr "Disposition to issuer"
+msgid "chapter.ownership.tx.disposition_to_issuer"
+msgstr "Disposition to issuer"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.discretionary"
-#~ msgstr "Discretionary"
+msgid "chapter.ownership.tx.discretionary"
+msgstr "Discretionary"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.equity_swap"
-#~ msgstr "Equity swap"
+msgid "chapter.ownership.tx.equity_swap"
+msgstr "Equity swap"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.tender"
-#~ msgstr "Tender"
+msgid "chapter.ownership.tx.tender"
+msgstr "Tender"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.voluntary_report"
-#~ msgstr "Voluntary report"
+msgid "chapter.ownership.tx.voluntary_report"
+msgstr "Voluntary report"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.estate"
-#~ msgstr "Estate transfer"
+msgid "chapter.ownership.tx.estate"
+msgstr "Estate transfer"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.voting_trust"
-#~ msgstr "Voting trust"
+msgid "chapter.ownership.tx.voting_trust"
+msgstr "Voting trust"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.small_acquisition"
-#~ msgstr "Small acquisition"
+msgid "chapter.ownership.tx.small_acquisition"
+msgstr "Small acquisition"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.gift"
-#~ msgstr "Gift"
+msgid "chapter.ownership.tx.gift"
+msgstr "Gift"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.expiration_short"
-#~ msgstr "Short expiration"
+msgid "chapter.ownership.tx.expiration_short"
+msgstr "Short expiration"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.expiration_long"
-#~ msgstr "Long expiration"
+msgid "chapter.ownership.tx.expiration_long"
+msgstr "Long expiration"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.tx.other"
-#~ msgstr "Other"
+msgid "chapter.ownership.tx.other"
+msgstr "Other"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.alert.shares"
-#~ msgstr "shares"
+msgid "chapter.ownership.alert.shares"
+msgstr "shares"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.alert.ofClass"
-#~ msgstr "of class"
+msgid "chapter.ownership.alert.ofClass"
+msgstr "of class"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.source.def14a"
-#~ msgstr "Source: DEF 14A · filed {date}"
+msgid "chapter.ownership.source.def14a"
+msgstr "Source: DEF 14A · filed {date}"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.ownership.provenance.tooltip"
-#~ msgstr "{form} · accession {accession} · {date}"
+msgid "chapter.ownership.provenance.tooltip"
+msgstr "{form} · accession {accession} · {date}"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.secBanner.title"
-#~ msgstr "SEC EDGAR identity unconfigured — bank-grade depth limited"
+msgid "landing.secBanner.title"
+msgstr "SEC EDGAR identity unconfigured — bank-grade depth limited"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.secBanner.body"
-#~ msgstr "Without a SEC EDGAR identity, 10-K sections, XBRL financial facts, and Ownership & Governance all run in degraded mode. SEC EDGAR requires an identifiable User-Agent on every data request."
+msgid "landing.secBanner.body"
+msgstr "Without a SEC EDGAR identity, 10-K sections, XBRL financial facts, and Ownership & Governance all run in degraded mode. SEC EDGAR requires an identifiable User-Agent on every data request."
 
 #. js-lingui-explicit-id
-#~ msgid "landing.secBanner.cta"
-#~ msgstr "Open Settings"
+msgid "landing.secBanner.cta"
+msgstr "Open Settings"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.secBanner.dismissTooltip"
-#~ msgstr "Dismiss for now (re-shown after 30 days)"
+msgid "landing.secBanner.dismissTooltip"
+msgstr "Dismiss for now (re-shown after 30 days)"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.secBanner.dismissAria"
-#~ msgstr "Dismiss notification"
+msgid "landing.secBanner.dismissAria"
+msgstr "Dismiss notification"
 
 #. js-lingui-explicit-id
-#~ msgid "marketdata.age.justNow"
-#~ msgstr "just now"
+msgid "marketdata.age.justNow"
+msgstr "just now"
 
 #. js-lingui-explicit-id
-#~ msgid "marketdata.age.sAgo"
-#~ msgstr "{n}s ago"
+msgid "marketdata.age.sAgo"
+msgstr "{n}s ago"
 
 #. js-lingui-explicit-id
-#~ msgid "marketdata.age.minAgo"
-#~ msgstr "{n}min ago"
+msgid "marketdata.age.minAgo"
+msgstr "{n}min ago"
 
 #. js-lingui-explicit-id
-#~ msgid "marketdata.age.hAgo"
-#~ msgstr "{n}h ago"
+msgid "marketdata.age.hAgo"
+msgstr "{n}h ago"
 
 #. js-lingui-explicit-id
-#~ msgid "marketdata.tier.fresh"
-#~ msgstr "Live"
+msgid "marketdata.tier.fresh"
+msgstr "Live"
 
 #. js-lingui-explicit-id
-#~ msgid "marketdata.tier.delayed"
-#~ msgstr "Delayed"
+msgid "marketdata.tier.delayed"
+msgstr "Delayed"
 
 #. js-lingui-explicit-id
-#~ msgid "marketdata.tier.stale"
-#~ msgstr "Stale"
+msgid "marketdata.tier.stale"
+msgstr "Stale"
 
 #. js-lingui-explicit-id
-#~ msgid "marketdata.zoneHeader"
-#~ msgstr "MARKET DATA · Non-AI"
+msgid "marketdata.zoneHeader"
+msgstr "MARKET DATA · Non-AI"
 
 #. js-lingui-explicit-id
-#~ msgid "ticker.notFound.title"
-#~ msgstr "Ticker {ticker} not found"
+msgid "ticker.notFound.title"
+msgstr "Ticker {ticker} not found"
 
 #. js-lingui-explicit-id
-#~ msgid "ticker.notFound.description"
-#~ msgstr "yfinance has no data for this symbol. Check the spelling."
+msgid "ticker.notFound.description"
+msgstr "yfinance has no data for this symbol. Check the spelling."
 
 #. js-lingui-explicit-id
-#~ msgid "ticker.notFound.backButton"
-#~ msgstr "Back to search"
+msgid "ticker.notFound.backButton"
+msgstr "Back to search"
 
 #. js-lingui-explicit-id
-#~ msgid "ticker.notFound.hint1"
-#~ msgstr "Only US markets are supported (NASDAQ / NYSE / AMEX)"
+msgid "ticker.notFound.hint1"
+msgstr "Only US markets are supported (NASDAQ / NYSE / AMEX)"
 
 #. js-lingui-explicit-id
-#~ msgid "ticker.notFound.hint2"
-#~ msgstr "Search by ticker only — company name search is not supported"
+msgid "ticker.notFound.hint2"
+msgstr "Search by ticker only — company name search is not supported"
 
 #. js-lingui-explicit-id
-#~ msgid "ticker.notFound.hint3"
-#~ msgstr "HK / A-share tickers are not supported"
+msgid "ticker.notFound.hint3"
+msgstr "HK / A-share tickers are not supported"
 
 #. js-lingui-explicit-id
-#~ msgid "ticker.notFound.hint4"
-#~ msgstr "If the spelling is correct, yfinance may not list this ticker"
+msgid "ticker.notFound.hint4"
+msgstr "If the spelling is correct, yfinance may not list this ticker"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.equityResearch"
-#~ msgstr "EQUITY RESEARCH"
+msgid "chapter.cover.equityResearch"
+msgstr "EQUITY RESEARCH"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.twelveMonthTarget"
-#~ msgstr "12-MONTH TARGET"
+msgid "chapter.cover.twelveMonthTarget"
+msgstr "12-MONTH TARGET"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.targetWithheld"
-#~ msgstr "N/A · withheld"
+msgid "chapter.cover.targetWithheld"
+msgstr "N/A · withheld"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.scaleTitle"
-#~ msgstr "The Gap"
+msgid "chapter.cover.reverseDcf.scaleTitle"
+msgstr "The Gap"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.scaleUnit"
-#~ msgstr "log $ / share"
+msgid "chapter.cover.reverseDcf.scaleUnit"
+msgstr "log $ / share"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.bridgeNote"
-#~ msgstr "implied growth to bridge the gap"
+msgid "chapter.cover.reverseDcf.bridgeNote"
+msgstr "implied growth to bridge the gap"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.modelCeiling"
-#~ msgstr "CASH-FLOW MODEL CEILING"
+msgid "chapter.cover.reverseDcf.modelCeiling"
+msgstr "CASH-FLOW MODEL CEILING"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.marketLive"
-#~ msgstr "MARKET · LIVE"
+msgid "chapter.cover.reverseDcf.marketLive"
+msgstr "MARKET · LIVE"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.ledeA.pre"
-#~ msgstr "The market is pricing in"
+msgid "chapter.cover.reverseDcf.ledeA.pre"
+msgstr "The market is pricing in"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.ledeA.mid"
-#~ msgstr "revenue growth over"
+msgid "chapter.cover.reverseDcf.ledeA.mid"
+msgstr "revenue growth over"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.modelTopsOut"
-#~ msgstr "Cash-flow model tops out"
+msgid "chapter.cover.reverseDcf.modelTopsOut"
+msgstr "Cash-flow model tops out"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.dcfMidRange"
-#~ msgstr "DCF mid · {range}"
+msgid "chapter.cover.reverseDcf.dcfMidRange"
+msgstr "DCF mid · {range}"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.marketSitsAt"
-#~ msgstr "Market sits at"
+msgid "chapter.cover.reverseDcf.marketSitsAt"
+msgstr "Market sits at"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.livePriceAnchor"
-#~ msgstr "live price · pricing anchor"
+msgid "chapter.cover.reverseDcf.livePriceAnchor"
+msgstr "live price · pricing anchor"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.higher"
-#~ msgstr "higher"
+msgid "chapter.cover.reverseDcf.higher"
+msgstr "higher"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.short"
-#~ msgstr "short"
+msgid "chapter.cover.reverseDcf.short"
+msgstr "short"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.withheldTitle"
-#~ msgstr "A 12-month target is withheld"
+msgid "chapter.cover.reverseDcf.withheldTitle"
+msgstr "A 12-month target is withheld"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.withheldBody"
-#~ msgstr "the model refuses to fabricate a number it can't defend."
+msgid "chapter.cover.reverseDcf.withheldBody"
+msgstr "the model refuses to fabricate a number it can't defend."
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.notFailure"
-#~ msgstr "This isn't a failure."
+msgid "chapter.cover.reverseDcf.notFailure"
+msgstr "This isn't a failure."
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.ledeB.pre"
-#~ msgstr "Even"
+msgid "chapter.cover.reverseDcf.ledeB.pre"
+msgstr "Even"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.ledeB.mid"
-#~ msgstr "annual growth over"
+msgid "chapter.cover.reverseDcf.ledeB.mid"
+msgstr "annual growth over"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.ledeB.impliesOnly"
-#~ msgstr "implies only"
+msgid "chapter.cover.reverseDcf.ledeB.impliesOnly"
+msgstr "implies only"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.ledeB.marketAt"
-#~ msgstr "— the market is at"
+msgid "chapter.cover.reverseDcf.ledeB.marketAt"
+msgstr "— the market is at"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.maxDcfReach"
-#~ msgstr "Max DCF can reach"
+msgid "chapter.cover.reverseDcf.maxDcfReach"
+msgstr "Max DCF can reach"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.atCeiling"
-#~ msgstr "at {ceiling}/yr growth ceiling"
+msgid "chapter.cover.reverseDcf.atCeiling"
+msgstr "at {ceiling}/yr growth ceiling"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.ceilingCap"
-#~ msgstr "DCF CAN ONLY CLIMB THIS FAR"
+msgid "chapter.cover.reverseDcf.ceilingCap"
+msgstr "DCF CAN ONLY CLIMB THIS FAR"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.optionalityTitle"
-#~ msgstr "Priced on optionality no cash-flow model can capture."
+msgid "chapter.cover.reverseDcf.optionalityTitle"
+msgstr "Priced on optionality no cash-flow model can capture."
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.optionalityBody"
-#~ msgstr "A fundamentals point target doesn't apply to this name — the gap is a story, not a discount rate."
+msgid "chapter.cover.reverseDcf.optionalityBody"
+msgstr "A fundamentals point target doesn't apply to this name — the gap is a story, not a discount rate."
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.anchor.implied"
-#~ msgstr "Market-implied"
+msgid "chapter.cover.reverseDcf.anchor.implied"
+msgstr "Market-implied"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.anchor.ceiling"
-#~ msgstr "Cash-flow ceiling"
+msgid "chapter.cover.reverseDcf.anchor.ceiling"
+msgstr "Cash-flow ceiling"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.anchor.anchorPrice"
-#~ msgstr "Pricing anchor"
+msgid "chapter.cover.reverseDcf.anchor.anchorPrice"
+msgstr "Pricing anchor"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.badge.stretch"
-#~ msgstr "stretch"
+msgid "chapter.cover.reverseDcf.badge.stretch"
+msgstr "stretch"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.badge.unreachable"
-#~ msgstr "unreachable"
+msgid "chapter.cover.reverseDcf.badge.unreachable"
+msgstr "unreachable"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.badge.defensible"
-#~ msgstr "defensible"
+msgid "chapter.cover.reverseDcf.badge.defensible"
+msgstr "defensible"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.reverseDcf.badge.live"
-#~ msgstr "live · market"
+msgid "chapter.cover.reverseDcf.badge.live"
+msgstr "live · market"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.typeLabel"
-#~ msgstr "TYPE"
+msgid "chapter.cover.typeLabel"
+msgstr "TYPE"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.version"
-#~ msgstr "v{version}"
+msgid "chapter.cover.version"
+msgstr "v{version}"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.cover.versionOfTotal"
-#~ msgstr "v{version} of {total}"
+msgid "chapter.cover.versionOfTotal"
+msgstr "v{version} of {total}"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.companyOverview.empty"
-#~ msgstr "This report has no company-overview field. Re-run a full report to see investment-bank-style coverage of the business, segments, geographies, and moat here."
+msgid "chapter.companyOverview.empty"
+msgstr "This report has no company-overview field. Re-run a full report to see investment-bank-style coverage of the business, segments, geographies, and moat here."
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.catalysts.positiveHeading"
-#~ msgstr "Positive Catalysts (Upside Potential)"
+msgid "chapter.catalysts.positiveHeading"
+msgstr "Positive Catalysts (Upside Potential)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.catalysts.riskHeading"
-#~ msgstr "Risk Factors (Downside Risks)"
+msgid "chapter.catalysts.riskHeading"
+msgstr "Risk Factors (Downside Risks)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.catalysts.monitorHeading"
-#~ msgstr "Events to Monitor"
+msgid "chapter.catalysts.monitorHeading"
+msgstr "Events to Monitor"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.catalysts.emptyPositive"
-#~ msgstr "No positive catalysts identified"
+msgid "chapter.catalysts.emptyPositive"
+msgstr "No positive catalysts identified"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.catalysts.emptyRisks"
-#~ msgstr "No major risk factors identified"
+msgid "chapter.catalysts.emptyRisks"
+msgstr "No major risk factors identified"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.catalysts.emptyMonitor"
-#~ msgstr "This artifact flagged no events to monitor · live event calendar is in the workspace"
+msgid "chapter.catalysts.emptyMonitor"
+msgstr "This artifact flagged no events to monitor · live event calendar is in the workspace"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.catalysts.overallSentiment"
-#~ msgstr "Overall sentiment"
+msgid "chapter.catalysts.overallSentiment"
+msgstr "Overall sentiment"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.catalysts.netSentiment"
-#~ msgstr "net sentiment"
+msgid "chapter.catalysts.netSentiment"
+msgstr "net sentiment"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.catalysts.metaCategory"
-#~ msgstr "CATEGORY"
+msgid "chapter.catalysts.metaCategory"
+msgstr "CATEGORY"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.catalysts.metaImpact"
-#~ msgstr "IMPACT"
+msgid "chapter.catalysts.metaImpact"
+msgstr "IMPACT"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.catalysts.metaProbability"
-#~ msgstr "PROBABILITY"
+msgid "chapter.catalysts.metaProbability"
+msgstr "PROBABILITY"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.thesis.empty"
-#~ msgstr "This report is missing the investment-thesis field. Please regenerate the full report."
+msgid "chapter.thesis.empty"
+msgstr "This report is missing the investment-thesis field. Please regenerate the full report."
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.thesis.target"
-#~ msgstr "Target ${value}"
+msgid "chapter.thesis.target"
+msgstr "Target ${value}"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.thesis.targetWithheld"
-#~ msgstr "Target N/A · withheld"
+msgid "chapter.thesis.targetWithheld"
+msgstr "Target N/A · withheld"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.thesis.keyTakeaways"
-#~ msgstr "Key Takeaways"
+msgid "chapter.thesis.keyTakeaways"
+msgstr "Key Takeaways"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.news.empty"
-#~ msgstr "This report has no news-sentiment section — regenerate the report to produce an overall-sentiment read on the last 30 days of key events plus thesis support / challenge analysis here."
+msgid "chapter.news.empty"
+msgstr "This report has no news-sentiment section — regenerate the report to produce an overall-sentiment read on the last 30 days of key events plus thesis support / challenge analysis here."
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.news.snapshotNote"
-#~ msgstr "Snapshot frozen at artifact creation · compare across artifact versions to track how the narrative evolved"
+msgid "chapter.news.snapshotNote"
+msgstr "Snapshot frozen at artifact creation · compare across artifact versions to track how the narrative evolved"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.competitive.empty"
-#~ msgstr "No peer comparables were generated for this report — regenerate to populate"
+msgid "chapter.competitive.empty"
+msgstr "No peer comparables were generated for this report — regenerate to populate"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.competitive.col.ticker"
-#~ msgstr "Ticker"
+msgid "chapter.competitive.col.ticker"
+msgstr "Ticker"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.competitive.col.revenue"
-#~ msgstr "Revenue"
+msgid "chapter.competitive.col.revenue"
+msgstr "Revenue"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.competitive.col.grossMargin"
-#~ msgstr "Gross Margin"
+msgid "chapter.competitive.col.grossMargin"
+msgstr "Gross Margin"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.competitive.col.opMargin"
-#~ msgstr "Op Margin"
+msgid "chapter.competitive.col.opMargin"
+msgstr "Op Margin"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.competitive.peerMedian"
-#~ msgstr "Peer median:"
+msgid "chapter.competitive.peerMedian"
+msgstr "Peer median:"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.competitive.subheading.multiples"
-#~ msgstr "Multiples Comparison"
+msgid "chapter.competitive.subheading.multiples"
+msgstr "Multiples Comparison"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.competitive.subheading.profile"
-#~ msgstr "Multi-Dimensional Profile"
+msgid "chapter.competitive.subheading.profile"
+msgstr "Multi-Dimensional Profile"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.competitive.subheading.positioning"
-#~ msgstr "Positioning vs Peers"
+msgid "chapter.competitive.subheading.positioning"
+msgstr "Positioning vs Peers"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.competitive.chart.multiples"
-#~ msgstr "P/E & EV/EBITDA vs Peers"
+msgid "chapter.competitive.chart.multiples"
+msgstr "P/E & EV/EBITDA vs Peers"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.competitive.chart.radar"
-#~ msgstr "Target vs Peer Median (normalised 0–100)"
+msgid "chapter.competitive.chart.radar"
+msgstr "Target vs Peer Median (normalised 0–100)"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.table.unit"
-#~ msgstr "Amount"
+msgid "chapter.financial.table.unit"
+msgstr "Amount"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.band.expensive"
-#~ msgstr "Expensive"
+msgid "chapter.technical.band.expensive"
+msgstr "Expensive"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.band.fair"
-#~ msgstr "Fair"
+msgid "chapter.technical.band.fair"
+msgstr "Fair"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.band.cheap"
-#~ msgstr "Cheap"
+msgid "chapter.technical.band.cheap"
+msgstr "Cheap"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.technical.band.unknown"
-#~ msgstr "Unknown"
+msgid "chapter.technical.band.unknown"
+msgstr "Unknown"
 
 #. js-lingui-explicit-id
-#~ msgid "report.load.missingId"
-#~ msgstr "Missing report ID"
+msgid "report.load.missingId"
+msgstr "Missing report ID"
 
 #. js-lingui-explicit-id
-#~ msgid "report.load.missingIdBody"
-#~ msgstr "The path is incomplete — return to the workspace and reselect a report."
+msgid "report.load.missingIdBody"
+msgstr "The path is incomplete — return to the workspace and reselect a report."
 
 #. js-lingui-explicit-id
-#~ msgid "report.load.loading"
-#~ msgstr "Loading report…"
+msgid "report.load.loading"
+msgstr "Loading report…"
 
 #. js-lingui-explicit-id
-#~ msgid "report.load.failed"
-#~ msgstr "Failed to load"
+msgid "report.load.failed"
+msgstr "Failed to load"
 
 #. js-lingui-explicit-id
-#~ msgid "report.load.failedBody"
-#~ msgstr "Could not load the report. Please try again later."
+msgid "report.load.failedBody"
+msgstr "Could not load the report. Please try again later."
 
 #. js-lingui-explicit-id
-#~ msgid "report.lang.mismatch"
-#~ msgstr "This report was written in {lang}; its body does not follow the interface language."
+msgid "report.lang.mismatch"
+msgstr "This report was written in {lang}; its body does not follow the interface language."
 
 #. js-lingui-explicit-id
-#~ msgid "report.lang.zh"
-#~ msgstr "Chinese"
+msgid "report.lang.zh"
+msgstr "Chinese"
 
 #. js-lingui-explicit-id
-#~ msgid "report.lang.en"
-#~ msgstr "English"
+msgid "report.lang.en"
+msgstr "English"
 
 #. js-lingui-explicit-id
-#~ msgid "report.toolbar.back"
-#~ msgstr "Back to {ticker} workspace"
+msgid "report.toolbar.back"
+msgstr "Back to {ticker} workspace"
 
 #. js-lingui-explicit-id
-#~ msgid "report.toolbar.rerunStarted"
-#~ msgstr "{ticker} {reportType} re-run started"
+msgid "report.toolbar.rerunStarted"
+msgstr "{ticker} {reportType} re-run started"
 
 #. js-lingui-explicit-id
-#~ msgid "report.toolbar.rerunStartedBody"
-#~ msgstr "Analysis in progress — version history appears in the workspace drawer when done"
+msgid "report.toolbar.rerunStartedBody"
+msgstr "Analysis in progress — version history appears in the workspace drawer when done"
 
 #. js-lingui-explicit-id
-#~ msgid "report.toolbar.rerunFailed"
-#~ msgstr "Failed to start re-run"
+msgid "report.toolbar.rerunFailed"
+msgstr "Failed to start re-run"
 
 #. js-lingui-explicit-id
-#~ msgid "report.toolbar.toTarget"
-#~ msgstr "To target"
+msgid "report.toolbar.toTarget"
+msgstr "To target"
 
 #. js-lingui-explicit-id
-#~ msgid "report.toolbar.rerun"
-#~ msgstr "Re-run"
+msgid "report.toolbar.rerun"
+msgstr "Re-run"
 
 #. js-lingui-explicit-id
-#~ msgid "report.toolbar.exportHtml"
-#~ msgstr "Export HTML"
+msgid "report.toolbar.exportHtml"
+msgstr "Export HTML"
 
 #. js-lingui-explicit-id
-#~ msgid "report.toolbar.exportHtmlTitle"
-#~ msgstr "Export an HTML report identical to the page (dark theme, charts, continuous scroll; open/share in any browser)"
+msgid "report.toolbar.exportHtmlTitle"
+msgstr "Export an HTML report identical to the page (dark theme, charts, continuous scroll; open/share in any browser)"
 
 #. js-lingui-explicit-id
-#~ msgid "report.toolbar.exportHtmlDone"
-#~ msgstr "HTML report exported"
+msgid "report.toolbar.exportHtmlDone"
+msgstr "HTML report exported"
 
 #. js-lingui-explicit-id
-#~ msgid "report.toolbar.exportHtmlEmpty"
-#~ msgstr "No report content found to export"
+msgid "report.toolbar.exportHtmlEmpty"
+msgstr "No report content found to export"
 
 #. js-lingui-explicit-id
-#~ msgid "report.toolbar.exportHtmlFailed"
-#~ msgstr "HTML export failed"
+msgid "report.toolbar.exportHtmlFailed"
+msgstr "HTML export failed"
 
 #. js-lingui-explicit-id
-#~ msgid "report.rightRail.timeline"
-#~ msgstr "Version Timeline"
+msgid "report.rightRail.timeline"
+msgstr "Version Timeline"
 
 #. js-lingui-explicit-id
-#~ msgid "report.rightRail.whatif"
-#~ msgstr "What-if Editor"
+msgid "report.rightRail.whatif"
+msgstr "What-if Editor"
 
 #. js-lingui-explicit-id
-#~ msgid "report.rightRail.resetTitle"
-#~ msgstr "Reset to the report's original assumptions"
+msgid "report.rightRail.resetTitle"
+msgstr "Reset to the report's original assumptions"
 
 #. js-lingui-explicit-id
-#~ msgid "report.rightRail.reset"
-#~ msgstr "Reset"
+msgid "report.rightRail.reset"
+msgstr "Reset"
 
 #. js-lingui-explicit-id
-#~ msgid "report.rightRail.terminalGrowth"
-#~ msgstr "Terminal Growth"
+msgid "report.rightRail.terminalGrowth"
+msgstr "Terminal Growth"
 
 #. js-lingui-explicit-id
-#~ msgid "report.rightRail.revenueGrowthScale"
-#~ msgstr "Revenue Growth Scale"
+msgid "report.rightRail.revenueGrowthScale"
+msgstr "Revenue Growth Scale"
 
 #. js-lingui-explicit-id
-#~ msgid "report.rightRail.recomputeError"
-#~ msgstr "Recompute failed · check parameter ranges"
+msgid "report.rightRail.recomputeError"
+msgstr "Recompute failed · check parameter ranges"
 
 #. js-lingui-explicit-id
-#~ msgid "report.rightRail.computing"
-#~ msgstr "computing…"
+msgid "report.rightRail.computing"
+msgstr "computing…"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.subheading.eps"
-#~ msgstr "Earnings per Share (EPS) Trend"
+msgid "chapter.financial.subheading.eps"
+msgstr "Earnings per Share (EPS) Trend"
 
 #. js-lingui-explicit-id
-#~ msgid "chapter.financial.chart.title.eps"
-#~ msgstr "Diluted EPS · by Year"
+msgid "chapter.financial.chart.title.eps"
+msgstr "Diluted EPS · by Year"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.epsTrend.eps"
-#~ msgstr "EPS"
+msgid "chart.epsTrend.eps"
+msgstr "EPS"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.epsTrend.yoy"
-#~ msgstr "YoY"
+msgid "chart.epsTrend.yoy"
+msgstr "YoY"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.loadFailed"
-#~ msgstr "Failed to load settings"
+msgid "settings.loadFailed"
+msgstr "Failed to load settings"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.loading"
-#~ msgstr "Loading settings…"
+msgid "settings.loading"
+msgstr "Loading settings…"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.saveFailedShort"
-#~ msgstr "✗ Save failed"
+msgid "settings.saveFailedShort"
+msgstr "✗ Save failed"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.saveFailedRetry"
-#~ msgstr "✗ Save failed · click to retry"
+msgid "settings.saveFailedRetry"
+msgstr "✗ Save failed · click to retry"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.loadError.title"
-#~ msgstr "Can't load settings"
+msgid "settings.loadError.title"
+msgstr "Can't load settings"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.loadError.body"
-#~ msgstr "The backend is unreachable or returned an error, so settings can't be shown or saved. Make sure the FinRobot backend is running, then retry — nothing you type here would be saved until the connection is restored."
+msgid "settings.loadError.body"
+msgstr "The backend is unreachable or returned an error, so settings can't be shown or saved. Make sure the FinRobot backend is running, then retry — nothing you type here would be saved until the connection is restored."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.saving"
-#~ msgstr "Saving…"
+msgid "settings.saving"
+msgstr "Saving…"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.sec.hintEmpty"
-#~ msgstr "Unlocks 10-K / 10-Q / 8-K filings — enter a name + email, e.g. {example}"
+msgid "settings.sec.hintEmpty"
+msgstr "Unlocks 10-K / 10-Q / 8-K filings — enter a name + email, e.g. {example}"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.sec.hintInvalid"
-#~ msgstr "Invalid: don't enter only an email — include a name and email like {example}"
+msgid "settings.sec.hintInvalid"
+msgstr "Invalid: don't enter only an email — include a name and email like {example}"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.sec.hintPending"
-#~ msgstr "Format looks valid — saving automatically; the SEC data layer reloads once saved."
+msgid "settings.sec.hintPending"
+msgstr "Format looks valid — saving automatically; the SEC data layer reloads once saved."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.sec.hintActive"
-#~ msgstr "Active: new analyses fetch 10-K / Ownership / XBRL; existing reports need a re-run to update."
+msgid "settings.sec.hintActive"
+msgstr "Active: new analyses fetch 10-K / Ownership / XBRL; existing reports need a re-run to update."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.sec.hintUnconfirmed"
-#~ msgstr "Valid, but the backend hasn't confirmed activation; wait for the save to finish or check for a save error."
+msgid "settings.sec.hintUnconfirmed"
+msgstr "Valid, but the backend hasn't confirmed activation; wait for the save to finish or check for a save error."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.startupError.title"
-#~ msgstr "Startup configuration error"
+msgid "settings.startupError.title"
+msgstr "Startup configuration error"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.startupError.hint"
-#~ msgstr "Fixing the fields below re-validates automatically. LLM routing returns 503 until the config is fixed."
+msgid "settings.startupError.hint"
+msgstr "Fixing the fields below re-validates automatically. LLM routing returns 503 until the config is fixed."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.section.dataSources"
-#~ msgstr "Data Sources"
+msgid "settings.section.dataSources"
+msgstr "Data Sources"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.dataSources.baselineBadge"
-#~ msgstr "Always on"
+msgid "settings.dataSources.baselineBadge"
+msgstr "Always on"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.dataSources.baselineHint"
-#~ msgstr "Live prices, financials & news — works with no key."
+msgid "settings.dataSources.baselineHint"
+msgstr "Live prices, financials & news — works with no key."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.section.aiModel"
-#~ msgstr "AI Model"
+msgid "settings.section.aiModel"
+msgstr "AI Model"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.badge.configured"
-#~ msgstr "Configured"
+msgid "settings.badge.configured"
+msgstr "Configured"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.badge.required"
-#~ msgstr "Required"
+msgid "settings.badge.required"
+msgstr "Required"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.badge.optional"
-#~ msgstr "Optional"
+msgid "settings.badge.optional"
+msgstr "Optional"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.badge.active"
-#~ msgstr "Active"
+msgid "settings.badge.active"
+msgstr "Active"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.badge.pending"
-#~ msgstr "Pending"
+msgid "settings.badge.pending"
+msgstr "Pending"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.badge.recommended"
-#~ msgstr "Recommended"
+msgid "settings.badge.recommended"
+msgstr "Recommended"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.fmp.label"
-#~ msgstr "FMP API Key"
+msgid "settings.fmp.label"
+msgstr "FMP API Key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.fmp.placeholder"
-#~ msgstr "Enter FMP API key"
+msgid "settings.fmp.placeholder"
+msgstr "Enter FMP API key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.fmp.hint"
-#~ msgstr "Accurate financials, D&A & earnings surprises — free tier"
+msgid "settings.fmp.hint"
+msgstr "Accurate financials, D&A & earnings surprises — free tier"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.finnhub.label"
-#~ msgstr "Finnhub API Key"
+msgid "settings.finnhub.label"
+msgstr "Finnhub API Key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.finnhub.placeholder"
-#~ msgstr "Enter Finnhub API key"
+msgid "settings.finnhub.placeholder"
+msgstr "Enter Finnhub API key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.finnhub.hint"
-#~ msgstr "Adds company news & profile"
+msgid "settings.finnhub.hint"
+msgstr "Adds company news & profile"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.adanos.label"
-#~ msgstr "Adanos API Key"
+msgid "settings.adanos.label"
+msgstr "Adanos API Key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.adanos.placeholder"
-#~ msgstr "Enter Adanos API key"
+msgid "settings.adanos.placeholder"
+msgstr "Enter Adanos API key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.adanos.hint"
-#~ msgstr "Retail sentiment from Reddit, X & Polymarket"
+msgid "settings.adanos.hint"
+msgstr "Retail sentiment from Reddit, X & Polymarket"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.alphaVantage.label"
-#~ msgstr "Alpha Vantage API Key"
+msgid "settings.alphaVantage.label"
+msgstr "Alpha Vantage API Key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.alphaVantage.placeholder"
-#~ msgstr "Enter Alpha Vantage API key"
+msgid "settings.alphaVantage.placeholder"
+msgstr "Enter Alpha Vantage API key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.alphaVantage.hint"
-#~ msgstr "Sentiment scoring for the news feed"
+msgid "settings.alphaVantage.hint"
+msgstr "Sentiment scoring for the news feed"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.apiKey.getKey"
-#~ msgstr "Get a key"
+msgid "settings.apiKey.getKey"
+msgstr "Get a key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.sec.label"
-#~ msgstr "SEC EDGAR Identity (User-Agent)"
+msgid "settings.sec.label"
+msgstr "SEC EDGAR Identity (User-Agent)"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.sec.placeholder"
-#~ msgstr "Name or org email@example.com"
+msgid "settings.sec.placeholder"
+msgstr "Name or org email@example.com"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.sec.preview"
-#~ msgstr "SEC request header preview: "
+msgid "settings.sec.preview"
+msgstr "SEC request header preview: "
 
 #. js-lingui-explicit-id
-#~ msgid "settings.model.label"
-#~ msgstr "Model"
+msgid "settings.model.label"
+msgstr "Model"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.section.secHoldings"
-#~ msgstr "SEC 13F Holdings"
+msgid "settings.section.secHoldings"
+msgstr "SEC 13F Holdings"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.secHoldings.intro"
-#~ msgstr "The 13F reverse index powers the report's \"who holds this stock\" institutional-holdings section. Building it downloads a full quarter of market-wide 13F-HR filings (~1-2 hours, heavy SEC traffic), so it is off by default."
+msgid "settings.secHoldings.intro"
+msgstr "The 13F reverse index powers the report's \"who holds this stock\" institutional-holdings section. Building it downloads a full quarter of market-wide 13F-HR filings (~1-2 hours, heavy SEC traffic), so it is off by default."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.secHoldings.autoRefresh"
-#~ msgstr "Auto-sync on startup"
+msgid "settings.secHoldings.autoRefresh"
+msgstr "Auto-sync on startup"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.secHoldings.autoRefreshDesc"
-#~ msgstr "On each startup, rebuild in the background when the cache is empty or older than 60 days (first build still takes ~1-2 hours)."
+msgid "settings.secHoldings.autoRefreshDesc"
+msgstr "On each startup, rebuild in the background when the cache is empty or older than 60 days (first build still takes ~1-2 hours)."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.secHoldings.statusPopulated"
-#~ msgstr "Built · {rows} rows · {tickers} tickers · as of {period}"
+msgid "settings.secHoldings.statusPopulated"
+msgstr "Built · {rows} rows · {tickers} tickers · as of {period}"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.secHoldings.statusEmpty"
-#~ msgstr "Not built — no institutional holdings cached yet"
+msgid "settings.secHoldings.statusEmpty"
+msgstr "Not built — no institutional holdings cached yet"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.secHoldings.stale"
-#~ msgstr "Stale — quarter {expected} 13F filings are due but not yet synced"
+msgid "settings.secHoldings.stale"
+msgstr "Stale — quarter {expected} 13F filings are due but not yet synced"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.secHoldings.syncNow"
-#~ msgstr "Sync now"
+msgid "settings.secHoldings.syncNow"
+msgstr "Sync now"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.secHoldings.syncing"
-#~ msgstr "Syncing…"
+msgid "settings.secHoldings.syncing"
+msgstr "Syncing…"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.secHoldings.syncFailed"
-#~ msgstr "Sync failed — check logs"
+msgid "settings.secHoldings.syncFailed"
+msgstr "Sync failed — check logs"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.secHoldings.identityRequired"
-#~ msgstr "Configure a valid SEC identity above before syncing"
+msgid "settings.secHoldings.identityRequired"
+msgstr "Configure a valid SEC identity above before syncing"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.secHoldings.runningHint"
-#~ msgstr "Downloading and parsing a full quarter of 13F-HR filings — this can take 1-2 hours. You can leave this page; re-run the analysis once it finishes to populate institutional holdings."
+msgid "settings.secHoldings.runningHint"
+msgstr "Downloading and parsing a full quarter of 13F-HR filings — this can take 1-2 hours. You can leave this page; re-run the analysis once it finishes to populate institutional holdings."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.secHoldings.confirmTitle"
-#~ msgstr "Start 13F sync?"
+msgid "settings.secHoldings.confirmTitle"
+msgstr "Start 13F sync?"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.secHoldings.confirmBody"
-#~ msgstr "This downloads a full quarter of market-wide 13F-HR filings (~1-2 hours, heavy SEC traffic). It runs in the background — you can leave this page. Reports must be regenerated after it finishes to pick up institutional holdings."
+msgid "settings.secHoldings.confirmBody"
+msgstr "This downloads a full quarter of market-wide 13F-HR filings (~1-2 hours, heavy SEC traffic). It runs in the background — you can leave this page. Reports must be regenerated after it finishes to pick up institutional holdings."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.secHoldings.confirmProceed"
-#~ msgstr "Start sync"
+msgid "settings.secHoldings.confirmProceed"
+msgstr "Start sync"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.secHoldings.startedAt"
-#~ msgstr "Started at {time}"
+msgid "settings.secHoldings.startedAt"
+msgstr "Started at {time}"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.secHoldings.syncError"
-#~ msgstr "Couldn't start the sync — the backend is unreachable or returned an error."
+msgid "settings.secHoldings.syncError"
+msgstr "Couldn't start the sync — the backend is unreachable or returned an error."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.saveFailedTitle"
-#~ msgstr "Save failed"
+msgid "settings.saveFailedTitle"
+msgstr "Save failed"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.savedOk"
-#~ msgstr "✓ Saved"
+msgid "settings.savedOk"
+msgstr "✓ Saved"
 
 #. js-lingui-explicit-id
-#~ msgid "shell.sidebar.ic"
-#~ msgstr "IC"
+msgid "shell.sidebar.ic"
+msgstr "IC"
 
 #. js-lingui-explicit-id
-#~ msgid "shell.sidebar.runningCount"
-#~ msgstr "{count} analysis running"
+msgid "shell.sidebar.runningCount"
+msgstr "{count} analysis running"
 
 #. js-lingui-explicit-id
-#~ msgid "shell.titlebar.aiAssistant"
-#~ msgstr "AI Assistant (⌘L)"
+msgid "shell.titlebar.aiAssistant"
+msgstr "AI Assistant (⌘L)"
 
 #. js-lingui-explicit-id
-#~ msgid "shell.warning.collapse"
-#~ msgstr "Collapse"
+msgid "shell.warning.collapse"
+msgstr "Collapse"
 
 #. js-lingui-explicit-id
-#~ msgid "shell.warning.more"
-#~ msgstr "+{count} more"
+msgid "shell.warning.more"
+msgstr "+{count} more"
 
 #. js-lingui-explicit-id
-#~ msgid "shell.error.renderFailed"
-#~ msgstr "Page render error"
+msgid "shell.error.renderFailed"
+msgstr "Page render error"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.tagline1"
-#~ msgstr "DETERMINISTIC COMPUTE · LLM NARRATIVE"
+msgid "landing.hero.tagline1"
+msgstr "DETERMINISTIC COMPUTE · LLM NARRATIVE"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.tagline2"
-#~ msgstr "NUMBER FIRST · NARRATIVE SECOND"
+msgid "landing.hero.tagline2"
+msgstr "NUMBER FIRST · NARRATIVE SECOND"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.tagline3"
-#~ msgstr "AI ANALYST · ALWAYS WORKING"
+msgid "landing.hero.tagline3"
+msgstr "AI ANALYST · ALWAYS WORKING"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.tagline4"
-#~ msgstr "EVERY NUMBER · TRACEABLE TO A FUNCTION CALL"
+msgid "landing.hero.tagline4"
+msgstr "EVERY NUMBER · TRACEABLE TO A FUNCTION CALL"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.invalidTicker"
-#~ msgstr "Invalid symbol · use 1-12 letters / digits / .-"
+msgid "landing.hero.invalidTicker"
+msgstr "Invalid symbol · use 1-12 letters / digits / .-"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.searchPlaceholder"
-#~ msgstr "Enter a ticker · e.g. AAPL"
+msgid "landing.hero.searchPlaceholder"
+msgstr "Enter a ticker · e.g. AAPL"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.analyze"
-#~ msgstr "Analyze"
+msgid "landing.hero.analyze"
+msgstr "Analyze"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.cockpitLabel"
-#~ msgstr "AI research cockpit"
+msgid "landing.hero.cockpitLabel"
+msgstr "AI research cockpit"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.traceRail"
-#~ msgstr "Function trace"
+msgid "landing.hero.traceRail"
+msgstr "Function trace"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.chapterMatrix"
-#~ msgstr "Chapter matrix"
+msgid "landing.hero.chapterMatrix"
+msgstr "Chapter matrix"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.tickerAria"
-#~ msgstr "Ticker symbol"
+msgid "landing.hero.tickerAria"
+msgstr "Ticker symbol"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.stage.data"
-#~ msgstr "Data"
+msgid "landing.hero.stage.data"
+msgstr "Data"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.stage.catalyst"
-#~ msgstr "Catalysts"
+msgid "landing.hero.stage.catalyst"
+msgstr "Catalysts"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.stage.peers"
-#~ msgstr "Peers"
+msgid "landing.hero.stage.peers"
+msgstr "Peers"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.stage.model"
-#~ msgstr "Modeling"
+msgid "landing.hero.stage.model"
+msgstr "Modeling"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.stage.ownership"
-#~ msgstr "Ownership"
+msgid "landing.hero.stage.ownership"
+msgstr "Ownership"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.stage.technical"
-#~ msgstr "Technical"
+msgid "landing.hero.stage.technical"
+msgstr "Technical"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.stage.thesis"
-#~ msgstr "Thesis"
+msgid "landing.hero.stage.thesis"
+msgstr "Thesis"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.stage.report"
-#~ msgstr "IB report"
+msgid "landing.hero.stage.report"
+msgstr "IB report"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.deckCaption"
-#~ msgstr "What runs when you hit Analyze"
+msgid "landing.hero.deckCaption"
+msgstr "What runs when you hit Analyze"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.reportNode"
-#~ msgstr "13-chapter IB-grade report"
+msgid "landing.hero.reportNode"
+msgstr "13-chapter IB-grade report"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.traceableLabel"
-#~ msgstr "Every number traceable"
+msgid "landing.hero.traceableLabel"
+msgstr "Every number traceable"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.sourcedNote"
-#~ msgstr "open for source / basis / formula"
+msgid "landing.hero.sourcedNote"
+msgstr "open for source / basis / formula"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.icDebate"
-#~ msgstr "Bull / Bear IC debate · conviction"
+msgid "landing.hero.icDebate"
+msgstr "Bull / Bear IC debate · conviction"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.bull"
-#~ msgstr "BULL"
+msgid "landing.hero.bull"
+msgstr "BULL"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.bear"
-#~ msgstr "BEAR"
+msgid "landing.hero.bear"
+msgstr "BEAR"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hitRate.window30d"
-#~ msgstr "30D"
+msgid "landing.hitRate.window30d"
+msgstr "30D"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hitRate.window90d"
-#~ msgstr "90D"
+msgid "landing.hitRate.window90d"
+msgstr "90D"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hitRate.windowAll"
-#~ msgstr "All"
+msgid "landing.hitRate.windowAll"
+msgstr "All"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hitRate.title"
-#~ msgstr "Track Record · Hit Rate"
+msgid "landing.hitRate.title"
+msgstr "Track Record · Hit Rate"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hitRate.error"
-#~ msgstr "Failed to load data. Please refresh the page."
+msgid "landing.hitRate.error"
+msgstr "Failed to load data. Please refresh the page."
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hitRate.overallMeta"
-#~ msgstr "Overall · settled {closed} / total {total}"
+msgid "landing.hitRate.overallMeta"
+msgstr "Overall · settled {closed} / total {total}"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hitRate.insufficient"
-#~ msgstr "Insufficient track record · need ≥1 settled position to compute hit rate"
+msgid "landing.hitRate.insufficient"
+msgstr "Insufficient track record · need ≥1 settled position to compute hit rate"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hitRate.hitSummary"
-#~ msgstr "{hit} of {closed} settled positions hit target"
+msgid "landing.hitRate.hitSummary"
+msgstr "{hit} of {closed} settled positions hit target"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hitRate.sampleCount"
-#~ msgstr "n={n}"
+msgid "landing.hitRate.sampleCount"
+msgstr "n={n}"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hitRate.hitsShort"
-#~ msgstr "{hit}/{closed} hits"
+msgid "landing.hitRate.hitsShort"
+msgstr "{hit}/{closed} hits"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.recentResearch.typeResearch"
-#~ msgstr "Report"
+msgid "landing.recentResearch.typeResearch"
+msgstr "Report"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.recentResearch.typeIcMemo"
-#~ msgstr "IC Memo"
+msgid "landing.recentResearch.typeIcMemo"
+msgstr "IC Memo"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.recentResearch.typeEarnings"
-#~ msgstr "Earnings"
+msgid "landing.recentResearch.typeEarnings"
+msgstr "Earnings"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.recentResearch.typeDcf"
-#~ msgstr "DCF"
+msgid "landing.recentResearch.typeDcf"
+msgstr "DCF"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.recentResearch.typeLbo"
-#~ msgstr "LBO"
+msgid "landing.recentResearch.typeLbo"
+msgstr "LBO"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.recentResearch.typeDdm"
-#~ msgstr "DDM"
+msgid "landing.recentResearch.typeDdm"
+msgstr "DDM"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.recentResearch.typeComps"
-#~ msgstr "Comps"
+msgid "landing.recentResearch.typeComps"
+msgstr "Comps"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.recentResearch.typeAdHoc"
-#~ msgstr "Ad hoc"
+msgid "landing.recentResearch.typeAdHoc"
+msgstr "Ad hoc"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.recentResearch.title"
-#~ msgstr "Studied Tickers · Research History"
+msgid "landing.recentResearch.title"
+msgstr "Studied Tickers · Research History"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.recentResearch.openReport"
-#~ msgstr "Open {type} report detail"
+msgid "landing.recentResearch.openReport"
+msgstr "Open {type} report detail"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.recentResearch.openWorkspace"
-#~ msgstr "Open {ticker} workspace"
+msgid "landing.recentResearch.openWorkspace"
+msgstr "Open {ticker} workspace"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.recentResearch.runCount"
-#~ msgstr "{count} runs ›"
+msgid "landing.recentResearch.runCount"
+msgstr "{count} runs ›"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.recentResearch.overflow"
-#~ msgstr "+ {count} more · view all →"
+msgid "landing.recentResearch.overflow"
+msgstr "+ {count} more · view all →"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.recentResearch.quoteLoading"
-#~ msgstr "Loading quotes"
+msgid "landing.recentResearch.quoteLoading"
+msgstr "Loading quotes"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hot.recent"
-#~ msgstr "Recent"
+msgid "landing.hot.recent"
+msgstr "Recent"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hot.popular"
-#~ msgstr "Popular"
+msgid "landing.hot.popular"
+msgstr "Popular"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.statusGenerating"
-#~ msgstr "Generating {name}"
+msgid "workspace.pipeline.statusGenerating"
+msgstr "Generating {name}"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.statusDone"
-#~ msgstr "{name} · Done"
+msgid "workspace.pipeline.statusDone"
+msgstr "{name} · Done"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.statusFailed"
-#~ msgstr "{name} · Failed"
+msgid "workspace.pipeline.statusFailed"
+msgstr "{name} · Failed"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.statusCancelled"
-#~ msgstr "{name} · Cancelled"
+msgid "workspace.pipeline.statusCancelled"
+msgstr "{name} · Cancelled"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.cancel"
-#~ msgstr "Cancel"
+msgid "workspace.pipeline.cancel"
+msgstr "Cancel"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.cancelling"
-#~ msgstr "Cancelling…"
+msgid "workspace.pipeline.cancelling"
+msgstr "Cancelling…"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.elapsed"
-#~ msgstr " · {s}s elapsed"
+msgid "workspace.pipeline.elapsed"
+msgstr " · {s}s elapsed"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.eta"
-#~ msgstr " · ~{s}s left"
+msgid "workspace.pipeline.eta"
+msgstr " · ~{s}s left"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.totalDuration"
-#~ msgstr " · {s}s total"
+msgid "workspace.pipeline.totalDuration"
+msgstr " · {s}s total"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.openReport"
-#~ msgstr "→ Open report"
+msgid "workspace.pipeline.openReport"
+msgstr "→ Open report"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.dismissAria"
-#~ msgstr "Dismiss progress panel"
+msgid "workspace.pipeline.dismissAria"
+msgstr "Dismiss progress panel"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.retrying"
-#~ msgstr "Retrying {attempt}/{max}"
+msgid "workspace.pipeline.retrying"
+msgstr "Retrying {attempt}/{max}"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.degraded"
-#~ msgstr "Degraded"
+msgid "workspace.pipeline.degraded"
+msgstr "Degraded"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.footer"
-#~ msgstr "Numbers are computed in code, not authored by the LLM · any step failure regenerates the whole report"
+msgid "workspace.pipeline.footer"
+msgstr "Numbers are computed in code, not authored by the LLM · any step failure regenerates the whole report"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.failedMsg"
-#~ msgstr "⚠️ Report generation failed · {error}"
+msgid "workspace.pipeline.failedMsg"
+msgstr "⚠️ Report generation failed · {error}"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.retryLater"
-#~ msgstr "Please try again later"
+msgid "workspace.pipeline.retryLater"
+msgstr "Please try again later"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.type.research"
-#~ msgstr "Full AI Research"
+msgid "workspace.pipeline.type.research"
+msgstr "Full AI Research"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.type.icMemo"
-#~ msgstr "IC Memo"
+msgid "workspace.pipeline.type.icMemo"
+msgstr "IC Memo"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.type.earnings"
-#~ msgstr "Earnings Call Analysis"
+msgid "workspace.pipeline.type.earnings"
+msgstr "Earnings Call Analysis"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.type.lbo"
-#~ msgstr "LBO Valuation"
+msgid "workspace.pipeline.type.lbo"
+msgstr "LBO Valuation"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.type.ddm"
-#~ msgstr "Dividend Discount"
+msgid "workspace.pipeline.type.ddm"
+msgstr "Dividend Discount"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.type.comps"
-#~ msgstr "Peer Comps"
+msgid "workspace.pipeline.type.comps"
+msgstr "Peer Comps"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.type.dcf"
-#~ msgstr "DCF Valuation"
+msgid "workspace.pipeline.type.dcf"
+msgstr "DCF Valuation"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.step.dataCollection.label"
-#~ msgstr "Data Collection"
+msgid "workspace.pipeline.step.dataCollection.label"
+msgstr "Data Collection"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.step.dataCollection.help"
-#~ msgstr "Fetch 10-K / 10-Q / prices / news"
+msgid "workspace.pipeline.step.dataCollection.help"
+msgstr "Fetch 10-K / 10-Q / prices / news"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.step.catalystAnalysis.label"
-#~ msgstr "Catalyst Detection"
+msgid "workspace.pipeline.step.catalystAnalysis.label"
+msgstr "Catalyst Detection"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.step.catalystAnalysis.help"
-#~ msgstr "News classification + event extraction + impact scoring"
+msgid "workspace.pipeline.step.catalystAnalysis.help"
+msgstr "News classification + event extraction + impact scoring"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.step.peerAnalysis.label"
-#~ msgstr "Peer Comps"
+msgid "workspace.pipeline.step.peerAnalysis.label"
+msgstr "Peer Comps"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.step.peerAnalysis.help"
-#~ msgstr "Financial comparison across 5 comparables"
+msgid "workspace.pipeline.step.peerAnalysis.help"
+msgstr "Financial comparison across 5 comparables"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.step.financialModeling.label"
-#~ msgstr "Financial Modeling"
+msgid "workspace.pipeline.step.financialModeling.label"
+msgstr "Financial Modeling"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.step.financialModeling.help"
-#~ msgstr "DCF Monte Carlo + Comps + sensitivity"
+msgid "workspace.pipeline.step.financialModeling.help"
+msgstr "DCF Monte Carlo + Comps + sensitivity"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.step.ownershipGovernance.label"
-#~ msgstr "Ownership & Governance"
+msgid "workspace.pipeline.step.ownershipGovernance.label"
+msgstr "Ownership & Governance"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.step.ownershipGovernance.help"
-#~ msgstr "Insider trades + institutional holdings + exec comp"
+msgid "workspace.pipeline.step.ownershipGovernance.help"
+msgstr "Insider trades + institutional holdings + exec comp"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.step.technicalAnalysis.label"
-#~ msgstr "Technical & Advanced"
+msgid "workspace.pipeline.step.technicalAnalysis.label"
+msgstr "Technical & Advanced"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.step.technicalAnalysis.help"
-#~ msgstr "Monte Carlo + entry levels + price action"
+msgid "workspace.pipeline.step.technicalAnalysis.help"
+msgstr "Monte Carlo + entry levels + price action"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.step.thesis.label"
-#~ msgstr "Investment Thesis"
+msgid "workspace.pipeline.step.thesis.label"
+msgstr "Investment Thesis"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.step.thesis.help"
-#~ msgstr "Generate target price + risk factors"
+msgid "workspace.pipeline.step.thesis.help"
+msgstr "Generate target price + risk factors"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.step.report.label"
-#~ msgstr "Report Assembly"
+msgid "workspace.pipeline.step.report.label"
+msgstr "Report Assembly"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.pipeline.step.report.help"
-#~ msgstr "13-chapter report + LLM narrative"
+msgid "workspace.pipeline.step.report.help"
+msgstr "13-chapter report + LLM narrative"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.zoneTitle"
-#~ msgstr "📊 Market Data"
+msgid "workspace.market.zoneTitle"
+msgstr "📊 Market Data"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.zoneDesc"
-#~ msgstr "Source: yfinance / SEC EDGAR / FMP · pulled live, independent of any AI report."
+msgid "workspace.market.zoneDesc"
+msgstr "Source: yfinance / SEC EDGAR / FMP · pulled live, independent of any AI report."
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.snapshot"
-#~ msgstr "📊 Quote Snapshot"
+msgid "workspace.market.snapshot"
+msgstr "📊 Quote Snapshot"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.priceTrend"
-#~ msgstr "📈 Price Trend"
+msgid "workspace.market.priceTrend"
+msgstr "📈 Price Trend"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.financialsTtm"
-#~ msgstr "💰 Financials · TTM"
+msgid "workspace.market.financialsTtm"
+msgstr "💰 Financials · TTM"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.catalystCalendar"
-#~ msgstr "📅 Catalyst Calendar"
+msgid "workspace.market.catalystCalendar"
+msgstr "📅 Catalyst Calendar"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.catalystClassifying"
-#~ msgstr "Classifying news — first load ~15s"
+msgid "workspace.market.catalystClassifying"
+msgstr "Classifying news — first load ~15s"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.marketCap"
-#~ msgstr "Market Cap"
+msgid "workspace.market.marketCap"
+msgstr "Market Cap"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.revenueTtm"
-#~ msgstr "Revenue TTM"
+msgid "workspace.market.revenueTtm"
+msgstr "Revenue TTM"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.streetCaliber"
-#~ msgstr "Reported {v}"
+msgid "workspace.market.streetCaliber"
+msgstr "Reported {v}"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.evEbitdaCaliber"
-#~ msgstr "Primary = operating EV/EBITDA (EBITDA = EBIT + D&A). EV is net of cash, so interest income is excluded. Reported = net income + tax + interest + D&A, includes interest income — the caliber most retail aggregators quote, not analyst consensus."
+msgid "workspace.market.evEbitdaCaliber"
+msgstr "Primary = operating EV/EBITDA (EBITDA = EBIT + D&A). EV is net of cash, so interest income is excluded. Reported = net income + tax + interest + D&A, includes interest income — the caliber most retail aggregators quote, not analyst consensus."
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.ebitdaCaliber"
-#~ msgstr "Primary = operating EBITDA (EBIT + D&A). Reported = net income + tax + interest + D&A — the caliber retail aggregators quote; includes non-operating income, so it runs above the operating figure. Not analyst (Street) consensus."
+msgid "workspace.market.ebitdaCaliber"
+msgstr "Primary = operating EBITDA (EBIT + D&A). Reported = net income + tax + interest + D&A — the caliber retail aggregators quote; includes non-operating income, so it runs above the operating figure. Not analyst (Street) consensus."
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.unnamedEvent"
-#~ msgstr "(unnamed event)"
+msgid "workspace.market.unnamedEvent"
+msgstr "(unnamed event)"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.noCatalysts"
-#~ msgstr "No recent events · earnings / product launches / regulatory"
+msgid "workspace.market.noCatalysts"
+msgstr "No recent events · earnings / product launches / regulatory"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.dataUnavailable"
-#~ msgstr "Market data source unavailable"
+msgid "workspace.market.dataUnavailable"
+msgstr "Market data source unavailable"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.dataUnavailableHint"
-#~ msgstr "Upstream returned {status} · click to retry"
+msgid "workspace.market.dataUnavailableHint"
+msgstr "Upstream returned {status} · click to retry"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.retry"
-#~ msgstr "Retry"
+msgid "workspace.market.retry"
+msgstr "Retry"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.catalystError"
-#~ msgstr "Catalyst detection unavailable (≠ no catalysts) · click to retry"
+msgid "workspace.market.catalystError"
+msgstr "Catalyst detection unavailable (≠ no catalysts) · click to retry"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.source"
-#~ msgstr "Source {provider}"
+msgid "workspace.market.source"
+msgstr "Source {provider}"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.ttmAsOf"
-#~ msgstr "TTM as of {date}"
+msgid "workspace.market.ttmAsOf"
+msgstr "TTM as of {date}"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.degraded.closeOnly"
-#~ msgstr "Close-only · 52w high/low from closing prices"
+msgid "workspace.market.degraded.closeOnly"
+msgstr "Close-only · 52w high/low from closing prices"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.degraded.ttmLag"
-#~ msgstr "TTM lag · denominator not latest quarter"
+msgid "workspace.market.degraded.ttmLag"
+msgstr "TTM lag · denominator not latest quarter"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.degraded.ccyInferred"
-#~ msgstr "Currency inferred · not stated directly in filings"
+msgid "workspace.market.degraded.ccyInferred"
+msgstr "Currency inferred · not stated directly in filings"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.degraded.priceFallbackClose"
-#~ msgstr "Price is last close · market closed or close-only feed"
+msgid "workspace.market.degraded.priceFallbackClose"
+msgstr "Price is last close · market closed or close-only feed"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.degraded.periodBasisUnknown"
-#~ msgstr "Reporting period unconfirmed · assumed TTM"
+msgid "workspace.market.degraded.periodBasisUnknown"
+msgstr "Reporting period unconfirmed · assumed TTM"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.degraded.circuitOpen"
-#~ msgstr "{provider} source skipped · circuit-breaker cooldown"
+msgid "workspace.market.degraded.circuitOpen"
+msgstr "{provider} source skipped · circuit-breaker cooldown"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.degraded.providerDivergence"
-#~ msgstr "{field} differs across sources · cross-check flagged"
+msgid "workspace.market.degraded.providerDivergence"
+msgstr "{field} differs across sources · cross-check flagged"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.degraded.priceDivergence"
-#~ msgstr "{field} differs across quote sources · review live price"
+msgid "workspace.market.degraded.priceDivergence"
+msgstr "{field} differs across quote sources · review live price"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.trend.uptrend"
-#~ msgstr "↑ Uptrend"
+msgid "workspace.market.trend.uptrend"
+msgstr "↑ Uptrend"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.trend.downtrend"
-#~ msgstr "↓ Downtrend"
+msgid "workspace.market.trend.downtrend"
+msgstr "↓ Downtrend"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.trend.sideways"
-#~ msgstr "→ Sideways"
+msgid "workspace.market.trend.sideways"
+msgstr "→ Sideways"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.trendInsufficient"
-#~ msgstr "Insufficient trend data (under 20 trading days)"
+msgid "workspace.market.trendInsufficient"
+msgstr "Insufficient trend data (under 20 trading days)"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.trendUnavailable"
-#~ msgstr "Trend data unavailable"
+msgid "workspace.market.trendUnavailable"
+msgstr "Trend data unavailable"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.rangeMarker"
-#~ msgstr "Current {price} · range position {pct}%"
+msgid "workspace.market.rangeMarker"
+msgstr "Current {price} · range position {pct}%"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.low52w"
-#~ msgstr "52W Low {v}"
+msgid "workspace.market.low52w"
+msgstr "52W Low {v}"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.high52w"
-#~ msgstr "52W High {v}"
+msgid "workspace.market.high52w"
+msgstr "52W High {v}"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.range"
-#~ msgstr "Range {pct}%"
+msgid "workspace.market.range"
+msgstr "Range {pct}%"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.sentiment"
-#~ msgstr "Retail Sentiment"
+msgid "workspace.market.sentiment"
+msgstr "Retail Sentiment"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.sentimentDesc"
-#~ msgstr "Retail bull/bear lean and buzz across Reddit / X.com / Polymarket (Adanos). Headline split is an unweighted average across covered platforms."
+msgid "workspace.market.sentimentDesc"
+msgstr "Retail bull/bear lean and buzz across Reddit / X.com / Polymarket (Adanos). Headline split is an unweighted average across covered platforms."
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.eventsZoneHeader"
-#~ msgstr "Market Events & Sentiment · Non-AI"
+msgid "workspace.market.eventsZoneHeader"
+msgstr "Market Events & Sentiment · Non-AI"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.sentimentUnconfigured"
-#~ msgstr "Adanos not configured"
+msgid "workspace.market.sentimentUnconfigured"
+msgstr "Adanos not configured"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.sentimentUnconfiguredHint"
-#~ msgstr "Add an Adanos API key in Settings to unlock retail sentiment."
+msgid "workspace.market.sentimentUnconfiguredHint"
+msgstr "Add an Adanos API key in Settings to unlock retail sentiment."
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.sentimentGoSettings"
-#~ msgstr "Settings →"
+msgid "workspace.market.sentimentGoSettings"
+msgstr "Settings →"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.sentimentCoverage"
-#~ msgstr "{coverage} platforms covered"
+msgid "workspace.market.sentimentCoverage"
+msgstr "{coverage} platforms covered"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.sentimentBullish"
-#~ msgstr "Bullish"
+msgid "workspace.market.sentimentBullish"
+msgstr "Bullish"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.sentimentBearish"
-#~ msgstr "Bearish"
+msgid "workspace.market.sentimentBearish"
+msgstr "Bearish"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.sentimentBuzz"
-#~ msgstr "Avg buzz"
+msgid "workspace.market.sentimentBuzz"
+msgstr "Avg buzz"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.sentimentAlignment.aligned"
-#~ msgstr "Sources aligned"
+msgid "workspace.market.sentimentAlignment.aligned"
+msgstr "Sources aligned"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.sentimentAlignment.split"
-#~ msgstr "Sources split"
+msgid "workspace.market.sentimentAlignment.split"
+msgstr "Sources split"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.sentimentAlignment.partial_divergence"
-#~ msgstr "Partial divergence"
+msgid "workspace.market.sentimentAlignment.partial_divergence"
+msgstr "Partial divergence"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.sentimentAlignment.single_source"
-#~ msgstr "Single source"
+msgid "workspace.market.sentimentAlignment.single_source"
+msgstr "Single source"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.sentimentAlignment.no_data"
-#~ msgstr "No data"
+msgid "workspace.market.sentimentAlignment.no_data"
+msgstr "No data"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.sentimentNoSources"
-#~ msgstr "No platform returned data."
+msgid "workspace.market.sentimentNoSources"
+msgstr "No platform returned data."
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.zoneTitle"
-#~ msgstr "🤖 AI Research"
+msgid "workspace.ai.zoneTitle"
+msgstr "🤖 AI Research"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.zoneDesc"
-#~ msgstr "AI research report · 13 chapters spanning investment thesis, valuation (DCF / comps / DDM), risks and catalysts — numbers computed in code, judgments from the LLM."
+msgid "workspace.ai.zoneDesc"
+msgstr "AI research report · 13 chapters spanning investment thesis, valuation (DCF / comps / DDM), risks and catalysts — numbers computed in code, judgments from the LLM."
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.reportCount"
-#~ msgstr "{n} reports"
+msgid "workspace.ai.reportCount"
+msgstr "{n} reports"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.neverRun"
-#~ msgstr "Never run"
+msgid "workspace.ai.neverRun"
+msgstr "Never run"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.running"
-#~ msgstr "Running …"
+msgid "workspace.ai.running"
+msgstr "Running …"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.retry"
-#~ msgstr "↻ Retry"
+msgid "workspace.ai.retry"
+msgstr "↻ Retry"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.error.title"
-#~ msgstr "Load failed — backend unreachable or returned an error"
+msgid "workspace.ai.error.title"
+msgstr "Load failed — backend unreachable or returned an error"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.error.hint"
-#~ msgstr "Check whether the backend service is running"
+msgid "workspace.ai.error.hint"
+msgstr "Check whether the backend service is running"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.toast.alreadyRunning"
-#~ msgstr "{ticker} analysis already in progress"
+msgid "workspace.ai.toast.alreadyRunning"
+msgstr "{ticker} analysis already in progress"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.toast.alreadyRunningDesc"
-#~ msgstr "Wait for the current run to finish before starting a new one"
+msgid "workspace.ai.toast.alreadyRunningDesc"
+msgstr "Wait for the current run to finish before starting a new one"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.toast.launched"
-#~ msgstr "{ticker} report started"
+msgid "workspace.ai.toast.launched"
+msgstr "{ticker} report started"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.toast.launchedDesc"
-#~ msgstr "Analysis in progress — this view refreshes automatically in about 60s"
+msgid "workspace.ai.toast.launchedDesc"
+msgstr "Analysis in progress — this view refreshes automatically in about 60s"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.toast.launchFailed"
-#~ msgstr "Failed to start report"
+msgid "workspace.ai.toast.launchFailed"
+msgstr "Failed to start report"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.cold.checking"
-#~ msgstr "Checking report history…"
+msgid "workspace.ai.cold.checking"
+msgstr "Checking report history…"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.cold.title"
-#~ msgstr "No report generated for {ticker} yet"
+msgid "workspace.ai.cold.title"
+msgstr "No report generated for {ticker} yet"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.cold.descPrefix"
-#~ msgstr "Generate a"
+msgid "workspace.ai.cold.descPrefix"
+msgstr "Generate a"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.cold.descBold"
-#~ msgstr "13-chapter investment-bank-grade report"
+msgid "workspace.ai.cold.descBold"
+msgstr "13-chapter investment-bank-grade report"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.cold.descSuffix"
-#~ msgstr ": investment thesis · company overview · financial analysis · valuation (DCF + comps + DDM) · news & events · sensitivity · catalysts · technicals · competitive landscape · financial data · ownership & governance (with cover and disclaimer)"
+msgid "workspace.ai.cold.descSuffix"
+msgstr ": investment thesis · company overview · financial analysis · valuation (DCF + comps + DDM) · news & events · sensitivity · catalysts · technicals · competitive landscape · financial data · ownership & governance (with cover and disclaimer)"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.cold.launchBtn"
-#~ msgstr "▶ Run AI Research now (~60s)"
+msgid "workspace.ai.cold.launchBtn"
+msgstr "▶ Run AI Research now (~60s)"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.cold.immutableNote"
-#~ msgstr "Reports are immutable once generated · regenerating appends a new version, never overwrites the old one"
+msgid "workspace.ai.cold.immutableNote"
+msgstr "Reports are immutable once generated · regenerating appends a new version, never overwrites the old one"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.hot.latestReport"
-#~ msgstr "📄 Latest Report"
+msgid "workspace.ai.hot.latestReport"
+msgstr "📄 Latest Report"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.hot.openFull"
-#~ msgstr "→ Open full 13-chapter report"
+msgid "workspace.ai.hot.openFull"
+msgstr "→ Open full 13-chapter report"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.hot.rerun"
-#~ msgstr "↻ Rerun"
+msgid "workspace.ai.hot.rerun"
+msgstr "↻ Rerun"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.hot.chapterJump"
-#~ msgstr "📑 13-chapter quick jump"
+msgid "workspace.ai.hot.chapterJump"
+msgstr "📑 13-chapter quick jump"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.hot.history"
-#~ msgstr "⏱ Version history · {n}"
+msgid "workspace.ai.hot.history"
+msgstr "⏱ Version history · {n}"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.hot.openArrow"
-#~ msgstr "Open →"
+msgid "workspace.ai.hot.openArrow"
+msgstr "Open →"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.age.justNow"
-#~ msgstr "just now"
+msgid "workspace.ai.age.justNow"
+msgstr "just now"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.age.minAgo"
-#~ msgstr "{n}min ago"
+msgid "workspace.ai.age.minAgo"
+msgstr "{n}min ago"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.age.hAgo"
-#~ msgstr "{n}h ago"
+msgid "workspace.ai.age.hAgo"
+msgstr "{n}h ago"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.ai.age.dAgo"
-#~ msgstr "{n}d ago"
+msgid "workspace.ai.age.dAgo"
+msgstr "{n}d ago"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.hero.closedAsOf"
-#~ msgstr "Close · {date}"
+msgid "workspace.hero.closedAsOf"
+msgstr "Close · {date}"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.hero.usMarket"
-#~ msgstr "US"
+msgid "workspace.hero.usMarket"
+msgstr "US"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.toast.reportDone"
-#~ msgstr "{ticker} report complete"
+msgid "workspace.toast.reportDone"
+msgstr "{ticker} report complete"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.toast.reportCancelled"
-#~ msgstr "{ticker} run cancelled"
+msgid "workspace.toast.reportCancelled"
+msgstr "{ticker} run cancelled"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.toast.reportDoneDesc"
-#~ msgstr "The full 13-chapter report is ready — click \"Open full report\" in the AI panel on the right to view it"
+msgid "workspace.toast.reportDoneDesc"
+msgstr "The full 13-chapter report is ready — click \"Open full report\" in the AI panel on the right to view it"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.toast.reportFailed"
-#~ msgstr "{ticker} report failed"
+msgid "workspace.toast.reportFailed"
+msgstr "{ticker} report failed"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.toast.retryLater"
-#~ msgstr "Please try again later"
+msgid "workspace.toast.retryLater"
+msgstr "Please try again later"
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.missingTicker"
-#~ msgstr "No ticker specified — enter one via search or your watchlist."
+msgid "workspace.missingTicker"
+msgstr "No ticker specified — enter one via search or your watchlist."
 
 #. js-lingui-explicit-id
-#~ msgid "ic.toast.missingParams.title"
-#~ msgstr "Missing parameters"
+msgid "ic.toast.missingParams.title"
+msgstr "Missing parameters"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.toast.missingParams.desc"
-#~ msgstr "Ticker or artifact_id is empty. Please enter the Investment Committee from a research report."
+msgid "ic.toast.missingParams.desc"
+msgstr "Ticker or artifact_id is empty. Please enter the Investment Committee from a research report."
 
 #. js-lingui-explicit-id
-#~ msgid "ic.toast.startFailed.title"
-#~ msgstr "Unable to start the IC debate"
+msgid "ic.toast.startFailed.title"
+msgstr "Unable to start the IC debate"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.error.missingTicker"
-#~ msgstr "Missing ticker parameter in the URL"
+msgid "ic.error.missingTicker"
+msgstr "Missing ticker parameter in the URL"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.breadcrumb.back"
-#~ msgstr "Back to committee list"
+msgid "ic.breadcrumb.back"
+msgstr "Back to committee list"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.breadcrumb.committee"
-#~ msgstr "Committee"
+msgid "ic.breadcrumb.committee"
+msgstr "Committee"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.action.reset"
-#~ msgstr "Reset"
+msgid "ic.action.reset"
+msgstr "Reset"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.action.retry"
-#~ msgstr "Retry debate"
+msgid "ic.action.retry"
+msgstr "Retry debate"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.start.title"
-#~ msgstr "AI Investment Committee Debate"
+msgid "ic.start.title"
+msgstr "AI Investment Committee Debate"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.start.desc"
-#~ msgstr "Drawing on the structured data of the generated report, the system pits a Bull member against a Bear member in a cross-examination. Every claim carries a verification status and traceable evidence; the committee delivers a verdict with a Conviction Score and the conditions that would Change My Mind."
+msgid "ic.start.desc"
+msgstr "Drawing on the structured data of the generated report, the system pits a Bull member against a Bear member in a cross-examination. Every claim carries a verification status and traceable evidence; the committee delivers a verdict with a Conviction Score and the conditions that would Change My Mind."
 
 #. js-lingui-explicit-id
-#~ msgid "ic.start.reportId"
-#~ msgstr "Report ID"
+msgid "ic.start.reportId"
+msgstr "Report ID"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.start.viewReport"
-#~ msgstr "View report →"
+msgid "ic.start.viewReport"
+msgstr "View report →"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.start.noArtifactWarning"
-#~ msgstr "No report linked — the debate cannot cite structured evidence data"
+msgid "ic.start.noArtifactWarning"
+msgstr "No report linked — the debate cannot cite structured evidence data"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.start.cta"
-#~ msgstr "Start IC debate"
+msgid "ic.start.cta"
+msgstr "Start IC debate"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.landing.subtitle"
-#~ msgstr "AI bull and bear members debate the report data in a structured format, delivering a conviction-weighted verdict and the conditions that would change the call. Select a generated equity report to begin the committee process."
+msgid "ic.landing.subtitle"
+msgstr "AI bull and bear members debate the report data in a structured format, delivering a conviction-weighted verdict and the conditions that would change the call. Select a generated equity report to begin the committee process."
 
 #. js-lingui-explicit-id
-#~ msgid "ic.landing.loading"
-#~ msgstr "Loading reports…"
+msgid "ic.landing.loading"
+msgstr "Loading reports…"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.landing.loadError"
-#~ msgstr "Unable to load reports. Please check the backend service."
+msgid "ic.landing.loadError"
+msgstr "Unable to load reports. Please check the backend service."
 
 #. js-lingui-explicit-id
-#~ msgid "ic.landing.empty.title"
-#~ msgstr "No equity reports yet"
+msgid "ic.landing.empty.title"
+msgstr "No equity reports yet"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.landing.empty.line1"
-#~ msgstr "First generate an Equity Research report for the target ticker on the Stocks page,"
+msgid "ic.landing.empty.line1"
+msgstr "First generate an Equity Research report for the target ticker on the Stocks page,"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.landing.empty.line2"
-#~ msgstr "then you can launch an IC debate here once the report is ready."
+msgid "ic.landing.empty.line2"
+msgstr "then you can launch an IC debate here once the report is ready."
 
 #. js-lingui-explicit-id
-#~ msgid "ic.landing.empty.cta"
-#~ msgstr "Go to stock analysis"
+msgid "ic.landing.empty.cta"
+msgstr "Go to stock analysis"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.landing.row.aria"
-#~ msgstr "Launch the IC debate for {ticker}"
+msgid "ic.landing.row.aria"
+msgstr "Launch the IC debate for {ticker}"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.landing.row.reportDate"
-#~ msgstr "Report {date}"
+msgid "ic.landing.row.reportDate"
+msgstr "Report {date}"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.verdict.reliabilityWarning"
-#~ msgstr "Insufficient data reliability — current market data quality is limited, so the verdict has been downgraded to REVIEW. Please weigh it carefully against the report details."
+msgid "ic.verdict.reliabilityWarning"
+msgstr "Insufficient data reliability — current market data quality is limited, so the verdict has been downgraded to REVIEW. Please weigh it carefully against the report details."
 
 #. js-lingui-explicit-id
-#~ msgid "ic.verdict.unavailable"
-#~ msgstr "Verdict unavailable"
+msgid "ic.verdict.unavailable"
+msgstr "Verdict unavailable"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.verdict.running"
-#~ msgstr "IC debate in progress…"
+msgid "ic.verdict.running"
+msgstr "IC debate in progress…"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.verdict.runningHint"
-#~ msgstr "AI members are cross-examining the bull and bear arguments"
+msgid "ic.verdict.runningHint"
+msgstr "AI members are cross-examining the bull and bear arguments"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.verdict.callAria"
-#~ msgstr "Committee verdict: {call}"
+msgid "ic.verdict.callAria"
+msgstr "Committee verdict: {call}"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.verdict.convictionAria"
-#~ msgstr "Conviction: {value}"
+msgid "ic.verdict.convictionAria"
+msgstr "Conviction: {value}"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.verdict.changeMyMindTitle"
-#~ msgstr "Conditions that would make the committee change its stance"
+msgid "ic.verdict.changeMyMindTitle"
+msgstr "Conditions that would make the committee change its stance"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.verdict.changeMyMindLabel"
-#~ msgstr "· Conditions to change the call"
+msgid "ic.verdict.changeMyMindLabel"
+msgstr "· Conditions to change the call"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.column.bull.empty"
-#~ msgstr "Building the bull case…"
+msgid "ic.column.bull.empty"
+msgstr "Building the bull case…"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.column.bear.empty"
-#~ msgstr "Building the bear case…"
+msgid "ic.column.bear.empty"
+msgstr "Building the bear case…"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.column.pointCount"
-#~ msgstr "{count, plural, one {# point} other {# points}}"
+msgid "ic.column.pointCount"
+msgstr "{count, plural, one {# point} other {# points}}"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.column.provisional"
-#~ msgstr "Data reliability is degraded — the valuation figures cited below (incl. DCF / comps mids) are provisional, not firm conclusions"
+msgid "ic.column.provisional"
+msgstr "Data reliability is degraded — the valuation figures cited below (incl. DCF / comps mids) are provisional, not firm conclusions"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.implied.title"
-#~ msgstr "Market-implied expectations"
+msgid "ic.implied.title"
+msgstr "Market-implied expectations"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.implied.subtitle"
-#~ msgstr "· reverse-solve what the market is betting"
+msgid "ic.implied.subtitle"
+msgstr "· reverse-solve what the market is betting"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.implied.loading"
-#~ msgstr "Reverse-solving…"
+msgid "ic.implied.loading"
+msgstr "Reverse-solving…"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.implied.lede"
-#~ msgstr "The market price implies a FAMILY of assumption combos, not one valuation. Each reverse solve pins two axes and solves the third — read it as 'fixing X, the market requires Y':"
+msgid "ic.implied.lede"
+msgstr "The market price implies a FAMILY of assumption combos, not one valuation. Each reverse solve pins two axes and solves the third — read it as 'fixing X, the market requires Y':"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.implied.axis.growth"
-#~ msgstr "Growth · fix WACC + 5y"
+msgid "ic.implied.axis.growth"
+msgstr "Growth · fix WACC + 5y"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.implied.axis.wacc"
-#~ msgstr "Discount · fix growth curve"
+msgid "ic.implied.axis.wacc"
+msgstr "Discount · fix growth curve"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.implied.axis.horizon"
-#~ msgstr "Horizon · fix growth + WACC"
+msgid "ic.implied.axis.horizon"
+msgstr "Horizon · fix growth + WACC"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.implied.tooltip.growth"
-#~ msgstr "{g}% growth"
+msgid "ic.implied.tooltip.growth"
+msgstr "{g}% growth"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.implied.tooltip.impliedYears"
-#~ msgstr "Implied years"
+msgid "ic.implied.tooltip.impliedYears"
+msgstr "Implied years"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.implied.unreachable"
-#~ msgstr "unreachable"
+msgid "ic.implied.unreachable"
+msgstr "unreachable"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.implied.years"
-#~ msgstr "y"
+msgid "ic.implied.years"
+msgstr "y"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.implied.lineTitle"
-#~ msgstr "growth → implied horizon equivalence line"
+msgid "ic.implied.lineTitle"
+msgstr "growth → implied horizon equivalence line"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.implied.fixedWacc"
-#~ msgstr "fixed WACC"
+msgid "ic.implied.fixedWacc"
+msgstr "fixed WACC"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.implied.waccSlider"
-#~ msgstr "discount WACC"
+msgid "ic.implied.waccSlider"
+msgstr "discount WACC"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.implied.priorNote"
-#~ msgstr "✓/⚠ are analyst credibility priors, not an objective verdict; swap the fixed axes and the answer changes. The market price sits on this line — which segment you believe is your call."
+msgid "ic.implied.priorNote"
+msgstr "✓/⚠ are analyst credibility priors, not an objective verdict; swap the fixed axes and the answer changes. The market price sits on this line — which segment you believe is your call."
 
 #. js-lingui-explicit-id
-#~ msgid "ic.column.verified"
-#~ msgstr "Data verified"
+msgid "ic.column.verified"
+msgstr "Data verified"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.column.unverified"
-#~ msgstr "Unverified"
+msgid "ic.column.unverified"
+msgstr "Unverified"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.column.unverifiedReason"
-#~ msgstr "Unverified: {reason}"
+msgid "ic.column.unverifiedReason"
+msgstr "Unverified: {reason}"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.model.configuredInSettings"
-#~ msgstr "Model is configured in Settings"
+msgid "chatpanel.model.configuredInSettings"
+msgstr "Model is configured in Settings"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.send.title"
-#~ msgstr "Send (↵ · Shift+↵ for newline)"
+msgid "chatpanel.send.title"
+msgstr "Send (↵ · Shift+↵ for newline)"
 
 #. js-lingui-explicit-id
 msgid "chatpanel.expand.open"
 msgstr "Open chat"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.assistant"
-#~ msgstr "AI Assistant"
+msgid "chatpanel.assistant"
+msgstr "AI Assistant"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.context.label"
-#~ msgstr "Context"
+msgid "chatpanel.context.label"
+msgstr "Context"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.chip.report.dcf"
-#~ msgstr "Explain this report's DCF assumptions"
+msgid "chatpanel.chip.report.dcf"
+msgstr "Explain this report's DCF assumptions"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.chip.report.peers"
-#~ msgstr "Compare valuation against peers"
+msgid "chatpanel.chip.report.peers"
+msgstr "Compare valuation against peers"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.chip.report.catalysts"
-#~ msgstr "Which catalysts are most worth tracking"
+msgid "chatpanel.chip.report.catalysts"
+msgstr "Which catalysts are most worth tracking"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.chip.ticker.dcf"
-#~ msgstr "Explain DCF assumptions"
+msgid "chatpanel.chip.ticker.dcf"
+msgstr "Explain DCF assumptions"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.chip.ticker.peers"
-#~ msgstr "Compare with peers"
+msgid "chatpanel.chip.ticker.peers"
+msgstr "Compare with peers"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.chip.ticker.montecarlo"
-#~ msgstr "Monte Carlo simulation"
+msgid "chatpanel.chip.ticker.montecarlo"
+msgstr "Monte Carlo simulation"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.chip.ticker.tenk"
-#~ msgstr "10-K Q&A"
+msgid "chatpanel.chip.ticker.tenk"
+msgstr "10-K Q&A"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.chip.landing.search"
-#~ msgstr "Search a new stock"
+msgid "chatpanel.chip.landing.search"
+msgstr "Search a new stock"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.chip.landing.methods"
-#~ msgstr "Explain DCF / LBO / Comps"
+msgid "chatpanel.chip.landing.methods"
+msgstr "Explain DCF / LBO / Comps"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.chip.landing.howto"
-#~ msgstr "How to use FinRobot"
+msgid "chatpanel.chip.landing.howto"
+msgstr "How to use FinRobot"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.chip.settings.apiStatus"
-#~ msgstr "Check API status"
+msgid "chatpanel.chip.settings.apiStatus"
+msgstr "Check API status"
 
 #. js-lingui-explicit-id
-#~ msgid "chatpanel.chip.settings.coverage"
-#~ msgstr "Data coverage"
+msgid "chatpanel.chip.settings.coverage"
+msgstr "Data coverage"
 
 #. js-lingui-explicit-id
-#~ msgid "term.dcf.short"
-#~ msgstr "Discounted cash flow valuation: the present value of future cash flows"
+msgid "term.dcf.short"
+msgstr "Discounted cash flow valuation: the present value of future cash flows"
 
 #. js-lingui-explicit-id
-#~ msgid "term.dcf.ask"
-#~ msgstr "Explain DCF (discounted cash flow valuation) in one paragraph for a finance beginner. Cover the core idea, the 3 key inputs, and its biggest limitation."
+msgid "term.dcf.ask"
+msgstr "Explain DCF (discounted cash flow valuation) in one paragraph for a finance beginner. Cover the core idea, the 3 key inputs, and its biggest limitation."
 
 #. js-lingui-explicit-id
-#~ msgid "term.wacc.short"
-#~ msgstr "Weighted Average Cost of Capital — the discount rate used in a DCF"
+msgid "term.wacc.short"
+msgstr "Weighted Average Cost of Capital — the discount rate used in a DCF"
 
 #. js-lingui-explicit-id
-#~ msgid "term.wacc.ask"
-#~ msgstr "What is WACC (Weighted Average Cost of Capital)? How is it calculated, and why is it the most sensitive input in a DCF model? Explain in one paragraph for a finance beginner."
+msgid "term.wacc.ask"
+msgstr "What is WACC (Weighted Average Cost of Capital)? How is it calculated, and why is it the most sensitive input in a DCF model? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
-#~ msgid "term.pe.short"
-#~ msgstr "P/E ratio = price / earnings per share — how many years to earn back the price"
+msgid "term.pe.short"
+msgstr "P/E ratio = price / earnings per share — how many years to earn back the price"
 
 #. js-lingui-explicit-id
-#~ msgid "term.pe.ask"
-#~ msgstr "How do you use the P/E ratio? Does a high P/E always mean expensive? Explain the correct usage in one paragraph."
+msgid "term.pe.ask"
+msgstr "How do you use the P/E ratio? Does a high P/E always mean expensive? Explain the correct usage in one paragraph."
 
 #. js-lingui-explicit-id
-#~ msgid "term.ebitda.short"
-#~ msgstr "Earnings Before Interest, Taxes, Depreciation & Amortization — operating profit stripped of financing and accounting effects"
+msgid "term.ebitda.short"
+msgstr "Earnings Before Interest, Taxes, Depreciation & Amortization — operating profit stripped of financing and accounting effects"
 
 #. js-lingui-explicit-id
-#~ msgid "term.ebitda.ask"
-#~ msgstr "What is EBITDA? Why do valuations often use EV/EBITDA instead of P/E? Explain in one paragraph for a finance beginner."
+msgid "term.ebitda.ask"
+msgstr "What is EBITDA? Why do valuations often use EV/EBITDA instead of P/E? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
-#~ msgid "term.fcf.short"
-#~ msgstr "Free Cash Flow = operating cash flow − capital expenditure — the cash actually available to shareholders"
+msgid "term.fcf.short"
+msgstr "Free Cash Flow = operating cash flow − capital expenditure — the cash actually available to shareholders"
 
 #. js-lingui-explicit-id
-#~ msgid "term.fcf.ask"
-#~ msgstr "How does Free Cash Flow (FCF) differ from net income? Why do valuations favor FCF? Explain in one paragraph for a finance beginner."
+msgid "term.fcf.ask"
+msgstr "How does Free Cash Flow (FCF) differ from net income? Why do valuations favor FCF? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
-#~ msgid "term.ev.short"
-#~ msgstr "Enterprise Value = market cap + net debt — the total cost to acquire the company"
+msgid "term.ev.short"
+msgstr "Enterprise Value = market cap + net debt — the total cost to acquire the company"
 
 #. js-lingui-explicit-id
-#~ msgid "term.ev.ask"
-#~ msgstr "What is Enterprise Value (EV)? Why not just use market cap? Explain in one paragraph for a finance beginner."
+msgid "term.ev.ask"
+msgstr "What is Enterprise Value (EV)? Why not just use market cap? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
-#~ msgid "term.irr.short"
-#~ msgstr "Internal Rate of Return — the discount rate that makes NPV = 0, commonly used in LBOs"
+msgid "term.irr.short"
+msgstr "Internal Rate of Return — the discount rate that makes NPV = 0, commonly used in LBOs"
 
 #. js-lingui-explicit-id
-#~ msgid "term.irr.ask"
-#~ msgstr "What does IRR (Internal Rate of Return) mean? In an LBO, is an 18% IRR high or low? Explain in one paragraph for a finance beginner."
+msgid "term.irr.ask"
+msgstr "What does IRR (Internal Rate of Return) mean? In an LBO, is an 18% IRR high or low? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
-#~ msgid "term.lbo.short"
-#~ msgstr "Leveraged Buyout — buy a company with heavy debt, pay it down, then sell at a profit"
+msgid "term.lbo.short"
+msgstr "Leveraged Buyout — buy a company with heavy debt, pay it down, then sell at a profit"
 
 #. js-lingui-explicit-id
-#~ msgid "term.lbo.ask"
-#~ msgstr "What does an LBO (Leveraged Buyout) model do? How does it differ from a DCF? Explain in one paragraph for a finance beginner."
+msgid "term.lbo.ask"
+msgstr "What does an LBO (Leveraged Buyout) model do? How does it differ from a DCF? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
-#~ msgid "term.ddm.short"
-#~ msgstr "Dividend Discount Model — discounts future dividends into equity value"
+msgid "term.ddm.short"
+msgstr "Dividend Discount Model — discounts future dividends into equity value"
 
 #. js-lingui-explicit-id
-#~ msgid "term.ddm.ask"
-#~ msgstr "What kind of companies suit the DDM (Dividend Discount Model)? Why is it rarely used for tech stocks? Explain in one paragraph for a finance beginner."
+msgid "term.ddm.ask"
+msgstr "What kind of companies suit the DDM (Dividend Discount Model)? Why is it rarely used for tech stocks? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
-#~ msgid "term.beta.short"
-#~ msgstr "A stock's volatility relative to the market; beta = 1 moves in line with the market"
+msgid "term.beta.short"
+msgstr "A stock's volatility relative to the market; beta = 1 moves in line with the market"
 
 #. js-lingui-explicit-id
-#~ msgid "term.beta.ask"
-#~ msgstr "What role does Beta play in CAPM? What does a beta of 0.8 vs 1.5 mean? Explain in one paragraph for a finance beginner."
+msgid "term.beta.ask"
+msgstr "What role does Beta play in CAPM? What does a beta of 0.8 vs 1.5 mean? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
-#~ msgid "term.roe.short"
-#~ msgstr "Return on Equity = net income / shareholders' equity — how efficiently shareholder capital earns returns"
+msgid "term.roe.short"
+msgstr "Return on Equity = net income / shareholders' equity — how efficiently shareholder capital earns returns"
 
 #. js-lingui-explicit-id
-#~ msgid "term.roe.ask"
-#~ msgstr "What ROE (Return on Equity) counts as excellent? How does it differ from ROA and ROIC? Explain in one paragraph for a finance beginner."
+msgid "term.roe.ask"
+msgstr "What ROE (Return on Equity) counts as excellent? How does it differ from ROA and ROIC? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
-#~ msgid "term.terminalValue.short"
-#~ msgstr "Terminal Value — the present value of all cash flows beyond the forecast period, typically 60–80% of total DCF value"
+msgid "term.terminalValue.short"
+msgstr "Terminal Value — the present value of all cash flows beyond the forecast period, typically 60–80% of total DCF value"
 
 #. js-lingui-explicit-id
-#~ msgid "term.terminalValue.ask"
-#~ msgstr "How is Terminal Value calculated in a DCF? Why does it have such a large impact on the result? Explain in one paragraph for a finance beginner."
+msgid "term.terminalValue.ask"
+msgstr "How is Terminal Value calculated in a DCF? Why does it have such a large impact on the result? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
-#~ msgid "term.pvOfFcf.short"
-#~ msgstr "The sum of the present values of free cash flows over the forecast period (discounted to today)"
+msgid "term.pvOfFcf.short"
+msgstr "The sum of the present values of free cash flows over the forecast period (discounted to today)"
 
 #. js-lingui-explicit-id
-#~ msgid "term.pvOfFcf.ask"
-#~ msgstr "What is PV of FCF (present value of free cash flow)? Why does a DCF discount future money back to today? Explain in one paragraph for a finance beginner."
+msgid "term.pvOfFcf.ask"
+msgstr "What is PV of FCF (present value of free cash flow)? Why does a DCF discount future money back to today? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
-#~ msgid "term.enterpriseValue.short"
-#~ msgstr "Enterprise Value = equity + net debt — the cost to buy the entire company"
+msgid "term.enterpriseValue.short"
+msgstr "Enterprise Value = equity + net debt — the cost to buy the entire company"
 
 #. js-lingui-explicit-id
-#~ msgid "term.enterpriseValue.ask"
-#~ msgstr "How does Enterprise Value differ from market cap? Why do valuations often use EV instead of market cap? Explain in one paragraph for a finance beginner."
+msgid "term.enterpriseValue.ask"
+msgstr "How does Enterprise Value differ from market cap? Why do valuations often use EV instead of market cap? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
-#~ msgid "term.equityValue.short"
-#~ msgstr "Equity Value = Enterprise Value − net debt — the portion belonging to shareholders"
+msgid "term.equityValue.short"
+msgstr "Equity Value = Enterprise Value − net debt — the portion belonging to shareholders"
 
 #. js-lingui-explicit-id
-#~ msgid "term.equityValue.ask"
-#~ msgstr "How do you convert between Equity Value and Enterprise Value? Which is more useful for an individual investor? Explain in one paragraph for a finance beginner."
+msgid "term.equityValue.ask"
+msgstr "How do you convert between Equity Value and Enterprise Value? Which is more useful for an individual investor? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
-#~ msgid "term.evEbitda.short"
-#~ msgstr "Enterprise Value / operating profit — how many years of operating profit to earn back the value"
+msgid "term.evEbitda.short"
+msgstr "Enterprise Value / operating profit — how many years of operating profit to earn back the value"
 
 #. js-lingui-explicit-id
-#~ msgid "term.evEbitda.ask"
-#~ msgstr "How do you use the EV/EBITDA multiple? What counts as cheap? How does it differ from P/E? Explain in one paragraph for a finance beginner."
+msgid "term.evEbitda.ask"
+msgstr "How do you use the EV/EBITDA multiple? What counts as cheap? How does it differ from P/E? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
-#~ msgid "term.beat.short"
-#~ msgstr "Beat — actual EPS above the analyst consensus estimate"
+msgid "term.beat.short"
+msgstr "Beat — actual EPS above the analyst consensus estimate"
 
 #. js-lingui-explicit-id
-#~ msgid "term.beat.ask"
-#~ msgstr "Does an earnings beat always mean the stock will rise? Which details should you look at? Explain in one paragraph for a finance beginner."
+msgid "term.beat.ask"
+msgstr "Does an earnings beat always mean the stock will rise? Which details should you look at? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
-#~ msgid "term.miss.short"
-#~ msgstr "Miss — actual EPS below the analyst consensus estimate"
+msgid "term.miss.short"
+msgstr "Miss — actual EPS below the analyst consensus estimate"
 
 #. js-lingui-explicit-id
-#~ msgid "term.miss.ask"
-#~ msgstr "After an earnings miss, should you sell into the drop or buy the dip? Which details should you look at? Explain in one paragraph for a finance beginner."
+msgid "term.miss.ask"
+msgstr "After an earnings miss, should you sell into the drop or buy the dip? Which details should you look at? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
-#~ msgid "term.ariaLabel"
-#~ msgstr "Term: {term}"
+msgid "term.ariaLabel"
+msgstr "Term: {term}"
 
 #. js-lingui-explicit-id
-#~ msgid "term.askMore"
-#~ msgstr "Ask FinRobot to explain →"
+msgid "term.askMore"
+msgstr "Ask FinRobot to explain →"
 
 #. js-lingui-explicit-id
-#~ msgid "sourced.title"
-#~ msgstr "Data source"
+msgid "sourced.title"
+msgstr "Data source"
 
 #. js-lingui-explicit-id
-#~ msgid "sourced.provider"
-#~ msgstr "Source"
+msgid "sourced.provider"
+msgstr "Source"
 
 #. js-lingui-explicit-id
-#~ msgid "sourced.unknown"
-#~ msgstr "Unknown"
+msgid "sourced.unknown"
+msgstr "Unknown"
 
 #. js-lingui-explicit-id
-#~ msgid "sourced.fetchedAt"
-#~ msgstr "Fetched at"
+msgid "sourced.fetchedAt"
+msgstr "Fetched at"
 
 #. js-lingui-explicit-id
-#~ msgid "sourced.asOf"
-#~ msgstr "As of"
+msgid "sourced.asOf"
+msgstr "As of"
 
 #. js-lingui-explicit-id
-#~ msgid "sourced.formula"
-#~ msgstr "Formula"
+msgid "sourced.formula"
+msgstr "Formula"
 
 #. js-lingui-explicit-id
-#~ msgid "sourced.warning"
-#~ msgstr "Warning"
+msgid "sourced.warning"
+msgstr "Warning"
 
 #. js-lingui-explicit-id
-#~ msgid "sourced.openReport"
-#~ msgstr "Open full report →"
+msgid "sourced.openReport"
+msgstr "Open full report →"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.footballField.offScalePrefix"
-#~ msgstr "Market price {price} deviates from the model's median valuation {mid} by"
+msgid "chart.footballField.offScalePrefix"
+msgstr "Market price {price} deviates from the model's median valuation {mid} by"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.footballField.overvalued"
-#~ msgstr "the model implies clear overvaluation"
+msgid "chart.footballField.overvalued"
+msgstr "the model implies clear overvaluation"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.footballField.undervalued"
-#~ msgstr "the model implies clear undervaluation"
+msgid "chart.footballField.undervalued"
+msgstr "the model implies clear undervaluation"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.footballField.offScaleSuffix"
-#~ msgstr " — audit the assumption sources before drawing conclusions."
+msgid "chart.footballField.offScaleSuffix"
+msgstr " — audit the assumption sources before drawing conclusions."
 
 #. js-lingui-explicit-id
-#~ msgid "report.toolbar.icDebate"
-#~ msgstr "IC Debate"
+msgid "report.toolbar.icDebate"
+msgstr "IC Debate"
 
 #. js-lingui-explicit-id
-#~ msgid "report.toolbar.icDebateTitle"
-#~ msgstr "Run a bull/bear debate on this report in the IC"
+msgid "report.toolbar.icDebateTitle"
+msgstr "Run a bull/bear debate on this report in the IC"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.series.revenue"
-#~ msgstr "Revenue"
+msgid "chart.series.revenue"
+msgstr "Revenue"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.series.ebitda"
-#~ msgstr "EBITDA"
+msgid "chart.series.ebitda"
+msgstr "EBITDA"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.margin.gross"
-#~ msgstr "Gross"
+msgid "chart.margin.gross"
+msgstr "Gross"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.margin.ebitda"
-#~ msgstr "EBITDA"
+msgid "chart.margin.ebitda"
+msgstr "EBITDA"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.margin.operating"
-#~ msgstr "Operating"
+msgid "chart.margin.operating"
+msgstr "Operating"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.cashflow.operating"
-#~ msgstr "Operating"
+msgid "chart.cashflow.operating"
+msgstr "Operating"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.cashflow.investing"
-#~ msgstr "Investing"
+msgid "chart.cashflow.investing"
+msgstr "Investing"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.cashflow.financing"
-#~ msgstr "Financing"
+msgid "chart.cashflow.financing"
+msgstr "Financing"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.cashflow.net"
-#~ msgstr "Net Cash Flow"
+msgid "chart.cashflow.net"
+msgstr "Net Cash Flow"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.peer.evEbitda"
-#~ msgstr "EV/EBITDA"
+msgid "chart.peer.evEbitda"
+msgstr "EV/EBITDA"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.peer.pe"
-#~ msgstr "P/E Ratio"
+msgid "chart.peer.pe"
+msgstr "P/E Ratio"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.radar.company"
-#~ msgstr "Company"
+msgid "chart.radar.company"
+msgstr "Company"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.radar.benchmark"
-#~ msgstr "Benchmark"
+msgid "chart.radar.benchmark"
+msgstr "Benchmark"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.radar.dim.pe"
-#~ msgstr "P/E"
+msgid "chart.radar.dim.pe"
+msgstr "P/E"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.radar.dim.evEbitda"
-#~ msgstr "EV/EBITDA"
+msgid "chart.radar.dim.evEbitda"
+msgstr "EV/EBITDA"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.radar.dim.evRevenue"
-#~ msgstr "EV/Revenue"
+msgid "chart.radar.dim.evRevenue"
+msgstr "EV/Revenue"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.radar.dim.grossMargin"
-#~ msgstr "Gross Margin"
+msgid "chart.radar.dim.grossMargin"
+msgstr "Gross Margin"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.radar.dim.operatingMargin"
-#~ msgstr "Operating Margin"
+msgid "chart.radar.dim.operatingMargin"
+msgstr "Operating Margin"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.waterfall.total"
-#~ msgstr "Total"
+msgid "chart.waterfall.total"
+msgstr "Total"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.waterfall.add"
-#~ msgstr "Add"
+msgid "chart.waterfall.add"
+msgstr "Add"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.waterfall.subtract"
-#~ msgstr "Subtract"
+msgid "chart.waterfall.subtract"
+msgstr "Subtract"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.footballField.current"
-#~ msgstr "Current"
+msgid "chart.footballField.current"
+msgstr "Current"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.footballField.offScaleBadge"
-#~ msgstr "off-scale"
+msgid "chart.footballField.offScaleBadge"
+msgstr "off-scale"
 
 #. js-lingui-explicit-id
-#~ msgid "chart.footballField.mid"
-#~ msgstr "Mid"
+msgid "chart.footballField.mid"
+msgstr "Mid"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.col.ticker"
-#~ msgstr "Ticker"
+msgid "coverage.col.ticker"
+msgstr "Ticker"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.col.price"
-#~ msgstr "Price"
+msgid "coverage.col.price"
+msgstr "Price"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.col.mcap"
-#~ msgstr "Mkt Cap"
+msgid "coverage.col.mcap"
+msgstr "Mkt Cap"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.col.revttm"
-#~ msgstr "Rev TTM"
+msgid "coverage.col.revttm"
+msgstr "Rev TTM"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.col.upside"
-#~ msgstr "Upside"
+msgid "coverage.col.upside"
+msgstr "Upside"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.notRun"
-#~ msgstr "Not run"
+msgid "coverage.notRun"
+msgstr "Not run"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.run"
-#~ msgstr "Run"
+msgid "coverage.run"
+msgstr "Run"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.running"
-#~ msgstr "Running"
+msgid "coverage.running"
+msgstr "Running"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.loading"
-#~ msgstr "Loading coverage…"
+msgid "coverage.loading"
+msgstr "Loading coverage…"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.emptyGroup"
-#~ msgstr "No coverage records yet — open Research to study the first ticker."
+msgid "coverage.emptyGroup"
+msgstr "No coverage records yet — open Research to study the first ticker."
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.error.groupsFailed"
-#~ msgstr "Couldn't reach the coverage service — it may still be starting."
+msgid "coverage.error.groupsFailed"
+msgstr "Couldn't reach the coverage service — it may still be starting."
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.error.overviewFailed"
-#~ msgstr "Couldn't load this group's coverage data."
+msgid "coverage.error.overviewFailed"
+msgstr "Couldn't load this group's coverage data."
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.error.retry"
-#~ msgstr "Retry"
+msgid "coverage.error.retry"
+msgstr "Retry"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.error.marketFailed"
-#~ msgstr "Market data failed to load — click retry."
+msgid "coverage.error.marketFailed"
+msgstr "Market data failed to load — click retry."
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.error.dismiss"
-#~ msgstr "Dismiss"
+msgid "coverage.error.dismiss"
+msgstr "Dismiss"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.back"
-#~ msgstr "Coverage"
+msgid "compare.back"
+msgstr "Coverage"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.title"
-#~ msgstr "DCF Comparison"
+msgid "compare.title"
+msgstr "DCF Comparison"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.needTwo"
-#~ msgstr "Select at least 2 tickers."
+msgid "compare.needTwo"
+msgstr "Select at least 2 tickers."
 
 #. js-lingui-explicit-id
-#~ msgid "compare.loading"
-#~ msgstr "Comparing…"
+msgid "compare.loading"
+msgstr "Comparing…"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.error"
-#~ msgstr "Comparison failed."
+msgid "compare.error"
+msgstr "Comparison failed."
 
 #. js-lingui-explicit-id
-#~ msgid "compare.implied"
-#~ msgstr "Implied"
+msgid "compare.implied"
+msgstr "Implied"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.dcfDate"
-#~ msgstr "DCF Date"
+msgid "compare.dcfDate"
+msgstr "DCF Date"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.live"
-#~ msgstr "live"
+msgid "compare.live"
+msgstr "live"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.stale"
-#~ msgstr "stale"
+msgid "compare.stale"
+msgstr "stale"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.staleTitle"
-#~ msgstr "This DCF was generated {days} days ago — its implied price and WACC may be out of date. Re-run the DCF before relying on this row."
+msgid "compare.staleTitle"
+msgstr "This DCF was generated {days} days ago — its implied price and WACC may be out of date. Re-run the DCF before relying on this row."
 
 #. js-lingui-explicit-id
-#~ msgid "compare.vintageWarn"
-#~ msgstr "These DCFs were run {days} days apart — they were not computed at the same time, so the upside columns are not apples-to-apples. Re-run the stale tickers before comparing."
+msgid "compare.vintageWarn"
+msgstr "These DCFs were run {days} days apart — they were not computed at the same time, so the upside columns are not apples-to-apples. Re-run the stale tickers before comparing."
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.filterEmpty"
-#~ msgstr "Nothing matches this view · switch to All for the full list"
+msgid "coverage.filterEmpty"
+msgstr "Nothing matches this view · switch to All for the full list"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.filter.all"
-#~ msgstr "All"
+msgid "coverage.filter.all"
+msgstr "All"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.filter.needsAction"
-#~ msgstr "Needs Action"
+msgid "coverage.filter.needsAction"
+msgstr "Needs Action"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.filter.running"
-#~ msgstr "Running"
+msgid "coverage.filter.running"
+msgstr "Running"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.sort.label"
-#~ msgstr "Sort"
+msgid "coverage.sort.label"
+msgstr "Sort"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.sort.needsAction"
-#~ msgstr "Needs Action"
+msgid "coverage.sort.needsAction"
+msgstr "Needs Action"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.sort.ticker"
-#~ msgstr "Ticker"
+msgid "coverage.sort.ticker"
+msgstr "Ticker"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.sort.latestReport"
-#~ msgstr "Latest Report"
+msgid "coverage.sort.latestReport"
+msgstr "Latest Report"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.sort.upside"
-#~ msgstr "Live Upside"
+msgid "coverage.sort.upside"
+msgstr "Live Upside"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.sort.toggleDir"
-#~ msgstr "Toggle sort direction"
+msgid "coverage.sort.toggleDir"
+msgstr "Toggle sort direction"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.card.fresh"
-#~ msgstr "fresh"
+msgid "coverage.card.fresh"
+msgstr "fresh"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.implied.label"
-#~ msgstr "Mkt implied"
+msgid "coverage.implied.label"
+msgstr "Mkt implied"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.implied.fundamental"
-#~ msgstr "{g}/yr priced in"
+msgid "coverage.implied.fundamental"
+msgstr "{g}/yr priced in"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.implied.fundamentalTitle"
-#~ msgstr "Live price implies ~{g}/yr revenue growth over {n}y (reverse-DCF from the latest stored model, re-solved at the live price). Per-name context, not a cross-name ranking."
+msgid "coverage.implied.fundamentalTitle"
+msgstr "Live price implies ~{g}/yr revenue growth over {n}y (reverse-DCF from the latest stored model, re-solved at the live price). Per-name context, not a cross-name ranking."
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.implied.optionValue"
-#~ msgstr "✕ Option-value"
+msgid "coverage.implied.optionValue"
+msgstr "✕ Option-value"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.implied.optionValueTitle"
-#~ msgstr "No growth up to {ceiling}/yr reaches the live price (even then only {price}) — priced on optionality a DCF cannot model, and it holds at a plausibly lower WACC."
+msgid "coverage.implied.optionValueTitle"
+msgstr "No growth up to {ceiling}/yr reaches the live price (even then only {price}) — priced on optionality a DCF cannot model, and it holds at a plausibly lower WACC."
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.implied.nearCeiling"
-#~ msgstr "⚠ Near-ceiling"
+msgid "coverage.implied.nearCeiling"
+msgstr "⚠ Near-ceiling"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.implied.nearCeilingTitle"
-#~ msgstr "Unreachable at this name's own WACC, but a plausibly lower WACC explains the price — WACC-sensitive, so not asserted as option-value."
+msgid "coverage.implied.nearCeilingTitle"
+msgstr "Unreachable at this name's own WACC, but a plausibly lower WACC explains the price — WACC-sensitive, so not asserted as option-value."
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.card.refreshing"
-#~ msgstr "refreshing"
+msgid "coverage.card.refreshing"
+msgstr "refreshing"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.card.closed"
-#~ msgstr "Close · {date}"
+msgid "coverage.card.closed"
+msgstr "Close · {date}"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.reason.run_failed"
-#~ msgstr "Run failed"
+msgid "coverage.reason.run_failed"
+msgstr "Run failed"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.reason.never_run"
-#~ msgstr "Needs research"
+msgid "coverage.reason.never_run"
+msgstr "Needs research"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.reason.signal_closed"
-#~ msgstr "Review thesis"
+msgid "coverage.reason.signal_closed"
+msgstr "Review thesis"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.reason.warning"
-#~ msgstr "Data flag"
+msgid "coverage.reason.warning"
+msgstr "Data flag"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.card.reports"
-#~ msgstr "{n} reports · latest {date}"
+msgid "coverage.card.reports"
+msgstr "{n} reports · latest {date}"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.card.noReports"
-#~ msgstr "No records yet"
+msgid "coverage.card.noReports"
+msgstr "No records yet"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.card.modelOnly"
-#~ msgstr "No report yet · {n} model records"
+msgid "coverage.card.modelOnly"
+msgstr "No report yet · {n} model records"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.card.open"
-#~ msgstr "Open {ticker}"
+msgid "coverage.card.open"
+msgstr "Open {ticker}"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.addEntry"
-#~ msgstr "Compare…"
+msgid "compare.addEntry"
+msgstr "Compare…"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.addEntryTitle"
-#~ msgstr "Compare {ticker} against another ticker"
+msgid "compare.addEntryTitle"
+msgstr "Compare {ticker} against another ticker"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.pickTitle"
-#~ msgstr "Compare {ticker} with…"
+msgid "compare.pickTitle"
+msgstr "Compare {ticker} with…"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.pickPlaceholder"
-#~ msgstr "Type a ticker (e.g. AMD)"
+msgid "compare.pickPlaceholder"
+msgstr "Type a ticker (e.g. AMD)"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.pickSearching"
-#~ msgstr "Searching…"
+msgid "compare.pickSearching"
+msgstr "Searching…"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.pickError"
-#~ msgstr "Search failed — type a ticker and press Enter"
+msgid "compare.pickError"
+msgstr "Search failed — type a ticker and press Enter"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.pickUseTyped"
-#~ msgstr "Compare with this ticker"
+msgid "compare.pickUseTyped"
+msgstr "Compare with this ticker"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.pickNoMatch"
-#~ msgstr "No match — type a full ticker to compare"
+msgid "compare.pickNoMatch"
+msgstr "No match — type a full ticker to compare"
 
 #. js-lingui-explicit-id
-#~ msgid "compare.pickSameTicker"
-#~ msgstr "That's the current ticker"
+msgid "compare.pickSameTicker"
+msgstr "That's the current ticker"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.emptyArchive.title"
-#~ msgstr "No coverage records yet"
+msgid "coverage.emptyArchive.title"
+msgstr "No coverage records yet"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.emptyArchive.body"
-#~ msgstr "Start from Research. The first ticker you study will appear here with its report history and latest status."
+msgid "coverage.emptyArchive.body"
+msgstr "Start from Research. The first ticker you study will appear here with its report history and latest status."
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.emptyArchive.action"
-#~ msgstr "Open Research"
+msgid "coverage.emptyArchive.action"
+msgstr "Open Research"
 
 #. js-lingui-explicit-id
-#~ msgid "hotState.targetWithheld"
-#~ msgstr "Target withheld · valuation methods diverged on cross-validation — open the report for the reconciliation detail →"
+msgid "hotState.targetWithheld"
+msgstr "Target withheld · valuation methods diverged on cross-validation — open the report for the reconciliation detail →"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.action.backToReport"
-#~ msgstr "Back to report"
+msgid "ic.action.backToReport"
+msgstr "Back to report"
 
 #. js-lingui-explicit-id
-#~ msgid "ic.action.backToCoverage"
-#~ msgstr "Back to Coverage"
+msgid "ic.action.backToCoverage"
+msgstr "Back to Coverage"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.starter.quickPick"
-#~ msgstr "Quick start"
+msgid "coverage.starter.quickPick"
+msgstr "Quick start"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.starter.researchTicker"
-#~ msgstr "Research {ticker}"
+msgid "coverage.starter.researchTicker"
+msgstr "Research {ticker}"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.clearKey.button"
-#~ msgstr "Clear"
+msgid "settings.clearKey.button"
+msgstr "Clear"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.clearKey.confirmTitle"
-#~ msgstr "Clear saved API key?"
+msgid "settings.clearKey.confirmTitle"
+msgstr "Clear saved API key?"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.clearKey.confirmBody"
-#~ msgstr "This removes the API key from secure storage (the OS keychain). You'll need to re-enter it before that service works again."
+msgid "settings.clearKey.confirmBody"
+msgstr "This removes the API key from secure storage (the OS keychain). You'll need to re-enter it before that service works again."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.clearKey.cancel"
-#~ msgstr "Cancel"
+msgid "settings.clearKey.cancel"
+msgstr "Cancel"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.clearKey.confirm"
-#~ msgstr "Clear"
+msgid "settings.clearKey.confirm"
+msgstr "Clear"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.clearKey.doneTitle"
-#~ msgstr "Cleared"
+msgid "settings.clearKey.doneTitle"
+msgstr "Cleared"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.clearKey.doneBody"
-#~ msgstr "The API key was removed from secure storage."
+msgid "settings.clearKey.doneBody"
+msgstr "The API key was removed from secure storage."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.clearKey.failTitle"
-#~ msgstr "Couldn't clear key"
+msgid "settings.clearKey.failTitle"
+msgstr "Couldn't clear key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.subtitle"
-#~ msgstr "Configure your API keys and data sources here — everything is stored locally on this machine."
+msgid "settings.subtitle"
+msgstr "Configure your API keys and data sources here — everything is stored locally on this machine."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.llm.apiKeyLabel"
-#~ msgstr "API key"
+msgid "settings.llm.apiKeyLabel"
+msgstr "API key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.llm.apiKeyPlaceholder"
-#~ msgstr "Enter your {provider} API key"
+msgid "settings.llm.apiKeyPlaceholder"
+msgstr "Enter your {provider} API key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.onboarding.title"
-#~ msgstr "Add an AI model key to begin"
+msgid "settings.onboarding.title"
+msgstr "Add an AI model key to begin"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.onboarding.body"
-#~ msgstr "FinRobot uses a large language model to write the report narrative — pick a provider and paste its API key to begin. The data-source keys below (FMP, etc.) are optional and improve financial-data quality."
+msgid "settings.onboarding.body"
+msgstr "FinRobot uses a large language model to write the report narrative — pick a provider and paste its API key to begin. The data-source keys below (FMP, etc.) are optional and improve financial-data quality."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.key.show"
-#~ msgstr "Show"
+msgid "settings.key.show"
+msgstr "Show"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.key.hide"
-#~ msgstr "Hide"
+msgid "settings.key.hide"
+msgstr "Hide"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.provider.label"
-#~ msgstr "Provider"
+msgid "settings.provider.label"
+msgstr "Provider"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.provider.customTag"
-#~ msgstr "Custom"
+msgid "settings.provider.customTag"
+msgstr "Custom"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.model.idPlaceholder"
-#~ msgstr "Model id (e.g. deepseek-chat)"
+msgid "settings.model.idPlaceholder"
+msgstr "Model id (e.g. deepseek-chat)"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.llm.apiKeyLabelFor"
-#~ msgstr "{provider} API Key"
+msgid "settings.llm.apiKeyLabelFor"
+msgstr "{provider} API Key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.customProvider.title"
-#~ msgstr "Custom provider (OpenAI-compatible)"
+msgid "settings.customProvider.title"
+msgstr "Custom provider (OpenAI-compatible)"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.customProvider.name"
-#~ msgstr "Name"
+msgid "settings.customProvider.name"
+msgstr "Name"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.customProvider.remove"
-#~ msgstr "Remove"
+msgid "settings.customProvider.remove"
+msgstr "Remove"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.customProvider.baseUrl"
-#~ msgstr "Base URL"
+msgid "settings.customProvider.baseUrl"
+msgstr "Base URL"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.customProvider.apiKey"
-#~ msgstr "API Key"
+msgid "settings.customProvider.apiKey"
+msgstr "API Key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.customProvider.apiKeyPlaceholder"
-#~ msgstr "Enter the provider's API key"
+msgid "settings.customProvider.apiKeyPlaceholder"
+msgstr "Enter the provider's API key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.customProvider.add"
-#~ msgstr "Add provider"
+msgid "settings.customProvider.add"
+msgstr "Add provider"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.customProvider.addEntry"
-#~ msgstr "Add a custom provider"
+msgid "settings.customProvider.addEntry"
+msgstr "Add a custom provider"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.customProvider.cancel"
-#~ msgstr "Cancel"
+msgid "settings.customProvider.cancel"
+msgstr "Cancel"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.customProvider.incompleteTitle"
-#~ msgstr "Name and Base URL are required"
+msgid "settings.customProvider.incompleteTitle"
+msgstr "Name and Base URL are required"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.test.button"
-#~ msgstr "Test connection"
+msgid "settings.test.button"
+msgstr "Test connection"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.test.testing"
-#~ msgstr "Testing…"
+msgid "settings.test.testing"
+msgstr "Testing…"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.test.result.ok"
-#~ msgstr "Connection OK"
+msgid "settings.test.result.ok"
+msgstr "Connection OK"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.test.result.no_key"
-#~ msgstr "No API key set for this provider"
+msgid "settings.test.result.no_key"
+msgstr "No API key set for this provider"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.test.result.no_model"
-#~ msgstr "Enter a model id first"
+msgid "settings.test.result.no_model"
+msgstr "Enter a model id first"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.test.result.auth"
-#~ msgstr "Authentication failed — check the API key"
+msgid "settings.test.result.auth"
+msgstr "Authentication failed — check the API key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.test.result.connect"
-#~ msgstr "Could not reach the endpoint — check the Base URL"
+msgid "settings.test.result.connect"
+msgstr "Could not reach the endpoint — check the Base URL"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.test.result.not_found"
-#~ msgstr "Model not found — check the model id"
+msgid "settings.test.result.not_found"
+msgstr "Model not found — check the model id"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.test.result.http"
-#~ msgstr "The provider returned an error"
+msgid "settings.test.result.http"
+msgstr "The provider returned an error"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.test.result.unknown"
-#~ msgstr "Connection test failed"
+msgid "settings.test.result.unknown"
+msgstr "Connection test failed"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.dataTest.result.ok"
-#~ msgstr "Connection OK"
+msgid "settings.dataTest.result.ok"
+msgstr "Connection OK"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.dataTest.result.no_key"
-#~ msgstr "No API key set for this data source"
+msgid "settings.dataTest.result.no_key"
+msgstr "No API key set for this data source"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.dataTest.result.auth"
-#~ msgstr "Invalid API key — check the key"
+msgid "settings.dataTest.result.auth"
+msgstr "Invalid API key — check the key"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.dataTest.result.connect"
-#~ msgstr "Could not reach the data source — check your network"
+msgid "settings.dataTest.result.connect"
+msgstr "Could not reach the data source — check your network"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.dataTest.result.not_found"
-#~ msgstr "The data source rejected the request"
+msgid "settings.dataTest.result.not_found"
+msgstr "The data source rejected the request"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.dataTest.result.http"
-#~ msgstr "The data source returned an error"
+msgid "settings.dataTest.result.http"
+msgstr "The data source returned an error"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.dataTest.result.plan"
-#~ msgstr "Key looks valid, but your FMP plan can't access this endpoint (legacy/premium restriction)"
+msgid "settings.dataTest.result.plan"
+msgstr "Key looks valid, but your FMP plan can't access this endpoint (legacy/premium restriction)"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.dataTest.result.rate_limited"
-#~ msgstr "Rate limited by the data source — try again later"
+msgid "settings.dataTest.result.rate_limited"
+msgstr "Rate limited by the data source — try again later"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.dataTest.result.unknown"
-#~ msgstr "Connection test failed"
+msgid "settings.dataTest.result.unknown"
+msgstr "Connection test failed"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.subcopy"
-#~ msgstr "Enter a ticker to open a fully traceable AI research desk"
+msgid "landing.hero.subcopy"
+msgstr "Enter a ticker to open a fully traceable AI research desk"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.subcopyAccent"
-#~ msgstr "Deterministic compute + LLM narrative · every number traces back"
+msgid "landing.hero.subcopyAccent"
+msgstr "Deterministic compute + LLM narrative · every number traces back"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.hero.popular"
-#~ msgstr "Popular"
+msgid "landing.hero.popular"
+msgstr "Popular"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.dock.research.name"
-#~ msgstr "AI research report"
+msgid "landing.dock.research.name"
+msgstr "AI research report"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.dock.research.desc"
-#~ msgstr "13-chapter IB-grade equity research with a BUY / HOLD / SELL call"
+msgid "landing.dock.research.desc"
+msgstr "13-chapter IB-grade equity research with a BUY / HOLD / SELL call"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.dock.valuation.name"
-#~ msgstr "Deterministic valuation"
+msgid "landing.dock.valuation.name"
+msgstr "Deterministic valuation"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.dock.valuation.desc"
-#~ msgstr "DCF · comps · DDM · LBO · sensitivity — numbers from pure functions"
+msgid "landing.dock.valuation.desc"
+msgstr "DCF · comps · DDM · LBO · sensitivity — numbers from pure functions"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.dock.provenance.name"
-#~ msgstr "Traceable numbers"
+msgid "landing.dock.provenance.name"
+msgstr "Traceable numbers"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.dock.provenance.desc"
-#~ msgstr "Every key number traces to source · basis · formula · function"
+msgid "landing.dock.provenance.desc"
+msgstr "Every key number traces to source · basis · formula · function"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.dock.signals.name"
-#~ msgstr "Catalysts & governance"
+msgid "landing.dock.signals.name"
+msgstr "Catalysts & governance"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.dock.signals.desc"
-#~ msgstr "News · 8-K · institutional holdings · insiders · 13D/13G"
+msgid "landing.dock.signals.desc"
+msgstr "News · 8-K · institutional holdings · insiders · 13D/13G"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.dock.quant.name"
-#~ msgstr "Quant overlay & IC debate"
+msgid "landing.dock.quant.name"
+msgstr "Quant overlay & IC debate"
 
 #. js-lingui-explicit-id
-#~ msgid "landing.dock.quant.desc"
-#~ msgstr "Monte Carlo · sniper levels · bull/bear IC debate"
+msgid "landing.dock.quant.desc"
+msgstr "Monte Carlo · sniper levels · bull/bear IC debate"
 
 #. js-lingui-explicit-id
-#~ msgid "update.pill.available"
-#~ msgstr "Update to {version}"
+msgid "update.pill.available"
+msgstr "Update to {version}"
 
 #. js-lingui-explicit-id
-#~ msgid "update.pill.downloading"
-#~ msgstr "Updating"
+msgid "update.pill.downloading"
+msgstr "Updating"
 
 #. js-lingui-explicit-id
-#~ msgid "update.pill.installing"
-#~ msgstr "Installing…"
+msgid "update.pill.installing"
+msgstr "Installing…"
 
 #. js-lingui-explicit-id
-#~ msgid "update.pill.retry"
-#~ msgstr "Update failed — retry"
+msgid "update.pill.retry"
+msgstr "Update failed — retry"
 
 #. js-lingui-explicit-id
-#~ msgid "update.toast.available"
-#~ msgstr "Update available — use the button at the top to install"
+msgid "update.toast.available"
+msgstr "Update available — use the button at the top to install"
 
 #. js-lingui-explicit-id
-#~ msgid "update.toast.upToDate"
-#~ msgstr "You're on the latest version"
+msgid "update.toast.upToDate"
+msgstr "You're on the latest version"
 
 #. js-lingui-explicit-id
-#~ msgid "update.toast.checkFailed"
-#~ msgstr "Couldn't check for updates"
+msgid "update.toast.checkFailed"
+msgstr "Couldn't check for updates"
 
 #. js-lingui-explicit-id
-#~ msgid "update.gate.title"
-#~ msgstr "Update required to continue"
+msgid "update.gate.title"
+msgstr "Update required to continue"
 
 #. js-lingui-explicit-id
-#~ msgid "update.gate.body"
-#~ msgstr "This version is no longer supported. Update to {version} to continue using FinRobot."
+msgid "update.gate.body"
+msgstr "This version is no longer supported. Update to {version} to continue using FinRobot."
 
 #. js-lingui-explicit-id
-#~ msgid "update.gate.button"
-#~ msgstr "Update now"
+msgid "update.gate.button"
+msgstr "Update now"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.nav.updates"
-#~ msgstr "Updates"
+msgid "settings.nav.updates"
+msgstr "Updates"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.section.updates"
-#~ msgstr "Updates"
+msgid "settings.section.updates"
+msgstr "Updates"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.updates.intro"
-#~ msgstr "Check for and install new versions of FinRobot."
+msgid "settings.updates.intro"
+msgstr "Check for and install new versions of FinRobot."
 
 #. js-lingui-explicit-id
-#~ msgid "settings.updates.currentVersion"
-#~ msgstr "Current version: {version}"
+msgid "settings.updates.currentVersion"
+msgstr "Current version: {version}"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.updates.checkButton"
-#~ msgstr "Check for updates"
+msgid "settings.updates.checkButton"
+msgstr "Check for updates"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.updates.checking"
-#~ msgstr "Checking…"
+msgid "settings.updates.checking"
+msgstr "Checking…"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.updates.browserOnly"
-#~ msgstr "Update checks are only available in the desktop app."
+msgid "settings.updates.browserOnly"
+msgstr "Update checks are only available in the desktop app."
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.refresh.button"
-#~ msgstr "Refresh"
+msgid "coverage.refresh.button"
+msgstr "Refresh"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.refresh.refreshing"
-#~ msgstr "Refreshing…"
+msgid "coverage.refresh.refreshing"
+msgstr "Refreshing…"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.refresh.upToDate"
-#~ msgstr "Up to date · market closed"
+msgid "coverage.refresh.upToDate"
+msgstr "Up to date · market closed"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.refresh.updated"
-#~ msgstr "Updated"
+msgid "coverage.refresh.updated"
+msgstr "Updated"
 
 #. js-lingui-explicit-id
-#~ msgid "coverage.refresh.aria"
-#~ msgstr "Refresh market data"
+msgid "coverage.refresh.aria"
+msgstr "Refresh market data"
 
 #. js-lingui-explicit-id
-#~ msgid "runs.error.alreadyActive"
-#~ msgstr "A run for {ticker} is already in progress."
+msgid "runs.error.alreadyActive"
+msgstr "A run for {ticker} is already in progress."
 
 #. js-lingui-explicit-id
-#~ msgid "ic.error.debateFailed"
-#~ msgstr "Debate failed. Please retry."
+msgid "ic.error.debateFailed"
+msgstr "Debate failed. Please retry."
 
 #. js-lingui-explicit-id
-#~ msgid "ic.error.sseDropped"
-#~ msgstr "Stream connection lost ({n} consecutive errors). Check the backend service and retry."
+msgid "ic.error.sseDropped"
+msgstr "Stream connection lost ({n} consecutive errors). Check the backend service and retry."
 
 #. js-lingui-explicit-id
-#~ msgid "ic.error.alreadyRunning"
-#~ msgstr "A debate for this report is already in progress."
+msgid "ic.error.alreadyRunning"
+msgstr "A debate for this report is already in progress."
 
 #. js-lingui-explicit-id
-#~ msgid "report.toolbar.rerunRunningTitle"
-#~ msgstr "A run for {ticker} is already in progress"
+msgid "report.toolbar.rerunRunningTitle"
+msgstr "A run for {ticker} is already in progress"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.cooldown"
-#~ msgstr "Cooldown"
+msgid "settings.providerStatus.cooldown"
+msgstr "Cooldown"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.dotOk"
-#~ msgstr "Live: this source is responding normally"
+msgid "settings.providerStatus.dotOk"
+msgstr "Live: this source is responding normally"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.dotOpen"
-#~ msgstr "Live: recent calls failed — paused until the cooldown ends, then retried automatically"
+msgid "settings.providerStatus.dotOpen"
+msgstr "Live: recent calls failed — paused until the cooldown ends, then retried automatically"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.dotNa"
-#~ msgstr "No live telemetry for this source"
+msgid "settings.providerStatus.dotNa"
+msgstr "No live telemetry for this source"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.cooldownUntil"
-#~ msgstr "cooldown until"
+msgid "settings.providerStatus.cooldownUntil"
+msgstr "cooldown until"
 
 #. js-lingui-explicit-id
-#~ msgid "settings.providerStatus.unavailable"
-#~ msgstr "Provider status unavailable — backend unreachable."
+msgid "settings.providerStatus.unavailable"
+msgstr "Provider status unavailable — backend unreachable."
 
 #. js-lingui-explicit-id
-#~ msgid "workspace.market.degraded.priceHistoryStale"
-#~ msgstr "Stale history · chart & 52w range from last cached bars (live source served quote only)"
+msgid "workspace.market.degraded.priceHistoryStale"
+msgstr "Stale history · chart & 52w range from last cached bars (live source served quote only)"

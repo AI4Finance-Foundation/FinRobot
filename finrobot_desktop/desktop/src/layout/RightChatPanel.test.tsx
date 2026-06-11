@@ -1117,26 +1117,19 @@ describe('RightChatPanel — sessions drawer (multi-session management)', () => 
 })
 
 describe('RightChatPanel — icon column menu', () => {
-  it('shows context menu after long press', async () => {
+  it('shows context menu on right-click', () => {
     renderPanel({ expanded: false })
     const btn = screen.getByTestId('expand-btn')
 
-    // Simulate long press (pointerDown without pointerUp for 600ms)
-    fireEvent.pointerDown(btn)
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 650))
-    })
+    fireEvent.contextMenu(btn)
 
-    await waitFor(() => {
-      expect(screen.getByTestId('icon-menu')).toBeInTheDocument()
-    })
+    expect(screen.getByTestId('icon-menu')).toBeInTheDocument()
   })
 
-  it('does not show menu on short press (immediate pointerUp)', () => {
+  it('does not show menu on pointer press', () => {
     renderPanel({ expanded: false })
     const btn = screen.getByTestId('expand-btn')
     fireEvent.pointerDown(btn)
-    fireEvent.pointerUp(btn)
     expect(screen.queryByTestId('icon-menu')).not.toBeInTheDocument()
   })
 })

@@ -41,6 +41,16 @@ describe('AppShell — simplified shell structure', () => {
     expect(screen.getByRole('button', { name: 'Coverage' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument()
   })
+
+  it('keeps release-hidden AI chat out of the shell without affecting nav', () => {
+    renderWithProviders()
+
+    expect(screen.queryByRole('button', { name: /AI Assistant/i })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('right-chat-panel')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Research' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Coverage' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Settings' })).toBeInTheDocument()
+  })
 })
 
 describe('AppShell — body.app-bg pause class for cosmic animations', () => {

@@ -3,7 +3,7 @@
 // Reserves 72px on the left for Tauri's native macOS traffic lights (overlay
 // titleBarStyle). Layout left→right: traffic lights · FINROBOT brandmark ·
 // a centered "HUD instrument cluster" of three icon doors (Research / Coverage
-// / Settings) · spacer · UpdatePill (conditional) · AI panel toggle.
+// / Settings) · spacer · UpdatePill (conditional) · AI panel toggle when enabled.
 //
 // The nav is ICON-FIRST: each door is a recognizable inline-SVG glyph with a
 // mono caption beneath it; the active door ignites in cyan with a static neon
@@ -19,6 +19,7 @@ import { useUiStore } from '../stores/uiStore'
 import { useI18n } from '../i18n'
 import { startWindowDrag } from '../lib/tauri'
 import { UpdatePill } from '../components/UpdatePill'
+import { AI_CHAT_ENABLED } from '../config/features'
 import appIcon from '../assets/app-icon.png'
 
 interface NavDoor {
@@ -156,16 +157,18 @@ export function TitleBar(): React.ReactElement {
       {/* Right rail — conditional update pill + AI panel toggle. */}
       <div className="tb-rail">
         <UpdatePill />
-        <button
-          className={`tb-ai${aiPanelOpen ? ' active' : ''}`}
-          type="button"
-          aria-label={t('shell.titlebar.aiAssistant')}
-          title={t('shell.titlebar.aiAssistant')}
-          onClick={toggleAiPanel}
-        >
-          <span className="tb-ai-dot" aria-hidden />
-          AI
-        </button>
+        {AI_CHAT_ENABLED ? (
+          <button
+            className={`tb-ai${aiPanelOpen ? ' active' : ''}`}
+            type="button"
+            aria-label={t('shell.titlebar.aiAssistant')}
+            title={t('shell.titlebar.aiAssistant')}
+            onClick={toggleAiPanel}
+          >
+            <span className="tb-ai-dot" aria-hidden />
+            AI
+          </button>
+        ) : null}
       </div>
     </div>
   )

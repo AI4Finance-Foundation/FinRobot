@@ -1707,3 +1707,87 @@ class TestCanonicalFxNormalization:
         assert out.reporting_currency == "TWD"
         assert out.total_debt == 1_094_130_170_000
         assert DEGRADED_FX_UNAVAILABLE in out.provenance.degraded
+
+
+# ---------------------------------------------------------------------------
+# Deep-history augmentation (SEC companyfacts → through-cycle DCF window)
+# ---------------------------------------------------------------------------
+
+
+def _sec_yearly_result(years: list[int]) -> DataResult:
+    """A DataResult shaped like EdgarToolsProvider.fetch_annual_financials —
+    newest-first per-year dicts under ``yearly_data`` — for the deep-history split."""
+    return DataResult(
+        data={
+            "yearly_data": [{"fiscal_year": f"{y}-12-31", "revenue": float(y) * 1e6} for y in years]
+        },
+        provider="edgar_tools",
+        ticker="MU",
+        data_type=DataType.FINANCIALS,
+        timestamp=datetime.now(tz=timezone.utc),
+    )
+
+
+def _make_stub_edgar(
+    result: DataResult | None = None, raises: Exception | None = None
+) -> DataProvider:
+    """A real EdgarToolsProvider SUBCLASS instance (so the layer's
+    ``isinstance(p, EdgarToolsProvider)`` selector finds it) that skips the
+    parent __init__ — the real one calls ``set_identity`` and would hit SEC —
+    and stubs the one method ``fetch_deep_history`` invokes.
+    """
+    from finrobot.engine.data.providers.edgar_provider import EdgarToolsProvider
+
+    class _StubEdgar(EdgarToolsProvider):
+        def __init__(self) -> None:
+            # Deliberately do NOT call super().__init__ (identity gate / network).
+            self._result = result
+            self._raises = raises
+            self.calls = 0
+
+        async def fetch_annual_financials(self, ticker: str, years: int) -> DataResult:
+            self.calls += 1
+            if self._raises is not None:
+                raise self._raises
+            assert self._result is not None
+            return self._result
+
+    return _StubEdgar()
+
+
+class TestFetchDeepHistory:
+    async def test_returns_none_when_no_edgar_provider(self, cache):
+        """No SEC provider registered (identity unwired) → None, so the caller
+        cleanly falls back to the shallow provider-chain window."""
+        layer = DataLayer([MockProvider("yfinance", ["historical"])], cache)
+        assert await layer.fetch_deep_history("MU", 10) is None
+
+    async def test_routes_to_edgar_and_splits_yearly(self, cache):
+        """The SEC provider is selected by type and its yearly_data is split into
+        one DataResult per fiscal year (the shape the extractor consumes)."""
+        stub = _make_stub_edgar(result=_sec_yearly_result([2025, 2024, 2023, 2022]))
+        layer = DataLayer([MockProvider("yfinance", ["historical"]), stub], cache)
+
+        out = await layer.fetch_deep_history("MU", 10)
+        assert out is not None
+        assert stub.calls == 1  # type: ignore[attr-defined]
+        assert [r.data["fiscal_year"][:4] for r in out] == ["2025", "2024", "2023", "2022"]
+
+    async def test_caches_under_sec_suffix(self, cache):
+        """Second call for the same (ticker, years) hits the :sec cache slot —
+        the SEC fetch is not repeated."""
+        stub = _make_stub_edgar(result=_sec_yearly_result([2025, 2024]))
+        layer = DataLayer([stub], cache)
+
+        await layer.fetch_deep_history("MU", 10)
+        assert stub.calls == 1  # type: ignore[attr-defined]
+        await layer.fetch_deep_history("MU", 10)
+        assert stub.calls == 1, "second call must hit the :sec cache slot, not re-fetch"  # type: ignore[attr-defined]
+
+    async def test_provider_error_degrades_to_none(self, cache):
+        """A SEC failure (CIK miss / down / empty facts) degrades to None so the
+        seed falls back to the shallow window — never crashes the caller."""
+        stub = _make_stub_edgar(raises=ProviderError("SEC companyfacts: no CIK for MU"))
+        layer = DataLayer([stub], cache)
+        assert await layer.fetch_deep_history("MU", 10) is None
+        assert stub.calls == 1  # type: ignore[attr-defined]

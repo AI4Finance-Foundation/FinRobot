@@ -79,6 +79,14 @@ async def create_debate(body: DebateRequest, request: Request) -> DebateResponse
     startup_error = getattr(request.app.state, "startup_error", None)
     if startup_error:
         raise HTTPException(status_code=503, detail=f"Server not ready: {startup_error}")
+    # First-run guard (mirrors POST /api/runs): empty model_name = onboarding,
+    # not a startup_error, so it slips past the check above — but no agents were
+    # built. 503 with the same actionable message.
+    if not request.app.state.deps.settings.is_model_configured:
+        raise HTTPException(
+            status_code=503,
+            detail="No AI model configured. Choose one in Settings → AI Model.",
+        )
     limiter = getattr(request.app.state, "run_rate_limiter", None)
     if limiter is not None and not limiter.allow_runs(1):
         raise HTTPException(

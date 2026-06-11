@@ -184,9 +184,18 @@ class FinRobotSettings(BaseSettings):
         """
         return (init_settings,)
 
-    # Model — "<provider_id>:<model_id>", e.g. "openai:gpt-4o". One model for the
-    # whole pipeline; there are no per-role overrides ("配的是啥就是啥").
-    model_name: str = "openai:gpt-4o"
+    # Model — "<provider_id>:<model_id>", e.g. "anthropic:claude-sonnet-4-6". One
+    # model for the whole pipeline; there are no per-role overrides ("配的是啥就是啥").
+    #
+    # Default is EMPTY on purpose: a brand-new install has no LLM key, so any
+    # baked-in default (the old "openai:gpt-4o") forced every fresh boot into a
+    # startup_error state and a banner that read like the product *demands*
+    # OpenAI. Empty = "no model chosen yet" — a normal first-run onboarding
+    # state, NOT an error: the deterministic data layer (prices/financials/DCF)
+    # runs without any LLM key; only AI report/chat/debate need a model. The
+    # server distinguishes empty (onboarding) from set-but-broken (real error)
+    # via ``runtime_config_error`` / ``is_model_configured``.
+    model_name: str = ""
 
     # User-added LLM providers (OpenAI-compatible endpoints the user wires up in
     # Settings). Persisted to settings.json; merged AFTER BUILTIN_PROVIDERS by the
@@ -382,7 +391,17 @@ class FinRobotSettings(BaseSettings):
                 "(free at https://financialmodelingprep.com/).",
                 stacklevel=2,
             )
-        name = self.model_name
+        name = self.model_name.strip()
+        if not name:
+            # No model chosen. For CLI/SDK callers this IS a hard error (they
+            # exist to run analysis), so raise with an actionable message. The
+            # desktop server does NOT route through here for the empty case —
+            # it calls ``runtime_config_error`` (returns None for empty) so a
+            # first-run user gets onboarding, not a 503 banner.
+            raise ValueError(
+                "No AI model configured. Choose one in Settings → AI Model "
+                "(e.g. anthropic:claude-sonnet-4-6)."
+            )
         provider_id, _model_id = self._parse_model_name(name)
         if provider_id == "test":
             return  # built-in test harness provider — no key required
@@ -403,6 +422,52 @@ class FinRobotSettings(BaseSettings):
                 f"(required by model '{name}'). "
                 f"Add it in Settings → AI Model."
             )
+
+    @property
+    def is_model_configured(self) -> bool:
+        """True when a usable LLM is selected: a model is chosen AND its
+        provider has a key (or is a test stub).
+
+        This is the gate for building agents and for AI-route readiness — every
+        false branch (no model / unknown provider / missing key) would crash
+        ``create_model``, so callers MUST check this before constructing agents.
+        Pure (no warnings, no side effects) so per-request route guards can call
+        it freely, unlike ``validate_runtime_config``.
+        """
+        name = self.model_name.strip()
+        if not name:
+            return False
+        try:
+            provider_id, _model_id = self._parse_model_name(name)
+        except ValueError:
+            return False
+        if provider_id == "test":
+            return True
+        cfg = self.provider_by_id(provider_id)
+        if cfg is None:
+            return False
+        if cfg.kind == "test":
+            return True
+        return bool(self.provider_key(provider_id))
+
+    def runtime_config_error(self) -> str | None:
+        """The startup_error banner string, or None when there's nothing to
+        surface as an *error*.
+
+        Crucially this returns None for the expected first-run state (no model
+        chosen yet) — that's onboarding, NOT a red error banner. A model that IS
+        chosen but whose key/provider is broken returns the precise message from
+        ``validate_runtime_config`` (so the user can fix exactly what's wrong).
+        Use this on the server boot/PUT paths; use ``validate_runtime_config``
+        directly only where empty-model must hard-fail (CLI/SDK).
+        """
+        if not self.model_name.strip():
+            return None
+        try:
+            self.validate_runtime_config()
+        except ValueError as exc:
+            return str(exc)
+        return None
 
     def create_model(self, model_name: str | None = None) -> Model:
         """Create a PydanticAI Model for ``<provider_id>:<model_id>``.

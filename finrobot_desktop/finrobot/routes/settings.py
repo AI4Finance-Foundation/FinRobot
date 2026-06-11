@@ -161,7 +161,14 @@ class SettingsResponse(BaseModel):
     available_providers: list[str]
     # If validate_runtime_config() failed at server boot, the error message
     # is surfaced here so the UI can show a banner. None = config is valid.
+    # NB: an empty model_name (first-run) is NOT a startup_error — it leaves this
+    # null and is reflected by ``model_configured: false`` instead.
     startup_error: str | None = None
+    # True when a usable LLM is selected (model chosen AND its provider keyed).
+    # False on a fresh install (no model yet) — the UI treats that as a friendly
+    # onboarding state (overlay + AI-CTA preflight), distinct from startup_error
+    # which only fires for a chosen-but-broken model.
+    model_configured: bool = False
     # Indicates whether secrets are protected by the OS keychain or written to
     # a permission-locked plaintext JSON file.  "plaintext" means the user
     # should be warned that their API keys are stored unencrypted on disk.
@@ -359,14 +366,12 @@ async def _put_settings_locked(update: SettingsUpdate, request: Request) -> Sett
         from finrobot.obs import setup_logging
 
         setup_logging(candidate, force=True)
-    # Reflect config validity in the startup_error banner: set it when the LLM
-    # config is incomplete/invalid (so LLM routes 503 with a clear message),
-    # clear it once the user has filled in what was missing.
-    try:
-        candidate.validate_runtime_config()
-        request.app.state.startup_error = None
-    except ValueError as e:
-        request.app.state.startup_error = str(e)
+    # Reflect config validity in the startup_error banner. runtime_config_error
+    # (not validate directly): saving an unrelated field while no model is chosen
+    # yet must NOT raise a banner — empty model_name is onboarding, returns None.
+    # Only a chosen-but-broken model sets the banner; LLM routes still 503 on the
+    # empty case via is_model_configured.
+    request.app.state.startup_error = candidate.runtime_config_error()
     return await _build_response(request)
 
 
@@ -428,11 +433,8 @@ async def _clear_secret_locked(body: ClearSecretRequest, request: Request) -> Se
     await _replace_runtime_settings(request, rebuilt)
 
     # Re-validate: clearing a key may have broken (or, rarely, fixed) the config.
-    try:
-        rebuilt.validate_runtime_config()
-        request.app.state.startup_error = None
-    except ValueError as e:
-        request.app.state.startup_error = str(e)
+    # runtime_config_error keeps the empty-model case banner-free (onboarding).
+    request.app.state.startup_error = rebuilt.runtime_config_error()
 
     return await _build_response(request)
 
@@ -744,6 +746,7 @@ async def _build_response(request: Request) -> SettingsResponse:
         log_retention_days=settings.log_retention_days,
         available_providers=available,
         startup_error=getattr(request.app.state, "startup_error", None),
+        model_configured=settings.is_model_configured,
         secret_storage_mode=getattr(request.app.state, "secret_storage_mode", "keychain"),
     )
 
@@ -761,12 +764,10 @@ async def _replace_runtime_settings(request: Request, settings: FinRobotSettings
     # path (server.lifespan): skip agent construction while invalid; the caller
     # sets startup_error, every LLM route 503s on it, and the next valid PUT
     # rebuilds both. Without this, "Clear" on the only configured key crashes.
-    try:
-        settings.validate_runtime_config()
-        config_ok = True
-    except ValueError:
-        config_ok = False
-    if config_ok:
+    # is_model_configured is the precise gate: it's false for empty model
+    # (onboarding), unknown provider, AND missing key — all three would crash
+    # create_model. Mirrors the boot path (server.lifespan).
+    if settings.is_model_configured:
         request.app.state.agent = create_lead_agent(
             settings, skill_registry=request.app.state.deps.skill_runtime
         )

@@ -197,11 +197,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Without this gate, the user's first symptom was a 60-second hang on
     # the first analysis attempt, followed by an OpenAIError missing-key
     # exception buried in Python stderr — invisible inside the Tauri shell.
-    startup_error: str | None = None
-    try:
-        settings.validate_runtime_config()
-    except ValueError as exc:
-        startup_error = str(exc)
+    # runtime_config_error (NOT validate_runtime_config directly): an empty
+    # model_name is the expected first-run state, not an error — it returns None
+    # so no banner shows and the user gets onboarding instead. Only a model that
+    # IS chosen but broken (missing key / unknown provider) becomes a banner.
+    startup_error: str | None = settings.runtime_config_error()
+    if startup_error:
         logger.error("Runtime config validation failed: %s", startup_error)
     if settings_file_error:
         # A corrupt settings.json silently reset every non-secret setting to its
@@ -245,7 +246,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # empty until the config is fixed.
     agent: Any = None
     sub_agents: dict[str, Any] = {}
-    if startup_error is None:
+    # is_model_configured (not just `startup_error is None`): a first-run install
+    # has no startup_error (empty model is not an error) yet no usable model, so
+    # constructing agents would crash in create_model(""). Build only when a
+    # model is genuinely usable; AI routes 503 with an onboarding message until.
+    if startup_error is None and settings.is_model_configured:
         sub_agents = create_sub_agents(settings, skill_registry=registry)
         agent = create_lead_agent(settings, skill_registry=registry, sub_agents=sub_agents)
     else:
@@ -1200,6 +1205,14 @@ async def chat(request: Request) -> Response:
     if startup_error:
         return JSONResponse(
             content={"detail": f"Server not ready: {startup_error}"},
+            status_code=503,
+        )
+    # First-run guard: empty model_name is onboarding, not a startup_error, so
+    # it slips past the check above — but app.state.agent is None. Honour the
+    # same 503 contract with an actionable message instead of a buried crash.
+    if not request.app.state.deps.settings.is_model_configured:
+        return JSONResponse(
+            content={"detail": "No AI model configured. Choose one in Settings → AI Model."},
             status_code=503,
         )
 

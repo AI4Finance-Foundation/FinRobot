@@ -146,6 +146,15 @@ async def spawn_run(
     startup_error = getattr(request.app.state, "startup_error", None)
     if startup_error:
         raise HTTPException(status_code=503, detail=f"Server not ready: {startup_error}")
+    # First-run guard: an empty model_name carries no startup_error (it's not an
+    # error, it's onboarding), so it slips past the check above — but agents were
+    # never built, so this run would crash. 503 with an actionable message that
+    # the desktop preflight (AIZone) turns into a "去配置模型" affordance.
+    if not request.app.state.deps.settings.is_model_configured:
+        raise HTTPException(
+            status_code=503,
+            detail="No AI model configured. Choose one in Settings → AI Model.",
+        )
 
     factories = get_pipeline_factories()
     if pipeline_type not in factories:

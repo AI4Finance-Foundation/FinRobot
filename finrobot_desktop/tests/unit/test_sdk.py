@@ -99,12 +99,18 @@ def test_init_missing_api_key_fails_fast():
         FinRobot(model="anthropic:claude-sonnet-4-6", provider_keys={"anthropic": ""})
 
 
-def test_init_default_model_is_not_empty():
-    # Supply a key for the default (openai) provider — config is app-stored
-    # only, so without it __init__ now correctly fails fast on the missing key.
-    agent = FinRobot(provider_keys={"openai": "sk-test"})
-    assert isinstance(agent._settings.model_name, str)
-    assert len(agent._settings.model_name) > 0
+def test_init_empty_default_model_fails_fast():
+    # The default model_name is now EMPTY (first-run onboarding state) — the SDK
+    # exists to run analysis, so __init__ must fail fast with an actionable
+    # message rather than defer the crash to the first LLM call. A key alone is
+    # not enough; the caller must pick a model explicitly.
+    with pytest.raises(ValueError, match="No AI model configured"):
+        FinRobot(provider_keys={"openai": "sk-test"})
+
+
+def test_init_explicit_model_is_honoured():
+    agent = FinRobot(model="anthropic:claude-sonnet-4-6", provider_keys={"anthropic": "sk-test"})
+    assert agent._settings.model_name == "anthropic:claude-sonnet-4-6"
 
 
 def test_lazy_deps_not_built_on_init():

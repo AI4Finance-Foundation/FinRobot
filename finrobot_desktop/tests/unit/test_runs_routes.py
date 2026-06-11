@@ -38,6 +38,11 @@ def _make_app(run_record: Any | None = None, *, startup_error: str | None = None
     app.state.run_tasks = {}
     app.state.sub_agents = {}
     app.state.startup_error = startup_error
+    # spawn_run reads deps.settings.is_model_configured for the first-run guard.
+    # Default to a usable model; tests that exercise the no-model 503 override it.
+    deps = MagicMock()
+    deps.settings.is_model_configured = True
+    app.state.deps = deps
     return app
 
 
@@ -158,6 +163,23 @@ async def test_create_run_503_when_startup_error_set() -> None:
 
     assert resp.status_code == 503, resp.text
     assert "ANTHROPIC_API_KEY" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_create_run_503_when_model_not_configured() -> None:
+    """First-run guard: an unconfigured model carries NO startup_error (it's
+    onboarding, not an error) yet must still 503 — agents were never built. The
+    detail routes the desktop preflight to Settings → AI Model."""
+    app = _make_app(startup_error=None)
+    app.state.deps.settings.is_model_configured = False
+    store = app.state.run_store
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        resp = await c.post("/api/runs", json={"pipeline_type": "full_analysis", "ticker": "AAPL"})
+
+    assert resp.status_code == 503, resp.text
+    assert "No AI model configured" in resp.json()["detail"]
+    store.create_run.assert_not_awaited()
+    assert app.state.run_tasks == {}
 
 
 @pytest.mark.asyncio

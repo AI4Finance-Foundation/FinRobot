@@ -11,9 +11,13 @@ class TestDefaults:
     # bare FinRobotSettings() reflects the class defaults regardless of the
     # developer's shell or repo-root .env — no monkeypatch.delenv scaffolding
     # needed any more.
-    def test_default_model_name(self):
+    def test_default_model_name_is_empty(self):
+        # Empty on purpose: a fresh install has no LLM key, so a baked-in default
+        # forced every first boot into a startup_error banner that read like the
+        # product demanded OpenAI. Empty = "no model chosen yet" (onboarding).
         s = FinRobotSettings()
-        assert s.model_name == "openai:gpt-4o"
+        assert s.model_name == ""
+        assert s.is_model_configured is False
 
     def test_default_has_no_provider_keys(self):
         s = FinRobotSettings()
@@ -55,7 +59,7 @@ class TestDefaults:
         monkeypatch.setenv("FINROBOT_MODEL_NAME", "anthropic:claude-sonnet-4-6")
         s = FinRobotSettings()
         assert s.provider_key("openai") is None
-        assert s.model_name == "openai:gpt-4o"
+        assert s.model_name == ""
 
     def test_default_cache_db_path(self):
         s = get_settings()
@@ -304,6 +308,56 @@ class TestValidateRuntimeConfig:
         fmp_warnings = [w for w in caught if "FMP" in str(w.message)]
         assert len(fmp_warnings) == 1
         assert "yfinance" in str(fmp_warnings[0].message)
+
+
+class TestEmptyModelOnboarding:
+    """The first-run contract: an empty model_name is onboarding, not an error.
+
+    validate_runtime_config (CLI/SDK) hard-fails with an actionable message;
+    runtime_config_error (desktop server) returns None so no banner shows; and
+    is_model_configured gates agent construction across both paths.
+    """
+
+    def test_empty_model_validate_raises_actionable(self):
+        s = get_settings(model_name="", fmp_api_key="fmp-test-key")
+        with pytest.raises(ValueError, match="No AI model configured"):
+            s.validate_runtime_config()
+
+    def test_whitespace_only_model_treated_as_empty(self):
+        s = get_settings(model_name="   ", fmp_api_key="fmp-test-key")
+        assert s.is_model_configured is False
+        with pytest.raises(ValueError, match="No AI model configured"):
+            s.validate_runtime_config()
+
+    def test_empty_model_is_not_a_banner_error(self):
+        # The desktop boot/PUT path: empty model surfaces NO startup_error.
+        s = get_settings(model_name="")
+        assert s.runtime_config_error() is None
+        assert s.is_model_configured is False
+
+    def test_chosen_but_keyless_model_is_a_banner_error(self):
+        # A model the user DID choose but whose key is missing is a real error.
+        s = get_settings(model_name="anthropic:claude-sonnet-4-6")
+        err = s.runtime_config_error()
+        assert err is not None and "anthropic" in err
+        assert s.is_model_configured is False
+
+    def test_fully_configured_model_is_ready(self):
+        s = get_settings(
+            model_name="anthropic:claude-sonnet-4-6",
+            provider_keys={"anthropic": "sk-x"},
+        )
+        assert s.is_model_configured is True
+        assert s.runtime_config_error() is None
+
+    def test_test_provider_is_configured_without_key(self):
+        s = get_settings(model_name="test:test")
+        assert s.is_model_configured is True
+
+    def test_unknown_provider_is_not_configured(self):
+        s = get_settings(model_name="bogus:model-x")
+        assert s.is_model_configured is False
+        assert s.runtime_config_error() is not None
 
 
 class TestNoEnvReading:

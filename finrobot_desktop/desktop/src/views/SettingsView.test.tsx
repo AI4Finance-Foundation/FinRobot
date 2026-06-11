@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
-import SettingsView, { isValidSecIdentity, secHeaderIdentityPreview } from '../views/SettingsView'
+import SettingsView, { isValidSecIdentity, secHeaderIdentityPreview } from './SettingsView'
 
 const OK_SETTINGS = {
   model_name: 'deepseek:deepseek-chat',

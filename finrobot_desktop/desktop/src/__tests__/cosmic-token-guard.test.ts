@@ -29,6 +29,13 @@ import { describe, it, expect } from 'vitest'
 // executing the module (and without needing Node's fs types in the web build).
 import titleBarSrc from '../layout/TitleBar.tsx?raw'
 import settingsViewSrc from '../views/SettingsView.tsx?raw'
+import settingsControlsSrc from '../views/settings/controls.tsx?raw'
+import settingsProviderDropdownSrc from '../views/settings/ProviderDropdown.tsx?raw'
+import settingsAiModelPanelSrc from '../views/settings/AiModelPanel.tsx?raw'
+import settingsDataSourcesPanelSrc from '../views/settings/DataSourcesPanel.tsx?raw'
+import settingsSecHoldingsSrc from '../views/settings/SecHoldingsSection.tsx?raw'
+import settingsUpdatesSrc from '../views/settings/UpdatesSection.tsx?raw'
+import settingsClearKeyModalSrc from '../views/settings/ClearKeyConfirmModal.tsx?raw'
 import versionDiffBannerSrc from '../components/VersionDiffBanner.tsx?raw'
 import aiChatTabSrc from '../layout/RightChatPanel/AiChatTab.tsx?raw'
 import splineHeroSrc from '../components/SplineHero.tsx?raw'
@@ -36,7 +43,16 @@ import splineHeroSrc from '../components/SplineHero.tsx?raw'
 const GUARDED: Array<[string, string]> = [
   // TitleBar absorbed the retired Sidebar's nav; keep it token-pure here.
   ['layout/TitleBar.tsx', titleBarSrc],
+  // SettingsView was split into views/settings/* (2026-06-11) — every shard
+  // that renders styles stays under the guard so the contract survives moves.
   ['views/SettingsView.tsx', settingsViewSrc],
+  ['views/settings/controls.tsx', settingsControlsSrc],
+  ['views/settings/ProviderDropdown.tsx', settingsProviderDropdownSrc],
+  ['views/settings/AiModelPanel.tsx', settingsAiModelPanelSrc],
+  ['views/settings/DataSourcesPanel.tsx', settingsDataSourcesPanelSrc],
+  ['views/settings/SecHoldingsSection.tsx', settingsSecHoldingsSrc],
+  ['views/settings/UpdatesSection.tsx', settingsUpdatesSrc],
+  ['views/settings/ClearKeyConfirmModal.tsx', settingsClearKeyModalSrc],
   ['components/VersionDiffBanner.tsx', versionDiffBannerSrc],
   ['layout/RightChatPanel/AiChatTab.tsx', aiChatTabSrc],
   // Hero/fallback gradients were de-hardcoded 2026-06-10 (P2 audit).

@@ -572,10 +572,14 @@ function SOTPBreakdownPanel({
                     {s.multiple_source}
                   </span>
                 </td>
-                <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-secondary)' }}>
+                <td
+                  style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-secondary)' }}
+                >
                   {formatCurrencyCompact(s.metric_value, reportingCurrency, locale)}
                 </td>
-                <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-secondary)' }}>
+                <td
+                  style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-secondary)' }}
+                >
                   {s.multiple.toFixed(1)}×
                 </td>
                 <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--accent-cyan)' }}>

@@ -126,8 +126,7 @@ export function deriveReportData(
     (structured.valuation_synthesis as ValuationSynthesisShape | undefined) ?? null
   const forwardEstimates =
     (structured.forward_estimates as ForwardEstimatesShape | undefined) ?? null
-  const sotpBreakdown =
-    (structured.sotp_breakdown as SOTPBreakdownShape | undefined) ?? null
+  const sotpBreakdown = (structured.sotp_breakdown as SOTPBreakdownShape | undefined) ?? null
   const catalysts = (structured.catalyst_analysis as CatalystAnalysisShape | undefined) ?? null
   const technical = (structured.technical_analysis as TechnicalAnalysisShape | undefined) ?? null
   const ownership =

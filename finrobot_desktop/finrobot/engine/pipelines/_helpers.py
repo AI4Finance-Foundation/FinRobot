@@ -9,7 +9,9 @@ from typing import Any
 
 from pydantic_ai import Agent
 
+from finrobot.engine.compute.operators.cyclical_peers import cyclical_peer_group
 from finrobot.engine.compute.operators.peer_screen import screen_peers
+from finrobot.engine.primitives.industry import is_commodity_cyclical
 from finrobot.engine.compute.coordinators.extractor import (
     extract_company_financials,
     extract_financial_data,
@@ -265,13 +267,46 @@ async def _deterministic_select_peers(deps: FinRobotDeps, ticker: str) -> PeerSe
         ) from e
     if result.data.get("error"):
         raise ValueError(f"peer candidates unavailable for {ticker}: {result.data['error']}")
-    screen = screen_peers(result.data, ticker)
+    payload = _inject_cyclical_peers(result.data, ticker)
+    screen = screen_peers(payload, ticker)
     if not screen.tickers:
         raise ValueError(
             f"peer screen for {ticker} produced no eligible peers "
             f"(pool empty after market-cap band + NM filter) — comps degrades"
         )
     return PeerSelection(tickers=screen.tickers, rationale=screen.rationale)
+
+
+def _inject_cyclical_peers(payload: dict[str, Any], ticker: str) -> dict[str, Any]:
+    """Splice the curated commodity-cyclical peer group into Tier 1 (industry_screen).
+
+    A memory/storage cyclical's real comps (WDC/STX/SNDK for MU) sit ONLY in the
+    provider's ``sector_screen`` (Tier 3), which ``screen_peers`` skips once the
+    high-affinity tiers field ≥3 logic-semis candidates — so MU's auto-comps are
+    growth-stock logic semis whose forward P/E × MU's cycle-peak EPS prints $2199
+    (scripts/_cyclical_probe_peers.py). Prepending the curated group to Tier 1 lands
+    it in the high-affinity tier (wide 200x floor band, never the Tier-3 skip), so
+    the storage cohort survives. Returns the payload unchanged for a non-cyclical
+    target; otherwise a shallow copy with ``industry_screen`` rewritten (the cached
+    payload dict is never mutated). A spliced peer still needs a provider quote to
+    pass ``screen_peers`` — if the provider omitted it the peer is dropped, same as
+    any candidate (fail-safe to the existing behaviour).
+    """
+    group = cyclical_peer_group(ticker)
+    if not group:
+        return payload
+    existing = [str(s).upper() for s in (payload.get("industry_screen") or [])]
+    # Prepend the curated cohort (dedup, preserve provider order after).
+    seen: set[str] = set()
+    merged: list[str] = []
+    for sym in (*group, *existing):
+        up = sym.upper()
+        if up not in seen:
+            seen.add(up)
+            merged.append(up)
+    new_payload = dict(payload)
+    new_payload["industry_screen"] = merged
+    return new_payload
 
 
 async def _enrich_company_forward(
@@ -699,6 +734,16 @@ def build_valuation_synthesis(
     ):
         forward_eps = fwd.forward_eps
 
+    # Commodity-cyclical → add the P/B comps row as the primary relative multiple.
+    # Industry/sector when the target snapshot is in scope; the ticker anchor covers
+    # memory/storage under the generic "Semiconductors" tag (same gate the seed uses).
+    cyclical = is_commodity_cyclical(
+        industry=financial_data.market.industry
+        if isinstance(financial_data, FinancialData)
+        else None,
+        sector=financial_data.market.sector if isinstance(financial_data, FinancialData) else None,
+        ticker=ticker,
+    )
     agg = aggregate_valuation(
         ticker=ticker,
         current_price=current_price,
@@ -709,6 +754,7 @@ def build_valuation_synthesis(
         shares_outstanding=shares,
         current_net_debt=current_net_debt,
         forward_eps=forward_eps,
+        cyclical=cyclical,
     )
 
     if not agg.methods:

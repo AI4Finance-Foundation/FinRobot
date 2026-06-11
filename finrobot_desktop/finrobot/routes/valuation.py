@@ -19,6 +19,7 @@ from finrobot.engine.compute.operators.forward_estimates import (
     get_forward_financials,
 )
 from finrobot.engine.primitives.historical_valuation import HistoricalMetricName
+from finrobot.engine.primitives.industry import is_commodity_cyclical
 from finrobot.engine.compute.operators.multiples import current_ev_ebitda
 from finrobot.engine.compute.operators.valuation_aggregator import aggregate_valuation
 from finrobot.engine.data.cache import cached_fetch
@@ -80,6 +81,9 @@ async def aggregate_for_ticker(ticker: str, request: Request) -> ValuationAggreg
         forward_source=forward.source,
         historical_ev_ebitda_band=None,
         historical_p_fcf_band=None,
+        # Memory/storage via the ticker anchor (the route lacks the snapshot's
+        # industry tag); adds the P/B comps row for a cyclical, same as the report path.
+        cyclical=is_commodity_cyclical(ticker=ticker),
         as_of=as_of,
     )
 

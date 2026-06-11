@@ -43,6 +43,15 @@ PEER_EV_REVENUE_SANITY_MIN: float = 0.1
 PEER_EV_REVENUE_SANITY_MAX: float = 100.0
 PEER_PE_SANITY_MIN: float = 1.0
 PEER_PE_SANITY_MAX: float = 300.0
+# Price-to-book sanity band (the cyclical-comps multiple). Book equity is far more
+# stable than cycle EPS, but a negative book (accumulated deficit / buyback-driven
+# negative equity) makes P/B meaningless — so P/B is withheld (None) when book
+# value ≤ 0, never computed as a negative ratio. Positive band [0.1x, 50x]: below
+# 0.1x is a unit/FX artifact; above 50x is effectively a no-tangible-book firm
+# whose P/B carries no value信息 (memory/storage peers run ~1–8x). Excluded from
+# the median when out of band, same as the other multiples.
+PEER_PB_SANITY_MIN: float = 0.1
+PEER_PB_SANITY_MAX: float = 50.0
 
 # Not-meaningful (NM) P/E cap — the BANKER-CONVENTION threshold, distinct from the
 # garbage/FX SANITY bounds above. A positive P/E above this is a real, computable
@@ -274,6 +283,12 @@ def calculate_multiples(company: CompanyFinancials) -> CompanyFinancials:
     )
     result.pe_ratio = _gate("P/E", raw_pe, PEER_PE_SANITY_MIN, PEER_PE_SANITY_MAX)
 
+    # P/B (cyclical comps multiple): pb_ratio was computed single-currency in
+    # extract_company_financials (None for ADRs / non-positive book), so here it
+    # only passes the sanity gate — an out-of-band P/B is nulled and recorded so it
+    # never silently shrinks the median, symmetric with the other multiples.
+    result.pb_ratio = _gate("P/B", result.pb_ratio, PEER_PB_SANITY_MIN, PEER_PB_SANITY_MAX)
+
     return result
 
 
@@ -432,14 +447,25 @@ def calculate_peer_statistics(comps: PeerComps) -> PeerComps:
         if p.forward_pe is not None and PEER_PE_SANITY_MIN <= p.forward_pe <= PEER_PE_NM_CAP
     ]
 
+    # P/B median (cyclical comps): already sanity-gated in calculate_multiples, so
+    # only finiteness needs re-checking here. A short-history cyclical (SNDK: 1y)
+    # MAY contribute its P/B — book value is a current balance-sheet figure, not a
+    # through-cycle series, so the 1y-history exclusion that applies to through-cycle
+    # medians does NOT apply to P/B.
+    pb_vals = [
+        p.pb_ratio for p in result.peers if p.pb_ratio is not None and math.isfinite(p.pb_ratio)
+    ]
+
     result.median_ev_ebitda = median(ev_ebitda_vals) if ev_ebitda_vals else None
     result.mean_ev_ebitda = mean(ev_ebitda_vals) if ev_ebitda_vals else None
     result.median_pe = median(pe_vals) if pe_vals else None
     result.mean_pe = mean(pe_vals) if pe_vals else None
     result.median_ev_revenue = median(ev_revenue_vals) if ev_revenue_vals else None
     result.median_forward_pe = median(forward_pe_vals) if forward_pe_vals else None
+    result.median_pb = median(pb_vals) if pb_vals else None
     result.pe_sample_n = len(pe_vals)
     result.forward_pe_sample_n = len(forward_pe_vals)
+    result.pb_sample_n = len(pb_vals)
 
     ev_ebitda_n = len(ev_ebitda_vals)
     if ev_ebitda_n < total:

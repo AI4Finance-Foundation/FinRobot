@@ -276,6 +276,9 @@ def extract_financial_data(
             ev_ebitda=ev_ebitda,
             ev_ebitda_reported=ev_ebitda_reported,
             ev_revenue=ev_revenue,
+            # Reporting-currency per-share book value, carried for the cyclical comps
+            # P/B method (the target's pb_ratio is derived in build_xbrl_aligned_company).
+            book_value_per_share=fin.book_value_per_share,
         ),
         # Carry the currency tags so a foreign target (TWD financials, USD
         # market_cap) can be FX-normalized in build_xbrl_aligned_company before
@@ -339,6 +342,26 @@ def extract_company_financials(fin: NormalizedFinancials) -> CompanyFinancials:
     if ebitda_operating is None:
         ebitda_operating = fin.ebitda
 
+    # P/B = market_cap / book equity (book equity = bvps × shares). Computed ONLY
+    # for single-currency issuers (reporting == quote): market_cap is quote-ccy and
+    # book equity is reporting-ccy, so a TWD/USD ADR would mix units (the same leg
+    # forward_pe / pe_ratio gate on). US memory/storage peers (MU/WDC/STX/SNDK) are
+    # all USD/USD → clean; a foreign memory peer leaves pb_ratio None and falls back
+    # to P/E in the comps median rather than printing a cross-currency P/B. Withheld
+    # (None) on non-positive book equity — a negative-equity P/B is meaningless.
+    bvps = fin.book_value_per_share
+    pb_ratio: float | None = None
+    single_currency = fin.reporting_currency == fin.quote_currency
+    if (
+        single_currency
+        and bvps is not None
+        and bvps > 0
+        and fin.shares_outstanding is not None
+        and fin.shares_outstanding > 0
+        and market_cap > 0
+    ):
+        pb_ratio = market_cap / (bvps * fin.shares_outstanding)
+
     return CompanyFinancials(
         ticker=ticker,
         name=fin.company_name,
@@ -365,6 +388,12 @@ def extract_company_financials(fin: NormalizedFinancials) -> CompanyFinancials:
         # operating_margin × revenue once revenue may be XBRL-reconciled.
         operating_income=fin.operating_income,
         pe_ratio=fin.pe_ratio,
+        # P/B (cyclical comps multiple) + the per-share book value the target row's
+        # _comps_pb_method multiplies the peer median against. bvps is reporting-ccy
+        # (FX-scaled with the other reporting items in normalize_company_to_usd);
+        # pb_ratio is computed single-currency above so it's already dimensionless.
+        book_value_per_share=bvps,
+        pb_ratio=pb_ratio,
         income_tax_expense=fin.income_tax_expense,
         reporting_currency=fin.reporting_currency,
         quote_currency=fin.quote_currency,

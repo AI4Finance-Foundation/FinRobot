@@ -199,6 +199,22 @@ async def build_xbrl_aligned_company(
         financial_data.balance.total_debt is not None
         and financial_data.balance.total_cash is not None
     )
+    # Target P/B = market_cap / (bvps × shares), single-currency only (reporting ==
+    # quote) and book > 0 — the same gate the peer path (extract_company_financials)
+    # applies, so the target row's pb_ratio is currency-clean and comparable to the
+    # peer medians. None for an ADR / non-positive book → P/B method falls back.
+    bvps = financial_data.valuation.book_value_per_share
+    shares = financial_data.market.shares_outstanding
+    mcap = financial_data.market.market_cap
+    target_pb: float | None = None
+    if (
+        financial_data.reporting_currency == financial_data.quote_currency
+        and bvps is not None
+        and bvps > 0
+        and shares > 0
+        and mcap > 0
+    ):
+        target_pb = mcap / (bvps * shares)
     base = CompanyFinancials(
         ticker=ticker.upper(),
         revenue=financial_data.income.revenue,
@@ -218,6 +234,11 @@ async def build_xbrl_aligned_company(
         # reconcile below (BUG-017).
         operating_income=financial_data.income.operating_income,
         income_tax_expense=financial_data.income.income_tax_expense,
+        # Cyclical comps P/B: bvps (reporting-ccy, FX-scaled by normalize_peer_to_usd)
+        # + the single-currency pb_ratio computed above. calculate_multiples (called
+        # inside override_company_with_xbrl) sanity-gates pb_ratio.
+        book_value_per_share=bvps,
+        pb_ratio=target_pb,
         reporting_currency=financial_data.reporting_currency,
         quote_currency=financial_data.quote_currency,
     )

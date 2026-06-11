@@ -50,6 +50,11 @@ _DDM_BAND_WIDTH = 0.15
 _COMPS_PE_BAND_WIDTH = 0.10
 """±1 std proxy when peer-PE std isn't recorded (PeerComps lacks std today)."""
 
+_COMPS_PB_BAND_WIDTH = 0.15
+"""P/B band — book equity is cycle-stable but the peer P/B dispersion across a
+memory/storage cohort is wider than the trailing-P/E dispersion (re-rating during
+the up-cycle), so a slightly wider placeholder spread than comps_pe."""
+
 _COMPS_MIN_MULTIPLE_SAMPLE = 3
 """Minimum surviving peers behind a multiple median before it may price the
 target. NM caps / sanity bounds / missing consensus thin the contributing set
@@ -75,18 +80,24 @@ def _comps_median_refusal(
     sample_n: int,
     target_multiple: float | None,
     label: str,
+    method: str = "comps_pe",
 ) -> str | None:
-    """None when the peer median may price the target; else the refusal reason."""
+    """None when the peer median may price the target; else the refusal reason.
+
+    ``method`` tags the warning with the method that's退出 (``comps_pe`` /
+    ``comps_pb``) so an analyst reading ``ValuationSynthesis.warnings`` sees which
+    relative multiple refused — a P/B refusal must not masquerade as a P/E one.
+    """
     if 0 < sample_n < _COMPS_MIN_MULTIPLE_SAMPLE:
         return (
-            f"comps_pe: 同业 {label} 样本仅 {sample_n} 家"
+            f"{method}: 同业 {label} 样本仅 {sample_n} 家"
             f"（< {_COMPS_MIN_MULTIPLE_SAMPLE}），单一对手的倍数不构成中位数 — 方法退出"
         )
     if target_multiple is not None and target_multiple > 0:
         mismatch = max(target_multiple, median_val) / min(target_multiple, median_val)
         if mismatch > _COMPS_MULTIPLE_MISMATCH_MAX:
             return (
-                f"comps_pe: 标的自身 {label} {target_multiple:.0f}x 与同业中位 "
+                f"{method}: 标的自身 {label} {target_multiple:.0f}x 与同业中位 "
                 f"{median_val:.1f}x 相差 {mismatch:.0f}x"
                 f"（> {_COMPS_MULTIPLE_MISMATCH_MAX:.0f}x）——市场从未按同业中位"
                 f"为该标的定价，「向同业收敛」前提不适用 — 方法退出"
@@ -112,6 +123,7 @@ def aggregate_valuation(
     forward_source: str | None = None,
     historical_ev_ebitda_band: tuple[float, float] | None = None,
     historical_p_fcf_band: tuple[float, float] | None = None,
+    cyclical: bool = False,
     as_of: datetime | None = None,
 ) -> ValuationAggregate:
     """Build the Football Field payload for one ticker.
@@ -119,6 +131,12 @@ def aggregate_valuation(
     Each artifact / number is optional. Missing methods drop out silently with
     a one-line warning. Caller (route layer) is responsible for fetching the
     inputs via DataLayer / ArtifactStore and assembling them.
+
+    ``cyclical`` (``is_commodity_cyclical`` result, threaded by the caller) adds the
+    P/B comps row as the PRIMARY relative multiple for a memory/storage / steel /
+    oil&gas cyclical — book equity is cycle-stable, unlike trough/peak EPS. The
+    through-cycle / forward P/E row still ships alongside it (football field shows
+    both; synthesis weights the through-cycle anchor).
     """
     methods: list[ValuationMethodRange] = []
     warnings: list[str] = []
@@ -127,6 +145,12 @@ def aggregate_valuation(
         methods.append(m)
     elif dcf is None:
         warnings.append("dcf: 无 DCF artifact — 跑 AI 完整研报后此行展示")
+
+    # Cyclical → P/B is the primary relative multiple (book equity is cycle-stable).
+    # Listed BEFORE comps_pe so the football field leads with it; the through-cycle/
+    # forward P/E row still ships when available. Non-cyclicals skip P/B entirely.
+    if cyclical and (m := _comps_pb_method(peer_comps, warnings)) is not None:
+        methods.append(m)
 
     if (m := _comps_pe_method(peer_comps, forward_eps, shares_outstanding, warnings)) is not None:
         methods.append(m)
@@ -393,6 +417,61 @@ def _comps_pe_method(
         confidence=confidence,
         source=source,
         assumptions=assumptions,
+    )
+
+
+def _comps_pb_method(
+    peer_comps: PeerComps | None,
+    warnings: list[str] | None = None,
+) -> ValuationMethodRange | None:
+    """Price-to-book comps — the PRIMARY multiple for a commodity-cyclical.
+
+    Book equity is cycle-stable, so a memory/storage peer median P/B × the target's
+    book value per share avoids the成长股 forward-P/E × cycle-peak-EPS artifact that
+    prints $2199 for MU. Gated by the SAME _comps_median_refusal as comps_pe (n<3
+    refusal + >10x premise mismatch) so a single peer's P/B never wears a median's
+    authority, and the "market never priced this name at the peer median" premise
+    guard still fires. None when no peer P/B median exists or the target carries no
+    (single-currency, positive) book value per share.
+    """
+
+    def _warn(msg: str) -> None:
+        if warnings is not None:
+            warnings.append(msg)
+
+    if peer_comps is None:
+        return None
+    median_pb = peer_comps.median_pb
+    target_bvps = peer_comps.target.book_value_per_share
+    if median_pb is None or median_pb <= 0:
+        return None
+    if target_bvps is None or target_bvps <= 0:
+        _warn(
+            "comps_pb: 标的每股账面价值不可得（provider 未报 / 负权益 / ADR 跨币种）—"
+            "周期股 P/B 法降级,退回 P/E"
+        )
+        return None
+    refusal = _comps_median_refusal(
+        median_pb, peer_comps.pb_sample_n, peer_comps.target.pb_ratio, "P/B", method="comps_pb"
+    )
+    if refusal is not None:
+        _warn(refusal)
+        return None
+    mid = median_pb * target_bvps
+    if mid <= 0:
+        return None
+    band = mid * _COMPS_PB_BAND_WIDTH
+    return ValuationMethodRange(
+        method="comps_pb",
+        method_type="valuation",
+        low=mid - band,
+        mid=mid,
+        high=mid + band,
+        # Slightly above comps_pe's trailing confidence: for a cyclical, P/B is the
+        # more reliable relative anchor than a cycle-distorted P/E.
+        confidence=0.60,
+        source="peer_median_pb × target_book_value_per_share（周期股账面价值口径,主倍数）",
+        assumptions=f"押同业中值 P/B {median_pb:.2f}× × 每股账面 ${target_bvps:,.2f}",
     )
 
 

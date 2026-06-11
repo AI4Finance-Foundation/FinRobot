@@ -113,6 +113,11 @@ class ValuationMetrics(BaseModel):
     ev_ebitda: float | None = None
     ev_ebitda_reported: float | None = None
     ev_revenue: float | None = None
+    # Book value per share (reporting currency) carried from the provider. Feeds the
+    # cyclical comps P/B method (build_xbrl_aligned_company computes the target's
+    # pb_ratio + the per-share book the peer median P/B is applied to). None when
+    # the provider omits it.
+    book_value_per_share: float | None = None
 
 
 class DataProvenance(BaseModel):
@@ -348,6 +353,14 @@ class CompanyFinancials(BaseModel):
     pe_ratio: float | None = None
     ev_ebitda: float | None = None
     ev_revenue: float | None = None
+    # Book value PER SHARE (reporting currency) and price-to-book = market_cap /
+    # (book_value_per_share × shares). P/B is the standard cyclical-comps multiple:
+    # book equity doesn't whipsaw with the cycle the way trough EPS (negative) or
+    # peak EPS (inflated) do, so a memory/storage peer median P/B prices the target
+    # without the成长股 forward-P/E × cycle-peak-EPS artifact ($2199 for MU). None
+    # when the provider omits book value per share, or shares are unavailable.
+    book_value_per_share: float | None = None
+    pb_ratio: float | None = None
     # Income tax provision in USD, carried from the provider so calculate_core_pe
     # can derive a company-specific effective rate (tax / (net_income + tax)) for
     # the NOPAT core-earnings caliber. None when the provider omits it.
@@ -405,6 +418,13 @@ class PeerComps(BaseModel):
     pe_sample_n: int = 0
     core_pe_sample_n: int = 0
     forward_pe_sample_n: int = 0
+    # Peer median price-to-book and its sample count. The PRIMARY cyclical comps
+    # multiple (book equity is cycle-stable, unlike trough/peak EPS). Same NM/
+    # sanity gating and sample-count discipline as median_pe — a "median" of <3
+    # survivors is refused by _comps_median_refusal rather than pricing a target
+    # off one peer's P/B.
+    median_pb: float | None = None
+    pb_sample_n: int = 0
 
     # LLM-provided
     peer_justification: str = ""
@@ -1191,6 +1211,7 @@ them with different visual weight — solid bars vs dashed bars (spec §6.4)."""
 ValuationMethodName = Literal[
     "dcf",
     "comps_pe",
+    "comps_pb",
     "lbo",
     "ddm",
     "ev_ebitda",

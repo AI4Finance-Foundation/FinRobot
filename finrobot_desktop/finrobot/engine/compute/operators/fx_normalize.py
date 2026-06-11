@@ -127,6 +127,16 @@ def normalize_company_to_usd(
     converted.operating_income = (
         company.operating_income * reporting_rate if company.operating_income is not None else None
     )
+    # book_value_per_share is a reporting-currency per-share amount: scale it to USD
+    # so _comps_pb_method (peer_median_pb × target_bvps) multiplies a USD bvps. The
+    # pb_ratio itself was computed single-currency in extract_company_financials and
+    # is dimensionless — but only US issuers carry it (reporting==quote gate), so a
+    # foreign peer's pb_ratio is already None here; no recompute needed.
+    converted.book_value_per_share = (
+        company.book_value_per_share * reporting_rate
+        if company.book_value_per_share is not None
+        else None
+    )
 
     converted.market_cap = company.market_cap * quote_rate
     if company.enterprise_value is not None:

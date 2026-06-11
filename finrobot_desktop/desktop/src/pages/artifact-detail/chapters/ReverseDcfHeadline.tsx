@@ -19,6 +19,8 @@
 // the big lede is --font-display; narrative is --font-body. cyan is reserved for
 // the LIVE market price; implied growth / DCF figures are computed, never cyan.
 
+import { useLayoutEffect, useRef, useState } from 'react'
+
 import { useI18n } from '../../../i18n'
 import { formatCurrency } from '../../../utils/format'
 import type { DcfShape, ValuationMethodShape } from './types'
@@ -38,12 +40,38 @@ interface ReverseDcfHeadlineProps {
 // A log scale so a ~$40 DCF band and a ~$392 market anchor are both legible
 // while the ~10× gap stays the dominant visual. Bounds are derived from the
 // actual points (not hardcoded) so any ticker/price renders correctly.
-const RULER = {
-  width: 300,
-  top: 18,
-  bottom: 470,
-  spineX: 96,
-} as const
+//
+// The ruler renders at TRUE PIXEL scale: the wrapper is measured (ResizeObserver)
+// and the viewBox is set to that exact size, so the chart fills the column's full
+// HEIGHT regardless of its width, and SVG font sizes are real px — a fixed-aspect
+// viewBox previously tied height to width, so a narrower column also shortened
+// the chart and left dead space under it.
+const RULER_FALLBACK = { w: 280, h: 520 } as const
+
+function useRulerSize(): [React.RefObject<HTMLDivElement | null>, { w: number; h: number }] {
+  const ref = useRef<HTMLDivElement>(null)
+  const [dims, setDims] = useState<{ w: number; h: number }>(RULER_FALLBACK)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const measure = (): void => {
+      const r = el.getBoundingClientRect()
+      if (r.width > 0 && r.height > 0) {
+        setDims((prev) => {
+          const w = Math.round(r.width)
+          const h = Math.round(r.height)
+          return prev.w === w && prev.h === h ? prev : { w, h }
+        })
+      }
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  return [ref, dims]
+}
 
 interface Scale {
   y: (v: number) => number
@@ -52,7 +80,7 @@ interface Scale {
   ticks: number[]
 }
 
-function buildScale(values: number[]): Scale {
+function buildScale(values: number[], top: number, bottom: number): Scale {
   const positive = values.filter((v) => v > 0)
   const lo = Math.min(...positive)
   const hi = Math.max(...positive)
@@ -67,7 +95,7 @@ function buildScale(values: number[]): Scale {
   const span = lnMax - lnMin || 1
   const y = (v: number): number => {
     const clamped = Math.max(vMin, Math.min(vMax, v))
-    return RULER.top + (1 - (Math.log(clamped) - lnMin) / span) * (RULER.bottom - RULER.top)
+    return top + (1 - (Math.log(clamped) - lnMin) / span) * (bottom - top)
   }
   // Nice 1-2-5 decade gridlines inside [vMin, vMax].
   const ticks: number[] = []
@@ -321,6 +349,7 @@ export function ReverseDcfHeadline({
   quoteCurrency,
 }: ReverseDcfHeadlineProps): React.ReactElement | null {
   const { t, locale } = useI18n()
+  const [rulerRef, { w: rw, h: rh }] = useRulerSize()
 
   const unreachable = mi.growth_unreachable
   const cur = (n: number): string => formatCurrency(n, quoteCurrency, locale, 2)
@@ -345,14 +374,16 @@ export function ReverseDcfHeadline({
   const accentGlow = unreachable ? 'var(--danger-glow)' : 'var(--warning-glow)'
 
   // ── ruler points ──────────────────────────────────────────────────────────
+  const rulerTop = 18
+  const rulerBottom = rh - 30
+  const spineX = Math.round(Math.min(96, Math.max(60, rw * 0.32)))
   const rulerVals: number[] = [market, ceilingValue]
   if (!unreachable && dcfMethod) rulerVals.push(dcfMethod.low, dcfMethod.high)
-  const scale = buildScale(rulerVals)
+  const scale = buildScale(rulerVals, rulerTop, rulerBottom)
   const yMarket = scale.y(market)
   const yCeil = scale.y(ceilingValue)
   const yLow = !unreachable && dcfMethod ? scale.y(dcfMethod.low) : yCeil
   const yHigh = !unreachable && dcfMethod ? scale.y(dcfMethod.high) : yCeil
-  const { spineX } = RULER
 
   const growthPct =
     !unreachable && mi.implied_growth != null ? `${(mi.implied_growth * 100).toFixed(1)}%` : null
@@ -391,6 +422,8 @@ export function ReverseDcfHeadline({
           padding: '22px 20px 18px',
           borderRight: '1px solid var(--border-faint)',
           background: `radial-gradient(120% 60% at 50% ${unreachable ? '70%' : '40%'}, ${accentSoft}, transparent 62%), var(--surface-panel-50)`,
+          display: 'flex',
+          flexDirection: 'column',
         }}
       >
         <div
@@ -425,312 +458,324 @@ export function ReverseDcfHeadline({
           </span>
         </div>
 
-        <svg
-          viewBox={`0 0 ${RULER.width} 500`}
-          role="img"
-          aria-label={
-            unreachable
-              ? `Valuation ruler: even ${ceilingGrowthPct ?? 'max'} growth tops out at ${cur(ceilingValue)}, below the ${cur(market)} market`
-              : `Valuation ruler: DCF reaches ${cur(ceilingValue)}, the market sits at ${cur(market)}`
-          }
-          style={{ display: 'block', width: '100%', height: 'auto' }}
-        >
-          <defs>
-            <linearGradient id="rdcf-gap" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={accent} stopOpacity="0.3" />
-              <stop offset="60%" stopColor={accent} stopOpacity="0.09" />
-              <stop offset="100%" stopColor={accent} stopOpacity="0.03" />
-            </linearGradient>
-            <linearGradient id="rdcf-band" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--text-secondary)" stopOpacity="0.2" />
-              <stop offset="100%" stopColor="var(--text-muted)" stopOpacity="0.1" />
-            </linearGradient>
-            <filter id="rdcf-cyan" x="-60%" y="-60%" width="220%" height="220%">
-              <feGaussianBlur stdDeviation="3.2" result="b" />
-              <feMerge>
-                <feMergeNode in="b" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <filter id="rdcf-accent" x="-60%" y="-60%" width="220%" height="220%">
-              <feGaussianBlur stdDeviation="2.4" result="b" />
-              <feMerge>
-                <feMergeNode in="b" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            <marker
-              id="rdcf-arrow"
-              markerWidth="8"
-              markerHeight="8"
-              refX="4"
-              refY="1.2"
-              orient="auto"
-              markerUnits="userSpaceOnUse"
-            >
-              <path d="M4 0 L7.5 6 L0.5 6 Z" fill={accent} />
-            </marker>
-          </defs>
+        {/* measured wrapper: the svg fills the column's remaining height; the
+            viewBox mirrors the measured px box so 1 svg unit === 1 css px (no
+            aspect-locked shrinking, no scaled-down text). */}
+        <div ref={rulerRef} style={{ flex: 1, minHeight: 420 }}>
+          <svg
+            viewBox={`0 0 ${rw} ${rh}`}
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            aria-label={
+              unreachable
+                ? `Valuation ruler: even ${ceilingGrowthPct ?? 'max'} growth tops out at ${cur(ceilingValue)}, below the ${cur(market)} market`
+                : `Valuation ruler: DCF reaches ${cur(ceilingValue)}, the market sits at ${cur(market)}`
+            }
+            style={{ display: 'block', width: '100%', height: '100%' }}
+          >
+            <defs>
+              <linearGradient id="rdcf-gap" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={accent} stopOpacity="0.3" />
+                <stop offset="60%" stopColor={accent} stopOpacity="0.09" />
+                <stop offset="100%" stopColor={accent} stopOpacity="0.03" />
+              </linearGradient>
+              <linearGradient id="rdcf-band" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--text-secondary)" stopOpacity="0.2" />
+                <stop offset="100%" stopColor="var(--text-muted)" stopOpacity="0.1" />
+              </linearGradient>
+              <filter id="rdcf-cyan" x="-60%" y="-60%" width="220%" height="220%">
+                <feGaussianBlur stdDeviation="3.2" result="b" />
+                <feMerge>
+                  <feMergeNode in="b" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <filter id="rdcf-accent" x="-60%" y="-60%" width="220%" height="220%">
+                <feGaussianBlur stdDeviation="2.4" result="b" />
+                <feMerge>
+                  <feMergeNode in="b" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <marker
+                id="rdcf-arrow"
+                markerWidth="8"
+                markerHeight="8"
+                refX="4"
+                refY="1.2"
+                orient="auto"
+                markerUnits="userSpaceOnUse"
+              >
+                <path d="M4 0 L7.5 6 L0.5 6 Z" fill={accent} />
+              </marker>
+            </defs>
 
-          {/* spine + baseline */}
-          <line
-            x1={spineX}
-            y1={RULER.top}
-            x2={spineX}
-            y2={RULER.bottom}
-            stroke="var(--border-soft)"
-            strokeWidth="1"
-          />
-          <line
-            x1={spineX - 12}
-            y1={RULER.bottom}
-            x2={RULER.width - 12}
-            y2={RULER.bottom}
-            stroke="var(--border-soft)"
-            strokeWidth="1"
-          />
+            {/* spine + baseline */}
+            <line
+              x1={spineX}
+              y1={rulerTop}
+              x2={spineX}
+              y2={rulerBottom}
+              stroke="var(--border-soft)"
+              strokeWidth="1"
+            />
+            <line
+              x1={spineX - 12}
+              y1={rulerBottom}
+              x2={rw - 12}
+              y2={rulerBottom}
+              stroke="var(--border-soft)"
+              strokeWidth="1"
+            />
 
-          {/* log gridlines */}
-          <g fontFamily="var(--font-mono)" fontSize="8" fill="var(--text-dim)">
-            {scale.ticks.map((tk) => {
-              const ty = scale.y(tk)
-              return (
-                <g key={tk}>
-                  <line x1={spineX - 6} y1={ty} x2={spineX} y2={ty} stroke="var(--border-faint)" />
-                  <text x={spineX - 9} y={ty + 2.6} textAnchor="end">
-                    {fmtTick(tk)}
+            {/* log gridlines */}
+            <g fontFamily="var(--font-mono)" fontSize="8" fill="var(--text-dim)">
+              {scale.ticks.map((tk) => {
+                const ty = scale.y(tk)
+                return (
+                  <g key={tk}>
+                    <line
+                      x1={spineX - 6}
+                      y1={ty}
+                      x2={spineX}
+                      y2={ty}
+                      stroke="var(--border-faint)"
+                    />
+                    <text x={spineX - 9} y={ty + 2.6} textAnchor="end">
+                      {fmtTick(tk)}
+                    </text>
+                  </g>
+                )
+              })}
+            </g>
+
+            {/* the gap fill between the ceiling and the market */}
+            <rect
+              x={spineX}
+              y={yMarket}
+              width={Math.max(0, rw - spineX - 54)}
+              height={Math.max(0, yCeil - yMarket)}
+              fill="url(#rdcf-gap)"
+            />
+            {/* gap measuring bracket */}
+            <path
+              d={`M${spineX} ${yCeil} L${spineX + 8} ${yCeil} M${spineX + 8} ${yCeil} L${spineX + 8} ${yMarket} M${spineX} ${yMarket} L${spineX + 8} ${yMarket}`}
+              fill="none"
+              stroke={accent}
+              strokeWidth="1.4"
+              strokeOpacity="0.85"
+              markerEnd="url(#rdcf-arrow)"
+            />
+
+            {/* bridge annotation: what fills the gap (reachable = implied growth) */}
+            <g transform={`translate(${spineX + 14} ${(yMarket + yCeil) / 2 - 14})`}>
+              {growthPct ? (
+                <>
+                  <text
+                    fontFamily="var(--font-mono)"
+                    x="0"
+                    y="0"
+                    fontSize="19"
+                    fontWeight="700"
+                    fill={accent}
+                    filter="url(#rdcf-accent)"
+                  >
+                    {growthPct}
+                  </text>
+                  <text
+                    fontFamily="var(--font-mono)"
+                    x="0"
+                    y="14"
+                    fontSize="9"
+                    fill={accent}
+                    opacity="0.9"
+                  >
+                    /yr · {horizon}
+                  </text>
+                  <text
+                    fontFamily="var(--font-body)"
+                    x="0"
+                    y="30"
+                    fontSize="8.5"
+                    fill="var(--text-muted)"
+                  >
+                    {t('chapter.cover.reverseDcf.bridgeNote')}
+                  </text>
+                </>
+              ) : (
+                <>
+                  <text fontFamily="var(--font-body)" x="0" y="0" fontSize="9" fill={accent}>
+                    {t('chapter.cover.reverseDcf.short')}
+                  </text>
+                  <text
+                    fontFamily="var(--font-body)"
+                    x="0"
+                    y="12"
+                    fontSize="8.5"
+                    fill="var(--text-muted)"
+                  >
+                    {ceilingGrowthPct ? `${ceilingGrowthPct}/yr · ${horizon}` : horizon}
+                  </text>
+                </>
+              )}
+            </g>
+
+            {/* DCF reachable band (reachable only) */}
+            {!unreachable && dcfMethod && (
+              <>
+                <rect
+                  x={spineX - 22}
+                  y={yHigh}
+                  width={36}
+                  height={Math.max(2, yLow - yHigh)}
+                  rx="3"
+                  fill="url(#rdcf-band)"
+                  stroke="var(--text-muted)"
+                  strokeWidth="1"
+                />
+                <line
+                  x1={spineX - 26}
+                  y1={yCeil}
+                  x2={spineX + 18}
+                  y2={yCeil}
+                  stroke="var(--text-secondary)"
+                  strokeWidth="1.6"
+                />
+                <circle
+                  cx={spineX}
+                  cy={yCeil}
+                  r="3"
+                  fill="var(--text-secondary)"
+                  stroke="var(--bg-card)"
+                  strokeWidth="1"
+                />
+                <g transform={`translate(${spineX + 22} ${yCeil - 16})`}>
+                  <text
+                    fontFamily="var(--font-mono)"
+                    x="0"
+                    y="0"
+                    fontSize="8.5"
+                    fill="var(--text-dim)"
+                  >
+                    {cur(dcfMethod.high)}
+                  </text>
+                  <text
+                    fontFamily="var(--font-mono)"
+                    x="0"
+                    y="18"
+                    fontSize="13"
+                    fontWeight="600"
+                    fill="var(--text-secondary)"
+                  >
+                    {cur(dcfMethod.mid)}
+                  </text>
+                  <text
+                    fontFamily="var(--font-mono)"
+                    x="0"
+                    y="34"
+                    fontSize="8.5"
+                    fill="var(--text-dim)"
+                  >
+                    {cur(dcfMethod.low)}
                   </text>
                 </g>
-              )
-            })}
-          </g>
-
-          {/* the gap fill between the ceiling and the market */}
-          <rect
-            x={spineX}
-            y={yMarket}
-            width={RULER.width - spineX - 50}
-            height={Math.max(0, yCeil - yMarket)}
-            fill="url(#rdcf-gap)"
-          />
-          {/* gap measuring bracket */}
-          <path
-            d={`M${spineX} ${yCeil} L${spineX + 8} ${yCeil} M${spineX + 8} ${yCeil} L${spineX + 8} ${yMarket} M${spineX} ${yMarket} L${spineX + 8} ${yMarket}`}
-            fill="none"
-            stroke={accent}
-            strokeWidth="1.4"
-            strokeOpacity="0.85"
-            markerEnd="url(#rdcf-arrow)"
-          />
-
-          {/* bridge annotation: what fills the gap (reachable = implied growth) */}
-          <g transform={`translate(${spineX + 14} ${(yMarket + yCeil) / 2 - 14})`}>
-            {growthPct ? (
-              <>
-                <text
-                  fontFamily="var(--font-mono)"
-                  x="0"
-                  y="0"
-                  fontSize="19"
-                  fontWeight="700"
-                  fill={accent}
-                  filter="url(#rdcf-accent)"
-                >
-                  {growthPct}
-                </text>
-                <text
-                  fontFamily="var(--font-mono)"
-                  x="0"
-                  y="14"
-                  fontSize="9"
-                  fill={accent}
-                  opacity="0.9"
-                >
-                  /yr · {horizon}
-                </text>
-                <text
-                  fontFamily="var(--font-body)"
-                  x="0"
-                  y="30"
-                  fontSize="8.5"
-                  fill="var(--text-muted)"
-                >
-                  {t('chapter.cover.reverseDcf.bridgeNote')}
-                </text>
-              </>
-            ) : (
-              <>
-                <text fontFamily="var(--font-body)" x="0" y="0" fontSize="9" fill={accent}>
-                  {t('chapter.cover.reverseDcf.short')}
-                </text>
-                <text
-                  fontFamily="var(--font-body)"
-                  x="0"
-                  y="12"
-                  fontSize="8.5"
-                  fill="var(--text-muted)"
-                >
-                  {ceilingGrowthPct ? `${ceilingGrowthPct}/yr · ${horizon}` : horizon}
-                </text>
               </>
             )}
-          </g>
 
-          {/* DCF reachable band (reachable only) */}
-          {!unreachable && dcfMethod && (
-            <>
-              <rect
-                x={spineX - 22}
-                y={yHigh}
-                width={36}
-                height={Math.max(2, yLow - yHigh)}
-                rx="3"
-                fill="url(#rdcf-band)"
-                stroke="var(--text-muted)"
-                strokeWidth="1"
-              />
-              <line
-                x1={spineX - 26}
-                y1={yCeil}
-                x2={spineX + 18}
-                y2={yCeil}
-                stroke="var(--text-secondary)"
-                strokeWidth="1.6"
-              />
-              <circle
-                cx={spineX}
-                cy={yCeil}
-                r="3"
-                fill="var(--text-secondary)"
-                stroke="var(--bg-card)"
-                strokeWidth="1"
-              />
-              <g transform={`translate(${spineX + 22} ${yCeil - 16})`}>
-                <text
-                  fontFamily="var(--font-mono)"
-                  x="0"
-                  y="0"
-                  fontSize="8.5"
-                  fill="var(--text-dim)"
-                >
-                  {cur(dcfMethod.high)}
-                </text>
-                <text
-                  fontFamily="var(--font-mono)"
-                  x="0"
-                  y="18"
-                  fontSize="13"
-                  fontWeight="600"
-                  fill="var(--text-secondary)"
-                >
-                  {cur(dcfMethod.mid)}
-                </text>
-                <text
-                  fontFamily="var(--font-mono)"
-                  x="0"
-                  y="34"
-                  fontSize="8.5"
-                  fill="var(--text-dim)"
-                >
-                  {cur(dcfMethod.low)}
-                </text>
-              </g>
-            </>
-          )}
-
-          {/* unreachable: the whole column the model can ever climb */}
-          {unreachable && (
-            <>
-              <rect
-                x={spineX - 10}
-                y={yCeil}
-                width={12}
-                height={Math.max(2, RULER.bottom - yCeil)}
-                rx="2"
-                fill={accent}
-                fillOpacity="0.07"
-                stroke={accent}
-                strokeOpacity="0.25"
-                strokeWidth="1"
-              />
-              <line
-                x1={spineX - 26}
-                y1={yCeil}
-                x2={spineX + 18}
-                y2={yCeil}
-                stroke={accent}
-                strokeWidth="1.8"
-                filter="url(#rdcf-accent)"
-              />
-              <circle cx={spineX} cy={yCeil} r="4" fill={accent} filter="url(#rdcf-accent)" />
-              <g transform={`translate(${spineX + 22} ${yCeil + 18})`}>
-                <text
-                  fontFamily="var(--font-mono)"
-                  x="0"
-                  y="0"
-                  fontSize="8"
-                  letterSpacing="0.5"
+            {/* unreachable: the whole column the model can ever climb */}
+            {unreachable && (
+              <>
+                <rect
+                  x={spineX - 10}
+                  y={yCeil}
+                  width={12}
+                  height={Math.max(2, rulerBottom - yCeil)}
+                  rx="2"
                   fill={accent}
-                >
-                  {ceilingGrowthPct ? `${ceilingGrowthPct}/yr × ${horizon}` : horizon}
-                </text>
-                <text
-                  fontFamily="var(--font-mono)"
-                  x="0"
-                  y="18"
-                  fontSize="14"
-                  fontWeight="700"
-                  fill="var(--text-primary)"
+                  fillOpacity="0.07"
+                  stroke={accent}
+                  strokeOpacity="0.25"
+                  strokeWidth="1"
+                />
+                <line
+                  x1={spineX - 26}
+                  y1={yCeil}
+                  x2={spineX + 18}
+                  y2={yCeil}
+                  stroke={accent}
+                  strokeWidth="1.8"
                   filter="url(#rdcf-accent)"
-                >
-                  {cur(ceilingValue)}
-                </text>
-              </g>
-            </>
-          )}
+                />
+                <circle cx={spineX} cy={yCeil} r="4" fill={accent} filter="url(#rdcf-accent)" />
+                <g transform={`translate(${spineX + 22} ${yCeil + 18})`}>
+                  <text
+                    fontFamily="var(--font-mono)"
+                    x="0"
+                    y="0"
+                    fontSize="8"
+                    letterSpacing="0.5"
+                    fill={accent}
+                  >
+                    {ceilingGrowthPct ? `${ceilingGrowthPct}/yr × ${horizon}` : horizon}
+                  </text>
+                  <text
+                    fontFamily="var(--font-mono)"
+                    x="0"
+                    y="18"
+                    fontSize="14"
+                    fontWeight="700"
+                    fill="var(--text-primary)"
+                    filter="url(#rdcf-accent)"
+                  >
+                    {cur(ceilingValue)}
+                  </text>
+                </g>
+              </>
+            )}
 
-          {/* MARKET anchor (LIVE → cyan, the one cyan-eligible quantity) */}
-          <line
-            x1={spineX - 26}
-            y1={yMarket}
-            x2={RULER.width - 70}
-            y2={yMarket}
-            stroke="var(--accent-cyan)"
-            strokeWidth="1.8"
-            filter="url(#rdcf-cyan)"
-          />
-          <circle
-            cx={spineX}
-            cy={yMarket}
-            r="4"
-            fill="var(--accent-cyan)"
-            filter="url(#rdcf-cyan)"
-          />
-          <g transform={`translate(${spineX + 22} ${yMarket - 14})`}>
-            <circle cx="3" cy="-3" r="2.6" fill="var(--accent-cyan)" filter="url(#rdcf-cyan)" />
-            <text
-              fontFamily="var(--font-mono)"
-              x="11"
-              y="0"
-              fontSize="8.5"
-              letterSpacing="0.08em"
-              fill="var(--accent-cyan)"
-            >
-              {t('chapter.cover.reverseDcf.marketLive')}
-            </text>
-            <text
-              fontFamily="var(--font-mono)"
-              x="0"
-              y="18"
-              fontSize="15"
-              fontWeight="700"
+            {/* MARKET anchor (LIVE → cyan, the one cyan-eligible quantity) */}
+            <line
+              x1={spineX - 26}
+              y1={yMarket}
+              x2={rw - 60}
+              y2={yMarket}
+              stroke="var(--accent-cyan)"
+              strokeWidth="1.8"
+              filter="url(#rdcf-cyan)"
+            />
+            <circle
+              cx={spineX}
+              cy={yMarket}
+              r="4"
               fill="var(--accent-cyan)"
               filter="url(#rdcf-cyan)"
-            >
-              {cur(market)}
-            </text>
-          </g>
-        </svg>
+            />
+            <g transform={`translate(${spineX + 22} ${yMarket - 14})`}>
+              <circle cx="3" cy="-3" r="2.6" fill="var(--accent-cyan)" filter="url(#rdcf-cyan)" />
+              <text
+                fontFamily="var(--font-mono)"
+                x="11"
+                y="0"
+                fontSize="8.5"
+                letterSpacing="0.08em"
+                fill="var(--accent-cyan)"
+              >
+                {t('chapter.cover.reverseDcf.marketLive')}
+              </text>
+              <text
+                fontFamily="var(--font-mono)"
+                x="0"
+                y="18"
+                fontSize="15"
+                fontWeight="700"
+                fill="var(--accent-cyan)"
+                filter="url(#rdcf-cyan)"
+              >
+                {cur(market)}
+              </text>
+            </g>
+          </svg>
+        </div>
       </div>
 
       {/* ── RIGHT: conclusion-first narrative + secondary anchor row ── */}

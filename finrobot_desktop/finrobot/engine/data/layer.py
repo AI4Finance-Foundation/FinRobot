@@ -895,6 +895,17 @@ class DataLayer:
             return cached.data
         last_error: ProviderError | None = None
         circuit_open: list[str] = []
+        # Quote-only守卫 (2026-06-11): a provider can legitimately serve a live
+        # quote with ZERO history bars (Finnhub free tier: /quote works,
+        # /stock/candle is premium-403 → degrades to quote-only by design), and
+        # the chain order puts Finnhub AHEAD of yfinance (deliberate for NEWS
+        # priority). A partial success must not short-circuit the chain: keep the
+        # quote-only result as a fallback and keep walking — a later provider
+        # (yfinance) usually carries the full 1y history for free.
+        quote_only: DataResult | None = None
+        quote_only_provider = ""
+        chosen: DataResult | None = None
+        chosen_provider = ""
         for provider in self._providers:
             if DataType.PRICE not in provider.capabilities():
                 continue
@@ -909,6 +920,19 @@ class DataLayer:
                 last_error = e
                 continue
             self._health.record_success(provider.name)
+            result_data = result.data if isinstance(result.data, dict) else {}
+            if not (result_data.get("price_history") or []):
+                if quote_only is None:
+                    quote_only = result
+                    quote_only_provider = provider.name
+                continue
+            chosen = result
+            chosen_provider = provider.name
+            break
+        if chosen is None and quote_only is not None:
+            chosen, chosen_provider = quote_only, quote_only_provider
+        if chosen is not None:
+            result = chosen
             # Cross-source price tripwire (ADR-0004 §6 open question H): confirm
             # the current price against a SECOND provider's lightweight QUOTE
             # before caching it as authoritative. Best-effort — a secondary
@@ -916,7 +940,7 @@ class DataLayer:
             # pulled (not a second year of OHLC), preserving the QUOTE/PRICE
             # perf split. Runs only on cache-miss, like FINANCIALS cross_validate.
             price_warns = await self._cross_source_price_warnings(
-                ticker, primary=result, skip_provider=provider.name
+                ticker, primary=result, skip_provider=chosen_provider
             )
             if price_warns:
                 for w in price_warns:
@@ -930,17 +954,16 @@ class DataLayer:
                         ],
                     }
                 )
-            # Quote-only守卫: a provider can legitimately serve a live quote with
-            # ZERO history bars (Finnhub free tier: /quote works, /stock/candle is
-            # premium-403 → degrades to quote-only by design). Letting that row
-            # overwrite a bar-carrying cached row destroys the chart/52w range for
-            # every consumer until the better providers recover (2026-06-11: FMP
-            # daily bandwidth exhausted + yfinance burst-429 → finnhub quote-only
-            # displaced the 1y history). Stale-but-complete beats fresh-but-empty:
-            # graft the cached bars onto the live quote, FLAG it (warning +
-            # stale_history → canonical stamps price_history_stale), and skip the
-            # cache write so the prior row stays honestly stale and the next read
-            # retries the (hopefully recovered) chain.
+            # Quote-only fell through the WHOLE chain (no provider had bars).
+            # Letting it overwrite a bar-carrying cached row destroys the
+            # chart/52w range for every consumer until the better providers
+            # recover (2026-06-11: FMP daily bandwidth exhausted + yfinance
+            # burst-429 → finnhub quote-only displaced the 1y history).
+            # Stale-but-complete beats fresh-but-empty: graft the cached bars
+            # onto the live quote, FLAG it (warning + stale_history → canonical
+            # stamps price_history_stale), and skip the cache write so the prior
+            # row stays honestly stale and the next read retries the (hopefully
+            # recovered) chain.
             fresh_data = result.data if isinstance(result.data, dict) else {}
             fresh_history = fresh_data.get("price_history") or []
             prior_data = (
@@ -954,7 +977,7 @@ class DataLayer:
                     datetime.now(tz=timezone.utc) - cached.cached_at
                 ).total_seconds() / 3600
                 graft_warning = (
-                    f"'{provider.name}' served a live quote without price history; "
+                    f"'{chosen_provider}' served a live quote without price history; "
                     f"chart/52w range use cached history from {age_hours:.0f}h ago "
                     f"({ticker} / PRICE). Retry later for fresh history."
                 )

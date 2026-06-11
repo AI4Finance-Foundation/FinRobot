@@ -1263,6 +1263,44 @@ class TestQuoteOnlyHistoryGraft:
         assert len(row.data.data["price_history"]) == 2
         assert row.data.provider == "fmp"
 
+    async def test_quote_only_does_not_short_circuit_chain(self, cache):
+        """Chain order is FMP → Finnhub → yfinance (Finnhub ahead of yfinance is
+        deliberate, for NEWS priority). A Finnhub quote-only partial success must
+        NOT stop the PRICE walk — yfinance right behind it carries the full 1y
+        history for free (the second half of the 2026-06-11 blank-chart bug:
+        with FMP circuit-open the chain never reached yfinance)."""
+        quote_only = MockProvider("finnhub", ["price"], result=self._quote_only_result())
+        full = MockProvider("yfinance", ["price"], result=_price_result(provider="yfinance"))
+        layer = DataLayer([quote_only, full], cache)
+        result = await layer.fetch_price("AAPL")
+
+        assert result.provider == "yfinance"
+        assert len(result.data["price_history"]) == 2
+        assert result.stale_history is False
+        assert quote_only.fetch_called == 1  # attempted, then walked past
+
+    async def test_quote_only_fallback_when_whole_chain_is_barless(self, cache):
+        """Every reachable provider is quote-only → fall back to the FIRST
+        quote-only result (live quote still beats nothing)."""
+        q1 = MockProvider("finnhub", ["price"], result=self._quote_only_result())
+        q2 = MockProvider(
+            "other",
+            ["price"],
+            result=DataResult(
+                data={"current_price": 290.0, "price_history": []},
+                provider="other",
+                ticker="AAPL",
+                data_type="price",
+                timestamp=datetime.now(tz=timezone.utc),
+            ),
+        )
+        layer = DataLayer([q1, q2], cache)
+        result = await layer.fetch_price("AAPL")
+
+        assert result.provider == "finnhub"
+        assert result.data["current_price"] == 291.58
+        assert q2.fetch_called == 1  # chain fully walked before falling back
+
     async def test_quote_only_with_no_prior_bars_caches_as_before(self, cache):
         quote_only = MockProvider("finnhub", ["price"], result=self._quote_only_result())
         layer = DataLayer([quote_only], cache)

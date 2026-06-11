@@ -165,10 +165,9 @@ class TestDegradation:
                 "rows": [
                     {
                         "date": "2026-12-31",
-                        "estimatedEpsAvg": 13.0,
-                        "estimatedRevenueAvg": 1.2e11,
-                        "estimatedEbitdaAvg": 4.5e10,
-                        "estimatedFreeCashFlowAvg": 3.0e10,
+                        "epsAvg": 13.0,
+                        "revenueAvg": 1.2e11,
+                        "ebitdaAvg": 4.5e10,
                     }
                 ]
             },
@@ -176,7 +175,9 @@ class TestDegradation:
         )
         assert out.forward_eps == 13.0
         assert out.forward_ebitda == 4.5e10
-        assert out.forward_fcf == 3.0e10
+        # FMP analyst-estimates carries no FCF figure in any API generation —
+        # forward_fcf is always None on this path.
+        assert out.forward_fcf is None
         assert out.confidence == "high"
         assert "FMP" in out.source
         assert out.fiscal_period == "2026-12-31"
@@ -190,7 +191,7 @@ class TestDegradation:
             ticker="AMD",
             yf_info=None,
             fmp_analyst_estimates={
-                "rows": [{"date": "2026-12-31", "estimatedEpsAvg": 7.5, "estimatedNetIncomeAvg": 1.22e10}]
+                "rows": [{"date": "2026-12-31", "epsAvg": 7.5, "netIncomeAvg": 1.22e10}]
             },
             as_of=AS_OF,
         )
@@ -198,7 +199,7 @@ class TestDegradation:
         without_ni = get_forward_financials(
             ticker="AMD",
             yf_info=None,
-            fmp_analyst_estimates={"rows": [{"date": "2026-12-31", "estimatedEpsAvg": 7.5}]},
+            fmp_analyst_estimates={"rows": [{"date": "2026-12-31", "epsAvg": 7.5}]},
             as_of=AS_OF,
         )
         assert without_ni.forward_net_income is None
@@ -214,10 +215,10 @@ class TestDegradation:
                 "rows": [
                     {
                         "date": "2026-09-27",
-                        "estimatedEpsAvg": 8.74725,
-                        "estimatedRevenueAvg": 477166486632,
-                        "estimatedEbitdaAvg": 172226064656,
-                        # no estimatedFreeCashFlowAvg — FMP omits it
+                        "epsAvg": 8.74725,
+                        "revenueAvg": 477166486632,
+                        "ebitdaAvg": 172226064656,
+                        # no FCF figure — FMP omits it in every API generation
                     }
                 ]
             },
@@ -234,8 +235,8 @@ class TestDegradation:
             fmp_analyst_estimates={
                 "rows": [
                     {
-                        "estimatedEpsAvg": 13.0,
-                        "estimatedRevenueAvg": 1.2e11,
+                        "epsAvg": 13.0,
+                        "revenueAvg": 1.2e11,
                     }
                 ]
             },
@@ -261,11 +262,11 @@ class TestForwardPeriodSelection:
     _MULTI_YEAR = {
         "rows": [
             # FMP returns newest/farthest-future first — rows[0] is FY+3.
-            {"date": "2029-09-30", "estimatedEpsAvg": 12.0, "estimatedRevenueAvg": 5.5e11},
-            {"date": "2028-09-30", "estimatedEpsAvg": 11.0, "estimatedRevenueAvg": 5.2e11},
-            {"date": "2027-09-30", "estimatedEpsAvg": 10.0, "estimatedRevenueAvg": 4.9e11},
-            {"date": "2026-09-30", "estimatedEpsAvg": 8.6, "estimatedRevenueAvg": 4.65e11},
-            {"date": "2025-09-30", "estimatedEpsAvg": 7.4, "estimatedRevenueAvg": 4.0e11},
+            {"date": "2029-09-30", "epsAvg": 12.0, "revenueAvg": 5.5e11},
+            {"date": "2028-09-30", "epsAvg": 11.0, "revenueAvg": 5.2e11},
+            {"date": "2027-09-30", "epsAvg": 10.0, "revenueAvg": 4.9e11},
+            {"date": "2026-09-30", "epsAvg": 8.6, "revenueAvg": 4.65e11},
+            {"date": "2025-09-30", "epsAvg": 7.4, "revenueAvg": 4.0e11},
         ]
     }
 

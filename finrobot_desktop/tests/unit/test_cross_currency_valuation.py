@@ -185,7 +185,7 @@ class TestCompsForwardFxConversion:
     The aggregator (_comps_pe_method, used_forward branch) computes
     ``mid = median_pe * forward_eps``. median_pe is USD-normalized; forward_eps
     from FMP analyst-estimates is in the issuer's reporting currency (TWD for
-    TSM, estimatedEpsAvg ≈ 98.89). The forward EPS MUST be converted to USD
+    TSM, epsAvg ≈ 98.89). The forward EPS MUST be converted to USD
     BEFORE the multiply, or the target is wrong-dimension (~32x high).
     """
 
@@ -204,7 +204,7 @@ class TestCompsForwardFxConversion:
         from finrobot.engine.compute.operators.valuation_aggregator import _comps_pe_method
 
         median_pe = 22.0
-        forward_eps_twd = 98.89  # FMP estimatedEpsAvg FY2026 — TWD per share
+        forward_eps_twd = 98.89  # FMP epsAvg FY2026 — TWD per share
         forward_eps_usd = forward_eps_twd * TWD_USD  # ≈ $3.10
 
         comps = self._peer_comps_usd(median_pe=median_pe)

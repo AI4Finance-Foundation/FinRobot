@@ -33,9 +33,9 @@ from finrobot.engine.data.types import DataType
 NOW = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
 
 _ROWS = [
-    {"date": "2025-09-27", "estimatedRevenueAvg": 400e9},
-    {"date": "2026-09-27", "estimatedRevenueAvg": 450e9},
-    {"date": "2027-09-27", "estimatedRevenueAvg": 504e9},
+    {"date": "2025-09-27", "revenueAvg": 400e9},
+    {"date": "2026-09-27", "revenueAvg": 450e9},
+    {"date": "2027-09-27", "revenueAvg": 504e9},
 ]
 
 

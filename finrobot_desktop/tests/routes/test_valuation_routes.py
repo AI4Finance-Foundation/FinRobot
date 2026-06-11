@@ -307,8 +307,8 @@ async def test_aggregate_endpoint_uses_forward_eps_when_estimates_available(
     # FMP-style rows: farthest-future first. The route must pick FY1 (nearest
     # upcoming FYE = 2030-09-30, EPS 8.6), NOT rows[0] (2031, EPS 9.5).
     forward_rows = [
-        {"date": "2031-09-30", "estimatedEpsAvg": 9.5},
-        {"date": "2030-09-30", "estimatedEpsAvg": 8.6},
+        {"date": "2031-09-30", "epsAvg": 9.5},
+        {"date": "2030-09-30", "epsAvg": 8.6},
     ]
     app = await _app_with_artifacts(tmp_path, _comps_artifact(), forward_rows=forward_rows)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
@@ -343,7 +343,7 @@ async def test_aggregate_endpoint_converts_reporting_ccy_forward_eps_to_usd(
     # Patch where routes/valuation imported the symbol.
     monkeypatch.setattr("finrobot.routes.valuation.fetch_fx_rate_to_usd", _fake_fx)
 
-    forward_rows = [{"date": "2030-09-30", "estimatedEpsAvg": 98.89}]  # TWD per share
+    forward_rows = [{"date": "2030-09-30", "epsAvg": 98.89}]  # TWD per share
     app = await _app_with_artifacts(
         tmp_path, _comps_artifact(), forward_rows=forward_rows, reporting_currency="TWD"
     )
@@ -383,7 +383,7 @@ async def test_aggregate_endpoint_exposes_forward_provenance_fields(tmp_path: Pa
     """forward_fiscal_period / forward_confidence / forward_source must be present
     in the response so the frontend can show which FY drives the forward rows
     and where the estimates came from — the whole fix for BACKLOG issue 3."""
-    forward_rows = [{"date": "2026-09-30", "estimatedEpsAvg": 8.6, "estimatedEbitdaAvg": 45e9}]
+    forward_rows = [{"date": "2026-09-30", "epsAvg": 8.6, "ebitdaAvg": 45e9}]
     app = await _app_with_artifacts(tmp_path, _comps_artifact(), forward_rows=forward_rows)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
         r = await client.get("/api/valuation/aggregate/NVDA")
@@ -391,7 +391,7 @@ async def test_aggregate_endpoint_exposes_forward_provenance_fields(tmp_path: Pa
     body = r.json()
     assert body["forward_fiscal_period"] == "2026-09-30"
     assert body["forward_confidence"] == "high"  # EPS + EBITDA both present → high
-    assert body["forward_source"] == "FMP /v3/analyst-estimates consensus"
+    assert body["forward_source"] == "FMP stable/analyst-estimates consensus"
 
 
 @pytest.mark.asyncio

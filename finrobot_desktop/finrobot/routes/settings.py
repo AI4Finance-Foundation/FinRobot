@@ -529,9 +529,11 @@ _DATA_PROBE_TICKER = "AAPL"  # stable, always-present on every source
 async def _probe_fmp(key: str) -> None:
     from finrobot.engine.data.providers.fmp_provider import FMPProvider
 
+    # stable /profile: free-plan full coverage, so a healthy key always passes
+    # regardless of tier (the plan-gated endpoints would false-fail free keys).
     provider = FMPProvider(api_key=key)
     try:
-        await provider._get(f"/profile/{_DATA_PROBE_TICKER}")
+        await provider._get("/profile", params={"symbol": _DATA_PROBE_TICKER})
     finally:
         await provider.close()
 
@@ -599,8 +601,12 @@ def _classify_data_provider_error(exc: BaseException) -> tuple[str, str]:
     """
     import httpx
 
-    from finrobot.engine.data.interface import ProviderError
+    from finrobot.engine.data.interface import ProviderError, ProviderPlanError
 
+    if isinstance(exc, ProviderPlanError):
+        # Typed by the provider itself (key valid, endpoint outside the plan) —
+        # classify before the generic ProviderError sniffing below.
+        return "plan", str(exc)[:200]
     if isinstance(exc, httpx.HTTPStatusError):
         sc = exc.response.status_code
         if sc == 403:

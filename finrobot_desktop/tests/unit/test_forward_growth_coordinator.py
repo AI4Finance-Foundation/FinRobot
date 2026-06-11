@@ -28,9 +28,7 @@ def _forward_rows() -> dict[str, list[dict[str, object]]]:
     """One past actual + three future estimates, ~12.5% YoY, anchored to today."""
     y = NOW.year
     revs = {y - 1: 400e9, y: 450e9, y + 1: 504e9, y + 2: 564e9}
-    return {
-        "rows": [{"date": f"{yr}-09-27", "estimatedRevenueAvg": rev} for yr, rev in revs.items()]
-    }
+    return {"rows": [{"date": f"{yr}-09-27", "revenueAvg": rev} for yr, rev in revs.items()]}
 
 
 def _canonical(rows: list[dict[str, Any]]) -> NormalizedForwardEstimates:

@@ -83,41 +83,39 @@ async def _fmp_price() -> DataResult:
             "price": 175.5,
             "exchange": "NASDAQ",
             "marketCap": 2_620_000_000_000,
-            "sharesOutstanding": 15_000_000_000,
         }
     ]
-    historical = {
-        "symbol": "AAPL",
-        "historical": [
-            {
-                "date": "2026-05-23",
-                "open": 174.0,
-                "high": 176.0,
-                "low": 173.5,
-                "close": 175.0,
-                "adjClose": 175.0,
-                "volume": 50_000_000,
-            },
-            {
-                "date": "2026-05-22",
-                "open": 172.0,
-                "high": 174.5,
-                "low": 171.0,
-                "close": 174.0,
-                "adjClose": 174.0,
-                "volume": 48_000_000,
-            },
-            {
-                "date": "2026-05-21",
-                "open": 170.0,
-                "high": 172.5,
-                "low": 169.5,
-                "close": 172.0,
-                "adjClose": 172.0,
-                "volume": 45_000_000,
-            },
-        ],
-    }
+    # Stable /historical-price-eod/dividend-adjusted: bare array, whole bar
+    # pre-adjusted (adjOpen/adjHigh/adjLow/adjClose).
+    historical = [
+        {
+            "symbol": "AAPL",
+            "date": "2026-05-23",
+            "adjOpen": 174.0,
+            "adjHigh": 176.0,
+            "adjLow": 173.5,
+            "adjClose": 175.0,
+            "volume": 50_000_000,
+        },
+        {
+            "symbol": "AAPL",
+            "date": "2026-05-22",
+            "adjOpen": 172.0,
+            "adjHigh": 174.5,
+            "adjLow": 171.0,
+            "adjClose": 174.0,
+            "volume": 48_000_000,
+        },
+        {
+            "symbol": "AAPL",
+            "date": "2026-05-21",
+            "adjOpen": 170.0,
+            "adjHigh": 172.5,
+            "adjLow": 169.5,
+            "adjClose": 172.0,
+            "volume": 45_000_000,
+        },
+    ]
     provider = FMPProvider(api_key="test-key")
     with patch.object(
         provider,

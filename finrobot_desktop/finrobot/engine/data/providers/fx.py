@@ -74,9 +74,11 @@ async def _fx_lock(ccy: str) -> asyncio.Lock:
 # is exactly what fails, silently dropping foreign-listed peers (observed: BIDU
 # dropped on "no spot FX quote for CNYUSD=X" while FMP happily served its CNY
 # financials on an independent budget). FMP quotes the same spot via
-# /quote/{PAIR}, so it recovers the peer instead of losing it. Only consulted
-# when a key is threaded through AND yfinance has already failed.
-_FMP_BASE_URL = "https://financialmodelingprep.com/api/v3"
+# /quote?symbol=PAIR, so it recovers the peer instead of losing it. Only
+# consulted when a key is threaded through AND yfinance has already failed.
+# Stable host: /api/v3 is closed to accounts registered after 2025-08-31
+# (403 "Legacy Endpoint" even with a valid key).
+_FMP_BASE_URL = "https://financialmodelingprep.com/stable"
 _FMP_FX_TIMEOUT = 10.0
 
 
@@ -118,7 +120,9 @@ def _yf_spot(ticker: str) -> float | None:
 async def _fmp_quote_price(client: httpx.AsyncClient, pair: str, api_key: str) -> float | None:
     """FMP spot ``price`` for a forex ``pair`` (e.g. ``USDCNY``); None on failure."""
     try:
-        resp = await client.get(f"{_FMP_BASE_URL}/quote/{pair}", params={"apikey": api_key})
+        resp = await client.get(
+            f"{_FMP_BASE_URL}/quote", params={"symbol": pair, "apikey": api_key}
+        )
         resp.raise_for_status()
         data = resp.json()
     except (httpx.HTTPError, ValueError):

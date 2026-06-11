@@ -16,7 +16,7 @@ AS_OF = date(2026, 6, 9)
 
 
 def _rows(*pairs: tuple[str, float]) -> dict[str, list[dict[str, object]]]:
-    return {"rows": [{"date": d, "estimatedRevenueAvg": r} for d, r in pairs]}
+    return {"rows": [{"date": d, "revenueAvg": r} for d, r in pairs]}
 
 
 # AAPL-shaped consensus: FY25 actual then FY26-28 estimates (fiscal year ends Sep).

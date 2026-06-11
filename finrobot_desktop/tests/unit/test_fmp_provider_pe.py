@@ -25,11 +25,6 @@ class TestDerivePe:
         # 2330.TW: both tags TWD — same currency, ratio is valid.
         assert _derive_pe(1000.0, 50.0, fin_ccy="TWD", quote_ccy="TWD") == 20.0
 
-    def test_profile_pe_trusted_even_for_adr(self):
-        # FMP's own profile.pe is a self-consistent figure; the currency guard
-        # only applies to our fallback mc/ni computation.
-        assert _derive_pe(215.3e9, 7.313e9, fin_ccy="EUR", quote_ccy="USD", profile_pe=24.0) == 24.0
-
     def test_negative_net_income_returns_none(self):
         assert _derive_pe(100.0, -5.0, fin_ccy="USD", quote_ccy="USD") is None
 

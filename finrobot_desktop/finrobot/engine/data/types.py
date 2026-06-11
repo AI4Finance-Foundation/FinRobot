@@ -60,7 +60,7 @@ class DataType(StrEnum):
     INSTITUTIONAL_HOLDINGS = "institutional_holdings"  # 13F — via local cache (no reverse API)
     PROXY_STATEMENT = "proxy_statement"  # DEF 14A — executive compensation / governance
     SCHEDULE_13 = "schedule_13"  # SC 13D (activist) / SC 13G (passive) — 5%+ holders
-    # Analyst consensus forward estimates (FMP /v3/analyst-estimates). Feeds the
+    # Analyst consensus forward estimates (FMP stable /analyst-estimates). Feeds the
     # one-true forward EPS / EBITDA / FCF leaf (compute/forward_estimates.py) so
     # the Football Field forward-multiple rows stop degrading to trailing.
     FORWARD_ESTIMATES = "forward_estimates"

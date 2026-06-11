@@ -19,25 +19,6 @@ def provider():
     return FMPProvider(api_key="test-key")
 
 
-def _fmp_income_response(ticker: str = "AAPL") -> list[dict]:
-    """Mock FMP /income-statement response (array of annual periods)."""
-    return [
-        {
-            "date": "2025-09-30",
-            "symbol": ticker,
-            "revenue": 394_328_000_000,
-            "ebitda": 137_352_000_000,
-            "netIncome": 96_995_000_000,
-            "depreciationAndAmortization": 11_519_000_000,
-            "grossProfit": 180_683_000_000,
-            "operatingIncome": 123_216_000_000,
-            "researchAndDevelopmentExpenses": 29_915_000_000,
-            "sellingGeneralAndAdministrative": 27_552_000_000,
-            "interestExpense": 3_933_000_000,
-        }
-    ]
-
-
 def _fmp_quarterly_income_response(
     ticker: str = "AAPL", reported_currency: str = "USD"
 ) -> list[dict]:
@@ -55,7 +36,7 @@ def _fmp_quarterly_income_response(
             "operatingIncome": 25_000_000_000,
             "incomeTaxExpense": 2_000_000_000,
             "researchAndDevelopmentExpenses": 7_000_000_000,
-            "sellingGeneralAndAdministrative": 6_000_000_000,
+            "sellingGeneralAndAdministrativeExpenses": 6_000_000_000,
             "interestExpense": 1_000_000_000,
         }
         for quarter in range(4)
@@ -99,10 +80,10 @@ def _fmp_profile_response(
     return [
         {
             "symbol": ticker,
-            "mktCap": 2_620_000_000_000,
+            "marketCap": 2_620_000_000_000,
             "beta": 1.24,
             "price": 175.0,
-            "volAvg": 54_000_000,
+            "averageVolume": 54_000_000,
             "companyName": "Apple Inc.",
             "industry": "Consumer Electronics",
             "sector": "Technology",
@@ -113,44 +94,44 @@ def _fmp_profile_response(
     ]
 
 
-def _fmp_adj_historical_price_response() -> dict:
-    """Mock FMP /historical-price-full — newest-first, real AAPL 2020 split shape.
+def _fmp_adj_historical_price_response() -> list[dict]:
+    """Mock stable /historical-price-eod/dividend-adjusted — newest-first bare
+    array, real AAPL 2020 split shape on the ADJUSTED basis.
 
-    raw close is nominal (pre-split day carries the unsplit quote); adjClose is
-    the split-adjusted value. Verified live 2026-06-02 against yfinance auto_adjust.
+    The stable endpoint ships the whole bar pre-adjusted (adjOpen/adjHigh/
+    adjLow/adjClose) — the legacy v3 nominal-close + ratio-scaling is gone.
+    Adjusted values derived from the live-verified 2026-06-02 v3 figures
+    (nominal × adjClose/close).
     """
-    return {
-        "symbol": "AAPL",
-        "historical": [
-            {
-                "date": "2020-09-01",
-                "open": 132.76,
-                "high": 134.8,
-                "low": 130.53,
-                "close": 134.18,
-                "adjClose": 130.13,
-                "volume": 151_948_100,
-            },
-            {
-                "date": "2020-08-31",
-                "open": 127.58,
-                "high": 131.0,
-                "low": 126.0,
-                "close": 129.04,
-                "adjClose": 125.15,
-                "volume": 225_702_700,
-            },
-            {
-                "date": "2020-08-28",
-                "open": 126.01,
-                "high": 126.44,
-                "low": 124.58,
-                "close": 124.81,
-                "adjClose": 121.05,
-                "volume": 187_630_000,
-            },
-        ],
-    }
+    return [
+        {
+            "symbol": "AAPL",
+            "date": "2020-09-01",
+            "adjOpen": 132.76 * (130.13 / 134.18),
+            "adjHigh": 134.8 * (130.13 / 134.18),
+            "adjLow": 130.53 * (130.13 / 134.18),
+            "adjClose": 130.13,
+            "volume": 151_948_100,
+        },
+        {
+            "symbol": "AAPL",
+            "date": "2020-08-31",
+            "adjOpen": 127.58 * (125.15 / 129.04),
+            "adjHigh": 131.0 * (125.15 / 129.04),
+            "adjLow": 126.0 * (125.15 / 129.04),
+            "adjClose": 125.15,
+            "volume": 225_702_700,
+        },
+        {
+            "symbol": "AAPL",
+            "date": "2020-08-28",
+            "adjOpen": 126.01 * (121.05 / 124.81),
+            "adjHigh": 126.44 * (121.05 / 124.81),
+            "adjLow": 124.58 * (121.05 / 124.81),
+            "adjClose": 121.05,
+            "volume": 187_630_000,
+        },
+    ]
 
 
 def _mock_response(json_data, status_code=200):
@@ -167,10 +148,11 @@ def _mock_response(json_data, status_code=200):
 
 class TestFMPPriceRange:
     @pytest.mark.asyncio
-    async def test_price_range_uses_adjclose_and_scales_ohl(self, provider):
-        """BUG-022: PRICE_RANGE must return split-adjusted bars matching yfinance
-        auto_adjust — close=adjClose, O/H/L scaled by adjClose/close — never the
-        raw nominal close that injects a 4x jump at a split."""
+    async def test_price_range_uses_adjusted_bars(self, provider):
+        """BUG-022: PRICE_RANGE must return split/dividend-adjusted bars matching
+        yfinance auto_adjust — never the nominal close that injects a 4x jump at
+        a split. Stable serves the whole bar pre-adjusted via the
+        dividend-adjusted variant (adjOpen/adjHigh/adjLow/adjClose)."""
         with patch.object(
             provider,
             "_get",
@@ -184,12 +166,12 @@ class TestFMPPriceRange:
         assert result.data["adjusted"] is True
         assert result.data["source_provider"] == "fmp"
         bars = result.data["bars"]
-        # Oldest-first ordering (FMP returns newest-first).
+        # Oldest-first ordering (the provider sorts explicitly; the API answered
+        # newest-first here).
         assert [b["date"] for b in bars] == ["2020-08-28", "2020-08-31", "2020-09-01"]
-        # close == adjClose, not the nominal close.
+        # close == adjClose (the adjusted basis), open == adjOpen.
         assert bars[0]["close"] == pytest.approx(121.05)
         assert bars[1]["close"] == pytest.approx(125.15)
-        # open scaled by adjClose/close ratio: 127.58 × (125.15/129.04) = 123.73.
         assert bars[1]["open"] == pytest.approx(127.58 * (125.15 / 129.04), rel=1e-6)
         assert bars[1]["volume"] == pytest.approx(225_702_700)
 
@@ -198,7 +180,7 @@ class TestFMPPriceRange:
         with patch.object(
             provider,
             "_get",
-            AsyncMock(return_value=_mock_response({"symbol": "AAPL", "historical": []})),
+            AsyncMock(return_value=_mock_response([])),
         ):
             with pytest.raises(ProviderError, match="no bars"):
                 await provider.fetch("AAPL", "price_range", start="1990-01-01", end="1990-01-02")
@@ -220,7 +202,7 @@ class TestFMPFetch:
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
             _mock_response(_fmp_profile_response()),
-            _mock_response(_fmp_quote_response()),
+            _mock_response(_fmp_shares_float_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials")
@@ -278,17 +260,17 @@ class TestFMPFetch:
                 await provider.fetch("AAPL", "financials")
 
     @pytest.mark.asyncio
-    async def test_quote_failure_warning_never_leaks_api_key(self, provider):
-        """A /quote failure warning must not embed the raw httpx exception.
+    async def test_shares_float_failure_warning_never_leaks_api_key(self, provider):
+        """A /shares-float failure warning must not embed the raw httpx exception.
 
         Its str()/repr() carries the request URL with ``?apikey=<live key>``,
         and DataResult.warnings flows into shareable artifacts (the same
         invariant _wrap_errors documents).
         """
-        secret_url = "https://financialmodelingprep.com/api/v3/quote/AAPL?apikey=SUPERSECRET"
+        secret_url = "https://financialmodelingprep.com/stable/shares-float?apikey=SUPERSECRET"
         request = httpx.Request("GET", secret_url)
         response = httpx.Response(429, request=request)
-        quote_error = httpx.HTTPStatusError(
+        shares_error = httpx.HTTPStatusError(
             f"Client error '429 Too Many Requests' for url '{secret_url}'",
             request=request,
             response=response,
@@ -298,13 +280,17 @@ class TestFMPFetch:
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
             _mock_response(_fmp_profile_response()),
-            quote_error,
+            shares_error,
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials")
 
-        fallback_warnings = [w for w in result.warnings if "/quote/AAPL unavailable" in w]
-        assert fallback_warnings, f"expected the /quote fallback warning, got {result.warnings}"
+        fallback_warnings = [
+            w for w in result.warnings if "/shares-float for AAPL unavailable" in w
+        ]
+        assert (
+            fallback_warnings
+        ), f"expected the shares-float fallback warning, got {result.warnings}"
         assert "HTTP 429" in fallback_warnings[0]
         joined = " ".join(result.warnings)
         assert "SUPERSECRET" not in joined
@@ -322,7 +308,7 @@ class TestFMPFetch:
             _mock_response(balance_without_debt),
             _mock_response(_fmp_quarterly_cashflow_response()),
             _mock_response(_fmp_profile_response()),
-            _mock_response(_fmp_quote_response()),
+            _mock_response(_fmp_shares_float_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials")
@@ -366,7 +352,7 @@ class TestFMPFetch:
             _mock_response(annual_with_debt),
             _mock_response(_fmp_quarterly_cashflow_response()),
             _mock_response(_fmp_profile_response()),
-            _mock_response(_fmp_quote_response()),
+            _mock_response(_fmp_shares_float_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials")
@@ -394,7 +380,7 @@ class TestFMPFetch:
             _mock_response(balance),
             _mock_response(_fmp_quarterly_cashflow_response()),
             _mock_response(_fmp_profile_response()),
-            _mock_response(_fmp_quote_response()),
+            _mock_response(_fmp_shares_float_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("MSFT", "financials")
@@ -411,7 +397,7 @@ class TestFMPFetch:
                 _mock_response(_fmp_balance_response()),  # totalDebt populated
                 _mock_response(_fmp_quarterly_cashflow_response()),
                 _mock_response(_fmp_profile_response()),
-                _mock_response(_fmp_quote_response()),
+                _mock_response(_fmp_shares_float_response()),
             ]
         )
         with patch.object(provider, "_get", get_mock):
@@ -431,17 +417,18 @@ class TestFMPFetch:
         assert _resolve_total_debt({}) is None  # not reported → withhold EV
 
     @pytest.mark.asyncio
-    async def test_shares_outstanding_from_quote_not_derived(self, provider):
-        """R2: shares_outstanding must come from /quote's real sharesOutstanding,
-        NOT the int(mktCap/price) back-solve. A distinct quote value (15.5B vs the
-        ~14.97B that mktCap/price would imply) proves the real field wins — which
-        is what breaks the price×shares≈mktCap tautology."""
+    async def test_shares_outstanding_from_shares_float_not_derived(self, provider):
+        """R2: shares_outstanding must come from /shares-float's real
+        outstandingShares, NOT the int(marketCap/price) back-solve. A distinct
+        value (15.5B vs the ~14.97B that marketCap/price would imply) proves the
+        real field wins — which is what breaks the price×shares≈marketCap
+        tautology."""
         responses = [
             _mock_response(_fmp_quarterly_income_response()),
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
             _mock_response(_fmp_profile_response()),
-            _mock_response(_fmp_quote_response(shares_outstanding=15_500_000_000)),
+            _mock_response(_fmp_shares_float_response(outstanding_shares=15_500_000_000)),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials")
@@ -449,22 +436,23 @@ class TestFMPFetch:
         assert result.data["shares_outstanding"] == 15_500_000_000
 
     @pytest.mark.asyncio
-    async def test_shares_falls_back_to_derived_when_quote_lacks_field(self, provider):
-        """R2: when /quote omits sharesOutstanding, fall back to int(mktCap/price)
-        and WARN that the figure is not independent (so a downstream
-        market-cap-consistency check abstains instead of comparing a tautology)."""
-        quote_without_shares = [{"symbol": "AAPL", "price": 175.0, "marketCap": 2_620_000_000_000}]
+    async def test_shares_falls_back_to_derived_when_float_lacks_field(self, provider):
+        """R2: when /shares-float omits outstandingShares, fall back to
+        int(marketCap/price) and WARN that the figure is not independent (so a
+        downstream market-cap-consistency check abstains instead of comparing a
+        tautology)."""
+        float_without_shares = [{"symbol": "AAPL", "date": "2026-06-10", "freeFloat": 99.1}]
         responses = [
             _mock_response(_fmp_quarterly_income_response()),
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
             _mock_response(_fmp_profile_response()),
-            _mock_response(quote_without_shares),
+            _mock_response(float_without_shares),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials")
         assert result.data["shares_outstanding"] == 14_971_428_571  # int(2.62e12 / 175)
-        assert any("derived as int(mktCap/price)" in w for w in result.warnings)
+        assert any("derived as int(marketCap/price)" in w for w in result.warnings)
 
     @pytest.mark.asyncio
     async def test_fetch_financials_tags_foreign_adr_currency(self, provider):
@@ -479,7 +467,7 @@ class TestFMPFetch:
             _mock_response(_fmp_balance_response("TSM")),
             _mock_response(_fmp_quarterly_cashflow_response("TSM")),
             _mock_response(_fmp_profile_response("TSM", currency="USD", country="TW")),
-            _mock_response(_fmp_quote_response("TSM")),
+            _mock_response(_fmp_shares_float_response("TSM")),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("TSM", "financials")
@@ -612,7 +600,7 @@ def _fmp_multi_year_income(ticker="AAPL", years=3):
             "epsdiluted": 6.10 - i * 0.4,
             "depreciationAndAmortization": 11_000_000_000,
             "researchAndDevelopmentExpenses": 30_000_000_000,
-            "sellingGeneralAndAdministrative": 25_000_000_000,
+            "sellingGeneralAndAdministrativeExpenses": 25_000_000_000,
             "interestExpense": 3_500_000_000,
         }
         for i in range(years)
@@ -630,10 +618,10 @@ def _fmp_multi_year_cashflow(ticker="AAPL", years=3):
             # FMP reports capex as a negative (cash outflow); provider must abs() it.
             "capitalExpenditure": -(10_000_000_000 + i * 500_000_000),
             "changeInWorkingCapital": -2_000_000_000 + i * 300_000_000,
-            # Investing/financing are reported as signed totals (typically negative).
-            # FMP's actual field name misspells "Activities" as "Activites".
-            "netCashUsedForInvestingActivites": -(8_000_000_000 + i * 400_000_000),
-            "netCashUsedProvidedByFinancingActivities": -(95_000_000_000 - i * 3_000_000_000),
+            # Investing/financing are reported as signed totals (typically
+            # negative). Stable fixed v3's misspelled "...Activites" name.
+            "netCashProvidedByInvestingActivities": -(8_000_000_000 + i * 400_000_000),
+            "netCashProvidedByFinancingActivities": -(95_000_000_000 - i * 3_000_000_000),
             "depreciationAndAmortization": 11_000_000_000,
         }
         for i in range(years)
@@ -649,7 +637,7 @@ class TestFMPFetchHistorical:
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_multi_year_cashflow("AAPL", 3)),
             _mock_response(_fmp_profile_response()),
-            _mock_response(_fmp_quote_response()),
+            _mock_response(_fmp_shares_float_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials", years=3)
@@ -683,7 +671,7 @@ class TestFMPFetchHistorical:
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_multi_year_cashflow("AAPL", 3)),
             _mock_response(_fmp_profile_response()),
-            _mock_response(_fmp_quote_response()),
+            _mock_response(_fmp_shares_float_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials", years=3)
@@ -706,7 +694,7 @@ class TestFMPFetchHistorical:
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_multi_year_cashflow("AAPL", 1)),  # only newest year
             _mock_response(_fmp_profile_response()),
-            _mock_response(_fmp_quote_response()),
+            _mock_response(_fmp_shares_float_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials", years=3)
@@ -724,7 +712,7 @@ class TestFMPFetchHistorical:
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
             _mock_response(_fmp_profile_response()),
-            _mock_response(_fmp_quote_response()),
+            _mock_response(_fmp_shares_float_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials")
@@ -747,7 +735,7 @@ class TestFMPFetchHistorical:
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response(da=3_000_000_000)),
             _mock_response(_fmp_profile_response()),
-            _mock_response(_fmp_quote_response()),
+            _mock_response(_fmp_shares_float_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials")
@@ -766,7 +754,7 @@ class TestFMPFetchHistorical:
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
             _mock_response(_fmp_profile_response()),
-            _mock_response(_fmp_quote_response()),
+            _mock_response(_fmp_shares_float_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials")
@@ -804,7 +792,7 @@ class TestFMPFetchHistorical:
                 "depreciationAndAmortization": is_da_tsla[i],
                 "incomeTaxExpense": 100_000_000,
                 "researchAndDevelopmentExpenses": 1_000_000_000,
-                "sellingGeneralAndAdministrative": 1_300_000_000,
+                "sellingGeneralAndAdministrativeExpenses": 1_300_000_000,
                 "interestExpense": 0,
             }
             for i in range(4)
@@ -823,7 +811,7 @@ class TestFMPFetchHistorical:
             _mock_response(_fmp_balance_response("TSLA")),
             _mock_response(cashflow),
             _mock_response(_fmp_profile_response("TSLA")),
-            _mock_response(_fmp_quote_response("TSLA")),
+            _mock_response(_fmp_shares_float_response("TSLA")),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("TSLA", "financials")
@@ -972,18 +960,15 @@ class TestFMPEarnings:
 
     @pytest.mark.asyncio
     async def test_fetch_earnings_hits_stable_endpoint(self, provider):
-        """Regression for BUG-001: must call stable/earnings (eps+revenue schema),
+        """Regression for BUG-001: must call stable /earnings (eps+revenue schema),
         NOT the legacy v3 /earnings-surprises endpoint (which yields zero usable
         rows because it carries actualEarningResult/estimatedEarning instead)."""
-        from finrobot.engine.data.providers.fmp_provider import _STABLE_BASE
-
         get_mock = AsyncMock(return_value=_mock_response(_fmp_earnings_response()))
         with patch.object(provider, "_get", get_mock):
             await provider.fetch("AAPL", "earnings")
         args, kwargs = get_mock.call_args
         assert args[0] == "/earnings"
         assert kwargs["params"]["symbol"] == "AAPL"
-        assert kwargs["base"] == _STABLE_BASE
 
     @pytest.mark.asyncio
     async def test_earnings_preserves_null_revenue(self, provider):
@@ -1034,16 +1019,17 @@ class TestFMPEarnings:
 
 
 def _fmp_analyst_estimates_response(ticker: str = "AAPL") -> list[dict]:
-    """Mock FMP /analyst-estimates response (annual, farthest-future first)."""
+    """Mock stable /analyst-estimates response (annual, farthest-future first;
+    stable dropped v3's "estimated" prefix from every figure)."""
     return [
-        {"date": "2028-09-30", "symbol": ticker, "estimatedEpsAvg": 11.0},
-        {"date": "2027-09-30", "symbol": ticker, "estimatedEpsAvg": 9.8},
+        {"date": "2028-09-30", "symbol": ticker, "epsAvg": 11.0},
+        {"date": "2027-09-30", "symbol": ticker, "epsAvg": 9.8},
         {
             "date": "2026-09-30",
             "symbol": ticker,
-            "estimatedRevenueAvg": 4.65e11,
-            "estimatedEbitdaAvg": 1.55e11,
-            "estimatedEpsAvg": 8.6,
+            "revenueAvg": 4.65e11,
+            "ebitdaAvg": 1.55e11,
+            "epsAvg": 8.6,
         },
     ]
 
@@ -1064,7 +1050,7 @@ class TestFMPForwardEstimates:
         rows = result.data["rows"]
         assert len(rows) == 3
         assert rows[0]["date"] == "2028-09-30"  # order preserved; leaf picks FY1
-        assert rows[2]["estimatedEpsAvg"] == 8.6
+        assert rows[2]["epsAvg"] == 8.6
 
     @pytest.mark.asyncio
     async def test_forward_estimates_in_capabilities(self, provider):
@@ -1083,47 +1069,84 @@ class TestFMPForwardEstimates:
 class TestFMPPeerCandidates:
     @pytest.mark.asyncio
     async def test_peer_candidates_include_profiles_for_value_chain_screen(self, provider):
-        responses = [
-            _mock_response(
-                [
-                    {
-                        "symbol": "NVDA",
-                        "companyName": "NVIDIA Corporation",
-                        "industry": "Semiconductors",
-                        "sector": "",
-                        "mktCap": 3_000_000_000_000,
-                        "description": "Provides GPUs and data center platforms.",
-                    }
-                ]
-            ),
-            _mock_response([{"symbol": "NVDA", "peersList": ["AMD"]}]),
-            _mock_response([{"symbol": "TSM"}, {"symbol": "AMD"}]),
-            _mock_response(
-                [
-                    {
-                        "symbol": "AMD",
-                        "companyName": "Advanced Micro Devices, Inc.",
-                        "industry": "Semiconductors",
-                        "sector": "Technology",
-                        "description": "Develops microprocessors and GPUs.",
-                    },
-                    {
-                        "symbol": "TSM",
-                        "companyName": "Taiwan Semiconductor Manufacturing Company Limited",
-                        "industry": "Semiconductors",
-                        "sector": "Technology",
-                        "description": "Manufactures, packages, tests, and sells integrated circuits.",
-                    },
-                ]
-            ),
-            _mock_response(
-                [
-                    {"symbol": "AMD", "marketCap": 260_000_000_000, "pe": 42.0},
-                    {"symbol": "TSM", "marketCap": 1_300_000_000_000, "pe": 25.0},
-                ]
-            ),
-        ]
-        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+        """Semiconductor target → per-candidate descriptions ARE fetched (the
+        operator's value-chain gate needs them to split design/foundry/equipment)
+        and per-candidate trailing P/E comes from /ratios-ttm (stable /quote
+        dropped the pe field; stable has no batch quote at all).
+
+        Stable call order: target profile → stock-peers (one row PER PEER, with
+        the old "mktCap" field name) → industry screener (sector is empty → no
+        sector screen) → /ratios-ttm per in-scope candidate (size-proximity
+        order: TSM before AMD for a 3T target) → /profile per candidate (same
+        order, semiconductor targets only).
+        """
+
+        def _route(path, params=None):
+            params = params or {}
+            sym = params.get("symbol", "")
+            if path == "/profile" and sym == "NVDA":
+                return _mock_response(
+                    [
+                        {
+                            "symbol": "NVDA",
+                            "companyName": "NVIDIA Corporation",
+                            "industry": "Semiconductors",
+                            "sector": "",
+                            "marketCap": 3_000_000_000_000,
+                            "description": "Provides GPUs and data center platforms.",
+                        }
+                    ]
+                )
+            if path == "/stock-peers":
+                return _mock_response(
+                    [
+                        {
+                            "symbol": "AMD",
+                            "companyName": "Advanced Micro Devices, Inc.",
+                            "price": 160.0,
+                            "mktCap": 260_000_000_000,
+                        }
+                    ]
+                )
+            if path == "/company-screener":
+                return _mock_response(
+                    [
+                        {"symbol": "TSM", "marketCap": 1_300_000_000_000},
+                        {"symbol": "AMD", "marketCap": 260_000_000_000},
+                    ]
+                )
+            if path == "/ratios-ttm":
+                pe = {"AMD": 42.0, "TSM": 25.0}[sym]
+                return _mock_response([{"symbol": sym, "priceToEarningsRatioTTM": pe}])
+            if path == "/profile" and sym == "AMD":
+                return _mock_response(
+                    [
+                        {
+                            "symbol": "AMD",
+                            "companyName": "Advanced Micro Devices, Inc.",
+                            "industry": "Semiconductors",
+                            "sector": "Technology",
+                            "description": "Develops microprocessors and GPUs.",
+                        }
+                    ]
+                )
+            if path == "/profile" and sym == "TSM":
+                return _mock_response(
+                    [
+                        {
+                            "symbol": "TSM",
+                            "companyName": "Taiwan Semiconductor Manufacturing Company Limited",
+                            "industry": "Semiconductors",
+                            "sector": "Technology",
+                            "description": (
+                                "Manufactures, packages, tests, and sells integrated circuits."
+                            ),
+                        }
+                    ]
+                )
+            raise AssertionError(f"unexpected _get({path!r}, {params!r})")
+
+        with patch.object(provider, "_get", AsyncMock(side_effect=_route)):
             result = await provider.fetch("NVDA", "peer_candidates")
 
         assert result.data["profile"]["description"] == "Provides GPUs and data center platforms."
@@ -1132,19 +1155,82 @@ class TestFMPPeerCandidates:
             result.data["profiles"]["TSM"]["description"]
             == "Manufactures, packages, tests, and sells integrated circuits."
         )
+        # P/E sourced from /ratios-ttm; market cap harvested from the pool rows.
         assert result.data["quotes"]["AMD"]["pe"] == 42.0
+        assert result.data["quotes"]["AMD"]["market_cap"] == 260_000_000_000
+        assert result.data["quotes"]["TSM"]["market_cap"] == 1_300_000_000_000
+        assert result.data["stock_peers"] == ["AMD"]
+
+    @pytest.mark.asyncio
+    async def test_peer_candidates_skip_profiles_for_non_semiconductor_target(self, provider):
+        """Non-semiconductor target → the operator's value-chain gate never reads
+        candidate profiles, so the provider must NOT spend one request per
+        candidate fetching them (stable has no batch profile). P/E enrichment
+        still runs."""
+        calls: list[tuple[str, str]] = []
+
+        def _route(path, params=None):
+            params = params or {}
+            sym = params.get("symbol", "")
+            calls.append((path, sym))
+            if path == "/profile" and sym == "KO":
+                return _mock_response(
+                    [
+                        {
+                            "symbol": "KO",
+                            "companyName": "The Coca-Cola Company",
+                            "industry": "Beverages - Non-Alcoholic",
+                            "sector": "Consumer Defensive",
+                            "marketCap": 300_000_000_000,
+                            "description": "Beverage company.",
+                        }
+                    ]
+                )
+            if path == "/stock-peers":
+                return _mock_response(
+                    [{"symbol": "PEP", "companyName": "PepsiCo", "mktCap": 230_000_000_000}]
+                )
+            if path == "/company-screener":
+                return _mock_response([{"symbol": "PEP", "marketCap": 230_000_000_000}])
+            if path == "/ratios-ttm":
+                return _mock_response([{"symbol": sym, "priceToEarningsRatioTTM": 22.0}])
+            raise AssertionError(f"unexpected _get({path!r}, {params!r})")
+
+        with patch.object(provider, "_get", AsyncMock(side_effect=_route)):
+            result = await provider.fetch("KO", "peer_candidates")
+
+        assert result.data["quotes"]["PEP"]["pe"] == 22.0
+        assert result.data["profiles"] == {}
+        # No per-candidate /profile call — only the target's own.
+        assert [c for c in calls if c[0] == "/profile"] == [("/profile", "KO")]
+
+    @pytest.mark.asyncio
+    async def test_peer_scope_band_superset_of_operator_band(self):
+        """Mechanical drift gate: the provider's fetch-scope band must contain
+        the operator's widest eligibility band, or in-band candidates would be
+        silently dropped before the operator ever sees them."""
+        from finrobot.engine.compute.operators.peer_screen import (
+            PEER_SCREEN_HIGH_AFFINITY_FLOOR_BAND,
+            PEER_SCREEN_MCAP_BAND,
+        )
+        from finrobot.engine.data.providers.fmp_provider import (
+            _PEER_SCOPE_CAP_MULT,
+            _PEER_SCOPE_FLOOR_DIV,
+        )
+
+        assert _PEER_SCOPE_FLOOR_DIV >= PEER_SCREEN_HIGH_AFFINITY_FLOOR_BAND
+        assert _PEER_SCOPE_CAP_MULT >= PEER_SCREEN_MCAP_BAND
 
 
 def _fmp_quote_response(
     ticker: str = "AAPL",
     price: float = 175.0,
-    shares_outstanding: int = 14_971_428_571,
 ) -> list[dict]:
-    """Mock FMP /quote/{ticker} response.
+    """Mock stable /quote response (PRICE/QUOTE paths).
 
-    Default sharesOutstanding is consistent with marketCap 2.62T / price 175 so
-    the real-shares path returns the same value the old int(mktCap/price) derivation
-    did — existing assertions stay valid while exercising the /quote source.
+    Stable's quote carries NO sharesOutstanding/pe/eps (all dropped from the
+    legacy v3 schema) — the financials path sources shares from /shares-float
+    instead (see ``_fmp_shares_float_response``).
     """
     return [
         {
@@ -1152,57 +1238,70 @@ def _fmp_quote_response(
             "name": "Apple Inc.",
             "price": price,
             "exchange": "NASDAQ",
-            "exchangeShortName": "NASDAQ",
             "marketCap": 2_620_000_000_000,
-            "sharesOutstanding": shares_outstanding,
             "volume": 54_000_000,
         }
     ]
 
 
-def _fmp_historical_price_response(days: int = 3) -> dict:
-    """Mock FMP /historical-price-full/{ticker} response.
+def _fmp_shares_float_response(
+    ticker: str = "AAPL",
+    outstanding_shares: int = 14_971_428_571,
+) -> list[dict]:
+    """Mock stable /shares-float response — the independent share count.
 
-    FMP returns newest-first; the provider reverses to match yfinance's
-    oldest-first ordering. We hand back newest-first here to exercise that.
-
-    adjClose == close here (no split/dividend over the window) so the PRICE
-    path's split/dividend adjustment is a no-op and these bars match their
-    nominal values — the split case lives in
-    ``test_fetch_price_history_is_split_adjusted``.
+    Default outstandingShares is consistent with marketCap 2.62T / price 175 so
+    the real-shares path returns the same value the int(marketCap/price)
+    derivation would — existing assertions stay valid while exercising the
+    /shares-float source.
     """
-    return {
-        "symbol": "AAPL",
-        "historical": [
-            {
-                "date": "2026-05-23",
-                "open": 174.0,
-                "high": 176.0,
-                "low": 173.5,
-                "close": 175.0,
-                "adjClose": 175.0,
-                "volume": 50_000_000,
-            },
-            {
-                "date": "2026-05-22",
-                "open": 172.0,
-                "high": 174.5,
-                "low": 171.0,
-                "close": 174.0,
-                "adjClose": 174.0,
-                "volume": 48_000_000,
-            },
-            {
-                "date": "2026-05-21",
-                "open": 170.0,
-                "high": 172.5,
-                "low": 169.5,
-                "close": 172.0,
-                "adjClose": 172.0,
-                "volume": 45_000_000,
-            },
-        ][:days],
-    }
+    return [
+        {
+            "symbol": ticker,
+            "date": "2026-06-10",
+            "freeFloat": 99.1,
+            "floatShares": outstanding_shares - 10_000_000,
+            "outstandingShares": outstanding_shares,
+        }
+    ]
+
+
+def _fmp_historical_price_response(days: int = 3) -> list[dict]:
+    """Mock stable /historical-price-eod/dividend-adjusted response (bare array).
+
+    The API's ordering is undocumented; we hand back newest-first to exercise
+    the provider's explicit oldest-first sort. No split/dividend over the
+    window, so the adjusted values equal the nominal ones.
+    """
+    return [
+        {
+            "symbol": "AAPL",
+            "date": "2026-05-23",
+            "adjOpen": 174.0,
+            "adjHigh": 176.0,
+            "adjLow": 173.5,
+            "adjClose": 175.0,
+            "volume": 50_000_000,
+        },
+        {
+            "symbol": "AAPL",
+            "date": "2026-05-22",
+            "adjOpen": 172.0,
+            "adjHigh": 174.5,
+            "adjLow": 171.0,
+            "adjClose": 174.0,
+            "volume": 48_000_000,
+        },
+        {
+            "symbol": "AAPL",
+            "date": "2026-05-21",
+            "adjOpen": 170.0,
+            "adjHigh": 172.5,
+            "adjLow": 169.5,
+            "adjClose": 172.0,
+            "volume": 45_000_000,
+        },
+    ][:days]
 
 
 class TestFMPPrice:
@@ -1249,8 +1348,9 @@ class TestFMPPrice:
         with patch.object(provider, "_get", get_mock):
             await provider.fetch("AAPL", "price")
 
-        hist_call = next(c for c in get_mock.call_args_list if "historical-price-full" in c.args[0])
+        hist_call = next(c for c in get_mock.call_args_list if "historical-price-eod" in c.args[0])
         params = hist_call.kwargs.get("params", {})
+        assert params.get("symbol") == "AAPL"
         assert "serietype" not in params, "serietype=line strips intraday high/low"
         assert "timeseries" not in params, "trading-day count ≠ calendar year"
         assert "from" in params and "to" in params, "must request a calendar-day range"
@@ -1262,7 +1362,7 @@ class TestFMPPrice:
         with patch.object(
             provider,
             "_get",
-            AsyncMock(side_effect=[_mock_response([]), _mock_response({"historical": []})]),
+            AsyncMock(side_effect=[_mock_response([]), _mock_response([])]),
         ):
             with pytest.raises(ProviderError, match="no data"):
                 await provider.fetch("DELISTED", "price")
@@ -1271,7 +1371,7 @@ class TestFMPPrice:
     async def test_fetch_price_missing_price_field_raises(self, provider):
         responses = [
             _mock_response([{"symbol": "BAD", "exchange": "NASDAQ"}]),  # no price
-            _mock_response({"historical": []}),
+            _mock_response([]),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             with pytest.raises(ProviderError, match="no price field"):
@@ -1282,7 +1382,7 @@ class TestFMPPrice:
         """No history rows → empty price_history list, not a crash."""
         responses = [
             _mock_response(_fmp_quote_response("NEW", price=10.0)),
-            _mock_response({"symbol": "NEW", "historical": []}),
+            _mock_response([]),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("NEW", "price")
@@ -1291,17 +1391,15 @@ class TestFMPPrice:
 
     @pytest.mark.asyncio
     async def test_fetch_price_history_is_split_adjusted(self, provider):
-        """BUG-071: PRICE history must be split/dividend-adjusted (close=adjClose,
-        O/H/L scaled by adjClose/close) like PRICE_RANGE and yfinance auto_adjust
-        — never the nominal raw close. Otherwise a name with a split in the
-        trailing year carries the pre-split nominal high (~10× spot for a 10:1
-        split) into the downstream 52-week high/low and SMA20/50/200, which read
-        the close column of this history.
+        """BUG-071: PRICE history must sit on the split/dividend-adjusted basis
+        like PRICE_RANGE and yfinance auto_adjust — never the nominal close.
+        Otherwise a name with a split in the trailing year carries the pre-split
+        nominal high (~10× spot for a 10:1 split) into the downstream 52-week
+        high/low and SMA20/50/200, which read the close column of this history.
 
-        Real AAPL 2020 4:1 split shape (verified live 2026-06-02 against yfinance
-        auto_adjust): pre-split rows carry the nominal ~129 close; the adjusted
-        basis is ~125. The 52-week high taken off close must land on the adjusted
-        ~130, not the nominal ~134.
+        Real AAPL 2020 4:1 split shape (adjusted basis verified live 2026-06-02
+        against yfinance auto_adjust): the 52-week high taken off close must
+        land on the adjusted ~130, never the nominal ~134.
         """
         responses = [
             _mock_response(_fmp_quote_response("AAPL", price=130.13)),
@@ -1321,7 +1419,7 @@ class TestFMPPrice:
         # never the nominal 134.18 (≈ spot × split ratio for a split name).
         assert max(closes) == pytest.approx(130.13)
         assert all(c not in (124.81, 129.04, 134.18) for c in closes)
-        # O/H/L scaled by adjClose/close: 2020-08-31 open 127.58 × (125.15/129.04).
+        # O/H/L come from the endpoint's adjusted bar fields.
         assert history[1]["open"] == pytest.approx(127.58 * (125.15 / 129.04), rel=1e-6)
         assert history[1]["high"] == pytest.approx(131.0 * (125.15 / 129.04), rel=1e-6)
         assert history[1]["volume"] == pytest.approx(225_702_700)
@@ -1329,31 +1427,28 @@ class TestFMPPrice:
     @pytest.mark.asyncio
     async def test_fetch_price_drops_rows_missing_adjclose(self, provider):
         """A bar lacking adjClose can't be put on the adjusted basis, so it's
-        dropped rather than emitted half-adjusted (mixing nominal + adjusted
-        closes in one history would corrupt the 52w window just as badly)."""
-        hist = {
-            "symbol": "AAPL",
-            "historical": [
-                {
-                    "date": "2026-05-23",
-                    "open": 174.0,
-                    "high": 176.0,
-                    "low": 173.5,
-                    "close": 175.0,
-                    "adjClose": 175.0,
-                    "volume": 50_000_000,
-                },
-                # No adjClose — must be dropped.
-                {
-                    "date": "2026-05-22",
-                    "open": 172.0,
-                    "high": 174.5,
-                    "low": 171.0,
-                    "close": 174.0,
-                    "volume": 48_000_000,
-                },
-            ],
-        }
+        dropped rather than emitted partial (mixing bases in one history would
+        corrupt the 52w window just as badly)."""
+        hist = [
+            {
+                "symbol": "AAPL",
+                "date": "2026-05-23",
+                "adjOpen": 174.0,
+                "adjHigh": 176.0,
+                "adjLow": 173.5,
+                "adjClose": 175.0,
+                "volume": 50_000_000,
+            },
+            # No adjClose — must be dropped.
+            {
+                "symbol": "AAPL",
+                "date": "2026-05-22",
+                "adjOpen": 172.0,
+                "adjHigh": 174.5,
+                "adjLow": 171.0,
+                "volume": 48_000_000,
+            },
+        ]
         responses = [
             _mock_response(_fmp_quote_response("AAPL", price=175.0)),
             _mock_response(hist),
@@ -1362,6 +1457,66 @@ class TestFMPPrice:
             result = await provider.fetch("AAPL", "price")
         history = result.data["price_history"]
         assert [p["date"] for p in history] == ["2026-05-23"]
+
+
+class TestFMPPlanGate:
+    """403 + key-free plan/legacy body → typed ProviderPlanError from _get, so
+    the data layer falls through the chain without charging the breaker."""
+
+    @staticmethod
+    def _resp(status: int, text: str) -> httpx.Response:
+        request = httpx.Request("GET", "https://financialmodelingprep.com/stable/news/stock")
+        return httpx.Response(status, text=text, request=request)
+
+    @pytest.mark.asyncio
+    async def test_403_with_plan_body_raises_provider_plan_error(self, provider, monkeypatch):
+        from finrobot.engine.data.interface import ProviderPlanError
+
+        monkeypatch.setattr(
+            provider._client,
+            "get",
+            AsyncMock(
+                return_value=self._resp(
+                    403, '{"Error Message": "Exclusive Endpoint: upgrade your subscription"}'
+                )
+            ),
+        )
+        with pytest.raises(ProviderPlanError) as exc_info:
+            await provider._get("/news/stock", params={"symbols": "AAPL"})
+        # Sanitized: the message names the path, never the URL with ?apikey=.
+        assert "apikey" not in str(exc_info.value)
+        assert "/news/stock" in str(exc_info.value)
+        assert not is_rate_limit_error(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_legacy_endpoint_body_also_classified_as_plan(self, provider, monkeypatch):
+        from finrobot.engine.data.interface import ProviderPlanError
+
+        monkeypatch.setattr(
+            provider._client,
+            "get",
+            AsyncMock(
+                return_value=self._resp(
+                    403,
+                    '{"Error Message": "Legacy Endpoint : ... only available for legacy users '
+                    'who have valid subscriptions prior August 31, 2025"}',
+                )
+            ),
+        )
+        with pytest.raises(ProviderPlanError):
+            await provider._get("/profile", params={"symbol": "AAPL"})
+
+    @pytest.mark.asyncio
+    async def test_403_without_plan_body_stays_http_error(self, provider, monkeypatch):
+        """A 403 whose body carries no plan/legacy marker is NOT a plan gap —
+        it must keep the generic HTTPStatusError path (auth-shaped)."""
+        monkeypatch.setattr(
+            provider._client,
+            "get",
+            AsyncMock(return_value=self._resp(403, '{"Error Message": "Forbidden"}')),
+        )
+        with pytest.raises(httpx.HTTPStatusError):
+            await provider._get("/profile", params={"symbol": "AAPL"})
 
 
 class TestFMPNetworkErrors:
@@ -1547,7 +1702,7 @@ class TestFMPHistoricalPerYear:
             _mock_response(self._multi_year_balance()),
             _mock_response(self._multi_year_cashflow()),
             _mock_response(_fmp_profile_response()),
-            _mock_response(_fmp_quote_response()),
+            _mock_response(_fmp_shares_float_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", DataType.FINANCIALS, years=3)
@@ -1768,7 +1923,7 @@ class TestFMPBankCaliber:
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
             _mock_response(_fmp_profile_response()),
-            _mock_response(_fmp_quote_response()),
+            _mock_response(_fmp_shares_float_response()),
         ]
         with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
             result = await provider.fetch("AAPL", "financials")

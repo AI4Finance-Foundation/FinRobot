@@ -60,7 +60,7 @@ class ForwardFinancials:
     warnings: list[str]
     fiscal_period: str | None = None
     forward_net_income: float | None = None
-    """FY1 consensus net income (FMP ``estimatedNetIncomeAvg``), reporting currency.
+    """FY1 consensus net income (FMP ``netIncomeAvg``), reporting currency.
 
     Lets a market-cap-centric consumer (the peer comps set, whose CompanyFinancials
     carries ``market_cap`` but no price/shares) compute forward P/E as
@@ -188,7 +188,7 @@ def get_forward_revenue_growth(
         if not isinstance(row, dict):
             continue
         d = _parse_iso_date(row.get("date"))
-        rev = _coerce_positive_float(row.get("estimatedRevenueAvg"))
+        rev = _coerce_positive_float(row.get("revenueAvg"))
         if d is not None and rev is not None:
             parsed.append((d, rev))
     parsed.sort(key=lambda p: p[0])
@@ -203,14 +203,15 @@ def get_forward_revenue_growth(
 def _from_fmp(
     ticker: str, fmp: dict[str, Any], warnings: list[str], as_of: date
 ) -> ForwardFinancials:
-    """Parse FMP /v3/analyst-estimates response shape.
+    """Parse the FMP stable /analyst-estimates response shape.
 
-    Expected shape (FMP returns a list of fiscal years, farthest-future first):
+    Expected shape (FMP returns a list of fiscal years, farthest-future first;
+    stable dropped v3's "estimated" prefix from every figure):
       [{
-        "date": "2026-09-30",          # fiscal-year-end
-        "estimatedRevenueAvg": 1.2e11,  # absolute, reporting currency
-        "estimatedEbitdaAvg": 4.5e10,   # absolute, reporting currency
-        "estimatedEpsAvg": 12.5,        # per-share, reporting currency
+        "date": "2026-09-30",   # fiscal-year-end
+        "revenueAvg": 1.2e11,   # absolute, reporting currency
+        "ebitdaAvg": 4.5e10,    # absolute, reporting currency
+        "epsAvg": 12.5,         # per-share, reporting currency
         ...
       }, ...]
 
@@ -228,22 +229,22 @@ def _from_fmp(
     if period_warning is not None:
         warnings.append(period_warning)
 
-    forward_eps = _coerce_positive_float(chosen.get("estimatedEpsAvg"))
-    forward_revenue = _coerce_positive_float(chosen.get("estimatedRevenueAvg"))
-    forward_ebitda = _coerce_positive_float(chosen.get("estimatedEbitdaAvg"))
-    forward_fcf = _coerce_positive_float(chosen.get("estimatedFreeCashFlowAvg"))
-    forward_net_income = _coerce_positive_float(chosen.get("estimatedNetIncomeAvg"))
+    forward_eps = _coerce_positive_float(chosen.get("epsAvg"))
+    forward_revenue = _coerce_positive_float(chosen.get("revenueAvg"))
+    forward_ebitda = _coerce_positive_float(chosen.get("ebitdaAvg"))
+    forward_net_income = _coerce_positive_float(chosen.get("netIncomeAvg"))
 
     if forward_eps is None and forward_revenue is None:
         return _unavailable(ticker, "FMP 行缺关键字段 (eps/revenue)")
 
-    # FMP /v3/analyst-estimates supplies consensus EPS / revenue / EBITDA but
-    # NOT free cash flow (estimatedFreeCashFlowAvg is absent → forward_fcf stays
-    # None, so the P/FCF reverse row stays hidden). Don't gate 'high' on FCF or
-    # it's unreachable: 'high' = consensus EPS + EBITDA (forward P/E AND forward
-    # EV/EBITDA both consensus-driven); 'medium' = EPS / revenue only.
+    # FMP analyst-estimates supplies consensus EPS / revenue / EBITDA / net
+    # income but NO free cash flow figure (true in v3 and stable alike) →
+    # forward_fcf stays None, so the P/FCF reverse row stays hidden. Don't gate
+    # 'high' on FCF or it's unreachable: 'high' = consensus EPS + EBITDA
+    # (forward P/E AND forward EV/EBITDA both consensus-driven); 'medium' =
+    # EPS / revenue only.
     if forward_eps is None:
-        warnings.append("FMP 行无 estimatedEpsAvg — forward P/E 不可得")
+        warnings.append("FMP 行无 epsAvg — forward P/E 不可得")
     confidence: ConfidenceLevel = "high" if forward_ebitda is not None else "medium"
 
     fiscal_period = chosen.get("date") if isinstance(chosen.get("date"), str) else None
@@ -253,9 +254,9 @@ def _from_fmp(
         forward_eps=forward_eps,
         forward_revenue=forward_revenue,
         forward_ebitda=forward_ebitda,
-        forward_fcf=forward_fcf,
+        forward_fcf=None,
         confidence=confidence,
-        source="FMP /v3/analyst-estimates consensus",
+        source="FMP stable/analyst-estimates consensus",
         warnings=warnings,
         fiscal_period=fiscal_period,
         forward_net_income=forward_net_income,

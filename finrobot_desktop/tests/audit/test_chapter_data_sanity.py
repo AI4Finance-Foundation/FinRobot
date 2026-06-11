@@ -85,7 +85,7 @@ def test_chapter_11_fmp_financials_default_path_returns_ttm_not_annual():
             "operatingIncome": 19e9,
             "depreciationAndAmortization": 1e9,
             "researchAndDevelopmentExpenses": 3e9,
-            "sellingGeneralAndAdministrative": 1e9,
+            "sellingGeneralAndAdministrativeExpenses": 1e9,
             "interestExpense": 0,
         }
         for q in range(4)
@@ -102,13 +102,12 @@ def test_chapter_11_fmp_financials_default_path_returns_ttm_not_annual():
     profile = [
         {
             "symbol": "NVDA",
-            "mktCap": 3500e9,
+            "marketCap": 3500e9,
             "price": 212.6,
             "companyName": "NVIDIA",
             "industry": "Semiconductors",
             "sector": "Technology",
             "beta": 1.7,
-            "pe": None,
         }
     ]
 

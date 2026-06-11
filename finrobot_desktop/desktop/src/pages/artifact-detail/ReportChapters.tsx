@@ -121,6 +121,7 @@ export function ReportChapters({
         thesis={d.thesis}
         valuationSynthesis={d.valuationSynthesis}
         forwardEstimates={d.forwardEstimates}
+        sotpBreakdown={d.sotpBreakdown}
         quoteCurrency={d.quoteCurrency}
         reportingCurrency={d.reportingCurrency}
         numericAudit={d.numericAudit}

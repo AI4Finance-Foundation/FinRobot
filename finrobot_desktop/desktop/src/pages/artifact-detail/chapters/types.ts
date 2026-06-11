@@ -399,6 +399,42 @@ export interface ValuationSynthesisShape {
   reliable?: boolean
 }
 
+// Scenario SOTP (Batch 3B v1): the reverse-SOTP market-implied decomposition for
+// an option-value name (TSLA-class). An INDEPENDENT channel — NOT a method in the
+// football field's point synthesis (kept out so it never trips the reliability
+// gate). The valuation chapter renders it as a floor / implied-option-premium
+// panel. All numbers are COMPUTED (deterministic) and 100% sourceable; price_floor
+// is a FLOOR, not a target.
+export interface SegmentValuationShape {
+  name: string
+  metric_label: string
+  metric_value: number
+  multiple: number
+  multiple_source: string
+  implied_ev: number
+}
+
+export interface SOTPBreakdownShape {
+  ticker: string
+  as_of: string
+  modelable_segments: SegmentValuationShape[]
+  ev_floor: number
+  net_debt: number
+  equity_floor: number
+  price_floor: number
+  shares_outstanding: number
+  current_price: number
+  market_equity: number
+  implied_option_ev: number
+  implied_option_pct: number
+  option_ev_if_success?: number | null
+  option_anchor_source?: string | null
+  implied_success_probability?: number | null
+  floor_exceeds_market?: boolean
+  market_exceeds_success_ceiling?: boolean
+  warnings?: string[]
+}
+
 // Frozen forward-estimate provenance (builders.py persists this slim block at
 // generation). The forward NUMBERS live in valuation_synthesis.methods; this is
 // only what the football field / footnote need to label the forward comps row

@@ -9,6 +9,7 @@ import type {
   DcfShape,
   ForwardEstimatesShape,
   NumericAuditShape,
+  SOTPBreakdownShape,
   ThesisShape,
   ValuationSynthesisShape,
 } from './types'
@@ -25,6 +26,11 @@ interface ChapterValuationProps {
   // the forward comps row + footnotes its source from the snapshot, not a live
   // refetch. null when no forward estimate landed at generation.
   forwardEstimates: ForwardEstimatesShape | null
+  // Scenario SOTP (Batch 3B v1): the reverse-SOTP market-implied decomposition for
+  // an option-value name. Independent channel — rendered as a floor /
+  // implied-option-premium panel below the football field, NOT a method bar. null
+  // for every non-option-value name (the deterministic gate didn't fire).
+  sotpBreakdown: SOTPBreakdownShape | null
   // quote → DCF implied price & price target (per-share); reporting → EV &
   // equity value (absolutes). Differ for foreign ADRs (BUG-030).
   quoteCurrency: string
@@ -40,6 +46,7 @@ export function ChapterValuation({
   thesis,
   valuationSynthesis,
   forwardEstimates,
+  sotpBreakdown,
   quoteCurrency,
   reportingCurrency,
   numericAudit = null,
@@ -366,6 +373,19 @@ export function ChapterValuation({
               )}
             </p>
           )}
+          {/* Scenario SOTP — the option-value decomposition row. For a name a DCF
+              point target can't honestly reach, the publishable product is the
+              cash-flow floor (SEC-filed segments × conservative multiples) plus
+              the pure-subtraction market-implied option value above it, NOT a
+              fabricated target. Rendered as a decomposition panel — it is an
+              INDEPENDENT channel, never a method bar competing for the target. */}
+          {sotpBreakdown && (
+            <SOTPBreakdownPanel
+              sotp={sotpBreakdown}
+              quoteCurrency={quoteCurrency}
+              reportingCurrency={reportingCurrency}
+            />
+          )}
         </SubChapter>
       )}
 
@@ -392,5 +412,210 @@ export function ChapterValuation({
         </p>
       )}
     </Chapter>
+  )
+}
+
+/**
+ * Scenario SOTP decomposition panel (Batch 3B v1). Renders the reverse-SOTP
+ * channel as a "floor → implied option premium → market cap" stacked bar plus a
+ * per-segment table. Every number is COMPUTED + sourceable; the price_floor is a
+ * FLOOR (cash-flow business value), NOT a target — the implied option value above
+ * it is the market's pure-subtraction valuation of robotaxi/FSD/Optimus optionality.
+ *
+ * Segment metrics (gross profit) are REPORTING currency; the market cap / floor
+ * equity / implied option are QUOTE currency. v1 only ships USD reporters so the
+ * two coincide, but the labels stay currency-correct for the foreign-reporter case.
+ */
+function SOTPBreakdownPanel({
+  sotp,
+  quoteCurrency,
+  reportingCurrency,
+}: {
+  sotp: SOTPBreakdownShape
+  quoteCurrency: string
+  reportingCurrency: string
+}): React.ReactElement {
+  const { t, locale } = useI18n()
+  const market = sotp.market_equity
+  // Floor share of cap (clamped to [0,1] for the bar only; the % label uses the
+  // raw implied_option_pct, which can legally exceed 1 / go negative).
+  const floorPct = market > 0 ? Math.max(0, Math.min(1, sotp.equity_floor / market)) : 0
+  const optionPctRaw = sotp.implied_option_pct
+  const optionPctLabel = `${(optionPctRaw * 100).toFixed(1)}%`
+
+  return (
+    <SubChapter heading={t('chapter.valuation.sotp.heading')}>
+      <p
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11,
+          color: 'var(--text-muted)',
+          lineHeight: 1.6,
+          marginBottom: 12,
+        }}
+      >
+        {t('chapter.valuation.sotp.intro')}
+      </p>
+
+      {/* Stacked floor / option bar */}
+      <div
+        style={{
+          display: 'flex',
+          height: 26,
+          borderRadius: 'var(--radius-sm)',
+          overflow: 'hidden',
+          border: '1px solid var(--border-soft)',
+          marginBottom: 6,
+        }}
+      >
+        <div
+          style={{
+            width: `${floorPct * 100}%`,
+            background:
+              'linear-gradient(90deg, color-mix(in srgb, var(--primary) 45%, transparent), color-mix(in srgb, var(--secondary) 60%, transparent))',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'var(--text-primary)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {floorPct > 0.12 ? t('chapter.valuation.sotp.floorLabel') : ''}
+        </div>
+        <div
+          style={{
+            flex: 1,
+            background: 'color-mix(in srgb, var(--warning) 22%, transparent)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'var(--warning)',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {t('chapter.valuation.sotp.optionLabel')} {optionPctLabel}
+        </div>
+      </div>
+
+      {/* Headline scalars */}
+      <KvGrid
+        cells={[
+          {
+            label: t('chapter.valuation.sotp.priceFloor'),
+            value: formatCurrency(sotp.price_floor, quoteCurrency, locale, 2),
+          },
+          {
+            label: t('chapter.valuation.sotp.equityFloor'),
+            value: formatCurrencyCompact(sotp.equity_floor, quoteCurrency, locale),
+          },
+          {
+            label: t('chapter.valuation.sotp.currentPrice'),
+            value: formatCurrency(sotp.current_price, quoteCurrency, locale, 2),
+          },
+          {
+            label: t('chapter.valuation.sotp.marketEquity'),
+            value: formatCurrencyCompact(sotp.market_equity, quoteCurrency, locale),
+          },
+          {
+            label: t('chapter.valuation.sotp.impliedOptionEv'),
+            value: formatCurrencyCompact(sotp.implied_option_ev, quoteCurrency, locale),
+          },
+          {
+            label: t('chapter.valuation.sotp.impliedOptionPct'),
+            value: optionPctLabel,
+          },
+          ...(sotp.implied_success_probability != null
+            ? [
+                {
+                  label: t('chapter.valuation.sotp.impliedProbability'),
+                  value: `${(sotp.implied_success_probability * 100).toFixed(1)}%`,
+                },
+              ]
+            : []),
+        ]}
+      />
+
+      {/* Per-segment floor legs */}
+      <div style={{ marginTop: 12, overflowX: 'auto' }}>
+        <table
+          style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+          }}
+        >
+          <thead>
+            <tr style={{ color: 'var(--text-muted)', textAlign: 'left' }}>
+              <th style={{ padding: '4px 8px' }}>{t('chapter.valuation.sotp.segment')}</th>
+              <th style={{ padding: '4px 8px', textAlign: 'right' }}>
+                {t('chapter.valuation.sotp.metric')}
+              </th>
+              <th style={{ padding: '4px 8px', textAlign: 'right' }}>
+                {t('chapter.valuation.sotp.multiple')}
+              </th>
+              <th style={{ padding: '4px 8px', textAlign: 'right' }}>
+                {t('chapter.valuation.sotp.impliedEv')}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sotp.modelable_segments.map((s) => (
+              <tr key={s.name} style={{ borderTop: '1px solid var(--border-grid)' }}>
+                <td style={{ padding: '4px 8px', color: 'var(--text-primary)' }}>
+                  {s.name}
+                  <span style={{ display: 'block', color: 'var(--text-dim)', fontSize: 9.5 }}>
+                    {s.multiple_source}
+                  </span>
+                </td>
+                <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-secondary)' }}>
+                  {formatCurrencyCompact(s.metric_value, reportingCurrency, locale)}
+                </td>
+                <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-secondary)' }}>
+                  {s.multiple.toFixed(1)}×
+                </td>
+                <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--accent-cyan)' }}>
+                  {formatCurrencyCompact(s.implied_ev, reportingCurrency, locale)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {sotp.option_anchor_source && (
+        <p
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'var(--text-dim)',
+            marginTop: 8,
+          }}
+        >
+          {t('chapter.valuation.sotp.anchorSource')}: {sotp.option_anchor_source}
+        </p>
+      )}
+
+      {sotp.warnings && sotp.warnings.length > 0 && (
+        <ul
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'var(--warning)',
+            marginTop: 8,
+            paddingLeft: 16,
+            lineHeight: 1.5,
+          }}
+        >
+          {sotp.warnings.map((w, i) => (
+            <li key={i}>{w}</li>
+          ))}
+        </ul>
+      )}
+    </SubChapter>
   )
 }

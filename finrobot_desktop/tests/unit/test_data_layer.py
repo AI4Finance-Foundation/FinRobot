@@ -744,12 +744,15 @@ class TestReadCanonicalCached:
         layer = DataLayer([provider], cache)
         await layer.fetch_canonical(DataType.FINANCIALS, "AAPL")
 
-        # Backdate the canonical slot past the 24h FINANCIALS TTL.
+        # Backdate the canonical slot past the 24h FINANCIALS TTL. The slot is
+        # provider-qualified (BUG: provider swap could overwrite a different
+        # caliber under one shared key — fixed by folding the winning provider
+        # into the slot), so target the 'mock' provider's slot the fetch wrote.
         old_time = (datetime.now(tz=timezone.utc) - timedelta(hours=25)).isoformat()
         async with aiosqlite.connect(str(tmp_path / "layer_test.db")) as conn:
             await conn.execute(
                 "UPDATE cache SET cached_at = ? WHERE data_type = ? AND ticker = ?",
-                (old_time, canonical_key(DataType.FINANCIALS), "AAPL"),
+                (old_time, canonical_key(DataType.FINANCIALS, "mock"), "AAPL"),
             )
             await conn.commit()
 
@@ -894,6 +897,164 @@ class TestCanonicalStaleNoLaundering:
         assert hit is not None
         _, is_stale = hit
         assert is_stale is True, "stale PRICE fallback was laundered into a fresh canonical entry"
+
+
+def _fin_caliber_result(provider: str, *, period_basis: str, revenue: float) -> DataResult:
+    """A FINANCIALS DataResult whose CALIBER differs by provider, the way live
+    sources do: FMP serves a TTM snapshot (Σ 4 quarters, with quarter-ends),
+    yfinance serves the latest ANNUAL figure (no quarter-ends). The two are NOT
+    interchangeable — mixing them silently mislabels the period."""
+    data: dict = {
+        "revenue": revenue,
+        "period_basis": period_basis,
+        "fiscal_year": "2025-09-27" if period_basis == "ttm" else "2024-09-28",
+        "financial_currency": "USD",
+    }
+    if period_basis == "ttm":
+        data["ttm_quarter_ends"] = ["2024-12-28", "2025-03-29", "2025-06-28", "2025-09-27"]
+    return DataResult(
+        data=data,
+        provider=provider,
+        ticker="AAPL",
+        data_type=DataType.FINANCIALS,
+        timestamp=datetime.now(tz=timezone.utc),
+    )
+
+
+class TestCanonicalFinancialsProviderKeying:
+    """Regression: the canonical FINANCIALS slot folds in the WINNING provider.
+
+    Before the fix the slot was ``financials:canonical:v<N>/<ticker>`` — provider
+    NEITHER in the key NOR period-qualified. A silent provider swap (FMP
+    rate-limited → yfinance fallback wins one run) overwrote a DIFFERENT-caliber
+    snapshot (TTM vs annual, distinct period_basis / ttm_quarter_ends) under the
+    SAME key, and a later read served a caliber the rest of the run didn't assume.
+    Folding the winning provider into the slot isolates calibers while preserving
+    the steady-state single-provider cache hit.
+    """
+
+    async def test_provider_swap_writes_distinct_slots_no_overwrite(self, cache):
+        # Shared breaker so we can gate FMP to force the yfinance swap.
+        health = ProviderHealth()
+        fmp = MockProvider(
+            "fmp",
+            ["financials"],
+            result=_fin_caliber_result("fmp", period_basis="ttm", revenue=391_000_000_000),
+        )
+        yf = MockProvider(
+            "yfinance",
+            ["financials"],
+            result=_fin_caliber_result("yfinance", period_basis="annual", revenue=383_285_000_000),
+        )
+        layer = DataLayer([fmp, yf], cache, health=health)
+
+        # Run 1: FMP wins → its TTM snapshot lands in the fmp-qualified slot.
+        first = await layer.fetch_canonical(DataType.FINANCIALS, "AAPL")
+        assert isinstance(first, NormalizedFinancials)
+        assert first.provenance.provider == "fmp"
+        assert first.period_basis == "ttm"
+        assert first.ttm_quarter_ends  # FMP caliber carries quarter-ends
+
+        # Run 2: FMP gated (breaker open) → yfinance wins. Clear the raw slot so
+        # the provider walk actually runs (a fresh raw row would otherwise serve
+        # FMP's cached raw payload regardless of the breaker). Its ANNUAL snapshot
+        # MUST land in its OWN slot, NOT overwrite the fmp canonical slot.
+        await cache._delete_slot(raw_slot_key("financials"), "AAPL")
+        health.record_failure("fmp", rate_limited=True)
+        assert health.is_available("fmp") is False
+        second = await layer.fetch_canonical(DataType.FINANCIALS, "AAPL")
+        assert second.provenance.provider == "yfinance"
+        assert second.period_basis == "annual"
+        assert not second.ttm_quarter_ends
+
+        # BOTH calibers coexist in DISTINCT slots — the fmp TTM snapshot was not
+        # clobbered by the yfinance annual one.
+        from finrobot.engine.data.cache import canonical_key
+
+        fmp_slot = await cache.get_canonical(DataType.FINANCIALS, "AAPL", provider="fmp")
+        yf_slot = await cache.get_canonical(DataType.FINANCIALS, "AAPL", provider="yfinance")
+        assert fmp_slot is not None and '"period_basis":"ttm"' in fmp_slot.payload_json
+        assert yf_slot is not None and '"period_basis":"annual"' in yf_slot.payload_json
+        assert canonical_key(DataType.FINANCIALS, "fmp") != canonical_key(
+            DataType.FINANCIALS, "yfinance"
+        )
+
+    async def test_recovered_primary_serves_its_own_caliber_not_fallback(self, cache):
+        """After FMP recovers, fetch_canonical must serve the FMP (TTM) slot —
+        never the yfinance (annual) caliber written during the outage."""
+        health = ProviderHealth()
+        fmp = MockProvider(
+            "fmp",
+            ["financials"],
+            result=_fin_caliber_result("fmp", period_basis="ttm", revenue=391_000_000_000),
+        )
+        yf = MockProvider(
+            "yfinance",
+            ["financials"],
+            result=_fin_caliber_result("yfinance", period_basis="annual", revenue=383_285_000_000),
+        )
+        layer = DataLayer([fmp, yf], cache, health=health)
+
+        # Outage run writes the yfinance annual slot.
+        health.record_failure("fmp", rate_limited=True)
+        await layer.fetch_canonical(DataType.FINANCIALS, "AAPL")
+        # FMP recovers. Clear the raw slot (its 24h TTL would otherwise serve the
+        # cached yfinance raw row to the next walk and re-derive yfinance) so the
+        # recovered chain genuinely re-walks and FMP wins again.
+        await cache._delete_slot(raw_slot_key("financials"), "AAPL")
+        health.record_success("fmp")
+        fmp.fetch_called = 0
+        recovered = await layer.fetch_canonical(DataType.FINANCIALS, "AAPL")
+        # Preferred slot (fmp) was empty → one fetch, then the FMP TTM caliber.
+        assert fmp.fetch_called == 1
+        assert recovered.provenance.provider == "fmp"
+        assert recovered.period_basis == "ttm"
+
+    async def test_same_provider_reread_hits_cache_no_thrash(self, cache):
+        """The steady single-provider state must still HIT the canonical cache —
+        provider-qualifying the slot must not regress cache efficiency."""
+        health = ProviderHealth()
+        fmp = MockProvider(
+            "fmp",
+            ["financials"],
+            result=_fin_caliber_result("fmp", period_basis="ttm", revenue=391_000_000_000),
+        )
+        yf = MockProvider("yfinance", ["financials"])
+        layer = DataLayer([fmp, yf], cache, health=health)
+
+        await layer.fetch_canonical(DataType.FINANCIALS, "AAPL")  # prime fmp slot
+        assert fmp.fetch_called == 1
+        fmp.fetch_called = 0
+        yf.fetch_called = 0
+
+        # Re-read with the same healthy chain → preferred=fmp, slot fresh → HIT,
+        # no provider walk at all.
+        again = await layer.fetch_canonical(DataType.FINANCIALS, "AAPL")
+        assert again.provenance.provider == "fmp"
+        assert fmp.fetch_called == 0  # served from cache, no re-fetch
+        assert yf.fetch_called == 0
+
+    async def test_read_canonical_cached_survives_provider_swap(self, cache):
+        """The stale-while-revalidate paint must still surface a last-known
+        snapshot after a provider swap, even when the preferred provider's slot
+        is the one that's empty (it reads the freshest slot across providers)."""
+        health = ProviderHealth()
+        yf = MockProvider(
+            "yfinance",
+            ["financials"],
+            result=_fin_caliber_result("yfinance", period_basis="annual", revenue=383_285_000_000),
+        )
+        # Only yfinance is wired here, so the slot written is yfinance's; the
+        # preferred provider for a chain that also had fmp would differ, but the
+        # cache-only read must still find the yfinance snapshot.
+        layer = DataLayer([yf], cache, health=health)
+        await layer.fetch_canonical(DataType.FINANCIALS, "AAPL")
+
+        hit = await layer.read_canonical_cached(DataType.FINANCIALS, "AAPL")
+        assert hit is not None
+        norm, _ = hit
+        assert norm.provenance.provider == "yfinance"
+        assert norm.period_basis == "annual"
 
 
 class TestClose:

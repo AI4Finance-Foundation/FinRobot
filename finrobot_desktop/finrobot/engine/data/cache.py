@@ -48,7 +48,7 @@ def _normalize_data_type(data_type: str | DataType) -> str:
     return _DATA_TYPE_ALIASES.get(raw, raw)
 
 
-def canonical_key(data_type: str | DataType) -> str:
+def canonical_key(data_type: str | DataType, provider: str | None = None) -> str:
     """Cache slot for a normalized (canonical) payload.
 
     Isolated from the raw provider slot (same table, different ``data_type``
@@ -56,8 +56,21 @@ def canonical_key(data_type: str | DataType) -> str:
     version-tagged so a ``CANONICAL_CONTRACT_VERSION`` bump auto-invalidates
     stale canonical entries with no migration (ADR-0006 decision C1). Defined
     here, once — callers must never hand-assemble the suffix.
+
+    ``provider`` folds the WINNING provider's identity into the slot
+    (``…:canonical:v6:provider=<name>``) so a silent provider swap — FMP
+    rate-limited → yfinance fallback wins that run — can no longer overwrite a
+    DIFFERENT-caliber snapshot (period_basis / ttm_quarter_ends /
+    reporting_currency) under one shared ``…/<ticker>`` slot, nor serve it to a
+    later read that assumes the prior caliber. The DataLayer resolves it from the
+    provider chain: the WRITE keys on the provider that actually won
+    (``provenance.provider``), the READ on the preferred capable+healthy provider
+    (the one that will win the next walk), so a stable single-provider steady
+    state still hits its own slot and never thrashes. ``None`` → the bare,
+    unqualified slot (back-compat for callers that don't track provider).
     """
-    return f"{_normalize_data_type(data_type)}:canonical:v{CANONICAL_CONTRACT_VERSION}"
+    base = f"{_normalize_data_type(data_type)}:canonical:v{CANONICAL_CONTRACT_VERSION}"
+    return f"{base}:provider={provider}" if provider else base
 
 
 # Raw provider-slot format versions. Bump when a provider's cached RAW payload
@@ -358,6 +371,8 @@ class DataCache:
         data_type: str | DataType,
         ticker: str,
         max_age_hours: int | None = None,
+        *,
+        provider: str | None = None,
     ) -> CachedCanonical | None:
         """Retrieve a normalized payload from the versioned canonical slot.
 
@@ -367,25 +382,99 @@ class DataCache:
         ValidationError calls :meth:`delete_canonical` so the corrupt row
         self-heals instead of blocking the slot (the cache stays model-agnostic,
         so the payload twin of ``get``'s self-heal lives at the validation site).
+
+        ``provider`` selects the provider-qualified slot (see ``canonical_key``):
+        the DataLayer passes the preferred capable provider so the read targets
+        the slot the next write would land in.
         """
-        slot = await self._get_slot(canonical_key(data_type), ticker, data_type, max_age_hours)
+        slot = await self._get_slot(
+            canonical_key(data_type, provider), ticker, data_type, max_age_hours
+        )
         if slot is None:
             return None
         payload_json, cached_at, is_stale = slot
         return CachedCanonical(payload_json=payload_json, is_stale=is_stale, cached_at=cached_at)
 
+    async def get_canonical_latest(
+        self,
+        data_type: str | DataType,
+        ticker: str,
+        max_age_hours: int | None = None,
+    ) -> tuple[CachedCanonical, str | None] | None:
+        """Freshest canonical row across ALL provider-qualified slots for one
+        ``(data_type, ticker)`` — returns ``(CachedCanonical, provider)`` or None.
+
+        The provider-agnostic READ for the stale-while-revalidate paint
+        (``read_canonical_cached``): after a provider swap the preferred provider's
+        slot may be empty (a fallback provider wrote its own slot), so a strict
+        provider-keyed read would go cold and the desk would blank a row it has a
+        perfectly good (if stale, differently-calibered) last-known snapshot for.
+        This scans every ``…:canonical:v<N>:provider=*`` slot (plus the bare slot)
+        for the ticker and returns the most-recently cached one, tagged with its
+        provider so the caller surfaces the honest caliber. It NEVER lets a
+        fallback slot masquerade as the primary's: the freshness clock and the
+        ``provider`` tag travel with the row. ``fetch_canonical`` deliberately does
+        NOT use this — its refresh decision reads only the preferred slot so a
+        fallback caliber is never served as a fresh primary hit.
+        """
+        prefix = canonical_key(data_type)  # versioned base, no provider suffix
+        conn = await self._ensure_connection()
+        async with conn.execute(
+            "SELECT data_type, data, cached_at FROM cache "
+            "WHERE ticker = ? AND (data_type = ? OR data_type LIKE ?) "
+            "ORDER BY cached_at DESC LIMIT 1",
+            (ticker, prefix, f"{prefix}:provider=%"),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row is None:
+            return None
+        slot_key, payload_json, cached_at_str = row
+        try:
+            cached_at = datetime.fromisoformat(cached_at_str)
+        except ValueError:
+            logger.warning(
+                "Corrupt cache row (unparseable cached_at) for %s/%s — deleting (self-heal)",
+                slot_key,
+                ticker,
+            )
+            await self._delete_slot(slot_key, ticker)
+            return None
+        if cached_at.tzinfo is None:
+            cached_at = cached_at.replace(tzinfo=timezone.utc)
+        age_seconds = (datetime.now(tz=timezone.utc) - cached_at).total_seconds()
+        if max_age_hours is not None:
+            is_stale = age_seconds > max_age_hours * 3600
+        else:
+            is_stale = age_seconds > _get_ttl_seconds(data_type)
+        provider = slot_key.split(":provider=", 1)[1] if ":provider=" in slot_key else None
+        return (
+            CachedCanonical(payload_json=payload_json, is_stale=is_stale, cached_at=cached_at),
+            provider,
+        )
+
     async def set_canonical(
-        self, data_type: str | DataType, ticker: str, payload_json: str
+        self,
+        data_type: str | DataType,
+        ticker: str,
+        payload_json: str,
+        *,
+        provider: str | None = None,
     ) -> None:
         """Store a normalized payload (``Normalized*.model_dump_json()``) in the
-        versioned canonical slot, isolated from the raw slot."""
-        await self._set_slot(canonical_key(data_type), ticker, payload_json)
+        versioned canonical slot, isolated from the raw slot.
 
-    async def delete_canonical(self, data_type: str | DataType, ticker: str) -> None:
+        ``provider`` keys on the WINNING provider so a fallback-provider snapshot
+        of a different caliber lands in its OWN slot rather than overwriting the
+        primary provider's (see ``canonical_key``)."""
+        await self._set_slot(canonical_key(data_type, provider), ticker, payload_json)
+
+    async def delete_canonical(
+        self, data_type: str | DataType, ticker: str, *, provider: str | None = None
+    ) -> None:
         """Drop one canonical row — the DataLayer's self-heal hook for a payload
         that no longer validates as its ``Normalized*`` contract (see
-        ``get_canonical``)."""
-        await self._delete_slot(canonical_key(data_type), ticker)
+        ``get_canonical``). ``provider`` must match the slot that was read."""
+        await self._delete_slot(canonical_key(data_type, provider), ticker)
 
     async def clear(self, ticker: str | None = None) -> None:
         conn = await self._ensure_connection()

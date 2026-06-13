@@ -110,6 +110,39 @@ class DataLayer:
         logger.info("Provider '%s' in cooldown (circuit open) — skipping", provider.name)
         return True
 
+    def _preferred_canonical_provider(self, data_type: DataType) -> str | None:
+        """Name of the provider a canonical FINANCIALS fetch would prefer RIGHT
+        NOW — the first chain provider both capable of FINANCIALS and
+        health-available (not in an open breaker) — or ``None``.
+
+        This is the FINANCIALS canonical-slot READ key (see
+        ``cache.canonical_key``): that slot is provider-qualified to stop a silent
+        provider swap from overwriting/serving a different-caliber snapshot, and a
+        read precedes the provider walk, so it must predict which provider will
+        win. ``_fetch_uncached`` keeps the FIRST successful FINANCIALS provider as
+        primary (a secondary is fetched only to cross-validate, never to replace),
+        so "first capable + available" exactly predicts ``provenance.provider`` in
+        the steady state — read and write hit one slot, no thrash. During an FMP
+        outage the preferred provider becomes yfinance, so reads track the
+        fallback's slot rather than perpetually missing the down provider's.
+
+        Returns ``None`` for non-FINANCIALS types (they stay on the bare,
+        unqualified slot — PRICE's quote-only chain fallthrough makes the winning
+        provider not equal "first available", so qualifying it would thrash;
+        FORWARD_ESTIMATES is hard single-source) and when no FINANCIALS provider
+        is available (every one gated). A ``None`` read targets the bare slot,
+        which simply misses for FINANCIALS and triggers a fetch.
+        """
+        if data_type != DataType.FINANCIALS:
+            return None
+        for provider in self._providers:
+            if data_type not in provider.capabilities():
+                continue
+            if not self._health.is_available(provider.name):
+                continue
+            return provider.name
+        return None
+
     def provider_status(self) -> list[tuple[str, bool, ProviderState]]:
         """(name, available_now, breaker snapshot) per configured provider, in
         chain priority order — the Settings「Data Provider Status」panel feed.
@@ -413,7 +446,11 @@ class DataLayer:
                 f"got {data_type}. Other types have no canonical contract — use fetch()."
             )
 
-        cached = await self._cache.get_canonical(data_type, ticker)
+        # Read the provider-qualified slot for the provider that would win the
+        # next walk, so the steady-state hit and the steady-state write share one
+        # slot (see ``_preferred_canonical_provider`` / ``cache.canonical_key``).
+        read_provider = self._preferred_canonical_provider(data_type)
+        cached = await self._cache.get_canonical(data_type, ticker, provider=read_provider)
         if cached is not None and not cached.is_stale:
             try:
                 return self._deserialize_canonical(data_type, cached.payload_json, from_cache=True)
@@ -427,7 +464,7 @@ class DataLayer:
                     ticker,
                     data_type,
                 )
-                await self._cache.delete_canonical(data_type, ticker)
+                await self._cache.delete_canonical(data_type, ticker, provider=read_provider)
 
         # Cache miss/stale → single-flight the provider fetch: exactly one
         # in-flight call per (data_type, ticker); concurrent callers ride the
@@ -524,7 +561,23 @@ class DataLayer:
         # for the same reason: re-caching would reset the freshness clock on bars
         # that genuinely lag, and would freeze the degraded marker past recovery.
         if not raw.from_stale_cache and not raw.stale_history:
-            await self._cache.set_canonical(data_type, ticker, normalized.model_dump_json())
+            # FINANCIALS: key the canonical slot on the provider that ACTUALLY won
+            # this walk (provenance.provider), not the chain-preferred one — when a
+            # fallback provider wins (primary rate-limited), its different-caliber
+            # snapshot must land in its OWN slot, never overwriting the primary's.
+            # The steady-state primary still writes the slot the read targets, so a
+            # stable chain keeps hitting cache. PRICE / FORWARD_ESTIMATES stay on
+            # the bare slot (None) — both the write key and the read key — so their
+            # cache behavior is unchanged (see _preferred_canonical_provider).
+            write_provider = (
+                normalized.provenance.provider if data_type == DataType.FINANCIALS else None
+            )
+            await self._cache.set_canonical(
+                data_type,
+                ticker,
+                normalized.model_dump_json(),
+                provider=write_provider,
+            )
         # Circuit-open is an EPHEMERAL infra observation about THIS fetch (the
         # breaker recovers in seconds), not a property of the data — stamp it onto
         # the object returned to THIS caller, but only AFTER caching, so a provider
@@ -636,9 +689,17 @@ class DataLayer:
                 f"read_canonical_cached supports only PRICE / FINANCIALS / FORWARD_ESTIMATES, "
                 f"got {data_type}."
             )
-        cached = await self._cache.get_canonical(data_type, ticker)
-        if cached is None:
+        # Stale-while-revalidate paint must show the LAST-KNOWN snapshot, even
+        # across a provider swap: read the freshest row among ALL provider-qualified
+        # slots for this ticker (not just the preferred provider's, which may be
+        # empty after a fallback wrote its own slot — that would blank a row we can
+        # still paint). The returned row carries its own provider/caliber tag and
+        # honest is_stale; it is NEVER treated as a fresh primary hit (that decision
+        # lives in fetch_canonical, which reads only the preferred slot).
+        found = await self._cache.get_canonical_latest(data_type, ticker)
+        if found is None:
             return None
+        cached, slot_provider = found
         try:
             normalized = self._deserialize_canonical(
                 data_type, cached.payload_json, from_cache=True
@@ -651,7 +712,7 @@ class DataLayer:
                 ticker,
                 data_type,
             )
-            await self._cache.delete_canonical(data_type, ticker)
+            await self._cache.delete_canonical(data_type, ticker, provider=slot_provider)
             return None
         return normalized, cached.is_stale
 

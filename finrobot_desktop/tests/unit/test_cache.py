@@ -303,6 +303,65 @@ class TestCanonicalSlot:
         assert stale is not None and stale.is_stale is True
 
 
+class TestCanonicalProviderQualifiedSlot:
+    """A provider swap must not overwrite/serve a different-caliber FINANCIALS
+    snapshot under one key: ``canonical_key`` folds in the winning provider so
+    each provider's snapshot occupies its own slot."""
+
+    def test_provider_qualifies_the_key(self):
+        bare = canonical_key("financials")
+        fmp = canonical_key("financials", "fmp")
+        yf = canonical_key("financials", "yfinance")
+        assert fmp == f"{bare}:provider=fmp"
+        assert fmp != yf != bare
+        # None → unchanged bare slot (back-compat for non-provider callers).
+        assert canonical_key("financials", None) == bare
+
+    async def test_two_providers_land_in_distinct_slots(self, cache):
+        await cache.set_canonical("financials", "AAPL", '{"period_basis":"ttm"}', provider="fmp")
+        await cache.set_canonical(
+            "financials", "AAPL", '{"period_basis":"annual"}', provider="yfinance"
+        )
+        fmp = await cache.get_canonical("financials", "AAPL", provider="fmp")
+        yf = await cache.get_canonical("financials", "AAPL", provider="yfinance")
+        assert fmp is not None and fmp.payload_json == '{"period_basis":"ttm"}'
+        assert yf is not None and yf.payload_json == '{"period_basis":"annual"}'
+
+    async def test_same_provider_reread_hits(self, cache):
+        await cache.set_canonical("financials", "AAPL", '{"v":1}', provider="fmp")
+        hit = await cache.get_canonical("financials", "AAPL", provider="fmp")
+        assert hit is not None and hit.payload_json == '{"v":1}'
+
+    async def test_get_latest_picks_freshest_across_providers(self, cache):
+        import aiosqlite
+
+        await cache.set_canonical("financials", "AAPL", '{"who":"fmp"}', provider="fmp")
+        await cache.set_canonical("financials", "AAPL", '{"who":"yfinance"}', provider="yfinance")
+        # Backdate the fmp slot so yfinance is the freshest.
+        old = (datetime.now(tz=timezone.utc) - timedelta(hours=2)).isoformat()
+        async with aiosqlite.connect(cache._db_path) as conn:
+            await conn.execute(
+                "UPDATE cache SET cached_at = ? WHERE data_type = ?",
+                (old, canonical_key("financials", "fmp")),
+            )
+            await conn.commit()
+        found = await cache.get_canonical_latest("financials", "AAPL")
+        assert found is not None
+        cached, provider = found
+        assert provider == "yfinance"
+        assert cached.payload_json == '{"who":"yfinance"}'
+
+    async def test_get_latest_returns_none_on_true_miss(self, cache):
+        assert await cache.get_canonical_latest("financials", "ZZZZ") is None
+
+    async def test_old_unqualified_v_slot_misses_after_version_bump(self, cache):
+        """A pre-fix entry written at an OLDER bare version key must not be served
+        by either the provider-qualified read or the latest-scan."""
+        await cache._set_slot("financials:canonical:v5", "AAPL", '{"stale":true}')
+        assert await cache.get_canonical("financials", "AAPL", provider="fmp") is None
+        assert await cache.get_canonical_latest("financials", "AAPL") is None
+
+
 class TestRawSlotVersion:
     """Versioned raw slots auto-invalidate stale-format payloads on upgrade."""
 

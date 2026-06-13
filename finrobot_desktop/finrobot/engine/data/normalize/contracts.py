@@ -47,7 +47,19 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 # v4 FINANCIALS snapshots for that class hold FX-scaled WRONG line items (SHEL
 # ×~1.27, LULU ×~0.73, marked "ccy_inferred"+fx_normalized in provenance) — they
 # must miss so normalization re-runs with the tag taken at face value.
-CANONICAL_CONTRACT_VERSION = 5
+# v6 — 2026-06-13: the canonical slot key now folds in the WINNING provider
+# (``…:canonical:v6:provider=<name>``). Before, every provider's normalized
+# snapshot for one ticker shared a single ``…:canonical:v5/<ticker>`` slot, so a
+# silent provider swap (FMP rate-limited → yfinance fallback wins) overwrote a
+# DIFFERENT-caliber snapshot under the same key — different period_basis,
+# ttm_quarter_ends, or reporting_currency — and a later read served a caliber the
+# rest of the run didn't assume. Provider-qualifying the slot isolates calibers;
+# old v5 keys are unreachable under the new format → they miss and refetch
+# (acceptable, never serves the wrong caliber). period_basis is deliberately NOT
+# folded into the key: it is only known AFTER fetch+normalize, so the cache READ
+# (which precedes the provider walk) could never reconstruct it — provider
+# identity, resolvable up front from the chain, is the implementable caliber gate.
+CANONICAL_CONTRACT_VERSION = 6
 
 # Degradation markers carried in ``Provenance.degraded``. Surfaced to the UI so
 # a fallback is visible rather than silent.

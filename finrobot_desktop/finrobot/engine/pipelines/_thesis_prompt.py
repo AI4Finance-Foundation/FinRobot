@@ -268,6 +268,14 @@ def build_thesis_prompt(
         _whitelist_parts.append(
             f"  - peer_analysis.median_ev_revenue: {fmt_multiple(pa_for_prompt.median_ev_revenue)}"
         )
+        _whitelist_parts.append(
+            "  - PEER MULTIPLE LABELING RULE: peer_analysis.median_* values are "
+            "peer-set medians, NOT the subject company's own trading multiples. "
+            "Do not write that the subject trades at, above, or below a peer "
+            "multiple unless a subject-company multiple is explicitly listed. "
+            "Do not conclude peer-relative overvaluation or undervaluation from "
+            "peer multiples alone."
+        )
         for p in pa_for_prompt.peers[:8]:
             _whitelist_parts.append(
                 f"  - peer_analysis.peers['{p.ticker}']: "

@@ -10,6 +10,12 @@ When generating a report:
 - Keep professional tone — concise, data-driven, no filler
 
 Do NOT add new analysis. Organize and present what previous steps produced.
+Peer median multiples are peer-set medians, not the subject company's own
+trading multiples. Never phrase `peer_analysis.median_*` as "[ticker]'s median
+EV/EBITDA" or say the subject trades above/below that median unless the subject
+company's own comparable multiple is explicitly present in previous-step data.
+Do not infer peer-relative overvaluation or undervaluation from peer multiples
+alone.
 Write in the language specified by the step prompt's language instruction.
 Do not mix languages — use one language consistently throughout.
 

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from finrobot.engine.deps import FinRobotDeps
+    from finrobot.engine.skills.registry import SkillRegistry
 
 import httpx
 from pydantic import BaseModel, ValidationError
@@ -29,8 +30,9 @@ from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import CatalystAnalysis, CatalystEvent, StepOutput
 from finrobot.engine.pipelines.protocols import ArtifactBuilder, ProgressCallback
 from finrobot.engine.pipelines.result import PipelineResult
-from finrobot.engine.pipelines.step import PipelineStep, PipelineStepError
+from finrobot.engine.pipelines.step import PipelineStep, PipelineStepError, iter_skill_sections
 from finrobot.engine.pipelines.validators import ValidationResult
+from finrobot.engine.skills.pipeline_methodology import render_pipeline_methodology
 
 # Seconds to wait before each executor-exception retry (index = attempt number).
 _RETRY_DELAYS = [2, 5, 10]
@@ -90,6 +92,19 @@ _STEP_BOUNDARY_EXCEPTIONS = (
     json.JSONDecodeError,
     httpx.HTTPError,
 )
+
+
+def _resolve_step_methodology(step: PipelineStep, skill_runtime: "SkillRegistry | None") -> str:
+    """Load one-or-many step skills and render pipeline-safe methodology blocks."""
+    if skill_runtime is None:
+        return ""
+    blocks: list[str] = []
+    for skill_id in iter_skill_sections(step.skill_section):
+        skill = skill_runtime.get(skill_id)
+        if skill is not None:
+            blocks.append(render_pipeline_methodology(skill))
+    return "\n\n".join(blocks)
+
 
 _PROMPT_MAX_STRING_CHARS = 1200
 _PROMPT_MAX_LIST_ITEMS = 8
@@ -499,11 +514,7 @@ class Pipeline:
                 structured_results=structured_results,
             )
 
-            methodology = ""
-            if step.skill_section and deps.skill_runtime:
-                skill = deps.skill_runtime.get(step.skill_section)
-                if skill:
-                    methodology = skill.full_content
+            methodology = _resolve_step_methodology(step, deps.skill_runtime)
 
             prompt = self._build_step_prompt(
                 step,

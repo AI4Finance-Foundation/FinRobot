@@ -134,8 +134,12 @@ class TestPipelineStructure:
         assert step_map["financial_modeling"] == "dcf-model"
         assert step_map["ownership_governance_analysis"] is None
         assert step_map["technical_analysis"] is None
-        assert step_map["thesis"] == "initiating-coverage"
-        assert step_map["report"] is None
+        assert step_map["thesis"] == (
+            "initiating-coverage",
+            "competitive-analysis",
+            "thesis-tracker",
+        )
+        assert step_map["report"] == ("initiating-coverage", "tear-sheet", "equity-research")
 
     def test_step1_required_data(self):
         # Only FINANCIALS + PRICE feed the narrative prompt. SEC filings are

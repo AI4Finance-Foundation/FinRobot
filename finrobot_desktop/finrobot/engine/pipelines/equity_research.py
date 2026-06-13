@@ -1261,7 +1261,7 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
             ),
             PipelineStep(
                 name="thesis",
-                skill_section="initiating-coverage",
+                skill_section=("initiating-coverage", "competitive-analysis", "thesis-tracker"),
                 agent=agents["synthesis"],
                 required_data=[],
                 validator=StructuredValidator(
@@ -1272,7 +1272,7 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
             ),
             PipelineStep(
                 name="report",
-                skill_section=None,
+                skill_section=("initiating-coverage", "tear-sheet", "equity-research"),
                 agent=agents["report"],
                 required_data=[],
                 validator=TextValidator(validate_report_format),

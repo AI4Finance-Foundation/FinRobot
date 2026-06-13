@@ -276,6 +276,19 @@ async def test_whitelist_contains_peer_medians() -> None:
 
 
 @pytest.mark.asyncio
+async def test_peer_median_is_not_target_company_multiple() -> None:
+    """Peer median labels must not invite the LLM to invent a target multiple."""
+    ctx = _make_structured_context()
+    prompt = await _capture_thesis_prompt(ctx)
+    discipline = prompt[prompt.find("STRICT NUMERIC DISCIPLINE") :]
+
+    assert "PEER MULTIPLE LABELING RULE" in discipline
+    assert "peer-set medians, NOT the subject company's own trading multiples" in discipline
+    assert "unless a subject-company multiple is explicitly listed" in discipline
+    assert "Do not conclude peer-relative overvaluation or undervaluation" in discipline
+
+
+@pytest.mark.asyncio
 async def test_peer_whitelist_uses_frontend_caliber_formatting() -> None:
     """BUG-038: peer multiples / market_cap injected to the LLM must be pre-formatted
     to the SAME caliber the frontend peer table renders, not raw floats.
@@ -509,7 +522,11 @@ async def test_thesis_prompt_and_instructions_are_language_neutral() -> None:
     finally:
         _mod.Agent = original_agent  # type: ignore[assignment]
 
-    cjk = [ch for ch in captured.get("prompt", "") + captured.get("instructions", "") if "一" <= ch <= "鿿"]
+    cjk = [
+        ch
+        for ch in captured.get("prompt", "") + captured.get("instructions", "")
+        if "一" <= ch <= "鿿"
+    ]
     assert not cjk, (
         f"Hardcoded CJK leaked into the synthesis prompt/instructions: {''.join(sorted(set(cjk)))}. "
         "Instructions and prompt blocks must be language-neutral — output language is set "

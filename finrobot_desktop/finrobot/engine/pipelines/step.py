@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TypeAlias
 
 from pydantic_ai import Agent
 
@@ -10,6 +11,8 @@ from finrobot.engine.pipelines.protocols import (
     StepExecutor,
     StepValidator,
 )
+
+SkillSection: TypeAlias = str | tuple[str, ...]
 
 
 class PipelineStepError(RuntimeError):
@@ -35,7 +38,7 @@ class PipelineStep:
     validator: StepValidator
     executor: StepExecutor = field(default_factory=DefaultAgentExecutor)
     required_data: list[str | DataType] = field(default_factory=list)
-    skill_section: str | None = None
+    skill_section: SkillSection | None = None
     deterministic: bool = False
     """When True, the executor is a PURE function of structured_context +
     data_layer — it ignores the (re-)prompt entirely (e.g. _execute_dcf_calc,
@@ -59,3 +62,12 @@ class PipelineStep:
     produces the FinancialData every downstream step reads) — continuing past
     them only yields a confusing crash several steps later (e.g. peer_analysis:
     "target FinancialData not available")."""
+
+
+def iter_skill_sections(skill_section: SkillSection | None) -> tuple[str, ...]:
+    """Normalize one-or-many skill ids while keeping legacy single-id callers."""
+    if skill_section is None:
+        return ()
+    if isinstance(skill_section, str):
+        return (skill_section,)
+    return skill_section

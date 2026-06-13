@@ -732,25 +732,75 @@ def _schedule13_filer(f: Any) -> tuple[str, str | None]:
     return name, cik
 
 
+# Row-9 of the 13D/13G cover-page table: the ONLY authoritative beneficial-
+# ownership figure. Anchored on "Aggregat(e|ed) Amount Beneficially Owned" — the
+# "Aggregate" qualifier is what distinguishes Row 9 from the Rows 5-8 voting /
+# dispositive SUBTOTALS, which the bare "Amount Beneficially Owned" first-match
+# used to bind by accident (a Row-7 SOLE VOTING subtotal can sit physically
+# adjacent to the table's left-margin "...Beneficially Owned..." caption).
+# "Aggregated" (with a D) is a real filer spelling variant (Warner Bros 13G/A).
+_SCHED13_AGG_LABEL = re.compile(
+    r"Aggregat(?:e|ed)\s+Amount\s+Beneficially\s+Owned",
+    re.I,
+)
+# Cover-page row keywords that bound Row-9's cell. A vertical-label table layout
+# renders Row 9 with NO inline number (the value sits in a stripped column), so
+# the next ≥4-digit token after the label is Row 10/11/12 prose or — worse — the
+# CUSIP. Cutting the search slice at the next row keyword stops Tier-1 from
+# binding the CUSIP (e.g. Apple 037833100) as a share count.
+_SCHED13_ROW_BOUNDARY = re.compile(
+    r"\b(?:CHECK\s+(?:BOX|IF)|PERCENT\s+OF\s+CLASS|TYPE\s+OF\s+REPORTING"
+    r"|SOLE\s+VOTING|SHARED\s+VOTING|SOLE\s+DISPOSITIVE|SHARED\s+DISPOSITIVE"
+    r"|ROW\s*\(?\s*\d)",
+    re.I,
+)
+# Item 4(a) prose form: paper-style 13G (e.g. FMR LLC) with no cover-page table
+# states the aggregate inline — "Amount beneficially owned: N". Also the body
+# fallback for vertical-label tables whose cover Row 9 carries no inline number.
+_SCHED13_ITEM4A = re.compile(
+    r"Amount\s+beneficially\s+owned\s*[:\-]?\s*([0-9][0-9,]{3,})",
+    re.I,
+)
+_SCHED13_NUMBER = re.compile(r"([0-9][0-9,]{3,})")
+
+
 def _schedule13_shares(text: str) -> int | None:
-    """Parse "Amount Beneficially Owned: N" from a 13D/13G cover page.
+    """Parse the Row-9 *aggregate* beneficial ownership from a 13D/13G cover page.
+
+    The cover-page table's authoritative figure is Row 9 "Aggregate Amount
+    Beneficially Owned by Each Reporting Person" — NOT the Rows 5-8 voting /
+    dispositive subtotals. We anchor on the Row-9 label and read the first
+    ≥4-digit number in its cell (bounded by the next row keyword so a
+    label-without-inline-number layout can't bleed into the CUSIP). When no
+    cover-page table is present we fall back to the Item 4(a) prose form.
 
     Requires ≥4 digits so a cover-page item number ("Item 4") can't match.
-    Returns None when absent — the caller must NOT fabricate a 0.
+    Returns None when the aggregate genuinely can't be located — the caller
+    must NOT fabricate a 0, and we must never bind a Rows 5-8 subtotal or a
+    CUSIP in its place.
     """
     if not text:
         return None
-    m = re.search(
-        r"(?:Aggregate\s+)?Amount\s+Beneficially\s+Owned[^0-9]{0,40}([0-9][0-9,]{3,})",
-        text,
-        re.I,
-    )
-    if m is None:
-        return None
-    try:
-        return int(m.group(1).replace(",", ""))
-    except ValueError:
-        return None
+    # Tier 1 (structured): the Row-9 aggregate cell of the cover-page table.
+    for label in _SCHED13_AGG_LABEL.finditer(text):
+        window = text[label.end() : label.end() + 200]
+        boundary = _SCHED13_ROW_BOUNDARY.search(window)
+        if boundary is not None:
+            window = window[: boundary.start()]
+        num = _SCHED13_NUMBER.search(window)
+        if num is not None:
+            try:
+                return int(num.group(1).replace(",", ""))
+            except ValueError:
+                pass
+    # Tier 2 (prose): Item 4(a) aggregate for paper-style filings with no table.
+    prose = _SCHED13_ITEM4A.search(text)
+    if prose is not None:
+        try:
+            return int(prose.group(1).replace(",", ""))
+        except ValueError:
+            return None
+    return None
 
 
 def _schedule13_pct(text: str) -> float | None:

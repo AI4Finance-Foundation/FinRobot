@@ -1252,7 +1252,7 @@ def _sched13_helpers():
 
 def test_schedule13_shares_parses_amount_beneficially_owned() -> None:
     _, shares, _ = _sched13_helpers()
-    # FMR LLC NVDA 13G/A 2024-11-12 cover page (probe-verified text).
+    # FMR LLC NVDA 13G/A 2024-11-12 Item 4(a) prose form (probe-verified text).
     txt = "Item 4. Ownership\n(a) Amount Beneficially Owned: 998,190,803\n(b) Percent of Class: 4.069%"
     assert shares(txt) == 998_190_803
     # "Aggregate Amount Beneficially Owned" variant also matches.
@@ -1261,6 +1261,77 @@ def test_schedule13_shares_parses_amount_beneficially_owned() -> None:
     assert shares("No ownership table here") is None
     # A bare item number must not match (needs >=4 digits).
     assert shares("Item 4. Ownership (a) 123") is None
+
+
+def test_schedule13_shares_binds_row9_aggregate_not_row7_subtotal() -> None:
+    """REGRESSION: the FIRST loose "Amount Beneficially Owned" must NOT win.
+
+    Modeled on the GameStop SC 13D/A (acc 0000921895-24-001394) extracted layout,
+    where the cover-table left-margin caption ("...AMOUNT BENEFICIALLY OWNED BY
+    EACH REPORTING PERSON WITH") is split line-by-line and the Row-7 SOLE VOTING
+    POWER subtotal (36,847,842 in that real filing) renders adjacent to the
+    caption words. The OLD parser bound that subtotal; the parser must anchor on
+    the Row-9 "Aggregate Amount Beneficially Owned" label and return the true
+    aggregate instead.
+    """
+    _, shares, _ = _sched13_helpers()
+    # First loose "AMOUNT ... BENEFICIALLY OWNED" abuts the Row-7 SOLE VOTING
+    # subtotal 36,847,842; the real aggregate (Row 9) is the DIFFERENT 11,200,000.
+    cover = (
+        "   7   SOLE VOTING POWER\n"
+        " AMOUNT\n"
+        " BENEFICIALLY OWNED   36,847,842\n"
+        " BY EACH\n"
+        "   8   SHARED VOTING POWER\n"
+        " REPORTING   - 0 -\n"
+        " PERSON WITH\n"
+        "   9   AGGREGATE AMOUNT BENEFICIALLY OWNED BY EACH REPORTING PERSON\n"
+        "                                  11,200,000\n"
+        "  11   PERCENT OF CLASS REPRESENTED BY AMOUNT IN ROW (9)   2.6%\n"
+    )
+    assert shares(cover) == 11_200_000  # Row-9 aggregate, NOT the 36,847,842 subtotal
+
+
+def test_schedule13_shares_inline_table_real_layouts() -> None:
+    """Row-9 aggregate from the inline cover-table layouts, against real filings.
+
+    - Apple/Vanguard SC 13G/A 2024-02-13 (acc 0001104659-24-020009): Rows 5-8
+      carry voting/dispositive subtotals; Row 9 = 1,317,966,471.
+    - Warner Bros. Discovery SC 13G/A 2024-01-25 (acc 0000093751-24-000272):
+      filer spells the label "AGGREGATED AMOUNT" (with a D) — must still match.
+    """
+    _, shares, _ = _sched13_helpers()
+    aapl_vanguard = (
+        "7. SOLE DISPOSITIVE POWER\n1,254,220,941\n"
+        "8. SHARED DISPOSITIVE POWER\n63,745,530\n"
+        "9. AGGREGATE AMOUNT BENEFICIALLY OWNED BY EACH REPORTING PERSON\n1,317,966,471\n"
+        "10. CHECK BOX IF THE AGGREGATE AMOUNT IN ROW (9) EXCLUDES CERTAIN SHARES\nN/A\n"
+    )
+    assert shares(aapl_vanguard) == 1_317_966_471
+    wbd_aggregated = (
+        "8. SOLE DISPOSITIVE POWER 135,675,989 "
+        "9. AGGREGATED AMOUNT BENEFICIALLY OWNED BY EACH REPORTING PERSON 136,648,651 "
+        "10. CHECK BOX"
+    )
+    assert shares(wbd_aggregated) == 136_648_651
+
+
+def test_schedule13_shares_vertical_label_does_not_bind_cusip() -> None:
+    """REGRESSION: a Row-9 label with no inline number must NOT bind the CUSIP.
+
+    Apple SC 13G/A 2024-02-14 (acc 0001193125-24-036431) renders a vertical-label
+    cover table: Row 9's label has no adjacent number (values sit in a stripped
+    column), and the next ≥4-digit token after the label is the CUSIP 037833100.
+    The parser must NOT mistake that CUSIP for a share count — with no Item 4(a)
+    prose aggregate, it must return None rather than fabricate.
+    """
+    _, shares, _ = _sched13_helpers()
+    vertical = (
+        "AGGREGATE AMOUNT BENEFICIALLY OWNED BY 10 CHECK BOX IF THE AGGREGATE "
+        "AMOUNT IN ROW 11 PERCENT OF CLASS REPRESENTED BY AMOUNT IN 12 TYPE OF "
+        "CUSIP No. 037833100 13G Page 3 of 48 Pages"
+    )
+    assert shares(vertical) is None
 
 
 def test_schedule13_pct_parses_percent_of_class() -> None:

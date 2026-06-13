@@ -17,6 +17,7 @@ Why a single payload (not three separate structured keys):
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from datetime import date
 from typing import Any
 
@@ -121,6 +122,7 @@ async def build_technical_analysis(
     *,
     reliable: bool = True,
     current_ev_ebitda: float | None = None,
+    price_fx_to_usd: float = 1.0,
 ) -> TechnicalAnalysis:
     """Run MC + Sniper + Bands and assemble the payload.
 
@@ -136,11 +138,22 @@ async def build_technical_analysis(
             ``(market_cap + net_debt) / TTM_EBITDA``). Used as the band's
             *current* point so the report never shows two different "current
             EV/EBITDA" (B2). None → band falls back to trailing-annual EBITDA.
+        price_fx_to_usd: quote→USD spot factor for the raw price history this
+            function re-fetches (``load_price_history`` returns native quote-
+            currency closes). ``current_price`` and ``dcf_target`` arrive already
+            USD-normalized; without scaling the history the sniper would build
+            support/resistance off native-ccy closes (e.g. TWD ~1000) while
+            comparing them to a USD ``current_price`` (~31) — the second leg of
+            BUG-073 caliber drift. 1.0 (default) for USD-quoted issuers → no-op.
+            The EV/EBITDA band is a dimensionless ratio and currency-cancels
+            per year, so it is NOT scaled.
     """
     warnings: list[str] = []
 
     monte_carlo = _safe_monte_carlo(ticker, dcf_inputs, current_price, warnings)
     prices = await load_price_history(ticker, data_layer, years=1)
+    if price_fx_to_usd != 1.0:
+        prices = [replace(p, close=p.close * price_fx_to_usd) for p in prices]
     sniper = _safe_sniper(ticker, current_price, dcf_target, prices, warnings, reliable=reliable)
     historical_bands = await _safe_historical_bands(
         ticker, data_layer, band_years, warnings, current_ev_ebitda=current_ev_ebitda

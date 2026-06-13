@@ -47,6 +47,7 @@ from finrobot.engine.compute.operators.valuation_synthesis import (
 )
 from finrobot.engine.compute.coordinators.extractor import normalize_financials_to_usd
 from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
+from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.compute.operators.ownership import compute_ownership_governance
 from finrobot.engine.compute.coordinators.technical_payload import (
     TECHNICAL_DCF_UNAVAILABLE_MARKER,
@@ -504,9 +505,40 @@ async def _execute_financial_modeling(
     # so a TWD numerator (revenue/net_income/debt) never mixes with the USD
     # market_cap — the cross-currency garbage that prints a TWD-per-share implied
     # price as USD and corrupts the WACC debt-weight (BUG-073). No-op for US issuers.
+    _orig_quote_currency = financial_data.quote_currency
     financial_data = await normalize_financials_to_usd(
         financial_data, fmp_api_key=getattr(deps.settings, "fmp_api_key", None)
     )
+    # The quote→USD spot factor used above, so technical_analysis can scale the
+    # raw native-currency price history (which it re-fetches straight from the
+    # data layer via load_price_history) into the SAME USD as current_price /
+    # dcf_target. Without it the sniper would build support/resistance off TWD
+    # closes while comparing them to a USD current_price — the second leg of the
+    # same BUG-073 caliber drift the snapshot normalization above doesn't reach.
+    # 1.0 for a USD quote (US issuers, foreign ADRs) → no-op. Cache-hot: the rate
+    # was just fetched inside normalize_financials_to_usd (15-min FX TTL).
+    structured_context["price_fx_to_usd"] = (
+        1.0
+        if _orig_quote_currency.upper() == "USD"
+        else await fetch_fx_rate_to_usd(
+            _orig_quote_currency, fmp_api_key=getattr(deps.settings, "fmp_api_key", None)
+        )
+    )
+    # Write the USD-normalized copy BACK into structured_context so EVERY later
+    # step reads single-currency USD — not the un-normalized native-currency
+    # snapshot the data step stored once (BUG-073 caliber drift). Without this,
+    # technical_analysis re-read data_collection and compared a TWD current_price
+    # (~NT$1000) against this step's USD dcf.implied_price (~US$31): a fabricated
+    # SHORT, nonsensical sniper levels, and current_price in the far tail of the
+    # USD-seeded Monte Carlo. valuation_synthesis (current_net_debt / forward_eps)
+    # and current_ev_ebitda (market_cap vs USD net_debt) mixed the same way. This
+    # is the single chokepoint that makes the whole downstream pipeline — and the
+    # artifact builder that dumps data_collection — currency-consistent, honoring
+    # the multiples.py "single-currency at the data chokepoint" contract.
+    # For a foreign issuer the artifact now reports price/market_cap in USD with
+    # quote_currency=USD (was the native quote): the report becomes internally
+    # USD-consistent rather than mixing a USD DCF target with a native-ccy quote.
+    structured_context["data_collection"] = financial_data
 
     # Stage-1 growth seed: prefer analyst consensus (the multi-year forward path
     # the data step already fetched) over a backward-looking trailing CAGR, so
@@ -736,6 +768,14 @@ async def _execute_technical_analysis(
     # (band then falls back to trailing-annual EBITDA).
     current_ev_ebitda_value = current_ev_ebitda(financial_data, dcf.inputs.net_debt)
 
+    # quote→USD factor stamped at the FX chokepoint in financial_modeling, so the
+    # raw native-currency price history build_technical_analysis re-fetches scales
+    # into the SAME USD as current_price / dcf_target (BUG-073 second leg). 1.0 for
+    # USD-quoted issuers; defaults to 1.0 when financial_modeling degraded before
+    # stamping it (then the only price source is already-USD anyway).
+    price_fx = structured_context.get("price_fx_to_usd")
+    price_fx_to_usd = float(price_fx) if isinstance(price_fx, (int, float)) else 1.0
+
     payload = await build_technical_analysis(
         ticker=ticker,
         dcf_inputs=dcf.inputs,
@@ -744,6 +784,7 @@ async def _execute_technical_analysis(
         data_layer=deps.data_layer,
         reliable=reliable,
         current_ev_ebitda=current_ev_ebitda_value,
+        price_fx_to_usd=price_fx_to_usd,
     )
 
     summary_parts: list[str] = []

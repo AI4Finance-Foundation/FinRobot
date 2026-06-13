@@ -1262,6 +1262,183 @@ async def test_low_wacc_run_degrades_to_relative_valuation(mock_deps):
     assert validate_technical_analysis(tech_out.structured).passed is True
 
 
+def _twd_local_financial_data():
+    """A locally-listed TWD issuer: reporting_currency == quote_currency == TWD.
+
+    Magnitudes mirror a TSMC-like local listing — NT$ revenue/debt, an NT$~1000
+    quote, NT$ market cap. The FX-drift bug (BUG-073, second leg) bites exactly
+    this shape: financial_modeling normalizes a LOCAL copy to USD and seeds the
+    DCF from USD, but the un-normalized TWD snapshot used to leak forward into
+    technical_analysis / EV-EBITDA / synthesis.
+    """
+    from datetime import datetime, timezone
+
+    from finrobot.engine.models.financial import (
+        BalanceSheet,
+        FinancialData,
+        IncomeStatement,
+        MarketData,
+        ValuationMetrics,
+    )
+
+    return FinancialData(
+        ticker="2330.TW",
+        company_name="TSMC (local listing)",
+        timestamp=datetime.now(tz=timezone.utc),
+        reporting_currency="TWD",
+        quote_currency="TWD",
+        income=IncomeStatement(
+            revenue=2_160e9,
+            ebitda=1_400e9,
+            net_income=850e9,
+            gross_margin=0.53,
+            operating_margin=0.42,
+            interest_expense=4e9,
+        ),
+        balance=BalanceSheet(total_debt=900e9, total_cash=1_500e9),
+        market=MarketData(
+            market_cap=26_000e9,
+            shares_outstanding=25.9e9,
+            current_price=1000.0,
+            price_52w_high=1100.0,
+            price_52w_low=600.0,
+            industry="Semiconductors",
+            beta=1.05,
+        ),
+        valuation=ValuationMetrics(),
+    )
+
+
+@pytest.mark.asyncio
+async def test_foreign_issuer_technical_analysis_consumes_usd_not_native_currency(mock_deps):
+    """BUG-073 (caliber drift, second leg): for a locally-listed NON-USD issuer
+    (reporting_currency == quote_currency == TWD), technical_analysis must consume
+    a current_price in the SAME currency as the USD-seeded dcf_target — never the
+    native TWD quote.
+
+    Production-live shape: drive the REAL pipeline functions
+    (_execute_financial_modeling → _execute_technical_analysis) end-to-end, with
+    only the FX spot read patched deterministically (32 TWD/USD). Asserts:
+
+    1. data_collection is rewritten to USD after financial_modeling (single
+       currency for every downstream consumer);
+    2. the dcf_target the sniper anchors to is USD;
+    3. the sniper's price levels land in USD magnitude (~US$30), NOT the native
+       NT$~1000 — proving load_price_history's native bars were FX-scaled.
+
+    A live-shaped assertion (not a fixture echo): a fixture that hard-coded both
+    legs already USD would pass even with the bug present. Forcing reporting ==
+    quote == TWD through the real normalize→seed→technical chain is what makes
+    this catch a regression of either leg (snapshot write-back OR price-history
+    scaling).
+    """
+    from datetime import date, timedelta
+
+    from finrobot.engine.compute.coordinators.technical_payload import TechnicalAnalysis
+    from finrobot.engine.models.financial import DCFResult, FinancialData, HistoricalMetrics
+    from finrobot.engine.pipelines.equity_research import (
+        _execute_financial_modeling,
+        _execute_technical_analysis,
+    )
+    from finrobot.engine.primitives.historical_valuation import PricePoint
+
+    twd_per_usd = 32.0
+
+    async def _fixed_fx(currency, *, fmp_api_key=None):
+        return 1.0 / twd_per_usd if currency.upper() == "TWD" else 1.0
+
+    # Native-currency 1y price path (real PricePoint dataclasses, as
+    # load_price_history returns) around the NT$1000 quote.
+    base = date(2026, 1, 1)
+    twd_bars = [
+        PricePoint(sample_date=base + timedelta(days=i), close=float(c))
+        for i, c in enumerate((900, 950, 1000, 1050, 980, 1010, 1000, 990, 1020, 1000))
+    ]
+
+    mock_deps.settings.fmp_api_key = None
+    # Bands leg hits the data layer; stub to empty so it degrades (band is a
+    # dimensionless ratio anyway — currency-invariant, not the leg under test).
+    mock_deps.data_layer.fetch_historical = AsyncMock(return_value=[])
+    mock_deps.data_layer.fetch_price_range = AsyncMock(return_value=[])
+
+    hm = HistoricalMetrics(
+        years=[],
+        revenue=[],
+        revenue_growth_yoy=[],
+        cogs=[],
+        gross_profit=[],
+        gross_margin=[],
+        sga=[],
+        sga_ratio=[],
+        ebitda=[],
+        ebitda_margin=[],
+        operating_income=[],
+        operating_margin=[],
+        net_income=[],
+        eps=[],
+        pe_ratio=[],
+        cagr_revenue=None,
+        ticker="2330.TW",
+    )
+    ctx: dict[str, object] = {
+        "data_collection": _twd_local_financial_data(),
+        "historical_metrics": hm,
+    }
+    mock_agent = MagicMock()
+
+    with (
+        patch(
+            "finrobot.engine.compute.coordinators.extractor.fetch_fx_rate_to_usd",
+            side_effect=_fixed_fx,
+        ),
+        patch(
+            "finrobot.engine.pipelines.equity_research.fetch_fx_rate_to_usd",
+            side_effect=_fixed_fx,
+        ),
+        patch(
+            "finrobot.engine.compute.coordinators.technical_payload.load_price_history",
+            new=AsyncMock(return_value=twd_bars),
+        ),
+    ):
+        fm_out = await _execute_financial_modeling(mock_agent, mock_deps, "p", ctx, "2330.TW")
+        dcf = ctx.get("financial_modeling")
+        assert isinstance(dcf, DCFResult), f"DCF degraded unexpectedly: {fm_out.warnings}"
+
+        # (1) data_collection rewritten to USD — single currency downstream.
+        stored = ctx["data_collection"]
+        assert isinstance(stored, FinancialData)
+        assert stored.reporting_currency == "USD"
+        assert stored.quote_currency == "USD"
+        # current_price collapsed from NT$1000 to ~US$31 (1000 / 32).
+        assert stored.market.current_price == pytest.approx(1000.0 / twd_per_usd, rel=1e-6)
+
+        # (2) the dcf_target the sniper anchors to is USD.
+        assert dcf.inputs.currency == "USD"
+
+        # FX factor stamped for the price-history leg.
+        assert ctx.get("price_fx_to_usd") == pytest.approx(1.0 / twd_per_usd, rel=1e-6)
+
+        tech_out = await _execute_technical_analysis(mock_agent, mock_deps, "p", ctx, "2330.TW")
+
+    payload = tech_out.structured
+    assert isinstance(payload, TechnicalAnalysis)
+
+    # (3) sniper levels are USD magnitude (~US$30), NOT native NT$~1000. If the
+    # price history had leaked native TWD, support/resistance would be ~1000.
+    assert payload.sniper is not None
+    assert payload.sniper.support_level < 100.0
+    assert payload.sniper.resistance_level < 100.0
+    # Resistance = rolling max of the FX-scaled price series (max close NT$1050 →
+    # ~US$32.8). The native NT$ levels (≥900) never leak through.
+    assert payload.sniper.resistance_level == pytest.approx(1050.0 / twd_per_usd, abs=0.5)
+    assert payload.sniper.support_level == pytest.approx(900.0 / twd_per_usd, abs=0.5)
+
+    # Monte Carlo is seeded from USD dcf_inputs + USD current_price; its mean is
+    # USD magnitude, not NT$ — a single-currency MC distribution.
+    assert payload.monte_carlo is not None
+    assert payload.monte_carlo.mean < 100.0
+
+
 # ---------------------------------------------------------------------------
 # BUG-015: recoverable AgentRunError must propagate (not be wrapped into
 # non-recoverable ValueError that defeats base.py's retry-by-type)

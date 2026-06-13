@@ -106,6 +106,68 @@ Pipeline-safe research snapshot framework:
 - Do not call LSEG tools, browse, compute new valuation metrics, create files,
   or add source dates that were not supplied.
 """,
+    "strip-profile": """
+Pipeline-safe company strip-profile framework:
+- Organize the snapshot as four dense panels: company overview (identity, HQ,
+  scale, leadership), business & positioning (revenue drivers, products, moat,
+  end markets), key financials & valuation (revenue, EBITDA, margins, EPS, FCF,
+  market cap, EV, multiples), and recent developments / ownership.
+- Pack each panel with specific numbers and context — "$50B revenue (+6% YoY)",
+  "EBITDA margin 25% (vs 18% peer avg)" — never vague qualifiers.
+- All financial, valuation, ownership, and segment figures must come from the
+  upstream deterministic payload. If a figure is absent, state it is not
+  supplied; do not invent market share, multiples, or shareholder splits.
+- This is a narrative methodology only: do not build PptxGenJS slides, render
+  images, ask the user single-vs-multi-slide questions, request outline sign-off,
+  produce slides incrementally, or pause for human sign-off between slides.
+""",
+    "process-letter": """
+Pipeline-safe M&A process-letter framework:
+- Use to structure how a sell-side process is communicated: letter type (initial
+  process letter / IOI instructions / final-bid letter / management-meeting
+  invitation), process timeline and rounds, and what each round requires.
+- IOI requirements to frame: indicative enterprise-value range, consideration
+  form (cash/stock/earnout/rollover), financing certainty, diligence needs,
+  timeline to close, conditions, and strategic rationale.
+- Final-bid additions to frame: SPA/APA markup, committed financing letters,
+  confirmatory diligence scope, exclusivity terms, regulatory/antitrust timeline,
+  key-personnel terms, and the evaluation criteria bidders are judged on.
+- This is a narrative methodology only: do not draft or send actual letters,
+  generate Word/.docx files, manage a recipient log, or route the letter for
+  client sign-off prior to distribution.
+""",
+    "deal-sourcing": """
+Pipeline-safe PE deal-sourcing framework:
+- Frame sourcing as discover → relationship-check → outreach-rationale, but as
+  analysis, not execution.
+- Discovery: define the thesis filter (sector, revenue/EBITDA range, growth
+  profile, geography, ownership type — founder-owned / PE-backed / carve-out) and
+  describe the target shortlist by name, size, location, and thesis fit.
+- Relationship context: note where prior firm contact would change the approach
+  ("new" vs "existing relationship" vs "previously passed") as an analytical
+  flag, framed from supplied evidence only.
+- Outreach rationale: describe what makes a founder approach compelling
+  (company-specific hook, partnership framing, concise low-pressure ask) as
+  qualitative guidance.
+- This is a narrative methodology only: do not search Gmail/Slack/CRM, draft or
+  send founder emails, route shortlists for human sign-off, or pause for human
+  confirmation before any step.
+""",
+    "client-report": """
+Pipeline-safe client performance-report framework:
+- Organize as: report parameters (client, period, accounts, benchmark),
+  performance summary (portfolio vs benchmark across QTD/YTD/1Y/3Y/5Y/ITD),
+  allocation overview, holdings detail, market commentary, activity summary, and
+  planning notes against stated goals.
+- Performance is net of fees unless gross is explicitly required; benchmark is
+  the IPS benchmark, not whichever flatters the result.
+- All returns, balances, allocation weights, and holdings come from the upstream
+  deterministic payload. If a value is absent, state it is not supplied; do not
+  fabricate returns, fees, or benchmark deltas.
+- This is a narrative methodology only: do not generate PDF/Word/Excel files,
+  apply firm branding, or route the template through a compliance sign-off gate
+  prior to distribution.
+""",
 }
 
 

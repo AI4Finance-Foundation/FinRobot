@@ -27,8 +27,12 @@ from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import DCFInputs
 from finrobot.engine.orchestrator import create_lead_agent
 from finrobot.engine.skills.registry import SkillRegistry
+from tests.unit.test_pipeline_methodology import INTERACTIVE_CHECKPOINT_PHRASES
 
 FIXTURES_DIR = Path(__file__).parent.parent / "fixtures" / "skills"
+# The repo's real skills tree — used to exercise activate_skill against an actual
+# interactive Claude-Code skill (the fixtures are inert stubs).
+REAL_SKILLS_DIR = Path(__file__).resolve().parents[2] / "skills"
 
 
 # ---------------------------------------------------------------------------
@@ -74,6 +78,11 @@ def _deps(skill_runtime=None) -> FinRobotDeps:
 def _query_financial_data_fn(agent):
     """Return the raw query_financial_data coroutine registered on the agent."""
     return agent._function_toolset.tools["query_financial_data"].function
+
+
+def _activate_skill_fn(agent):
+    """Return the raw activate_skill coroutine registered on the agent."""
+    return agent._function_toolset.tools["activate_skill"].function
 
 
 def _run_context(deps: FinRobotDeps) -> RunContext[FinRobotDeps]:
@@ -165,18 +174,41 @@ class TestActivateSkill:
             result = await agent.run("activate skill comps-analysis", deps=deps)
         assert isinstance(result.output, str)
 
-    async def test_activate_skill_returns_content_when_registry_set(self):
+    async def test_activate_skill_returns_pipeline_safe_rendering(self):
+        """activate_skill (Mode A) must return the pipeline-safe methodology, not
+        the raw SKILL.md body — symmetric with Mode B's _resolve_step_methodology.
+
+        For a whitelisted skill the tool returns the distilled '### {id}: {name}'
+        block, never the original body. The fixture 'test-skill' is unknown, so it
+        falls back to its body but still carries the rendered header — confirming
+        the call routes through render_pipeline_methodology rather than full_content.
+        """
         registry = SkillRegistry(FIXTURES_DIR)
         agent = _agent(skill_registry=registry)
         deps = _deps(skill_runtime=registry)
-        with agent.override(
-            model=TestModel(
-                custom_output_text="Here is the skill content.",
-                call_tools=["activate_skill"],
-            )
-        ):
-            result = await agent.run("activate skill comps-analysis", deps=deps)
-        assert isinstance(result.output, str)
+        activate_skill = _activate_skill_fn(agent)
+
+        result = await activate_skill(_run_context(deps), "test-skill")
+
+        assert result.startswith("### test-skill: Test Skill")
+
+    async def test_activate_skill_interactive_skill_is_checkpoint_free(self):
+        """A known-interactive real skill (strip-profile: 'STOP and wait for
+        explicit user approval', 'one slide at a time') must come back through
+        activate_skill stripped of every checkpoint directive."""
+        if not REAL_SKILLS_DIR.is_dir():
+            pytest.skip("real skills tree not present")
+        registry = SkillRegistry(REAL_SKILLS_DIR)
+        assert registry.get("strip-profile") is not None, "expected interactive skill missing"
+        agent = _agent(skill_registry=registry)
+        deps = _deps(skill_runtime=registry)
+        activate_skill = _activate_skill_fn(agent)
+
+        rendered = (await activate_skill(_run_context(deps), "strip-profile")).lower()
+
+        assert "pipeline-safe company strip-profile framework" in rendered
+        leaked = [p for p in INTERACTIVE_CHECKPOINT_PHRASES if p in rendered]
+        assert not leaked, f"activate_skill leaked checkpoint phrases: {leaked}"
 
     async def test_activate_skill_unknown_id_returns_error(self):
         registry = SkillRegistry(FIXTURES_DIR)

@@ -28,6 +28,7 @@ from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.pipelines.base import Pipeline
 from finrobot.engine.pipelines.registry import PipelineSpec, iter_pipeline_specs
+from finrobot.engine.skills.pipeline_methodology import render_pipeline_methodology
 from finrobot.engine.skills.registry import SkillRegistry
 
 logger = logging.getLogger(__name__)
@@ -490,7 +491,13 @@ def create_lead_agent(
         skill = ctx.deps.skill_runtime.get(skill_id)
         if not skill:
             return f"Unknown skill. Available: {ctx.deps.skill_runtime.list_ids()}"
-        return skill.full_content
+        # Render the pipeline-safe methodology, not the raw SKILL.md body. The raw
+        # body carries interactive Claude-Code checkpoints ("wait for user
+        # approval", "one task at a time") that, leaked into Mode A chat driving an
+        # unattended report run, instruct the agent to stop and wait for a human.
+        # This is the same distillation Mode B applies via _resolve_step_methodology
+        # — Mode A and Mode B now consume one identical rendering path.
+        return render_pipeline_methodology(skill)
 
     # --- Mode B tools: pipeline dispatch for deep analysis ---
     #

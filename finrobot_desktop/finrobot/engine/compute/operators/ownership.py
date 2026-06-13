@@ -7,6 +7,7 @@ No LLM touches these numbers.
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import date, datetime, timezone
 from typing import Any
@@ -19,6 +20,8 @@ from finrobot.engine.models.sec import (
     ProxyCompensation,
     ScheduleThirteenAlert,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_date(value: Any) -> date:
@@ -797,6 +800,41 @@ def build_schedule13_alerts(raw_schedule13: dict[str, Any]) -> list[ScheduleThir
     return rows
 
 
+# Officer-title tokens that identify the *current* CEO in Form-4 metadata. The
+# filer self-declares this title in structured XML — a far more reliable CEO
+# identity than scraping a name out of DEF 14A prose, which grabbed director
+# "T. Mark Liu" off another company's "Former Chief Executive Officer of Intel"
+# bio for MU (2026-06) while the Form-4s carried the real CEO "Sanjay Mehrotra".
+_CEO_TITLE_RE = re.compile(r"chief executive officer|\bceo\b", re.I)
+
+
+def _ceo_name_from_insiders(insiders: list[InsiderTransaction]) -> str | None:
+    """Resolve the current CEO's name from Form-4 officer titles.
+
+    Returns the name carried by the most Form-4 filings whose ``insider_position``
+    declares a current-CEO title (tie-break: most recent filing). ``None`` when no
+    insider holds such a title. Explicit "former" titles are skipped so a departed
+    CEO's residual filings cannot win.
+    """
+    counts: dict[str, int] = {}
+    latest: dict[str, date] = {}
+    for tx in insiders:
+        position = tx.insider_position or ""
+        if "former" in position.lower():
+            continue
+        if not _CEO_TITLE_RE.search(position):
+            continue
+        name = (tx.insider_name or "").strip()
+        if not name:
+            continue
+        counts[name] = counts.get(name, 0) + 1
+        if name not in latest or tx.filing_date > latest[name]:
+            latest[name] = tx.filing_date
+    if not counts:
+        return None
+    return max(counts, key=lambda n: (counts[n], latest[n]))
+
+
 def compute_ownership_governance(
     *,
     insider_data: dict[str, Any] | None,
@@ -815,6 +853,20 @@ def compute_ownership_governance(
         degraded_sections.append("institutional_holdings")
 
     proxy = build_proxy_compensation(proxy_data or {})
+    # CEO identity is a structured fact: the Form-4 officer title (self-declared
+    # in XML) is authoritative over the DEF 14A prose scraper, which is fragile
+    # enough to grab a director's surname off another firm's "Former CEO of X"
+    # bio (MU showed "Liu" — director T. Mark Liu — while Form-4s carry the real
+    # CEO "Sanjay Mehrotra"). Override the scraped name whenever a Form-4 CEO
+    # resolves; the prose scraper stays as the no-Form-4 fallback.
+    ceo_from_insiders = _ceo_name_from_insiders(insiders)
+    if proxy is not None and ceo_from_insiders and proxy.ceo_name != ceo_from_insiders:
+        logger.info(
+            "ownership: CEO name set from Form-4 officer title %r (was proxy-scraped %r)",
+            ceo_from_insiders,
+            proxy.ceo_name,
+        )
+        proxy.ceo_name = ceo_from_insiders
     if proxy is None:
         degraded_sections.append("proxy_compensation")
     elif (

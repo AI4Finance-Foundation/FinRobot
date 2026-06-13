@@ -408,6 +408,90 @@ def test_compute_ownership_governance_builds_typed_models_with_provenance() -> N
     assert analysis.proxy_compensation.ceo_total_compensation == 51_800_000
 
 
+def test_ceo_name_uses_form4_officer_title_over_prose_scrape() -> None:
+    """CEO identity is a structured fact — the Form-4 officer title wins over the
+    DEF 14A prose scraper.
+
+    Regression for MU (2026-06): the scraper grabbed director "T. Mark Liu" off
+    another firm's "Former Chief Executive Officer of Intel" bio while the Form-4s
+    carried the real CEO "Sanjay Mehrotra". The comp figure is correct from the
+    proxy; only the name must come from the authoritative Form-4 title.
+    """
+    analysis = compute_ownership_governance(
+        insider_data={
+            "transactions": [
+                {
+                    "filing_date": "2026-06-02",
+                    "accession_no": "0001242654-26-000010",
+                    "insider_name": "Sanjay Mehrotra",
+                    "insider_position": "President and CEO",
+                    "transaction_type": "sale",
+                    "code": "S",
+                    "shares": 560,
+                    "value": 545_300,
+                    "price_per_share": 973.75,
+                    "security_type": "non-derivative",
+                    "security_title": "Common Stock",
+                }
+            ]
+        },
+        institutional_data=None,
+        proxy_data={
+            "filing_date": "2025-11-25",
+            "accession_no": "0000723125-25-000038",
+            "text": (
+                "Former Chief Executive Officer and Chief Financial Officer of "
+                "Intel Corporation\n  T. Mark Liu was appointed to the Board, "
+                "except for Mr. Liu and Ms. Simons, who joined in March 2025. "
+                "Total CEO compensation was $30,940,146."
+            ),
+            "source_url": "https://www.sec.gov/Archives/example",
+        },
+    )
+    assert analysis.proxy_compensation is not None
+    assert analysis.proxy_compensation.ceo_name == "Sanjay Mehrotra"
+    assert analysis.proxy_compensation.ceo_total_compensation == 30_940_146
+
+
+def test_ceo_name_from_insiders_skips_former_and_nonceo_titles() -> None:
+    """The Form-4 CEO resolver picks the current-CEO title, skipping a departed
+    CEO's residual filings and non-CEO officers."""
+    from finrobot.engine.compute.operators.ownership import (
+        _ceo_name_from_insiders,
+        build_insider_transactions,
+    )
+
+    insiders = build_insider_transactions(
+        {
+            "transactions": [
+                {
+                    "filing_date": "2026-01-01",
+                    "accession_no": "a",
+                    "insider_name": "Old Boss",
+                    "insider_position": "Former Chief Executive Officer",
+                    "code": "S",
+                },
+                {
+                    "filing_date": "2026-02-01",
+                    "accession_no": "b",
+                    "insider_name": "Money Person",
+                    "insider_position": "Chief Financial Officer",
+                    "code": "S",
+                },
+                {
+                    "filing_date": "2026-03-01",
+                    "accession_no": "c",
+                    "insider_name": "Real Boss",
+                    "insider_position": "President and Chief Executive Officer",
+                    "code": "S",
+                },
+            ]
+        }
+    )
+    assert _ceo_name_from_insiders(insiders) == "Real Boss"
+    assert _ceo_name_from_insiders([]) is None
+
+
 def test_extract_ceo_name_rejects_paragraph_spanning_phrase() -> None:
     """TSLA DEF 14A 2025 contained a section heading "A More Profitable
     Future for Tesla and a Better Future for Us All" followed by a paragraph

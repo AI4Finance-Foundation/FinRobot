@@ -52,6 +52,12 @@ DEFAULT_HOLDING_PERIOD: Final[int] = 5
 DEFAULT_INTEREST_RATE: Final[float] = 0.07  # Blended LBO-loan + HY bond rate
 DEFAULT_MANDATORY_AMORT: Final[float] = 0.05  # 5% / yr typical Term Loan B
 DEFAULT_NWC_PCT_REVENUE: Final[float] = 0.01  # Conservative working-capital drag
+# LBO tax rate is clamped into this band: below it a near-zero industry aggregate
+# overstates the debt tax shield; above it an outlier rate understates levered FCF.
+# When the clamp binds it is disclosed in provenance so the displayed rate is never
+# implied to be the raw industry figure (same honesty convention as BUG-023).
+LBO_TAX_RATE_FLOOR: Final[float] = 0.10
+LBO_TAX_RATE_CAP: Final[float] = 0.40
 
 
 def seed_lbo_inputs(
@@ -181,8 +187,23 @@ def seed_lbo_inputs(
         prov["nwc_change_pct_revenue"] = f"{nwc_pct:.1%}（历史不可得，按 PE 承销基准）"
 
     # ----- tax_rate ---------------------------------------------------------
-    tax_rate = max(0.10, min(0.40, industry.effective_tax_rate))
-    prov["tax_rate"] = f"{tax_rate:.1%}（{industry.industry} 行业实际有效税率）"
+    # Clamp the industry rate into [floor, cap], then disclose the floor/cap when
+    # it binds so the displayed rate is never implied to be the raw industry value
+    # (BUG-023 honesty convention — displayed == used, with the raw figure surfaced).
+    raw_industry_tax = industry.effective_tax_rate
+    tax_rate = max(LBO_TAX_RATE_FLOOR, min(LBO_TAX_RATE_CAP, raw_industry_tax))
+    if raw_industry_tax < LBO_TAX_RATE_FLOOR:
+        prov["tax_rate"] = (
+            f"{tax_rate:.1%}（{industry.industry} 行业实际有效税率 {raw_industry_tax:.1%}，"
+            f"已夹至下限 {LBO_TAX_RATE_FLOOR:.0%}）"
+        )
+    elif raw_industry_tax > LBO_TAX_RATE_CAP:
+        prov["tax_rate"] = (
+            f"{tax_rate:.1%}（{industry.industry} 行业实际有效税率 {raw_industry_tax:.1%}，"
+            f"已夹至上限 {LBO_TAX_RATE_CAP:.0%}）"
+        )
+    else:
+        prov["tax_rate"] = f"{tax_rate:.1%}（{industry.industry} 行业实际有效税率）"
 
     # ----- interest_rate ---------------------------------------------------
     # LBO debt is typically TLB + HY-bond mix. Prefer the company's effective

@@ -24,6 +24,8 @@ from finrobot.engine.compute.operators.dcf import calculate_dcf, solve_for_impli
 from finrobot.engine.compute.operators.dcf_seed import (
     COST_OF_DEBT_CAP,
     COST_OF_DEBT_FLOOR,
+    DCF_TAX_RATE_CAP,
+    TAX_RATE_OUTLIER_CAP,
     _cost_of_debt,
     _decay_growth_schedule,
     _effective_tax_rate,
@@ -494,6 +496,88 @@ class TestEffectiveTaxRate:
         inputs = seed_dcf_inputs(fin, _aapl_historical())
         assert inputs.tax_rate == pytest.approx(0.2096, abs=1e-3)
         assert "最新财报有效税率" in inputs.assumption_provenance["tax_rate"]
+
+    def test_outlier_rate_provenance_reports_used_value_and_discloses_cap(self):
+        """High-tax one-off year (raw 60% > 45% cap): the DCF must USE the
+        industry fallback AND the provenance must report that SAME used value,
+        disclosing that the 60% raw rate breached the cap and was dropped.
+
+        Regression for the audit-trail bug where the rejection reason was
+        hardcoded to "无可用税项/税前为负" even when a real (out-of-band) tax line
+        existed — provenance must never describe a number it isn't using, nor a
+        reason that didn't happen. Mirrors the cost-of-debt clamp disclosure
+        (BUG-023): displayed == used, and the dropped raw rate is surfaced.
+        """
+        fin = _aapl_financials()
+        # tax 60B / pretax (40B + 60B) = 60% effective — a settlement/valuation
+        # -allowance year, not the run-rate.
+        fin.income.income_tax_expense = 60_000_000_000
+        fin.income.net_income = 40_000_000_000
+
+        raw_rate = 60e9 / (40e9 + 60e9)
+        assert raw_rate > TAX_RATE_OUTLIER_CAP  # precondition: clamp binds
+
+        inputs = seed_dcf_inputs(fin, _aapl_historical())
+        prov = inputs.assumption_provenance["tax_rate"]
+
+        # (a) the DCF uses the industry fallback, NOT the 60% raw rate
+        assert inputs.tax_rate != pytest.approx(raw_rate)
+        assert 0.0 < inputs.tax_rate <= TAX_RATE_OUTLIER_CAP
+        # (b) provenance reports the SAME value the DCF uses (displayed == used)
+        assert f"{inputs.tax_rate:.1%}" in prov
+        # ...and discloses the dropped raw rate + the cap, not a false "no tax line"
+        assert "60.0%" in prov
+        assert f"{TAX_RATE_OUTLIER_CAP:.0%}" in prov
+        assert "上限" in prov
+        assert "无可用税项" not in prov
+
+    def test_company_rate_above_model_cap_uses_and_displays_clamped(self):
+        """A company effective rate ACCEPTED by _effective_tax_rate (≤45%) but
+        above the modelling cap (40%) must be clamped to the cap, and provenance
+        must report that SAME clamped value — not the raw 42%.
+
+        This is the core displayed≠used bug: the DCF discounts at 40% while the
+        report shows 42%, corrupting the audit trail. Regression locks displayed
+        == used and the cap disclosure for the in-accept-band-but-over-model-cap
+        slice that _effective_tax_rate alone does not catch.
+        """
+        fin = _aapl_financials()
+        # tax 42B / pretax (58B + 42B) = 42% — a real (not one-off) high rate that
+        # passes the 45% outlier accept band but exceeds the 40% modelling cap.
+        fin.income.income_tax_expense = 42_000_000_000
+        fin.income.net_income = 58_000_000_000
+
+        raw_rate = 42e9 / (58e9 + 42e9)
+        assert raw_rate <= TAX_RATE_OUTLIER_CAP  # accepted as a company rate
+        assert raw_rate > DCF_TAX_RATE_CAP  # but above the modelling cap
+
+        inputs = seed_dcf_inputs(fin, _aapl_historical())
+        prov = inputs.assumption_provenance["tax_rate"]
+
+        # (a) the DCF uses the clamped cap, NOT the raw 42%
+        assert inputs.tax_rate == pytest.approx(DCF_TAX_RATE_CAP)
+        # (b) provenance reports the SAME used value (displayed == used)
+        assert f"{inputs.tax_rate:.1%}" in prov
+        # ...and discloses the dropped raw rate + the cap, not a bare "42%"
+        assert "42.0%" in prov
+        assert "已夹至上限" in prov
+        assert f"{DCF_TAX_RATE_CAP:.0%}" in prov
+
+    def test_in_band_rate_provenance_equals_raw_no_clamp_note(self):
+        """Symmetric in-band case: a normal 21% effective rate is used as-is and
+        the provenance reports that exact raw rate with no clamp/cap disclosure."""
+        fin = _aapl_financials()
+        fin.income.income_tax_expense = 21_000_000_000
+        fin.income.net_income = 79_000_000_000  # pretax 100B → 21%
+
+        inputs = seed_dcf_inputs(fin, _aapl_historical())
+        prov = inputs.assumption_provenance["tax_rate"]
+
+        assert inputs.tax_rate == pytest.approx(0.21, abs=1e-4)
+        assert f"{inputs.tax_rate:.1%}" in prov
+        assert "最新财报有效税率" in prov
+        assert "上限" not in prov
+        assert "已弃用" not in prov
 
 
 # ---------------------------------------------------------------------------

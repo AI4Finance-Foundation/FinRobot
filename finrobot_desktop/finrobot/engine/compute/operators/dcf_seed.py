@@ -72,6 +72,26 @@ _GROWTH_FLOOR: Final[float] = -0.20
 COST_OF_DEBT_FLOOR: Final[float] = 0.02
 COST_OF_DEBT_CAP: Final[float] = 0.20
 
+# Company effective tax rate is accepted only inside [floor, cap]. Outside the
+# band the implied rate is a one-off item (a large credit/benefit pushing it
+# below 0, or a settlement/valuation-allowance year pushing it above the cap)
+# rather than the sustainable run-rate, so the DCF falls back to the industry
+# median. The rejection + the rejected raw rate are disclosed in provenance so
+# the substitution that shapes the tax shield is never silent — same honesty
+# convention as the cost-of-debt clamp (BUG-023) and the comps tax rate (BUG-049).
+TAX_RATE_OUTLIER_FLOOR: Final[float] = 0.0
+TAX_RATE_OUTLIER_CAP: Final[float] = 0.45
+
+# After the company-vs-industry choice, the rate fed to the DCF is clamped into
+# this modelling band: below the floor the tax shield is implausibly generous for
+# a going concern, above the cap it is a distressed/one-off level no sustainable
+# operation pays. This is the rate the DCF ACTUALLY uses, so the provenance must
+# be built from the post-clamp value and disclose the floor/cap when it binds —
+# otherwise a 42% company rate prints as "42%" while the DCF discounts at 40%
+# (the displayed≠used audit-trail corruption this module must never ship).
+DCF_TAX_RATE_FLOOR: Final[float] = 0.05
+DCF_TAX_RATE_CAP: Final[float] = 0.40
+
 # Minimum historical samples required before we trust the ticker's own median.
 # Fewer than this ⇒ fall back to industry median. This is purely a THRESHOLD;
 # it does NOT bound how many years feed the median (that is _MEDIAN_WINDOW_YEARS).
@@ -275,7 +295,7 @@ def _effective_tax_rate(income_tax_expense: float | None, net_income: float | No
     if pretax <= 0:
         return None
     rate = income_tax_expense / pretax
-    if rate < 0.0 or rate > 0.45:
+    if rate < TAX_RATE_OUTLIER_FLOOR or rate > TAX_RATE_OUTLIER_CAP:
         return None
     return rate
 
@@ -634,14 +654,56 @@ def seed_dcf_inputs(
     company_tax = _effective_tax_rate(
         financials.income.income_tax_expense, financials.income.net_income
     )
+    # Step 1 — pick the source rate and the reason it was chosen. ``tax_reason``
+    # is the inner clause of the provenance; the displayed value is filled in
+    # AFTER the modelling clamp so it always equals the rate the DCF uses.
     if company_tax is not None:
-        tax_rate = company_tax
-        prov["tax_rate"] = f"{tax_rate:.1%}（最新财报有效税率 = 所得税 / 税前利润）"
+        chosen_tax = company_tax
+        tax_reason = "最新财报有效税率 = 所得税 / 税前利润"
     else:
-        tax_rate = industry.effective_tax_rate
+        # Company rate was rejected. The DCF uses the industry fallback, and the
+        # provenance must state the REAL reason — never imply "no tax line" when
+        # the line existed but was an out-of-band one-off. When the raw rate is
+        # computable and breached the cap/floor, disclose it so the substitution
+        # is visible, mirroring the cost-of-debt clamp (BUG-023).
+        chosen_tax = industry.effective_tax_rate
+        tax_expense = financials.income.income_tax_expense
+        net_income = financials.income.net_income
+        raw_tax_rate: float | None = None
+        if tax_expense is not None and net_income is not None:
+            pretax = net_income + tax_expense
+            if pretax > 0:
+                raw_tax_rate = tax_expense / pretax
+        if raw_tax_rate is not None and raw_tax_rate > TAX_RATE_OUTLIER_CAP:
+            tax_reason = (
+                f"{industry.industry} 行业实际有效税率——财报有效税率 "
+                f"{raw_tax_rate:.1%} 超 {TAX_RATE_OUTLIER_CAP:.0%} 上限属一次性税项，已弃用"
+            )
+        elif raw_tax_rate is not None and raw_tax_rate < TAX_RATE_OUTLIER_FLOOR:
+            tax_reason = (
+                f"{industry.industry} 行业实际有效税率——财报有效税率 "
+                f"{raw_tax_rate:.1%} 低于 {TAX_RATE_OUTLIER_FLOOR:.0%} 下限属一次性税项抵免，已弃用"
+            )
+        else:
+            tax_reason = f"{industry.industry} 行业实际有效税率——财报无可用税项/税前为负"
+
+    # Step 2 — apply the modelling band [DCF_TAX_RATE_FLOOR, DCF_TAX_RATE_CAP] that
+    # the DCF actually uses, and build provenance from the CLAMPED value, disclosing
+    # the floor/cap when it binds. This is the same point where DCFInputs is later
+    # constructed (the Field validator clamps too); doing it here keeps the displayed
+    # rate identical to the used rate even when the chosen source rate (e.g. a 42%
+    # company rate) sits between the outlier cap and the modelling cap.
+    tax_rate = max(DCF_TAX_RATE_FLOOR, min(DCF_TAX_RATE_CAP, chosen_tax))
+    if chosen_tax > DCF_TAX_RATE_CAP:
         prov["tax_rate"] = (
-            f"{tax_rate:.1%}（{industry.industry} 行业实际有效税率——财报无可用税项/税前为负）"
+            f"{tax_rate:.1%}（{tax_reason}：{chosen_tax:.1%}，已夹至上限 {DCF_TAX_RATE_CAP:.0%}）"
         )
+    elif chosen_tax < DCF_TAX_RATE_FLOOR:
+        prov["tax_rate"] = (
+            f"{tax_rate:.1%}（{tax_reason}：{chosen_tax:.1%}，已夹至下限 {DCF_TAX_RATE_FLOOR:.0%}）"
+        )
+    else:
+        prov["tax_rate"] = f"{tax_rate:.1%}（{tax_reason}）"
 
     # ----- WACC components --------------------------------------------------
     # Beta: prefer provider-reported beta, fall back to industry levered beta,
@@ -739,7 +801,9 @@ def seed_dcf_inputs(
         nwc_pct_revenue=nwc_pct,
         terminal_nwc_pct_revenue=terminal_nwc_pct,
         da_pct_revenue=max(0.005, min(0.40, da_pct)),
-        tax_rate=max(0.05, min(0.40, tax_rate)),
+        # Already clamped to [DCF_TAX_RATE_FLOOR, DCF_TAX_RATE_CAP] above, where the
+        # clamp is disclosed in provenance; this is an idempotent safety net.
+        tax_rate=max(DCF_TAX_RATE_FLOOR, min(DCF_TAX_RATE_CAP, tax_rate)),
         risk_free_rate=risk_free_rate,
         beta=max(0.3, min(2.5, beta_chosen)),
         equity_risk_premium=equity_risk_premium,

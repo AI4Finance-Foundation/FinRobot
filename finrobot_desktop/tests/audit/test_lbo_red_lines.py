@@ -230,6 +230,80 @@ def test_lbo_assumption_provenance_messages_are_chinese():
     assert not offenders, "LBO provenance messages must contain Chinese:\n" + "\n".join(offenders)
 
 
+def _out_of_band_industry(monkeypatch: pytest.MonkeyPatch, rate: float) -> None:
+    """Force seed_lbo_inputs to see an industry effective tax rate of ``rate``.
+
+    No production Damodaran default currently falls outside the [10%, 40%] LBO
+    clamp band, so the clamp is silent today — but a future data refresh could
+    make it bind. This patches the resolved IndustryDefault so the disclosure is
+    verified regardless of current data.
+    """
+    import dataclasses
+
+    from finrobot.engine.compute.operators import lbo_seed as _mod
+    from finrobot.engine.data.industry_defaults import get_industry_default
+
+    base = get_industry_default("Software (System & Application)")
+    patched = dataclasses.replace(base, effective_tax_rate=rate)
+    monkeypatch.setattr(_mod, "get_industry_default", lambda _industry: patched)
+
+
+def test_lbo_tax_rate_clamp_cap_disclosed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When the industry rate exceeds the cap, the LBO uses the clamped value AND
+    the provenance reports that SAME clamped value while disclosing the raw rate
+    + the cap — never implying the displayed number is the raw industry figure.
+
+    Audit-trail invariant: any clamped/transformed input must be disclosed at the
+    value actually used, never the raw (BUG-023 honesty convention).
+    """
+    from finrobot.engine.compute.operators.lbo_seed import LBO_TAX_RATE_CAP
+
+    raw = 0.52
+    assert raw > LBO_TAX_RATE_CAP  # precondition: clamp binds
+    _out_of_band_industry(monkeypatch, raw)
+
+    inputs = seed_lbo_inputs(_minimal_financials(), _empty_historical())
+    prov = inputs.assumption_provenance["tax_rate"]
+
+    # (a) DCF/LBO uses the clamped cap, not the 52% raw rate
+    assert inputs.tax_rate == pytest.approx(LBO_TAX_RATE_CAP)
+    # (b) provenance reports the SAME clamped value (displayed == used)
+    assert f"{LBO_TAX_RATE_CAP:.1%}" in prov
+    # ...and discloses the dropped raw rate + the cap
+    assert "52.0%" in prov
+    assert "已夹至上限" in prov
+
+
+def test_lbo_tax_rate_clamp_floor_disclosed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Symmetric floor case: a near-zero industry aggregate is clamped up and the
+    provenance discloses the raw rate + the floor."""
+    from finrobot.engine.compute.operators.lbo_seed import LBO_TAX_RATE_FLOOR
+
+    raw = 0.04
+    assert raw < LBO_TAX_RATE_FLOOR
+    _out_of_band_industry(monkeypatch, raw)
+
+    inputs = seed_lbo_inputs(_minimal_financials(), _empty_historical())
+    prov = inputs.assumption_provenance["tax_rate"]
+
+    assert inputs.tax_rate == pytest.approx(LBO_TAX_RATE_FLOOR)
+    assert f"{LBO_TAX_RATE_FLOOR:.1%}" in prov
+    assert "4.0%" in prov
+    assert "已夹至下限" in prov
+
+
+def test_lbo_tax_rate_in_band_no_clamp_note(monkeypatch: pytest.MonkeyPatch) -> None:
+    """In-band industry rate is used as-is with no clamp disclosure."""
+    _out_of_band_industry(monkeypatch, 0.21)
+
+    inputs = seed_lbo_inputs(_minimal_financials(), _empty_historical())
+    prov = inputs.assumption_provenance["tax_rate"]
+
+    assert inputs.tax_rate == pytest.approx(0.21)
+    assert "21.0%" in prov
+    assert "已夹至" not in prov
+
+
 def test_lbo_missing_ebitda_falls_back_to_industry_estimate():
     """income.ebitda None (provider omitted EBITDA) must route to the same
     industry-implied fallback as a non-positive EBITDA — never crash on a None

@@ -6,10 +6,7 @@
 
 import { open as openShell } from '@tauri-apps/plugin-shell'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
-import {
-  readTextFile as fsReadTextFile,
-  writeTextFile as fsWriteTextFile,
-} from '@tauri-apps/plugin-fs'
+import { writeTextFile as fsWriteTextFile } from '@tauri-apps/plugin-fs'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 
 /** Returns true when running inside a Tauri webview. */
@@ -67,13 +64,6 @@ export async function pickDirectory(): Promise<string | null> {
 }
 
 // ─── File system ──────────────────────────────────────────────────
-
-export async function readTextFile(path: string): Promise<string> {
-  if (!isTauri()) {
-    throw new Error(`readTextFile not available in browser (path: ${path})`)
-  }
-  return fsReadTextFile(path)
-}
 
 export interface SaveFileFilter {
   /** Human label shown in the OS save dialog, e.g. "HTML". */

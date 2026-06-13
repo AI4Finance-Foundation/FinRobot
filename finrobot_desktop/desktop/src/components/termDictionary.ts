@@ -298,8 +298,3 @@ export function lookupTerm(term: string, locale: Locale): TermDef | null {
   if (!suffix) return null
   return TERMS[suffix][locale]
 }
-
-/** True when `term` has a glossary entry (any locale). */
-export function isKnownTerm(term: string): boolean {
-  return term in ALIASES
-}

@@ -15,13 +15,12 @@ import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useUiStore } from '../stores/uiStore'
 import { useI18n } from '../i18n'
-import { lookupTerm, isKnownTerm } from './termDictionary'
+import { lookupTerm } from './termDictionary'
 
 // Short definitions + "ask LLM" prompts live in ./termDictionary (locale-keyed),
 // so the full zh/en pair for a term is one editable block a sell-side reviewer
 // can vet — rather than 4 scattered Lingui .po msgids. Only the tooltip chrome
 // (aria label, "ask more" link) stays in the .po catalog.
-export { isKnownTerm }
 
 interface Props {
   /** Term to look up (case-sensitive, must be an alias in termDictionary) */

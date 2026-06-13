@@ -63,59 +63,6 @@ export interface ArtifactSummaryV5 {
   primary_provider?: string | null
 }
 
-/** Mirror of `engine.compute.signal.HitRateStats` (PR1). */
-export interface HitRateStats {
-  n_total: number
-  n_closed: number
-  n_hit: number
-  hit_rate: number | null
-  avg_excess_return: number | null
-}
-
-/** Mirror of `engine.compute.valuation_aggregator.ValuationMethodRange` (PR2). */
-export type ValuationMethodName = 'dcf' | 'comps_pe' | 'lbo' | 'ddm' | 'ev_ebitda' | 'p_fcf'
-
-export interface ValuationMethodRange {
-  method: ValuationMethodName
-  method_type: 'valuation' | 'multiple'
-  low: number
-  mid: number
-  high: number
-  confidence: number
-  source: string
-  warnings: string[]
-}
-
-export interface ValuationAggregate {
-  ticker: string
-  current_price: number | null
-  as_of: string
-  methods: ValuationMethodRange[]
-  warnings: string[]
-}
-
-/** Mirror of historical bands response (PR3). */
-export type HistoricalMetric = 'ev_ebitda' | 'p_fcf'
-
-export interface HistoricalBandPoint {
-  date: string
-  value: number
-}
-
-export interface HistoricalBandResponse {
-  ticker: string
-  metric: HistoricalMetric
-  current: number | null
-  median: number | null
-  p25: number | null
-  p75: number | null
-  p90: number | null
-  timeline: HistoricalBandPoint[]
-  sample_count: number
-  classification: 'expensive' | 'fair' | 'cheap' | 'unknown'
-  warnings: string[]
-}
-
 /** Mirror of sentiment endpoint (PR4b §6.12). */
 export interface SentimentSnapshot {
   ticker: string

@@ -66,18 +66,3 @@ def bar_extreme(bar: Mapping[str, Any], field: str) -> float | None:
             except (TypeError, ValueError):
                 continue
     return None
-
-
-def trailing_52w_high_low(
-    price_history: list[dict[str, Any]],
-) -> tuple[float | None, float | None]:
-    """52-week high/low over the trailing 52 calendar weeks of ``price_history``.
-
-    Uses intraday high/low when present (falls back to close).
-    """
-    if not price_history:
-        return None, None
-    window = trim_to_trailing_window(price_history)
-    highs = [h for b in window if (h := bar_extreme(b, "high")) is not None]
-    lows = [low for b in window if (low := bar_extreme(b, "low")) is not None]
-    return (max(highs) if highs else None, min(lows) if lows else None)

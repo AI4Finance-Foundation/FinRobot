@@ -41,7 +41,6 @@ from finrobot.routes.data import router as data_router
 from finrobot.routes.health import router as health_router
 from finrobot.routes.debate import router as debate_router
 from finrobot.routes.runs import router as runs_router
-from finrobot.routes.search import router as search_router
 from finrobot.routes.sec_holdings import router as sec_holdings_router
 from finrobot.routes.settings import load_non_secret_settings_with_error
 from finrobot.routes.settings import router as settings_router
@@ -555,7 +554,6 @@ app.include_router(artifacts_router)
 app.include_router(chat_sessions_router)
 app.include_router(coverage_router)
 app.include_router(dashboard_router)
-app.include_router(search_router, prefix="/api/search", tags=["search"])
 app.include_router(valuation_router)
 app.include_router(sentiment_router)
 app.include_router(debate_router)

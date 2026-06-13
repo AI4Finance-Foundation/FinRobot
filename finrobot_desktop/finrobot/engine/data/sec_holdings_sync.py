@@ -51,10 +51,6 @@ def get_state() -> dict[str, Any]:
     return asdict(_STATE)
 
 
-def is_running() -> bool:
-    return _STATE.status == "running"
-
-
 def reset_state_for_test() -> None:
     """Test-only: clear refresh state back to idle."""
     global _STATE

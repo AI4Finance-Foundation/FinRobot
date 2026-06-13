@@ -35,7 +35,6 @@ dependencies = [
     "pyyaml>=6.0",
     "matplotlib>=3.8",
     "jinja2>=3.1",
-    "openpyxl>=3.1",
     "rank-bm25>=0.2.2",
     "keyring>=25.0",
     "edgartools>=5.31.5",
@@ -113,7 +112,6 @@ module = [
     "yfinance.*",
     "pydantic_ai.*",
     "rank_bm25.*",
-    "openpyxl.*",
     "aiosqlite.*",
     "backtrader.*",
     "edgar.*",        # edgartools 5.31 ships without py.typed

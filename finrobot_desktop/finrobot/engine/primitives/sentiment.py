@@ -129,18 +129,3 @@ def score_headline(headline: str) -> float:
     raw = (pos_count - neg_count) / total
     # Clamp to [-1, 1] (mathematically guaranteed, but explicit for clarity)
     return max(-1.0, min(1.0, raw))
-
-
-def score_headlines(headlines: list[str]) -> float:
-    """Average sentiment score across multiple headlines.
-
-    Args:
-        headlines: List of headline strings.
-
-    Returns:
-        Average sentiment in [-1.0, 1.0]. 0.0 if list is empty.
-    """
-    if not headlines:
-        return 0.0
-    scores = [score_headline(h) for h in headlines]
-    return sum(scores) / len(scores)

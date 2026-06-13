@@ -153,20 +153,6 @@ class DcfSeedResponse(BaseModel):
     reverse_horizon: "DcfReverseResult | None" = None
 
 
-class DcfReverseRequest(BaseModel):
-    """Reverse-DCF input: solve either for implied growth or implied WACC."""
-
-    inputs: DCFInputs
-    target_price: float = Field(gt=0)
-    # Which axis to solve. "growth" finds the constant revenue growth rate that
-    # justifies target_price; "wacc" finds the discount rate.
-    solve_for: str = Field(default="growth", pattern="^(growth|wacc)$")
-    horizon_years: int = Field(default=5, ge=1, le=15)
-    wacc_override: float | None = Field(default=None, ge=0, le=0.50)
-    tg_override: float | None = Field(default=None, ge=-0.05, le=0.10)
-    mid_year: bool = False
-
-
 class DcfReverseResult(BaseModel):
     solve_for: str
     target_price: float

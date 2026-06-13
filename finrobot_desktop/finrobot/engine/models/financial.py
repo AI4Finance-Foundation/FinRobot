@@ -241,41 +241,6 @@ FIELD_WARN_EV_CROSS_CURRENCY = "ev_cross_currency"
 so a quote-ccy market_cap and reporting-ccy net debt can't form a valid ratio."""
 
 
-class AggregatedNewsItem(BaseModel):
-    """Single news item from the multi-source aggregator.
-
-    Lighter than compute.news.NewsItem (which requires LLM classification).
-    This model holds raw aggregated data + keyword-based sentiment score.
-    """
-
-    title: str
-    source: str
-    url: str = ""
-    published_at: str = ""
-    sentiment_score: float | None = Field(
-        default=None,
-        ge=-1.0,
-        le=1.0,
-        description="Keyword or Alpha Vantage sentiment. -1 to +1. None if unavailable.",
-    )
-    category: str | None = None
-
-
-class AggregatedNewsFeed(BaseModel):
-    """Response model for /api/data/{ticker}/news endpoint."""
-
-    ticker: str
-    items: list[AggregatedNewsItem]
-    sources_used: list[str]
-    overall_sentiment: float = Field(
-        ge=-1.0,
-        le=1.0,
-        description="Average sentiment across all items.",
-    )
-    fetched_at: datetime
-    warnings: list[str] = Field(default_factory=list)
-
-
 class PriceHistory(BaseModel):
     """Structured price history."""
 
@@ -1053,14 +1018,6 @@ class LBOResult(BaseModel):
 # ---------------------------------------------------------------------------
 # Earnings Models (P2d)
 # ---------------------------------------------------------------------------
-
-
-class SurpriseDirection(str):
-    """Beat/miss/inline classification. Not an Enum to avoid Pydantic v2 coercion issues."""
-
-    BEAT = "beat"
-    MISS = "miss"
-    INLINE = "inline"
 
 
 class EarningsSurprise(BaseModel):

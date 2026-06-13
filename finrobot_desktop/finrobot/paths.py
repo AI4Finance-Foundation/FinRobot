@@ -14,7 +14,6 @@ separately. One module, one set of constants.
 from __future__ import annotations
 
 import logging
-import sqlite3
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -42,13 +41,6 @@ async def configure_connection(conn: aiosqlite.Connection) -> None:
     await conn.execute("PRAGMA journal_mode=WAL")
     await conn.execute("PRAGMA synchronous=NORMAL")
     await conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
-
-
-def configure_connection_sync(conn: sqlite3.Connection) -> None:
-    """Apply the shared PRAGMA tuning to a synchronous sqlite3 connection."""
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA synchronous=NORMAL")
-    conn.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
 
 
 def _home() -> Path:

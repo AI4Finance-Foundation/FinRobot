@@ -686,6 +686,59 @@ class TestFMPFetchHistorical:
         assert y0["financing_cash_flow"] == -95_000_000_000
 
     @pytest.mark.asyncio
+    async def test_historical_ebitda_is_operating_caliber_not_fmp_field(self, provider):
+        """BUG #3: the per-year historical band EBITDA must be the OPERATING
+        caliber (operatingIncome + D&A) — the SAME caliber as the current point
+        (_build_ttm_data / current_ev_ebitda) — not FMP's own ``ebitda`` field,
+        which is bottom-up (NetIncome+Tax+Interest+D&A) and includes non-operating
+        income. Serving FMP's field made the historical EV/EBITDA band classifier
+        (cheap/fair/expensive) compare a current operating multiple against
+        historical bottom-up multiples — a caliber mismatch (live-verified TSLA:
+        FMP ebitda 9–18% above OI+D&A per year).
+
+        Fixture: operatingIncome 119B, D&A 11B → operating EBITDA 130B for year 0,
+        which is DISTINCT from FMP's ebitda field (130B − i*5B but with the OI/D&A
+        split chosen so the two calibers differ for i>0)."""
+        income = _fmp_multi_year_income("AAPL", 3)
+        responses = [
+            _mock_response(income),
+            _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_multi_year_cashflow("AAPL", 3)),
+            _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_shares_float_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials", years=3)
+        for i, year in enumerate(result.data["yearly_data"]):
+            oi = income[i]["operatingIncome"]
+            da = income[i]["depreciationAndAmortization"]
+            assert year["ebitda"] == oi + da, f"year {i} ebitda not operating caliber"
+            # And it must NOT be FMP's raw ebitda field when the two calibers differ.
+            if income[i]["ebitda"] != oi + da:
+                assert year["ebitda"] != income[i]["ebitda"]
+
+    @pytest.mark.asyncio
+    async def test_historical_ebitda_falls_back_to_fmp_field_when_components_missing(
+        self, provider
+    ):
+        """BUG #3 fallback: if operatingIncome or D&A is missing for a year, the
+        operating caliber can't be computed — fall back to FMP's ebitda field
+        (faithful, never fabricated) rather than dropping EBITDA entirely."""
+        income = _fmp_multi_year_income("AAPL", 2)
+        income[0]["operatingIncome"] = None  # operating caliber uncomputable
+        fmp_field = income[0]["ebitda"]
+        responses = [
+            _mock_response(income),
+            _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_multi_year_cashflow("AAPL", 2)),
+            _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_shares_float_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials", years=2)
+        assert result.data["yearly_data"][0]["ebitda"] == fmp_field
+
+    @pytest.mark.asyncio
     async def test_missing_cashflow_row_yields_none_not_crash(self, provider):
         """If the cash-flow statement is short a year, that year's FCF fields
         are None rather than crashing the whole historical fetch."""
@@ -1801,6 +1854,11 @@ def _fmp_jpm_quarterly_income() -> list[dict]:
             "ebitda": oi,
             "depreciationAndAmortization": 500_000_000,
             "incomeTaxExpense": 4_000_000_000,
+            # FMP identity: operatingIncome == revenue − costAndExpenses, with
+            # interestExpense embedded inside costAndExpenses (live-verified
+            # JPM/BAC/WFC/C/GS). This is what makes OI / net_revenue single-caliber
+            # (the net-revenue-caliber operating income equals FMP's OI).
+            "costAndExpenses": rev - oi,
         }
         for (date, rev, int_exp, gp, oi, ni) in rows
     ]
@@ -1886,6 +1944,9 @@ class TestFMPBankCaliber:
                 "operatingIncome": 79_000_000_000,
                 "netIncome": 58_000_000_000,
                 "ebitda": 80_000_000_000,
+                "depreciationAndAmortization": 9_000_000_000,
+                # operatingIncome == revenue − costAndExpenses (interest inside).
+                "costAndExpenses": 285_000_000_000 - 79_000_000_000,
             },
             {
                 "date": "2024-12-31",
@@ -1897,6 +1958,8 @@ class TestFMPBankCaliber:
                 "operatingIncome": 75_000_000_000,
                 "netIncome": 50_000_000_000,
                 "ebitda": 76_000_000_000,
+                "depreciationAndAmortization": 8_500_000_000,
+                "costAndExpenses": 270_000_000_000 - 75_000_000_000,
             },
         ]
         responses = [
@@ -1931,3 +1994,111 @@ class TestFMPBankCaliber:
         assert result.data["revenue"] == 400_000_000_000
         assert result.data["gross_margin"] == pytest.approx(0.45)
         assert not any("net revenue" in w.lower() for w in result.warnings)
+
+    @pytest.mark.asyncio
+    async def test_ttm_bank_operating_margin_single_caliber(self, provider):
+        """BUG #4: a bank's operating_margin must be single-caliber.
+
+        ``revenue`` is overridden to NET revenue (gross − interest expense), so
+        the numerator must be the net-revenue-caliber operating income. FMP's
+        operatingIncome already IS that figure (interest expense embedded in
+        costAndExpenses → OI = revenue − costAndExpenses), so the margin is
+        OI / net_revenue. Live-verified JPM TTM: net_rev 186.946B, OI 78.979B
+        (the fixture's 4-quarter sum), margin ≈ 0.4225 — NOT a gross-template
+        numerator over a net denominator. The pre-existing code already produced
+        this value; this pins it so a future change can't reintroduce a mixed
+        caliber, and the abstain test below pins the new guard.
+        """
+        income = _fmp_jpm_quarterly_income()
+        responses = [
+            _mock_response(income),
+            _mock_response(_fmp_balance_response("JPM")),
+            _mock_response(_fmp_quarterly_cashflow_response("JPM")),
+            _mock_response(_fmp_bank_profile_response()),
+            _mock_response(_fmp_quote_response("JPM")),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("JPM", "financials")
+
+        net_rev = sum(r["revenue"] - r["interestExpense"] for r in income)
+        oi_ttm = sum(r["operatingIncome"] for r in income)
+        # Single-caliber: OI / net_revenue (the net-caliber OI == FMP OI here).
+        assert result.data["operating_margin"] == pytest.approx(oi_ttm / net_rev)
+        # Sanity: a healthy big-bank operating margin on net revenue (~40%), NOT
+        # the deflated OI / GROSS figure (~26%) nor a fabricated value.
+        assert 0.30 < result.data["operating_margin"] < 0.50
+        assert result.data["operating_margin"] != pytest.approx(
+            oi_ttm / sum(r["revenue"] for r in income)
+        )
+
+    @pytest.mark.asyncio
+    async def test_ttm_bank_operating_margin_abstains_on_template_anomaly(self, provider):
+        """BUG #4 guard: if FMP's template places interest expense OUTSIDE
+        costAndExpenses (identity revenue − costAndExpenses == operatingIncome
+        FAILS), the net-revenue-caliber operating income can't be reconstructed —
+        so operating_margin must ABSTAIN to None rather than divide a possibly
+        gross-caliber OI by net revenue (project: never fabricate a number)."""
+        income = _fmp_jpm_quarterly_income()
+        for row in income:
+            # Break the identity: costAndExpenses no longer ties to OI.
+            row["costAndExpenses"] = row["revenue"] - row["operatingIncome"] - 5_000_000_000
+        responses = [
+            _mock_response(income),
+            _mock_response(_fmp_balance_response("JPM")),
+            _mock_response(_fmp_quarterly_cashflow_response("JPM")),
+            _mock_response(_fmp_bank_profile_response()),
+            _mock_response(_fmp_quote_response("JPM")),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("JPM", "financials")
+        # net revenue is still served (that override is independent of the guard).
+        assert result.data["revenue"] == sum(r["revenue"] - r["interestExpense"] for r in income)
+        # Margin abstains — caliber unverifiable, no misleading number.
+        assert result.data["operating_margin"] is None
+
+    @pytest.mark.asyncio
+    async def test_historical_bank_operating_margin_single_caliber(self, provider):
+        """BUG #4 (per-year path): the years>1 bank branch keeps operating_margin
+        single-caliber the same way the TTM path does."""
+        from finrobot.engine.data.types import DataType
+
+        annual = [
+            {
+                "date": "2025-12-31",
+                "symbol": "JPM",
+                "reportedCurrency": "USD",
+                "revenue": 285_000_000_000,
+                "interestExpense": 98_000_000_000,
+                "grossProfit": 173_000_000_000,
+                "operatingIncome": 79_000_000_000,
+                "netIncome": 58_000_000_000,
+                "ebitda": 80_000_000_000,
+                "depreciationAndAmortization": 9_000_000_000,
+                "costAndExpenses": 285_000_000_000 - 79_000_000_000,
+            },
+            {
+                "date": "2024-12-31",
+                "symbol": "JPM",
+                "reportedCurrency": "USD",
+                "revenue": 270_000_000_000,
+                "interestExpense": 100_000_000_000,
+                "grossProfit": 160_000_000_000,
+                "operatingIncome": 75_000_000_000,
+                "netIncome": 50_000_000_000,
+                "ebitda": 76_000_000_000,
+                "depreciationAndAmortization": 8_500_000_000,
+                "costAndExpenses": 270_000_000_000 - 75_000_000_000,
+            },
+        ]
+        responses = [
+            _mock_response(annual),
+            _mock_response(_fmp_balance_response("JPM")),
+            _mock_response(_fmp_quarterly_cashflow_response("JPM")),
+            _mock_response(_fmp_bank_profile_response()),
+            _mock_response(_fmp_quote_response("JPM")),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("JPM", DataType.FINANCIALS, years=2)
+        row = result.data["yearly_data"][0]
+        net_rev = 285_000_000_000 - 98_000_000_000
+        assert row["operating_margin"] == pytest.approx(79_000_000_000 / net_rev)

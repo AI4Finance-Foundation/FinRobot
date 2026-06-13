@@ -11,7 +11,12 @@ from typing import Any
 import httpx
 
 from finrobot.engine.primitives.ebitda import calculate_ebitda_operating
-from finrobot.engine.primitives.industry import bank_net_revenue, is_bank, semiconductor_role
+from finrobot.engine.primitives.industry import (
+    bank_net_revenue,
+    bank_operating_income_net_caliber,
+    is_bank,
+    semiconductor_role,
+)
 from finrobot.engine.data.interface import (
     DataProvider,
     DataResult,
@@ -467,6 +472,12 @@ class FMPProvider(DataProvider):
         gross_profit = inc.get("grossProfit")
         operating_income = inc.get("operatingIncome")
         net_income = inc.get("netIncome")
+        # ``operating_margin`` numerator. For a non-bank it's just operating_income
+        # over the gross top line (single caliber). For a bank, once ``revenue``
+        # switches to NET revenue below, the numerator must be the net-revenue-
+        # caliber operating income so the ratio stays single-caliber (see the
+        # bank branch).
+        operating_income_for_margin = operating_income
         # Banks: FMP forces a non-bank template. ``revenue`` is the GROSS sum
         # (total interest income + noninterest income); the analyst-quoted top
         # line is total NET revenue = revenue − interest expense (ties to SEC
@@ -477,6 +488,14 @@ class FMPProvider(DataProvider):
             net_revenue = bank_net_revenue(revenue, inc.get("interestExpense"))
             if net_revenue is not None:
                 revenue = net_revenue
+                # operating_margin = OI / net_revenue is single-caliber ONLY when
+                # FMP's operatingIncome already absorbed interest expense (identity
+                # gross − costAndExpenses == OI). bank_operating_income_net_caliber
+                # returns OI unchanged when it holds, None when the template is
+                # anomalous — abstain rather than emit a mixed-caliber margin.
+                operating_income_for_margin = bank_operating_income_net_caliber(
+                    inc.get("revenue"), inc.get("costAndExpenses"), operating_income
+                )
             gross_profit = None
         # Profile market data is a point-in-time snapshot — only valid for the
         # current period. Historical years get None (no historical price here).
@@ -509,9 +528,25 @@ class FMPProvider(DataProvider):
             fin_ccy=inc.get("reportedCurrency"),
             quote_ccy=prof.get("currency"),
         )
+        # Historical EV/EBITDA bands compare the CURRENT operating-EBITDA multiple
+        # (EBIT + D&A, see _build_ttm_data / current_ev_ebitda) against the per-year
+        # band quantiles. FMP's own ``ebitda`` field is the BOTTOM-UP caliber
+        # (NetIncome + Tax + Interest + D&A — includes non-operating/interest
+        # income), which runs materially ABOVE operating EBITDA for cash-rich names
+        # (live-verified TSLA: FMP ebitda 9–18% over OI+D&A per year). Serving the
+        # bottom-up caliber here made the band classifier compare two different
+        # calibers and biased 贵/合理/便宜. Recompute on the operating caliber so
+        # both legs match; fall back to FMP's field only when OI or D&A is missing
+        # (faithful, never fabricated). D&A here is the income statement's own —
+        # the dropped-freshest-quarter quirk only affects the TTM path, annual
+        # filings carry full-year D&A.
+        ebitda_operating = calculate_ebitda_operating(
+            operating_income, inc.get("depreciationAndAmortization")
+        )
+        ebitda = ebitda_operating if ebitda_operating is not None else inc.get("ebitda")
         return {
             "revenue": revenue,
-            "ebitda": inc.get("ebitda"),
+            "ebitda": ebitda,
             "net_income": net_income,
             # Absolute income-statement line items — the HistoricalMetrics
             # consumer derives cogs = revenue - gross_profit and recomputes
@@ -519,8 +554,14 @@ class FMPProvider(DataProvider):
             "gross_profit": gross_profit,
             "operating_income": operating_income,
             "gross_margin": gross_profit / revenue if gross_profit and revenue else None,
+            # operating_income_for_margin == operating_income for non-banks; for a
+            # bank it's the net-revenue-caliber numerator (or None if the FMP
+            # template can't be verified single-caliber) so the ratio doesn't mix a
+            # gross-template numerator with a net-revenue denominator.
             "operating_margin": (
-                operating_income / revenue if operating_income and revenue else None
+                operating_income_for_margin / revenue
+                if operating_income_for_margin and revenue
+                else None
             ),
             # Basic EPS — feeds the per-year EpsPeChart and data_processor's
             # net_income/eps share-count derivation. FMP `eps` is basic.
@@ -604,6 +645,9 @@ class FMPProvider(DataProvider):
         gross_profit = total("grossProfit")
         operating_income = total("operatingIncome")
         net_income = total("netIncome")
+        # operating_margin numerator — kept on the SAME caliber as ``revenue``
+        # below (see the bank branch + _build_single_year_data).
+        operating_income_for_margin = operating_income
         # Banks: serve total NET revenue (gross − interest expense, ties to SEC
         # RevenuesNetOfInterestExpense) and suppress the meaningless COGS-based
         # gross profit/margin. See _build_single_year_data + primitives.industry.
@@ -611,6 +655,13 @@ class FMPProvider(DataProvider):
             net_revenue = bank_net_revenue(revenue, total("interestExpense"))
             if net_revenue is not None:
                 revenue = net_revenue
+                # Single-caliber operating_margin: OI / net_revenue is valid only
+                # when FMP's operatingIncome already absorbed interest expense
+                # (TTM identity gross − costAndExpenses == OI). Abstain to None
+                # otherwise rather than emit a mixed-caliber margin.
+                operating_income_for_margin = bank_operating_income_net_caliber(
+                    total("revenue"), total("costAndExpenses"), operating_income
+                )
             gross_profit = None
         income_tax_expense = total("incomeTaxExpense")
         # D&A: prefer the cash-flow statement (authoritative; carries the
@@ -655,8 +706,14 @@ class FMPProvider(DataProvider):
             "operating_income": operating_income,
             "income_tax_expense": income_tax_expense,
             "gross_margin": gross_profit / revenue if gross_profit and revenue else None,
+            # operating_income_for_margin == operating_income for non-banks; for a
+            # bank it's the net-revenue-caliber numerator (or None when the FMP
+            # template can't be verified single-caliber) — never a gross-template
+            # numerator over a net-revenue denominator.
             "operating_margin": (
-                operating_income / revenue if operating_income and revenue else None
+                operating_income_for_margin / revenue
+                if operating_income_for_margin and revenue
+                else None
             ),
             "depreciation_amortization": da,
             "operating_cash_flow": ttm_ocf,

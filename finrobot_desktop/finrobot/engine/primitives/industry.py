@@ -357,3 +357,55 @@ def bank_net_revenue(
     if gross_revenue is None or interest_expense is None:
         return None
     return gross_revenue - interest_expense
+
+
+def bank_operating_income_net_caliber(
+    gross_revenue: float | None,
+    cost_and_expenses: float | None,
+    operating_income: float | None,
+) -> float | None:
+    """Operating income on the SAME net-revenue caliber as ``bank_net_revenue``.
+
+    A bank's operating_margin divides operating_income by the net-revenue top
+    line (gross − interest expense). For that ratio to be single-caliber, the
+    numerator must be the operating income measured AGAINST net revenue, i.e.
+    interest expense must be netted on the revenue side AND already absorbed as
+    an expense in operating income — not double-counted, not omitted.
+
+    FMP builds ``operatingIncome = gross_revenue − costAndExpenses`` and embeds
+    interestExpense INSIDE costAndExpenses (live-verified JPM/BAC/WFC/C/GS
+    FY2025). When that identity holds, the net-revenue-caliber operating income
+    is algebraically IDENTICAL to FMP's ``operatingIncome``::
+
+        net_caliber_OI = net_rev − (costAndExpenses − interest_expense)
+                       = (gross − int_exp) − costAndExpenses + int_exp
+                       = gross − costAndExpenses
+                       = operatingIncome
+
+    so OI / net_revenue is already self-consistent (interest expense nets once on
+    each side). The margin is NOT inflated, and re-deriving the numerator would
+    DOUBLE-net interest expense (JPM: net_rev − C&E = −25.3B garbage).
+
+    The whole argument rests on ``interestExpense ⊆ costAndExpenses``. The only
+    payload-observable proxy for that containment is the identity itself:
+    ``gross_revenue − costAndExpenses == operatingIncome``. When it does NOT hold
+    (an FMP template that places interest expense outside costAndExpenses, so OI
+    never subtracted it), FMP's operatingIncome is a GROSS-caliber figure and
+    dividing it by net revenue WOULD be the mixed caliber the naive read fears —
+    but we cannot reconstruct the correct numerator without knowing where the
+    interest sits, so we ABSTAIN to None rather than emit a misleading margin
+    (project信条: never fabricate a number).
+
+    Returns:
+        FMP's ``operating_income`` when the identity holds (it already IS the
+        net-revenue-caliber figure); ``None`` when any input is missing or the
+        identity fails (template anomaly → caliber unverifiable → abstain).
+    """
+    if gross_revenue is None or cost_and_expenses is None or operating_income is None:
+        return None
+    # Tolerance: $1M floor or 1bp of gross revenue, whichever is larger —
+    # absorbs FMP rounding without admitting a real structural mismatch.
+    tol = max(1_000_000.0, abs(gross_revenue) * 1e-4)
+    if abs(gross_revenue - cost_and_expenses - operating_income) > tol:
+        return None
+    return operating_income

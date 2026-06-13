@@ -11,6 +11,7 @@ FMP serves gross revenue 73.661B and interestExpense 23.825B for that quarter;
 
 from finrobot.engine.primitives.industry import (
     bank_net_revenue,
+    bank_operating_income_net_caliber,
     commodity_cyclical_basis,
     is_bank,
     is_commodity_cyclical,
@@ -171,3 +172,44 @@ class TestBankNetRevenue:
     def test_zero_interest_expense_passes_through(self) -> None:
         """A real reported 0 (not None) is a valid subtraction, not 'missing'."""
         assert bank_net_revenue(50_000_000_000, 0) == 50_000_000_000
+
+
+class TestBankOperatingIncomeNetCaliber:
+    """The net-revenue-caliber operating-income numerator for a bank's
+    operating_margin. Values anchored to live FMP (JPM FY2025 annual):
+    gross 279.745B, costAndExpenses 207.150B, operatingIncome 72.595B; the
+    identity gross − costAndExpenses == OI holds, so the net-caliber OI == OI.
+    """
+
+    def test_identity_holds_returns_operating_income_unchanged(self) -> None:
+        """When gross − costAndExpenses == operatingIncome (interest expense
+        embedded in costAndExpenses), the net-revenue-caliber OI IS FMP's OI."""
+        assert (
+            bank_operating_income_net_caliber(279_745_000_000, 207_150_000_000, 72_595_000_000)
+            == 72_595_000_000
+        )
+
+    def test_within_rounding_tolerance_passes(self) -> None:
+        """A sub-bp rounding residual must not trip the guard."""
+        assert (
+            bank_operating_income_net_caliber(
+                279_745_000_000, 207_150_000_000, 72_595_000_000 + 500_000
+            )
+            == 72_595_000_000 + 500_000
+        )
+
+    def test_identity_fails_abstains_to_none(self) -> None:
+        """When the identity is violated beyond tolerance (interest expense
+        placed OUTSIDE costAndExpenses → OI is gross-caliber), the net-caliber OI
+        cannot be reconstructed — abstain to None, never emit a mixed caliber."""
+        assert (
+            bank_operating_income_net_caliber(
+                279_745_000_000, 207_150_000_000, 72_595_000_000 - 10_000_000_000
+            )
+            is None
+        )
+
+    def test_missing_component_returns_none(self) -> None:
+        assert bank_operating_income_net_caliber(None, 207_150_000_000, 72_595_000_000) is None
+        assert bank_operating_income_net_caliber(279_745_000_000, None, 72_595_000_000) is None
+        assert bank_operating_income_net_caliber(279_745_000_000, 207_150_000_000, None) is None

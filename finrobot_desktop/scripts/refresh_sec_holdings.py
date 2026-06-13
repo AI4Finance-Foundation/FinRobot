@@ -53,6 +53,26 @@ logger = logging.getLogger("refresh_sec_holdings")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
+def _opt_number(value: Any) -> float | None:
+    """Parse a 13F numeric cell to float; missing/NaN/unparseable → None.
+
+    The holdings DataFrame can surface a cell as None, an empty string, a
+    pandas/numpy NaN, or a comma-formatted string. ``float("nan")`` succeeds and
+    ``int(nan)`` raises, so a bare ``float(... or 0)`` both masked NaN as a real
+    number and fabricated 0 for genuinely-missing cells. None ≠ 0: a missing
+    share count or value is a parse gap the caller must drop, not a $0 holding.
+    """
+    if value is None or value == "":
+        return None
+    try:
+        num = float(str(value).replace(",", "").strip())
+    except (TypeError, ValueError):
+        return None
+    if num != num:  # NaN (NaN is the only value not equal to itself)
+        return None
+    return num
+
+
 # edgartools 5.31.5 ThirteenF.holdings emits PascalCase columns
 # ['Issuer', 'Class', 'Cusip', 'Ticker', 'SharesPrnAmount', 'Value', ...].
 # We rename(columns=str.lower) on ingest, so the gate checks the LOWERCASED
@@ -99,6 +119,27 @@ def _normalise_holding_row(
         cusip = str(df_row.get("cusip") or "").strip()
         if not cusip:
             return None
+        # None ≠ 0 (CLAUDE.md invariant): a 13F InfoTable row missing its share
+        # count or its value is a parse gap, NOT a real 0-share / $0 position.
+        # Per SEC 13F-HR rules every reported security carries both SHARES (or
+        # principal amount) and VALUE > 0; a 0 in either field never describes a
+        # genuine holding. Coercing missing→0 would fabricate phantom $0 holders
+        # that sort to the bottom and pollute the ownership table. The cache
+        # schema requires non-null shares/value_usd (and the model
+        # InstitutionalHolding has no None branch for them), so the only honest
+        # handling of a degenerate row is to drop it rather than store a 0.
+        shares = _opt_number(df_row.get("sharesprnamount"))
+        value = _opt_number(df_row.get("value"))
+        if shares is None or value is None:
+            logger.warning(
+                "skip 13F row with missing shares/value (cusip=%s holder=%s): "
+                "shares=%r value=%r",
+                cusip,
+                filer_name,
+                df_row.get("sharesprnamount"),
+                df_row.get("value"),
+            )
+            return None
         return {
             # ticker stays nullable because SEC 13F XML identifies securities
             # by CUSIP + issuer name, not ticker. The cache lookup uses ticker
@@ -112,11 +153,11 @@ def _normalise_holding_row(
             "title_of_class": str(df_row.get("class") or "COM"),
             "holder_name": filer_name,
             "holder_cik": filer_cik,
-            "shares": int(df_row.get("sharesprnamount") or 0),
+            "shares": int(shares),
             # edgartools' Value is already whole US dollars (it normalises
             # pre-Q4-2022 thousands internally). NO ×1000 here — that would
             # overstate every position 1000x.
-            "value_usd": float(df_row.get("value") or 0),
+            "value_usd": float(value),
             "period_end": period_end,
             "filing_date": filing_date,
             "accession_no": accession_no,

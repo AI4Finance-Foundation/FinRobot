@@ -419,12 +419,15 @@ async def test_fetch_insider_flattens_transaction_activities() -> None:
     # Activity 3: option exercise whose price_per_share is a FOOTNOTE MARKER
     # ("[F1]") rather than a number — a real Form 4 shape. bare float("[F1]")
     # used to raise ValueError and drop EVERY transaction; it must now parse to
-    # None and leave the other rows intact.
+    # None and leave the other rows intact. value=0 mirrors REAL edgartools
+    # output: get_transaction_activities computes shares*price only when a usable
+    # price exists and otherwise hard-codes ``else 0`` — so a footnoted price
+    # surfaces as a fabricated value=0 (NOT None). It must abstain to None.
     act3 = MagicMock()
     act3.transaction_type = "exercise"
     act3.code = "M"
     act3.shares = 1000
-    act3.value = None
+    act3.value = 0  # edgartools' no-price sentinel (footnoted price)
     act3.price_per_share = "[F1]"
     act3.security_type = "non-derivative"
     act3.security_title = "Common Stock"
@@ -451,15 +454,23 @@ async def test_fetch_insider_flattens_transaction_activities() -> None:
     data, _ = p._fetch_insider(c, days=90)
     # All 3 rows survive — the "[F1]" price no longer crashes the whole parse.
     assert len(data["transactions"]) == 3
-    # Forfeit row preserves price=None when price_per_share=0
+    # Real open-market sale: a genuinely computed positive value passes through.
+    sale = next(t for t in data["transactions"] if t["code"] == "S")
+    assert sale["value"] == 1_350_000.0
+    assert sale["price_per_share"] == 450.0
+    # Forfeit row preserves price=None when price_per_share=0; its edgartools
+    # value=0 is the no-price sentinel, so value abstains to None (NOT $0 moved).
     forfeit = next(t for t in data["transactions"] if t["code"] == "D")
     assert forfeit["shares"] == 96_000_000
     assert forfeit["price_per_share"] is None  # 0 coerced to None
+    assert forfeit["value"] is None  # None ≠ 0: no priced value, not a real $0
     assert "Tornetta" in forfeit["footnotes_text"]
-    # Footnote-marker price → None (parse gap), not a crash.
+    # Footnote-marker price → None (parse gap), not a crash. Its fabricated
+    # value=0 (edgartools else-branch) must NOT read as "$0 of stock moved".
     exercise = next(t for t in data["transactions"] if t["code"] == "M")
     assert exercise["price_per_share"] is None
     assert exercise["shares"] == 1000
+    assert exercise["value"] is None  # fabricated 0 abstains to None
 
 
 @pytest.mark.asyncio

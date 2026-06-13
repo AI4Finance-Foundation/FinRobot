@@ -4,6 +4,7 @@ from __future__ import annotations
 from finrobot.engine.compute.operators.ownership import (
     _canonical_transaction_type,
     _money_from_text,
+    build_institutional_holdings,
     build_proxy_compensation,
     build_schedule13_alerts,
     compute_ownership_governance,
@@ -43,6 +44,55 @@ def test_build_schedule13_alerts_typed() -> None:
     assert alerts[0].pct_of_class == 4.069
     assert alerts[0].schedule_type == "13G"
     assert alerts[0].filing_date.isoformat() == "2024-11-12"
+
+
+def test_13f_holding_missing_shares_or_value_is_dropped_not_zeroed() -> None:
+    """A 13F holder row with a missing/unparseable share count or value is a
+    parse gap, NOT a real 0-share / $0 position — it must be dropped, never
+    coerced to a fabricated 0 (None ≠ 0). A complete row survives unchanged."""
+    holdings = build_institutional_holdings(
+        {
+            "holders": [
+                {
+                    "holder_name": "BERKSHIRE HATHAWAY INC",
+                    "holder_cik": "1067983",
+                    "cusip": "037833100",
+                    "name_of_issuer": "APPLE INC",
+                    "shares": 300_000_000,
+                    "value_usd": 57_843_260_493.0,
+                    "period_end": "2026-03-31",
+                    "filing_date": "2026-05-15",
+                    "accession_no": "0000950123-26-000001",
+                },
+                {
+                    # value omitted entirely (parse gap) — must be dropped, not $0
+                    "holder_name": "GHOST CAPITAL LLC",
+                    "cusip": "037833100",
+                    "name_of_issuer": "APPLE INC",
+                    "shares": 1000,
+                    "period_end": "2026-03-31",
+                    "filing_date": "2026-05-15",
+                    "accession_no": "0000950123-26-000002",
+                },
+                {
+                    # shares unparseable (footnote-only) — must be dropped, not 0
+                    "holder_name": "PHANTOM PARTNERS",
+                    "cusip": "037833100",
+                    "name_of_issuer": "APPLE INC",
+                    "shares": "[F1]",
+                    "value_usd": 5_000_000.0,
+                    "period_end": "2026-03-31",
+                    "filing_date": "2026-05-15",
+                    "accession_no": "0000950123-26-000003",
+                },
+            ]
+        }
+    )
+    # Only the complete Berkshire row survives; the two degenerate rows dropped.
+    assert len(holdings) == 1
+    assert holdings[0].holder_name == "BERKSHIRE HATHAWAY INC"
+    assert holdings[0].shares == 300_000_000
+    assert holdings[0].value_usd == 57_843_260_493.0
 
 
 def test_schedule13_pct_optional_when_unparseable() -> None:

@@ -853,6 +853,37 @@ def _opt_float(value: Any) -> float | None:
         return None
 
 
+def _form4_value(raw_value: Any, price: float | None) -> float | None:
+    """Dollar value of one Form-4 leg, abstaining to None when it is unknown.
+
+    edgartools' ``TransactionActivity.value`` is NOT a faithful "missing→None"
+    field: ``get_transaction_activities`` computes ``shares * price`` only when a
+    usable price exists and otherwise hard-codes ``else 0`` (ownershipforms.py
+    market line 1840 / non-market 1876 / derivative 1899). So a footnoted or
+    absent price — routine for option exercises (code M), gifts (G), tax
+    withholding (F), forfeitures (D) — surfaces as a fabricated ``value=0``, NOT
+    None. Passing that through reads downstream as "this insider moved $0 of
+    stock", which is false: the leg's dollar value is simply not computable from
+    a reported price. None ≠ 0 (CLAUDE.md invariant): an uncomputable value must
+    abstain to None.
+
+    Rule: edgartools only ever yields a value from ``shares * price`` (strictly
+    positive for the real legs it computes) or the no-price sentinel ``0``. So a
+    value of exactly 0 with no usable price backing it is the sentinel → None. A
+    genuinely measured value is positive and passes through. (A real $0-priced
+    trade does not exist in Form-4 data; a $0 *consideration* forfeit/gift is a
+    no-price leg, correctly None here — its share count still carries the event.)
+    """
+    parsed = _opt_float(raw_value)
+    if parsed is None:
+        return None
+    if parsed == 0 and (price is None or price == 0):
+        # No usable price backs this 0 → it is edgartools' sentinel, not a
+        # measured zero. Abstain rather than fabricate "$0 of value moved".
+        return None
+    return parsed
+
+
 # ---------------------------------------------------------------------------
 # SEC XBRL companyfacts — DEEP annual financials history (≥9 fiscal years)
 #
@@ -1645,6 +1676,12 @@ class EdgarToolsProvider(DataProvider):
                         e,
                     )
             for act in activities:
+                # _opt_float (not bare float): Form 4 often carries a footnote
+                # marker like "[F1]" in price_per_share instead of a number; bare
+                # float("[F1]") raised ValueError and crashed the WHOLE insider
+                # parse (every transaction lost). The trailing ``or None`` folds a
+                # 0 price (forfeit / gift, code D) to "no price", not $0.
+                price = _opt_float(getattr(act, "price_per_share", None)) or None
                 transactions.append(
                     {
                         "filing_date": str(f.filing_date),
@@ -1653,20 +1690,16 @@ class EdgarToolsProvider(DataProvider):
                         "insider_position": position,
                         "transaction_type": getattr(act, "transaction_type", "") or "",
                         "code": getattr(act, "code", "") or "",
-                        # None ≠ 0: a missing share/value stays None (the compute
-                        # layer treats it as a parse gap, not a real 0-share/$0
-                        # leg). An explicit 0 (forfeit's $0 value) is preserved.
+                        # None ≠ 0: a missing share count stays None (the compute
+                        # layer treats it as a parse gap, not a nonsensical 0-share
+                        # leg).
                         "shares": _opt_float(getattr(act, "shares", None)),
-                        "value": _opt_float(getattr(act, "value", None)),
-                        # _opt_float (not bare float): Form 4 often carries a
-                        # footnote marker like "[F1]" in price_per_share instead of
-                        # a number; bare float("[F1]") raised ValueError and crashed
-                        # the WHOLE insider parse (every transaction lost). The
-                        # trailing ``or None`` preserves the original semantics that a
-                        # 0 price (forfeit / gift, code D) reads as "no price", not $0.
-                        "price_per_share": (
-                            _opt_float(getattr(act, "price_per_share", None)) or None
-                        ),
+                        # value abstains to None when edgartools fabricated its
+                        # no-price sentinel 0 (footnoted/absent price) — see
+                        # _form4_value. A genuinely computed (positive) value
+                        # passes through unchanged.
+                        "value": _form4_value(getattr(act, "value", None), price),
+                        "price_per_share": price,
                         "security_type": getattr(act, "security_type", "") or "",
                         "security_title": getattr(act, "security_title", "") or "",
                         "underlying_security": (getattr(act, "underlying_security", "") or ""),

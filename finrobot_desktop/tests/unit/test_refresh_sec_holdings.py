@@ -134,6 +134,74 @@ async def test_refresh_quarter_parses_real_edgartools_schema(
     assert row["value_usd"] != float(_FIXTURE_VALUE_WHOLE_DOLLARS) * 1000.0
 
 
+def _holdings_with_missing_value_and_shares() -> pd.DataFrame:
+    """One complete row + two degenerate rows: a NaN Value and a footnote-only
+    SharesPrnAmount. The schema columns are all present (so the filing-level
+    gate passes); only the bad CELLS make these rows degenerate."""
+    return pd.DataFrame(
+        [
+            {
+                "Issuer": "APPLE INC",
+                "Class": "COM",
+                "Cusip": "037833100",
+                "Ticker": "AAPL",
+                "SharesPrnAmount": _FIXTURE_SHARES,
+                "Value": _FIXTURE_VALUE_WHOLE_DOLLARS,
+            },
+            {
+                # Value is NaN (parse gap) — drop, never store a $0 holding.
+                "Issuer": "GHOST CORP",
+                "Class": "COM",
+                "Cusip": "111111111",
+                "Ticker": "GHST",
+                "SharesPrnAmount": 5000,
+                "Value": float("nan"),
+            },
+            {
+                # SharesPrnAmount is a footnote marker — drop, never 0 shares.
+                "Issuer": "PHANTOM CO",
+                "Class": "COM",
+                "Cusip": "222222222",
+                "Ticker": "PHTM",
+                "SharesPrnAmount": "[F1]",
+                "Value": 7_000_000,
+            },
+        ]
+    )
+
+
+@pytest.mark.asyncio
+async def test_refresh_quarter_drops_rows_missing_shares_or_value(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """None ≠ 0: a 13F InfoTable row whose shares or value won't parse is a
+    parse gap, not a real 0-share / $0 position. It must be DROPPED — coercing
+    missing→0 would fabricate phantom $0 holders. Only the complete row stores."""
+    captured: list[dict[str, Any]] = []
+    _install_fakes(
+        monkeypatch,
+        [_FakeFiling("a1", _holdings_with_missing_value_and_shares())],
+        captured,
+    )
+
+    caplog.set_level("WARNING", logger="refresh_sec_holdings")
+    summary = await _refresh_quarter(date(2026, 3, 31))
+
+    # Filing is processed (schema fine); 2 of its 3 rows are dropped as degenerate.
+    assert summary["filings_skipped_schema"] == 0
+    assert summary["filings_processed"] == 1
+    assert summary["rows_inserted"] == 1
+    assert len(captured) == 1
+    assert captured[0]["cusip"] == "037833100"
+    assert captured[0]["shares"] == _FIXTURE_SHARES
+    assert captured[0]["value_usd"] == float(_FIXTURE_VALUE_WHOLE_DOLLARS)
+    # No fabricated zeros leaked into the cache.
+    assert all(r["shares"] != 0 and r["value_usd"] != 0 for r in captured)
+    messages = [record.message for record in caplog.records]
+    assert any("missing shares/value" in m for m in messages)
+
+
 @pytest.mark.asyncio
 async def test_refresh_quarter_skips_genuinely_drifted_schema(
     monkeypatch: pytest.MonkeyPatch,

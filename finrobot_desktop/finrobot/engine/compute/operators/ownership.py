@@ -824,6 +824,24 @@ def build_insider_transactions(raw_insider: dict[str, Any]) -> list[InsiderTrans
 def build_institutional_holdings(raw_holdings: dict[str, Any]) -> list[InstitutionalHolding]:
     rows: list[InstitutionalHolding] = []
     for row in raw_holdings.get("holders") or []:
+        # None ≠ 0: a 13F holder with no parseable share count or value is a
+        # parse gap, NOT a real 0-share / $0 position (SEC 13F-HR always reports
+        # both SHARES and VALUE > 0 for a held security). The model requires
+        # non-null shares/value_usd, so a degenerate row is dropped — coercing
+        # missing→0 (the old `or 0`) fabricated a phantom $0 holder. The cache
+        # ingest already drops these upstream; this guards any direct caller.
+        shares = _opt_float(row.get("shares"))
+        value_usd = _opt_float(row.get("value_usd"))
+        if shares is None or value_usd is None:
+            logger.warning(
+                "drop 13F holding with missing shares/value (holder=%s cusip=%s): "
+                "shares=%r value_usd=%r",
+                row.get("holder_name"),
+                row.get("cusip"),
+                row.get("shares"),
+                row.get("value_usd"),
+            )
+            continue
         provenance = _provenance(
             form="13F-HR",
             filing_date=row["filing_date"],
@@ -838,8 +856,8 @@ def build_institutional_holdings(raw_holdings: dict[str, Any]) -> list[Instituti
                 cusip=str(row.get("cusip") or ""),
                 name_of_issuer=str(row.get("name_of_issuer") or ""),
                 title_of_class=str(row.get("title_of_class") or "COM"),
-                shares=int(row.get("shares") or 0),
-                value_usd=float(row.get("value_usd") or 0),
+                shares=int(shares),
+                value_usd=value_usd,
                 period_end=_parse_date(row.get("period_end")),
                 shares_change_pct=(
                     float(row["shares_change_pct"])

@@ -556,6 +556,149 @@ def test_extract_ceo_name_keeps_honorific_pattern() -> None:
     assert _extract_ceo_name(text) == "Cook"
 
 
+# --- T7#8 (3rd recurrence): the no-Form-4 DEF 14A prose fallback must never
+#     emit a wrong PERSON. A director/successor surname sitting near a CEO
+#     anchor that belongs to someone else must NOT win; None beats a wrong CEO.
+
+
+def test_extract_ceo_name_ko_succession_proxy_binds_named_ceo_not_successor() -> None:
+    """KO 2026 DEF 14A (no in-window Form-4 CEO leg → prose fallback). The
+    proxy announces a CEO succession: incoming COO "Henrique Braun" appears via
+    "Mr. Braun ... Chief Executive Officer" near a CEO anchor that actually
+    belongs to the *named* CEO "James Quincey, our Chairman and Chief Executive
+    Officer". The old honorific-proximity strategy grabbed "Braun" (a wrong
+    person). The appositive comma-bind must win and the proximity heuristic must
+    never override it.
+    """
+    from finrobot.engine.compute.operators.ownership import _extract_ceo_name
+
+    text = (
+        "As I prepare to pass the baton to Henrique Braun, I'm proud of our team. "
+        "As CEO, I delivered another year of strong performance.\n\n"
+        "All nominees are independent under the NYSE corporate governance rules, "
+        "except for James Quincey, our Chairman and Chief Executive Officer, and "
+        "Henrique Braun, our Executive Vice President and Chief Operating Officer. "
+        "In connection with the announcement that Mr. Braun will serve as Chief "
+        "Executive Officer of the Company effective March 31, 2026, Mr. Braun was "
+        "nominated to the Board. Effective March 31, 2026, Henrique Braun will "
+        "succeed James Quincey as CEO of the Company."
+    )
+    name = _extract_ceo_name(text)
+    assert name == "James Quincey"
+    # The load-bearing assertion: never the successor/COO surname.
+    assert name != "Braun"
+    assert "Braun" not in (name or "")
+
+
+def test_extract_ceo_name_abstains_when_two_honorifics_flank_ceo_anchor() -> None:
+    """When NO appositive title bind exists and TWO distinct honorific names sit
+    near CEO anchors (a succession/co-leadership proxy), the extractor cannot
+    confidently pick one and must abstain (None) rather than coin-flip a wrong
+    person. A single unambiguous honorific still resolves (locked above)."""
+    from finrobot.engine.compute.operators.ownership import _extract_ceo_name
+
+    text = (
+        "Mr. Smith stepped down. The Board announced that Mr. Jones will serve "
+        "as Chief Executive Officer, with Mr. Smith remaining as a senior advisor "
+        "to the Chief Executive Officer during the transition."
+    )
+    # Two honorific candidates (Smith, Jones) both near CEO anchors, no comma
+    # appositive bind → abstain. Never silently return one of them.
+    assert _extract_ceo_name(text) is None
+
+
+def test_extract_ceo_name_appositive_handles_chairman_and_ceo() -> None:
+    """The appositive bind must accept the canonical "<Name>, our Chairman and
+    Chief Executive Officer" / "<Name>, President and Chief Executive Officer"
+    forms, not only the bare "Chief Executive Officer"."""
+    from finrobot.engine.compute.operators.ownership import _extract_ceo_name
+
+    assert (
+        _extract_ceo_name("Reelect James Quincey, our Chairman and Chief Executive Officer.")
+        == "James Quincey"
+    )
+    assert (
+        _extract_ceo_name("We nominate Mary Barra, President and Chief Executive Officer.")
+        == "Mary Barra"
+    )
+
+
+# --- T7#8 (same recurrence, Form-4 leg): a divisional/regional CEO title must
+#     not outrank the parent-company CEO on the filing-count tie-break.
+
+
+def test_ceo_from_insiders_rejects_divisional_regional_ceo_title() -> None:
+    """Ford 2026 Form-4s carry both "President and CEO" (Jim Farley, the
+    issuer's CEO) and "President & CEO Ford China&IMG" (Shengpo Wu, a regional
+    unit CEO). The regional CEO filed enough Form-4s to win the (count, recency)
+    tie-break and was wrongly resolved as the parent CEO. A business-unit CEO
+    title must be skipped so only the parent CEO can resolve."""
+    from finrobot.engine.compute.operators.ownership import (
+        _ceo_name_from_insiders,
+        build_insider_transactions,
+    )
+
+    insiders = build_insider_transactions(
+        {
+            "transactions": [
+                # Regional CEO files MORE and MORE RECENTLY — would win the
+                # (count, latest) tie-break if not rejected.
+                *[
+                    {
+                        "filing_date": f"2026-06-{day:02d}",
+                        "accession_no": f"div-{day}",
+                        "insider_name": "Shengpo Wu",
+                        "insider_position": "President & CEO Ford China&IMG",
+                        "code": "S",
+                    }
+                    for day in (1, 2, 3, 4, 5)
+                ],
+                # Parent CEO files fewer / earlier.
+                *[
+                    {
+                        "filing_date": f"2026-01-{day:02d}",
+                        "accession_no": f"parent-{day}",
+                        "insider_name": "Jr James D Farley",
+                        "insider_position": "President and CEO",
+                        "code": "S",
+                    }
+                    for day in (1, 2)
+                ],
+            ]
+        }
+    )
+    assert _ceo_name_from_insiders(insiders) == "Jr James D Farley"
+
+
+def test_is_divisional_ceo_title_distinguishes_parent_from_unit() -> None:
+    """Anchor the divisional check: parent-company CEO titles (unqualified, or
+    continued only by a connector / "of the Company") are NOT divisional;
+    a named region/brand/segment after the CEO token IS divisional."""
+    from finrobot.engine.compute.operators.ownership import _is_divisional_ceo_title
+
+    # Parent-company CEO titles — must NOT be flagged divisional.
+    for title in (
+        "President and CEO",
+        "Chief Executive Officer",
+        "Chairman and Chief Executive Officer",
+        "President & CEO",
+        "President and Chief Executive Officer",
+        "CEO of the Company",
+        "Chief Executive Officer and Chairman",
+    ):
+        assert _is_divisional_ceo_title(title) is False, title
+
+    # Divisional / regional / subsidiary CEO titles — MUST be flagged.
+    for title in (
+        "President & CEO Ford China&IMG",
+        "CEO Ford China&IMG",
+        "CEO, EMEA",
+        "President & CEO of EMEA",
+        "CEO of Ford Credit",
+    ):
+        assert _is_divisional_ceo_title(title) is True, title
+
+
 def test_compute_ownership_governance_survives_legacy_cached_footnote_dates() -> None:
     """Defence-in-depth: cached insider payloads written by older code versions
     may carry edgartools footnote stand-ins like "[F4]" in exercise_date /

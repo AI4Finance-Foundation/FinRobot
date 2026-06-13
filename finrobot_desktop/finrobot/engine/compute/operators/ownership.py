@@ -529,21 +529,102 @@ def _is_blacklisted_name(candidate: str) -> bool:
     return False
 
 
+# "<Name>, [our] [Chairman/President and] Chief Executive Officer" — the name
+# is SYNTACTICALLY APPOSITIVE to the title, so they describe the SAME person.
+# This is the only binding where a director/other-officer surname cannot be
+# substituted by mere proximity. The comma (or dash/colon) right after the name
+# is the load-bearing anchor; the optional "our" and "Chairman/President and"
+# prefixes cover the canonical KO/AAPL-style "James Quincey, our Chairman and
+# Chief Executive Officer". NO re.I — the name group [A-Z] must enforce
+# uppercase-first tokens (re.I would match lowercase and over-capture).
+_CEO_APPOSITIVE_TITLE_RE = re.compile(
+    r"([A-Z][A-Za-z.'’-]+(?:[ \t\xa0]+[A-Z][A-Za-z.'’-]+){1,3})"
+    r"[ \t\xa0]*[,\-:–—][ \t\xa0]*"
+    r"(?:our[ \t\xa0]+)?"
+    r"(?:(?:Chairman|President|Chief Executive)[ \t\xa0]+and[ \t\xa0]+){0,2}"
+    r"Chief Executive Officer\b",
+)
+
+
+# Capitalized proxy action verbs that lead a "<Verb> <Name>, <title>" sentence
+# ("Reelect James Quincey, our Chairman and CEO"). The name group's leading
+# [A-Z] would glue them onto the front of the name; strip them like the SCT
+# header words. Real personal names never start with these.
+_CEO_NAME_LEADING_VERBS: frozenset[str] = frozenset(
+    {
+        "reelect",
+        "re-elect",
+        "elect",
+        "reelected",
+        "elected",
+        "nominate",
+        "nominated",
+        "appoint",
+        "appointed",
+        "reappoint",
+        "reappointed",
+        "name",
+        "named",
+        "for",
+        "mr",
+        "ms",
+        "mrs",
+        "dr",
+    }
+)
+
+
+def _strip_leading_name_verbs(name: str) -> str:
+    tokens = name.split()
+    while tokens and tokens[0].lower().strip(".,") in _CEO_NAME_LEADING_VERBS:
+        tokens.pop(0)
+    return " ".join(tokens)
+
+
+def _appositive_ceo_name(text: str) -> str | None:
+    """Name directly comma-anchored to the canonical CEO title (one person).
+
+    Returns the first non-blacklisted name bound to "<Name>, [our] [Chairman
+    and] Chief Executive Officer". When two DISTINCT names bind that title (a
+    leadership-transition proxy — KO 2026 lists both the outgoing "James
+    Quincey, our Chairman and Chief Executive Officer" and the successor), the
+    binding is no longer unambiguous, so the first appositive (the issuer's
+    current named CEO, who is introduced before the successor) is returned —
+    proximity strategies below would instead grab whichever name sits nearest
+    *any* CEO mention and lose the appositive guarantee entirely.
+    """
+    for m in _CEO_APPOSITIVE_TITLE_RE.finditer(text):
+        candidate = _strip_leading_name_verbs(m.group(1).strip())
+        if len(candidate.split()) < 2:
+            # A single residual token is not a "Firstname Lastname" — reject
+            # rather than emit a lone surname/first name.
+            continue
+        if not _is_blacklisted_name(candidate):
+            return candidate
+    return None
+
+
 def _extract_ceo_name(text: str) -> str | None:
-    """Extract CEO name from proxy text, rejecting title/role tokens.
+    """Extract CEO name from proxy text — 宁可 None 绝不编 (never a wrong person).
 
-    Strategy (in priority order — highest-confidence signal first):
+    Strategy, strongest binding first. The ranking is by how tightly the NAME
+    is bound to the CEO TITLE for the *same* person — proximity heuristics that
+    bind any nearby name to any nearby title are demoted, because in a multi-
+    executive / leadership-transition proxy they grab the wrong person (KO 2026:
+    successor-COO "Henrique Braun" mis-bound as CEO over named CEO James
+    Quincey via "Mr. Braun" sitting near a CEO anchor that belonged to Quincey).
+
     0. "Firstname Lastname\\nCEO ..." (table layout — name on line above title).
-    1. "Mr./Ms./Dr. Firstname Lastname" within 300 chars of a CEO anchor —
-       the honorific is a strong signal that what follows is a personal name.
-    2. "Firstname Lastname, Chief Executive Officer" with explicit comma /
-       dash / colon connector — only the canonical full title, not bare
-       "CEO" which appears inside compound nouns ("2025 CEO Performance
-       Award", "CEO Pay Ratio").
-    3. Post-CEO-anchor scan with strict blacklist filtering.
+    1. "<Name>, [our] [Chairman and] Chief Executive Officer" — appositive bind
+       (the name and title describe the SAME person; substitution-proof).
+    2. Single, UNAMBIGUOUS "Mr./Ms./Dr. <Name>" near a CEO anchor — fires only
+       when exactly one distinct honorific name sits near CEO anchors. When ≥2
+       distinct candidates qualify (succession proxy), abstain: a wrong name is
+       worse than None, and the appositive bind above already had its chance.
+    3. Single, UNAMBIGUOUS post-anchor name — same abstain-on-tie rule.
 
-    The window search deliberately excludes the article "The" (a common false
-    positive when "The CEO" appears as a subject noun phrase).
+    Honorific proximity and post-anchor scans NEVER win over the appositive
+    bind, and NEVER guess when the binding is ambiguous: None beats a wrong CEO.
     """
     # Strategy 0: name on the line immediately before "CEO ..." line (table format).
     # e.g. "Sundar Pichai\nCEO Total Compensation $74M"
@@ -564,72 +645,68 @@ def _extract_ceo_name(text: str) -> str | None:
         if not _is_blacklisted_name(candidate):
             return candidate
 
-    # Strategy 1 (was 2): Mr./Ms./Dr. + name near CEO anchor.
-    # The honorific is a strong, low-false-positive signal — promoted ahead
-    # of the punctuation heuristic so a "Mr. Musk ... CEO Interim Award"
-    # mention wins before a section-heading false positive can fire.
-    # NO re.I — the name group must enforce real uppercase-first tokens;
-    # `re.I` made [A-Z] case-insensitive, gluing "Mr. Musk as Chief
-    # Executive" into a 4-token candidate that the stopword filter then
-    # rejected. SEC filings capitalize honorifics by convention.
+    # Strategy 1: appositive "<Name>, [our] [Chairman and] Chief Executive
+    # Officer" — the highest-confidence prose signal because the comma binds the
+    # name to the title for ONE person. Promoted above the honorific/proximity
+    # heuristics, which a leadership-transition proxy (KO) defeats by placing a
+    # successor's "Mr. <Name>" near the named CEO's title anchor.
+    appositive = _appositive_ceo_name(text)
+    if appositive is not None:
+        return appositive
+
+    ceo_positions = [
+        m.start() for m in re.finditer(r"(?:Chief Executive Officer|CEO)\b", text, re.I)
+    ]
+
+    # Strategy 2: "Mr./Ms./Dr. <Name>" near a CEO anchor — but ONLY when exactly
+    # one distinct candidate qualifies. The honorific marks a personal name, yet
+    # proximity to "a" CEO mention does NOT prove the title is THIS person's: a
+    # succession proxy puts "Mr. <successor>" and "Mr. <current CEO>" both near
+    # CEO anchors. When ≥2 distinct names qualify we cannot tell which is CEO →
+    # abstain (None) rather than emit a coin-flip. NO re.I (see name-group note).
     honorific_pattern = re.compile(
         r"(?:Mr\.|Ms\.|Mrs\.|Dr\.)[ \t\xa0]+"
         r"([A-Z][A-Za-z.'-]+(?:[ \t\xa0]+[A-Z][A-Za-z.'-]+){0,3})",
     )
-    ceo_positions = [
-        m.start() for m in re.finditer(r"(?:Chief Executive Officer|CEO)\b", text, re.I)
-    ]
+    honorific_hits: list[str] = []
     for m in honorific_pattern.finditer(text):
         candidate = m.group(1).strip()
         if _is_blacklisted_name(candidate):
             continue
-        # Must be within 300 chars of a CEO anchor.
         if any(abs(m.start() - pos) <= 300 for pos in ceo_positions):
-            return candidate
-
-    # Strategy 2 (was 1): "Name, Chief Executive Officer" with explicit
-    # comma / dash / colon connector. Two important narrowings vs. the
-    # original Strategy 1 that produced TSLA false positives:
-    #   - require the FULL title "Chief Executive Officer" (no bare "CEO"),
-    #     because bare CEO appears inside compound nouns like
-    #     "CEO Performance Award" which the regex couldn't distinguish
-    #     from a real title mention;
-    #   - drop `(` from the connector class — parenthetical asides
-    #     ("Equity Incentive Plan (as defined below) and the 2025 CEO …")
-    #     produced too many false positives despite passing the stopword
-    #     filter.
-    # IMPORTANT: do NOT use re.I here — the name group uses [A-Z] to enforce
-    # uppercase-first, and re.I would make [A-Z] match lowercase too.
-    pre_title_pattern = re.compile(
-        r"([A-Z][A-Za-z.'-]+(?:[ \t\xa0]+[A-Z][A-Za-z.'-]+){1,3})"
-        r"[ \t\xa0]*[,\-:–—]"
-        r"[^A-Z\n]{0,80}"
-        r"Chief Executive Officer\b",
-    )
-    for m in pre_title_pattern.finditer(text):
-        candidate = m.group(1).strip()
-        if not _is_blacklisted_name(candidate):
-            return candidate
-
-    # Strategy 3: post-anchor scan with strict blacklist filtering.
-    ceo_match = re.search(r"(?:Chief Executive Officer|CEO)\b[^\n]{0,120}", text, re.I)
-    if not ceo_match:
+            if candidate not in honorific_hits:
+                honorific_hits.append(candidate)
+    if len(honorific_hits) == 1:
+        return honorific_hits[0]
+    if len(honorific_hits) > 1:
+        # Ambiguous (multiple execs near CEO anchors) — abstain. Do NOT fall
+        # through to the even-weaker post-anchor scan, which would resolve the
+        # same ambiguity by grabbing whichever name happens to sit first.
         return None
-    window = ceo_match.group(0)
-    for candidate_match in re.finditer(
-        r"\b([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){1,3})\b",
-        window,
-    ):
-        candidate = candidate_match.group(1).strip()
-        # Skip single-char initials-only matches.
-        if len(candidate.replace(" ", "")) <= 3:
-            continue
-        if _is_blacklisted_name(candidate):
-            continue
-        # Skip the article "The" as a leading word.
-        if candidate.lower().startswith("the "):
-            continue
-        return candidate
+
+    # Strategy 3: post-anchor scan — weakest signal (first capitalized bigram in
+    # a 120-char window after a CEO mention). Same abstain-on-tie discipline:
+    # collect the distinct candidates across ALL CEO anchors and only resolve
+    # when exactly one survives. "Mr. <successor> will serve as Chief Executive
+    # Officer" plus the named CEO's own mention would otherwise both qualify.
+    post_hits: list[str] = []
+    for ceo_match in re.finditer(r"(?:Chief Executive Officer|CEO)\b[^\n]{0,120}", text, re.I):
+        window = ceo_match.group(0)
+        for candidate_match in re.finditer(
+            r"\b([A-Z][A-Za-z'-]+(?:\s+[A-Z][A-Za-z'-]+){1,3})\b",
+            window,
+        ):
+            candidate = candidate_match.group(1).strip()
+            if len(candidate.replace(" ", "")) <= 3:
+                continue
+            if _is_blacklisted_name(candidate):
+                continue
+            if candidate.lower().startswith("the "):
+                continue
+            if candidate not in post_hits:
+                post_hits.append(candidate)
+    if len(post_hits) == 1:
+        return post_hits[0]
     return None
 
 
@@ -808,13 +885,48 @@ def build_schedule13_alerts(raw_schedule13: dict[str, Any]) -> list[ScheduleThir
 _CEO_TITLE_RE = re.compile(r"chief executive officer|\bceo\b", re.I)
 
 
+# Divisional / regional / subsidiary "CEO" — NOT the parent-company CEO. Ford's
+# Form-4s carry both "President and CEO" (Jim Farley, the issuer's CEO) and
+# "President & CEO Ford China&IMG" (Shengpo Wu, a regional unit CEO); the
+# regional title must be rejected so a business-unit head can't outrank the
+# parent CEO on the filing-count tie-break (2026-06-13: F resolved to
+# "Shengpo Wu").
+def _is_divisional_ceo_title(position: str) -> bool:
+    """True when the title is a business-unit/region CEO, not the parent CEO.
+
+    Anchored on the CEO token: a parent-company CEO title ends at "CEO" /
+    "Chief Executive Officer" or continues only with a connector ("and", "of
+    the Company"). A capitalized unit/region word trailing the CEO token
+    ("CEO Ford China", "President & CEO of EMEA") marks a divisional CEO.
+    """
+    m = _CEO_TITLE_RE.search(position)
+    if m is None:
+        return False
+    tail = position[m.end() :].lstrip(" \t,-")
+    # Strip a leading "of [the] " so "CEO of the Company" still reads as parent.
+    of_stripped = re.sub(r"^of\s+(?:the\s+)?", "", tail, flags=re.I)
+    if not of_stripped:
+        return False
+    # A connector to ANOTHER parent-level title ("and Chairman") is the issuer
+    # CEO; only a proper-noun/number unit name (region/brand/segment) is
+    # divisional. "Company"/"Issuer" right after "of the" is the parent.
+    if re.match(r"(?:company|issuer)\b", of_stripped, re.I):
+        return False
+    if re.match(r"and\b", of_stripped, re.I):
+        return False
+    # Remaining capitalized/numeric token = a named unit ("Ford China&IMG",
+    # "EMEA", "Americas") → divisional.
+    return bool(re.match(r"[A-Z0-9]", of_stripped))
+
+
 def _ceo_name_from_insiders(insiders: list[InsiderTransaction]) -> str | None:
     """Resolve the current CEO's name from Form-4 officer titles.
 
     Returns the name carried by the most Form-4 filings whose ``insider_position``
-    declares a current-CEO title (tie-break: most recent filing). ``None`` when no
-    insider holds such a title. Explicit "former" titles are skipped so a departed
-    CEO's residual filings cannot win.
+    declares a current parent-company CEO title (tie-break: most recent filing).
+    ``None`` when no insider holds such a title. Explicit "former" titles and
+    divisional/regional CEO titles ("President & CEO Ford China") are skipped so
+    a departed or business-unit CEO cannot win.
     """
     counts: dict[str, int] = {}
     latest: dict[str, date] = {}
@@ -823,6 +935,8 @@ def _ceo_name_from_insiders(insiders: list[InsiderTransaction]) -> str | None:
         if "former" in position.lower():
             continue
         if not _CEO_TITLE_RE.search(position):
+            continue
+        if _is_divisional_ceo_title(position):
             continue
         name = (tx.insider_name or "").strip()
         if not name:

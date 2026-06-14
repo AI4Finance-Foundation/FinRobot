@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import statistics
 from dataclasses import dataclass
+from typing import Literal
 
 from finrobot.engine.models.financial import ValuationMethod, ValuationSynthesis
 from finrobot.engine.models.valuation_thresholds import (
@@ -55,8 +56,125 @@ _RELIABILITY_RATIO_K = 2.0
 # (_classify_market_divergence and the single-method branch in resolve_canonical_thesis).
 
 
+# ── Confidence dial (REVIEW → graded-call redesign, ADR 估值优雅降级) ─────────
+# The dial NEVER withholds the directional verdict — uncertainty only (a) lowers
+# the confidence tier, (b) widens the target band, and (c) for a point that could
+# only be fabricated, withholds the POINT (valuation_withheld) while the verdict
+# still ships from the market-implied read. Spread → tier is by method AGREEMENT,
+# not market distance (KO's two-methods-agree-but-rich stays high); market distance
+# only caps the tier when the model/market ratio leaves the [0.25x, 4x] calibration
+# band (the option-value regime). Thresholds calibrated against the full basket
+# (MU/AAPL/KO/NVDA/TSLA/RIVN/F) — see scripts/probe_review_map + dial validation.
+_DIAL_CORROBORATE_SPAN = 1.5  # max/min ≤ → methods agree → blend + high tier
+_DIAL_MILD_SPAN = 3.0  # max/min ≤ → mild divergence → medium; above → low
+_DIAL_SINGLE_BAND_FRAC = 0.25  # single-method (no cross-check) range half-width
+ConfidenceTier = Literal["very_low", "low", "medium", "high"]
+_TIER_ORDER: tuple[ConfidenceTier, ...] = ("very_low", "low", "medium", "high")
+
+
+def _floor_tier(a: ConfidenceTier, b: ConfidenceTier) -> ConfidenceTier:
+    """The lower (more conservative) of two confidence tiers."""
+    return a if _TIER_ORDER.index(a) <= _TIER_ORDER.index(b) else b
+
+
+def _select_anchor(methods: list[ValuationMethod], cyclical: bool) -> ValuationMethod | None:
+    """Comparability anchor for a divergent method set (sell-side convention).
+
+    Cyclical / unique business → DCF (book/cash-flow is cycle-stable, unlike a
+    trough/peak-EPS multiple). Rich peer set (comps present) on a non-cyclical →
+    comps. Never a blended midpoint of divergent methods (that prints a number no
+    method produced). None only when neither DCF nor comps is present.
+    """
+    dcf = next((m for m in methods if m.name == "dcf"), None)
+    comps = [m for m in methods if m.name.startswith("comps")]
+    if cyclical and dcf is not None:
+        return dcf
+    if comps:
+        by_name = {m.name: m for m in comps}
+        return by_name.get("comps_pe") or by_name.get("comps_pb") or comps[0]
+    return dcf
+
+
+def _confidence_dial(
+    methods: list[ValuationMethod], current_price: float, cyclical: bool
+) -> tuple[ConfidenceTier, str | None, float | None, float | None, bool, str | None]:
+    """Return (confidence, anchor_method, target_low, target_high, withheld, note).
+
+    Pure. Encodes the graded-call rules; the verdict/target themselves are resolved
+    downstream from these fields (resolve_canonical_thesis). ``methods`` is non-empty.
+    """
+    mids = [m.mid for m in methods]
+    lo, hi = min(mids), max(mids)
+
+    # Single method: no cross-check. In-band → medium with a wide band; wildly
+    # off-market → the only point we could give is the market price in costume, so
+    # withhold the POINT (verdict still ships from the market-implied read).
+    if len(methods) == 1:
+        only = methods[0]
+        ratio = only.mid / current_price if current_price > 0 else float("inf")
+        if 1.0 / SINGLE_METHOD_DIVERGENCE_RATIO_K <= ratio <= SINGLE_METHOD_DIVERGENCE_RATIO_K:
+            band = abs(only.mid) * _DIAL_SINGLE_BAND_FRAC
+            return (
+                "medium",
+                None,
+                only.mid - band,
+                only.mid + band,
+                False,
+                f"单一方法 {only.name} 无交叉校验 — 区间放宽,置信中等。",
+            )
+        return (
+            "very_low",
+            None,
+            None,
+            None,
+            True,
+            f"单一方法 {only.name} ${only.mid:.0f} 为市价的 {ratio:.2g}x,出 "
+            f"[{1.0 / SINGLE_METHOD_DIVERGENCE_RATIO_K:.2g}x,"
+            f"{SINGLE_METHOD_DIVERGENCE_RATIO_K:.0f}x] 单法校准带 — 点目标暂缺,方向取市场隐含。",
+        )
+
+    # ≥2 methods: tier from inter-method agreement (NOT market distance).
+    span = hi / lo if lo > 0 else float("inf")
+    tier: ConfidenceTier
+    if span <= _DIAL_CORROBORATE_SPAN:
+        point = sum(m.mid * m.confidence for m in methods) / sum(m.confidence for m in methods)
+        tier = "high"
+        anchor_name = None
+        note = None
+    else:
+        anchor = _select_anchor(methods, cyclical)
+        anchor_name = anchor.name if anchor else None
+        point = anchor.mid if anchor else statistics.median(mids)
+        tier = "medium" if span <= _DIAL_MILD_SPAN else "low"
+        note = (
+            f"方法分歧 {span:.2g}x — 锚定 {anchor_name} ${point:.0f}"
+            f"(可比性:{'周期股现金流/账面' if cyclical else 'peer 倍数'}),其余方法作区间界。"
+            if anchor_name
+            else f"方法分歧 {span:.2g}x,取中位。"
+        )
+
+    # Out-of-calibration cap (option-value regime): model/market outside [0.25x, 4x].
+    # Even when methods agree (TSLA: both ~14x below market), a confident point is
+    # unsafe — the market prices something the models structurally miss. Cap the
+    # tier; if extreme, withhold the point (keep the directional verdict).
+    ratio = point / current_price if current_price > 0 else float("inf")
+    if ratio > MARKET_DIVERGENCE_RATIO_K or ratio < 1.0 / MARKET_DIVERGENCE_RATIO_K:
+        extreme = ratio > 2 * MARKET_DIVERGENCE_RATIO_K or ratio < 1.0 / (
+            2 * MARKET_DIVERGENCE_RATIO_K
+        )
+        tier = _floor_tier(tier, "very_low" if extreme else "low")
+        note = (note or "") + (
+            f" 模型 ${point:.0f} 为市价的 {ratio:.2g}x,出 [0.25x,4x] 校准带 — "
+            "市场或在定价模型未捕捉的期权价值,置信下调" + ("、点目标暂缺" if extreme else "") + "。"
+        )
+        if extreme:
+            return tier, anchor_name, lo, hi, True, note.strip()
+
+    return tier, anchor_name, lo, hi, False, (note or None)
+
+
 def synthesize_valuations(
-    methods: list[ValuationMethod], current_price: float
+    methods: list[ValuationMethod], current_price: float, *, cyclical: bool = False
 ) -> ValuationSynthesis:
     """Synthesize multiple valuation methods into a single confidence-weighted estimate.
 
@@ -100,11 +218,20 @@ def synthesize_valuations(
             "weighted_price set to None (method: %s)",
             methods[0].name,
         )
+        conf, anchor, t_lo, t_hi, withheld, note = _confidence_dial(
+            methods, current_price, cyclical
+        )
         return ValuationSynthesis(
             methods=methods,
             weighted_price=None,
             current_price=current_price,
             upside_downside=None,
+            confidence=conf,
+            anchor_method=anchor,
+            target_low=t_lo,
+            target_high=t_hi,
+            valuation_withheld=withheld,
+            degradation_note=note,
         )
 
     weighted_price = sum(m.mid * m.confidence for m in methods) / total_confidence
@@ -202,6 +329,7 @@ def synthesize_valuations(
             "range; a fundamentals point target must be withheld pending review."
         )
 
+    conf, anchor, t_lo, t_hi, withheld, note = _confidence_dial(methods, current_price, cyclical)
     return ValuationSynthesis(
         methods=methods,
         weighted_price=weighted_price,
@@ -210,6 +338,12 @@ def synthesize_valuations(
         outlier_methods=outlier_methods,
         warnings=synthesis_warnings,
         reliable=reliable,
+        confidence=conf,
+        anchor_method=anchor,
+        target_low=t_lo,
+        target_high=t_hi,
+        valuation_withheld=withheld,
+        degradation_note=note,
     )
 
 

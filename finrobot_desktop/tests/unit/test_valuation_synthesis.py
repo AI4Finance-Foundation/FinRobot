@@ -473,3 +473,82 @@ class TestResolveCanonicalThesis:
         assert canonical.target == pytest.approx(180.0, abs=0.01)
         assert canonical.verdict == "BUY"
         assert canonical.basis is not None and "Single valuation method" in canonical.basis
+
+
+class TestConfidenceDial:
+    """The graded-call dial (REVIEW deleted): synthesize_valuations always yields a
+    confidence tier + a target band, and withholds the POINT (never the call) only
+    when the sole available number would be fabricated. Cases mirror the live basket
+    (MU/AAPL/KO/NVDA/TSLA/RIVN/F) — the empirical calibration regression guard."""
+
+    @staticmethod
+    def _m(name: str, mid: float, conf: float = 0.7) -> ValuationMethod:
+        return ValuationMethod(
+            name=name, low=mid * 0.9, mid=mid, high=mid * 1.1, confidence=conf, source=name
+        )
+
+    def test_cyclical_divergence_anchors_dcf_not_midpoint(self):
+        # MU: dcf $188 vs comps_pb $1332 (7x), cyclical → anchor the cycle-stable DCF,
+        # NEVER the ~$760 midpoint no method produced. 0.19x market → out-of-band but
+        # not extreme → low, point kept; range spans both methods.
+        vs = synthesize_valuations(
+            [self._m("dcf", 188), self._m("comps_pb", 1332)], 982.0, cyclical=True
+        )
+        assert vs.confidence == "low"
+        assert vs.anchor_method == "dcf"
+        assert vs.valuation_withheld is False
+        assert vs.target_low == pytest.approx(188) and vs.target_high == pytest.approx(1332)
+        anchor = next(m for m in vs.methods if m.name == vs.anchor_method)
+        assert abs(anchor.mid - (188 + 1332) / 2) > 100  # decisively not the midpoint
+
+    def test_noncyclical_divergence_anchors_comps(self):
+        # AAPL: dcf $104 vs comps_pe $303 (2.9x), rich peers → anchor comps.
+        vs = synthesize_valuations(
+            [self._m("dcf", 104), self._m("comps_pe", 303)], 291.0, cyclical=False
+        )
+        assert vs.confidence == "medium"
+        assert vs.anchor_method == "comps_pe"
+        assert vs.valuation_withheld is False
+
+    def test_market_distance_within_band_does_not_lower_confidence(self):
+        # KO: dcf $27 + comps_pe $49, both below $83 market but within [0.25x,4x] →
+        # NOT capped. Confidence reflects method agreement, not distance-to-market.
+        vs = synthesize_valuations(
+            [self._m("dcf", 27), self._m("comps_pe", 49)], 83.0, cyclical=False
+        )
+        assert vs.confidence == "medium"
+        assert vs.valuation_withheld is False
+
+    def test_methods_agree_far_below_market_withholds_point_keeps_direction(self):
+        # TSLA: dcf $33 + comps_pe $24 agree (1.4x) but ~0.07x market (extreme
+        # out-of-band, option-value regime) → very_low + POINT withheld; the verdict
+        # still ships from the market-implied read. NOT a naked high-conf -93% SELL.
+        vs = synthesize_valuations(
+            [self._m("dcf", 33), self._m("comps_pe", 24)], 406.0, cyclical=False
+        )
+        assert vs.confidence == "very_low"
+        assert vs.valuation_withheld is True
+
+    def test_single_method_off_market_withholds_point(self):
+        # RIVN: single dcf $6 vs $17 (0.36x, out of [0.5x,2x] single band) → very_low
+        # + withheld (the only number would be the market price in costume).
+        vs = synthesize_valuations([self._m("dcf", 6)], 17.0, cyclical=False)
+        assert vs.confidence == "very_low"
+        assert vs.valuation_withheld is True
+        assert vs.target_low is None
+
+    def test_single_method_in_band_medium_with_widened_range(self):
+        # F: single comps_pe $12 vs $15 (0.8x, in band) → medium, point kept, band widened.
+        vs = synthesize_valuations([self._m("comps_pe", 12)], 15.0, cyclical=False)
+        assert vs.confidence == "medium"
+        assert vs.valuation_withheld is False
+        assert vs.target_low is not None and vs.target_high is not None
+
+    def test_methods_corroborate_blend_high_confidence(self):
+        # Two methods within 1.5x and in-band → high confidence, blended (anchor None).
+        vs = synthesize_valuations(
+            [self._m("dcf", 100), self._m("comps_pe", 120)], 110.0, cyclical=False
+        )
+        assert vs.confidence == "high"
+        assert vs.anchor_method is None
+        assert vs.valuation_withheld is False

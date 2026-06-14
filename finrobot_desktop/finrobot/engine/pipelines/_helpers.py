@@ -767,7 +767,7 @@ def build_valuation_synthesis(
     ]
 
     try:
-        vs = synthesize_valuations(vm_list, current_price)
+        vs = synthesize_valuations(vm_list, current_price, cyclical=cyclical)
     except ValueError as e:
         logger.warning("Failed to build ValuationSynthesis: %s", e)
         return None

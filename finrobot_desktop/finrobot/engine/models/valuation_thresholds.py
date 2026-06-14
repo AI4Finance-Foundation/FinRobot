@@ -56,6 +56,25 @@ MARKET_DIVERGENCE_RATIO_K = 4.0
 # and printed $2172 = 2.5x the $864 market, shipped as a confident +151% BUY.
 SINGLE_METHOD_DIVERGENCE_RATIO_K = 2.0
 
+# Method-vs-method corroboration span — the max(mid)/min(mid) ratio above which
+# two or more valuation methods do NOT corroborate each other (orthogonal to the
+# model-vs-market bands above, which compare the headline to the live price). With
+# exactly two methods the median is always their midpoint, so a 2.57x disagreement
+# averages into a meaningless midpoint that the median-deviation gate is blind to
+# (the MSFT $189 DCF vs $487 comps bug). max/min is invariant to method count, so
+# it trips on any pair > K. K=2.0: two methods that differ by more than 2x do not
+# corroborate, full stop — no honest blended point exists.
+#
+# Lives in the leaf because TWO layers consume it and must speak the same language:
+#   · the upstream confidence dial (``valuation_synthesis._RELIABILITY_RATIO_K``,
+#     re-exported from here) which grades reliability at synthesis time, and
+#   · the persist-boundary output contract (``artifact/contract`` clause C1b) which
+#     re-checks the method span on the FINAL artifact — and is forbidden to import
+#     ``compute/``. C1 (model-vs-market) is structurally blind to a target that
+#     sits in-band against the market while its methods are 7x apart (the MU
+#     0.69x-market-yet-DCF-7x-comps case); C1b is that backstop.
+METHOD_CORROBORATION_SPAN_K = 2.0
+
 # Sponsor equity-return hurdle, shared by the two LBO consumers that must speak
 # the same bar (a leaf for the same reason as the constants above — the
 # aggregator is forbidden to import compute/operators/lbo):

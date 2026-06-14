@@ -10,8 +10,9 @@ duplicate that table — it carries the runtime value/findings the static table
 must never hold (design doc §4, ADR-0010 layering).
 
 The gate verdict is a rollup: the worst finding severity wins. ``info`` is
-advisory and never gates; ``review`` forces a REVIEW-only artifact; a single
-``blocked_field`` withholds that number (and any price-target derived from it).
+advisory and never gates; ``review`` flags the artifact ``caveated`` (a banner +
+disclosure, but the directional verdict still ships); a single ``blocked_field``
+withholds that number (and any price-target derived from it) — never the verdict.
 """
 
 from __future__ import annotations
@@ -22,11 +23,16 @@ from pydantic import BaseModel, ConfigDict, Field
 
 Severity = Literal["info", "review", "blocked_field"]
 FieldStatus = Literal["pass", "review", "blocked_field"]
-# Report-level verdict (design doc §7, two-axis status). PUBLISHABLE: render as-is.
-# REVIEW_ONLY: report ships but rating forced REVIEW / price target may be withheld.
+# Report-level data-quality status (design doc §7, two-axis status). PUBLISHABLE:
+# render as-is. CAVEATED: report ships with a data-quality banner; the directional
+# verdict ALWAYS ships, but a price target may be withheld (valuation_withheld)
+# when an underlying number is corrupt — the report is not refused, only annotated.
 # UNPUBLISHABLE: core price / identity / basic financials unresolvable — reserved
 # for the critical-data-failure path, not produced by the definitional verifiers.
-ArtifactStatus = Literal["publishable", "review_only", "unpublishable"]
+# NB: this is the DATA-QUALITY axis, orthogonal to the directional verdict — there
+# is no "refuse to rate" state (the deleted REVIEW verdict). Renamed from
+# ``review_only`` so no "review" verdict substring is ever emitted.
+ArtifactStatus = Literal["publishable", "caveated", "unpublishable"]
 
 # Severity precedence for the rollup. Higher = stronger gate.
 _SEVERITY_RANK: dict[Severity, int] = {"info": 0, "review": 1, "blocked_field": 2}
@@ -83,10 +89,11 @@ class NumericClaim(BaseModel):
 
 class ArtifactAudit(BaseModel):
     """Report-level numeric-audit verdict: the findings against a report's numbers
-    plus the rolled-up artifact status and whether the valuation (rating / price
-    target) must be withheld. Behavior A (design doc §7): a ``blocked_field`` (a
-    number that is a category error or dimensionally corrupt) withholds the target;
-    a ``review`` finding flags the report REVIEW_ONLY but leaves the target."""
+    plus the rolled-up artifact status and whether the valuation PRICE TARGET must
+    be withheld. Behavior A (design doc §7): a ``blocked_field`` (a number that is a
+    category error or dimensionally corrupt) withholds the TARGET (the directional
+    verdict still ships); a ``review`` finding flags the report ``caveated`` but
+    leaves the target. Neither ever refuses the directional rating."""
 
     model_config = ConfigDict(frozen=True)
 

@@ -9,17 +9,23 @@ persists at a single boundary (builder output → ``store.save``); this contract
 runs in the gap and asserts whole-artifact invariants the fragment gates are
 structurally blind to:
 
-  · C1 — the headline target/entry ratio must sit in the calibrated divergence
+  · C1 — the headline target/MARKET ratio must sit in the calibrated divergence
     band (single-method [1/2x, 2x], multi-method [1/4x, 4x]). Catches the MU
     $2172 = 2.5x-$864 accident no matter how the upstream gate mis-calibrated.
+  · C1b — the surviving methods must corroborate EACH OTHER (max/min mid ≤ the
+    leaf corroboration span). The backstop C1 is blind to: a target in-band vs the
+    market while the methods are 7x apart (MU 0.69x-of-market case).
   · C2 — a ``$``-anchored amount with two decimal points ($2172.062.06) is a
     string-concatenation artifact the narrative reconcile produced *after* every
     upstream gate ran; withhold (a malformed amount cannot be safely repaired).
 
-A violated HARD clause degrades through the EXISTING withhold machinery (null
-target, REVIEW, ``valuation_withheld`` + ``[CONTRACT/*]`` warning) — never raises
-(an exception would blank the whole run; an analyst would rather see the full
-report and know which number is suspect). A SOFT clause only annotates.
+A violated HARD clause is a VALUE-withhold: it degrades through the existing
+withhold machinery — null the target slot(s) + ``valuation_withheld`` +
+``[CONTRACT/*]`` warning — while PRESERVING the directional verdict (corrupt /
+out-of-band data withholds the price, never the judgment; there is no "REVIEW"
+refuse-to-rate state any more). It never raises (an exception would blank the
+whole run; an analyst would rather see the full report and know which number is
+suspect). A SOFT clause only annotates.
 
 Design contract (the gate stays dumb — see ADR): zero I/O, never imports
 ``compute/`` / ``data/`` / ``pipelines/``, holds no bare threshold literal (the
@@ -40,6 +46,7 @@ from finrobot.engine.models.numeric_claim import Finding
 from finrobot.engine.models.reconcile_tolerances import NARRATIVE_DRIFT_TOLERANCE
 from finrobot.engine.models.valuation_thresholds import (
     MARKET_DIVERGENCE_RATIO_K,
+    METHOD_CORROBORATION_SPAN_K,
     SINGLE_METHOD_DIVERGENCE_RATIO_K,
 )
 
@@ -48,25 +55,27 @@ if TYPE_CHECKING:
 
 ClauseSeverity = Literal["H", "S"]
 
-# Q2 (locked): when a clause withholds, the conclusion mirror fields are
-# neutralised but the analysis body is preserved verbatim, with a provenance
-# stamp telling the reader the narrative predates the withhold. EN placeholder
-# (single-locale ship); revisit copy when the cover badge wording is finalised.
+# When a clause withholds, the POINT-target conclusion (the tagline) is
+# neutralised but the directional verdict and the analysis body are preserved
+# verbatim, with a provenance stamp telling the reader the price target was
+# withheld after the narrative was written. EN placeholder (single-locale ship);
+# revisit copy when the cover badge wording is finalised.
 _WITHHELD_NARRATIVE_STAMP = (
-    "Conclusion suspended by the output contract; the analysis below was written "
-    "before the withhold."
+    "Price target withheld by the output contract; the directional verdict still "
+    "stands and the analysis below was written before the withhold."
 )
 
 
 @dataclass(frozen=True)
 class ContractClause:
     """One whole-artifact invariant. ``severity`` H → violation withholds the
-    headline + flags REVIEW; S → violation only appends a note. ``check`` is a
-    pure function returning the violation as a :class:`Finding`, or None when the
-    invariant holds (or does not apply to this artifact's shape)."""
+    headline TARGET + sets ``valuation_withheld`` (the directional verdict is
+    preserved); S → violation only appends a note. ``check`` is a pure function
+    returning the violation as a :class:`Finding`, or None when the invariant
+    holds (or does not apply to this artifact's shape)."""
 
     id: str
-    severity: ClauseSeverity
+    severity: ClauseSeverity  # H → violation withholds the TARGET (verdict kept); S → note only.
     check: Callable[["Artifact"], Finding | None]
 
 
@@ -100,6 +109,57 @@ def _clause_c1_upside_band(artifact: "Artifact") -> Finding | None:
         evidence=(
             f"headline target {target:.2f} is {ratio:.2g}x the entry price {entry:.2f}, "
             f"outside the {band} corroboration band [{lo:.2g}x, {hi:.2g}x]"
+        ),
+    )
+
+
+# ── C1b: method-vs-method corroboration span ─────────────────────────────────
+
+
+def _clause_c1b_method_span(artifact: "Artifact") -> Finding | None:
+    """The method-disagreement backstop C1 is structurally blind to. C1 compares
+    the headline to the MARKET; a target can sit comfortably in the market band
+    (e.g. MU 0.69x of market) while the surviving methods are 7x apart from EACH
+    OTHER — no honest blended point exists, so the POINT must be withheld (the
+    directional verdict still ships). Reads the dumped ``valuation_synthesis.methods``
+    mids and fires when max/min exceeds the shared leaf corroboration span; a
+    value-withhold, never a refuse-to-rate. Every read is guarded — methods may be
+    absent, a non-list, or (in unit fixtures) a list of bare names with no mid."""
+    target = extract_target_price(artifact)
+    if target is None or target <= 0:
+        return None  # no per-share headline to withhold
+    synthesis = artifact.outputs.structured.get("valuation_synthesis")
+    if not isinstance(synthesis, dict):
+        return None
+    methods = synthesis.get("methods")
+    if not isinstance(methods, list):
+        return None
+
+    mids: list[float] = []
+    for method in methods:
+        if not isinstance(method, dict):
+            continue  # a bare method name carries no mid — nothing to span
+        mid = method.get("mid")
+        if isinstance(mid, bool):  # True == 1 must not masquerade as a mid
+            continue
+        if isinstance(mid, (int, float)) and mid > 0:
+            mids.append(float(mid))
+    if len(mids) <= 1:
+        return None  # a single (or zero) mid can't disagree with itself
+
+    lo, hi = min(mids), max(mids)
+    span = hi / lo
+    if span <= METHOD_CORROBORATION_SPAN_K:
+        return None
+
+    return Finding(
+        field_key="thesis.price_target",
+        check="contract_c1b_method_span",
+        severity="blocked_field",
+        evidence=(
+            f"valuation methods span {span:.2g}x (min ${lo:.2f}, max ${hi:.2f}) — "
+            f"above the {METHOD_CORROBORATION_SPAN_K:.0f}x corroboration limit; "
+            f"no honest blended point exists, withholding the target {target:.2f}"
         ),
     )
 
@@ -331,25 +391,39 @@ _FALLBACK_HEADLINE_SLOTS: tuple[tuple[str, str | None], ...] = (
 )
 
 
-def _is_review(artifact: "Artifact") -> bool:
-    """The locked judge (§4.3 ⟦复核⟧): a thesis REVIEW recommendation OR an explicit
-    valuation_withheld. The data-health-gate REVIEW path NEVER sets
-    valuation_withheld, so recommendation == 'REVIEW' is load-bearing and cannot be
-    the sole-judge replaced by valuation_withheld."""
+def _is_withheld(artifact: "Artifact") -> bool:
+    """The withhold judge for C7: True when the published thesis is withholding its
+    POINT target. The verdict/target decoupling (commit ③) made the target
+    withhold its own signal — ``thesis.price_target is None`` while the
+    recommendation is directional (BUY/HOLD/SELL) — replacing the deleted
+    recommendation=='REVIEW' sentinel. The explicit ``valuation_withheld`` flag
+    (set by every withhold producer) is also honoured. A legacy stored artifact
+    may still carry recommendation=='REVIEW' (read-only back-compat — never
+    written any more): treat it as withheld so C7 keeps scrubbing old artifacts.
+    Either signal must drive C7 so a fallback $-slot can't resurrect the target."""
     structured = artifact.outputs.structured
     if structured.get("valuation_withheld") is True:
         return True
     thesis = structured.get("thesis")
-    return isinstance(thesis, dict) and thesis.get("recommendation") == "REVIEW"
+    if not isinstance(thesis, dict):
+        return False
+    if thesis.get("recommendation") == "REVIEW":  # legacy artifacts only
+        return True
+    # The published withhold signal: a directional verdict with no point target.
+    recommendation = thesis.get("recommendation")
+    if recommendation in ("BUY", "HOLD", "SELL") and thesis.get("price_target") is None:
+        return True
+    return False
 
 
 def _clause_c7_no_resurrection(artifact: "Artifact") -> Finding | None:
-    """When the artifact is under review, NO headline value may survive in ANY
-    fallback slot. Scans the RAW slots (not extract_target_price, which already
-    early-returns on a thesis) — the TSLA bug was financial_modeling.implied_price
-    = 20.35 riding naked on a compliant REVIEW thesis. Any positive number found →
-    fire (the _withhold scrub then nulls every slot)."""
-    if not _is_review(artifact):
+    """When the artifact is withholding its target (directional verdict, no point),
+    NO headline value may survive in ANY fallback slot. Scans the RAW slots (not
+    extract_target_price, which already early-returns on a thesis) — the TSLA bug
+    was financial_modeling.implied_price = 20.35 riding naked on a thesis whose own
+    price_target was withheld. Any positive number found → fire (the _withhold
+    scrub then nulls every slot)."""
+    if not _is_withheld(artifact):
         return None
     structured = artifact.outputs.structured
     for slot, parent_key in _FALLBACK_HEADLINE_SLOTS:
@@ -366,7 +440,7 @@ def _clause_c7_no_resurrection(artifact: "Artifact") -> Finding | None:
                 check="contract_c7_no_resurrection",
                 severity="blocked_field",
                 evidence=(
-                    f"withheld/REVIEW artifact still carries a headline {value} in "
+                    f"withheld-target artifact still carries a headline {value} in "
                     f"{where} — nulling so it cannot resurrect downstream"
                 ),
             )
@@ -377,6 +451,7 @@ def _clause_c7_no_resurrection(artifact: "Artifact") -> Finding | None:
 
 CONTRACT_CLAUSES: list[ContractClause] = [
     ContractClause(id="C1", severity="H", check=_clause_c1_upside_band),
+    ContractClause(id="C1b", severity="H", check=_clause_c1b_method_span),
     ContractClause(id="C2", severity="H", check=_clause_c2_double_decimal),
     ContractClause(id="C3", severity="H", check=_clause_c3_basis_matches_headline),
     ContractClause(id="C4", severity="H", check=_clause_c4_currency_caliber),
@@ -406,16 +481,18 @@ def enforce_artifact_contract(artifact: "Artifact") -> "Artifact":
 
 
 def _scrub_headline_slots(structured: dict[str, Any]) -> None:
-    """Null EVERY slot a headline value can hide in — the authoritative thesis
-    target, the flat per-share slots a plain dcf/ddm dumps, AND the nested
-    fallback slots (``financial_modeling.implied_price`` / ``dcf_result.implied_price``)
-    that the data-health-gate REVIEW path leaves naked in structured. Every hard
-    withhold calls this, so the C7 invariant — withheld ⇒ no headline survives in
-    ANY slot — holds for C1/C2/C3/C4/C7 alike (TSLA $20.35 resurrection)."""
+    """Null EVERY slot a headline TARGET can hide in — the authoritative thesis
+    target, the flat per-share slots a plain dcf/ddm dumps, AND the nested fallback
+    slots (``financial_modeling.implied_price`` / ``dcf_result.implied_price``) that
+    a withheld-target thesis leaves naked in structured. The directional
+    ``recommendation`` is PRESERVED — a hard clause withholds the VALUE, not the
+    verdict (绝不编数字: don't ship a fabricated/out-of-band number; do still judge).
+    Every hard withhold calls this, so the C7 invariant — withheld ⇒ no headline
+    survives in ANY slot — holds for C1/C1b/C2/C3/C4/C7 alike (TSLA $20.35
+    resurrection)."""
     thesis = structured.get("thesis")
     if isinstance(thesis, dict):
         thesis["price_target"] = None
-        thesis["recommendation"] = "REVIEW"
     # Flat headline slots (plain dcf `implied_price`, plain ddm `equity_value_per_share`)
     # — absent for equity_research, so this is a no-op there.
     for slot in ("implied_price", "equity_value_per_share", "target_price"):
@@ -432,11 +509,12 @@ def _scrub_headline_slots(structured: dict[str, Any]) -> None:
 
 def _withhold(artifact: "Artifact", violations: list[tuple[ContractClause, Finding]]) -> None:
     """Degrade exactly as the numeric-audit gate does (builders.py): null the
-    headline so it cannot resurrect, force REVIEW, set valuation_withheld, and
-    record machine evidence as [CONTRACT/*] warnings. Type-agnostic: scrubs the
-    authoritative thesis target, the flat per-share slots, and the nested fallback
-    slots, so extract_target_price AND every direct consumer see None afterwards
-    (the C7 invariant)."""
+    headline TARGET so it cannot resurrect, set valuation_withheld, and record
+    machine evidence as [CONTRACT/*] warnings. The directional VERDICT is
+    PRESERVED — a hard clause withholds the value, never the judgment (no "REVIEW"
+    state any more). Type-agnostic: scrubs the authoritative thesis target, the flat
+    per-share slots, and the nested fallback slots, so extract_target_price AND
+    every direct consumer see None afterwards (the C7 invariant)."""
     structured = artifact.outputs.structured
     ids = [clause.id for clause, _ in violations]
 
@@ -445,17 +523,18 @@ def _withhold(artifact: "Artifact", violations: list[tuple[ContractClause, Findi
     structured["valuation_withheld"] = True
     structured["withheld_reason"] = "contract_" + "+".join(ids)
 
-    # Q2 (locked): neutralise the conclusion mirror fields, preserve the body.
+    # The point-target conclusion is the tagline (a ≤60-char headline call that
+    # often quotes the number) — neutralise it since the target is withheld. The
+    # directional `recommendation` mirror is PRESERVED (verdict still ships); the
+    # analysis body is untouched.
     narrative = artifact.outputs.llm_narrative
     if isinstance(narrative, dict):
-        if "recommendation" in narrative:
-            narrative["recommendation"] = "REVIEW"
         if "tagline" in narrative:
             narrative["tagline"] = None
 
     numeric_audit = structured.get("numeric_audit")
     if isinstance(numeric_audit, dict):
-        numeric_audit["artifact_status"] = "review_only"
+        numeric_audit["artifact_status"] = "caveated"
 
     for clause, finding in violations:
         _append_warning(artifact, f"[CONTRACT/{clause.id}] {finding.evidence}")

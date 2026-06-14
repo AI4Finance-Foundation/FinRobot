@@ -131,7 +131,8 @@ def test_c1_withholds_single_method_target_out_of_band() -> None:
     art = enforce_artifact_contract(_mu_2172_artifact())
     structured = art.outputs.structured
     assert structured["thesis"]["price_target"] is None
-    assert structured["thesis"]["recommendation"] == "REVIEW"
+    # Value-withhold, NOT a refuse-to-rate: the directional verdict is preserved.
+    assert structured["thesis"]["recommendation"] == "BUY"
     assert structured["valuation_withheld"] is True
     assert structured["withheld_reason"] == "contract_C1"
     assert extract_target_price(art) is None  # C7 invariant: truly gone
@@ -139,11 +140,11 @@ def test_c1_withholds_single_method_target_out_of_band() -> None:
 
 
 def test_c1_neutralises_narrative_conclusion_keeps_body() -> None:
-    """Q2 (locked): withhold neutralises the conclusion mirror fields but
-    preserves the analysis body verbatim + stamps provenance."""
+    """Withhold neutralises the point-target conclusion (tagline) but PRESERVES
+    the directional verdict + the analysis body verbatim + stamps provenance."""
     art = enforce_artifact_contract(_mu_2172_artifact())
     narrative = art.outputs.llm_narrative
-    assert narrative["recommendation"] == "REVIEW"
+    assert narrative["recommendation"] == "BUY"  # verdict preserved, never REVIEW
     assert narrative["tagline"] is None
     assert narrative["company_overview"] == "Micron is a memory maker."  # body untouched
     assert any(w.startswith("[CONTRACT/withheld]") for w in _warnings(art))
@@ -277,13 +278,15 @@ def test_c2_ignores_legal_three_decimal_numbers() -> None:
 def test_enforce_is_idempotent_on_a_withheld_artifact() -> None:
     """Running the contract twice must not double-stamp or change the verdict —
     a withheld artifact re-enforced stays withheld with no extra mutation beyond
-    the already-appended warnings."""
+    the already-appended warnings. The withheld-target signal (verdict directional,
+    price_target None) is stable, so the second run re-detects it (via C7) without
+    mutating anything further."""
     once = enforce_artifact_contract(_mu_2172_artifact())
     snapshot = copy.deepcopy(once.model_dump())
     twice = enforce_artifact_contract(once)
-    # target stays None, still REVIEW; warnings already carry the evidence.
+    # target stays None, verdict stays directional (BUY); warnings carry the evidence.
     assert twice.outputs.structured["thesis"]["price_target"] is None
-    assert twice.outputs.structured["thesis"]["recommendation"] == "REVIEW"
+    assert twice.outputs.structured["thesis"]["recommendation"] == "BUY"
     assert twice.model_dump()["outputs"]["structured"] == snapshot["outputs"]["structured"]
 
 
@@ -386,11 +389,48 @@ def test_c2_fuzz_malformed_amounts_all_caught(amount: str) -> None:
 # ── C7: withheld must not resurrect ──────────────────────────────────────────
 
 
-def test_c7_nulls_resurrected_financial_modeling_implied_price_on_review() -> None:
-    """The real bug: a REVIEW thesis (data-health gate path, no valuation_withheld)
-    yet financial_modeling.implied_price=20.35 rides naked in structured. C7 scans
-    the RAW slot, nulls it, fires [CONTRACT/C7] — extract_target_price already
-    ignored it (thesis-authoritative), but other consumers resurrected it."""
+def test_c7_nulls_resurrected_financial_modeling_implied_price_on_withheld_target() -> None:
+    """The real bug, verdict now preserved: a SELL thesis whose own price_target is
+    withheld (None) yet financial_modeling.implied_price=20.35 rides naked in
+    structured. C7 scans the RAW slot, nulls it, fires [CONTRACT/C7]. The withheld
+    signal is (directional verdict + price_target None), not the deleted REVIEW."""
+    art = _artifact(
+        raw_data={"market": {"current_price": 18.0}},
+        structured={
+            "thesis": {"price_target": None, "recommendation": "SELL"},
+            "financial_modeling": {"implied_price": 20.35},
+        },
+    )
+    out = enforce_artifact_contract(art)
+    assert out.outputs.structured["financial_modeling"]["implied_price"] is None
+    assert out.outputs.structured["valuation_withheld"] is True
+    assert out.outputs.structured["withheld_reason"] == "contract_C7"
+    # The directional verdict is preserved un-scrubbed.
+    assert out.outputs.structured["thesis"]["recommendation"] == "SELL"
+    assert any(w.startswith("[CONTRACT/C7]") for w in _warnings(out))
+
+
+def test_c7_judges_withheld_via_directional_verdict_with_null_target() -> None:
+    """The withheld signal is a directional verdict (BUY/HOLD/SELL) with
+    price_target None — NOT a pre-set valuation_withheld. C7 must still fire and
+    must NOT touch the verdict."""
+    art = _artifact(
+        raw_data={"market": {"current_price": 18.0}},
+        structured={
+            "thesis": {"price_target": None, "recommendation": "HOLD"},
+            "dcf_result": {"implied_price": 99.0},
+        },
+    )
+    out = enforce_artifact_contract(art)
+    assert out.outputs.structured["dcf_result"]["implied_price"] is None
+    assert out.outputs.structured["thesis"]["recommendation"] == "HOLD"
+    assert any(w.startswith("[CONTRACT/C7]") for w in _warnings(out))
+
+
+def test_c7_still_judges_legacy_review_recommendation() -> None:
+    """Back-compat: an OLD stored artifact may carry recommendation=='REVIEW' (the
+    deleted verdict). C7 must still treat it as withheld so legacy fallback slots
+    are scrubbed. The contract never WRITES 'REVIEW' — it only reads it here."""
     art = _artifact(
         raw_data={"market": {"current_price": 18.0}},
         structured={
@@ -400,33 +440,16 @@ def test_c7_nulls_resurrected_financial_modeling_implied_price_on_review() -> No
     )
     out = enforce_artifact_contract(art)
     assert out.outputs.structured["financial_modeling"]["implied_price"] is None
-    assert out.outputs.structured["valuation_withheld"] is True
-    assert out.outputs.structured["withheld_reason"] == "contract_C7"
     assert any(w.startswith("[CONTRACT/C7]") for w in _warnings(out))
 
 
-def test_c7_judges_review_via_recommendation_not_valuation_withheld() -> None:
-    """The data-health-gate REVIEW path NEVER sets valuation_withheld — so the
-    judge must be recommendation=='REVIEW', not valuation_withheld being True."""
+def test_c7_noop_when_withheld_and_all_slots_already_null() -> None:
+    """A clean withheld artifact (directional verdict, no target, no resurrected
+    slots) must pass through unchanged — C7 only fires on a SURVIVING headline."""
     art = _artifact(
         raw_data={"market": {"current_price": 18.0}},
         structured={
-            "thesis": {"price_target": None, "recommendation": "REVIEW"},
-            "dcf_result": {"implied_price": 99.0},
-        },
-    )
-    out = enforce_artifact_contract(art)
-    assert out.outputs.structured["dcf_result"]["implied_price"] is None
-    assert any(w.startswith("[CONTRACT/C7]") for w in _warnings(out))
-
-
-def test_c7_noop_when_review_and_all_slots_already_null() -> None:
-    """A clean REVIEW artifact (no resurrected slots) must pass through unchanged —
-    C7 only fires on a SURVIVING positive headline."""
-    art = _artifact(
-        raw_data={"market": {"current_price": 18.0}},
-        structured={
-            "thesis": {"price_target": None, "recommendation": "REVIEW"},
+            "thesis": {"price_target": None, "recommendation": "SELL"},
             "financial_modeling": {"implied_price": None},
         },
     )
@@ -471,6 +494,129 @@ def test_c7_scrub_runs_on_every_hard_withhold() -> None:
     assert out.outputs.structured["financial_modeling"]["implied_price"] is None
     assert out.outputs.structured["thesis"]["price_target"] is None
     assert extract_target_price(out) is None
+
+
+def test_withheld_sell_thesis_passes_contract_verdict_unscrubbed() -> None:
+    """Item-7 invariant: a thesis that honestly withholds its POINT target
+    (price_target None) while still shipping a directional SELL verdict — with NO
+    resurrected fallback slots — passes the contract un-scrubbed of its verdict
+    (no C7 mutation, recommendation stays SELL). The value-integrity guardrails
+    only withhold the VALUE; they never refuse the judgment."""
+    art = _artifact(
+        raw_data={"market": {"current_price": 50.0}},
+        structured={
+            "thesis": {
+                "price_target": None,
+                "recommendation": "SELL",
+                "price_target_basis": "single-method DCF, no cross-check available",
+            },
+            "valuation_withheld": True,
+            "valuation_synthesis": {"weighted_price": None, "methods": []},
+        },
+        llm_narrative={"recommendation": "SELL", "company_overview": "body"},
+    )
+    out = enforce_artifact_contract(art)
+    assert out.outputs.structured["thesis"]["recommendation"] == "SELL"  # verdict ships
+    assert out.outputs.structured["thesis"]["price_target"] is None  # value honestly absent
+    assert out.outputs.llm_narrative["recommendation"] == "SELL"  # mirror preserved
+    # No fallback slot to resurrect, nothing tripped → no new [CONTRACT/*] warnings.
+    assert not any(w.startswith("[CONTRACT/") for w in _warnings(out))
+
+
+# ── C1b: method-vs-method corroboration span ─────────────────────────────────
+
+
+def _method(name: str, mid: float) -> dict:
+    return {"name": name, "low": mid * 0.9, "mid": mid, "high": mid * 1.1, "source": "x"}
+
+
+def test_c1b_withholds_when_methods_span_above_corroboration_limit() -> None:
+    """The MU 0.69x-of-market case C1 is blind to: the headline (130 vs 188 market =
+    in-band) survives C1, but the surviving method mids are 7x apart ($30 vs $210)
+    — no honest blended point exists, so C1b withholds the TARGET (verdict kept)."""
+    art = _artifact(
+        raw_data={"market": {"current_price": 188.0}},
+        structured={
+            "thesis": {"price_target": 130.0, "recommendation": "SELL"},
+            "valuation_synthesis": {
+                "weighted_price": 120.0,  # corroborated band → C1 passes
+                "methods": [_method("dcf", 30.0), _method("comps_pe", 210.0)],  # 7x apart
+            },
+        },
+        llm_narrative={"recommendation": "SELL"},
+    )
+    out = enforce_artifact_contract(art)
+    assert out.outputs.structured["thesis"]["price_target"] is None
+    assert out.outputs.structured["thesis"]["recommendation"] == "SELL"  # verdict kept
+    assert out.outputs.structured["valuation_withheld"] is True
+    assert "C1b" in out.outputs.structured["withheld_reason"]
+    assert any(w.startswith("[CONTRACT/C1b]") for w in _warnings(out))
+
+
+def test_c1b_passes_when_methods_corroborate_within_2x() -> None:
+    """Methods within the 2x corroboration span (max/min = 1.5x) → C1b silent."""
+    art = _artifact(
+        raw_data={"market": {"current_price": 100.0}},
+        structured={
+            "thesis": {"price_target": 130.0, "recommendation": "BUY"},
+            "valuation_synthesis": {
+                "weighted_price": 128.0,
+                "methods": [_method("dcf", 120.0), _method("comps_pe", 180.0)],  # 1.5x
+            },
+        },
+    )
+    before = art.model_dump()
+    out = enforce_artifact_contract(art)
+    assert out.model_dump() == before
+
+
+def test_c1b_noop_on_single_method_or_bare_names() -> None:
+    """C1b needs ≥2 numeric mids to measure a span: a single method, or method
+    entries that are bare names (no mid), are a no-op (never a spurious withhold)."""
+    single = _artifact(
+        raw_data={"market": {"current_price": 100.0}},
+        structured={
+            "thesis": {
+                "price_target": 150.0,
+                "recommendation": "BUY",
+                "price_target_basis": "comps_pe — single-method, no cross-check available",
+            },
+            "valuation_synthesis": {"weighted_price": None, "methods": [_method("dcf", 150.0)]},
+        },
+    )
+    before_single = single.model_dump()
+    assert enforce_artifact_contract(single).model_dump() == before_single
+
+    bare = _artifact(
+        raw_data={"market": {"current_price": 100.0}},
+        structured={
+            "thesis": {
+                "price_target": 150.0,
+                "recommendation": "BUY",
+                "price_target_basis": "comps_pe — single-method, no cross-check available",
+            },
+            "valuation_synthesis": {"weighted_price": None, "methods": ["dcf", "comps_pe"]},
+        },
+    )
+    before_bare = bare.model_dump()
+    assert enforce_artifact_contract(bare).model_dump() == before_bare
+
+
+def test_c1b_noop_when_no_per_share_headline() -> None:
+    """No target (lbo / comps / withheld) → C1b is structurally a no-op."""
+    art = _artifact(
+        raw_data={"market": {"current_price": 100.0}},
+        structured={
+            "valuation_synthesis": {
+                "weighted_price": None,
+                "methods": [_method("dcf", 30.0), _method("comps_pe", 210.0)],  # 7x but no target
+            },
+        },
+        type_="comps",
+    )
+    before = art.model_dump()
+    out = enforce_artifact_contract(art)
+    assert out.model_dump() == before
 
 
 # ── C4: currency caliber ─────────────────────────────────────────────────────

@@ -178,6 +178,17 @@ def test_verdict_returns_none_for_malformed_input() -> None:
     assert extract_verdict(_artifact()) is None
 
 
+def test_verdict_maps_legacy_review_to_neutral_withheld_display() -> None:
+    """Legacy artifacts (pre-Phase-2) stored recommendation=='REVIEW' (the deleted
+    refuse-to-judge verdict). extract_verdict must still surface them — mapped to a
+    neutral WITHHELD display, never dropped to None, and never re-emitting the
+    forbidden 'REVIEW' string. New artifacts only ever write BUY/HOLD/SELL."""
+    art = _artifact(structured={"thesis": {"recommendation": "REVIEW", "price_target": None}})
+    out = extract_verdict(art)
+    assert out == "WITHHELD"
+    assert out != "REVIEW"
+
+
 # ── tagline ──────────────────────────────────────────────────────────────────
 
 

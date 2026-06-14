@@ -74,12 +74,28 @@ def extract_target_price(artifact: "Artifact") -> float | None:
     return None
 
 
-def extract_verdict(artifact: "Artifact") -> str | None:
-    """Pull BUY / HOLD / SELL recommendation from a synthesis thesis.
+# Legacy-only neutral display token. Pre-Phase-2 artifacts stored
+# recommendation=="REVIEW" (the deleted refuse-to-judge verdict). New artifacts
+# NEVER produce it — the verdict is always directional, the target alone is
+# withheld (valuation_withheld). We map a legacy REVIEW to this neutral token
+# rather than dropping it to None (the artifact still exists and must surface)
+# while never re-emitting the "REVIEW" string the contract forbids.
+_WITHHELD_VERDICT_DISPLAY = "WITHHELD"
 
-    Stage A landing's hit-rate banner buckets by verdict. Returns None when
+
+def extract_verdict(artifact: "Artifact") -> str | None:
+    """Pull the directional BUY / HOLD / SELL recommendation from a synthesis
+    thesis.
+
+    Stage A landing's hit-rate banner buckets by verdict (only BUY/HOLD/SELL
+    create a bucket; everything else still feeds ``overall``). Returns None when
     the artifact has no thesis (e.g. peer_research, ad_hoc) or the recommend
     field is missing / malformed.
+
+    Legacy compatibility: an old stored artifact may carry recommendation==
+    "REVIEW" (the deleted refuse-to-judge verdict). It is mapped to the neutral
+    ``WITHHELD`` display token — readable, never dropped to None, and never the
+    forbidden "REVIEW" string. New artifacts only ever write BUY/HOLD/SELL.
     """
     thesis = artifact.outputs.structured.get("thesis")
     if not isinstance(thesis, dict):
@@ -88,11 +104,11 @@ def extract_verdict(artifact: "Artifact") -> str | None:
     if not isinstance(raw, str):
         return None
     normalised = raw.strip().upper()
-    # REVIEW is the data-health-gate verdict (target withheld) — surface it so
-    # the landing hit-rate strip and the cover badge can render a neutral
-    # "under review" state instead of silently dropping the artifact.
-    if normalised in ("BUY", "HOLD", "SELL", "REVIEW"):
+    if normalised in ("BUY", "HOLD", "SELL"):
         return normalised
+    # Legacy artifacts only — read REVIEW, surface a neutral display, never write it.
+    if normalised == "REVIEW":
+        return _WITHHELD_VERDICT_DISPLAY
     return None
 
 

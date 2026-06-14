@@ -90,23 +90,24 @@ class TestAuditArtifact:
         assert a.withhold_valuation is False
         assert a.findings == []
 
-    def test_blocked_field_review_only_and_withholds_valuation(self):
-        # Bank EV is a category error (blocked_field) → REVIEW_ONLY + withhold target.
+    def test_blocked_field_caveated_and_withholds_valuation(self):
+        # Bank EV is a category error (blocked_field) → caveated + withhold TARGET
+        # (the directional verdict still ships; no refuse-to-rate state).
         a = audit_artifact(_fd(industry="Banks - Diversified", ev_ebitda=8.0))
-        assert a.artifact_status == "review_only"
+        assert a.artifact_status == "caveated"
         assert a.withhold_valuation is True
         assert any(f.severity == "blocked_field" for f in a.findings)
 
-    def test_review_only_does_not_withhold_valuation(self):
-        # Loss-maker P/E NM is review (advisory) — REVIEW_ONLY banner, but the
+    def test_caveated_does_not_withhold_valuation(self):
+        # Loss-maker P/E NM is review (advisory) — caveated banner, but the
         # DCF-based target is not auto-nuked (no blocked_field).
         a = audit_artifact(_fd(industry="Software", net_income=-1e9))
-        assert a.artifact_status == "review_only"
+        assert a.artifact_status == "caveated"
         assert a.withhold_valuation is False
 
     def test_ttm_quarter_gap_withholds_valuation(self):
         # A broken TTM (missing quarter) corrupts every ratio → blocked_field →
-        # REVIEW_ONLY + withhold the target built on it.
+        # caveated + withhold the target built on it.
         a = audit_artifact(
             _fd(
                 industry="Software",
@@ -118,11 +119,11 @@ class TestAuditArtifact:
                 ],
             )
         )
-        assert a.artifact_status == "review_only"
+        assert a.artifact_status == "caveated"
         assert a.withhold_valuation is True
         assert any(f.check == "ttm_quarter_gap" for f in a.findings)
 
-    def test_incomplete_ttm_review_only_keeps_valuation(self):
+    def test_incomplete_ttm_caveated_keeps_valuation(self):
         # 3-quarter TTM is incomplete (review), not corrupt — banner, keep target.
         a = audit_artifact(
             _fd(
@@ -130,7 +131,7 @@ class TestAuditArtifact:
                 ttm_ends=[date(2026, 3, 31), date(2025, 12, 31), date(2025, 9, 30)],
             )
         )
-        assert a.artifact_status == "review_only"
+        assert a.artifact_status == "caveated"
         assert a.withhold_valuation is False
 
     def test_no_financial_data_publishable(self):

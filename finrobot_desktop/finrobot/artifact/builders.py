@@ -186,11 +186,12 @@ def _attach_numeric_audit(
     would silently audit ``None``), else extracted from the named pipeline steps.
 
     Withhold on ``withhold_valuation``: a ``rich_withhold`` callback runs the
-    type-specific degrade (equity_research nulls thesis target + forces REVIEW +
-    syncs the llm_narrative mirror — three actions one scalar can't express);
-    otherwise the scalar ``withhold_keys`` are nulled (plain dcf/lbo/ddm).
-    ``comps`` / ``ic_memo`` pass neither — the block is still attached for the
-    audit banner + output-contract C4 to read, but nothing is auto-withheld.
+    type-specific degrade (equity_research nulls the thesis TARGET + sets
+    valuation_withheld + syncs the llm_narrative mirror — the directional verdict
+    is PRESERVED; corrupt data withholds the value, never the judgment); otherwise
+    the scalar ``withhold_keys`` are nulled (plain dcf/lbo/ddm). ``comps`` /
+    ``ic_memo`` pass neither — the block is still attached for the audit banner +
+    output-contract C4 to read, but nothing is auto-withheld.
     """
 
     from finrobot.engine.compute.operators.audit import audit_artifact
@@ -202,9 +203,9 @@ def _attach_numeric_audit(
     audit_payload = audit.model_dump(mode="json")
     capability_warnings = _data_capability_warnings(deps)
     if capability_warnings:
-        audit_payload["artifact_status"] = "review_only"
+        audit_payload["artifact_status"] = "caveated"
         audit_payload["data_capability"] = {
-            "artifact_status": "review_only",
+            "artifact_status": "caveated",
             "reasons": capability_warnings,
         }
     structured_out["numeric_audit"] = audit_payload
@@ -267,9 +268,10 @@ def _data_capability_warnings(deps: Any) -> list[str]:
     if getattr(settings, "fmp_api_key", ""):
         return []
     return [
-        "[DATA-CAPABILITY/review] FMP API key unavailable — financial statements "
+        "[DATA-CAPABILITY/caveat] FMP API key unavailable — financial statements "
         "fall back to non-cross-validated sources; D&A, earnings surprises, and "
-        "provider cross-checks may be incomplete. Artifact is REVIEW_ONLY."
+        "provider cross-checks may be incomplete. Artifact is data-quality CAVEATED "
+        "(the directional verdict still ships; a price target may be withheld)."
     ]
 
 
@@ -699,22 +701,25 @@ def build_equity_research_artifact(
     # Numeric-audit gate (design doc §7, behavior A) — runs through the shared
     # sink so every report mode is Mode A/B symmetric and ic_memo gets the same
     # gate (it was the one builder this never ran on). equity_research's withhold
-    # is richer than a scalar null — null thesis target + force REVIEW + sync the
-    # llm_narrative mirror — so it passes a rich_withhold callback.
+    # is richer than a scalar null — it must null the thesis TARGET while KEEPING
+    # the directional verdict (corrupt data withholds the VALUE, never the
+    # judgment — 绝不编数字 cuts both ways: don't fabricate a number on bad data,
+    # but don't refuse to judge either) — so it passes a rich_withhold callback.
     fin_snapshot = next(
         (v for v in result.structured_data.values() if isinstance(v, FinancialData)),
         None,
     )
 
     def _withhold_equity_research(structured: dict[str, Any]) -> None:
+        # Value-integrity guardrail: the target is built on a number the audit
+        # flagged corrupt/uncross-validated, so the POINT TARGET is withheld
+        # (绝不编数字). The directional recommendation is PRESERVED — it reads from
+        # the market-implied direction, not the corrupt figure. No "REVIEW" verdict.
         structured["valuation_withheld"] = True
         structured["withheld_reason"] = "numeric_audit_blocked_field"
         thesis_out = structured.get("thesis")
         if isinstance(thesis_out, dict):
-            thesis_out["recommendation"] = "REVIEW"
             thesis_out["price_target"] = None
-        if "recommendation" in llm_narrative:
-            llm_narrative["recommendation"] = "REVIEW"
 
     audit_warnings = _attach_numeric_audit(
         structured_out,

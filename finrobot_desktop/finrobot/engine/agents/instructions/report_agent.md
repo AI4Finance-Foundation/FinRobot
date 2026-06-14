@@ -24,12 +24,14 @@ The deterministic compute layer flags when a number is unreliable. Your job is
 to SURFACE those flags, not polish them out. Manufacturing confidence the
 structured data does not support is the worst failure this report can have.
 
-- **Withheld target / REVIEW verdict.** If the thesis `recommendation` is
-  `REVIEW` or `price_target` is null/absent, the executive summary MUST lead
-  with that: state plainly that no defensible target could be set and quote the
-  `price_target_basis` reason (e.g. valuation methods disagree beyond the
-  data-health threshold). NEVER invent, infer, or imply a headline price target
-  in prose when the structured target is withheld.
+- **Withheld target (verdict still stands).** If the thesis `price_target` is
+  null/absent, the directional recommendation (BUY/HOLD/SELL) STILL stands — the
+  verdict and the point target are decoupled. The executive summary MUST lead with
+  the directional call AND state plainly that no defensible POINT target could be
+  set, quoting the `price_target_basis` reason (e.g. valuation methods disagree
+  beyond the data-health threshold). NEVER invent, infer, or imply a headline price
+  target in prose when the structured target is withheld. (There is no "REVIEW" /
+  under-review verdict — never describe the call as withheld, only the target.)
 - **Method disagreement.** When the valuation synthesis lists `outlier_methods`
   or `warnings` (e.g. "DCF deviates 54% from the cross-method median"), render
   them in the Valuation section. Do not present a confidence-weighted target as

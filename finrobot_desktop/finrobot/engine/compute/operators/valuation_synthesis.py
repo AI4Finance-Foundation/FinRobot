@@ -14,6 +14,7 @@ from typing import Literal
 from finrobot.engine.models.financial import ValuationMethod, ValuationSynthesis
 from finrobot.engine.models.valuation_thresholds import (
     MARKET_DIVERGENCE_RATIO_K,
+    METHOD_CORROBORATION_SPAN_K,
     SINGLE_METHOD_DIVERGENCE_RATIO_K,
 )
 
@@ -39,11 +40,13 @@ _RELIABILITY_SPREAD_THRESHOLD = 0.50
 # $189.65 vs comps_pe $487.31 averaged into a meaningless $306.59 midpoint and
 # shipped a confident MSFT SELL (the 2026-06-05 bug). max(mid)/min(mid) is
 # invariant to method count, so it trips on any pair that disagrees by > K
-# regardless of how many methods there are. K=2.0: two valuation methods that
-# differ by more than 2x do not corroborate, full stop — no honest midpoint
-# exists, so the headline target/verdict is withheld. (Genuine ≤2x dispersion
-# still publishes, flagged by the soft 30% outlier band.)
-_RELIABILITY_RATIO_K = 2.0
+# regardless of how many methods there are. K=2.0 (the shared leaf constant
+# METHOD_CORROBORATION_SPAN_K — same value the persist-boundary contract C1b
+# re-checks): two valuation methods that differ by more than 2x do not corroborate,
+# full stop — no honest midpoint exists, so the POINT is withheld (the directional
+# verdict still ships). (Genuine ≤2x dispersion still publishes, flagged by the
+# soft 30% outlier band.)
+_RELIABILITY_RATIO_K = METHOD_CORROBORATION_SPAN_K
 
 # MARKET_DIVERGENCE_RATIO_K (4.0, multi-method) and SINGLE_METHOD_DIVERGENCE_RATIO_K
 # (2.0, lone surviving method) are the two PUBLIC divergence bands — imported above

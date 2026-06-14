@@ -73,7 +73,7 @@ _FATAL_SUBSTRINGS = (
 # non-recoverable error must DEGRADE (failed_validations + continue), not kill
 # the whole run — multiple executors were written assuming this contract
 # (peer selection raises ValueError with a docstring saying "the step must
-# degrade"; builders ship a no-FMP-key REVIEW_ONLY artifact that was
+# degrade"; builders ship a no-FMP-key data-quality CAVEATED artifact that was
 # unreachable because the run died at peer_analysis first). Critical steps
 # still abort. Same broad-but-explicit shape as the run-task boundary in
 # routes/runs.py (bare `except Exception` is forbidden by the architecture

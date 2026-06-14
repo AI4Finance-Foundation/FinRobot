@@ -1,7 +1,9 @@
 """The equity_research artifact builder runs the numeric-audit gate (design §7, A):
 findings surface into warnings + structured.numeric_audit; a blocked_field
-(category-error / dimensionally-corrupt number) forces the report REVIEW_ONLY and
-withholds the rating + price target. A clean report renders byte-identically.
+(category-error / dimensionally-corrupt number) flags the report ``caveated`` and
+withholds the price TARGET — the directional verdict is PRESERVED (corrupt data
+withholds the value, never the judgment; no "REVIEW" verdict any more). A clean
+report renders byte-identically.
 """
 
 from __future__ import annotations
@@ -126,24 +128,26 @@ def test_clean_report_publishable_unchanged():
 def test_bank_ev_blocks_field_and_withholds_valuation():
     art = _build(_result(_fd(ticker="JPM", industry="Banks - Diversified", ev_ebitda=8.0)), "JPM")
     audit = art.outputs.structured["numeric_audit"]
-    assert audit["artifact_status"] == "review_only"
+    assert audit["artifact_status"] == "caveated"
     assert audit["withhold_valuation"] is True
     assert any(f["check"] == "financial_sector_ev_meaningless" for f in audit["findings"])
     # Banner: the finding surfaces in warnings.
     assert any("financial_sector_ev_meaningless" in w for w in art.outputs.warnings)
-    # Behavior A: rating forced REVIEW + target withheld, in both copies.
-    assert art.outputs.structured["thesis"]["recommendation"] == "REVIEW"
+    # Behavior A: TARGET withheld, but the directional verdict is PRESERVED (never
+    # REVIEW) in both copies — corrupt data withholds the value, not the judgment.
+    assert art.outputs.structured["thesis"]["recommendation"] == "BUY"
     assert art.outputs.structured["thesis"]["price_target"] is None
-    assert art.outputs.llm_narrative["recommendation"] == "REVIEW"
+    assert art.outputs.llm_narrative["recommendation"] == "BUY"
+    assert art.outputs.structured["valuation_withheld"] is True
     assert "$100" not in art.outputs.summary_text
     assert "Valuation withheld" in art.outputs.summary_text
 
 
-def test_loss_maker_review_only_keeps_target():
-    # review (not blocked) → REVIEW_ONLY banner but the DCF target survives.
+def test_loss_maker_caveated_keeps_target():
+    # review (not blocked) → caveated banner but the DCF target survives.
     art = _build(_result(_fd(industry="Software", net_income=-1e9)))
     audit = art.outputs.structured["numeric_audit"]
-    assert audit["artifact_status"] == "review_only"
+    assert audit["artifact_status"] == "caveated"
     assert audit["withhold_valuation"] is False
     assert art.outputs.structured["thesis"]["price_target"] == 100.0
     assert art.outputs.structured["thesis"]["recommendation"] == "BUY"
@@ -169,7 +173,7 @@ def test_standalone_dcf_carries_numeric_audit_when_clean():
     assert art.outputs.structured["implied_price"] == 120.0
 
 
-def test_missing_fmp_key_marks_valuation_artifact_review_only():
+def test_missing_fmp_key_marks_valuation_artifact_caveated():
     result = PipelineResult(
         steps={"historical_data": "ok", "dcf_calc": "ok"},
         structured_data={
@@ -181,10 +185,11 @@ def test_missing_fmp_key_marks_valuation_artifact_review_only():
     art = build_dcf_artifact(result, "X", cast(Any, deps))
 
     audit = art.outputs.structured["numeric_audit"]
-    assert audit["artifact_status"] == "review_only"
-    assert audit["data_capability"]["artifact_status"] == "review_only"
+    assert audit["artifact_status"] == "caveated"
+    assert audit["data_capability"]["artifact_status"] == "caveated"
     assert audit["findings"] == []
     assert any("DATA-CAPABILITY" in w for w in art.outputs.warnings)
+    # No-FMP-key is a data-quality caveat, NOT a withhold — the target still ships.
     assert art.outputs.structured["implied_price"] == 120.0
 
 
@@ -198,7 +203,7 @@ def test_standalone_dcf_blocks_direct_target_when_audit_withholds():
     )
     art = build_dcf_artifact(result, "JPM", cast(Any, None))
 
-    assert art.outputs.structured["numeric_audit"]["artifact_status"] == "review_only"
+    assert art.outputs.structured["numeric_audit"]["artifact_status"] == "caveated"
     assert art.outputs.structured["numeric_audit"]["withhold_valuation"] is True
     assert art.outputs.structured["valuation_withheld"] is True
     assert art.outputs.structured["implied_price"] is None
@@ -314,7 +319,7 @@ def test_standalone_comps_flags_but_does_not_claim_withheld():
     )
     audit = art.outputs.structured["numeric_audit"]
     assert audit["withhold_valuation"] is True  # the audit still records the block
-    assert audit["artifact_status"] == "review_only"
+    assert audit["artifact_status"] == "caveated"
     assert "valuation_withheld" not in art.outputs.structured  # nothing was withheld
     assert art.outputs.structured["median_pe"] == 20.0  # medians still published
     assert "Valuation withheld" not in art.outputs.summary_text  # summary stays honest
@@ -359,7 +364,7 @@ def test_ic_memo_audits_nested_snapshot_and_records_block():
         cast(Any, None),
     )
     audit = art.outputs.structured["numeric_audit"]
-    assert audit["artifact_status"] == "review_only"
+    assert audit["artifact_status"] == "caveated"
     assert audit["withhold_valuation"] is True  # the audit records the block
     assert any(f["check"] == "financial_sector_ev_meaningless" for f in audit["findings"])
     assert any("financial_sector_ev_meaningless" in w for w in art.outputs.warnings)

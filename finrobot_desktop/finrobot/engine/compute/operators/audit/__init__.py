@@ -42,12 +42,15 @@ def audit_company(fin: FinancialData) -> list[Finding]:
 
 
 def audit_artifact(fin: FinancialData | None) -> ArtifactAudit:
-    """Roll a company's findings into a report-level verdict (design doc §7, A):
+    """Roll a company's findings into a report-level data-quality verdict
+    (design doc §7, A):
 
-    - any finding → ``review_only`` (the report ships with an audit banner);
+    - any finding → ``caveated`` (the report ships with a data-quality banner; the
+      directional verdict is NEVER refused — only annotated);
     - any ``blocked_field`` (category error / dimensionally-corrupt number) →
-      ``withhold_valuation`` so the rating is forced REVIEW and the price target
-      withheld — a target built on an untrustworthy number must not be published.
+      ``withhold_valuation`` so the price TARGET is withheld — a target built on an
+      untrustworthy number must not be published — while the directional verdict
+      still ships from the market-implied read.
 
     ``unpublishable`` is NOT produced here — that is the critical-data-failure path
     (core price / identity / basic financials unresolvable), handled upstream.
@@ -57,6 +60,6 @@ def audit_artifact(fin: FinancialData | None) -> ArtifactAudit:
     has_gating = any(f.severity in ("review", "blocked_field") for f in findings)
     return ArtifactAudit(
         findings=findings,
-        artifact_status="review_only" if has_gating else "publishable",
+        artifact_status="caveated" if has_gating else "publishable",
         withhold_valuation=has_blocked,
     )

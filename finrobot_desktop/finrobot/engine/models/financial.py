@@ -921,6 +921,67 @@ class ValuationSynthesis(BaseModel):
             "target/verdict. Drives the equity-research data-health gate."
         ),
     )
+    # --- Confidence dial (replaces the binary `reliable` gate; see ADR 估值优雅降级) ---
+    # The redesign deletes the REVIEW verdict: a synthesis ALWAYS yields a directional
+    # call, with uncertainty expressed as a confidence tier + a widening target band
+    # (Morningstar-style: uncertainty widens the margin of safety, never withholds the
+    # call). `reliable` is kept transitionally and removed once all consumers read
+    # `confidence`. Default "low" so a legacy artifact (no confidence persisted) never
+    # implies conviction it wasn't graded for.
+    confidence: Literal["high", "medium", "low", "very_low"] = Field(
+        default="low",
+        description=(
+            "Analytical confidence tier — derived from method count + cross-method "
+            "agreement (max/min spread) + data-degradation + provenance, AND capped when "
+            "the model/market ratio falls outside the [0.25x, 4x] calibration band "
+            "(option-value regime). Deliberately NOT a function of distance-to-market "
+            "within band: two methods that agree the stock is rich (KO) stay HIGH "
+            "confidence. Drives band width + the asymmetric verdict thresholds; it is "
+            "never a reason to withhold the directional call."
+        ),
+    )
+    target_low: float | None = Field(
+        default=None,
+        description=(
+            "Low end of the headline price-target range. Widens as confidence drops and "
+            "always spans the surviving method mids on divergence (so an analyst sees the "
+            "real method disagreement, not a false-precise point). None when no point "
+            "anchor exists (valuation_withheld)."
+        ),
+    )
+    target_high: float | None = Field(
+        default=None, description="High end of the headline price-target range (see target_low)."
+    )
+    anchor_method: str | None = Field(
+        default=None,
+        description=(
+            "Name of the method the headline point anchors on under the comparability "
+            "rule (cyclical / unique business → DCF; rich peer set → comps). The point "
+            "sits AT the anchor, never a blended midpoint of divergent methods. None when "
+            "methods corroborate (plain weighted average) or the target is withheld."
+        ),
+    )
+    valuation_withheld: bool = Field(
+        default=False,
+        description=(
+            "True when the POINT target is honestly withheld — corrupt input, a single "
+            "method wildly off-market, or no fundamental anchor — because the only number "
+            "available would be fabricated (绝不编数字). The directional VERDICT still "
+            "ships from the market-implied / reverse-DCF read. This is NOT a refusal to "
+            "rate (the deleted REVIEW state); it is the explicit flag every withhold "
+            "producer sets and every downstream gate keys on (replacing the old "
+            "recommendation=='REVIEW' sentinel)."
+        ),
+    )
+    degradation_note: str | None = Field(
+        default=None,
+        description=(
+            "Human-readable disclosure of what degraded and which proxy/anchor was used "
+            "(e.g. 'methods diverge 7x — anchored DCF, comps_pb shown as range cap' / "
+            "'no peer comps — single-method DCF, wider band'). Surfaced to the analyst so "
+            "every degraded call is traceable."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------

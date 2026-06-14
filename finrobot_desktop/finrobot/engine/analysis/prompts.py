@@ -25,7 +25,7 @@ from finrobot.engine.compute.operators.multiples import (
     compute_ttm_fcf,
     fcf_yield,
 )
-from finrobot.engine.compute.operators.peer_screen import screen_peers
+from finrobot.engine.compute.operators.cyclical_peers import screen_peers_with_cyclical
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials
@@ -406,7 +406,7 @@ async def _fetch_peer_table(
         logger.warning("Peer candidates unavailable for %s: %s", ticker, candidates.data["error"])
         return "No peers identified."
     try:
-        screen = screen_peers(candidates.data, ticker)
+        screen = screen_peers_with_cyclical(candidates.data, ticker)
     except ValueError as e:
         logger.warning("Peer screen degraded for %s: %s", ticker, e)
         return "No peers identified."

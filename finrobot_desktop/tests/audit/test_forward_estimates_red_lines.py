@@ -347,3 +347,121 @@ class TestForwardPeriodSelection:
             yf_info={"forward_eps": -2.0},
         )
         assert out2.forward_eps is None
+
+
+class TestForwardFxMismatchGuard:
+    """FMP /analyst-estimates ships netIncomeAvg/epsAvg in the issuer's NATIVE
+    reporting currency with NO currency field (live-verified UMC/TSM/AAPL/SONY,
+    2026-06-14). For an ADR whose canonical FINANCIALS got FX-normalized to USD,
+    the comps gate (reporting==quote, USD==USD) can't see the row is native, so a
+    magnitude guard against currency-clean USD trailing anchors is the only catch.
+
+    Fixtures use the REAL probed payloads (rows from the live /analyst-estimates
+    response), not values reverse-engineered from the implementation."""
+
+    # Live UMC /analyst-estimates FY2026 row (probe 2026-06-14): native TWD.
+    # Trailing anchors are the USD-canonical figures (FMP financials FX-normalized).
+    _UMC_ROW = {"date": "2026-12-31", "epsAvg": 23.1096, "netIncomeAvg": 57704671223.0}
+    _UMC_TRAIL_NI_USD = 1_585_291_390.0  # canonical net income (USD)
+    _UMC_TRAIL_REV_USD = 7_615_689_016.0  # canonical revenue (USD)
+
+    # Live SONY FY row: native JPY netIncomeAvg ~1.25e12, and trailing NI is
+    # NEGATIVE (one-off loss) so the NI-ratio leg can't form — the revenue leg
+    # must catch it (net income can't exceed revenue).
+    _SONY_ROW = {"date": "2026-03-31", "epsAvg": 209.06, "netIncomeAvg": 1_249_350_000_000.0}
+    _SONY_TRAIL_NI_USD = -2_144_712_202.0
+    _SONY_TRAIL_REV_USD = 78_670_000_000.0
+
+    def test_native_currency_forward_ni_abstained_by_ni_ratio(self) -> None:
+        # UMC: forward NI 57.7B (TWD) vs trailing 1.59B (USD) = 36x => abstain.
+        out = get_forward_financials(
+            ticker="UMC",
+            yf_info=None,
+            fmp_analyst_estimates={"rows": [self._UMC_ROW]},
+            as_of=AS_OF,
+            trailing_net_income_usd=self._UMC_TRAIL_NI_USD,
+            trailing_revenue_usd=self._UMC_TRAIL_REV_USD,
+        )
+        assert out.forward_net_income is None
+        assert out.forward_eps is None
+        assert out.forward_ebitda is None
+        assert out.confidence == "unavailable"
+        assert any("abstained" in w for w in out.warnings)
+
+    def test_native_currency_forward_ni_abstained_by_revenue_leg_when_loss_maker(self) -> None:
+        # SONY: negative trailing NI (no NI ratio) but native-JPY forward NI 1.25e12
+        # dwarfs USD revenue 78.7B => the revenue leg abstains it. This is the hole
+        # the NI-ratio-only guard left (it shipped forward_pe=0.10x before).
+        out = get_forward_financials(
+            ticker="SONY",
+            yf_info=None,
+            fmp_analyst_estimates={"rows": [self._SONY_ROW]},
+            as_of=AS_OF,
+            trailing_net_income_usd=self._SONY_TRAIL_NI_USD,
+            trailing_revenue_usd=self._SONY_TRAIL_REV_USD,
+        )
+        assert out.forward_net_income is None
+        assert out.forward_eps is None
+        assert out.confidence == "unavailable"
+        assert any("营收" in w for w in out.warnings)
+
+    def test_clean_usd_issuer_not_abstained(self) -> None:
+        # AAPL FY2026 (probe): forward NI 131.6B vs trailing 122.6B = 1.07x => kept.
+        out = get_forward_financials(
+            ticker="AAPL",
+            yf_info=None,
+            fmp_analyst_estimates={
+                "rows": [{"date": "2026-09-27", "epsAvg": 8.75, "netIncomeAvg": 131_623_452_796.0}]
+            },
+            as_of=AS_OF,
+            trailing_net_income_usd=122_575_000_000.0,
+            trailing_revenue_usd=451_442_000_000.0,
+        )
+        assert out.forward_net_income == 131_623_452_796.0
+        assert out.forward_eps == 8.75
+
+    def test_cyclical_recovery_not_abstained(self) -> None:
+        # MU (probe): forward NI 67.1B vs trailing 24.1B = 2.78x (NI leg), and
+        # 1.15x of trailing revenue 58.1B (revenue leg). A real cyclical upcycle —
+        # both legs must stay UNDER threshold so MU is kept. This is the false-
+        # positive boundary: a too-tight guard would clip MU.
+        out = get_forward_financials(
+            ticker="MU",
+            yf_info=None,
+            fmp_analyst_estimates={
+                "rows": [{"date": "2026-08-31", "epsAvg": 59.43, "netIncomeAvg": 67_100_000_000.0}]
+            },
+            as_of=AS_OF,
+            trailing_net_income_usd=24_110_000_000.0,
+            trailing_revenue_usd=58_120_000_000.0,
+        )
+        assert out.forward_net_income == 67_100_000_000.0
+
+    def test_guard_inert_without_anchors(self) -> None:
+        # No anchors supplied (legacy callers) => guard is inert, value passes
+        # through. The native-TWD UMC row is NOT abstained without an anchor — the
+        # guard never fabricates a verdict from nothing.
+        out = get_forward_financials(
+            ticker="UMC",
+            yf_info=None,
+            fmp_analyst_estimates={"rows": [self._UMC_ROW]},
+            as_of=AS_OF,
+        )
+        assert out.forward_net_income == 57704671223.0
+
+    def test_tsm_usd_forward_with_anchors_not_abstained(self) -> None:
+        # TSM's /analyst-estimates already returns USD (probe: NI ratio 1.33x) even
+        # though it's a TWD ADR — proving the per-ticker inconsistency that defeats
+        # a currency-tag gate. With anchors the guard must KEEP it (ratio in band).
+        out = get_forward_financials(
+            ticker="TSM",
+            yf_info=None,
+            fmp_analyst_estimates={
+                "rows": [{"date": "2026-12-31", "epsAvg": 15.71, "netIncomeAvg": 81_460_000_000.0}]
+            },
+            as_of=AS_OF,
+            trailing_net_income_usd=61_169_840_617.0,
+            trailing_revenue_usd=130_140_000_000.0,
+        )
+        assert out.forward_net_income == 81_460_000_000.0
+        assert out.forward_eps == 15.71

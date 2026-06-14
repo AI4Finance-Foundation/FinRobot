@@ -118,7 +118,20 @@ async def _forward_financials(
         else:
             payload = result.payload()
 
-    forward = get_forward_financials(ticker=ticker, yf_info=None, fmp_analyst_estimates=payload)
+    # Currency-clean USD anchor for the leaf's FX-mismatch guard. The canonical
+    # FINANCIALS snapshot is FX-normalized to USD, so its net_income is USD even
+    # for an ADR whose /analyst-estimates payload is still native (TWD for UMC,
+    # no currency field). Without the anchor the leaf can't tell a native-TWD
+    # forward NI from a real one — _forward_to_usd alone is inert here because it
+    # reads the post-normalization reporting_currency (already USD).
+    trailing_ni_usd, trailing_rev_usd = await _trailing_usd_anchors(ticker, data_layer)
+    forward = get_forward_financials(
+        ticker=ticker,
+        yf_info=None,
+        fmp_analyst_estimates=payload,
+        trailing_net_income_usd=trailing_ni_usd,
+        trailing_revenue_usd=trailing_rev_usd,
+    )
     forward = await _forward_to_usd(forward, ticker, data_layer, fmp_api_key=fmp_api_key)
     if forward.fiscal_period is not None:
         logger.info(
@@ -131,6 +144,31 @@ async def _forward_financials(
             forward.confidence,
         )
     return forward
+
+
+async def _trailing_usd_anchors(
+    ticker: str, data_layer: DataLayer | None
+) -> tuple[float | None, float | None]:
+    """Currency-clean trailing (net income, revenue) for the leaf's FX-mismatch guard.
+
+    Reads ``net_income`` / ``revenue`` off the canonical FINANCIALS snapshot,
+    which the data layer has already FX-normalized to USD (``_apply_canonical_fx``)
+    — so both are USD anchors even for a foreign issuer. (None, None) on any fetch
+    failure (the guard then stays inert, never fails the forward fetch over a
+    missing anchor)."""
+    if data_layer is None:
+        return None, None
+    try:
+        fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+    except (ProviderError, ValueError, KeyError) as exc:
+        logger.info("forward guard: trailing anchor lookup failed for %s: %s", ticker, exc)
+        return None, None
+    ni = getattr(fin, "net_income", None)
+    rev = getattr(fin, "revenue", None)
+    return (
+        float(ni) if isinstance(ni, (int, float)) else None,
+        float(rev) if isinstance(rev, (int, float)) else None,
+    )
 
 
 async def _forward_to_usd(

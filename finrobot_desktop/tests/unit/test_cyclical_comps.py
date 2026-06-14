@@ -15,7 +15,10 @@ from __future__ import annotations
 
 import pytest
 
-from finrobot.engine.compute.operators.cyclical_peers import cyclical_peer_group
+from finrobot.engine.compute.operators.cyclical_peers import (
+    cyclical_peer_group,
+    inject_cyclical_peers,
+)
 from finrobot.engine.compute.operators.multiples import (
     PEER_PB_SANITY_MAX,
     calculate_multiples,
@@ -26,7 +29,6 @@ from finrobot.engine.compute.operators.valuation_aggregator import (
     _comps_pe_method,
     aggregate_valuation,
 )
-from finrobot.engine.pipelines._helpers import _inject_cyclical_peers
 from finrobot.engine.models.financial import CompanyFinancials, PeerComps
 
 
@@ -76,7 +78,7 @@ class TestCyclicalPeerGroup:
 class TestInjectCyclicalPeers:
     def test_injects_cohort_into_industry_screen_tier1(self):
         payload = {"industry_screen": ["NVDA", "AMD", "AVGO"], "stock_peers": ["LRCX"]}
-        out = _inject_cyclical_peers(payload, "MU")
+        out = inject_cyclical_peers(payload, "MU")
         # storage cohort is prepended (high-affinity Tier 1) ahead of the logic semis
         assert out["industry_screen"][:3] == ["WDC", "STX", "SNDK"]
         assert "NVDA" in out["industry_screen"]
@@ -85,18 +87,18 @@ class TestInjectCyclicalPeers:
 
     def test_does_not_mutate_cached_payload(self):
         payload = {"industry_screen": ["NVDA"]}
-        _inject_cyclical_peers(payload, "MU")
+        inject_cyclical_peers(payload, "MU")
         # original dict is never mutated (cache safety)
         assert payload["industry_screen"] == ["NVDA"]
 
     def test_dedups_when_cohort_member_already_present(self):
         payload = {"industry_screen": ["WDC", "NVDA"]}
-        out = _inject_cyclical_peers(payload, "MU")
+        out = inject_cyclical_peers(payload, "MU")
         assert out["industry_screen"].count("WDC") == 1
 
     def test_non_cyclical_returns_payload_unchanged(self):
         payload = {"industry_screen": ["MSFT", "GOOGL"]}
-        out = _inject_cyclical_peers(payload, "AAPL")
+        out = inject_cyclical_peers(payload, "AAPL")
         assert out is payload
 
 

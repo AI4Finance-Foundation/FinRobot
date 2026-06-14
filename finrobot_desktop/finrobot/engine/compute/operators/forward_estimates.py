@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import math
 import statistics
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any, Literal
 
@@ -74,6 +74,51 @@ _TTM_VOLATILITY_THRESHOLD = 0.20
 """TTM margin std/mean ratio above which we down-rate confidence to 'low'."""
 
 
+_FX_MISMATCH_NI_RATIO = 6.0
+"""Forward-NI / |trailing-NI| ratio above which the FMP consensus figure is
+treated as a CURRENCY MISMATCH and abstained, not a real forecast.
+
+FMP's /analyst-estimates endpoint returns ``epsAvg`` / ``netIncomeAvg`` in the
+issuer's NATIVE reporting currency with NO currency field (live-verified across
+UMC/TSM/AAPL/ASML 2026-06-14 — ``currency-ish fields in row: NONE``), and that
+native currency is per-ticker INCONSISTENT even among the same exchange's ADRs:
+UMC's row is native TWD (``netIncomeAvg`` 57.7B vs USD-canonical trailing 1.59B
+= 36.4x) while TSM's same endpoint already returns USD (1.33x). The canonical
+FINANCIALS snapshot the comps gate reads has been FX-normalized to USD by then
+(``reporting_currency`` overwritten USD==USD), so the
+``reporting_currency == quote_currency`` gate — and the ``fx_normalized``
+marker, present on BOTH UMC and TSM — cannot tell a native-TWD forward payload
+from a USD one. The ONLY reliable signal is the magnitude jump against a
+currency-clean USD trailing anchor.
+
+Calibration (live FMP basket, 2026-06-14):
+  clean USD-vs-USD NI ratio — KO 1.03, MSFT 1.01, AAPL 1.07, NVDA 1.43, TSM
+    1.33, ASML 1.09, WDC 0.57, MU 2.78 (cyclical memory upcycle, the widest
+    legitimate jump) — all ≤ ~2.8.
+  FX-mismatch NI ratio — UMC 36.4 (TWD), SONY 583 (JPY) — the smallest major
+    reporting-currency spot (HKD ≈ 7.8, TWD ≈ 31, JPY ≈ 150, KRW ≈ 1350) sits
+    far above the clean band.
+6.0 cleanly separates the two populations: it clears MU's 2.78 cyclical jump
+with headroom yet sits below even the tightest FX multiple. A forward NI > 6×
+trailing implies a sustained >70%/yr CAGR — hyper-growth optionality the comps
+median already withholds via the NM P/E cap, so abstaining there is safe too."""
+
+
+_FX_MISMATCH_REV_RATIO = 3.0
+"""Forward-NI / trailing-REVENUE(USD) ratio above which the FMP consensus is an
+FX artifact — the second guard leg, covering the loss-maker hole the NI-ratio
+leg can't (SONY's trailing NI is negative, so no NI ratio forms, yet its native
+JPY forward NI 1249B vs USD revenue ~$79B = 16× is unmistakably cross-currency).
+
+Net income can never exceed revenue, so for a currency-clean issuer this ratio
+is bounded by the net margin (< 1). Revenue is always positive, so this leg
+works even when trailing NI is ≤ 0. Calibration (live FMP basket, 2026-06-14):
+clean fwdNI/Rev — SAP 0.20, AAPL 0.29, NVDA 0.90, MU 1.15 (cyclical: forward
+upcycle NI vs trough-year revenue, the widest legitimate value) — all ≤ ~1.2;
+FX-mismatch — UMC 7.58 (TWD), SONY 15.88 (JPY). 3.0 clears MU's 1.15 with margin
+yet sits far below the smallest FX case."""
+
+
 def get_forward_financials(
     *,
     ticker: str,
@@ -82,6 +127,8 @@ def get_forward_financials(
     historical_fcf_margins: list[float] | None = None,
     fmp_analyst_estimates: dict[str, Any] | None = None,
     as_of: date | None = None,
+    trailing_net_income_usd: float | None = None,
+    trailing_revenue_usd: float | None = None,
 ) -> ForwardFinancials:
     """Resolve every forward financial number for one ticker.
 
@@ -98,6 +145,21 @@ def get_forward_financials(
             FMP consensus is preferred over the yfinance forward_eps fallback.
         as_of: Reference date for forward-period selection. The leaf picks the
             nearest fiscal-year-end ≥ as_of (FY1). Defaults to today.
+        trailing_net_income_usd: Currency-clean (USD-canonical) TTM/annual net
+            income, used as the primary magnitude anchor for the FX-mismatch
+            guard. FMP analyst-estimates carry NO currency field and may be in
+            the issuer's native reporting currency (TWD/JPY/…) even when the
+            canonical FINANCIALS snapshot has already been FX-normalized to USD —
+            see ``_FX_MISMATCH_NI_RATIO``. When the FY1 consensus net income
+            exceeds this anchor by that ratio, the forward NI / EPS / EBITDA are
+            abstained (None) rather than shipped as a cross-currency artifact.
+            None (the default) leaves the NI leg of the guard inert.
+        trailing_revenue_usd: Currency-clean (USD-canonical) TTM/annual revenue,
+            the SECOND guard anchor (see ``_FX_MISMATCH_REV_RATIO``). Always
+            positive, so it catches the loss-maker case the NI ratio can't (a
+            negative trailing NI forms no ratio). Net income can never exceed
+            revenue, so a forward NI dwarfing trailing revenue is unambiguously
+            cross-currency.
 
     Returns:
         ForwardFinancials with whatever could be filled and a Chinese-language
@@ -107,6 +169,7 @@ def get_forward_financials(
 
     if fmp_analyst_estimates is not None:
         fmp_result = _from_fmp(ticker, fmp_analyst_estimates, warnings, as_of or date.today())
+        fmp_result = _guard_fx_mismatch(fmp_result, trailing_net_income_usd, trailing_revenue_usd)
         if fmp_result.confidence != "unavailable" or not yf_info:
             return fmp_result
         return _from_yfinance(
@@ -130,6 +193,84 @@ def get_forward_financials(
         historical_ebitda_margins,
         historical_fcf_margins,
         initial_warnings=[],
+    )
+
+
+def _guard_fx_mismatch(
+    result: ForwardFinancials,
+    trailing_net_income_usd: float | None,
+    trailing_revenue_usd: float | None,
+) -> ForwardFinancials:
+    """Abstain FMP consensus that is a currency mismatch, not a real forecast.
+
+    FMP /analyst-estimates ships ``netIncomeAvg`` / ``epsAvg`` in the issuer's
+    native reporting currency with no currency field, and that currency is
+    per-ticker inconsistent even among the same exchange's ADRs (UMC native TWD,
+    TSM already USD). Neither the ``reporting_currency == quote_currency`` gate
+    nor the ``fx_normalized`` marker can distinguish them (both fire for UMC and
+    TSM), so the magnitude jump against a currency-clean USD trailing anchor is
+    the only reliable signal. Two complementary legs:
+
+    1. forward NI / trailing NI > ``_FX_MISMATCH_NI_RATIO`` (needs trailing NI > 0).
+    2. forward NI / trailing REVENUE > ``_FX_MISMATCH_REV_RATIO`` — net income can
+       never exceed revenue, and revenue is always positive so this leg fires even
+       for a loss-maker (SONY: negative trailing NI, native-JPY forward NI 16×
+       USD revenue) that leg 1 alone would miss.
+
+    On a trip the FMP figures are abstained to None — never converted with a
+    guessed rate (we don't know the native currency code) and never shipped as a
+    cross-currency forward P/E. Inert when no clean anchor is supplied."""
+    if result.forward_net_income is None:
+        return result
+    fwd_ni = result.forward_net_income
+
+    ni_ratio: float | None = None
+    if (
+        trailing_net_income_usd is not None
+        and math.isfinite(trailing_net_income_usd)
+        and trailing_net_income_usd > 0
+    ):
+        ni_ratio = fwd_ni / trailing_net_income_usd
+
+    rev_ratio: float | None = None
+    if (
+        trailing_revenue_usd is not None
+        and math.isfinite(trailing_revenue_usd)
+        and trailing_revenue_usd > 0
+    ):
+        rev_ratio = fwd_ni / trailing_revenue_usd
+
+    ni_trips = ni_ratio is not None and ni_ratio > _FX_MISMATCH_NI_RATIO
+    rev_trips = rev_ratio is not None and rev_ratio > _FX_MISMATCH_REV_RATIO
+    if not (ni_trips or rev_trips):
+        return result
+
+    if ni_trips and ni_ratio is not None:
+        why = (
+            f"是 trailing 净利(USD) {trailing_net_income_usd / 1e9:.1f}B 的 "  # type: ignore[operator]
+            f"{ni_ratio:.0f}×（>{_FX_MISMATCH_NI_RATIO:g}×）"
+        )
+    else:
+        why = (
+            f"是 trailing 营收(USD) {trailing_revenue_usd / 1e9:.1f}B 的 "  # type: ignore[operator]
+            f"{rev_ratio:.1f}×（>{_FX_MISMATCH_REV_RATIO:g}×，净利不可能超营收）"
+        )
+    return replace(
+        result,
+        forward_eps=None,
+        forward_net_income=None,
+        forward_ebitda=None,
+        # EPS / EBITDA are minted from the same native-currency row, so they are
+        # equally cross-currency — abstain them together. Revenue is left as-is:
+        # it feeds only the DCF growth ratio (FYn/FYn-1, currency-cancelling), so
+        # a native-currency revenue path is still valid there.
+        confidence="unavailable",
+        warnings=[
+            *result.warnings,
+            f"forward NI/EPS abstained：FMP consensus 隐含净利 {fwd_ni / 1e9:.1f}B {why}"
+            f"——/analyst-estimates 无币种字段，疑为原生报表币(非 USD)，"
+            f"拒绝跨币 forward P/E，置 None",
+        ],
     )
 
 

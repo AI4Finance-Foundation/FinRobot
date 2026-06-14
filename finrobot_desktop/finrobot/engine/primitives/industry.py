@@ -282,17 +282,43 @@ def semiconductor_role(profile: dict[str, object] | None) -> str | None:
     if any(term in text for term in equipment_terms):
         return "equipment"
 
+    # A pure-play foundry's IDENTITY is being a foundry: it manufactures OTHERS'
+    # designs. Live-verified 2026-06-14 against the 4 real pure-plays (TSM/UMC/
+    # GFS/TSEM) — each describes itself with one of these and carries NO
+    # own-product-design identity. The earlier broad terms ("contract
+    # manufacturer", "manufactures, tests/packages") were too loose: they fired on
+    # IDMs (designers who fab THEIR OWN products) and dragged NXPI/MCHP/ON into a
+    # foundry comp set, diluting the foundry median. NXPI's "contract manufacturer"
+    # is only a CUSTOMER type it serves; MCHP's "wafer foundry" is a subcontracting
+    # SERVICE line; ON's "foundry" is a govt-only niche — none make them a foundry.
     foundry_terms = (
         "foundry",
         "wafer fabrication",
         "fabrication processes",
-        "contract manufacturer",
-        "contract manufacturing",
-        "manufactures, packages, tests",
-        "manufactures, packages, and tests",
-        "manufactures, tests",
     )
-    if any(term in text for term in foundry_terms):
+    # IDM / design-house own-product identity that disqualifies a foundry verdict
+    # even when a foundry word appears incidentally. A pure-play foundry never says
+    # it designs+sells its OWN product portfolio nor brings products "to market"
+    # (it builds customers' designs). Live-verified 2026-06-14 to catch every
+    # foundry-mention IDM in the semiconductor universe — NXPI ("design and
+    # production"), MCHP ("creates, produces, and sells"), ON ("designs and
+    # develops"), QRVO ("developing and bringing to market"; its "compound
+    # semiconductor foundry services" is a defense-prime niche, not its identity) —
+    # while matching NONE of TSM/UMC/GFS/TSEM.
+    idm_identity_terms = (
+        "design and production",
+        "designs and produces",
+        "designs and develops",
+        "designs, develops",
+        "designs and sells",
+        "designs, manufactures",
+        "creates, produces, and sells",
+        "design, production",
+        "bringing to market",
+    )
+    if any(term in text for term in foundry_terms) and not any(
+        term in text for term in idm_identity_terms
+    ):
         return "foundry"
 
     design_terms = (

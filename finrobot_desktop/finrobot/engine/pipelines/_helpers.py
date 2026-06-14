@@ -9,8 +9,7 @@ from typing import Any
 
 from pydantic_ai import Agent
 
-from finrobot.engine.compute.operators.cyclical_peers import cyclical_peer_group
-from finrobot.engine.compute.operators.peer_screen import screen_peers
+from finrobot.engine.compute.operators.cyclical_peers import screen_peers_with_cyclical
 from finrobot.engine.primitives.industry import is_commodity_cyclical
 from finrobot.engine.compute.coordinators.extractor import (
     extract_company_financials,
@@ -267,46 +266,13 @@ async def _deterministic_select_peers(deps: FinRobotDeps, ticker: str) -> PeerSe
         ) from e
     if result.data.get("error"):
         raise ValueError(f"peer candidates unavailable for {ticker}: {result.data['error']}")
-    payload = _inject_cyclical_peers(result.data, ticker)
-    screen = screen_peers(payload, ticker)
+    screen = screen_peers_with_cyclical(result.data, ticker)
     if not screen.tickers:
         raise ValueError(
             f"peer screen for {ticker} produced no eligible peers "
             f"(pool empty after market-cap band + NM filter) — comps degrades"
         )
     return PeerSelection(tickers=screen.tickers, rationale=screen.rationale)
-
-
-def _inject_cyclical_peers(payload: dict[str, Any], ticker: str) -> dict[str, Any]:
-    """Splice the curated commodity-cyclical peer group into Tier 1 (industry_screen).
-
-    A memory/storage cyclical's real comps (WDC/STX/SNDK for MU) sit ONLY in the
-    provider's ``sector_screen`` (Tier 3), which ``screen_peers`` skips once the
-    high-affinity tiers field ≥3 logic-semis candidates — so MU's auto-comps are
-    growth-stock logic semis whose forward P/E × MU's cycle-peak EPS prints $2199
-    (scripts/_cyclical_probe_peers.py). Prepending the curated group to Tier 1 lands
-    it in the high-affinity tier (wide 200x floor band, never the Tier-3 skip), so
-    the storage cohort survives. Returns the payload unchanged for a non-cyclical
-    target; otherwise a shallow copy with ``industry_screen`` rewritten (the cached
-    payload dict is never mutated). A spliced peer still needs a provider quote to
-    pass ``screen_peers`` — if the provider omitted it the peer is dropped, same as
-    any candidate (fail-safe to the existing behaviour).
-    """
-    group = cyclical_peer_group(ticker)
-    if not group:
-        return payload
-    existing = [str(s).upper() for s in (payload.get("industry_screen") or [])]
-    # Prepend the curated cohort (dedup, preserve provider order after).
-    seen: set[str] = set()
-    merged: list[str] = []
-    for sym in (*group, *existing):
-        up = sym.upper()
-        if up not in seen:
-            seen.add(up)
-            merged.append(up)
-    new_payload = dict(payload)
-    new_payload["industry_screen"] = merged
-    return new_payload
 
 
 async def _enrich_company_forward(
@@ -326,13 +292,27 @@ async def _enrich_company_forward(
     comps math pairs it with a USD price, so a foreign-listed row leaves the
     fields None and falls back to trailing rather than mix units. A fetch miss
     is non-fatal — forward is an optional enrichment, never a drop reason.
+
+    The ``usd_safe`` gate is NECESSARY-BUT-NOT-SUFFICIENT: by the time a peer row
+    reaches here its canonical FINANCIALS has already been FX-normalized to USD
+    (``reporting_currency`` overwritten USD==USD), so an ADR like UMC passes the
+    gate even though the SEPARATE FMP /analyst-estimates payload is still native
+    TWD (no currency field to tell them apart). The magnitude guard inside
+    ``get_forward_financials`` — anchored on ``company.net_income``, the
+    currency-clean USD trailing figure — is the real catch: it abstains the
+    forward NI/EPS to None when consensus dwarfs trailing by an FX-sized ratio,
+    so the cross-currency forward P/E never lands on the row or in the median.
     """
     if not usd_safe:
         return
     try:
         _fwd_raw = await deps.data_layer.fetch_canonical(DataType.FORWARD_ESTIMATES, company.ticker)
         _fwd = get_forward_financials(
-            ticker=company.ticker, yf_info=None, fmp_analyst_estimates=_fwd_raw.payload()
+            ticker=company.ticker,
+            yf_info=None,
+            fmp_analyst_estimates=_fwd_raw.payload(),
+            trailing_net_income_usd=company.net_income,
+            trailing_revenue_usd=company.revenue,
         )
         company.forward_eps = _fwd.forward_eps
         if _fwd.forward_net_income and company.market_cap > 0:
@@ -570,8 +550,17 @@ async def execute_financial_data_step(
         # the shared slot every other seed entry (REST /dcf-seed, chat MC,
         # IC-memo) also fetches, so consensus presence can't diverge per surface.
         structured_context["forward_estimates_raw"] = _fwd_raw.payload()
+        # trailing_net_income_usd anchors the FX-mismatch guard: financial_data
+        # comes from the FX-normalized canonical snapshot, so income.net_income
+        # is currency-clean USD. /analyst-estimates carries no currency field and
+        # may be native (TWD for UMC), so without this anchor a foreign target's
+        # native-currency forward EPS would feed the forward-comps price target.
         structured_context["forward_financials"] = get_forward_financials(
-            ticker=ticker, yf_info=None, fmp_analyst_estimates=_fwd_raw.payload()
+            ticker=ticker,
+            yf_info=None,
+            fmp_analyst_estimates=_fwd_raw.payload(),
+            trailing_net_income_usd=financial_data.income.net_income,
+            trailing_revenue_usd=financial_data.income.revenue,
         )
     except (ProviderError, ValueError, KeyError, TypeError) as _fwd_err:
         logger.debug("forward estimates unavailable for %s: %s", ticker, _fwd_err)

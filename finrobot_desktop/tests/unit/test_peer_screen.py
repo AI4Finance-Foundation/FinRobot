@@ -1,3 +1,4 @@
+from finrobot.engine.compute.operators.cyclical_peers import screen_peers_with_cyclical
 from finrobot.engine.compute.operators.peer_screen import screen_peers
 
 
@@ -244,3 +245,155 @@ def test_megacap_industry_leader_keeps_smaller_same_industry_over_sector_retail(
         assert retailer not in result.tickers
     # Deterministic.
     assert result == screen_peers(payload, "TSLA")
+
+
+def _mu_payload() -> dict:
+    """MU's REAL candidate shape (live-verified 2026-06-14): the storage cohort
+    (WDC/STX/SNDK) sits only in sector_screen; industry_screen + stock_peers are
+    all logic semis / equipment. STX is a pure HDD maker — its description carries
+    NO semiconductor token, so the role gate would reject it. WDC ($182B) loses the
+    size-proximity race to the giant logic semis. Both must survive via protection.
+    """
+    return {
+        "profile": {
+            "company_name": "Micron Technology, Inc.",
+            "sector": "Technology",
+            "industry": "Semiconductors",
+            "market_cap": 1_100_000_000_000,
+            "description": "Develops, manufactures, and sells semiconductor memory and storage.",
+        },
+        "industry_screen": ["NVDA", "AVGO", "AMD", "ARM", "TXN"],  # giant logic semis
+        "stock_peers": ["AMAT", "KLAC", "LRCX"],
+        "sector_screen": ["WDC", "STX", "SNDK"],  # storage cohort hides here (Tier 3)
+        "quotes": {
+            "NVDA": {"market_cap": 4_953_000_000_000, "pe": 31.2},
+            "AVGO": {"market_cap": 1_817_000_000_000, "pe": 61.9},
+            "AMD": {"market_cap": 845_000_000_000, "pe": 166.6},
+            "ARM": {"market_cap": 405_000_000_000, "pe": 447.8},
+            "TXN": {"market_cap": 274_000_000_000, "pe": 51.0},
+            "AMAT": {"market_cap": 450_000_000_000, "pe": 52.9},
+            "KLAC": {"market_cap": 332_000_000_000, "pe": 71.3},
+            "LRCX": {"market_cap": 458_000_000_000, "pe": 68.3},
+            "WDC": {"market_cap": 182_000_000_000, "pe": 29.9},
+            "STX": {"market_cap": 208_000_000_000, "pe": 86.5},
+            "SNDK": {"market_cap": 278_000_000_000, "pe": 65.0},
+        },
+        "profiles": {
+            "NVDA": {"description": "Designs GPUs and data center platforms."},
+            "AVGO": {"description": "Designs and supplies semiconductor solutions."},
+            "AMD": {"description": "Designs microprocessors and GPUs."},
+            "ARM": {"description": "Designs and licenses processor chip architectures."},
+            "TXN": {"description": "Designs and manufactures analog semiconductor chips."},
+            "AMAT": {"description": "Semiconductor equipment systems; deposition and etch."},
+            "KLAC": {"description": "Semiconductor inspection systems and metrology."},
+            "LRCX": {"description": "Semiconductor wafer processing equipment; etch."},
+            # WDC carries "wafer" → role design; STX is pure HDD (no semi token → role None);
+            # both must survive ANYWAY because they are protected cohort members.
+            "WDC": {
+                "description": "Designs and markets data storage devices; flash memory wafers."
+            },
+            "STX": {"description": "Global provider of data storage technology; hard disk drives."},
+            "SNDK": {"description": "Designs and supplies NAND flash storage and wafers."},
+        },
+    }
+
+
+def test_mu_storage_cohort_survives_role_gate_and_size_race() -> None:
+    """Regression钉死 for the MU comps bug (2026-06-14): the curated storage cohort
+    (WDC/STX/SNDK) must end up in MU's peer set — WDC/STX must NOT be evicted by the
+    giant logic semis winning the intra-tier size-proximity race, and STX must NOT be
+    role-dropped just because Seagate's description carries no semiconductor token.
+    """
+    result = screen_peers_with_cyclical(_mu_payload(), "MU")
+    # The full hand-curated storage cohort is present.
+    assert {"WDC", "STX", "SNDK"}.issubset(set(result.tickers))
+    # STX would be role-dropped without protection (no semiconductor token) — assert
+    # protection overrode the gate: it is selected, not in dropped_role.
+    assert "STX" not in result.dropped_role
+    assert "STX" in result.tickers
+    # The sheet is not stacked entirely with growth-stock logic semis.
+    logic_semis = {"NVDA", "AVGO", "AMD", "ARM", "TXN"} & set(result.tickers)
+    assert len(logic_semis) <= 4  # at least 3 of 7 slots go to the storage cohort
+    # Deterministic.
+    assert result == screen_peers_with_cyclical(_mu_payload(), "MU")
+
+
+def test_mu_protection_does_not_pin_a_member_lacking_a_quote() -> None:
+    """Protection asserts "this is a genuine comp", not "ship it blind": a cohort
+    member with no provider quote is still dropped (fail-safe to existing behaviour)."""
+    payload = _mu_payload()
+    del payload["quotes"]["STX"]  # provider omitted STX's quote
+    result = screen_peers_with_cyclical(payload, "MU")
+    assert "STX" not in result.tickers
+    # WDC/SNDK (quoted) still survive.
+    assert {"WDC", "SNDK"}.issubset(set(result.tickers))
+
+
+def test_foundry_target_excludes_idm_keeps_pure_play() -> None:
+    """Regression钉死 for the TSM comps bug (2026-06-14): a foundry target's peer set
+    must keep only pure-play contract foundries (UMC/GFS/TSEM) and exclude IDMs
+    (NXPI/MCHP/ON/QRVO) that the over-broad foundry classifier used to misclassify.
+    """
+    payload = {
+        "profile": {
+            "company_name": "Taiwan Semiconductor Manufacturing Company Limited",
+            "sector": "Technology",
+            "industry": "Semiconductors",
+            "market_cap": 2_198_000_000_000,
+            "description": (
+                "TSMC specializes in the manufacturing, packaging, and testing of integrated "
+                "circuits; renowned for its wafer fabrication processes and core foundry services."
+            ),
+        },
+        "industry_screen": ["UMC", "GFS", "TSEM", "NXPI", "MCHP", "ON", "QRVO"],
+        "stock_peers": [],
+        "sector_screen": [],
+        # All mcaps clear TSM's 1/200x floor ($11B) and stay under the 20x ceiling,
+        # so the ONLY discriminator under test is the value-chain role gate.
+        "quotes": {
+            "UMC": {"market_cap": 54_000_000_000, "pe": 33.3},
+            "GFS": {"market_cap": 45_000_000_000, "pe": 58.1},
+            "TSEM": {"market_cap": 18_000_000_000, "pe": 30.0},
+            "NXPI": {"market_cap": 77_000_000_000, "pe": 29.0},
+            "MCHP": {"market_cap": 50_000_000_000, "pe": 255.1},
+            "ON": {"market_cap": 45_000_000_000, "pe": 80.2},
+            "QRVO": {"market_cap": 30_000_000_000, "pe": 40.0},
+        },
+        "profiles": {
+            "UMC": {"description": "Operates as a specialized semiconductor wafer foundry."},
+            "GFS": {"description": "Operates as a prominent global semiconductor foundry."},
+            "TSEM": {"description": "Operates as an independent semiconductor foundry."},
+            "NXPI": {
+                "description": (
+                    "Specializes in the design and production of semiconductor solutions; "
+                    "serves OEMs, contract manufacturers, and distributors."
+                )
+            },
+            "MCHP": {
+                "description": (
+                    "Creates, produces, and sells embedded control solutions; delivers wafer "
+                    "foundry, assembly, and test subcontracting manufacturing services."
+                )
+            },
+            "ON": {
+                "description": (
+                    "Global provider of power and sensing solutions; designs and develops "
+                    "analog products; provides foundry and design services for government clients."
+                )
+            },
+            "QRVO": {
+                "description": (
+                    "Global technology company focused on developing and bringing to market RF "
+                    "products; supplies specialized compound semiconductor foundry services."
+                )
+            },
+        },
+    }
+
+    result = screen_peers(payload, "TSM")
+
+    assert set(result.tickers) == {"UMC", "GFS", "TSEM"}
+    for idm in ("NXPI", "MCHP", "ON", "QRVO"):
+        assert idm not in result.tickers
+        assert idm in result.dropped_role
+    assert result == screen_peers(payload, "TSM")

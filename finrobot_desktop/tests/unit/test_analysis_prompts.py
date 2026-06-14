@@ -245,7 +245,8 @@ class TestPeerTableDeterministicSelection:
 
         junk_screen = SimpleNamespace(tickers=["苹果", "AAPL;DROP", "MSFT"], rationale="fake")
         with patch(
-            "finrobot.engine.analysis.prompts.screen_peers", MagicMock(return_value=junk_screen)
+            "finrobot.engine.analysis.prompts.screen_peers_with_cyclical",
+            MagicMock(return_value=junk_screen),
         ):
             table = await _fetch_peer_table(_FakeDataLayer(), settings, "AAPL")
 

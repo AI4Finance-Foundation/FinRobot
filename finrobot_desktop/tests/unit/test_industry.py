@@ -15,6 +15,7 @@ from finrobot.engine.primitives.industry import (
     commodity_cyclical_basis,
     is_bank,
     is_commodity_cyclical,
+    semiconductor_role,
 )
 
 
@@ -213,3 +214,182 @@ class TestBankOperatingIncomeNetCaliber:
         assert bank_operating_income_net_caliber(None, 207_150_000_000, 72_595_000_000) is None
         assert bank_operating_income_net_caliber(279_745_000_000, None, 72_595_000_000) is None
         assert bank_operating_income_net_caliber(279_745_000_000, 207_150_000_000, None) is None
+
+
+class TestSemiconductorRole:
+    """Value-chain role split for the comps role gate. The IDM/foundry boundary
+    is the load-bearing assertion: an IDM (designs+sells its OWN chips, owns fabs)
+    is NOT a pure-play contract foundry, so it must NOT be a TSM/UMC/GFS comp.
+
+    Descriptions below are the REAL FMP /profile text prefixes (live-verified
+    2026-06-14). The earlier foundry_terms ("contract manufacturer",
+    "manufactures, tests/packages") fired on IDMs and dragged NXPI/MCHP/ON/QRVO
+    into a foundry comp set, diluting the foundry median. NXPI's "contract
+    manufacturer" is a CUSTOMER type it serves; MCHP's "wafer foundry" is a
+    subcontracting SERVICE line; ON's / QRVO's "foundry" is a govt/defense niche —
+    none make them a foundry. The fix: a pure-play foundry IDENTITY term AND no
+    IDM own-product-design identity.
+    """
+
+    # --- the 4 real pure-play foundries must classify as "foundry" ---
+
+    def test_tsm_is_foundry(self) -> None:
+        prof = {
+            "company_name": "Taiwan Semiconductor Manufacturing Company Limited",
+            "industry": "Semiconductors",
+            "description": (
+                "TSMC operates globally in the semiconductor industry, specializing in the "
+                "manufacturing, packaging, and testing of integrated circuits. The company is "
+                "renowned for its diverse array of wafer fabrication processes. Beyond its core "
+                "foundry services, TSMC extends its offerings to engineering support."
+            ),
+        }
+        assert semiconductor_role(prof) == "foundry"
+
+    def test_umc_is_foundry(self) -> None:
+        prof = {
+            "company_name": "United Microelectronics Corporation",
+            "industry": "Semiconductors",
+            "description": (
+                "United Microelectronics Corporation (UMC) operates as a specialized "
+                "semiconductor wafer foundry, extending its services globally. Its customer base "
+                "consists of both integrated device manufacturers and companies focused solely "
+                "on chip design."
+            ),
+        }
+        assert semiconductor_role(prof) == "foundry"
+
+    def test_gfs_is_foundry(self) -> None:
+        prof = {
+            "company_name": "GLOBALFOUNDRIES Inc.",
+            "industry": "Semiconductors",
+            "description": (
+                "GLOBALFOUNDRIES Inc. operates as a prominent global semiconductor foundry, "
+                "specializing in the creation of integrated circuits. It offers comprehensive "
+                "wafer fabrication services."
+            ),
+        }
+        assert semiconductor_role(prof) == "foundry"
+
+    def test_tsem_is_foundry(self) -> None:
+        prof = {
+            "company_name": "Tower Semiconductor Ltd.",
+            "industry": "Semiconductors",
+            "description": (
+                "Tower Semiconductor Ltd. operates as a prominent independent semiconductor "
+                "foundry, engaged in the worldwide production and sale of analog-intensive, "
+                "mixed-signal semiconductor components. It offers wafer fabrication services and "
+                "caters to both integrated device manufacturers and fabless companies."
+            ),
+        }
+        assert semiconductor_role(prof) == "foundry"
+
+    # --- the 4 IDMs with stray foundry mentions must NOT be "foundry" ---
+
+    def test_nxpi_idm_not_foundry(self) -> None:
+        """NXPI: "design and production"; "contract manufacturers" is a CUSTOMER type.
+        Real text also "develops ... sensors" → design (not foundry)."""
+        prof = {
+            "company_name": "NXP Semiconductors N.V.",
+            "industry": "Semiconductors",
+            "description": (
+                "NXP Semiconductors N.V. specializes in the design and production of a broad "
+                "array of semiconductor solutions, including microcontrollers and application "
+                "processors. The company also develops semiconductor-based sensors. NXP "
+                "distributes its products globally, serving original equipment manufacturers "
+                "(OEMs), contract manufacturers, and a network of distributors."
+            ),
+        }
+        assert semiconductor_role(prof) == "design"
+
+    def test_mchp_idm_not_foundry(self) -> None:
+        """MCHP: "creates, produces, and sells"; "wafer foundry" is a subcontract service.
+        Real text sells "embedded microprocessors" → design (not foundry)."""
+        prof = {
+            "company_name": "Microchip Technology Incorporated",
+            "industry": "Semiconductors",
+            "description": (
+                "Microchip Technology Incorporated creates, produces, and sells intelligent, "
+                "interconnected, and secure embedded control solutions, including 32-bit "
+                "embedded microprocessors. Microchip delivers engineering services, along with "
+                "wafer foundry, assembly, and test subcontracting manufacturing services."
+            ),
+        }
+        assert semiconductor_role(prof) == "design"
+
+    def test_on_idm_not_foundry(self) -> None:
+        """ON: "designs and develops"; "foundry ... services ... for government clients" is a niche."""
+        prof = {
+            "company_name": "ON Semiconductor Corporation",
+            "industry": "Semiconductors",
+            "description": (
+                "ON Semiconductor Corporation operates as a global provider of sophisticated "
+                "power and sensing solutions. The firm designs and develops specialized analog, "
+                "mixed-signal, and advanced logic products. Furthermore, it provides foundry and "
+                "design services specifically for government clients."
+            ),
+        }
+        assert semiconductor_role(prof) == "design"
+
+    def test_qrvo_idm_not_foundry(self) -> None:
+        """QRVO: "developing and bringing to market"; "compound semiconductor foundry
+        services" is a defense-prime niche, not its identity."""
+        prof = {
+            "company_name": "Qorvo, Inc.",
+            "industry": "Semiconductors",
+            "description": (
+                "Qorvo, Inc. is a global technology company focused on developing and bringing "
+                "to market a diverse range of products for the wireless, wired, and power "
+                "sectors, including RF power management integrated circuits. For defense primes, "
+                "Qorvo supplies RF products and specialized compound semiconductor foundry "
+                "services."
+            ),
+        }
+        assert semiconductor_role(prof) == "design"
+
+    # --- no regression on clear designers / equipment ---
+
+    def test_clear_designer_is_design(self) -> None:
+        prof = {
+            "company_name": "NVIDIA Corporation",
+            "industry": "Semiconductors",
+            "description": "Designs and supplies GPUs and data center platforms for AI computing.",
+        }
+        assert semiconductor_role(prof) == "design"
+
+    def test_equipment_vendor_is_equipment(self) -> None:
+        prof = {
+            "company_name": "ASML Holding N.V.",
+            "industry": "Semiconductors",
+            "description": (
+                "Develops and services semiconductor equipment systems including lithography "
+                "machines for chipmakers."
+            ),
+        }
+        assert semiconductor_role(prof) == "equipment"
+
+    def test_non_semiconductor_returns_none(self) -> None:
+        assert semiconductor_role({"description": "Manufactures and sells beverages."}) is None
+        assert semiconductor_role(None) is None
+
+    def test_no_semiconductor_token_anywhere_returns_none(self) -> None:
+        """A profile with no semiconductor token in ANY field (name/industry/sector/
+        description) is role-unknown — Seagate/STX is the live example: "global
+        provider of data storage technology; hard disk drives", zero chip/wafer/
+        semiconductor words → None, which the role gate treats as incompatible
+        (the very reason the curated cohort must be PROTECTED in peer_screen)."""
+        prof = {
+            "company_name": "Seagate Technology Holdings plc",
+            "industry": "Computer Hardware",
+            "description": "Global provider of advanced data storage technology; hard disk drives.",
+        }
+        assert semiconductor_role(prof) is None
+
+    def test_industry_tag_alone_classifies_as_semiconductor_other(self) -> None:
+        """The "Semiconductors" industry tag alone trips the token gate (it is part of
+        ``profile_text``), so a profile with that tag but no role-specific term lands in
+        the generic semiconductor_other bucket — not None."""
+        assert (
+            semiconductor_role({"company_name": "X", "industry": "Semiconductors"})
+            == "semiconductor_other"
+        )

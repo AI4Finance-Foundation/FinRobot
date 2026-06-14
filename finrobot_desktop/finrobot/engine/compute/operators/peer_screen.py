@@ -159,6 +159,7 @@ def screen_peers(
     mcap_band: float = PEER_SCREEN_MCAP_BAND,
     high_affinity_floor_band: float = PEER_SCREEN_HIGH_AFFINITY_FLOOR_BAND,
     min_affinity_for_sector: int = PEER_SCREEN_MIN_AFFINITY_FOR_SECTOR,
+    protected_peers: frozenset[str] = frozenset(),
 ) -> PeerScreenResult:
     """Screen the raw PEER_CANDIDATES payload into a deterministic peer set.
 
@@ -168,11 +169,30 @@ def screen_peers(
     forward_estimates precedent — the operator owns interpretation, the
     provider stays raw.
 
+    ``protected_peers`` is the hand-curated commodity-cyclical cohort
+    (``cyclical_peers.cyclical_peer_group``) for a memory/storage target — the
+    one set the provider's industry tags AND the description-based role
+    classifier BOTH fail on. Two failure modes the curated anchor must override:
+    (1) a pure storage maker's description carries no semiconductor token, so
+    ``semiconductor_role`` returns None and the value-chain gate rejects it
+    (Seagate/STX: "global provider of advanced data storage technology", zero
+    chip/wafer/semiconductor words — role-dropped while it IS MU's真同业); and
+    (2) even a cohort member that survives the role gate (WDC) loses the
+    intra-tier size-proximity race to the giant logic-semis also tagged
+    "Semiconductors" (AMD $846B / AVGO $1.8T / NVDA $4.95T vs WDC $182B), so it
+    never reaches the top-N. A protected member therefore bypasses the role gate
+    AND is PINNED to the front of Tier 1 (ahead of size-proximity fill). It
+    still must clear the size band + ``pe > 0`` member gate and have a provider
+    quote — protection asserts "this is a genuine comp", not "ship it blind".
+    Empirically validated 2026-06-14: MU keeps WDC/STX/SNDK instead of a sheet
+    of 5 logic semis whose growth-stock P/E mispriced the comps median.
+
     Raises:
         ValueError: when the target's market cap is unavailable (eligibility
             is undefined without it) — callers degrade the comps step.
     """
     target = target_ticker.strip().upper()
+    protected = frozenset(p.strip().upper() for p in protected_peers) - {target}
     profile = payload.get("profile") or {}
     target_profile = profile if isinstance(profile, dict) else {}
     try:
@@ -232,6 +252,12 @@ def screen_peers(
         return pe is not None and pe > 0.0
 
     def role_ok(sym: str) -> bool:
+        # A hand-curated cohort member is a human-verified true comp; the role
+        # gate exists to drop value-chain partners the provider text misclassifies,
+        # but the cohort is curated BECAUSE that same text fails on it (STX has no
+        # semiconductor token → role None → would be rejected). Protection overrides.
+        if sym in protected:
+            return True
         return _value_chain_compatible(target_profile, profiles.get(sym))
 
     dropped_nm: list[str] = []
@@ -270,8 +296,12 @@ def screen_peers(
             break
         if tier_idx >= 3 and not use_sector:
             continue
+        # Sort key pins the curated cohort to the FRONT of the tier (0 < 1) so a
+        # human-verified true comp can't be evicted from the top-N by a giant
+        # logic-semi winning the size-proximity race; within each group, size
+        # proximity then ties broken alphabetically (sym) keep determinism.
         ranked = sorted(
-            (abs(math.log(quotes[s][0] / target_mcap)), s)
+            (0 if s in protected else 1, abs(math.log(quotes[s][0] / target_mcap)), s)
             for s in sorted(set(tier_syms))
             if s != target
             and s not in seen
@@ -280,7 +310,7 @@ def screen_peers(
             and role_ok(s)
             and meaningful(quotes[s][1])
         )
-        for dist, sym in ranked:
+        for _protected_rank, dist, sym in ranked:
             if len(chosen) >= top_n:
                 break
             chosen.append(sym)

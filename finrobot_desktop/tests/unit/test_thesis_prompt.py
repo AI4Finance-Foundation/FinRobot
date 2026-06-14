@@ -103,18 +103,27 @@ def _dcf_result(*, cyclical: bool, market_implied: MarketImpliedCheck) -> DCFRes
 
 
 class TestBuildThesisPrompt:
-    def test_gate_failed_block(self):
-        """2.57x method spread (DCF $86 vs Comps $221) trips the data-health gate."""
+    def test_point_withheld_block_still_issues_directional_verdict(self):
+        """Option-value regime (DCF $12 + comps $26 agree but ~0.05x the $418
+        market) → POINT withheld, but the verdict is STILL directional. The prompt
+        must (a) NOT contain the deleted REVIEW instruction, (b) inject the
+        directional recommendation, (c) forbid a price target / inventing a
+        number, and (d) NOT inject the authoritative-target block."""
         methods = [
-            ValuationMethod(name="DCF", low=70, mid=86, high=100, confidence=0.5, source="DCF"),
+            ValuationMethod(name="dcf", low=10, mid=11.80, high=14, confidence=0.85, source="DCF"),
             ValuationMethod(
-                name="Comps", low=190, mid=221, high=260, confidence=0.5, source="Comps"
+                name="comps_pe", low=21, mid=25.54, high=30, confidence=0.55, source="Comps"
             ),
         ]
-        prompt = _build(methods, current_price=180.0)
-        assert "DATA-HEALTH GATE TRIPPED — DO NOT STATE A PRICE TARGET" in prompt
-        assert "MUST be exactly 'REVIEW'" in prompt
-        # On the gate path no authoritative target block is injected.
+        prompt = _build(methods, current_price=418.45)
+        assert "POINT PRICE TARGET WITHHELD" in prompt
+        assert "STILL ISSUE A DIRECTIONAL VERDICT" in prompt
+        # The REVIEW state is deleted — its instruction must be gone.
+        assert "REVIEW" not in prompt
+        assert "AUTHORITATIVE RECOMMENDATION (do not deviate):" in prompt
+        assert "`price_target` field MUST be null" in prompt
+        assert "绝不编数字" in prompt
+        # On the withheld path no authoritative-target block is injected.
         assert "AUTHORITATIVE PRICE TARGET (do not deviate)" not in prompt
 
     def test_converged_target_block(self):

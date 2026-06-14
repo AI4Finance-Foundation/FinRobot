@@ -18,11 +18,7 @@ from finrobot.engine.models.financial import (
     PeerComps,
     ValuationSynthesis,
 )
-from finrobot.engine.compute.operators.valuation_synthesis import (
-    CanonicalThesis,
-    VERDICT_BUY_THRESHOLD,
-    VERDICT_SELL_THRESHOLD,
-)
+from finrobot.engine.compute.operators.valuation_synthesis import CanonicalThesis
 from finrobot.engine.compute.coordinators.news import sanitize_untrusted_text
 from finrobot.engine.pipelines._helpers import fmt_market_cap, fmt_multiple
 
@@ -37,7 +33,11 @@ def build_thesis_prompt(
     canonical_basis = canonical.basis
     canonical_verdict = canonical.verdict
     canonical_upside = canonical.upside
-    gate_failed = canonical.gate_failed
+    canonical_confidence = canonical.confidence
+    # The POINT is withheld (valuation_withheld) but the directional verdict still
+    # ships — the redesign deletes the REVIEW state, so there is no "no-verdict"
+    # branch any more.
+    point_withheld = canonical.valuation_withheld
     vs = structured_context.get("valuation_synthesis")
 
     # Inject catalyst context into the thesis prompt if available
@@ -84,10 +84,10 @@ def build_thesis_prompt(
     # Reverse-DCF reality check, threaded into the thesis as an AUTHORITATIVE
     # computed number (the LLM cites it, never invents it). It is the single most
     # useful figure for judging a divergence: a withheld target stops being a
-    # blank "REVIEW" and becomes "the market prices in X% growth — plausible?",
-    # or for an option-value stock the honest "even +50% growth can't reach
-    # today's price". Always supplied when available; doubly load-bearing on the
-    # gate_failed path where there is no headline target to anchor the narrative.
+    # blank and becomes "the market prices in X% growth — plausible?", or for an
+    # option-value stock the honest "even +50% growth can't reach today's price".
+    # Always supplied when available; doubly load-bearing on the point-withheld
+    # path where there is no headline target to anchor the narrative.
     dcf_ctx = structured_context.get("financial_modeling")
     market_implied_line = ""
     if isinstance(dcf_ctx, DCFResult) and dcf_ctx.market_implied is not None:
@@ -147,62 +147,73 @@ def build_thesis_prompt(
                 "reader's reality check on the gap between price and fair value." + cyclical_clause
             )
 
+    # The current market price MUST be injected as its own authoritative number.
+    # Without it the narrative LLM has only the target and the upside% — and
+    # back-fills the absolute market price with the nearest number it has, the
+    # target itself. That shipped the 2026-06-05 MSFT artifact: "目标 $306.59，比目前
+    # 市场价 $306.59 低了约 28%" (target pasted in as the market price → a 0% gap
+    # narrated as -28%).
+    market_price_str = (
+        f"${vs.current_price:.2f}"
+        if isinstance(vs, ValuationSynthesis) and vs.current_price > 0
+        else "n/a"
+    )
+    upside_str = f"{canonical_upside:+.1%}" if canonical_upside is not None else "n/a"
+
     thesis_prompt = base_prompt
     if catalyst_section:
         thesis_prompt = f"{base_prompt}\n\nCatalyst Analysis:\n{catalyst_section}"
-    if gate_failed:
+    if point_withheld:
+        # POINT target withheld, but the verdict is DIRECTIONAL (BUY/HOLD/SELL +
+        # confidence tier) — never a refusal to rate. The LLM ships the injected
+        # verdict, leaves price_target null, and explains via the target range +
+        # the market-implied reverse-DCF read; it must NEVER invent a number.
         thesis_prompt = (
             f"{thesis_prompt}\n\n"
-            f"DATA-HEALTH GATE TRIPPED — DO NOT STATE A PRICE TARGET OR DIRECTIONAL VERDICT.\n"
+            f"POINT PRICE TARGET WITHHELD — but you STILL ISSUE A DIRECTIONAL VERDICT.\n"
+            f"AUTHORITATIVE RECOMMENDATION (do not deviate): {canonical_verdict} "
+            f"(confidence: {canonical_confidence}).\n"
+            f"AUTHORITATIVE CURRENT MARKET PRICE (do not deviate): {market_price_str}.\n"
             f"{canonical_basis}\n"
             f"{market_implied_line}\n"
-            f"Your `recommendation` field MUST be exactly 'REVIEW'. "
-            f"Your `price_target` field MUST be null/omitted. "
-            f"Your `price_target_basis` MUST state, citing the specific data-health "
-            f"reason(s) above, that a defensible target cannot be published until the "
-            f"issue is resolved. The reason is ONE of: (a) the valuation methods do not "
-            f"corroborate each other (cite the per-method spread), or (b) the methods "
-            f"agree with each other but diverge far from the market price — the market "
-            f"is pricing option value (new business lines / growth optionality) that "
-            f"cash-flow and relative models do not capture, so a fundamentals point "
-            f"target would be outside its calibration range. Use whichever the warning "
-            f"above states; do NOT assert methods disagree when they actually agree. "
-            f"The narrative MUST explain to the reader, in plain language, why no target "
-            f"is given — this is a feature (refusing to fabricate a number), not a "
-            f"failure. Do NOT pick a midpoint.\n"
-            f"Your `valuation_overview` narrative MUST NOT state any single fair-value "
-            f"or target number (no weighted average, no midpoint, no 'approx $X') — instead "
-            f"explain the data-health reason cited above and that a defensible target is "
-            f"withheld pending review."
+            f"Your `recommendation` field MUST equal the authoritative verdict above "
+            f"({canonical_verdict}) — it stands on the DIRECTIONAL read of the valuation "
+            f"vs the market, NOT on a point estimate. "
+            f"Your `price_target` field MUST be null/omitted — the only point we could "
+            f"give would be fabricated, and we never invent a number (绝不编数字). "
+            f"Your `price_target_basis` MUST explain, in plain language, WHY the point is "
+            f"withheld (cite the reason in the derivation above — methods diverge too far "
+            f"to blend into an honest point, and/or the model sits outside its calibration "
+            f"band because the market prices option value the cash-flow/relative models do "
+            f"not capture) while making clear the {canonical_verdict} direction itself is "
+            f"defensible. This is a feature (refusing to fabricate a number), not a failure. "
+            f"Your `valuation_overview` narrative MUST NOT state any single fair-value or "
+            f"point-target number (no weighted average, no midpoint, no 'approx $X'); it MAY "
+            f"cite the per-method valuation RANGE and the market-implied growth/price above "
+            f"to frame the direction. Do NOT pick a midpoint."
         )
     elif canonical_target is not None:
-        upside_str = f"{canonical_upside:+.1%}" if canonical_upside is not None else "n/a"
-        # The current market price MUST be injected as its own authoritative
-        # number. Without it the narrative LLM has only the target and the upside%
-        # — and back-fills the absolute market price with the nearest number it
-        # has, the target itself. That shipped the 2026-06-05 MSFT artifact:
-        # "目标 $306.59，比目前市场价 $306.59 低了约 28%" (target pasted in as the
-        # market price → a 0% gap narrated as -28%).
-        market_price_str = (
-            f"${vs.current_price:.2f}"
-            if isinstance(vs, ValuationSynthesis) and vs.current_price > 0
-            else "n/a"
-        )
+        # Per-tier band wording: the verdict is derived from confidence-tiered,
+        # asymmetric buy/sell bands (BUY needs a smaller discount than SELL needs a
+        # premium; both widen as confidence drops). State the tier, not a fixed ±%.
+        conf_str = canonical_confidence or "medium"
         thesis_prompt = (
             f"{thesis_prompt}\n\n"
             f"AUTHORITATIVE PRICE TARGET (do not deviate): "
             f"${canonical_target:.2f}\n"
             f"AUTHORITATIVE CURRENT MARKET PRICE (do not deviate): {market_price_str}\n"
             f"AUTHORITATIVE RECOMMENDATION (do not deviate): "
-            f"{canonical_verdict}\n"
+            f"{canonical_verdict} (confidence: {conf_str})\n"
             f"Derivation: {canonical_basis}; implied upside vs current price = {upside_str}.\n"
             f"Your `price_target` field MUST equal the authoritative number above. "
             f"Your `recommendation` field MUST equal the authoritative verdict above "
-            f"(derived from upside thresholds: BUY ≥ +{int(VERDICT_BUY_THRESHOLD * 100)}%, "
-            f"SELL ≤ {int(VERDICT_SELL_THRESHOLD * 100)}%, else HOLD). "
-            f"Your `price_target_basis` MUST cite that this is the method-weighted average "
-            f"synthesis of the listed methods (do NOT write 'X% confidence' — the wt= values "
-            f"are data-quality weights, not prediction probabilities). "
+            f"(derived from confidence-tiered, asymmetric upside bands — a lower-confidence "
+            f"anchor requires price to sit further from fair value before a directional "
+            f"call fires, and the SELL threshold is a larger premium than the BUY "
+            f"threshold a discount). Do NOT re-derive the verdict yourself. "
+            f"Your `price_target_basis` MUST cite that this is the method-weighted/anchored "
+            f"synthesis of the listed methods (do NOT write 'X% confidence' as a prediction "
+            f"probability — the wt= values are data-quality weights). "
             f"Your narrative is free to discuss why each method points where it does and why "
             f"the verdict is consistent with the upside. "
             f"Wherever the narrative mentions 'current share price / market price', it "
@@ -243,14 +254,14 @@ def build_thesis_prompt(
                 f"  - valuation_synthesis.methods['{m.name}']: "
                 f"low=${m.low:.2f}, mid=${m.mid:.2f}, high=${m.high:.2f}"
             )
-        # When the data-health gate has tripped, weighted_price IS the withheld
-        # headline target. Whitelisting it lets the narrative fields
-        # (valuation_overview etc.) "legally" quote the very number the gate
-        # exists to suppress — the structured price_target is force-nulled
-        # post-run, but free prose isn't. So drop it from the citable set on
-        # gate failure. The per-method mids stay whitelisted: "DCF says $5.88,
-        # comps say $19.54, they disagree" is exactly the honest narrative.
-        if not gate_failed and vs_for_prompt.weighted_price is not None:
+        # When the POINT is withheld, weighted_price IS the suppressed headline
+        # number. Whitelisting it would let the narrative fields (valuation_overview
+        # etc.) "legally" quote the very number we refuse to publish — the
+        # structured price_target is force-nulled post-run, but free prose isn't.
+        # So drop it from the citable set when the point is withheld. The per-method
+        # mids stay whitelisted: "DCF says $5.88, comps say $19.54, they disagree"
+        # is exactly the honest narrative.
+        if not point_withheld and vs_for_prompt.weighted_price is not None:
             _whitelist_parts.append(
                 f"  - valuation_synthesis.weighted_price: ${vs_for_prompt.weighted_price:.2f}"
             )
@@ -293,8 +304,8 @@ def build_thesis_prompt(
             f"{dcf_for_prompt.inputs.terminal_growth_rate:.4f}"
         )
         # The reverse-DCF figures are injected above as AUTHORITATIVE numbers
-        # (market_implied_line) and the REVIEW narrative cites them ("the market
-        # prices in 44%/yr"). Whitelist them here too, symmetric with that
+        # (market_implied_line) and the point-withheld narrative cites them ("the
+        # market prices in 44%/yr"). Whitelist them here too, symmetric with that
         # injection — otherwise a prompt-fidelity audit reads the strict
         # whitelist literally and flags the 44% as a hallucinated figure.
         mi_for_prompt = dcf_for_prompt.market_implied

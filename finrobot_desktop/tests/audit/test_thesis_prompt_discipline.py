@@ -382,12 +382,13 @@ async def test_whitelist_contains_valuation_synthesis_weighted_price() -> None:
 
 
 @pytest.mark.asyncio
-async def test_data_health_gate_withholds_weighted_price_from_whitelist() -> None:
-    """When the data-health gate trips (reliable=False) the withheld weighted_price
+async def test_point_withheld_drops_weighted_price_from_whitelist() -> None:
+    """When the POINT is withheld (valuation_withheld) the suppressed weighted_price
     must NOT be whitelisted — otherwise the LLM narrative fields (valuation_overview
-    etc.) can "legally" quote the very target the gate exists to suppress. This is
-    the 2026-05-28 TSLA leak: structured price_target is force-nulled post-run, but
-    free prose can still print "$12.71" if the number is in the citable set.
+    etc.) can "legally" quote the very target we refuse to publish. This is the
+    2026-05-28 TSLA leak: structured price_target is force-nulled post-run, but free
+    prose can still print "$12.71" if the number is in the citable set. The verdict
+    is still directional (the REVIEW state is deleted).
     """
     gated = ValuationSynthesis(
         methods=[
@@ -409,6 +410,9 @@ async def test_data_health_gate_withholds_weighted_price_from_whitelist() -> Non
         outlier_methods=["DCF", "EV/EBITDA Comps"],
         warnings=["DCF deviates 54% from median; methods do not corroborate"],
         reliable=False,
+        confidence="very_low",
+        valuation_withheld=True,
+        degradation_note="方法分歧过大,点目标暂缺;方向仍可判。",
     )
     ctx = _make_structured_context(valuation_synthesis=gated)
     prompt = await _capture_thesis_prompt(ctx)
@@ -416,15 +420,17 @@ async def test_data_health_gate_withholds_weighted_price_from_whitelist() -> Non
     discipline_section = prompt[prompt.find("STRICT NUMERIC DISCIPLINE") :]
     # The withheld headline target must NOT be a citable number.
     assert "12.71" not in discipline_section, (
-        "Data-health gate tripped but weighted_price 12.71 is still whitelisted — "
+        "Point withheld but weighted_price 12.71 is still whitelisted — "
         "the narrative can leak the withheld target (TSLA 2026-05-28 regression)."
     )
     # Per-method mids stay citable — "DCF says $5.88, comps say $19.54, they disagree"
-    # is exactly the honest narrative the gate wants.
+    # is exactly the honest narrative the withhold wants.
     assert "5.88" in discipline_section
     assert "19.54" in discipline_section
-    # The gate must explicitly forbid valuation_overview from stating a target.
-    assert "DATA-HEALTH GATE TRIPPED" in prompt
+    # The withheld block must explicitly forbid valuation_overview from stating a
+    # point target — and ship a directional verdict, never the deleted REVIEW.
+    assert "POINT PRICE TARGET WITHHELD" in prompt
+    assert "REVIEW" not in prompt
     assert "valuation_overview" in prompt
 
 

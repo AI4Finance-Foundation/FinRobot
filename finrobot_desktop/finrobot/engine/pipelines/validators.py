@@ -323,10 +323,6 @@ _VALID_RECOMMENDATIONS = {
     "UNDERWEIGHT",
     "OUTPERFORM",
     "UNDERPERFORM",
-    # Data-health gate verdict: the valuation methods failed cross-checks
-    # (spread > 50%) or required inputs were untrustworthy, so no defensible
-    # target/verdict can be stated. price_target is None in this state.
-    "REVIEW",
 }
 """Canonical investment-bank recommendations (uppercase per CLAUDE.md spec).
 
@@ -525,16 +521,16 @@ def validate_thesis(thesis: ThesisResult) -> ValidationResult:
                 f"{sorted(_VALID_RECOMMENDATIONS)} (case-insensitive)"
             ),
         )
-    # REVIEW is the data-health-gate verdict: target is intentionally withheld.
-    # Every other verdict must carry a positive, defensible target.
-    if recommendation == "REVIEW":
-        if thesis.price_target is not None:
-            return ValidationResult(
-                passed=False,
-                error="REVIEW verdict must have price_target=None (target withheld)",
-            )
-    elif thesis.price_target is None or thesis.price_target <= 0:
-        return ValidationResult(passed=False, error="Price target must be positive")
+    # The verdict is ALWAYS directional (BUY/HOLD/SELL — REVIEW deleted). The
+    # POINT target is now decoupled from the verdict: it may be None (honestly
+    # withheld — the only number available would be fabricated, while the verdict
+    # still ships from the directional read) OR a positive value. A non-positive
+    # target is the only invalid state — it is neither a defensible point nor an
+    # honest withhold. A withheld SELL (price_target=None) MUST pass.
+    if thesis.price_target is not None and thesis.price_target <= 0:
+        return ValidationResult(
+            passed=False, error="Price target must be positive or None (withheld)"
+        )
     if len(thesis.catalysts) < 1:
         return ValidationResult(passed=False, error="At least 1 catalyst required")
     if len(thesis.risks) < 1:

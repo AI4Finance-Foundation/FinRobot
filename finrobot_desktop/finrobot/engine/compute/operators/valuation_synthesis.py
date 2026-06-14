@@ -52,8 +52,9 @@ _RELIABILITY_RATIO_K = 2.0
 # bands on the final artifact and is forbidden to import compute/. The full
 # calibration rationale (why 4x for a corroborated estimate, why 2x for an
 # uncorroborated lone method — the TSLA option-value and MU $2172 cases) lives with
-# the constants there. The gate that fires on these bands is below
-# (_classify_market_divergence and the single-method branch in resolve_canonical_thesis).
+# the constants there. The gate that fires on these bands is the confidence dial
+# below (_confidence_dial): out-of-band → cap the tier and, when extreme, withhold
+# the POINT (valuation_withheld) while the directional verdict still ships.
 
 
 # ── Confidence dial (REVIEW → graded-call redesign, ADR 估值优雅降级) ─────────
@@ -347,21 +348,44 @@ def synthesize_valuations(
     )
 
 
-# ── Recommendation thresholds ──────────────────────────────────────────────
-# Applied to ValuationSynthesis.upside_downside. Source: sell-side equity-
-# research convention (±15% bands around fair value are the standard Buy / Hold /
-# Sell separators on the Street). They travel into both the LLM prompt (so the
-# narrative is consistent) and the post-run override (so the contract holds even
-# if the LLM drifts).
-VERDICT_BUY_THRESHOLD = 0.15
-VERDICT_SELL_THRESHOLD = -0.15
+# ── Recommendation thresholds (confidence-tiered, asymmetric) ───────────────
+# Applied to ValuationSynthesis.upside_downside. Each tier is (buy_discount,
+# sell_premium): BUY when upside ≥ buy, SELL when upside ≤ −sell, else HOLD.
+# Three sell-side principles, calibrated against the live basket (MU/AAPL/KO/
+# NVDA/TSLA/RIVN/F):
+#   · The bands WIDEN as confidence drops — Morningstar's margin-of-safety logic:
+#     the less trustworthy the anchor, the further price must sit from fair value
+#     before a directional call is warranted (the alternative — a fixed ±15% on a
+#     very-low-confidence anchor — fires the most aggressive call on the least
+#     reliable number, which is backwards).
+#   · The sell premium EXCEEDS the buy discount within every tier (asymmetric):
+#     overvaluation must be more pronounced than undervaluation to trigger a call,
+#     the empirical bias of long-horizon fair-value frameworks.
+#   · The verdict is ALWAYS directional (BUY/HOLD/SELL) — the dial expresses
+#     uncertainty by widening these bands + the target range, NEVER by withholding
+#     the call (the deleted REVIEW state).
+# They travel into both the LLM prompt (so the narrative is consistent) and the
+# post-run override (so the contract holds even if the LLM drifts).
+_VERDICT_BANDS: dict[str, tuple[float, float]] = {
+    "high": (0.20, 0.25),
+    "medium": (0.30, 0.35),
+    "low": (0.40, 0.55),
+    "very_low": (0.50, 0.75),
+}
 
 
-def verdict_from_upside(upside: float) -> str:
-    """Deterministic Buy/Hold/Sell from synthesis upside vs current price."""
-    if upside >= VERDICT_BUY_THRESHOLD:
+def verdict_from_upside(upside: float, confidence: str = "high") -> str:
+    """Deterministic Buy/Hold/Sell from synthesis upside vs current price.
+
+    The buy/sell bands are confidence-tiered and asymmetric (see _VERDICT_BANDS):
+    a lower-confidence anchor needs price to sit further from fair value before a
+    directional call fires, and the sell side requires a larger premium than the
+    buy side a discount. NEVER returns a non-directional verdict.
+    """
+    buy, sell = _VERDICT_BANDS.get(confidence, _VERDICT_BANDS["high"])
+    if upside >= buy:
         return "BUY"
-    if upside <= VERDICT_SELL_THRESHOLD:
+    if upside <= -sell:
         return "SELL"
     return "HOLD"
 
@@ -377,143 +401,135 @@ class CanonicalThesis:
     even an uncooperative model cannot desync the published target/verdict.
 
     Fields:
-        target:      headline price target, or None when withheld (gate tripped
-                     / no usable synthesis).
-        verdict:     "BUY"/"HOLD"/"SELL" from the upside bands, "REVIEW" when a
-                     data-health gate withholds a directional call, or None when
-                     no synthesis resolved.
-        basis:       human-readable derivation string (cited in price_target_basis).
-        upside:      implied upside vs current price, or None.
-        gate_failed: True when a data-health gate tripped (target withheld,
-                     verdict forced to REVIEW).
+        target:              headline price target, or None when the POINT is
+                             honestly withheld (valuation_withheld) — the verdict
+                             still ships.
+        verdict:             ALWAYS directional "BUY"/"HOLD"/"SELL" (the REVIEW
+                             state is deleted); only None for the truly-empty
+                             no-synthesis case.
+        basis:               human-readable derivation string (cited in
+                             price_target_basis).
+        upside:              implied upside of the directional reference point vs
+                             current price, or None.
+        valuation_withheld:  True when the POINT target is withheld (the only
+                             number available would be fabricated). The directional
+                             verdict still ships — this is NOT a refusal to rate.
+        confidence:          the synthesis confidence tier (high/medium/low/
+                             very_low) that drove the asymmetric verdict bands.
     """
 
     target: float | None
     verdict: str | None
     basis: str | None
     upside: float | None
-    gate_failed: bool
+    valuation_withheld: bool
+    confidence: str | None = None
+
+
+def _anchor_point(vs: ValuationSynthesis) -> float | None:
+    """The directional reference point — always computed, even when the POINT is
+    withheld (it is what the verdict's direction reads off, not what publishes).
+
+    Priority: the dial's chosen anchor method (comparability rule) → the
+    confidence-weighted blend → the lone surviving method. None only when there
+    is no method at all.
+    """
+    if vs.anchor_method:
+        anchor = next((m for m in vs.methods if m.name == vs.anchor_method), None)
+        if anchor is not None:
+            return anchor.mid
+    if vs.weighted_price is not None:
+        return vs.weighted_price
+    if vs.methods:
+        return vs.methods[0].mid
+    return None
 
 
 def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
-    """Resolve the deterministic headline target/verdict from a synthesis.
+    """Resolve the deterministic headline verdict (+ maybe target) from a synthesis.
 
     Pure: depends only on ``vs`` (the "valuation_synthesis" structured-context
     value — any non-ValuationSynthesis input yields an empty CanonicalThesis).
     ``ticker`` is used only for log attribution. No I/O, no LLM — this is the
     code the LLM's headline numbers are force-reconciled against.
 
-    Branches (in contract order):
-      - reliability gate tripped (``vs.reliable`` False) → REVIEW, target withheld
-      - ≥2 methods converge (``weighted_price`` set)     → weighted target + verdict
-      - single method, mid in calibration band           → that mid as target
-      - single method, mid out of band                   → REVIEW, target withheld
-      - otherwise                                        → empty (nothing usable)
+    The verdict is ALWAYS directional (BUY/HOLD/SELL — the REVIEW state is
+    deleted). Uncertainty is expressed by the confidence tier (which widens the
+    asymmetric verdict bands), the target range [target_low, target_high], and —
+    when the only point we could give would be fabricated — by withholding the
+    POINT (``valuation_withheld``) while the directional verdict still ships from
+    the market-implied read. The dial (synthesize_valuations) already encoded the
+    withhold decision; this function reads it, never re-derives it.
     """
-    canonical_target: float | None = None
-    canonical_basis: str | None = None
-    canonical_verdict: str | None = None
-    canonical_upside: float | None = None
-    # Data-health gate: when the synthesis flags itself unreliable, we publish
-    # NO headline target/verdict. Two orthogonal triggers (see
-    # ValuationSynthesis.reliable): (a) methods deviate > 50% from each other
-    # (the 2026-05-28 TSLA artifact: "DCF deviates 54% from median"), or (b) the
-    # methods agree with each other but the weighted target sits > 75% off the
-    # market price (the 2026-06-05 TSLA screenshot: DCF $11.80 + Comps $25.54
-    # corroborate at $17.20 yet land 96% below the $418 market — the market
-    # prices option value the cash-flow models can't see). REVIEW is the honest
-    # verdict; the narrative LLM is told to explain the data-health gap instead
-    # of inventing conviction.
-    gate_failed = isinstance(vs, ValuationSynthesis) and not vs.reliable
-    if gate_failed:
-        canonical_verdict = "REVIEW"
-        canonical_target = None
-        assert isinstance(vs, ValuationSynthesis)
-        spread_detail = "; ".join(vs.warnings) if vs.warnings else "method spread exceeded gate"
-        canonical_basis = f"DATA-HEALTH GATE: target withheld. {spread_detail}"
+    if not isinstance(vs, ValuationSynthesis):
+        return CanonicalThesis(
+            target=None, verdict=None, basis=None, upside=None, valuation_withheld=False
+        )
+
+    # Directional reference point — always, even when the point is withheld.
+    point = _anchor_point(vs)
+
+    if point is None or vs.current_price <= 0:
+        # No usable point (no method at all, or no market price to compare): the
+        # call is a neutral HOLD; there is nothing to anchor a direction on.
         logger.warning(
-            "Equity-research data-health gate TRIPPED — verdict forced to REVIEW, "
-            "target withheld. Detail: %s",
-            spread_detail,
-        )
-    elif isinstance(vs, ValuationSynthesis) and vs.weighted_price is not None:
-        # Only inject an authoritative target when ≥2 methods converge.
-        # Single-method synthesis has weighted_price=None (no cross-check).
-        canonical_target = round(vs.weighted_price, 2)
-        canonical_upside = vs.upside_downside
-        canonical_verdict = (
-            verdict_from_upside(canonical_upside) if canonical_upside is not None else None
-        )
-        method_breakdown = ", ".join(
-            f"{m.name}=${m.mid:.2f}(wt={m.confidence:.2f})" for m in vs.methods
-        )
-        canonical_basis = (
-            f"Method-weighted average of {len(vs.methods)} valuation methods "
-            f"(wt = data-quality weight, NOT prediction accuracy): "
-            f"{method_breakdown} → ${canonical_target:.2f}"
-        )
-    elif isinstance(vs, ValuationSynthesis) and vs.methods and vs.current_price > 0:
-        # Single-method synthesis (weighted_price=None — no cross-check). The LLM
-        # must NOT be left free to invent a headline number here: the 2026-06-05
-        # TSLA live artifact fell through this branch when comps died (all-EV
-        # peer set, P/E n=0 of 6) and the LLM stamped "SELL $20.38" on a 0.05x
-        # model/market ratio — bypassing every data-health gate. Gate the lone
-        # method's mid against the market — its ONLY available cross-check — using
-        # the TIGHTER single-method band (2x corroboration limit, not the 4x
-        # multi-method band; see SINGLE_METHOD_DIVERGENCE_RATIO_K):
-        #   · in-band  → publish it as the canonical target with an explicit
-        #     single-method / no-cross-check caveat (banks legitimately run
-        #     comps-only; forcing REVIEW would end coverage of every financial)
-        #   · out-of-band → trip the data-health gate: REVIEW, target withheld,
-        #     narrative explains via the market-implied check. This is the gate
-        #     the MU 2026-06-07 comps_pe ($2172 = 2.5x market) must trip.
-        only = vs.methods[0]
-        ratio = only.mid / vs.current_price
-        if (
-            ratio > SINGLE_METHOD_DIVERGENCE_RATIO_K
-            or ratio < 1.0 / SINGLE_METHOD_DIVERGENCE_RATIO_K
-        ):
-            gate_failed = True
-            canonical_verdict = "REVIEW"
-            canonical_target = None
-            canonical_basis = (
-                f"DATA-HEALTH GATE: target withheld. Only one valuation method "
-                f"({only.name}) resolved — no cross-check — and its mid "
-                f"${only.mid:.2f} is {ratio:.2g}x the ${vs.current_price:.2f} market "
-                f"price, outside the [{1.0 / SINGLE_METHOD_DIVERGENCE_RATIO_K:.2g}x, "
-                f"{SINGLE_METHOD_DIVERGENCE_RATIO_K:.2g}x] single-method corroboration "
-                f"band (the market is its only cross-check). A single uncorroborated "
-                f"method this far from the market must not set a headline target/verdict."
-            )
-            logger.warning(
-                "Equity-research single-method gate TRIPPED for %s — %s mid $%.2f "
-                "is %.2gx market $%.2f. Verdict forced to REVIEW, target withheld.",
-                ticker,
-                only.name,
-                only.mid,
-                ratio,
-                vs.current_price,
-            )
-        else:
-            canonical_target = round(only.mid, 2)
-            canonical_upside = (only.mid - vs.current_price) / vs.current_price
-            canonical_verdict = verdict_from_upside(canonical_upside)
-            canonical_basis = (
-                f"Single valuation method ({only.name}=${only.mid:.2f}, "
-                f"wt={only.confidence:.2f}) — no cross-check available; treat with "
-                f"wider uncertainty than a multi-method synthesis."
-            )
-    elif isinstance(vs, ValuationSynthesis):
-        logger.warning(
-            "ValuationSynthesis has %d method(s), current_price=%s — no authoritative "
-            "price target injected",
+            "ValuationSynthesis for %s has %d method(s), current_price=%s — no "
+            "directional reference point; verdict defaults to HOLD, target withheld",
+            ticker,
             len(vs.methods),
             vs.current_price,
         )
+        return CanonicalThesis(
+            target=None,
+            verdict="HOLD",
+            basis=(
+                "No usable valuation point — verdict held neutral. " + (vs.degradation_note or "")
+            ).strip(),
+            upside=None,
+            valuation_withheld=vs.valuation_withheld,
+            confidence=vs.confidence,
+        )
+
+    upside = (point - vs.current_price) / vs.current_price
+    verdict = verdict_from_upside(upside, vs.confidence)
+    target = None if vs.valuation_withheld else round(point, 2)
+
+    # Build the basis from the method breakdown + the dial's anchor/range/note.
+    method_breakdown = ", ".join(
+        f"{m.name}=${m.mid:.2f}(wt={m.confidence:.2f})" for m in vs.methods
+    )
+    range_txt = (
+        f" Range [${vs.target_low:.2f}, ${vs.target_high:.2f}]."
+        if vs.target_low is not None and vs.target_high is not None
+        else ""
+    )
+    if vs.valuation_withheld:
+        anchor_txt = f"anchor {vs.anchor_method}" if vs.anchor_method else "the surviving method"
+        basis = (
+            f"POINT TARGET WITHHELD (confidence={vs.confidence}): the only number "
+            f"available ({anchor_txt} ${point:.2f}) would be fabricated, so it is not "
+            f"published (绝不编数字). The {verdict} verdict stands on the directional "
+            f"read of the market-implied valuation, not a point estimate. "
+            f"Methods: {method_breakdown}.{range_txt} {vs.degradation_note or ''}"
+        ).strip()
+    else:
+        anchor_txt = (
+            f"anchored on {vs.anchor_method} (comparability rule — not a blended "
+            f"midpoint of divergent methods)"
+            if vs.anchor_method
+            else f"method-weighted blend of {len(vs.methods)} corroborating method(s) "
+            "(wt = data-quality weight, NOT prediction accuracy)"
+        )
+        basis = (
+            f"Confidence={vs.confidence}; {anchor_txt}: {method_breakdown} → "
+            f"${target:.2f}.{range_txt} {vs.degradation_note or ''}"
+        ).strip()
+
     return CanonicalThesis(
-        target=canonical_target,
-        verdict=canonical_verdict,
-        basis=canonical_basis,
-        upside=canonical_upside,
-        gate_failed=gate_failed,
+        target=target,
+        verdict=verdict,
+        basis=basis,
+        upside=upside,
+        valuation_withheld=vs.valuation_withheld,
+        confidence=vs.confidence,
     )

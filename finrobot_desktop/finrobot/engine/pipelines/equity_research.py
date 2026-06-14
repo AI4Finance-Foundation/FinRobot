@@ -887,11 +887,20 @@ _DOLLAR_RE = re.compile(
 
 def _reconcile_narrative_targets(
     thesis: ThesisResult,
-    canonical_target: float,
+    canonical_target: float | None,
     allowed_mids: list[float],
     current_price: float | None = None,
 ) -> tuple[ThesisResult, bool]:
     """Code-only guard: neutralize prose $-amounts that contradict the canonical target.
+
+    Two modes:
+      · ``canonical_target`` is a number (point published) → rewrite any drifting
+        prose $-amount to the canonical "$Y" in place.
+      · ``canonical_target`` is None (POINT withheld) → there is no headline value
+        to rewrite TO, so a smuggled point target must be ERASED: any prose
+        $-amount that is not a whitelisted per-method mid or the market price is
+        replaced with a ``[target withheld]`` marker. This stops the LLM from
+        printing "fair value ≈ $X" in prose when the structured target is null.
 
     After the deterministic override forces ``price_target`` to the canonical
     weighted value, the headline-bearing free-text fields from the *same* LLM
@@ -910,10 +919,18 @@ def _reconcile_narrative_targets(
 
     Returns the (possibly model_copied) thesis and whether any drift was found.
     """
-    canonical_token = f"${canonical_target:.2f}"
+    # Point published → rewrite drift to the canonical "$Y". Point withheld
+    # (canonical_target is None) → there is nothing to rewrite TO, so erase the
+    # smuggled amount to an explicit withheld marker.
+    canonical_token = (
+        "[target withheld]" if canonical_target is None else f"${canonical_target:.2f}"
+    )
 
     def _is_allowed(value: float) -> bool:
-        if abs(value - canonical_target) <= abs(canonical_target) * NARRATIVE_DRIFT_TOLERANCE:
+        if (
+            canonical_target is not None
+            and abs(value - canonical_target) <= abs(canonical_target) * NARRATIVE_DRIFT_TOLERANCE
+        ):
             return True
         # The current market price is a legitimate reference number, not drift.
         if (
@@ -1007,32 +1024,18 @@ def apply_canonical_override(
     ``vs`` is the "valuation_synthesis" structured-context value (per-method mids
     + market price feed the narrative reconciliation).
     """
-    gate_failed = canonical.gate_failed
     canonical_basis = canonical.basis
     canonical_target = canonical.target
     canonical_verdict = canonical.verdict
-    # Hard-enforce the deterministic target + verdict — same inputs always
-    # produce the same numbers. If the LLM ignored the prompt, log the
-    # drift so we can detect prompt-fidelity regressions in evals.
-    if gate_failed:
-        # Data-health gate: force REVIEW / no-target regardless of what the
-        # LLM produced. This is the non-negotiable safety override — a
-        # cooperative LLM already emitted REVIEW, an uncooperative one is
-        # corrected here so the contract holds.
-        if thesis.recommendation.strip().upper() != "REVIEW" or thesis.price_target is not None:
-            logger.warning(
-                "Thesis LLM ignored data-health gate (rec=%s, target=%s) — forcing REVIEW",
-                thesis.recommendation,
-                thesis.price_target,
-            )
-        thesis = thesis.model_copy(
-            update={
-                "recommendation": "REVIEW",
-                "price_target": None,
-                "price_target_basis": canonical_basis or "Data-health gate: target withheld.",
-            }
-        )
-    elif canonical_target is not None and canonical_basis is not None:
+    # The verdict is ALWAYS directional now (BUY/HOLD/SELL — REVIEW deleted); the
+    # POINT target may be honestly withheld (valuation_withheld) while the verdict
+    # still ships. Hard-enforce both — same inputs always produce the same numbers;
+    # if the LLM drifted, log it for prompt-fidelity evals.
+    allowed_mids = [m.mid for m in vs.methods] if isinstance(vs, ValuationSynthesis) else []
+    market_price = vs.current_price if isinstance(vs, ValuationSynthesis) else None
+
+    if canonical_target is not None and canonical_basis is not None:
+        # Point published (verdict + a defensible target).
         if thesis.price_target is None or abs(thesis.price_target - canonical_target) > 0.01:
             logger.warning(
                 "Thesis LLM price_target drift: llm=%s, canonical=%s — overriding",
@@ -1061,40 +1064,46 @@ def apply_canonical_override(
         # that contradicts the just-overwritten canonical target ("table $276.43,
         # prose ~$280"). Scan the headline-bearing fields and neutralize any
         # drifting $-amount to the canonical value (code only, no second LLM call).
-        allowed_mids = [m.mid for m in vs.methods] if isinstance(vs, ValuationSynthesis) else []
-        market_price = vs.current_price if isinstance(vs, ValuationSynthesis) else None
         thesis, _ = _reconcile_narrative_targets(
             thesis, canonical_target, allowed_mids, current_price=market_price
         )
     else:
-        # No deterministic anchor at all (resolve_canonical_thesis's empty
-        # branch: every valuation method degraded). Previously NEITHER branch
-        # ran here, so the LLM's own price_target — a fact field with zero code
-        # backing — passed through verbatim into the artifact, and
-        # summary_extractor treats thesis.price_target as authoritative for
-        # the coverage signal. No cross-checkable method is strictly weaker
-        # than the single-method out-of-band case, which already forces
-        # REVIEW/no-target — same treatment applies.
-        if thesis.price_target is not None or thesis.recommendation.strip().upper() != "REVIEW":
+        # POINT withheld (valuation_withheld) OR no usable synthesis at all. Either
+        # way the verdict is still directional and the price_target is forced None
+        # so the LLM's own number — a fact field with zero code backing — cannot
+        # pass through (summary_extractor treats thesis.price_target as the
+        # coverage signal). canonical_verdict is always set on a real synthesis;
+        # the empty no-synthesis branch returns verdict="HOLD".
+        if thesis.price_target is not None or (
+            canonical_verdict is not None
+            and thesis.recommendation.strip().upper() != canonical_verdict
+        ):
             logger.warning(
-                "Thesis LLM emitted target/verdict with NO canonical synthesis "
-                "(rec=%s, target=%s) — forcing REVIEW / withholding target",
+                "Thesis LLM drift on withheld-point path (rec=%s, target=%s) — forcing "
+                "verdict=%s / withholding target",
                 thesis.recommendation,
                 thesis.price_target,
+                canonical_verdict,
             )
         thesis = thesis.model_copy(
             update={
-                # The out-of-band single-method branch reaches here too (target
-                # withheld, verdict/basis populated) — prefer its specific
-                # wording over the generic one.
-                "recommendation": canonical_verdict or "REVIEW",
+                "recommendation": canonical_verdict or "HOLD",
                 "price_target": None,
                 "price_target_basis": canonical_basis
                 or (
-                    "No deterministic valuation method available — "
+                    "No deterministic valuation point available — "
                     "target withheld (nothing to cross-validate the model against)."
                 ),
             }
+        )
+        # CRITICAL: the publish path scrubs drifting prose $-amounts against the
+        # canonical target; the withheld path must do the SAME so an LLM cannot
+        # smuggle a $-amount into prose when the structured target is null. With
+        # no canonical target to rewrite TO, _reconcile_narrative_targets (called
+        # with canonical_target=None) strips any prose $-amount that is not a
+        # whitelisted per-method mid or the market price to a [withheld] marker.
+        thesis, _ = _reconcile_narrative_targets(
+            thesis, None, allowed_mids, current_price=market_price
         )
     return thesis
 

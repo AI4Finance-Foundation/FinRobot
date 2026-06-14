@@ -673,14 +673,15 @@ class ThesisResult(BaseModel):
     major_takeaways maps to key_takeaways, risks maps to risks list.
     """
 
-    recommendation: str = Field(description="Buy/Hold/Sell/REVIEW")
+    recommendation: str = Field(description="Buy/Hold/Sell (always directional)")
     price_target: float | None = Field(
         default=None,
         description=(
-            "12-month price target. None when the valuation methods fail the "
-            "data-health gate (recommendation='REVIEW') — the system refuses to "
-            "publish a target it cannot defend rather than averaging "
-            "non-corroborating methods into a phantom number."
+            "12-month price target. None when the POINT is honestly withheld "
+            "(valuation_withheld) — the only number available would be fabricated, "
+            "so the system publishes the directional verdict + range instead of "
+            "averaging non-corroborating methods into a phantom point. The verdict "
+            "is ALWAYS directional regardless (the REVIEW state is deleted)."
         ),
     )
     price_target_basis: str

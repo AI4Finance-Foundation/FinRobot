@@ -267,28 +267,14 @@ def test_validate_thesis_recommendation_preserves_case_in_artifact():
     assert t.recommendation == "BUY"
 
 
-def test_validate_thesis_review_verdict_requires_null_target():
-    """Data-health-gate verdict: REVIEW must carry price_target=None — the
-    whole point is the system refusing to publish a target it can't defend."""
+def test_validate_thesis_review_recommendation_rejected():
+    """The REVIEW state is deleted: it is no longer a valid recommendation. A
+    thesis tagged 'REVIEW' must fail validation — the verdict is always
+    directional (BUY/HOLD/SELL)."""
     t = ThesisResult(
         recommendation="REVIEW",
         price_target=None,
-        price_target_basis="Data-health gate: methods deviate >50%, target withheld.",
-        catalysts=["pending data reconciliation"],
-        risks=["valuation methods do not corroborate"],
-        narrative="No defensible target until inputs reconciled.",
-    )
-    assert validate_thesis(t).passed
-
-
-def test_validate_thesis_review_with_target_rejected():
-    """A REVIEW verdict that still carries a number is contradictory — reject
-    it so a half-gated artifact can never ship a phantom target under the
-    'under review' banner."""
-    t = ThesisResult(
-        recommendation="REVIEW",
-        price_target=11.25,
-        price_target_basis="should not happen",
+        price_target_basis="legacy gate verdict — no longer valid",
         catalysts=["x"],
         risks=["y"],
         narrative="z",
@@ -298,13 +284,28 @@ def test_validate_thesis_review_with_target_rejected():
     assert "REVIEW" in (result.error or "")
 
 
-def test_validate_thesis_non_review_requires_positive_target():
-    """A directional verdict (BUY/HOLD/SELL) with a null target is invalid —
-    only REVIEW may omit the number."""
+def test_validate_thesis_withheld_directional_with_null_target_passes():
+    """The decoupled contract: a directional verdict (e.g. SELL) with a withheld
+    POINT (price_target=None) is VALID — the target is decoupled from the verdict
+    and may be honestly None while the directional call still ships."""
     t = ThesisResult(
         recommendation="SELL",
         price_target=None,
-        price_target_basis="missing",
+        price_target_basis="Point withheld (option-value regime); SELL stands on direction.",
+        catalysts=["valuation outside calibration band"],
+        risks=["market prices option value the models do not capture"],
+        narrative="Directionally rich; no defensible point.",
+    )
+    assert validate_thesis(t).passed
+
+
+def test_validate_thesis_non_positive_target_rejected():
+    """A target that is present but non-positive is the only invalid target state —
+    it is neither a defensible point nor an honest withhold (which uses None)."""
+    t = ThesisResult(
+        recommendation="BUY",
+        price_target=0.0,
+        price_target_basis="bad",
         catalysts=["x"],
         risks=["y"],
         narrative="z",

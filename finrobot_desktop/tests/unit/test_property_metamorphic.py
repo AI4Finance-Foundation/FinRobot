@@ -205,13 +205,15 @@ class TestMarketDivergenceRatioBoundary:
 
 
 class TestSingleMethodDivergenceRatioBoundary:
-    """``SINGLE_METHOD_DIVERGENCE_RATIO_K`` (=2.0): the lone-method/market gate
-    in ``resolve_canonical_thesis``.
+    """``SINGLE_METHOD_DIVERGENCE_RATIO_K`` (=2.0): the lone-method/market band in
+    the confidence dial (``_confidence_dial``), surfaced through
+    ``resolve_canonical_thesis``.
 
     A single surviving method has no internal cross-check, so its mid is gated
-    against the market at the tighter 2x corroboration limit. Gate is
-    ``ratio > K or ratio < 1/K`` (strict), so K publishes; K+ε withholds (REVIEW).
-    This is the MU 2026-06-07 ``$2172 = 2.5x market`` gate.
+    against the market at the tighter 2x band. Gate is ``ratio > K or ratio < 1/K``
+    (strict): in-band → POINT publishes (medium tier); out-of-band → POINT
+    withheld (very_low) while the directional verdict STILL ships (the REVIEW
+    state is deleted). This is the MU 2026-06-07 ``$2172 = 2.5x market`` case.
     """
 
     @staticmethod
@@ -225,21 +227,22 @@ class TestSingleMethodDivergenceRatioBoundary:
 
     def test_just_below_k_publishes_the_mid(self) -> None:
         canonical = self._canonical(SINGLE_METHOD_DIVERGENCE_RATIO_K - _EPS)
-        assert canonical.gate_failed is False
+        assert canonical.valuation_withheld is False
         assert canonical.target is not None
-        assert canonical.verdict != "REVIEW"
+        assert canonical.verdict in ("BUY", "HOLD", "SELL")
 
     def test_at_k_is_boundary_still_publishes(self) -> None:
         canonical = self._canonical(SINGLE_METHOD_DIVERGENCE_RATIO_K)
-        assert canonical.gate_failed is False
+        assert canonical.valuation_withheld is False
         assert canonical.target is not None
-        assert canonical.verdict != "REVIEW"
+        assert canonical.verdict in ("BUY", "HOLD", "SELL")
 
-    def test_just_above_k_withholds_to_review(self) -> None:
+    def test_just_above_k_withholds_point_keeps_direction(self) -> None:
         canonical = self._canonical(SINGLE_METHOD_DIVERGENCE_RATIO_K + _EPS)
-        assert canonical.gate_failed is True
-        assert canonical.verdict == "REVIEW"
+        assert canonical.valuation_withheld is True
         assert canonical.target is None
+        # Verdict is STILL directional — never the deleted REVIEW state.
+        assert canonical.verdict in ("BUY", "HOLD", "SELL")
 
 
 class TestSanityHelperBandEdges:

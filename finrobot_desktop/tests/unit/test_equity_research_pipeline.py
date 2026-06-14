@@ -1669,15 +1669,13 @@ async def test_peer_analysis_excludes_target_and_names_dropped_peers(mock_deps):
     assert any("FAILME" in w for w in peer_comps.warnings)
 
 
-@pytest.mark.asyncio
 def test_override_empty_canonical_withholds_llm_target():
     """When EVERY valuation method degrades (resolve_canonical_thesis's empty
-    branch: no gate, no target, no verdict), the LLM's own price_target — a
-    fact field with zero code backing — used to pass through verbatim: neither
-    override branch ran, and summary_extractor treats thesis.price_target as
-    authoritative for the coverage signal. No method at all is strictly weaker
-    than single-method-out-of-band, so the same REVIEW/no-target machinery
-    must apply."""
+    branch: no synthesis → verdict=None, target=None), the LLM's own
+    price_target — a fact field with zero code backing — must NOT pass through:
+    summary_extractor treats thesis.price_target as authoritative for the
+    coverage signal. The override forces the target None and defaults the verdict
+    to a neutral HOLD (never the deleted REVIEW)."""
     from finrobot.engine.compute.operators.valuation_synthesis import CanonicalThesis
     from finrobot.engine.models.financial import ThesisResult
     from finrobot.engine.pipelines.equity_research import apply_canonical_override
@@ -1690,23 +1688,86 @@ def test_override_empty_canonical_withholds_llm_target():
         risks=["r"],
         narrative="n",
     )
-    empty = CanonicalThesis(target=None, verdict=None, basis=None, upside=None, gate_failed=False)
+    empty = CanonicalThesis(
+        target=None, verdict=None, basis=None, upside=None, valuation_withheld=False
+    )
 
     out = apply_canonical_override(rogue, empty, vs=None)
 
-    assert out.recommendation == "REVIEW"
+    # Verdict is directional (defaults to HOLD), never REVIEW; the LLM target is
+    # scrubbed to None.
+    assert out.recommendation == "HOLD"
     assert out.price_target is None
     assert out.price_target_basis is not None
     assert "withheld" in out.price_target_basis
 
 
-async def test_thesis_single_method_out_of_band_forces_review(mock_deps):
+def test_override_withheld_point_scrubs_smuggled_prose_amount():
+    """The withheld-point path MUST run the narrative reconciler too (it used to
+    run only on the publish path). With the structured target forced None, an LLM
+    that smuggles a fair-value $-amount into prose must have it erased to the
+    [target withheld] marker — a per-method mid and the market price stay citable."""
+    from finrobot.engine.compute.operators.valuation_synthesis import CanonicalThesis
+    from finrobot.engine.models.financial import (
+        ThesisResult,
+        ValuationMethod,
+        ValuationSynthesis,
+    )
+    from finrobot.engine.pipelines.equity_research import apply_canonical_override
+
+    rogue = ThesisResult(
+        recommendation="Sell",
+        price_target=33.0,  # smuggled point — must be nulled
+        price_target_basis="DCF says fair value is $33.00",  # smuggled prose amount
+        catalysts=["c"],
+        risks=["r"],
+        narrative="We peg fair value at $33.00 despite the $406.00 market.",
+        valuation_overview="Blending methods we reach about $33.00.",
+    )
+    # very_low / point withheld (TSLA option-value regime).
+    vs = ValuationSynthesis(
+        methods=[
+            ValuationMethod(name="dcf", low=30, mid=33.0, high=36, confidence=0.7, source="DCF"),
+            ValuationMethod(name="comps_pe", low=22, mid=24.0, high=27, confidence=0.7, source="C"),
+        ],
+        weighted_price=28.5,
+        current_price=406.0,
+        upside_downside=-0.93,
+        confidence="very_low",
+        valuation_withheld=True,
+    )
+    canonical = CanonicalThesis(
+        target=None,
+        verdict="SELL",
+        basis="POINT TARGET WITHHELD (confidence=very_low).",
+        upside=-0.92,
+        valuation_withheld=True,
+        confidence="very_low",
+    )
+
+    out = apply_canonical_override(rogue, canonical, vs=vs)
+
+    assert out.recommendation == "SELL"  # directional, never REVIEW
+    assert out.price_target is None
+    # The smuggled fair-value "$33.00" in prose (a point, not a per-method mid
+    # cited as such — 33 IS the dcf mid, so it survives; 28.5 weighted would not)
+    # — verify the market price ($406.00) and the per-method mid ($33.00) survive,
+    # while a smuggled NON-whitelisted amount is erased. Inject one to prove it.
+    rogue2 = rogue.model_copy(
+        update={"valuation_overview": "Our point estimate is $99.99 fair value."}
+    )
+    out2 = apply_canonical_override(rogue2, canonical, vs=vs)
+    assert "$99.99" not in (out2.valuation_overview or "")
+    assert "[target withheld]" in (out2.valuation_overview or "")
+
+
+async def test_thesis_single_method_out_of_band_withholds_point_keeps_direction(mock_deps):
     """The 2026-06-05 TSLA live artifact: comps died (all-EV peer set, P/E n=0)
-    → single-method synthesis (weighted_price=None) → NO canonical target and NO
-    gate → the LLM stamped SELL $20.38 on a 0.05x model/market ratio, bypassing
-    every data-health gate. A single uncorroborated method whose mid sits outside
-    the [1/K, K] calibration band must trip the same REVIEW machinery: target
-    withheld, recommendation forced to REVIEW."""
+    → single-method synthesis (weighted_price=None) → the LLM stamped SELL $20.38
+    on a 0.05x model/market ratio. The dial now withholds the POINT (the only
+    number would be the market price in costume) while STILL issuing a directional
+    verdict: target forced None, recommendation directional (never the deleted
+    REVIEW), and the prompt carries the point-withheld instruction."""
     from finrobot.engine.pipelines.equity_research import _execute_thesis
     from finrobot.engine.models.financial import (
         ThesisResult,
@@ -1728,6 +1789,8 @@ async def test_thesis_single_method_out_of_band_forces_review(mock_deps):
     agent = MagicMock()
     agent.run = AsyncMock(return_value=mock_result)
 
+    # synthesize_valuations would set confidence=very_low / valuation_withheld=True
+    # for this single-method 0.049x case; build the same shape directly.
     vs = ValuationSynthesis(
         methods=[
             ValuationMethod(
@@ -1737,6 +1800,8 @@ async def test_thesis_single_method_out_of_band_forces_review(mock_deps):
         weighted_price=None,  # single method — no cross-check
         current_price=418.45,  # ratio 0.049 — far outside [0.25, 4]
         upside_downside=None,
+        confidence="very_low",
+        valuation_withheld=True,
     )
 
     with patch(
@@ -1750,13 +1815,15 @@ async def test_thesis_single_method_out_of_band_forces_review(mock_deps):
     assert isinstance(output, StepOutput)
     thesis = output.structured
     assert isinstance(thesis, ThesisResult)
-    assert thesis.recommendation == "REVIEW"
+    # Directional verdict (never the deleted REVIEW); the point is withheld.
+    assert thesis.recommendation in ("BUY", "HOLD", "SELL")
     assert (
         thesis.price_target is None
     ), f"single-method out-of-band mid must NOT publish a target, got {thesis.price_target}"
-    # The prompt must have carried the gate instruction.
+    # The prompt must have carried the point-withheld instruction (not a gate).
     prompt = agent.run.call_args[0][0]
-    assert "DATA-HEALTH GATE TRIPPED" in prompt
+    assert "POINT PRICE TARGET WITHHELD" in prompt
+    assert "REVIEW" not in prompt
 
 
 @pytest.mark.asyncio
@@ -1785,6 +1852,9 @@ async def test_thesis_single_method_in_band_publishes_with_caveat(mock_deps):
     agent = MagicMock()
     agent.run = AsyncMock(return_value=mock_result)
 
+    # Mirror what synthesize_valuations produces for a single in-band method:
+    # confidence=medium, point published (not withheld), a widened band + a
+    # no-cross-check degradation note.
     vs = ValuationSynthesis(
         methods=[
             ValuationMethod(
@@ -1794,6 +1864,11 @@ async def test_thesis_single_method_in_band_publishes_with_caveat(mock_deps):
         weighted_price=None,
         current_price=310.89,  # ratio 0.93 — comfortably in-band
         upside_downside=None,
+        confidence="medium",
+        target_low=217.18,
+        target_high=361.96,
+        valuation_withheld=False,
+        degradation_note="单一方法 comps_pe 无交叉校验 — 区间放宽,置信中等。",
     )
 
     with patch(
@@ -1809,11 +1884,10 @@ async def test_thesis_single_method_in_band_publishes_with_caveat(mock_deps):
     assert (
         thesis.price_target == 289.57
     ), f"in-band single-method mid must become the canonical target, got {thesis.price_target}"
-    # -6.9% upside → HOLD band (±15%).
+    # -6.9% upside → HOLD (medium-tier SELL needs -35%).
     assert thesis.recommendation == "HOLD"
     # Basis must disclose the single-method / no-cross-check caliber.
-    basis = thesis.price_target_basis.lower()
-    assert "single" in basis or "cross-check" in basis or "无交叉" in thesis.price_target_basis
+    assert "无交叉" in thesis.price_target_basis
     prompt = agent.run.call_args[0][0]
     assert "AUTHORITATIVE PRICE TARGET" in prompt
 

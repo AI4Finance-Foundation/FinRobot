@@ -581,12 +581,56 @@ msgid "verdict.hold"
 msgstr "持有"
 
 #. js-lingui-explicit-id
-msgid "verdict.review"
-msgstr "待复核"
+msgid "verdict.withheld"
+msgstr "已隐藏"
 
 #. js-lingui-explicit-id
 msgid "verdict.sell"
 msgstr "卖出"
+
+#. js-lingui-explicit-id
+msgid "confidence.high"
+msgstr "高置信"
+
+#. js-lingui-explicit-id
+msgid "confidence.medium"
+msgstr "中置信"
+
+#. js-lingui-explicit-id
+msgid "confidence.low"
+msgstr "低置信"
+
+#. js-lingui-explicit-id
+msgid "confidence.veryLow"
+msgstr "投机性"
+
+#. js-lingui-explicit-id
+msgid "targetRange.label"
+msgstr "12 个月目标价"
+
+#. js-lingui-explicit-id
+msgid "targetRange.withheld"
+msgstr "点位目标价已隐藏 — 方向判断仍然成立"
+
+#. js-lingui-explicit-id
+msgid "targetRange.anchoredOn"
+msgstr "锚定 {method}"
+
+#. js-lingui-explicit-id
+msgid "targetRange.legendLive"
+msgstr "现价"
+
+#. js-lingui-explicit-id
+msgid "targetRange.legendTarget"
+msgstr "目标"
+
+#. js-lingui-explicit-id
+msgid "targetRange.aria"
+msgstr "目标价 {point}，区间 {lo} 至 {hi}；置信越低区间越宽。"
+
+#. js-lingui-explicit-id
+msgid "targetRange.ariaWithheld"
+msgstr "点位目标价已隐藏；可辩护的目标价应落在 {lo} 至 {hi} 区间。"
 
 #. js-lingui-explicit-id
 msgid "errors.network.offline"
@@ -665,8 +709,8 @@ msgid "report.computeWarnings"
 msgstr "计算警告"
 
 #. js-lingui-explicit-id
-msgid "report.audit.status.reviewOnly"
-msgstr "数字审计 · 待复核"
+msgid "report.audit.status.caveated"
+msgstr "数字审计 · 数据存疑"
 
 #. js-lingui-explicit-id
 msgid "report.audit.status.unpublishable"
@@ -674,7 +718,7 @@ msgstr "数字审计 · 不可发布"
 
 #. js-lingui-explicit-id
 msgid "report.audit.withheldNote"
-msgstr "部分核心数字未通过审计，评级与目标价已暂缓发布（评级置为「复核中」、目标价置为 N/A），核对下列字段后再下结论。"
+msgstr "部分核心数字未通过审计，受影响字段的点位目标价已隐藏（目标价置为 N/A）。方向性评级仍然成立；核对下列字段后再依赖这些数字。"
 
 #. js-lingui-explicit-id
 msgid "report.audit.severity.blocked"
@@ -682,7 +726,7 @@ msgstr "已拦截"
 
 #. js-lingui-explicit-id
 msgid "report.audit.severity.review"
-msgstr "待复核"
+msgstr "存疑"
 
 #. js-lingui-explicit-id
 msgid "report.audit.severity.info"
@@ -1038,7 +1082,7 @@ msgstr "DCF 平仓价"
 
 #. js-lingui-explicit-id
 msgid "chapter.technical.sniper.withheldUnreliable"
-msgstr "方向性狙击位已隐去：估值方法未交叉验证（DCF 与可比公司分歧过大，目标价已扣发为「待复核」），无可锚定的可靠目标，仅保留下方支撑 / 阻力供参考。"
+msgstr "方向性狙击位已隐去：估值方法未交叉验证（DCF 与可比公司分歧过大，点位目标价已扣发），无可锚定的可靠目标。方向性评级仍然成立；仅保留下方支撑 / 阻力供参考。"
 
 #. js-lingui-explicit-id
 msgid "chapter.technical.sniper.support20d"
@@ -1389,10 +1433,6 @@ msgid "chapter.cover.twelveMonthTarget"
 msgstr "12 个月目标价"
 
 #. js-lingui-explicit-id
-msgid "chapter.cover.targetWithheld"
-msgstr "N/A · 待复核"
-
-#. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.scaleTitle"
 msgstr "估值落差"
 
@@ -1590,7 +1630,7 @@ msgstr "目标 ${value}"
 
 #. js-lingui-explicit-id
 msgid "chapter.thesis.targetWithheld"
-msgstr "目标 N/A · 待复核"
+msgstr "点位目标价已隐藏 · 方向判断仍然成立"
 
 #. js-lingui-explicit-id
 msgid "chapter.thesis.keyTakeaways"
@@ -2877,8 +2917,8 @@ msgid "ic.landing.row.reportDate"
 msgstr "研报 {date}"
 
 #. js-lingui-explicit-id
-msgid "ic.verdict.reliabilityWarning"
-msgstr "数据可靠性不足 — 当前行情数据质量受限，裁决已降级至 REVIEW，请结合研报细节审慎参考"
+msgid "ic.verdict.lowConfidenceWarning"
+msgstr "数据置信偏低 — 当前行情数据质量受限，conviction 已下调。方向判断仍然成立；请结合研报细节审慎参考。"
 
 #. js-lingui-explicit-id
 msgid "ic.verdict.unavailable"

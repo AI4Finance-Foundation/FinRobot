@@ -116,10 +116,10 @@ const CHROME = {
     loading: '加载对比…',
     loadError: '加载对比失败',
     archived: '已归档',
-    // REVIEW state: DCF fair value is withheld (—→—) so it can't be attributed;
-    // the attributable signal is the market-implied growth shift above. Demote
-    // the fair-value row to this footnote instead of a blank prominent chip.
-    fairNotAttributable: 'REVIEW 态无 DCF 公允价值可归因 — 改看上方市场隐含增长的变化',
+    // Withheld-target state: DCF fair value is withheld (—→—) so it can't be
+    // attributed; the attributable signal is the market-implied growth shift
+    // above. Demote the fair-value row to this footnote instead of a blank chip.
+    fairNotAttributable: '目标价已隐藏，无 DCF 公允价值可归因 — 改看上方市场隐含增长的变化',
   },
   en: {
     base: 'Compare against',
@@ -137,7 +137,7 @@ const CHROME = {
     loadError: 'Failed to load comparison',
     archived: 'archived',
     fairNotAttributable:
-      'Fair value not attributable in REVIEW — track the market-implied growth shift above instead',
+      'Fair value not attributable when the target is withheld — track the market-implied growth shift above instead',
   },
 } as const
 
@@ -186,9 +186,9 @@ function metricToneClass(it: DeltaItem): string {
   if (it.key === 'target_price') return 'version-diff-tone--target'
   if (it.key === 'current_price') return 'version-diff-tone--market'
   if (it.key === 'dcf_fair_value' || it.key === 'implied_price') return 'version-diff-tone--fair'
-  // Reverse-DCF market-implied growth — the promoted, attributable REVIEW row.
-  // Amber (neutral-warning) — a rising market-implied growth is neither good nor
-  // bad, it just raises the bar, so it never takes 涨绿跌红.
+  // Reverse-DCF market-implied growth — the promoted, attributable row in the
+  // withheld-target state. Amber (neutral-warning) — a rising market-implied
+  // growth is neither good nor bad, it just raises the bar, never 涨绿跌红.
   if (it.key === 'implied_growth') return 'version-diff-tone--review'
   return sentimentToneClass(it.sentiment)
 }
@@ -329,8 +329,8 @@ export function VersionDiffBanner({
         {data && !data.identical && (
           <>
             {(() => {
-              // REVIEW demotion: when the reverse-DCF growth row is the attributable
-              // headline and the DCF fair value is withheld (—→—), the fair-value row
+              // Withheld-target demotion: when the reverse-DCF growth row is the
+              // attributable headline and the DCF fair value is withheld (—→—), the fair-value row
               // stops being a blank prominent chip — it drops to a quiet footnote that
               // redirects the analyst to the growth shift. The "缺少 DCF 公允价值" attribution
               // warning becomes redundant with that footnote, so it's suppressed too.

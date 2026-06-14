@@ -9,8 +9,8 @@ import { render, screen } from '@testing-library/react'
 import { ChapterAuditBanner } from './ChapterAuditBanner'
 import type { NumericAuditShape } from './types'
 
-const REVIEW_AUDIT: NumericAuditShape = {
-  artifact_status: 'review_only',
+const CAVEATED_AUDIT: NumericAuditShape = {
+  artifact_status: 'caveated',
   withhold_valuation: true,
   findings: [
     {
@@ -41,8 +41,8 @@ describe('ChapterAuditBanner', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('renders the banner + every finding (field_key + evidence) for review_only', () => {
-    render(<ChapterAuditBanner audit={REVIEW_AUDIT} />)
+  it('renders the banner + every finding (field_key + evidence) for caveated', () => {
+    render(<ChapterAuditBanner audit={CAVEATED_AUDIT} />)
     expect(screen.getByTestId('report-audit-banner')).toBeInTheDocument()
     // One row per finding.
     expect(screen.getAllByTestId('report-audit-finding')).toHaveLength(2)
@@ -55,9 +55,9 @@ describe('ChapterAuditBanner', () => {
   })
 
   it('explains the withheld valuation when withhold_valuation is set', () => {
-    render(<ChapterAuditBanner audit={REVIEW_AUDIT} />)
-    // zh or en copy — both mention the withheld rating / target.
-    expect(screen.getByText(/暂缓发布|withheld/i)).toBeInTheDocument()
+    render(<ChapterAuditBanner audit={CAVEATED_AUDIT} />)
+    // zh or en copy — both mention the withheld point target (rating still stands).
+    expect(screen.getByText(/已隐藏|withheld/i)).toBeInTheDocument()
   })
 
   it('uses the danger accent for unpublishable status', () => {
@@ -74,14 +74,14 @@ describe('ChapterAuditBanner', () => {
   // ── Output-contract findings (ArtifactContract, step 1b) ───────────────────
 
   it('exposes the #report-audit-banner anchor so the cover can jump to it', () => {
-    render(<ChapterAuditBanner audit={REVIEW_AUDIT} />)
+    render(<ChapterAuditBanner audit={CAVEATED_AUDIT} />)
     expect(screen.getByTestId('report-audit-banner').id).toBe('report-audit-banner')
   })
 
   it('renders output-contract findings (clause id + evidence) alongside numeric ones', () => {
     render(
       <ChapterAuditBanner
-        audit={REVIEW_AUDIT}
+        audit={CAVEATED_AUDIT}
         contractFindings={[
           {
             clause: 'C1',

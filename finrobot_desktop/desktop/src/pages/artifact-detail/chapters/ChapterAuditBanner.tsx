@@ -2,20 +2,22 @@
 // gate flagged the artifact (artifact_status !== "publishable"). Zero-footprint
 // on a clean report: returns null when publishable / no audit block / no findings.
 //
-// The banner is the primary surface for the verdict: it states WHY the report is
-// under review (review_only) or unpublishable, then lists every finding by its
-// flagged field_key + the evidence string (which carries the actual numbers the
-// backend computed). The recommendation→REVIEW / price_target→null coercion was
-// done upstream (artifact/builders.py); here we only explain it.
+// It reads as RUN-METADATA, not a verdict: a `caveated` artifact ships the
+// directional rating (and often a target) with a muted data-quality caveat;
+// only `unpublishable` (core data unresolvable) goes red. It lists every finding
+// by its flagged field_key + the evidence string (the actual numbers the backend
+// computed). When a specific field's number was withheld, the copy says so for
+// that field — the rating still stands (artifact/builders.py preserves it).
 
 import { useI18n } from '../../../i18n'
 import type { NumericAuditFinding, NumericAuditSeverity, NumericAuditShape } from './types'
 
-/** Accent token per report status. review_only = warning (amber); unpublishable
- * = danger (red). Both neutral-of-涨跌 — these are data-health signals, not a
- * directional call, so they never borrow the success/danger price semantics. */
+/** Accent token per report status. caveated = warning (muted amber);
+ * unpublishable = danger (red). Both neutral-of-涨跌 — these are data-health
+ * signals, not a directional call, so they never borrow the success/danger
+ * price semantics. */
 function statusAccent(status: string): string {
-  // review_only (and any unknown non-publishable status) → warning amber.
+  // caveated (and any unknown non-publishable status) → muted warning amber.
   return status === 'unpublishable' ? 'var(--danger)' : 'var(--warning)'
 }
 
@@ -60,7 +62,7 @@ export function ChapterAuditBanner({
   const statusLabel =
     status === 'unpublishable'
       ? t('report.audit.status.unpublishable')
-      : t('report.audit.status.reviewOnly')
+      : t('report.audit.status.caveated')
 
   return (
     <section

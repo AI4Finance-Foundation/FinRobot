@@ -14,7 +14,7 @@ import { useRunStreamStore, selectRunByTicker } from '../../stores/runStreamStor
 import { useToastStore } from '../../stores/toastStore'
 import { useHealth } from '../../hooks/useHealth'
 import { PipelineProgressPanel } from '../PipelineProgressPanel'
-import { verdictLabel } from '../../utils/verdict'
+import { verdictLabel, verdictTone } from '../../utils/verdict'
 import { formatDate } from '../../utils/format'
 import { mapErrorToUserMessage } from '../../utils/errorMessage'
 import { useI18n, tSync, type Locale } from '../../i18n'
@@ -500,7 +500,6 @@ function OtherArtifacts({
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {sorted.map((a) => {
           const v = readVerdict(a)
-          const tone = v === 'BUY' ? 'buy' : v === 'SELL' ? 'sell' : 'hold'
           return (
             <button
               key={a.id}
@@ -527,7 +526,7 @@ function OtherArtifacts({
               <span style={{ color: 'var(--secondary)', fontWeight: 600 }}>
                 {artifactTypeLabel(a.type, locale)}
               </span>
-              {v ? <VerdictPill tone={tone}>{v}</VerdictPill> : <span />}
+              {v ? <VerdictPill verdict={v} /> : <span />}
               <span style={{ color: 'var(--text-secondary)' }}>
                 {a.target_price !== null && a.target_price !== undefined
                   ? `$${a.target_price.toFixed(2)}`
@@ -792,15 +791,13 @@ function HotState({
   const { locale, t } = useI18n()
   const verdict = readVerdict(latest)
   const target = latest.target_price ?? null
-  const verdictTone =
-    verdict === 'BUY'
-      ? { bg: 'var(--success-soft)', fg: 'var(--success)', glow: 'var(--success-glow-soft)' }
-      : verdict === 'SELL'
-        ? { bg: 'var(--danger-soft)', fg: 'var(--danger)', glow: 'var(--danger-glow-soft)' }
-        : verdict === 'REVIEW'
-          ? // Data-health-gate verdict — neutral slate, not 涨绿跌红.
-            { bg: 'var(--bg-soft)', fg: 'var(--text-secondary)', glow: 'transparent' }
-          : { bg: 'var(--warning-soft)', fg: 'var(--warning)', glow: 'var(--warning-glow)' }
+  // The verdict hue is bound to the directional call (涨绿跌红); the legacy
+  // WITHHELD token falls through verdictTone to a neutral slate. The badge hue is
+  // NEVER modulated by anything other than the directional call.
+  const tone = verdictTone(verdict)
+  // Withheld POINT target — gate on target===null (verdict-independent). The
+  // directional rating still stands; only the precise number is honestly held.
+  const targetWithheld = verdict !== null && target === null
 
   return (
     <>
@@ -862,16 +859,17 @@ function HotState({
         >
           {verdict && (
             <span
+              data-testid="ai-zone-verdict"
+              data-verdict={verdict}
               style={{
                 fontFamily: 'var(--font-display)',
                 fontSize: 28,
                 letterSpacing: '4px',
                 padding: '4px 20px',
-                background: verdictTone.bg,
-                color: verdictTone.fg,
-                border: `1.5px solid ${verdictTone.fg}`,
+                background: tone.bg,
+                color: tone.fg,
+                border: `1.5px solid ${tone.border}`,
                 borderRadius: 8,
-                boxShadow: `0 0 18px ${verdictTone.glow}`,
               }}
             >
               {verdictLabel(verdict)}
@@ -906,13 +904,12 @@ function HotState({
           )}
         </div>
 
-        {/* When the data-health gate withholds the target (valuation methods
-            diverged on cross-validation → verdict REVIEW), target_price is
-            null and the whole target block above disappears. Voice the
-            withholding instead of leaving a silent gap — this honesty is the
-            product's point, not a defect. Neutral slate tone, never 涨绿跌红;
-            distinct from the LLM tagline below. */}
-        {verdict === 'REVIEW' && target === null && (
+        {/* The POINT target was honestly withheld (target_price null) while the
+            directional rating still stands — gate on target===null, NOT on any
+            verdict value. Voice the withholding instead of leaving a silent gap;
+            this honesty is the product's point, not a defect. Neutral slate, the
+            directional badge above keeps its 涨绿跌红 hue. */}
+        {targetWithheld && (
           <button
             type="button"
             data-testid="ai-zone-target-withheld"
@@ -921,8 +918,8 @@ function HotState({
               display: 'block',
               width: '100%',
               textAlign: 'left',
-              background: verdictTone.bg,
-              border: '1px solid var(--border-soft)',
+              background: 'var(--neutral-soft)',
+              border: '1px solid var(--neutral-edge)',
               borderRadius: 'var(--radius-sm)',
               padding: '10px 12px',
               marginBottom: 14,
@@ -930,7 +927,7 @@ function HotState({
               fontFamily: 'var(--font-mono)',
               fontSize: 12,
               lineHeight: 1.5,
-              color: verdictTone.fg,
+              color: 'var(--text-secondary)',
             }}
           >
             {t('hotState.targetWithheld')}
@@ -1097,7 +1094,6 @@ function HotState({
             {timeline.slice(0, 5).map((a) => {
               const current = a.id === latest.id
               const v = readVerdict(a)
-              const tone = v === 'BUY' ? 'buy' : v === 'SELL' ? 'sell' : 'hold'
               return (
                 <button
                   key={a.id}
@@ -1123,7 +1119,7 @@ function HotState({
                   }}
                 >
                   <span style={{ fontWeight: 600 }}>{current ? 'current' : ''}</span>
-                  <VerdictPill tone={tone}>{v ?? '—'}</VerdictPill>
+                  <VerdictPill verdict={v} />
                   <span style={{ color: 'var(--text-secondary)' }}>
                     {a.target_price !== null && a.target_price !== undefined
                       ? `$${a.target_price.toFixed(2)}`
@@ -1156,47 +1152,51 @@ function HotState({
 }
 
 function VerdictPill({
-  tone,
-  children,
+  verdict,
 }: {
-  tone: 'buy' | 'sell' | 'hold'
-  children: React.ReactNode
+  verdict: 'BUY' | 'HOLD' | 'SELL' | 'WITHHELD' | null
 }): React.ReactElement {
-  const colors = {
-    buy: { bg: 'var(--success-soft)', fg: 'var(--success)' },
-    sell: { bg: 'var(--danger-soft)', fg: 'var(--danger)' },
-    hold: { bg: 'var(--warning-soft)', fg: 'var(--warning)' },
-  }
-  const c = colors[tone]
+  const c = verdict
+    ? verdictTone(verdict)
+    : { bg: 'var(--neutral-soft)', fg: 'var(--text-muted)', border: 'var(--border-soft)' }
   return (
     <span
+      data-testid="workspace-verdict-pill"
+      data-verdict={verdict ?? 'NONE'}
       style={{
         fontSize: 10,
         padding: '1px 6px',
         borderRadius: 3,
         background: c.bg,
         color: c.fg,
+        border: `1px solid ${c.border}`,
         textAlign: 'center',
       }}
     >
-      {children}
+      {verdictLabel(verdict)}
     </span>
   )
 }
 
 function readVerdict(
   a: { verdict?: string | null } | null,
-): 'BUY' | 'HOLD' | 'SELL' | 'REVIEW' | null {
-  // Backend populates `verdict` from summary_extractor.extract_verdict
-  // which pulls thesis.recommendation and normalises to BUY/HOLD/SELL/REVIEW.
-  // REVIEW is the data-health-gate verdict (target withheld). None for
-  // artifacts without a thesis (peer_research / ad_hoc) — caller should
+): 'BUY' | 'HOLD' | 'SELL' | 'WITHHELD' | null {
+  // Backend populates `verdict` from summary_extractor.extract_verdict, which
+  // pulls thesis.recommendation and normalises to BUY/HOLD/SELL. The verdict is
+  // ALWAYS directional now (the REVIEW state is deleted); a legacy artifact that
+  // stored recommendation==="REVIEW" is mapped to the neutral "WITHHELD" display
+  // token by the backend, which we render as a neutral slate (never "REVIEW").
+  // None for artifacts without a thesis (peer_research / ad_hoc) — caller should
   // fall back to showing "—" rather than fabricating a verdict.
   // DO NOT read `signal` here — that's the realised-vs-target outcome
   // (hit / watching / failed), which is a different concept entirely.
   if (!a?.verdict) return null
   const v = a.verdict.toUpperCase()
-  return v === 'BUY' || v === 'HOLD' || v === 'SELL' || v === 'REVIEW' ? v : null
+  if (v === 'BUY' || v === 'HOLD' || v === 'SELL' || v === 'WITHHELD') return v
+  // Defensive: a raw legacy "REVIEW" that bypassed the backend mapping still
+  // renders as the neutral WITHHELD token, never the forbidden string.
+  if (v === 'REVIEW') return 'WITHHELD'
+  return null
 }
 
 function ageLabel(iso: string): string {

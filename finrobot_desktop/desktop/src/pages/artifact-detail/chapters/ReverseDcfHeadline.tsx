@@ -1,11 +1,11 @@
-// Reverse-DCF REVIEW headline (the "verdict", not a probe).
+// Reverse-DCF withheld-target headline (the "verdict", not a probe).
 //
-// Rendered under the cover verdict badge whenever a report is held for REVIEW
-// (recommendation==='REVIEW' && price_target==null). It turns a blank "target
-// withheld" into the analyst's real question — "what is the market actually
-// pricing in, and can a cash-flow model defend it?" — using the reverse-DCF
-// figures already frozen into the artifact (market_implied + the dcf method
-// range), never an LLM restatement.
+// Rendered under the cover verdict badge whenever the POINT target is withheld
+// (price_target===null && market_implied!=null) — the directional verdict still
+// stands. It turns a blank "target withheld" into the analyst's real question —
+// "what is the market actually pricing in, and can a cash-flow model defend
+// it?" — using the reverse-DCF figures already frozen into the artifact
+// (market_implied + the dcf method range), never an LLM restatement.
 //
 // Two regimes, from MarketImpliedCheck:
 //   • reachable  (implied_growth present): the gap ruler bridges DCF mid → market
@@ -27,9 +27,9 @@ import type { DcfShape, ValuationMethodShape } from './types'
 
 interface ReverseDcfHeadlineProps {
   marketImplied: NonNullable<DcfShape['market_implied']>
-  /** The dcf method range from valuation_synthesis.methods (name==='dcf'). In
-   * REVIEW state financial_modeling.implied_price is null, so the "cash-flow
-   * model ceiling" MUST come from this method mid, never from dcf.implied_price. */
+  /** The dcf method range from valuation_synthesis.methods (name==='dcf'). When
+   * the target is withheld financial_modeling.implied_price is null, so the
+   * "cash-flow model ceiling" MUST come from this method mid, not implied_price. */
   dcfMethod: ValuationMethodShape | null
   /** valuation_synthesis.current_price — the live pricing anchor (cyan-eligible). */
   currentPrice: number | null
@@ -410,7 +410,7 @@ export function ReverseDcfHeadline({
         background:
           'linear-gradient(160deg, color-mix(in srgb, var(--primary) 5%, transparent), var(--bg-card-overlay))',
         border: '1px solid var(--border-soft)',
-        // persistent REVIEW state → STATIC halo (no breathing/animation)
+        // persistent withheld-target state → STATIC halo (no breathing/animation)
         boxShadow: `inset 0 1px 0 rgba(255,255,255,0.04), 0 0 0 1px ${accentSoft}, 0 0 48px -14px ${accentGlow}`,
         position: 'relative',
       }}

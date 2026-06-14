@@ -148,7 +148,7 @@ export function IcDebatePage() {
           <VerdictCard
             verdict={debate.verdict}
             status={debate.status}
-            reliable={debate.reliable}
+            confidence={debate.confidence}
             current_price={debate.current_price}
             onBackToReport={() => navigate(reportPath)}
           />
@@ -186,12 +186,12 @@ export function IcDebatePage() {
             </div>
           )}
 
-          {/* Reliability caveat over the argument columns. The VerdictCard banner
-              downgrades the call to REVIEW when data is unreliable; the precise
-              estimates cited in the bull/bear chips below must carry the same
-              caveat instead of reading as firm conclusions (the downgrade signal
-              has to reach this node, not just the verdict). */}
-          {isCompleted && debate.reliable === false && (
+          {/* Low-confidence caveat over the argument columns. The VerdictCard
+              banner flags it above the call; the precise estimates cited in the
+              bull/bear chips below must carry the same caveat instead of reading
+              as firm conclusions — the call still stands on direction, the
+              conviction is just held loosely. */}
+          {isCompleted && (debate.confidence === 'low' || debate.confidence === 'very_low') && (
             <div
               role="note"
               style={{

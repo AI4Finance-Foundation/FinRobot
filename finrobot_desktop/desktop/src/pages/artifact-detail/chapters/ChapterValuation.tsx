@@ -62,10 +62,11 @@ export function ChapterValuation({
   const eq = dcf?.equity_value ?? null
   const mi = dcf?.market_implied ?? null
 
-  // REVIEW echo: in REVIEW state financial_modeling.implied_price is null, so the
-  // "DCF Implied Price" cell drops and the grid looks "缺数". Lead the chapter with
-  // a compact reverse-DCF banner that echoes the cover headline — the cash-flow
-  // ceiling here is the dcf METHOD mid (valuation_synthesis), never implied_price.
+  // Withheld-target echo: when the point target is withheld financial_modeling.
+  // implied_price is null, so the "DCF Implied Price" cell drops and the grid
+  // looks "缺数". Lead the chapter with a compact reverse-DCF banner that echoes
+  // the cover headline — the cash-flow ceiling here is the dcf METHOD mid
+  // (valuation_synthesis), never implied_price.
   const dcfMethodMid = valuationSynthesis?.methods?.find((m) => m.name === 'dcf')?.mid ?? null
   const reviewMarketPrice = valuationSynthesis?.current_price ?? null
   const showReviewEcho =

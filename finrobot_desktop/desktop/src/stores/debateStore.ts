@@ -27,6 +27,7 @@ import { BASE_URL } from '../api/client'
 import { fetchWithTimeout } from '../api/fetch'
 import { withCapabilityToken } from '../api/capability'
 import { tSync } from '../i18n'
+import type { ConfidenceTier } from '../utils/verdict'
 
 // ── Event shapes (from POST /api/debate response + SSE stream) ───────────────
 
@@ -43,7 +44,12 @@ export interface DebateEvidenceEvent {
   run_id: string
   ticker: string
   current_price: number | null
-  reliable: boolean
+  // Analytical confidence tier (carried from ValuationSynthesis.confidence).
+  // Replaced the deleted binary `reliable` gate — uncertainty caps conviction,
+  // it never refuses the directional call. valuation_withheld is orthogonal:
+  // the POINT target may be withheld while the verdict still ships.
+  confidence: ConfidenceTier
+  valuation_withheld: boolean
   items: DebateEvidenceItem[]
 }
 
@@ -56,7 +62,9 @@ export interface DebatePoint {
 }
 
 export interface DebateVerdict {
-  call: 'BUY' | 'HOLD' | 'SELL' | 'REVIEW'
+  // Always directional — the REVIEW call is deleted. Low data confidence lowers
+  // conviction (capped by the synthesis tier), never the direction.
+  call: 'BUY' | 'HOLD' | 'SELL'
   conviction: number | null
   swing_factor: string
   change_my_mind: string
@@ -75,8 +83,12 @@ export interface DebateState {
   evidence: Record<string, DebateEvidenceItem>
   /** Price at debate time (from debate.evidence). */
   current_price: number | null
-  /** Whether the underlying data is considered reliable by the backend. */
-  reliable: boolean
+  /** Analytical confidence tier from the synthesis (caps conviction; never gates
+   * the call). Defaults to 'low' until the first debate.evidence event lands. */
+  confidence: ConfidenceTier
+  /** Whether the POINT target was withheld (orthogonal to confidence — the
+   * directional verdict still ships). */
+  valuation_withheld: boolean
   bull: DebatePoint[]
   bear: DebatePoint[]
   verdict: DebateVerdict | null
@@ -87,7 +99,8 @@ export interface DebateState {
 const INITIAL_DEBATE_STATE: Omit<DebateState, 'runId' | 'artifactId'> = {
   evidence: {},
   current_price: null,
-  reliable: true,
+  confidence: 'low',
+  valuation_withheld: false,
   bull: [],
   bear: [],
   verdict: null,
@@ -173,7 +186,8 @@ export const useDebateStore = create<DebateStoreState>((set, get) => {
       patch(key, {
         evidence: evidenceMap,
         current_price: data.current_price,
-        reliable: data.reliable,
+        confidence: data.confidence,
+        valuation_withheld: data.valuation_withheld,
       })
     })
 

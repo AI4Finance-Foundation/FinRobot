@@ -2,9 +2,12 @@
 // tagline / artifact metadata. See layout invariants;
 // we render it as the entry section so PDF exports get a proper cover.
 
+import type { ConfidenceTier } from '../../../utils/verdict'
 import type { DcfShape, ThesisShape, ValuationMethodShape } from './types'
 import { ReverseDcfHeadline } from './ReverseDcfHeadline'
-import { verdictLabel, verdictTone } from '../../../utils/verdict'
+import { ConfidenceChip } from '../../../components/ConfidenceChip'
+import { TargetRange } from '../../../components/TargetRange'
+import { verdictLabel, verdictTone, normalizeConfidence } from '../../../utils/verdict'
 import { formatDate } from '../../../utils/format'
 import { useI18n } from '../../../i18n'
 
@@ -18,19 +21,25 @@ interface ChapterCoverProps {
   versionNumber: number | null
   totalVersions: number
   /** Output-contract withhold reason (the first `[CONTRACT/Cn]` evidence string).
-   * When present on a REVIEW cover, shown as a one-liner with a jump to the audit
-   * banner — so "why was the target withheld" is answered at a glance, not buried.
-   * Null when not withheld, or when the REVIEW came from an upstream gate with no
-   * contract evidence (the audit banner still explains those below). */
+   * When the point target is withheld, shown as a one-liner with a jump to the
+   * audit banner — so "why was the target withheld" is answered at a glance, not
+   * buried. Null when not withheld, or when the withhold came from an upstream
+   * gate with no contract evidence (the audit banner still explains those). */
   withheldReason?: string | null
-  /** Reverse-DCF inputs for the REVIEW headline (the verdict, not a probe). The
-   * cash-flow ceiling MUST come from the dcf method mid (valuation_synthesis),
-   * never dcf.implied_price — that is null in REVIEW state. Null on non-REVIEW
-   * reports or legacy artifacts; the headline simply isn't rendered then. */
+  /** Reverse-DCF inputs for the withheld-target headline (the verdict, not a
+   * probe). The cash-flow ceiling MUST come from the dcf method mid
+   * (valuation_synthesis), never dcf.implied_price — that is null when the
+   * target is withheld. Null on reports with a target or legacy artifacts. */
   marketImplied?: DcfShape['market_implied'] | null
   dcfMethod?: ValuationMethodShape | null
   currentPrice?: number | null
   quoteCurrency?: string
+  /** Confidence dial (valuation_synthesis). Drives the tier chip + the
+   * TargetRange band width. Defaults to 'low' on legacy artifacts. */
+  confidence?: ConfidenceTier | string | null
+  targetLow?: number | null
+  targetHigh?: number | null
+  anchorMethod?: string | null
 }
 
 export function ChapterCover({
@@ -47,14 +56,21 @@ export function ChapterCover({
   dcfMethod = null,
   currentPrice = null,
   quoteCurrency = 'USD',
+  confidence = null,
+  targetLow = null,
+  targetHigh = null,
+  anchorMethod = null,
 }: ChapterCoverProps): React.ReactElement {
   const { locale, t } = useI18n()
   const verdict = (thesis?.recommendation ?? '').toUpperCase()
   const tone = verdictTone(verdict)
   const target = thesis?.price_target ?? null
-  // REVIEW headline = the reverse-DCF gap (verdict-grade visual). Only on a
-  // genuine withheld REVIEW (no target) with frozen market_implied data.
-  const showReverseDcf = verdict === 'REVIEW' && target === null && marketImplied != null
+  const tier = normalizeConfidence(typeof confidence === 'string' ? confidence : null)
+  // Point target honestly withheld — gate on target===null (verdict-independent).
+  const targetWithheld = !!verdict && target === null
+  // Withheld-target headline = the reverse-DCF gap (verdict-grade visual). Only
+  // when the point is withheld AND frozen market_implied data exists to draw it.
+  const showReverseDcf = targetWithheld && marketImplied != null
 
   return (
     <section
@@ -112,6 +128,9 @@ export function ChapterCover({
 
         {verdict && (
           <span
+            data-testid="cover-verdict"
+            data-verdict={verdict}
+            data-confidence={tier}
             style={{
               fontFamily: 'var(--font-display)',
               fontSize: 28,
@@ -128,57 +147,22 @@ export function ChapterCover({
           </span>
         )}
 
-        {target !== null ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10,
-                color: 'var(--text-muted)',
-                letterSpacing: '0.08em',
-              }}
-            >
-              {t('chapter.cover.twelveMonthTarget')}
-            </span>
-            <span
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 26,
-                fontWeight: 500,
-                color: 'var(--text-primary)',
-                fontVariantNumeric: 'tabular-nums',
-                lineHeight: 1.1,
-              }}
-            >
-              ${target.toFixed(2)}
-            </span>
-          </div>
-        ) : (
-          verdict === 'REVIEW' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 10,
-                  color: 'var(--text-muted)',
-                  letterSpacing: '0.08em',
-                }}
-              >
-                {t('chapter.cover.twelveMonthTarget')}
-              </span>
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 18,
-                  fontWeight: 500,
-                  color: 'var(--text-secondary)',
-                  lineHeight: 1.1,
-                }}
-              >
-                {t('chapter.cover.targetWithheld')}
-              </span>
-            </div>
-          )
+        {/* Confidence tier — a NON-hue channel beside the directional badge. */}
+        {verdict && <ConfidenceChip tier={tier} />}
+
+        {/* TargetRange: live tick + point tick (AT the anchor) + the confidence-
+            scaled band. In the withheld state the point tick is dropped — the
+            rating still stands on direction, only the precise number is held. */}
+        {(target !== null || targetWithheld) && (
+          <TargetRange
+            point={target}
+            low={targetLow}
+            high={targetHigh}
+            currentPrice={currentPrice}
+            confidence={tier}
+            quoteCurrency={quoteCurrency}
+            anchorMethod={anchorMethod}
+          />
         )}
       </div>
 
@@ -191,7 +175,7 @@ export function ChapterCover({
         />
       )}
 
-      {verdict === 'REVIEW' && withheldReason && (
+      {targetWithheld && withheldReason && (
         <a
           href="#report-audit-banner"
           data-testid="cover-withheld-reason"

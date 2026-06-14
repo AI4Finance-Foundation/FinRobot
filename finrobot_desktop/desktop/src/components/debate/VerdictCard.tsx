@@ -1,7 +1,10 @@
 // VerdictCard — sticky top card showing the IC committee verdict.
 //
-// call badge: BUY green / SELL red / HOLD amber / REVIEW gray
+// call badge: BUY green / SELL red / HOLD amber — ALWAYS directional (the REVIEW
+// call is deleted). Hue is bound to the directional call, never borrowed.
 // conviction: mono tabular-nums, null → "—"
+// confidence: a NON-hue tier chip beside the badge (low-conviction renders
+//   distinctly from high without recolouring the verdict).
 // swing_factor + change_my_mind: LLM narrative (judgment, not numbers — no SourcedNumber)
 //
 // Three states:
@@ -9,15 +12,20 @@
 //   2. running + no verdict yet — skeleton/"辩论进行中…" state
 //   3. has verdict (running or completed) — full render
 //
-// reliable=false → orange warning banner above the call badge (data quality caveat).
+// Low confidence (low / very_low) → a muted caveat banner above the call badge:
+// the call still stands on direction, the conviction is just held loosely.
 
 import type { DebateVerdict, DebateStatus } from '../../stores/debateStore'
+import type { ConfidenceTier } from '../../utils/verdict'
+import { ConfidenceChip } from '../ConfidenceChip'
 import { useI18n } from '../../i18n'
 
 interface VerdictCardProps {
   verdict: DebateVerdict | null
   status: DebateStatus
-  reliable: boolean
+  /** Analytical confidence tier from the synthesis (debate.evidence). Replaced
+   * the binary `reliable` — uncertainty caps conviction, never the call. */
+  confidence: ConfidenceTier
   current_price: number | null
   // UX-004: when the debate is finished the verdict is the analyst's takeaway —
   // give an immediate way back to the originating report right at the card.
@@ -27,7 +35,7 @@ interface VerdictCardProps {
 
 // ── Call badge configs ────────────────────────────────────────────────────────
 
-type CallKey = 'BUY' | 'HOLD' | 'SELL' | 'REVIEW'
+type CallKey = 'BUY' | 'HOLD' | 'SELL'
 
 const CALL_CONFIG: Record<CallKey, { bg: string; glow: string; border: string; text: string }> = {
   BUY: {
@@ -48,12 +56,20 @@ const CALL_CONFIG: Record<CallKey, { bg: string; glow: string; border: string; t
     border: 'color-mix(in srgb, var(--warning) 45%, transparent)',
     text: 'var(--warning)',
   },
-  REVIEW: {
-    bg: 'color-mix(in srgb, var(--text-muted) 12%, transparent)',
-    glow: 'none',
-    border: 'var(--border-soft)',
-    text: 'var(--text-muted)',
-  },
+}
+
+// Defensive fallback for an unknown / legacy call value (never the deleted
+// REVIEW): a neutral slate badge so a malformed call still renders directionally
+// inert rather than crashing on a missing CALL_CONFIG key.
+const NEUTRAL_CALL_CFG = {
+  bg: 'var(--neutral-soft)',
+  glow: 'none',
+  border: 'var(--neutral-edge)',
+  text: 'var(--text-secondary)',
+}
+
+function callConfig(call: string): (typeof CALL_CONFIG)[CallKey] {
+  return CALL_CONFIG[call as CallKey] ?? NEUTRAL_CALL_CFG
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -61,7 +77,7 @@ const CALL_CONFIG: Record<CallKey, { bg: string; glow: string; border: string; t
 export function VerdictCard({
   verdict,
   status,
-  reliable,
+  confidence,
   current_price,
   onBackToReport,
 }: VerdictCardProps) {
@@ -69,11 +85,12 @@ export function VerdictCard({
   const isRunning = status === 'running'
   const isCompleted = status === 'completed'
   const hasVerdict = verdict !== null
+  const lowConfidence = confidence === 'low' || confidence === 'very_low'
 
   // Don't render card at all in idle state — caller shows start button instead.
   if (status === 'idle') return null
 
-  const callCfg = hasVerdict ? CALL_CONFIG[verdict.call] : null
+  const callCfg = hasVerdict ? callConfig(verdict.call) : null
 
   return (
     <div
@@ -93,8 +110,10 @@ export function VerdictCard({
         boxShadow: hasVerdict && callCfg ? callCfg.glow : undefined,
       }}
     >
-      {/* Data reliability warning banner */}
-      {!reliable && (
+      {/* Low-confidence caveat banner — the call still stands on direction, the
+          conviction is just held loosely. Muted amber (a data-quality signal),
+          never a refusal or a verdict recolour. */}
+      {lowConfidence && (
         <div
           role="alert"
           style={{
@@ -111,7 +130,7 @@ export function VerdictCard({
           }}
         >
           <span aria-hidden>⚠</span>
-          {t('ic.verdict.reliabilityWarning')}
+          {t('ic.verdict.lowConfidenceWarning')}
         </div>
       )}
 
@@ -148,7 +167,8 @@ export function VerdictCard({
           // Full verdict render
           <FullVerdict
             verdict={verdict}
-            callCfg={callCfg ?? CALL_CONFIG.REVIEW}
+            callCfg={callCfg ?? NEUTRAL_CALL_CFG}
+            confidence={confidence}
             current_price={current_price}
             t={t}
           />
@@ -215,11 +235,12 @@ function RunningState() {
 interface FullVerdictProps {
   verdict: DebateVerdict
   callCfg: (typeof CALL_CONFIG)[CallKey]
+  confidence: ConfidenceTier
   current_price: number | null
   t: (key: string, params?: Record<string, string | number>) => string
 }
 
-function FullVerdict({ verdict, callCfg, current_price, t }: FullVerdictProps) {
+function FullVerdict({ verdict, callCfg, confidence, current_price, t }: FullVerdictProps) {
   // conviction is a 0–1 float (Verdict model: ge=0, le=1); the "/100" suffix means
   // we render it as a 0–100 score, so scale up. Without ×100 every value rounded
   // to 0 or 1 (0.75 → "1/100").
@@ -232,6 +253,9 @@ function FullVerdict({ verdict, callCfg, current_price, t }: FullVerdictProps) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
         {/* Call badge */}
         <span
+          data-testid="debate-verdict"
+          data-verdict={verdict.call}
+          data-confidence={confidence}
           style={{
             fontFamily: 'var(--font-display)',
             fontSize: 26,
@@ -248,6 +272,9 @@ function FullVerdict({ verdict, callCfg, current_price, t }: FullVerdictProps) {
         >
           {verdict.call}
         </span>
+
+        {/* Confidence tier — NON-hue channel beside the directional badge. */}
+        <ConfidenceChip tier={confidence} />
 
         {/* Conviction score */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

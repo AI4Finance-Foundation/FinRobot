@@ -700,7 +700,8 @@ function StatusPill({ tone, label }: { tone: 'now' | 'arch'; label: string }): R
   )
 }
 
-/** BUY / HOLD / SELL / REVIEW recommendation badge (localised; shared tone). */
+/** BUY / HOLD / SELL recommendation badge (localised; shared tone). Legacy
+ * WITHHELD-token artifacts render neutral via the shared verdictTone. */
 function VerdictBadge({
   verdict,
 }: {

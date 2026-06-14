@@ -337,19 +337,23 @@ export interface CurrencyTagsShape {
 // ---------------------------------------------------------------------------
 // Numeric-audit gate (backend ArtifactAudit, finrobot/engine/models/numeric_claim.py).
 // One Finding = one audit verdict on one number. The artifact builder runs the
-// definitional verifiers over the finalized snapshot and ships the rollup here;
-// `withhold_valuation` already coerced recommendation→"REVIEW" / price_target→null
-// upstream, so the UI only RENDERS the verdict, it doesn't re-decide it.
+// definitional verifiers over the finalized snapshot and ships the rollup here.
+// `withhold_valuation` nulls the POINT price_target + sets valuation_withheld;
+// the directional recommendation is PRESERVED (the REVIEW verdict is deleted),
+// so the UI only RENDERS the data-health caveat, it never re-decides the call.
 // ---------------------------------------------------------------------------
 
-/** Per-finding severity. `review` flags REVIEW_ONLY; `blocked_field` withholds
+/** Per-finding severity. `review` is an advisory data-quality flag (the word is
+ * the data-quality axis, NOT the deleted verdict); `blocked_field` withholds
  * that number (and any price target derived from it). `info` is advisory. */
 export type NumericAuditSeverity = 'info' | 'review' | 'blocked_field'
 
-/** Report-level rollup. `publishable` → render as-is (no banner). `review_only`
- * → ship with a warning banner + REVIEW rating. `unpublishable` → core data
- * unresolvable (critical-failure path). */
-export type NumericAuditStatus = 'publishable' | 'review_only' | 'unpublishable'
+/** Report-level rollup. `publishable` → render as-is (no banner). `caveated` →
+ * ship with a muted data-quality caveat banner (the directional verdict still
+ * stands; a point target may be withheld). `unpublishable` → core data
+ * unresolvable (critical-failure path, red). Renamed from the old `review_only`
+ * (commit ④) so the status reads as run-metadata, not a verdict. */
+export type NumericAuditStatus = 'publishable' | 'caveated' | 'unpublishable'
 
 export interface NumericAuditFinding {
   /** Which number, e.g. "ev_ebitda" / "pe_ratio" / "enterprise_value". */
@@ -396,7 +400,25 @@ export interface ValuationSynthesisShape {
   upside_downside?: number | null
   outlier_methods?: string[]
   warnings?: string[]
+  /** Legacy binary gate — superseded by `confidence`. Kept for back-compat reads
+   * of older artifacts; new surfaces read the tier, not this flag. */
   reliable?: boolean
+  // ── Confidence dial (commit ③; ADR 估值优雅降级). The synthesis ALWAYS yields a
+  // directional call; uncertainty is a tier + a widening band, never a withhold of
+  // the call. Absent on legacy artifacts → callers default to 'low'.
+  confidence?: 'high' | 'medium' | 'low' | 'very_low'
+  /** Low/high ends of the headline target band (widen as confidence drops).
+   * null when the point target is honestly withheld (valuation_withheld). */
+  target_low?: number | null
+  target_high?: number | null
+  /** Method the headline point anchors on (dcf / comps_pe / …). The point sits
+   * AT the anchor, never a blended midpoint of divergent methods. */
+  anchor_method?: string | null
+  /** True when the POINT target is honestly withheld — the directional verdict
+   * still ships. Replaces the old recommendation==='REVIEW' sentinel. */
+  valuation_withheld?: boolean
+  /** Human-readable disclosure of what degraded + which proxy/anchor was used. */
+  degradation_note?: string | null
 }
 
 // Scenario SOTP (Batch 3B v1): the reverse-SOTP market-implied decomposition for

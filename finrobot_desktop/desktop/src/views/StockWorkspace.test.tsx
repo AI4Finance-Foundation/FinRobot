@@ -432,6 +432,42 @@ describe('workspace surfaces all artifact types (BUG-040)', () => {
     expect(row).toBeInTheDocument()
     expect(row).toHaveTextContent(/Comparable Companies|可比公司/)
   })
+
+  it('maps a legacy REVIEW summary to a neutral WITHHELD pill, never the word REVIEW or a HOLD hue', async () => {
+    // The REVIEW verdict is deleted. New artifacts only ship BUY/HOLD/SELL; a
+    // legacy stored "REVIEW" is mapped to the neutral WITHHELD display token —
+    // readable, never the forbidden string, never borrowing the amber HOLD hue.
+    mockTimeline([
+      {
+        id: 'art_review_1',
+        ticker: 'NVDA',
+        cross_tickers: [],
+        type: 'equity_research',
+        created_at: '2026-05-21T00:00:00Z',
+        headline: 'Point target withheld; rating stands',
+        source: 'pipeline:equity_research',
+        archived: false,
+        target_price: null,
+        verdict: 'REVIEW',
+      },
+    ])
+    renderWorkspace()
+
+    expect(await screen.findByTestId('ai-zone-timeline')).toBeInTheDocument()
+    const pill = screen
+      .getAllByTestId('workspace-verdict-pill')
+      .find((el) => el.getAttribute('data-verdict') === 'WITHHELD')
+
+    expect(pill).toBeDefined()
+    expect(pill).toHaveTextContent('WITHHELD')
+    expect(pill).not.toHaveTextContent('REVIEW')
+    expect(pill).toHaveStyle({
+      background: 'var(--neutral-soft)',
+      color: 'var(--text-secondary)',
+    })
+    expect(pill?.getAttribute('style')).toContain('border: 1px solid var(--neutral-edge)')
+    expect(pill).not.toHaveStyle({ background: 'var(--warning-soft)' })
+  })
 })
 
 // ── BUG-027: preflight gates the run CTA + run errors map to friendly copy ────

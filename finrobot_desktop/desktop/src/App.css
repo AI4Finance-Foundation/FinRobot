@@ -70,11 +70,13 @@
   --danger-soft: rgba(220, 38, 38, 0.18); /* verdict SELL badge bg */
   --danger-glow: rgba(220, 38, 38, 0.45);
   --danger-glow-soft: rgba(220, 38, 38, 0.3);
-  /* Neutral slate — the REVIEW verdict makes NO directional call, so it must
-     not borrow buy/sell green/red. Deliberately outside the up/down palette. */
+  /* Neutral slate — used for non-directional surfaces (the legacy WITHHELD
+     display token, the confidence tier chip, the withheld-target banner). It is
+     deliberately OUTSIDE the up/down palette so it can never borrow buy/sell
+     green/red — confidence and withholding ride a non-hue channel. */
   --neutral: #64748b;
-  --neutral-soft: rgba(100, 116, 139, 0.18); /* verdict REVIEW badge bg */
-  --neutral-edge: rgba(100, 116, 139, 0.55); /* verdict REVIEW badge border */
+  --neutral-soft: rgba(100, 116, 139, 0.18); /* neutral / WITHHELD badge bg */
+  --neutral-edge: rgba(100, 116, 139, 0.55); /* neutral / WITHHELD badge border */
 
   /* ── Card translucency stack (inert surfaces over graphite shell). */
   --bg-card-faint: rgba(13, 16, 24, 0.48);
@@ -7306,8 +7308,9 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
 .version-diff-tone--muted {
   color: var(--text-muted);
 }
-/* Reverse-DCF market-implied growth — the promoted REVIEW row. Amber neutral
-   warning (not 涨绿跌红): a rising implied growth just raises the bar. */
+/* Reverse-DCF market-implied growth — the promoted row in the withheld-target
+   state. Amber neutral warning (not 涨绿跌红): a rising implied growth just
+   raises the bar. */
 .version-diff-metric--implied_growth,
 .version-diff-rail--review {
   border-left-color: var(--accent-amber);
@@ -7325,8 +7328,8 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   letter-spacing: 0;
   text-transform: none;
 }
-/* Demoted DCF-fair-value footnote — was a blank "—→—" prominent chip; in REVIEW
-   it drops here and redirects to the market-implied growth shift. */
+/* Demoted DCF-fair-value footnote — was a blank "—→—" prominent chip; when the
+   target is withheld it drops here and redirects to the market-implied growth shift. */
 .version-diff-card__footnote-demoted {
   display: flex;
   flex-wrap: wrap;

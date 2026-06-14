@@ -65,7 +65,9 @@ export function ChapterThesis({ thesis }: { thesis: ThesisShape | null }): React
               {t('chapter.thesis.target', { value: target.toFixed(2) })}
             </span>
           ) : (
-            verdict === 'REVIEW' && (
+            // Point target honestly withheld — the directional verdict still
+            // stands, so gate on target===null (not on any verdict value).
+            verdict && (
               <span style={{ fontSize: 18, color: 'var(--text-secondary)' }}>
                 {t('chapter.thesis.targetWithheld')}
               </span>

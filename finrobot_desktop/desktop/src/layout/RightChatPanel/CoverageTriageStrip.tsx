@@ -24,13 +24,14 @@ import { useUiStore } from '../../stores/uiStore'
 import { useI18n } from '../../i18n'
 import type { Locale } from '../../i18n'
 import { formatPercent, formatDate } from '../../utils/format'
+import { verdictLabel } from '../../utils/verdict'
 import type { CoverageRow } from '../../api/coverage'
 import { deriveTriage, TRIAGE_MAX, type TriageItem } from '../../components/coverage/coverageTriage'
 
 // Verdict badge colours — mirror CoverageCard's VERDICT map (one design source of
 // truth for BUY/HOLD/SELL). Keyed on the upper-cased verdict so casing variance
-// never drops a badge; an unknown verdict (REVIEW / STRONG_BUY / …) falls through
-// to neutral rather than crashing, exactly as the card degrades.
+// never drops a badge; the legacy WITHHELD display token (or any unknown verdict)
+// falls through to neutral rather than crashing, exactly as the card degrades.
 const VERDICT_BADGE: Record<string, { color: string; bg: string }> = {
   BUY: { color: 'var(--success)', bg: 'var(--success-soft)' },
   HOLD: { color: 'var(--warning)', bg: 'var(--warning-soft)' },
@@ -281,7 +282,7 @@ function TriageCard({ item, locale, navigate }: TriageCardProps): React.ReactEle
               border: `1px solid ${badge.bg}`,
             }}
           >
-            {row.latest_verdict.toUpperCase()}
+            {verdictLabel(row.latest_verdict, locale)}
           </span>
         )}
         {row.change_pct_1d !== null && (

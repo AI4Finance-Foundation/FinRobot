@@ -57,7 +57,8 @@ export function ReportChapters({
     .map((w) => /^\[CONTRACT\/(C\d+)\]\s(.+)$/.exec(w))
     .filter((m): m is RegExpExecArray => m !== null)
     .map((m) => ({ clause: m[1], evidence: m[2] }))
-  // The cover one-liner = the first clause's evidence (verdict is already REVIEW).
+  // The cover one-liner = the first clause's evidence (the point target is
+  // withheld; the directional verdict still stands).
   const withheldReason = contractFindings[0]?.evidence ?? null
 
   return (
@@ -100,13 +101,18 @@ export function ReportChapters({
         versionNumber={d.versionNumber}
         totalVersions={d.totalVersions}
         withheldReason={withheldReason}
-        // Reverse-DCF REVIEW headline inputs. The cash-flow ceiling comes from
-        // the dcf method (valuation_synthesis), NOT dcf.implied_price (null in
-        // REVIEW). current_price is the live pricing anchor the gap is measured to.
+        // Reverse-DCF withheld-target headline inputs. The cash-flow ceiling comes
+        // from the dcf method (valuation_synthesis), NOT dcf.implied_price (null
+        // when the target is withheld). current_price is the live pricing anchor.
         marketImplied={d.dcf?.market_implied ?? null}
         dcfMethod={d.valuationSynthesis?.methods?.find((m) => m.name === 'dcf') ?? null}
         currentPrice={d.valuationSynthesis?.current_price ?? null}
         quoteCurrency={d.quoteCurrency}
+        // Confidence dial → tier chip + TargetRange band width.
+        confidence={d.valuationSynthesis?.confidence ?? null}
+        targetLow={d.valuationSynthesis?.target_low ?? null}
+        targetHigh={d.valuationSynthesis?.target_high ?? null}
+        anchorMethod={d.valuationSynthesis?.anchor_method ?? null}
       />
       <ChapterThesis thesis={d.thesis} />
       <ChapterCompanyOverview thesis={d.thesis} />

@@ -125,7 +125,7 @@ describe('ChapterValuation market-implied growth', () => {
 // no marker, so clean reports are untouched.
 describe('ChapterValuation EV audit caveat', () => {
   const EV_AUDIT: NumericAuditShape = {
-    artifact_status: 'review_only',
+    artifact_status: 'caveated',
     withhold_valuation: true,
     findings: [
       {

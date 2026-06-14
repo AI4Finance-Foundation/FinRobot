@@ -581,12 +581,56 @@ msgid "verdict.hold"
 msgstr "HOLD"
 
 #. js-lingui-explicit-id
-msgid "verdict.review"
-msgstr "REVIEW"
+msgid "verdict.withheld"
+msgstr "WITHHELD"
 
 #. js-lingui-explicit-id
 msgid "verdict.sell"
 msgstr "SELL"
+
+#. js-lingui-explicit-id
+msgid "confidence.high"
+msgstr "HIGH CONVICTION"
+
+#. js-lingui-explicit-id
+msgid "confidence.medium"
+msgstr "MEDIUM"
+
+#. js-lingui-explicit-id
+msgid "confidence.low"
+msgstr "LOW"
+
+#. js-lingui-explicit-id
+msgid "confidence.veryLow"
+msgstr "SPECULATIVE"
+
+#. js-lingui-explicit-id
+msgid "targetRange.label"
+msgstr "12-Month Target"
+
+#. js-lingui-explicit-id
+msgid "targetRange.withheld"
+msgstr "Point target withheld — rating stands on direction"
+
+#. js-lingui-explicit-id
+msgid "targetRange.anchoredOn"
+msgstr "anchored on {method}"
+
+#. js-lingui-explicit-id
+msgid "targetRange.legendLive"
+msgstr "Live"
+
+#. js-lingui-explicit-id
+msgid "targetRange.legendTarget"
+msgstr "Target"
+
+#. js-lingui-explicit-id
+msgid "targetRange.aria"
+msgstr "Target {point} within a {lo} to {hi} band; the band widens as confidence drops."
+
+#. js-lingui-explicit-id
+msgid "targetRange.ariaWithheld"
+msgstr "Point target withheld; a defensible target would sit in the {lo} to {hi} band."
 
 #. js-lingui-explicit-id
 msgid "errors.network.offline"
@@ -665,8 +709,8 @@ msgid "report.computeWarnings"
 msgstr "COMPUTE WARNINGS"
 
 #. js-lingui-explicit-id
-msgid "report.audit.status.reviewOnly"
-msgstr "Numeric Audit · Under Review"
+msgid "report.audit.status.caveated"
+msgstr "Numeric Audit · Data Caveat"
 
 #. js-lingui-explicit-id
 msgid "report.audit.status.unpublishable"
@@ -674,7 +718,7 @@ msgstr "Numeric Audit · Unpublishable"
 
 #. js-lingui-explicit-id
 msgid "report.audit.withheldNote"
-msgstr "Some core numbers failed the audit, so the rating and price target are withheld (rating set to Under Review, target set to N/A). Reconcile the fields below before drawing a conclusion."
+msgstr "Some core numbers failed the audit, so the point target for the affected fields is withheld (target set to N/A). The directional rating still stands on the broader read. Reconcile the fields below before relying on those numbers."
 
 #. js-lingui-explicit-id
 msgid "report.audit.severity.blocked"
@@ -682,7 +726,7 @@ msgstr "BLOCKED"
 
 #. js-lingui-explicit-id
 msgid "report.audit.severity.review"
-msgstr "REVIEW"
+msgstr "CAVEAT"
 
 #. js-lingui-explicit-id
 msgid "report.audit.severity.info"
@@ -1038,7 +1082,7 @@ msgstr "DCF cover"
 
 #. js-lingui-explicit-id
 msgid "chapter.technical.sniper.withheldUnreliable"
-msgstr "Directional sniper levels withheld: the valuation methods do not corroborate (DCF vs comps diverge too far — the headline target was withheld as REVIEW), so there is no defensible target to anchor a trade. Support / resistance below are shown for reference only."
+msgstr "Directional sniper levels withheld: the valuation methods do not corroborate (DCF vs comps diverge too far — the headline point target was withheld), so there is no defensible target to anchor a trade. The directional rating still stands; support / resistance below are shown for reference only."
 
 #. js-lingui-explicit-id
 msgid "chapter.technical.sniper.support20d"
@@ -1389,10 +1433,6 @@ msgid "chapter.cover.twelveMonthTarget"
 msgstr "12-MONTH TARGET"
 
 #. js-lingui-explicit-id
-msgid "chapter.cover.targetWithheld"
-msgstr "N/A · withheld"
-
-#. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.scaleTitle"
 msgstr "The Gap"
 
@@ -1590,7 +1630,7 @@ msgstr "Target ${value}"
 
 #. js-lingui-explicit-id
 msgid "chapter.thesis.targetWithheld"
-msgstr "Target N/A · withheld"
+msgstr "Point target withheld · rating stands on direction"
 
 #. js-lingui-explicit-id
 msgid "chapter.thesis.keyTakeaways"
@@ -2877,8 +2917,8 @@ msgid "ic.landing.row.reportDate"
 msgstr "Report {date}"
 
 #. js-lingui-explicit-id
-msgid "ic.verdict.reliabilityWarning"
-msgstr "Insufficient data reliability — current market data quality is limited, so the verdict has been downgraded to REVIEW. Please weigh it carefully against the report details."
+msgid "ic.verdict.lowConfidenceWarning"
+msgstr "Low data confidence — current market data quality is limited, so conviction has been lowered. The directional call still stands; weigh it carefully against the report details."
 
 #. js-lingui-explicit-id
 msgid "ic.verdict.unavailable"

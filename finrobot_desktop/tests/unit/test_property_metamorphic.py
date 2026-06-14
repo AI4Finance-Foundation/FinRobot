@@ -45,7 +45,8 @@ from finrobot.engine.compute.operators.multiples import (
     calculate_multiples,
 )
 from finrobot.engine.compute.operators.valuation_synthesis import (
-    _RELIABILITY_RATIO_K,
+    _DIAL_CORROBORATE_SPAN,
+    _DIAL_MILD_SPAN,
     resolve_canonical_thesis,
     synthesize_valuations,
 )
@@ -124,50 +125,51 @@ def _dcf_inputs(**overrides: object) -> DCFInputs:
 
 
 # ───────────────── 1. 3-point threshold tests ───────────────────────────────
-class TestPairwiseReliabilityRatioBoundary:
-    """``_RELIABILITY_RATIO_K`` (=2.0): the pairwise max(mid)/min(mid) gate.
-
-    Trips ``reliable=False`` when two methods disagree by more than Kx. The gate
-    is ``hi/lo > K`` (strict), so K is the boundary that PASSES; K+ε trips.
-
-    Built with two tightly-banded methods at lo=100 and hi=K·100, and a market
-    price chosen so the weighted target stays inside the [0.25x, 4x] band — that
-    isolates the pairwise gate from the orthogonal market-divergence gate.
+class TestDialMethodAgreementSpanBoundaries:
+    """The confidence dial's method-agreement span boundaries (``_DIAL_CORROBORATE_SPAN``
+    =1.5, ``_DIAL_MILD_SPAN``=3.0): tier comes from inter-method agreement, NOT
+    market distance. span ≤ 1.5 → high (blend, no anchor); 1.5 < span ≤ 3.0 →
+    medium (anchored); span > 3.0 → low (anchored). Both gates are strict ``≤``
+    (the boundary PASSES into the lower-span tier). The two methods are placed so
+    the anchored/blended point stays inside the [0.25x, 4x] market band, isolating
+    the span tiering from the orthogonal out-of-calibration cap.
     """
 
     @staticmethod
-    def _synth(ratio: float):  # type: ignore[no-untyped-def]
-        lo, hi = 100.0, ratio * 100.0
-        # Equal confidence ⇒ weighted = (lo+hi)/2 = 150·(ratio/2+0.5). At
-        # current_price=150 the weighted/market ratio stays well inside [0.25,4].
-        methods = [_method("A", lo, source="DCF"), _method("B", hi, source="Comps")]
-        return synthesize_valuations(methods, current_price=150.0)
+    def _synth(span: float):  # type: ignore[no-untyped-def]
+        lo, hi = 100.0, span * 100.0
+        # current_price chosen near the blend/anchor so the point stays in-band.
+        methods = [_method("A", lo, source="DCF"), _method("comps_pe", hi, source="Comps")]
+        return synthesize_valuations(methods, current_price=(lo + hi) / 2)
 
-    def test_just_below_k_is_reliable(self) -> None:
-        result = self._synth(_RELIABILITY_RATIO_K - _EPS)
-        assert result.reliable is True
-        assert not any("corroboration limit" in w for w in result.warnings)
+    def test_corroborate_boundary_is_high_blend(self) -> None:
+        # span == 1.5 PASSES into the corroborate tier (strict ``≤``): high, no anchor.
+        result = self._synth(_DIAL_CORROBORATE_SPAN)
+        assert result.confidence == "high"
+        assert result.anchor_method is None
 
-    def test_at_k_is_the_boundary_still_reliable(self) -> None:
-        # Gate is strict ``hi/lo > K`` — exactly K does NOT trip.
-        result = self._synth(_RELIABILITY_RATIO_K)
-        assert result.reliable is True
-        assert not any("corroboration limit" in w for w in result.warnings)
+    def test_just_above_corroborate_drops_to_medium_anchored(self) -> None:
+        result = self._synth(_DIAL_CORROBORATE_SPAN + _EPS)
+        assert result.confidence == "medium"
+        assert result.anchor_method == "comps_pe"
 
-    def test_just_above_k_trips_unreliable(self) -> None:
-        result = self._synth(_RELIABILITY_RATIO_K + _EPS)
-        assert result.reliable is False
-        assert any("corroboration limit" in w and "UNRELIABLE" in w for w in result.warnings)
+    def test_mild_boundary_is_still_medium(self) -> None:
+        # span == 3.0 PASSES into the mild tier (strict ``≤``): medium.
+        result = self._synth(_DIAL_MILD_SPAN)
+        assert result.confidence == "medium"
+
+    def test_just_above_mild_drops_to_low(self) -> None:
+        result = self._synth(_DIAL_MILD_SPAN + _EPS)
+        assert result.confidence == "low"
 
 
 class TestMarketDivergenceRatioBoundary:
-    """``MARKET_DIVERGENCE_RATIO_K`` (=4.0): the multi-method weighted/market gate.
-
-    Trips when the confidence-weighted target sits outside [1/K, K]x of the
-    market price even though the methods agree with each other. Gate is
-    ``ratio > K or ratio < 1/K`` (strict both sides), so K and 1/K are boundaries
-    that PASS. Two methods are placed at the SAME mid (no pairwise spread) so only
-    this gate can fire.
+    """``MARKET_DIVERGENCE_RATIO_K`` (=4.0): the multi-method out-of-calibration cap
+    in the confidence dial. When the blended point sits outside [1/K, K]x of the
+    market (even though the methods agree with each other), the dial caps the
+    confidence tier and notes the option-value regime. Gate is ``ratio > K or
+    ratio < 1/K`` (strict both sides), so K and 1/K are boundaries that PASS (stay
+    high). Two methods at the SAME mid (no span) isolate this cap.
     """
 
     @staticmethod
@@ -177,31 +179,31 @@ class TestMarketDivergenceRatioBoundary:
         methods = [_method("A", target, source="DCF"), _method("B", target, source="Comps")]
         return synthesize_valuations(methods, current_price=price)
 
-    def test_just_below_k_high_side_reliable(self) -> None:
+    def test_just_below_k_high_side_not_capped(self) -> None:
         result = self._synth(MARKET_DIVERGENCE_RATIO_K - _EPS)
-        assert result.reliable is True
-        assert not any("market price" in w for w in result.warnings)
+        assert result.confidence == "high"
+        assert "校准带" not in (result.degradation_note or "")
 
-    def test_at_k_high_side_is_boundary_reliable(self) -> None:
+    def test_at_k_high_side_is_boundary_not_capped(self) -> None:
         result = self._synth(MARKET_DIVERGENCE_RATIO_K)
-        assert result.reliable is True
-        assert not any("market price" in w for w in result.warnings)
+        assert result.confidence == "high"
+        assert "校准带" not in (result.degradation_note or "")
 
-    def test_just_above_k_high_side_trips(self) -> None:
+    def test_just_above_k_high_side_caps(self) -> None:
         result = self._synth(MARKET_DIVERGENCE_RATIO_K + _EPS)
-        assert result.reliable is False
-        assert any("market price" in w and "UNRELIABLE" in w for w in result.warnings)
+        assert result.confidence != "high"
+        assert "校准带" in (result.degradation_note or "")
 
     def test_low_side_band_is_symmetric(self) -> None:
-        # 1/K is the floor; the gate is strict so 1/K itself PASSES, below it trips.
+        # 1/K is the floor; the gate is strict so 1/K itself PASSES (high), below it caps.
         inv_k = 1.0 / MARKET_DIVERGENCE_RATIO_K
         # Use a relative ε on the small (0.25) magnitude so it actually crosses.
         at_floor = self._synth(inv_k)
         below_floor = self._synth(inv_k * (1.0 - _EPS))
-        assert at_floor.reliable is True
-        assert not any("market price" in w for w in at_floor.warnings)
-        assert below_floor.reliable is False
-        assert any("market price" in w and "UNRELIABLE" in w for w in below_floor.warnings)
+        assert at_floor.confidence == "high"
+        assert "校准带" not in (at_floor.degradation_note or "")
+        assert below_floor.confidence != "high"
+        assert "校准带" in (below_floor.degradation_note or "")
 
 
 class TestSingleMethodDivergenceRatioBoundary:

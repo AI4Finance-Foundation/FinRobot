@@ -409,7 +409,6 @@ async def test_point_withheld_drops_weighted_price_from_whitelist() -> None:
         upside_downside=0.13,
         outlier_methods=["DCF", "EV/EBITDA Comps"],
         warnings=["DCF deviates 54% from median; methods do not corroborate"],
-        reliable=False,
         confidence="very_low",
         valuation_withheld=True,
         degradation_note="方法分歧过大,点目标暂缺;方向仍可判。",

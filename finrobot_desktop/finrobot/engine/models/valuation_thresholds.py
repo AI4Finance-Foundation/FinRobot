@@ -65,14 +65,17 @@ SINGLE_METHOD_DIVERGENCE_RATIO_K = 2.0
 # it trips on any pair > K. K=2.0: two methods that differ by more than 2x do not
 # corroborate, full stop — no honest blended point exists.
 #
-# Lives in the leaf because TWO layers consume it and must speak the same language:
-#   · the upstream confidence dial (``valuation_synthesis._RELIABILITY_RATIO_K``,
-#     re-exported from here) which grades reliability at synthesis time, and
-#   · the persist-boundary output contract (``artifact/contract`` clause C1b) which
+# Lives in the leaf because it is consumed at the persist boundary and must speak
+# the same calibrated language as the rest of the divergence bands:
+#   · the persist-boundary output contract (``artifact/contract`` clause C1b)
 #     re-checks the method span on the FINAL artifact — and is forbidden to import
 #     ``compute/``. C1 (model-vs-market) is structurally blind to a target that
 #     sits in-band against the market while its methods are 7x apart (the MU
 #     0.69x-market-yet-DCF-7x-comps case); C1b is that backstop.
+# (At synthesis time the confidence dial in ``valuation_synthesis`` now grades the
+# call from method agreement with its OWN span thresholds — ``_DIAL_CORROBORATE_SPAN``
+# / ``_DIAL_MILD_SPAN`` — rather than this binary 2x gate; the deleted ``reliable``
+# flag used to re-export this constant.)
 METHOD_CORROBORATION_SPAN_K = 2.0
 
 # Sponsor equity-return hurdle, shared by the two LBO consumers that must speak

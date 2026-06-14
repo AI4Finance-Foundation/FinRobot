@@ -37,13 +37,13 @@ class SniperPoints(BaseModel):
     # the *short-entry* levels (open the short here / add here on bounce).
     # Always interpret these together with ``direction`` — never assume LONG.
     #
-    # NEUTRAL (levels-only) mode: when the upstream valuation synthesis flags
-    # itself unreliable (methods don't corroborate → no defensible target), we
-    # MUST NOT anchor a directional trade to a single non-defensible DCF leg.
-    # In that case every trade-level field below is ``None`` and only
-    # ``support_level`` / ``resistance_level`` (pure price facts, independent of
-    # the DCF) are populated. That's why the trade fields are Optional — a
-    # directional LONG/SHORT always fills them, NEUTRAL never does.
+    # NEUTRAL (levels-only) mode: when the upstream valuation synthesis honestly
+    # withheld its POINT target (the only number available would be fabricated →
+    # no publishable target), we MUST NOT anchor a directional trade to the
+    # single non-defensible DCF leg. In that case every trade-level field below
+    # is ``None`` and only ``support_level`` / ``resistance_level`` (pure price
+    # facts, independent of the DCF) are populated. That's why the trade fields
+    # are Optional — a directional LONG/SHORT always fills them, NEUTRAL never does.
     ideal_buy: float | None
     # Optional second entry level. ``None`` when no coherent secondary entry
     # exists — e.g. a LONG whose 20-day support sits below the stop_loss floor
@@ -63,7 +63,7 @@ class SniperPoints(BaseModel):
     # invariant gate. For a SHORT, the fields invert (``stop_loss`` sits ABOVE
     # ``ideal_buy``, cover target below entry); making direction explicit lets the
     # UI swap labels (开空 / 止盈下方 / 止损上方) and keeps risk/reward meaningful
-    # for a bear trade. NEUTRAL = no tradeable direction (valuation unreliable),
+    # for a bear trade. NEUTRAL = no tradeable direction (point target withheld),
     # only support/resistance shown.
     direction: str = "LONG"
     invariant_warnings: list[str] = Field(default_factory=list)
@@ -314,11 +314,12 @@ def calculate_sniper_points(req: SniperRequest) -> SniperPoints:
 def calculate_sniper_levels_only(req: SniperRequest) -> SniperPoints:
     """Levels-only (NEUTRAL) sniper — support/resistance, NO directional trade.
 
-    Used when the upstream valuation synthesis declared itself unreliable: the
-    methods don't corroborate (e.g. DCF $136 vs comps $324, 2.4×), so the
-    headline target was withheld. Anchoring a LONG/SHORT to the single
-    non-defensible DCF leg would directly contradict that withholding —
-    exactly the internal inconsistency this gate exists to prevent.
+    Used when the upstream valuation synthesis honestly withheld its POINT target
+    (the only number available would be fabricated — methods agree far off-market,
+    or a lone method way off-market), so there is no publishable target.
+    Anchoring a LONG/SHORT to the single non-defensible DCF leg would directly
+    contradict that withholding — exactly the internal inconsistency this gate
+    exists to prevent.
 
     Support / resistance are pure price-history facts (20-day rolling min/max),
     independent of the DCF, so they remain honest to surface. Every trade-level
@@ -341,7 +342,7 @@ def calculate_sniper_levels_only(req: SniperRequest) -> SniperPoints:
         sell_mode=False,
         direction="NEUTRAL",
         invariant_warnings=[
-            "方向性狙击位已隐去：估值方法未交叉验证（目标价不可靠），"
-            "无可锚定的可靠目标，仅保留支撑/阻力。"
+            "方向性狙击位已隐去：点目标价已诚实暂缺（唯一可得的数会是编造的），"
+            "无可锚定的目标，仅保留支撑/阻力。"
         ],
     )

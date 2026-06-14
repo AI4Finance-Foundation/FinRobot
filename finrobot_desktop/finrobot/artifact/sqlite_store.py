@@ -110,7 +110,13 @@ _SUMMARY_COLUMNS = (
 # the backfill runs exactly once per bump, not on every boot.
 # v2 — 2026-06-10: primary_provider column added (门四溯源半); bump so legacy
 # rows get the provider backfilled from their payload's inputs.data_source.
-SUMMARY_PROJECTION_VERSION = 2
+# v3 — 2026-06-14: REVIEW→graded-call redesign (commits ③④). The verdict no
+# longer carries a REVIEW state and the target can be honestly withheld
+# (valuation_withheld) while the directional verdict still ships — so the
+# verdict / target_price projection semantics changed. Bump so legacy rows
+# re-project their mirror columns under the new extractor rules instead of
+# keeping a stale REVIEW verdict / phantom target forever.
+SUMMARY_PROJECTION_VERSION = 3
 
 
 def _now() -> datetime:

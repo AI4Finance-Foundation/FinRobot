@@ -120,7 +120,7 @@ async def build_technical_analysis(
     data_layer: DataLayer,
     band_years: int = 3,
     *,
-    reliable: bool = True,
+    has_anchor_target: bool = True,
     current_ev_ebitda: float | None = None,
     price_fx_to_usd: float = 1.0,
 ) -> TechnicalAnalysis:
@@ -131,9 +131,12 @@ async def build_technical_analysis(
     failing the whole research pipeline.
 
     Args:
-        reliable: ``valuation_synthesis.reliable`` — when False the sniper drops
-            the directional trade (B1: a LONG/SHORT keyed to a withheld,
-            non-corroborated target is self-contradictory).
+        has_anchor_target: ``not valuation_synthesis.valuation_withheld`` — when
+            False the synthesis honestly withheld its POINT target, so there is
+            no publishable price target to anchor a directional trade on and the
+            sniper drops to levels-only (B1: a LONG/SHORT keyed to a withheld
+            target is self-contradictory). When a target publishes (even low
+            confidence), the sniper anchors it.
         current_ev_ebitda: canonical TTM EV/EBITDA (matches the comps chapter:
             ``(market_cap + net_debt) / TTM_EBITDA``). Used as the band's
             *current* point so the report never shows two different "current
@@ -154,7 +157,9 @@ async def build_technical_analysis(
     prices = await load_price_history(ticker, data_layer, years=1)
     if price_fx_to_usd != 1.0:
         prices = [replace(p, close=p.close * price_fx_to_usd) for p in prices]
-    sniper = _safe_sniper(ticker, current_price, dcf_target, prices, warnings, reliable=reliable)
+    sniper = _safe_sniper(
+        ticker, current_price, dcf_target, prices, warnings, has_anchor_target=has_anchor_target
+    )
     historical_bands = await _safe_historical_bands(
         ticker, data_layer, band_years, warnings, current_ev_ebitda=current_ev_ebitda
     )
@@ -201,7 +206,7 @@ def _safe_sniper(
     prices: list[Any],
     warnings: list[str],
     *,
-    reliable: bool = True,
+    has_anchor_target: bool = True,
 ) -> SniperPoints | None:
     if current_price <= 0 or dcf_target <= 0:
         warnings.append("sniper skipped: missing current_price or dcf_target")
@@ -216,15 +221,16 @@ def _safe_sniper(
             dcf_target=dcf_target,
             historical_prices=[p.close for p in prices],
         )
-        if not reliable:
-            # B1: the valuation synthesis flagged itself unreliable (methods
-            # don't corroborate → headline target withheld). A directional
-            # LONG/SHORT keyed to the single non-defensible DCF leg would
-            # contradict that withholding — the very inconsistency this gate
-            # prevents. Emit levels-only (support/resistance, no trade).
+        if not has_anchor_target:
+            # B1: the valuation synthesis honestly withheld its POINT target (the
+            # only number available would be fabricated). With no publishable
+            # target there is nothing to anchor a directional LONG/SHORT on — a
+            # trade keyed to the withheld DCF leg would contradict the withholding,
+            # the very inconsistency this gate prevents. Emit levels-only
+            # (support/resistance, no trade).
             warnings.append(
-                "sniper directional trade withheld: valuation unreliable "
-                "(methods do not corroborate) — only support/resistance shown."
+                "sniper directional trade withheld: no publishable price target "
+                "to anchor — only support/resistance shown."
             )
             return calculate_sniper_levels_only(request)
         return calculate_sniper_points(request)

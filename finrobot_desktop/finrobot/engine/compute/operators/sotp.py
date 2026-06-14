@@ -16,7 +16,8 @@ inputs (segment facts + multiples + live price), and the option value is a pure
 arithmetic residual of the price, not a narrated guess. This is the option-value
 CHANNEL — it is consumed as ``structured_context["sotp_breakdown"]`` / a
 football-field row, and is deliberately kept OUT of confidence-weighted point
-synthesis so it never trips ``_RELIABILITY_RATIO_K`` against the DCF floor.
+synthesis so it never trips the method-corroboration span gate
+(``METHOD_CORROBORATION_SPAN_K``) against the DCF floor.
 
 ZERO I/O: segment extraction (SEC) lives in the coordinator
 (``segment_extractor``); this module is arithmetic only.

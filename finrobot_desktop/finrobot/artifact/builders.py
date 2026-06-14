@@ -630,8 +630,9 @@ def build_equity_research_artifact(
         # Scenario SOTP (Batch 3B v1): the reverse-SOTP market-implied
         # decomposition for option-value names. An INDEPENDENT channel — it is NOT
         # a method in valuation_synthesis (kept out of point synthesis so it never
-        # trips _RELIABILITY_RATIO_K), so it must persist on its own key for the
-        # valuation chapter to render the floor / implied-option-premium panel.
+        # trips the method-corroboration span gate METHOD_CORROBORATION_SPAN_K), so
+        # it must persist on its own key for the valuation chapter to render the
+        # floor / implied-option-premium panel.
         "sotp_breakdown",
         "thesis",
         "catalyst_analysis",

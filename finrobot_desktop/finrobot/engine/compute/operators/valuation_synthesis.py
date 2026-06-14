@@ -14,50 +14,28 @@ from typing import Literal
 from finrobot.engine.models.financial import ValuationMethod, ValuationSynthesis
 from finrobot.engine.models.valuation_thresholds import (
     MARKET_DIVERGENCE_RATIO_K,
-    METHOD_CORROBORATION_SPAN_K,
     SINGLE_METHOD_DIVERGENCE_RATIO_K,
 )
 
 logger = logging.getLogger(__name__)
 
 # Any method whose mid deviates from the cross-method median by more than this
-# fraction is flagged in outlier_methods and a warning is appended.
+# fraction is flagged in outlier_methods and a soft cross-method spread warning
+# is appended (disclosure only — it never withholds the call; the confidence
+# dial below grades the call from method agreement).
 _OUTLIER_THRESHOLD = 0.30
 
-# When a method's mid deviates from the median by more than this (much wider
-# than the soft outlier band), the methods fundamentally disagree: the
-# confidence-weighted price is then just the midpoint of two estimates that
-# don't corroborate each other, not a defensible target. The synthesis is
-# flagged ``reliable=False`` so the pipeline refuses to publish a headline
-# target/verdict — e.g. DCF and Comps each ~54% from their median must not
-# ship a confident BUY/SELL.
-_RELIABILITY_SPREAD_THRESHOLD = 0.50
-
-# Pairwise-spread gate (catches what the median gate above is structurally blind
-# to). With EXACTLY two methods the median is always their midpoint, so each
-# method's deviation-from-median is (b−a)/(a+b) — which only crosses 50% once
-# b > 3a. A 2.57x disagreement therefore sails through the median gate: DCF
-# $189.65 vs comps_pe $487.31 averaged into a meaningless $306.59 midpoint and
-# shipped a confident MSFT SELL (the 2026-06-05 bug). max(mid)/min(mid) is
-# invariant to method count, so it trips on any pair that disagrees by > K
-# regardless of how many methods there are. K=2.0 (the shared leaf constant
-# METHOD_CORROBORATION_SPAN_K — same value the persist-boundary contract C1b
-# re-checks): two valuation methods that differ by more than 2x do not corroborate,
-# full stop — no honest midpoint exists, so the POINT is withheld (the directional
-# verdict still ships). (Genuine ≤2x dispersion still publishes, flagged by the
-# soft 30% outlier band.)
-_RELIABILITY_RATIO_K = METHOD_CORROBORATION_SPAN_K
-
-# MARKET_DIVERGENCE_RATIO_K (4.0, multi-method) and SINGLE_METHOD_DIVERGENCE_RATIO_K
-# (2.0, lone surviving method) are the two PUBLIC divergence bands — imported above
-# from engine/models/valuation_thresholds (leaf). They live in the leaf because the
-# persist-boundary output contract (artifact/contract clause C1) re-checks the same
-# bands on the final artifact and is forbidden to import compute/. The full
-# calibration rationale (why 4x for a corroborated estimate, why 2x for an
-# uncorroborated lone method — the TSLA option-value and MU $2172 cases) lives with
-# the constants there. The gate that fires on these bands is the confidence dial
-# below (_confidence_dial): out-of-band → cap the tier and, when extreme, withhold
-# the POINT (valuation_withheld) while the directional verdict still ships.
+# MARKET_DIVERGENCE_RATIO_K (4.0, multi-method), SINGLE_METHOD_DIVERGENCE_RATIO_K
+# (2.0, lone surviving method) and METHOD_CORROBORATION_SPAN_K (2.0, method-vs-method
+# span) are the divergence bands — imported above from engine/models/valuation_thresholds
+# (leaf). They live in the leaf because the persist-boundary output contract
+# (artifact/contract clauses C1/C1b) re-checks the same bands on the final artifact
+# and is forbidden to import compute/. The full calibration rationale (why 4x for a
+# corroborated estimate, why 2x for an uncorroborated lone method — the TSLA
+# option-value and MU $2172 cases) lives with the constants there. The gate that
+# fires on these bands is the confidence dial below (_confidence_dial): out-of-band
+# → cap the tier and, when extreme, withhold the POINT (valuation_withheld) while the
+# directional verdict still ships.
 
 
 # ── Confidence dial (REVIEW → graded-call redesign, ADR 估值优雅降级) ─────────
@@ -191,14 +169,12 @@ def synthesize_valuations(
 
     Cross-method spread check (≥2 methods): any method whose mid deviates from
     the median of all mids by > 30% is added to ``outlier_methods`` and a
-    human-readable entry is appended to ``warnings``.
-
-    Reliability gate (≥2 methods): ``reliable`` is set False when the methods'
-    mids span more than ``_RELIABILITY_RATIO_K``x (max/min — invariant to method
-    count, so a 2-method disagreement can't hide behind its own midpoint median),
-    or any single method deviates > 50% from the median, or the weighted target
-    sits outside the [0.25x, 4x] market-price band. Any trip withholds the
-    headline target/verdict downstream.
+    human-readable spread warning is appended to ``warnings`` (soft disclosure
+    only — it never withholds the call). The graded call (confidence tier +
+    target band + the POINT-withhold decision) is produced by the confidence
+    dial (``_confidence_dial``): uncertainty lowers the tier and widens the band,
+    and only when the sole available number would be fabricated does it withhold
+    the POINT (``valuation_withheld``) — the directional verdict always ships.
 
     Args:
         methods: List of valuation method results, each with a confidence weight.
@@ -241,13 +217,15 @@ def synthesize_valuations(
     weighted_price = sum(m.mid * m.confidence for m in methods) / total_confidence
     upside_downside = (weighted_price - current_price) / current_price
 
-    # --- Cross-method spread check ---
+    # --- Cross-method spread check (soft disclosure only) ---
+    # Flags any method whose mid sits > 30% from the cross-method median so the
+    # analyst sees real method disagreement. This NEVER withholds the call — the
+    # graded call (tier / band / POINT-withhold) is the confidence dial's job.
     mids = [m.mid for m in methods]
     median_mid = statistics.median(mids)
 
     outlier_methods: list[str] = []
     synthesis_warnings: list[str] = []
-    reliable = True
 
     if median_mid != 0:
         for m in methods:
@@ -266,72 +244,6 @@ def synthesize_valuations(
                     deviation * 100,
                     median_mid,
                 )
-            if deviation > _RELIABILITY_SPREAD_THRESHOLD:
-                reliable = False
-    else:
-        # All-zero/negative median: the methods can't be cross-checked at all.
-        reliable = False
-
-    # Pairwise-spread gate — invariant to method count, so it catches the
-    # 2-method blind spot the median gate above cannot (see _RELIABILITY_RATIO_K).
-    lo = min(mids)
-    hi = max(mids)
-    ratio_tripped = lo > 0 and hi / lo > _RELIABILITY_RATIO_K
-    if ratio_tripped:
-        reliable = False
-        synthesis_warnings.append(
-            f"Weighted target ${weighted_price:.2f} is UNRELIABLE: the methods span "
-            f"${lo:.2f}–${hi:.2f} ({hi / lo:.2g}x, over the {_RELIABILITY_RATIO_K:.2g}x "
-            "corroboration limit) — they do not agree, so the confidence-weighted "
-            "midpoint is not a defensible target. Headline target/verdict withheld."
-        )
-    elif not reliable:
-        synthesis_warnings.append(
-            f"Weighted target ${weighted_price:.2f} is UNRELIABLE: at least one "
-            f"method deviates >{_RELIABILITY_SPREAD_THRESHOLD:.0%} from the "
-            f"${median_mid:.2f} median — methods do not corroborate. Headline "
-            "target/verdict must be withheld pending review."
-        )
-
-    # --- Model-vs-market divergence check (orthogonal to the spread check) ---
-    # Trips even when the methods agree with each other but all sit far from the
-    # market — the blind spot the spread check above cannot see. Gated on the
-    # ratio (symmetric in log-space), not abs(upside%). current_price > 0 is
-    # guaranteed by upside_downside being computed above.
-    valuation_ratio = weighted_price / current_price
-    if (
-        valuation_ratio > MARKET_DIVERGENCE_RATIO_K
-        or valuation_ratio < 1.0 / MARKET_DIVERGENCE_RATIO_K
-    ):
-        reliable = False
-        # Whether the methods agree with EACH OTHER is a separate question from
-        # whether they agree with the MARKET. State the real cross-method spread
-        # instead of asserting "they corroborate" — for the 2026-06-09 TSLA
-        # artifact the DCF ($27.83) and comps ($46.78) ranges did not even
-        # overlap, yet this branch claimed they "corroborate each other".
-        methods_corroborate = lo > 0 and hi / lo <= _RELIABILITY_RATIO_K
-        if methods_corroborate:
-            agreement = (
-                f"The {len(methods)} methods agree with each other (span "
-                f"${lo:.2f}–${hi:.2f}, {hi / lo:.2g}x, within the "
-                f"{_RELIABILITY_RATIO_K:.2g}x corroboration limit) but all sit far "
-                "outside the market — the market is pricing option value (e.g. new "
-                "business lines / growth optionality) that cash-flow and relative "
-                "models do not capture."
-            )
-        else:
-            spread_txt = f"{hi / lo:.2g}x apart" if lo > 0 else "a non-positive low estimate"
-            agreement = (
-                f"The {len(methods)} methods do not even agree with each other (span "
-                f"${lo:.2f}–${hi:.2f}, {spread_txt}) and all sit far from the market."
-            )
-        synthesis_warnings.append(
-            f"Weighted target ${weighted_price:.2f} is UNRELIABLE: it is "
-            f"{valuation_ratio:.2g}x the ${current_price:.2f} market price (outside the "
-            f"[{1.0 / MARKET_DIVERGENCE_RATIO_K:.2g}x, {MARKET_DIVERGENCE_RATIO_K:.2g}x] "
-            f"calibration band). {agreement} The model is outside its calibration "
-            "range; a fundamentals point target must be withheld pending review."
-        )
 
     conf, anchor, t_lo, t_hi, withheld, note = _confidence_dial(methods, current_price, cyclical)
     return ValuationSynthesis(
@@ -341,7 +253,6 @@ def synthesize_valuations(
         upside_downside=upside_downside,
         outlier_methods=outlier_methods,
         warnings=synthesis_warnings,
-        reliable=reliable,
         confidence=conf,
         anchor_method=anchor,
         target_low=t_lo,

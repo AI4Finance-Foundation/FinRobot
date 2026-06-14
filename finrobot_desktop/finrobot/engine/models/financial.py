@@ -905,30 +905,14 @@ class ValuationSynthesis(BaseModel):
         default_factory=list,
         description="Human-readable warnings produced during synthesis (e.g. spread alerts).",
     )
-    reliable: bool = Field(
-        default=True,
-        description=(
-            "False when ANY of (a) the methods' mids span more than 2x (max/min, the "
-            "pairwise-corroboration gate that catches a 2-method disagreement the "
-            "median metric is blind to), (b) at least one method deviates > 50% from "
-            "the cross-method median (a single outlier in a 3+ method set), OR (c) the "
-            "confidence-weighted target / market price ratio falls outside [0.25x, 4x] "
-            "(a model-vs-market divergence ORTHOGONAL to cross-method agreement — the "
-            "Amazon-1999 / TSLA case where the methods may or may not corroborate yet all "
-            "sit far from a market pricing option value the models can't capture; the "
-            "warning text states the actual per-method spread. Symmetric in log-space, "
-            "unlike an upside%%). "
-            "In any case the weighted target MUST NOT be published as a headline "
-            "target/verdict. Drives the equity-research data-health gate."
-        ),
-    )
-    # --- Confidence dial (replaces the binary `reliable` gate; see ADR 估值优雅降级) ---
-    # The redesign deletes the REVIEW verdict: a synthesis ALWAYS yields a directional
-    # call, with uncertainty expressed as a confidence tier + a widening target band
-    # (Morningstar-style: uncertainty widens the margin of safety, never withholds the
-    # call). `reliable` is kept transitionally and removed once all consumers read
-    # `confidence`. Default "low" so a legacy artifact (no confidence persisted) never
-    # implies conviction it wasn't graded for.
+    # --- Confidence dial (the graded call; see ADR 估值优雅降级) ---
+    # The redesign deletes the REVIEW verdict AND the binary `reliable` data-health
+    # gate: a synthesis ALWAYS yields a directional call, with uncertainty expressed
+    # as a confidence tier + a widening target band (Morningstar-style: uncertainty
+    # widens the margin of safety, never withholds the call) and, only when the sole
+    # available number would be fabricated, a withheld POINT (`valuation_withheld`).
+    # Default "low" so a legacy artifact (no confidence persisted) never implies
+    # conviction it wasn't graded for.
     confidence: Literal["high", "medium", "low", "very_low"] = Field(
         default="low",
         description=(
@@ -1308,9 +1292,10 @@ class ValuationAggregate(BaseModel):
 # v1 is 100% sourceable, zero fabricated forward assumptions. It is an
 # independent option-value CHANNEL (structured_context["sotp_breakdown"] /
 # football-field SOTP row) — it does NOT enter confidence-weighted point-target
-# synthesis, so it never trips _RELIABILITY_RATIO_K against the DCF floor.
-# verdict stays REVIEW. All fields are COMPUTED (deterministic arithmetic),
-# never LLM-narrated — scalars only, the bilingual UI renders the sentence.
+# synthesis, so it never trips the method-corroboration span gate
+# (METHOD_CORROBORATION_SPAN_K) against the DCF floor. All fields are COMPUTED
+# (deterministic arithmetic), never LLM-narrated — scalars only, the bilingual
+# UI renders the sentence.
 
 
 class SegmentValuation(BaseModel):

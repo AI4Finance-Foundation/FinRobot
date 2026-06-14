@@ -726,12 +726,13 @@ def test_levels_only_emits_no_directional_trade() -> None:
     assert any("已隐去" in w for w in result.invariant_warnings)
 
 
-def test_safe_sniper_unreliable_synthesis_returns_levels_only() -> None:
-    """B1: reliable=False must suppress the directional trade.
+def test_safe_sniper_withheld_target_returns_levels_only() -> None:
+    """B1: has_anchor_target=False (the synthesis withheld its POINT target) must
+    suppress the directional trade.
 
     Same overvalued setup that would normally yield a SHORT (current >> target);
-    with reliable=False the wrapper must instead return a NEUTRAL levels-only
-    payload — no cover/stop anchored to the withheld DCF target.
+    with no publishable target to anchor on, the wrapper must instead return a
+    NEUTRAL levels-only payload — no cover/stop anchored to the withheld target.
     """
     from types import SimpleNamespace
 
@@ -745,16 +746,17 @@ def test_safe_sniper_unreliable_synthesis_returns_levels_only() -> None:
         dcf_target=136.14,
         prices=prices,
         warnings=warnings,
-        reliable=False,
+        has_anchor_target=False,
     )
     assert sniper is not None
     assert sniper.direction == "NEUTRAL"
-    assert sniper.take_profit is None  # no cover anchored to the unreliable DCF
-    assert any("reliable" in w.lower() or "不可靠" in w for w in warnings)
+    assert sniper.take_profit is None  # no cover anchored to the withheld target
+    assert any("anchor" in w.lower() or "暂缺" in w for w in warnings)
 
 
-def test_safe_sniper_reliable_synthesis_keeps_directional_trade() -> None:
-    """B1 guard: reliable=True (default) preserves the existing SHORT behaviour."""
+def test_safe_sniper_published_target_keeps_directional_trade() -> None:
+    """B1 guard: has_anchor_target=True (default) preserves the existing SHORT
+    behaviour — a published target (even low confidence) anchors the trade."""
     from types import SimpleNamespace
 
     from finrobot.engine.compute.coordinators.technical_payload import _safe_sniper
@@ -767,7 +769,7 @@ def test_safe_sniper_reliable_synthesis_keeps_directional_trade() -> None:
         dcf_target=136.14,
         prices=prices,
         warnings=warnings,
-        reliable=True,
+        has_anchor_target=True,
     )
     assert sniper is not None
     assert sniper.direction == "SHORT"

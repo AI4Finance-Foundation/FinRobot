@@ -659,8 +659,10 @@ async def _execute_financial_modeling(
     # a deterministic cash-flow floor (SEC-filed segments × conservative multiples)
     # and the pure-subtraction market-implied option value above it. This is an
     # INDEPENDENT channel — it lands in structured_context["sotp_breakdown"], NOT
-    # in the confidence-weighted point synthesis, so it never trips
-    # _RELIABILITY_RATIO_K against the DCF floor. verdict stays REVIEW.
+    # in the confidence-weighted point synthesis, so it never trips the
+    # method-corroboration span gate (METHOD_CORROBORATION_SPAN_K) against the
+    # DCF floor. The synthesis withholds its POINT target (valuation_withheld)
+    # while the directional verdict still ships.
     if current_price > 0:
         nature = classify_market_implied_nature(
             dcf_inputs, current_price, horizon_years=dcf_result.projection_years
@@ -755,12 +757,14 @@ async def _execute_technical_analysis(
         financial_data.market.current_price if hasattr(financial_data, "market") else 0.0
     )
 
-    # B1: when the valuation synthesis declared itself unreliable (methods don't
-    # corroborate → headline target withheld, REVIEW), the sniper must NOT anchor
-    # a directional trade to the single non-defensible DCF leg. Mirror the
-    # verdict gate (_resolve_target_and_verdict): reliable unless explicitly False.
+    # B1: when the valuation synthesis honestly withheld its POINT target (the
+    # only number available would be fabricated — methods agree far off-market /
+    # a lone method way off-market), the sniper has no publishable target to
+    # anchor a directional trade on, so it drops to levels-only. When a target
+    # publishes (even low confidence), the sniper anchors it. Keyed on the
+    # explicit valuation_withheld flag (the deleted REVIEW sentinel's successor).
     vs = structured_context.get("valuation_synthesis")
-    reliable = not (isinstance(vs, ValuationSynthesis) and not vs.reliable)
+    has_anchor_target = not (isinstance(vs, ValuationSynthesis) and vs.valuation_withheld)
 
     # B2: hand the band the canonical TTM EV/EBITDA so the "current" multiple
     # matches the comps chapter exactly — (market_cap + net_debt) / TTM_EBITDA,
@@ -782,7 +786,7 @@ async def _execute_technical_analysis(
         dcf_target=dcf.implied_price,
         current_price=current_price,
         data_layer=deps.data_layer,
-        reliable=reliable,
+        has_anchor_target=has_anchor_target,
         current_ev_ebitda=current_ev_ebitda_value,
         price_fx_to_usd=price_fx_to_usd,
     )
@@ -799,11 +803,12 @@ async def _execute_technical_analysis(
         sn = payload.sniper
         # Label entry / target side per trade direction. SHORT trades cover
         # below entry; rendering them as "buy / target" reads as a long.
-        # NEUTRAL (B1): valuation unreliable → no directional trade, only levels.
+        # NEUTRAL (B1): point target withheld → no anchor for a directional
+        # trade, only levels.
         if sn.direction == "NEUTRAL":
             summary_parts.append(
-                f"Sniper levels-only (directional trade withheld — valuation "
-                f"unreliable): support ${sn.support_level:.2f}, "
+                f"Sniper levels-only (directional trade withheld — no publishable "
+                f"price target to anchor): support ${sn.support_level:.2f}, "
                 f"resistance ${sn.resistance_level:.2f}."
             )
         elif (

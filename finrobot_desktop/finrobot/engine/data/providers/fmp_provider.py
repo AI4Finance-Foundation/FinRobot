@@ -133,6 +133,31 @@ def _resolve_total_debt(bal: dict[str, Any]) -> float | None:
     return float(td) if td is not None else None
 
 
+def _book_value_per_share(bal: dict[str, Any], shares: int | float | None) -> float | None:
+    """Book value per COMMON share = (stockholders' equity − preferred) / shares.
+
+    Same None ≠ 0 contract as ``_resolve_total_debt``: None (never 0, never
+    fabricated) when equity is unreported or the share count is missing /
+    non-positive. The cyclical primary multiple ``comps_pb`` multiplies the peer
+    median P/B by this; a missing figure must withhold the method, not invent $0.
+
+    Preferred stock is subtracted to land on common-shareholder equity — matching
+    yfinance's ``bookValue`` (Mode A/B symmetry) and stockanalysis.com. Without it
+    a bank/REIT with a large preferred slug is overstated (live-probed WFC +10%,
+    BAC +9%; invisible for memory names like MU whose preferred is 0).
+    ``totalStockholdersEquity`` is already parent-only (FMP carries
+    ``minorityInterest`` separately — verified totalEquity == totalStockholders-
+    Equity + minorityInterest), so NCI is correctly NOT subtracted. Raw
+    reporting-currency: FX normalization (currency.py / fx_normalize.py) and the
+    single-currency pb_ratio (extract_company_financials) are downstream.
+    """
+    equity = bal.get("totalStockholdersEquity")
+    if equity is None or not shares or shares <= 0:
+        return None
+    preferred = bal.get("preferredStock") or 0.0
+    return (float(equity) - float(preferred)) / shares
+
+
 def _derive_pe(
     mkt_cap: float | None,
     net_income: float | None,
@@ -604,6 +629,9 @@ class FMPProvider(DataProvider):
             "noncontrolling_interest": bal.get("minorityInterest"),
             "market_cap": mkt_cap,
             "shares_outstanding": shares,
+            # Book value per common share (cyclical comps_pb anchor). None ≠ 0:
+            # withheld when equity or shares is missing; raw reporting-ccy.
+            "book_value_per_share": _book_value_per_share(bal, shares),
             "pe_ratio": pe_ratio,
             "beta": beta,
             "current_price": price,
@@ -736,6 +764,9 @@ class FMPProvider(DataProvider):
             "noncontrolling_interest": bal.get("minorityInterest"),
             "market_cap": mkt_cap,
             "shares_outstanding": shares,
+            # Book value per common share (cyclical comps_pb anchor). None ≠ 0:
+            # withheld when equity or shares is missing; raw reporting-ccy.
+            "book_value_per_share": _book_value_per_share(bal, shares),
             "pe_ratio": pe_ratio,
             "beta": prof.get("beta"),
             "current_price": price,

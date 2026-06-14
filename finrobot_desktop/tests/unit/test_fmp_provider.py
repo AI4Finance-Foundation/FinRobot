@@ -224,6 +224,10 @@ class TestFMPFetch:
         assert result.data["interest_expense"] == 4_000_000_000
         assert result.data["total_debt"] == 111_088_000_000
         assert result.data["total_cash"] == 29_965_000_000
+        # Book value per common share = stockholders' equity / shares (no preferred
+        # in this fixture): 56.95B / 14,971,428,571 ≈ 3.80. Feeds the cyclical
+        # comps_pb anchor; was silently None on the FMP path before this emit.
+        assert result.data["book_value_per_share"] == pytest.approx(56_950_000_000 / 14_971_428_571)
         assert result.data["market_cap"] == 2_620_000_000_000
         # Currency tags must be emitted for cross-border FX normalization.
         assert result.data["financial_currency"] == "USD"
@@ -314,6 +318,42 @@ class TestFMPFetch:
             result = await provider.fetch("AAPL", "financials")
         assert result.data["total_debt"] is None
         assert result.data["total_cash"] is None
+        # Equity also absent → book value per share must withhold, not fabricate 0
+        # (a $0 BVPS would make comps_pb invent an absurd P/B). Shares ARE present
+        # (shares_float), so None here is purely the missing-equity path.
+        assert result.data["book_value_per_share"] is None
+
+    @pytest.mark.asyncio
+    async def test_book_value_per_share_subtracts_preferred_stock(self, provider):
+        """BVPS is book value per COMMON share — preferred stock must be subtracted
+        from total stockholders' equity (matching yfinance's bookValue and
+        stockanalysis.com). Skipping the subtraction overstates BVPS for any name
+        with a preferred slug (live-probed WFC +10%, BAC +9%) and would inflate the
+        cyclical comps_pb multiple. Caliber regression guard."""
+        balance_with_preferred = [
+            {
+                "date": "2025-09-30",
+                "symbol": "AAPL",
+                "totalDebt": 111_088_000_000,
+                "cashAndShortTermInvestments": 29_965_000_000,
+                "totalStockholdersEquity": 100_000_000_000,
+                "preferredStock": 20_000_000_000,
+                "minorityInterest": 5_000_000_000,
+            }
+        ]
+        responses = [
+            _mock_response(_fmp_quarterly_income_response()),
+            _mock_response(balance_with_preferred),
+            _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_shares_float_response(outstanding_shares=10_000_000_000)),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials")
+        # (100B equity − 20B preferred) / 10B shares = 8.0 per common share.
+        # WITHOUT the preferred subtraction it would wrongly read 10.0; minority
+        # interest (5B) is NOT subtracted — totalStockholdersEquity is parent-only.
+        assert result.data["book_value_per_share"] == pytest.approx(8.0)
 
     @pytest.mark.asyncio
     async def test_quarterly_debt_stub_backfilled_from_annual(self, provider):

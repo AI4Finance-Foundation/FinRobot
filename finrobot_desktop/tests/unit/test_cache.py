@@ -68,11 +68,13 @@ class TestStaleness:
         # Manually backdate the cached_at
         import aiosqlite
 
+        from finrobot.engine.data.cache import raw_slot_key
+
         old_time = (datetime.now(tz=timezone.utc) - timedelta(hours=25)).isoformat()
         async with aiosqlite.connect(cache._db_path) as conn:
             await conn.execute(
                 "UPDATE cache SET cached_at = ? WHERE data_type = ? AND ticker = ?",
-                (old_time, "financials", "AAPL"),
+                (old_time, raw_slot_key("financials"), "AAPL"),
             )
             await conn.commit()
 
@@ -371,8 +373,11 @@ class TestRawSlotVersion:
 
         assert raw_slot_key(DataType.PROXY_STATEMENT) == "proxy_statement:v2"
         assert raw_slot_key(DataType.PEER_CANDIDATES) == "peer_candidates:v2"
+        # FINANCIALS bumped to v2 (2026-06-14): FMP now emits book_value_per_share,
+        # so pre-bump rows (without it) must miss and refetch.
+        assert raw_slot_key(DataType.FINANCIALS) == "financials:v2"
+        # INSIDER_TRADES has no shape change → bare slot (the "others bare" case).
         assert raw_slot_key(DataType.INSIDER_TRADES) == "insider_trades"
-        assert raw_slot_key("financials") == "financials"
 
     async def test_old_unversioned_proxy_entry_is_not_served(self, cache):
         """A payload written under the bare 'proxy_statement' key (pre-v2) must

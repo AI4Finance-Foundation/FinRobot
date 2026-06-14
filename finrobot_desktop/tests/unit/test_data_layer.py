@@ -147,11 +147,13 @@ class TestFetchFromProvider:
         await layer.fetch("financials", "AAPL")
 
         # Backdate cache entry
+        from finrobot.engine.data.cache import raw_slot_key
+
         old_time = (datetime.now(tz=timezone.utc) - timedelta(hours=25)).isoformat()
         async with aiosqlite.connect(str(tmp_path / "layer_test.db")) as conn:
             await conn.execute(
                 "UPDATE cache SET cached_at = ? WHERE data_type = ? AND ticker = ?",
-                (old_time, "financials", "AAPL"),
+                (old_time, raw_slot_key("financials"), "AAPL"),
             )
             await conn.commit()
 
@@ -170,11 +172,13 @@ class TestProviderFailure:
         await layer.fetch("financials", "AAPL")
 
         # Backdate so it's stale
+        from finrobot.engine.data.cache import raw_slot_key
+
         old_time = (datetime.now(tz=timezone.utc) - timedelta(hours=25)).isoformat()
         async with aiosqlite.connect(str(tmp_path / "layer_test.db")) as conn:
             await conn.execute(
                 "UPDATE cache SET cached_at = ? WHERE data_type = ? AND ticker = ?",
-                (old_time, "financials", "AAPL"),
+                (old_time, raw_slot_key("financials"), "AAPL"),
             )
             await conn.commit()
 

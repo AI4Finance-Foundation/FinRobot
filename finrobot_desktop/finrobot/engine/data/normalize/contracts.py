@@ -59,7 +59,16 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 # folded into the key: it is only known AFTER fetch+normalize, so the cache READ
 # (which precedes the provider walk) could never reconstruct it — provider
 # identity, resolvable up front from the chain, is the implementable caliber gate.
-CANONICAL_CONTRACT_VERSION = 6
+# v7 — 2026-06-14: the FMP FINANCIALS payload now emits book_value_per_share (it
+# was None on the FMP path — only yfinance filled it), so commodity-cyclical names
+# (MU / memory-storage) recover their PRIMARY comps_pb multiple instead of being
+# forced to REVIEW for lack of a cross-checked method. Old v6 canonical snapshots
+# carry book_value_per_share=None / pb_ratio=None; the canonical slot is read
+# before the raw slot and has a 24h TTL, so without this bump a fresh-but-pre-fix
+# snapshot would keep comps_pb dead until expiry. Pairs with the FINANCIALS
+# raw-slot bump (cache._RAW_SLOT_VERSION) so the rebuild refetches a payload that
+# actually carries the field rather than re-normalizing a stale raw row.
+CANONICAL_CONTRACT_VERSION = 7
 
 # Degradation markers carried in ``Provenance.degraded``. Surfaced to the UI so
 # a fallback is visible rather than silent.

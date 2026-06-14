@@ -94,12 +94,19 @@ def canonical_key(data_type: str | DataType, provider: str | None = None) -> str
 #   estimate figure (estimatedRevenueAvg → revenueAvg, estimatedEpsAvg →
 #   epsAvg, …); the operator reads stable names only, so legacy-named cached
 #   rows would parse as "no estimates" until TTL expiry.
+#   financials v2 — 2026-06-14: the FMP financials payload now carries
+#   book_value_per_share ((totalStockholdersEquity − preferred) ÷ shares); legacy
+#   rows omit it, so a cyclical's comps_pb (book-value primary multiple) can never
+#   revive from a cached row — old rows must miss + refetch. Pairs with the
+#   CANONICAL_CONTRACT_VERSION v7 bump, which invalidates the normalized slot that
+#   is read ahead of this raw slot.
 _RAW_SLOT_VERSION: dict[str, int] = {
     DataType.PRICE.value: 2,
     DataType.PROXY_STATEMENT.value: 2,
     DataType.PEER_CANDIDATES.value: 2,
     DataType.SENTIMENT.value: 2,
     DataType.FORWARD_ESTIMATES.value: 2,
+    DataType.FINANCIALS.value: 2,
 }
 
 

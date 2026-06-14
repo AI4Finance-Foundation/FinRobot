@@ -31,7 +31,7 @@ def _structured() -> dict:
             "upside_downside": -0.0376,
             "outlier_methods": [],
             "warnings": [],
-            "reliable": True,
+            "confidence": "high",
         }
     }
 
@@ -45,13 +45,39 @@ def test_extracts_synthesis_and_methods() -> None:
     assert "method.DCF.mid" in ids and ids["method.DCF.mid"].value == 176
     assert "method.Comps.mid" in ids and ids["method.Comps.mid"].value == 244
     assert es.current_price == 211.14
-    assert es.reliable is True
+    assert es.confidence == "high"
+    assert es.valuation_withheld is False
 
 
 def test_missing_synthesis_yields_empty_but_valid_set() -> None:
     es = build_evidence_set({}, artifact_id="run-x")
     assert es.items == []
-    assert es.reliable is False
+    # No synthesis to grade → default 'low' tier (NOT the most conservative
+    # 'very_low'); the debate still runs, the judge still calls.
+    assert es.confidence == "low"
+    assert es.valuation_withheld is False
+
+
+def test_confidence_read_from_synthesis_tier() -> None:
+    """build_evidence_set carries the synthesis confidence tier verbatim."""
+    structured = _structured()
+    structured["valuation_synthesis"]["confidence"] = "very_low"
+    structured["valuation_synthesis"]["valuation_withheld"] = True
+    es = build_evidence_set(structured, artifact_id="run-9")
+    assert es.confidence == "very_low"
+    assert es.valuation_withheld is True
+
+
+def test_unrecognised_confidence_falls_back_to_low_not_worst() -> None:
+    """A missing/garbage confidence field must NOT silently force the most
+    conservative tier — the old `reliable`-defaults-to-False bug. It lands on
+    'low', the same default ValuationSynthesis.confidence uses."""
+    structured = _structured()
+    del structured["valuation_synthesis"]["confidence"]
+    assert build_evidence_set(structured, artifact_id="r").confidence == "low"
+
+    structured["valuation_synthesis"]["confidence"] = "garbage"
+    assert build_evidence_set(structured, artifact_id="r").confidence == "low"
 
 
 def test_method_assumptions_flow_into_evidence_provenance() -> None:

@@ -103,7 +103,13 @@ class DebateEvidence(TypedDict):
     run_id: str
     ticker: str
     current_price: float
-    reliable: bool
+    # Confidence tier carried from ValuationSynthesis.confidence (replaces the
+    # deleted binary `reliable`). One of high/medium/low/very_low — the debate
+    # always issues a directional verdict; this tier explains how firmly.
+    confidence: str
+    # True when the synthesis honestly withheld its POINT target (orthogonal to
+    # the directional call, which still ships).
+    valuation_withheld: bool
     items: list[dict[str, Any]]  # each item: {evidence_id, label, value, unit, formula_id}
 
 

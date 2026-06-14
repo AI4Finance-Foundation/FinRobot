@@ -8,7 +8,7 @@ stored in a real RunStore (SQLite, tmp_path).
 What is stubbed
 ---------------
 - ArtifactStore.get   — AsyncMock returning a seeded Artifact with
-                        valuation_synthesis (reliable=True) so
+                        valuation_synthesis (confidence=high) so
                         build_evidence_set() extracts real evidence items.
 - build_debate_agents — monkeypatched to _e2e_stub_agents():
     * bull:  2 Arguments:
@@ -130,7 +130,7 @@ def _e2e_stub_agents() -> dict[str, Any]:
 
 
 # ── Artifact factory ───────────────────────────────────────────────────────────
-# Produces a valuation_synthesis with reliable=True containing upside_downside,
+# Produces a valuation_synthesis with confidence=high containing upside_downside,
 # weighted_price, and one DCF method — so build_evidence_set() extracts:
 #   synthesis.upside_downside, synthesis.weighted_price, method.DCF.mid
 
@@ -145,7 +145,7 @@ def _seeded_artifact(artifact_id: str = "e2e-art-01", ticker: str = "NVDA") -> A
         "valuation_synthesis": {
             "ticker": ticker,
             "current_price": 900.0,
-            "reliable": True,
+            "confidence": "high",
             "upside_downside": 15.5,  # → evidence_id "synthesis.upside_downside"
             "weighted_price": 1035.0,  # → evidence_id "synthesis.weighted_price"
             "methods": [

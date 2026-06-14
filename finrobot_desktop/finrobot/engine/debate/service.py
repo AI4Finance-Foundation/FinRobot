@@ -7,8 +7,12 @@ Execution order:
   3. verify_arguments for both sides.
   4. emit debate.point events for each verified argument.
   5. Judge agent receives consolidated prompt and returns Verdict.
-  6. Reliable gate: if evidence_set.reliable is False, force call="REVIEW"
-     and conviction=None regardless of what the judge produced.
+  6. Confidence cap: the verdict is ALWAYS directional (BUY/HOLD/SELL — there is
+     no REVIEW). Low data confidence does not refuse the call; it caps the
+     judge's conviction (high→1.0, medium→0.6, low→0.4, very_low→0.25) and
+     appends an honest caveat, so an analyst sees a directional view held at the
+     conviction the evidence actually supports (mirrors the equity verdict dial;
+     CLAUDE.md 核心契约②).
   7. emit debate.verdict event.
   8. Return DebateResult.
 
@@ -39,6 +43,60 @@ from finrobot.engine.debate.models import (
 from finrobot.engine.debate.verifier import verify_arguments
 
 logger = logging.getLogger(__name__)
+
+# Confidence tier → maximum conviction. The judge always issues a directional
+# call; this ceiling stops weak data from carrying high conviction without ever
+# withholding the call. Mirrors the equity-research dial (uncertainty widens the
+# margin of safety / lowers conviction, never refuses to rate). When the judge
+# omits conviction the cap doubles as the default so a degraded verdict is never
+# presented as more certain than its data supports.
+_CONFIDENCE_CONVICTION_CAP: dict[str, float] = {
+    "high": 1.0,
+    "medium": 0.6,
+    "low": 0.4,
+    "very_low": 0.25,
+}
+
+# Bilingual caveat appended to change_my_mind when low-confidence data caps the
+# conviction — the honest disclosure that the call is directional but held
+# loosely (绝不编数字: a real view at low conviction, not a fake-confident number).
+_LOW_CONFIDENCE_CAVEAT: dict[str, dict[str, str]] = {
+    "zh": {
+        "low": "（数据置信偏低，方向判断保留但 conviction 已下调）",
+        "very_low": "（数据置信很低，方向判断保留但 conviction 已大幅下调）",
+    },
+    "en": {
+        "low": "(Low data confidence — directional call retained but conviction lowered.)",
+        "very_low": (
+            "(Very low data confidence — directional call retained but conviction "
+            "sharply lowered.)"
+        ),
+    },
+}
+
+
+def _cap_conviction_for_confidence(verdict: Verdict, confidence: str, lang: str) -> Verdict:
+    """Cap the judge's conviction by the synthesis confidence tier and, for the
+    degraded tiers, append an honest caveat to change_my_mind.
+
+    The call is NEVER changed — uncertainty lowers conviction, it does not
+    withhold the direction. ``confidence`` is one of high/medium/low/very_low.
+    """
+    cap = _CONFIDENCE_CONVICTION_CAP.get(confidence, _CONFIDENCE_CONVICTION_CAP["low"])
+    # No conviction from the judge → adopt the cap so the verdict still carries a
+    # graded 0-1 float (never None, so callers can always act with the right
+    # weight). Otherwise clamp the judge's value down to the cap.
+    capped = cap if verdict.conviction is None else min(verdict.conviction, cap)
+
+    caveat = _LOW_CONFIDENCE_CAVEAT["zh" if lang == "zh" else "en"].get(confidence)
+    change_my_mind = verdict.change_my_mind
+    if caveat and caveat not in change_my_mind:
+        change_my_mind = f"{change_my_mind} {caveat}".strip()
+
+    if capped != verdict.conviction or change_my_mind != verdict.change_my_mind:
+        return verdict.model_copy(update={"conviction": capped, "change_my_mind": change_my_mind})
+    return verdict
+
 
 # Debate prose strings, keyed by language. The debate's language follows the
 # artifact being debated (an English report must get an English debate), NOT the
@@ -127,7 +185,8 @@ async def run_debate(
     ----------
     evidence_set:
         Deterministic evidence produced by engine/compute for this artifact.
-        ``evidence_set.reliable`` controls the data-health gate.
+        ``evidence_set.confidence`` (high/medium/low/very_low) caps the judge's
+        conviction; it never gates the directional call.
     agents:
         Dict with keys "bull", "bear", "judge" — each a pydantic-ai Agent
         (or a compatible stub).  Produced by build_debate_agents().
@@ -162,7 +221,8 @@ async def run_debate(
             "event": "debate.evidence",
             "ticker": evidence_set.ticker,
             "current_price": evidence_set.current_price,
-            "reliable": evidence_set.reliable,
+            "confidence": evidence_set.confidence,
+            "valuation_withheld": evidence_set.valuation_withheld,
             "items": [e.model_dump() for e in evidence_set.items],
         }
     )
@@ -225,19 +285,21 @@ async def run_debate(
     judge_result = await agents["judge"].run(judge_prompt, deps=deps)
     verdict: Verdict = judge_result.output
 
-    # ── Step 6: reliable gate ────────────────────────────────────────────────
-    # Mirror the gate_failed pattern in equity_research.py:814.
-    # If the evidence is unreliable, the judge's call is meaningless — force
-    # REVIEW and strip conviction so callers cannot act on an untrustworthy number.
-    if not evidence_set.reliable:
-        if verdict.call != "REVIEW" or verdict.conviction is not None:
-            logger.warning(
-                "Debate reliable-gate TRIPPED — forcing call=REVIEW, conviction=None "
-                "(judge produced call=%s, conviction=%s)",
-                verdict.call,
-                verdict.conviction,
-            )
-        verdict = verdict.model_copy(update={"call": "REVIEW", "conviction": None})
+    # ── Step 6: confidence cap ───────────────────────────────────────────────
+    # The verdict is ALWAYS directional — there is no REVIEW. Low data
+    # confidence does not refuse the call; it caps the judge's conviction and
+    # adds an honest caveat, mirroring the equity verdict dial (uncertainty =
+    # lowered conviction, never a withheld judgment; CLAUDE.md 核心契约②).
+    pre_cap_conviction = verdict.conviction
+    verdict = _cap_conviction_for_confidence(verdict, evidence_set.confidence, lang)
+    if verdict.conviction != pre_cap_conviction:
+        logger.info(
+            "Debate conviction capped by confidence=%s: judge=%s → %s (call=%s held)",
+            evidence_set.confidence,
+            pre_cap_conviction,
+            verdict.conviction,
+            verdict.call,
+        )
 
     # ── Step 7: emit debate.verdict ──────────────────────────────────────────
     await emit(
@@ -254,7 +316,8 @@ async def run_debate(
     return DebateResult(
         ticker=evidence_set.ticker,
         artifact_id=evidence_set.artifact_id,
-        reliable=evidence_set.reliable,
+        confidence=evidence_set.confidence,
+        valuation_withheld=evidence_set.valuation_withheld,
         bull=verified_bull,
         bear=verified_bear,
         divergences=[],  # v1: empty — see module docstring for design rationale

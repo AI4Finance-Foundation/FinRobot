@@ -56,7 +56,7 @@ def test_debate_verdict_fields() -> None:
         "run_id": "run-456",
         "call": "SELL",
         "conviction": None,
-        "swing_factor": "Unreliable data — gate tripped",
+        "swing_factor": "Whether peer multiples apply to this issuer's earnings quality",
         "change_my_mind": "Confirmed revenue rebound in Q3",
     }
     assert v["call"] == "SELL"
@@ -91,13 +91,14 @@ def test_debate_point_in_runevent() -> None:
 
 
 def test_debate_evidence_fields() -> None:
-    """DebateEvidence carries ticker, current_price, reliable, and items list."""
+    """DebateEvidence carries ticker, current_price, confidence, withheld flag, items."""
     ev: DebateEvidence = {
         "event": "debate.evidence",
         "run_id": "run-001",
         "ticker": "AAPL",
         "current_price": 195.0,
-        "reliable": True,
+        "confidence": "high",
+        "valuation_withheld": False,
         "items": [
             {
                 "evidence_id": "dcf.fair_value",
@@ -111,7 +112,8 @@ def test_debate_evidence_fields() -> None:
     assert ev["event"] == "debate.evidence"
     assert ev["ticker"] == "AAPL"
     assert ev["current_price"] == 195.0
-    assert ev["reliable"] is True
+    assert ev["confidence"] == "high"
+    assert ev["valuation_withheld"] is False
     assert ev["items"][0]["evidence_id"] == "dcf.fair_value"
 
 
@@ -122,24 +124,26 @@ def test_debate_evidence_in_runevent() -> None:
         "run_id": "run-002",
         "ticker": "NVDA",
         "current_price": 900.0,
-        "reliable": False,
+        "confidence": "very_low",
+        "valuation_withheld": True,
         "items": [],
     }
     assert ev["event"] == "debate.evidence"
 
 
 def test_debate_evidence_empty_items() -> None:
-    """DebateEvidence with an empty items list is valid (unreliable gate case)."""
+    """DebateEvidence with an empty items list is valid (low-confidence / withheld case)."""
     ev: DebateEvidence = {
         "event": "debate.evidence",
         "run_id": "run-003",
         "ticker": "X",
         "current_price": 10.0,
-        "reliable": False,
+        "confidence": "very_low",
+        "valuation_withheld": True,
         "items": [],
     }
     assert ev["items"] == []
-    assert ev["reliable"] is False
+    assert ev["confidence"] == "very_low"
 
 
 def test_artifact_ready_carries_artifact_id() -> None:

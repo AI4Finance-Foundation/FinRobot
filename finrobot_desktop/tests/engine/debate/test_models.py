@@ -14,7 +14,7 @@ def test_evidence_set_by_id_lookup():
         ticker="NVDA",
         artifact_id="run-1",
         current_price=200.0,
-        reliable=True,
+        confidence="high",
         items=[
             Evidence(
                 evidence_id="synthesis.upside_downside",

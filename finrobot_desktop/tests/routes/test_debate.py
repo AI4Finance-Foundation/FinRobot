@@ -77,16 +77,16 @@ def _stub_agents() -> dict[str, Any]:
 
 
 def _equity_research_artifact(artifact_id: str = "seed-1", ticker: str = "NVDA") -> Artifact:
-    """Minimal equity_research artifact whose valuation_synthesis has reliable=True.
+    """Minimal equity_research artifact whose valuation_synthesis has high confidence.
 
     Provides enough structure for build_evidence_set to return a non-empty
-    EvidenceSet (reliable=True) so the debate is not gate-killed to REVIEW.
+    EvidenceSet so the debate yields a full-conviction directional verdict.
     """
     structured: dict[str, Any] = {
         "valuation_synthesis": {
             "ticker": ticker,
             "current_price": 900.0,
-            "reliable": True,
+            "confidence": "high",
             "upside_downside": 15.5,
             "weighted_price": 1035.0,
             "methods": [

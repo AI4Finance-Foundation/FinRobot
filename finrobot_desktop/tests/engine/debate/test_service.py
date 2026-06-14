@@ -28,7 +28,7 @@ def test_evidence_context_renders_assumption_prefix() -> None:
         ticker="NVDA",
         artifact_id="run-1",
         current_price=211.14,
-        reliable=True,
+        confidence="high",
         items=[
             Evidence(
                 evidence_id="method.dcf.mid",
@@ -76,16 +76,18 @@ def _agents_for(
     }
 
 
-# ── Test: reliable gate forces REVIEW ───────────────────────────────────────
+# ── Test: low confidence → directional call with capped conviction (NOT REVIEW) ─
 
 
-async def test_unreliable_evidence_forces_review() -> None:
-    """When reliable=False the gate must override judge output to REVIEW/None."""
+async def test_low_confidence_yields_directional_call_with_capped_conviction() -> None:
+    """The redesign deletes REVIEW: weak data NEVER refuses the call. A
+    very_low-confidence synthesis keeps the judge's directional BUY/HOLD/SELL
+    and only caps conviction down to the tier ceiling, plus an honest caveat."""
     es = EvidenceSet(
         ticker="X",
         artifact_id="r",
         current_price=10,
-        reliable=False,
+        confidence="very_low",
         items=[],
     )
     agents = _agents_for(
@@ -100,8 +102,64 @@ async def test_unreliable_evidence_forces_review() -> None:
 
     result: DebateResult = await run_debate(es, agents, emit=_emit)
 
-    assert result.verdict.call == "REVIEW"
-    assert result.verdict.conviction is None
+    # Directional call preserved — never REVIEW.
+    assert result.verdict.call == "BUY"
+    # Conviction capped down to the very_low ceiling (0.25), never None.
+    assert result.verdict.conviction == 0.25
+    # Honest caveat appended so the lowered conviction is disclosed.
+    assert "conviction" in result.verdict.change_my_mind
+    # The emitted verdict event mirrors the capped value.
+    verdict_event = next(e for e in emitted if e["event"] == "debate.verdict")
+    assert verdict_event["call"] == "BUY"
+    assert verdict_event["conviction"] == 0.25
+
+
+async def test_low_confidence_default_conviction_falls_to_cap() -> None:
+    """When the judge omits conviction, the tier cap becomes the conviction so
+    a degraded verdict still carries a graded 0-1 float (never None)."""
+    es = EvidenceSet(
+        ticker="X",
+        artifact_id="r",
+        current_price=10,
+        confidence="low",
+        items=[],
+    )
+    agents = _agents_for(
+        bull_output=SideCase(side="bull", arguments=[]),
+        bear_output=SideCase(side="bear", arguments=[]),
+        judge_output=Verdict(call="SELL", conviction=None, swing_factor="x", change_my_mind="y"),
+    )
+
+    async def _noop_emit(ev: dict) -> None:
+        pass
+
+    result: DebateResult = await run_debate(es, agents, emit=_noop_emit)
+    assert result.verdict.call == "SELL"
+    assert result.verdict.conviction == 0.4  # low-tier cap
+
+
+async def test_high_confidence_leaves_conviction_untouched() -> None:
+    """A high-confidence synthesis does not cap conviction or add a caveat."""
+    es = EvidenceSet(
+        ticker="X",
+        artifact_id="r",
+        current_price=10,
+        confidence="high",
+        items=[],
+    )
+    agents = _agents_for(
+        bull_output=SideCase(side="bull", arguments=[]),
+        bear_output=SideCase(side="bear", arguments=[]),
+        judge_output=Verdict(call="BUY", conviction=0.9, swing_factor="x", change_my_mind="y"),
+    )
+
+    async def _noop_emit(ev: dict) -> None:
+        pass
+
+    result: DebateResult = await run_debate(es, agents, emit=_noop_emit)
+    assert result.verdict.call == "BUY"
+    assert result.verdict.conviction == 0.9
+    assert result.verdict.change_my_mind == "y"  # no caveat appended
 
 
 # ── Test: unsupported bull arg is unverified; valid bear arg is verified ─────
@@ -115,7 +173,7 @@ async def test_unsupported_bull_arg_marked_unverified_and_emitted() -> None:
         ticker="X",
         artifact_id="r",
         current_price=10,
-        reliable=True,
+        confidence="high",
         items=[
             Evidence(
                 evidence_id="synthesis.upside_downside",
@@ -166,7 +224,7 @@ async def test_divergences_empty_in_v1() -> None:
         ticker="NVDA",
         artifact_id="r2",
         current_price=900,
-        reliable=True,
+        confidence="high",
         items=[],
     )
     agents = _agents_for(
@@ -176,6 +234,7 @@ async def test_divergences_empty_in_v1() -> None:
             call="HOLD", conviction=0.6, swing_factor="growth", change_my_mind="macro"
         ),
     )
+
     async def _noop_emit(ev: dict) -> None:
         pass
 
@@ -187,13 +246,13 @@ async def test_divergences_empty_in_v1() -> None:
 
 
 async def test_verdict_event_always_emitted() -> None:
-    """debate.verdict must appear in emitted events for both reliable=True/False."""
-    for reliable in (True, False):
+    """debate.verdict must appear in emitted events across every confidence tier."""
+    for confidence in ("high", "medium", "low", "very_low"):
         es = EvidenceSet(
             ticker="T",
             artifact_id="a",
             current_price=5,
-            reliable=reliable,
+            confidence=confidence,  # type: ignore[arg-type]
             items=[],
         )
         agents = _agents_for(
@@ -213,19 +272,21 @@ async def test_verdict_event_always_emitted() -> None:
 
         await run_debate(es, agents, emit=_emit)
         verdict_events = [e for e in emitted if e["event"] == "debate.verdict"]
-        assert len(verdict_events) == 1, f"reliable={reliable}: expected 1 verdict event"
+        assert len(verdict_events) == 1, f"confidence={confidence}: expected 1 verdict event"
+        # Always directional — never REVIEW, at any confidence tier.
+        assert verdict_events[0]["call"] == "SELL"
 
 
 # ── Test: result fields wired correctly ─────────────────────────────────────
 
 
 async def test_result_fields_wired_from_evidence_set() -> None:
-    """DebateResult ticker/artifact_id/reliable come from EvidenceSet, not judge."""
+    """DebateResult ticker/artifact_id/confidence come from EvidenceSet, not judge."""
     es = EvidenceSet(
         ticker="AAPL",
         artifact_id="artifact-42",
         current_price=195.0,
-        reliable=True,
+        confidence="high",
         items=[],
     )
     agents = _agents_for(
@@ -233,13 +294,14 @@ async def test_result_fields_wired_from_evidence_set() -> None:
         bear_output=SideCase(side="bear", arguments=[]),
         judge_output=Verdict(call="BUY", conviction=0.8, swing_factor="f", change_my_mind="m"),
     )
+
     async def _noop_emit(ev: dict) -> None:
         pass
 
     result: DebateResult = await run_debate(es, agents, emit=_noop_emit)
     assert result.ticker == "AAPL"
     assert result.artifact_id == "artifact-42"
-    assert result.reliable is True
+    assert result.confidence == "high"
 
 
 # ── Test: debate.evidence is first event with correct payload ────────────────
@@ -247,7 +309,7 @@ async def test_result_fields_wired_from_evidence_set() -> None:
 
 async def test_debate_evidence_emitted_first_with_correct_payload() -> None:
     """debate.evidence must be the first emitted event and carry full evidence
-    payload: items list, current_price, reliable flag, and ticker."""
+    payload: items list, current_price, confidence tier, and ticker."""
     evidence_items = [
         Evidence(
             evidence_id="dcf.fair_value",
@@ -267,7 +329,7 @@ async def test_debate_evidence_emitted_first_with_correct_payload() -> None:
         ticker="AAPL",
         artifact_id="artifact-99",
         current_price=195.0,
-        reliable=True,
+        confidence="high",
         items=evidence_items,
     )
     agents = _agents_for(
@@ -287,7 +349,7 @@ async def test_debate_evidence_emitted_first_with_correct_payload() -> None:
     assert ev["event"] == "debate.evidence"
     assert ev["ticker"] == "AAPL"
     assert ev["current_price"] == 195.0
-    assert ev["reliable"] is True
+    assert ev["confidence"] == "high"
     # items should be serialised dicts with evidence_id keys
     assert len(ev["items"]) == 2
     ids = {item["evidence_id"] for item in ev["items"]}
@@ -297,13 +359,15 @@ async def test_debate_evidence_emitted_first_with_correct_payload() -> None:
     assert "debate.verdict" in event_types
 
 
-async def test_debate_evidence_reliable_false_propagated() -> None:
-    """debate.evidence carries reliable=False when evidence_set.reliable=False."""
+async def test_debate_evidence_confidence_and_withheld_propagated() -> None:
+    """debate.evidence carries the confidence tier and valuation_withheld flag
+    straight off the EvidenceSet."""
     es = EvidenceSet(
         ticker="X",
         artifact_id="r",
         current_price=10.0,
-        reliable=False,
+        confidence="very_low",
+        valuation_withheld=True,
         items=[],
     )
     agents = _agents_for(
@@ -320,7 +384,8 @@ async def test_debate_evidence_reliable_false_propagated() -> None:
 
     evidence_event = emitted[0]
     assert evidence_event["event"] == "debate.evidence"
-    assert evidence_event["reliable"] is False
+    assert evidence_event["confidence"] == "very_low"
+    assert evidence_event["valuation_withheld"] is True
     assert evidence_event["items"] == []
 
 
@@ -365,7 +430,7 @@ async def test_debate_lang_en_renders_english_prompts() -> None:
         ticker="AAPL",
         artifact_id="r",
         current_price=150,
-        reliable=True,
+        confidence="high",
         items=[Evidence(evidence_id="e1", label="DCF target", value=185, unit="")],
     )
     agents = _capturing_agents()
@@ -388,7 +453,7 @@ async def test_debate_lang_zh_renders_chinese_prompts() -> None:
         ticker="AAPL",
         artifact_id="r",
         current_price=150,
-        reliable=True,
+        confidence="high",
         items=[Evidence(evidence_id="e1", label="DCF target", value=185, unit="")],
     )
     agents = _capturing_agents()

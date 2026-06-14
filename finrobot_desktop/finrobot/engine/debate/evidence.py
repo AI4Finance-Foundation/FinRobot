@@ -13,9 +13,30 @@ Further evidence types will be added in subsequent tasks.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal, get_args
 
 from finrobot.engine.debate.models import Evidence, EvidenceSet
+
+_ConfidenceTier = Literal["high", "medium", "low", "very_low"]
+# Mirrors ValuationSynthesis.confidence's own default: a legacy artifact that
+# never persisted a tier lands on "low" — graded-down but NOT the most
+# conservative "very_low", so a missing field can never silently force the
+# worst path (the old `reliable`-defaults-to-False bug that KeyError'd every
+# debate to REVIEW after the rename).
+_DEFAULT_CONFIDENCE: _ConfidenceTier = "low"
+_VALID_TIERS: frozenset[str] = frozenset(get_args(_ConfidenceTier))
+
+
+def _read_confidence(synthesis: dict[str, Any]) -> _ConfidenceTier:
+    """Read the synthesis confidence tier, defaulting to 'low' (NOT the most
+    conservative tier) when absent/unrecognised so a missing field never forces
+    the worst path."""
+    raw = synthesis.get("confidence")
+    if isinstance(raw, str) and raw in _VALID_TIERS:
+        # str-in-frozenset(get_args(Literal)) narrows the value at runtime;
+        # cast keeps mypy's Literal type without a second comparison.
+        return raw  # type: ignore[return-value]
+    return _DEFAULT_CONFIDENCE
 
 
 def build_evidence_set(
@@ -36,7 +57,10 @@ def build_evidence_set(
     -------
     EvidenceSet
         If ``valuation_synthesis`` is absent or not a dict, returns an empty
-        set with ``reliable=False``.
+        set at the default 'low' confidence tier (no synthesis to grade, but the
+        debate still runs and the judge still calls — the empty evidence simply
+        leaves arguments ungrounded; uncertainty rides on conviction, not a
+        refusal).
     """
     synthesis: Any = structured_data.get("valuation_synthesis")
 
@@ -45,7 +69,8 @@ def build_evidence_set(
             ticker=str(structured_data.get("ticker", "")),
             artifact_id=artifact_id,
             current_price=float(structured_data.get("current_price", 0)),
-            reliable=False,
+            confidence=_DEFAULT_CONFIDENCE,
+            valuation_withheld=False,
             items=[],
         )
 
@@ -105,6 +130,7 @@ def build_evidence_set(
         ticker=str(synthesis.get("ticker", structured_data.get("ticker", ""))),
         artifact_id=artifact_id,
         current_price=float(synthesis.get("current_price", 0)),
-        reliable=bool(synthesis.get("reliable", False)),
+        confidence=_read_confidence(synthesis),
+        valuation_withheld=bool(synthesis.get("valuation_withheld", False)),
         items=items,
     )

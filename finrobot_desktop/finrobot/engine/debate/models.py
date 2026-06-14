@@ -32,7 +32,17 @@ class EvidenceSet(BaseModel):
     ticker: str
     artifact_id: str
     current_price: float
-    reliable: bool
+    # Analytical confidence tier carried from ValuationSynthesis.confidence.
+    # The deleted `reliable: bool` was a binary data-health gate that forced the
+    # debate to REVIEW; the redesign expresses uncertainty as a tier that caps
+    # the judge's conviction (lower confidence → lower conviction), NEVER as a
+    # refusal to issue a directional call (绝不 REVIEW).
+    confidence: Literal["high", "medium", "low", "very_low"]
+    # True when the synthesis honestly withheld its POINT target (corrupt input /
+    # method wildly off-market / no anchor). Orthogonal to confidence: the
+    # directional VERDICT still ships; only the numeric target is absent. Carried
+    # through so callers/UI can disclose it — it never gates the verdict.
+    valuation_withheld: bool = False
     items: list[Evidence]
 
     def by_id(self) -> dict[str, Evidence]:
@@ -80,9 +90,15 @@ class DivergencePoint(BaseModel):
 
 
 class Verdict(BaseModel):
-    """Judge's final call after weighing both sides."""
+    """Judge's final call after weighing both sides.
 
-    call: Literal["BUY", "HOLD", "SELL", "REVIEW"]
+    Always directional — the REVIEW state is deleted. Uncertainty is expressed
+    as a lower ``conviction`` (capped by the synthesis confidence tier in
+    service.py) plus an honest caveat in ``change_my_mind``, never a refusal to
+    call (mirrors the equity-research verdict dial; CLAUDE.md 核心契约②).
+    """
+
+    call: Literal["BUY", "HOLD", "SELL"]
     conviction: float | None = Field(default=None, ge=0, le=1)
     swing_factor: str
     change_my_mind: str
@@ -93,7 +109,11 @@ class DebateResult(BaseModel):
 
     ticker: str
     artifact_id: str
-    reliable: bool
+    # Confidence tier carried from the synthesis (replaces the binary
+    # `reliable`). The verdict is always directional; this tier explains how
+    # firmly, and caps verdict.conviction.
+    confidence: Literal["high", "medium", "low", "very_low"]
+    valuation_withheld: bool = False
     bull: list[VerifiedArgument]
     bear: list[VerifiedArgument]
     divergences: list[DivergencePoint]

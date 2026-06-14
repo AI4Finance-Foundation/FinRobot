@@ -15,7 +15,7 @@ def _es() -> EvidenceSet:
         ticker="NVDA",
         artifact_id="r1",
         current_price=200,
-        reliable=True,
+        confidence="high",
         items=[
             Evidence(
                 evidence_id="synthesis.upside_downside",

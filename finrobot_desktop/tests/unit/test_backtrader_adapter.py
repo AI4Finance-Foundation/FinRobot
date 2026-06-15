@@ -17,6 +17,12 @@ from finrobot.engine.backtest.backtrader_adapter import (
 )
 from finrobot.engine.backtest.engine import BacktestConfig
 
+# backtrader is the optional ``[backtest]`` extra. This module exercises the
+# adapter that wraps it; when the extra is absent (a dev venv that did not
+# ``pip install 'finrobot[backtest]'``) skip the whole module cleanly instead of
+# hard-failing all of its tests. CI with the extra installed still runs them all.
+pytest.importorskip("backtrader")
+
 try:
     import backtrader as _bt
 

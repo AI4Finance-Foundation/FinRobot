@@ -6,9 +6,17 @@ and computed properties.
 
 from __future__ import annotations
 
+import importlib.util
+
 import pytest
 
 from finrobot.engine.backtest.engine import BacktestConfig, BacktestResult
+
+# Config/result tests below are pure logic and run anywhere. The A-share gate
+# tests drive ``adapter.run()``, which calls ``_check_backtrader()`` first, so
+# they need the optional ``[backtest]`` extra installed; skip just that class
+# when it is absent rather than hard-failing.
+_HAS_BACKTRADER = importlib.util.find_spec("backtrader") is not None
 
 
 class TestBacktestConfig:
@@ -209,6 +217,7 @@ class _NullDataLayer:
         return None
 
 
+@pytest.mark.skipif(not _HAS_BACKTRADER, reason="backtrader [backtest] extra not installed")
 class TestBacktestAShareRejection:
     """BUG-068: A-share / HK tickers are rejected at the backtest entry.
 

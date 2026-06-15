@@ -137,6 +137,50 @@ class TestIsCommodityCyclical:
         assert is_commodity_cyclical("Marine Shipping", "Industrials", ticker="ZIM") is True
         assert is_commodity_cyclical("Auto Manufacturers", "Consumer Cyclical", ticker="F") is True
 
+    def test_live_fmp_dash_labels_classify_cyclical(self) -> None:
+        """Matching must be immune to FMP's dash/space punctuation drift.
+
+        FMP stable renamed the auto label "Auto Manufacturers" → "Auto - Manufacturers"
+        (hyphen-space; live-verified 2026-06-15 across RIVN/TSLA/F/GM/STLA/LCID — all six
+        return the identical 'Auto - Manufacturers'). The exact-match cyclical whitelist
+        carried only "Auto Manufacturers" (no hyphen), so the ENTIRE auto sector silently
+        lost cyclical classification + the comps_pb safety net after the v3→stable
+        migration. (The bank whitelist already hedged both "Banks—Diversified" and
+        "Banks - Diversified"; the cyclical one did not — sibling-position miss.) Matching
+        must normalize dash variants (em-dash —, en-dash –, hyphen -) and surrounding
+        whitespace so the live label classifies cyclical regardless of FMP punctuation."""
+        assert (
+            is_commodity_cyclical("Auto - Manufacturers", "Consumer Cyclical", ticker="F") is True
+        )
+        assert is_commodity_cyclical("Auto—Manufacturers", "Consumer Cyclical", ticker="GM") is True
+        # The em-dash / hyphen-space variants of an unambiguous label must also match.
+        assert is_commodity_cyclical("Oil & Gas E&P", "Energy", ticker="DVN") is True
+
+    def test_fmp_stable_word_renamed_labels_classify_cyclical(self) -> None:
+        """FMP stable WORD-renamed several cyclical labels — changes normalization cannot
+        bridge (different words, not just punctuation), so the FMP-stable form must be
+        ADDED to the whitelist alongside the legacy/yfinance form (providers carry
+        different vocabularies; never delete the legacy form). Live-verified against
+        FMP /available-industries (159 industries) 2026-06-15:
+          'Oil & Gas E&P'      → 'Oil & Gas Exploration & Production'  (DVN/EOG silently dropped)
+          'Specialty Chemicals'→ 'Chemicals - Specialty'
+          'Coking Coal'        → 'Coal'
+          (whitelist also lacked FMP's 'Other Precious Metals' — platinum/palladium)."""
+        assert (
+            is_commodity_cyclical("Oil & Gas Exploration & Production", "Energy", ticker="DVN")
+            is True
+        )
+        assert (
+            is_commodity_cyclical("Chemicals - Specialty", "Basic Materials", ticker="ALB") is True
+        )
+        assert is_commodity_cyclical("Coal", "Energy", ticker="BTU") is True
+        assert (
+            is_commodity_cyclical("Other Precious Metals", "Basic Materials", ticker="SBSW") is True
+        )
+        # FMP forms already whitelisted (controls — must stay True):
+        assert is_commodity_cyclical("Steel", "Basic Materials", ticker="NUE") is True
+        assert is_commodity_cyclical("Aluminum", "Basic Materials", ticker="AA") is True
+
     def test_ticker_anchor_normalizes_case_and_whitespace(self) -> None:
         assert is_commodity_cyclical("Semiconductors", "Technology", ticker=" mu ") is True
 

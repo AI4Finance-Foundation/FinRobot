@@ -27,6 +27,8 @@ Reference: GICS (Global Industry Classification Standard) — sector 40
 
 from __future__ import annotations
 
+import re
+
 # Industries that should use DDM instead of FCF-DCF.
 # Based on GICS sub-industry names and common yfinance/FMP labels.
 _BANK_INDUSTRIES: frozenset[str] = frozenset(
@@ -80,15 +82,19 @@ _COMMODITY_CYCLICAL_INDUSTRIES: frozenset[str] = frozenset(
         "Other Industrial Metals & Mining",
         "Industrial Metals & Mining",
         "Copper",
-        "Coking Coal",
+        "Coking Coal",  # yfinance form
+        "Coal",  # FMP-stable form
         "Gold",
         "Silver",
+        "Other Precious Metals",  # FMP-stable (platinum/palladium) — no yfinance bucket equivalent
         # Bulk chemicals
         "Chemicals",
-        "Specialty Chemicals",
+        "Specialty Chemicals",  # yfinance form
+        "Chemicals - Specialty",  # FMP-stable form
         "Agricultural Inputs",
         # Oil & gas (upstream / services / refining — NOT midstream pipelines)
-        "Oil & Gas E&P",
+        "Oil & Gas E&P",  # yfinance form
+        "Oil & Gas Exploration & Production",  # FMP-stable form (DVN/EOG)
         "Oil & Gas Equipment & Services",
         "Oil & Gas Drilling",
         "Oil & Gas Refining & Marketing",
@@ -145,6 +151,35 @@ _MEMORY_STORAGE_TICKERS: frozenset[str] = frozenset(
 )
 
 
+# Provider industry labels drift in punctuation across FMP API vintages: the v3→
+# stable migration renamed "Auto Manufacturers" → "Auto - Manufacturers" (hyphen-
+# space; live-verified 2026-06-15 across the whole auto sector), silently de-classifying
+# every auto OEM because the exact-match whitelists carried only the no-hyphen form.
+# (The bank whitelist hand-hedged "Banks—Diversified" + "Banks - Diversified"; the
+# cyclical one did not — a sibling-position miss.) Normalize dash variants (em-dash —,
+# en-dash –, hyphen -) and whitespace to one canonical form so every label whitelist is
+# immune to punctuation drift; the live-label assertion in
+# scripts/verify_fmp_stable_migration.py catches residual word-level renames.
+_INDUSTRY_NORM_RE = re.compile(r"[—–\-\s]+")
+
+
+def _norm_industry(label: str) -> str:
+    """Lowercase + collapse dash/whitespace runs to a single space (canonical form)."""
+    return _INDUSTRY_NORM_RE.sub(" ", label).strip().lower()
+
+
+_COMMODITY_CYCLICAL_INDUSTRIES_NORM: frozenset[str] = frozenset(
+    _norm_industry(s) for s in _COMMODITY_CYCLICAL_INDUSTRIES
+)
+_AMBIGUOUS_CYCLICAL_BUCKETS_NORM: frozenset[str] = frozenset(
+    _norm_industry(s) for s in _AMBIGUOUS_CYCLICAL_BUCKETS
+)
+_BANK_INDUSTRIES_NORM: frozenset[str] = frozenset(_norm_industry(s) for s in _BANK_INDUSTRIES)
+_FINANCIAL_SECTOR_NAMES_NORM: frozenset[str] = frozenset(
+    _norm_industry(s) for s in _FINANCIAL_SECTOR_NAMES
+)
+
+
 def is_commodity_cyclical(
     industry: str | None = None,
     sector: str | None = None,
@@ -183,9 +218,9 @@ def is_commodity_cyclical(
         True when the DCF earnings base should be the through-cycle normalized
         median rather than the trailing-3y median.
     """
-    if industry and industry in _COMMODITY_CYCLICAL_INDUSTRIES:
+    if industry and _norm_industry(industry) in _COMMODITY_CYCLICAL_INDUSTRIES_NORM:
         return True
-    if industry and industry in _AMBIGUOUS_CYCLICAL_BUCKETS and description:
+    if industry and _norm_industry(industry) in _AMBIGUOUS_CYCLICAL_BUCKETS_NORM and description:
         text = description.lower()
         if any(kw in text for kw in _MEMORY_STORAGE_KEYWORDS):
             return True
@@ -209,7 +244,7 @@ def commodity_cyclical_basis(industry: str | None) -> str:
     a volume-cyclical auto OEM (TSLA/F/GM) must not inherit that framing, its
     price gap is a different story (e.g. option value, not margin permanence).
     """
-    if industry and industry in _COMMODITY_CYCLICAL_INDUSTRIES:
+    if industry and _norm_industry(industry) in _COMMODITY_CYCLICAL_INDUSTRIES_NORM:
         return "industry"
     return "memory_storage"
 
@@ -357,9 +392,14 @@ def is_bank(
     Returns:
         True if the company should use DDM instead of FCF-DCF.
     """
-    if industry and industry in _BANK_INDUSTRIES:
+    if industry and _norm_industry(industry) in _BANK_INDUSTRIES_NORM:
         return True
-    if sector and sector in _FINANCIAL_SECTOR_NAMES and industry and "bank" in industry.lower():
+    if (
+        sector
+        and _norm_industry(sector) in _FINANCIAL_SECTOR_NAMES_NORM
+        and industry
+        and "bank" in industry.lower()
+    ):
         return True
     return False
 

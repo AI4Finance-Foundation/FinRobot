@@ -25,6 +25,8 @@ from datetime import date
 import httpx
 import keyring
 
+from finrobot.engine.primitives.industry import is_bank, is_commodity_cyclical
+
 BASE = "https://financialmodelingprep.com/stable"
 
 # endpoint, params, 消费字段(fmp_provider 实际读取的)
@@ -106,6 +108,70 @@ CHECKS: list[tuple[str, dict[str, str | int], list[str]]] = [
 ]
 
 
+# Industry-classification drift guard (2026-06-15, after the v3→stable label rename
+# silently de-classified the ENTIRE auto + oil-E&P cyclical sectors: "Auto Manufacturers"
+# →"Auto - Manufacturers" (dash) and "Oil & Gas E&P"→"Oil & Gas Exploration & Production"
+# (word rename); the exact-match whitelist matched neither). For each FMP-stable label we
+# treat as commodity-cyclical, assert it (a) still exists in FMP's live /available-industries
+# vocabulary (catches a future rename/drop) and (b) classifies cyclical via
+# is_commodity_cyclical (catches a whitelist coverage gap). This is the mechanical backstop
+# the industry.py whitelist comment points to — per-label against LIVE FMP, never a fixture
+# that can drift in lockstep with the code it is supposed to check.
+_FMP_CYCLICAL_LABELS = frozenset(
+    {
+        "Auto - Manufacturers",
+        "Auto - Parts",
+        "Steel",
+        "Aluminum",
+        "Copper",
+        "Gold",
+        "Silver",
+        "Other Precious Metals",
+        "Coal",
+        "Marine Shipping",
+        "Chemicals",
+        "Chemicals - Specialty",
+        "Oil & Gas Exploration & Production",
+        "Oil & Gas Equipment & Services",
+        "Oil & Gas Drilling",
+        "Oil & Gas Refining & Marketing",
+        "Oil & Gas Integrated",
+    }
+)
+_FMP_NONCYCLICAL_LABELS = frozenset(
+    {"Software - Application", "Drug Manufacturers - General", "Beverages - Non-Alcoholic"}
+)
+
+
+async def check_industry_whitelists(client: httpx.AsyncClient, key: str) -> int:
+    """Assert the cyclical/bank whitelists still match FMP's live industry vocabulary."""
+    r = await client.get(f"{BASE}/available-industries", params={"apikey": key})
+    if r.status_code != 200:
+        print(f"… /available-industries: HTTP {r.status_code} — 跳过行业漂移闸")
+        return 0
+    live = {str(x.get("industry")) for x in r.json() if isinstance(x, dict) and x.get("industry")}
+    fails = 0
+    for label in sorted(_FMP_CYCLICAL_LABELS):
+        if label not in live:
+            print(f"✗ 行业漂移:'{label}' 已不在 FMP live 列表(改名/下架?)— 更新 industry.py 白名单")
+            fails += 1
+        elif not is_commodity_cyclical(industry=label):
+            print(f"✗ 白名单漏:FMP '{label}' 未判周期 — industry.py 未覆盖该 label")
+            fails += 1
+    for label in sorted(_FMP_NONCYCLICAL_LABELS):
+        if label in live and is_commodity_cyclical(industry=label):
+            print(f"✗ 假阳:FMP 非周期 '{label}' 被判周期")
+            fails += 1
+    if not is_bank(industry="Banks - Diversified", sector="Financial Services"):
+        print("✗ is_bank 回归:FMP 'Banks - Diversified' 未判 bank")
+        fails += 1
+    n = len(_FMP_CYCLICAL_LABELS)
+    print(
+        f"{'✓' if fails == 0 else '✗'} 行业分类漂移闸:{n} 个 FMP 周期 label 对 live 核验,{fails} 失败"
+    )
+    return fails
+
+
 async def main() -> int:
     key = keyring.get_password("FinRobot", "fmp_api_key")
     if not key:
@@ -169,6 +235,7 @@ async def main() -> int:
                     print(f"  ✗ AAPL outstandingShares={shares} 偏离外部基准 14-15B 域,核口径")
                     failures += 1
             await asyncio.sleep(0.25)
+        failures += await check_industry_whitelists(client, key)
     print(f"\n{'全部通过' if failures == 0 else f'{failures} 项失败'};今日({date.today()})实拉。")
     return 0 if failures == 0 else 1
 

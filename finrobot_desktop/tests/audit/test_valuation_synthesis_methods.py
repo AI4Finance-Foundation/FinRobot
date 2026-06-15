@@ -11,8 +11,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import pytest
+
 from finrobot.engine.compute.operators.forward_estimates import ForwardFinancials
 from finrobot.engine.compute.operators.valuation_aggregator import (
+    _comps_median_refusal,
     _ev_ebitda_method,
     aggregate_valuation,
 )
@@ -98,6 +101,39 @@ def _peer_comps() -> PeerComps:
         peers=[peer],
         median_pe=32.0,
         median_ev_ebitda=24.0,
+    )
+
+
+def _cyclical_peer_comps_thin_pb() -> PeerComps:
+    """A commodity-cyclical peer set whose P/B median rests on a single peer
+    (``pb_sample_n=1``) — the thin-sample guard must refuse comps_pb, the P/B
+    sibling of the comps_pe thin-sample case. Carries a positive book value so
+    the method is *attempted* (and then refused at the median guard) rather than
+    skipped earlier for missing data."""
+    target = CompanyFinancials(
+        ticker="X",
+        name="Steelco",
+        revenue=20e9,
+        ebitda=4e9,
+        net_income=2e9,
+        market_cap=15e9,
+        total_debt=8e9,
+        total_cash=2e9,
+        gross_margin=0.20,
+        operating_margin=0.12,
+        pe_ratio=8.0,
+        ev_ebitda=5.0,
+        book_value_per_share=30.0,
+        pb_ratio=1.4,
+    )
+    peer = target.model_copy(update={"ticker": "Y", "pb_ratio": 1.1})
+    return PeerComps(
+        target=target,
+        peers=[peer],
+        median_pe=8.5,
+        median_ev_ebitda=5.5,
+        median_pb=1.2,
+        pb_sample_n=1,
     )
 
 
@@ -315,15 +351,67 @@ class TestGuardExitReasonsReachArtifact:
         assert [m.name for m in vs.methods] == ["dcf"], "comps_pe 应被 thin-sample 守卫退出"
         assert any("样本仅 1 家" in w and "方法退出" in w for w in vs.warnings)
 
+    def test_comps_pb_guard_exit_reason_lands_on_synthesis_warnings(self) -> None:
+        """兄弟位置:comps_pb 是 comps_pe 的姊妹腿,共用 _comps_median_refusal 与
+        同一条 "方法退出" surface 约定,但在此之前没有任何测试钉住 P/B 腿的退出原因
+        也能进 artifact——正是兄弟漏修的高发形状(修了 comps_pe 吞点,漏 comps_pb)。
+        commodity-cyclical(industry=Steel)把 comps_pb 当主倍数走;pb_sample_n=1
+        确定性触发 thin-sample 守卫,拒因必须落在 ValuationSynthesis.warnings,
+        而不是只活在 debug 日志。"""
+        structured_context: dict[str, object] = {
+            "financial_modeling": _dcf(40.0),
+            "peer_analysis": _cyclical_peer_comps_thin_pb(),
+            "data_collection": _financial_data(industry="Steel"),
+        }
+        vs = build_valuation_synthesis(structured_context, current_price=100.0, ticker="X")
+        assert vs is not None
+        assert "comps_pb" not in [m.name for m in vs.methods], "comps_pb 应被 thin-sample 守卫退出"
+        assert any(
+            "comps_pb" in w and "样本仅 1 家" in w and "方法退出" in w for w in vs.warnings
+        ), f"comps_pb 退出原因必须 surface 到 vs.warnings,实际: {vs.warnings}"
 
-def _financial_data(*, reporting: str = "USD", quote: str = "USD") -> FinancialData:
+    @pytest.mark.parametrize("method", ["comps_pe", "comps_pb"])
+    @pytest.mark.parametrize(
+        "sample_n,target_multiple,branch",
+        [
+            (1, 18.0, "thin-sample"),  # 0 < n < 3 → 单一对手不构成中位数
+            (5, 322.0, "premise-mismatch"),  # 322x vs 5.8x = 55x > 10x 上限
+        ],
+    )
+    def test_relative_multiple_refusal_carries_surfacing_marker(
+        self, method: str, sample_n: int, target_multiple: float, branch: str
+    ) -> None:
+        """兄弟摊开:comps_pe / comps_pb 共用 _comps_median_refusal,其**每一条**拒因
+        分支都必须带 build_valuation_synthesis 转发时过滤的 "方法退出" 标记——少了它,
+        该方法的退出原因会被 logger.debug 吞掉、永不进 artifact(run_413ad4913cc1 形状)。
+        producer 侧钉死;consumer 侧由上面的 comps_pe/comps_pb 端到端测试钉死,两端合拢。"""
+        reason = _comps_median_refusal(
+            median_val=5.8,
+            sample_n=sample_n,
+            target_multiple=target_multiple,
+            label="P/E",
+            method=method,
+        )
+        assert reason is not None, f"{method} {branch} 分支应产生拒因"
+        assert "方法退出" in reason, f"{method} {branch} 拒因缺 surface 标记,会被吞掉: {reason!r}"
+        assert method in reason, f"拒因必须标明是哪个方法退出: {reason!r}"
+
+
+def _financial_data(
+    *, reporting: str = "USD", quote: str = "USD", industry: str | None = None
+) -> FinancialData:
     """Minimal single-currency FinancialData with a real net-debt bridge."""
     return FinancialData(
         ticker="AAPL",
         timestamp=datetime.now(tz=timezone.utc),
         income=IncomeStatement(revenue=390e9, ebitda=120e9, net_income=95e9),
         balance=BalanceSheet(total_debt=110e9, total_cash=62e9),
-        market=MarketData(market_cap=2.8e12, shares_outstanding=15.4e9, current_price=170.0),
+        market=MarketData(
+            market_cap=2.8e12,
+            shares_outstanding=15.4e9,
+            current_price=170.0,
+            industry=industry,
+        ),
         reporting_currency=reporting,
         quote_currency=quote,
     )

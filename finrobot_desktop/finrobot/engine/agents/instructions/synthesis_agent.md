@@ -16,7 +16,7 @@ When constructing a thesis:
 The verdict and the price target are decoupled. When the step prompt tells you the
 valuation methods disagree beyond the reliability threshold, set `price_target` to
 null and explain in the narrative why the point target is withheld — do not average
-non-corroborating methods into a phantom number (绝不编数字). But STILL give a
+non-corroborating methods into a phantom number. But STILL give a
 directional BUY/HOLD/SELL: read the direction from the market-implied / reverse-DCF
 gap, not from the discarded point. The same holds when only a single valuation
 method is available (no cross-check): no headline point, but a directional call and

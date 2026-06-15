@@ -693,8 +693,8 @@ class ThesisResult(BaseModel):
     tagline: str | None = Field(
         default=None,
         description=(
-            "One-sentence shareable conclusion (≤ 60 中文字符). "
-            "Example: 'NVDA · AI 算力超级周期受益者，估值仍有 30% 上行空间'."
+            "One-sentence shareable conclusion (≤ 60 characters). "
+            "Example: 'NVDA · AI compute super-cycle winner, ~30% upside still on the table'."
         ),
     )
     key_takeaways: list[str] | None = Field(
@@ -708,7 +708,7 @@ class ThesisResult(BaseModel):
     company_overview: str | None = Field(
         default=None,
         description=(
-            "200-300 字 Company Overview (第 8 synthesis slot). "
+            "200-300 word Company Overview (8th synthesis slot). "
             "Cover business model, reportable segments with revenue mix, "
             "geographic exposure, and the durable moat. Investment-bank "
             "tone — no retail simplification."
@@ -716,15 +716,21 @@ class ThesisResult(BaseModel):
     )
     valuation_overview: str | None = Field(
         default=None,
-        description=("150-200 字解读 DCF / Comps / DDM 之间为什么有差距、加权之后的目标价怎么来。"),
+        description=(
+            "150-200 word explanation of why DCF / Comps / DDM diverge and how the "
+            "weighted target was reached."
+        ),
     )
     competitor_analysis: str | None = Field(
         default=None,
-        description="vs 同业的竞争格局叙事（市占 / 增速 / 倍数对比的人话总结）。",
+        description=(
+            "Competitive-landscape narrative vs peers — a plain-language summary of "
+            "market-share / growth / multiple comparisons."
+        ),
     )
     news_summary: str | None = Field(
         default=None,
-        description="近 30 天关键新闻的 3-5 句话整体情绪叙事。",
+        description="3-5 sentence overall-sentiment narrative of the last 30 days of key news.",
     )
 
 

@@ -198,3 +198,69 @@ describe('ChapterOwnershipGovernance', () => {
     expect(screen.getByText(/Activist position/)).toBeInTheDocument()
   })
 })
+
+describe('ChapterOwnershipGovernance signal strip', () => {
+  const tx = (transaction_type: string, code: string, value: number): InsiderTransactionShape => ({
+    filing_date: '2026-04-01',
+    accession_no: '0001234567-26-000001',
+    insider_name: 'Insider',
+    transaction_type,
+    code,
+    shares: 1000,
+    value,
+    provenance: baseProv('4'),
+  })
+  const hold = (value_usd: number, holder_name: string): InstitutionalHoldingShape => ({
+    holder_name,
+    cusip: '000000000',
+    name_of_issuer: 'ACME',
+    shares: 1,
+    value_usd,
+    period_end: '2026-03-31',
+    provenance: baseProv('13F-HR'),
+  })
+
+  const ownership: OwnershipGovernanceShape = {
+    insider_transactions: [
+      tx('purchase', 'P', 5_000_000),
+      tx('sale', 'S', 2_000_000),
+      tx('grant', 'A', 99_000_000), // compensation — must NEVER enter the net
+      tx('tax_withholding', 'F', 1_000_000), // compensation mechanics — excluded
+    ],
+    institutional_holdings: [
+      hold(30e9, 'A'),
+      hold(25e9, 'B'),
+      hold(20e9, 'C'),
+      hold(10e9, 'D'),
+      hold(10e9, 'E'),
+      hold(5e9, 'F'),
+    ], // total 100e9, top-5 = 95e9 → 95%
+    generated_at: '2026-05-27T09:00:00Z',
+    degraded_sections: [],
+  }
+
+  it('nets only open-market P/S — grants and tax-withholding never enter the flow', () => {
+    const { container } = render(
+      wrap(<ChapterOwnershipGovernance ownership={ownership} reportingCurrency="USD" />),
+    )
+    const strip = container.querySelector('[data-testid="ownership-signal-strip"]')
+    expect(strip).not.toBeNull()
+    const text = strip?.textContent ?? ''
+    expect(text).toMatch(/Insider open-market flow/i)
+    // net = $5M buy − $2M sell = +$3.0M; the $99M grant + $1M tax stay out of it.
+    expect(text).toMatch(/net \+\$3/)
+    expect(text).toMatch(/2 grants\/tax excluded/)
+    // The grant's $99M must not leak into the strip (it shows in the table below).
+    expect(text).not.toMatch(/99/)
+  })
+
+  it('shows institutional top-5 concentration share', () => {
+    const { container } = render(
+      wrap(<ChapterOwnershipGovernance ownership={ownership} reportingCurrency="USD" />),
+    )
+    const text =
+      container.querySelector('[data-testid="ownership-signal-strip"]')?.textContent ?? ''
+    expect(text).toMatch(/Institutional concentration/i)
+    expect(text).toMatch(/95%/) // top 5 of 6 holders = 95e9 / 100e9
+  })
+})

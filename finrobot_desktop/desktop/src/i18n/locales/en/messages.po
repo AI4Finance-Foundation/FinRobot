@@ -1121,6 +1121,30 @@ msgid "chapter.technical.band.median"
 msgstr "Median"
 
 #. js-lingui-explicit-id
+msgid "chapter.ownership.signal.insiderFlow"
+msgstr "Insider open-market flow"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.concentration"
+msgstr "Institutional concentration"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.net"
+msgstr "net"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.nonMarketExcl"
+msgstr "{n} grants/tax excluded"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.topHolders"
+msgstr "top {n} holders"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.ofTotal"
+msgstr "of 13F value"
+
+#. js-lingui-explicit-id
 msgid "chapter.ownership.heading.insiders"
 msgstr "Insider Transactions (Form 4)"
 

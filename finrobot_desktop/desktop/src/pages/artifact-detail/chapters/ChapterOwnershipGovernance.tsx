@@ -91,8 +91,21 @@ export function ChapterOwnershipGovernance({
     'chapter.ownership.degraded.compensation',
   )
 
+  // Lead the chapter with a glanceable aggregate strip over the cold tables
+  // below — only for sections with non-degraded data to summarize.
+  const showInsiderFlow = !degraded.has('insider_transactions') && insiders.length > 0
+  const showConcentration = !degraded.has('institutional_holdings') && holdings.length > 0
+
   return (
     <Chapter id="ownership">
+      {(showInsiderFlow || showConcentration) && (
+        <OwnershipSignalStrip
+          insiders={showInsiderFlow ? insiders : []}
+          holdings={showConcentration ? holdings : []}
+          locale={locale}
+          t={t}
+        />
+      )}
       <SubChapter heading={t('chapter.ownership.heading.insiders')}>
         {degraded.has('insider_transactions') ? (
           <DegradedPlaceholder reason={t(insidersReason)} />
@@ -219,6 +232,129 @@ function sanitizeCeoTotalCompensation(value: number | null | undefined): number 
 // ---------------------------------------------------------------------------
 
 type Translator = (key: string, params?: Record<string, string | number>) => string
+
+// ---------------------------------------------------------------------------
+// Signal strip — a glanceable aggregate headline above the cold tables
+// (Bloomberg leads its ownership tab with the aggregate, tables below). Pure
+// client aggregation over data already shown; never a verdict.
+// ---------------------------------------------------------------------------
+function OwnershipSignalStrip({
+  insiders,
+  holdings,
+  locale,
+  t,
+}: {
+  insiders: InsiderTransactionShape[]
+  holdings: InstitutionalHoldingShape[]
+  locale: 'zh' | 'en'
+  t: Translator
+}): React.ReactElement | null {
+  const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
+  // Only open-market purchase/sale are directional. Grants (code A) / tax-
+  // withholding (F) / option exercise (M) / gift (G) are compensation mechanics
+  // and carry NO buy/sell signal — excluded from the net so a routine RSU grant
+  // never reads as bullish insider buying (would be a fabricated signal).
+  const sumOf = (type: string) =>
+    insiders
+      .filter((r) => r.transaction_type === type && finite(r.value))
+      .reduce((s, r) => s + (r.value as number), 0)
+  const buy = sumOf('purchase')
+  const sell = sumOf('sale')
+  const net = buy - sell
+  const nonMarket = insiders.filter(
+    (r) => r.transaction_type !== 'purchase' && r.transaction_type !== 'sale',
+  ).length
+  const hasFlow = insiders.length > 0 && (buy > 0 || sell > 0)
+  const flowDenom = buy + sell || 1
+
+  const vals = holdings
+    .map((h) => h.value_usd)
+    .filter(finite)
+    .sort((a, b) => b - a)
+  const total = vals.reduce((s, v) => s + v, 0)
+  const topN = Math.min(5, vals.length)
+  const topShare =
+    total > 0 && topN > 0 ? vals.slice(0, topN).reduce((s, v) => s + v, 0) / total : null
+
+  if (!hasFlow && topShare === null) return null
+
+  const netColor = net > 0 ? 'var(--success)' : net < 0 ? 'var(--danger)' : 'var(--text-secondary)'
+
+  return (
+    <div style={signalStripWrap} data-testid="ownership-signal-strip">
+      {hasFlow && (
+        <div style={signalCell}>
+          <div style={signalLabel}>{t('chapter.ownership.signal.insiderFlow')}</div>
+          <div style={signalBarTrack}>
+            <div style={{ width: `${(buy / flowDenom) * 100}%`, background: 'var(--success)' }} />
+            <div style={{ width: `${(sell / flowDenom) * 100}%`, background: 'var(--danger)' }} />
+          </div>
+          <div style={signalFootRow}>
+            <span style={{ color: netColor, fontWeight: 600 }}>
+              {t('chapter.ownership.signal.net')} {net >= 0 ? '+' : '-'}
+              {formatCurrencyCompact(Math.abs(net), 'USD', locale)}
+            </span>
+            <span style={{ color: 'var(--text-dim)' }}>
+              {t('chapter.ownership.signal.nonMarketExcl', { n: nonMarket })}
+            </span>
+          </div>
+        </div>
+      )}
+      {topShare !== null && (
+        <div style={signalCell}>
+          <div style={signalLabel}>{t('chapter.ownership.signal.concentration')}</div>
+          <div style={signalBarTrack}>
+            <div style={{ width: `${topShare * 100}%`, background: 'var(--primary)' }} />
+          </div>
+          <div style={signalFootRow}>
+            <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+              {t('chapter.ownership.signal.topHolders', { n: topN })} {(topShare * 100).toFixed(0)}%
+            </span>
+            <span style={{ color: 'var(--text-dim)' }}>
+              {t('chapter.ownership.signal.ofTotal')}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+const signalStripWrap: React.CSSProperties = {
+  display: 'flex',
+  gap: 16,
+  flexWrap: 'wrap',
+  marginBottom: 20,
+}
+const signalCell: React.CSSProperties = {
+  flex: '1 1 240px',
+  padding: '12px 16px',
+  background: 'var(--bg-card-50)',
+  border: '1px solid var(--border-soft)',
+  borderRadius: 'var(--radius-sm)',
+}
+const signalLabel: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  color: 'var(--text-muted)',
+}
+const signalBarTrack: React.CSSProperties = {
+  display: 'flex',
+  height: 8,
+  borderRadius: 4,
+  overflow: 'hidden',
+  background: 'var(--bg-elevated)',
+  margin: '8px 0',
+}
+const signalFootRow: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 8,
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+}
 
 function InsiderTable({
   rows,

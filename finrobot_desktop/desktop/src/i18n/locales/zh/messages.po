@@ -1121,6 +1121,30 @@ msgid "chapter.technical.band.median"
 msgstr "中位"
 
 #. js-lingui-explicit-id
+msgid "chapter.ownership.signal.insiderFlow"
+msgstr "内部人公开市场净流"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.concentration"
+msgstr "机构持仓集中度"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.net"
+msgstr "净"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.nonMarketExcl"
+msgstr "{n} 笔授予/代扣已排除"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.topHolders"
+msgstr "前 {n} 大持有人"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.ofTotal"
+msgstr "占 13F 总额"
+
+#. js-lingui-explicit-id
 msgid "chapter.ownership.heading.insiders"
 msgstr "内部人交易（Form 4）"
 

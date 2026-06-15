@@ -205,6 +205,15 @@ def aggregate_valuation(
 
     if (m := _ddm_method(ddm)) is not None:
         methods.append(m)
+    elif ddm is not None and ddm.equity_value_per_share <= 0:
+        # DDM was provided but its per-share equity value is ≤ 0 (degenerate) — the
+        # method drops. ``ddm is None`` is the normal non-dividend case and gets no
+        # warning; only a provided-but-degenerate DDM surfaces a reason (with the
+        # marker) instead of falling out silently.
+        warnings.append(
+            f"ddm: equity value per share ≤ 0 (${ddm.equity_value_per_share:,.2f}) — "
+            "DDM method does not apply to this name — method withheld"
+        )
 
     if (m := _lbo_method(lbo, shares_outstanding)) is not None:
         methods.append(m)

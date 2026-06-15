@@ -228,6 +228,14 @@ def _ddm() -> DDMResult:
     )
 
 
+def _ddm_nonpositive() -> DDMResult:
+    """DDM whose per-share equity value is ≤ 0 (degenerate / direct-construction
+    path) → _ddm_method drops it. The drop reason must surface, not vanish — the
+    aggregate had no elif for ddm at all, so a provided-but-degenerate DDM was the
+    one method that fell out with zero diagnostics."""
+    return _ddm().model_copy(update={"equity_value_per_share": -1.0})
+
+
 def _lbo() -> LBOResult:
     schedule = [
         LBOYear(
@@ -635,6 +643,14 @@ _SUPPRESSION_SWEEP = [
             "peer_analysis": _peer_comps(),  # comps_pe co-resolves so vs is non-None
         },
         "dcf: implied share price",
+    ),
+    (
+        "ddm_nonpositive_equity",
+        lambda: {
+            "financial_modeling": _dcf(40.0),  # co-resolves so vs is non-None
+            "ddm_calc": _ddm_nonpositive(),  # equity/share ≤ 0 → method withheld
+        },
+        "ddm: equity value per share",
     ),
 ]
 

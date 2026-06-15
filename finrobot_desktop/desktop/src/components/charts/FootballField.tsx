@@ -14,6 +14,12 @@ interface ChartProps {
   // is. Multiple-space (its own mini-axis), never overlaid on the price plot
   // (the bars are price-space, the band is multiple-space — different units).
   historicalBand?: HistoricalBandShape | null
+  // Calibrated synthesis target: the confidence-weighted fair value (point) and
+  // its target_low/target_high band. BOTH price-space, overlaid on the same axis
+  // as the method bars so methods -> synthesis + band vs current price read in
+  // one glance (the traceable form of a fair-value gauge; the band widens as the
+  // confidence dial drops). Parts render only when finite.
+  targetBand?: { low?: number | null; high?: number | null; point?: number | null } | null
 }
 
 const METHOD_LABEL: Record<string, string> = {
@@ -75,6 +81,7 @@ export default function FootballField({
   currentPrice,
   forwardFiscalPeriod,
   historicalBand,
+  targetBand,
 }: ChartProps) {
   const { t } = useI18n()
   const rows: Row[] = useMemo(
@@ -114,6 +121,17 @@ export default function FootballField({
     )
       ? historicalBand
       : null
+
+  // Calibrated synthesis target (price-space). Each part guarded independently:
+  // a point with no band still draws a marker; a band needs both ends + width.
+  const finiteOrNull = (v: number | null | undefined) =>
+    typeof v === 'number' && Number.isFinite(v) ? v : null
+  const tgtPoint = finiteOrNull(targetBand?.point)
+  const tgtLow = finiteOrNull(targetBand?.low)
+  const tgtHigh = finiteOrNull(targetBand?.high)
+  // Narrow to a non-null pair so the band render needs no non-null assertions.
+  const targetSpan =
+    tgtLow !== null && tgtHigh !== null && tgtHigh > tgtLow ? { low: tgtLow, high: tgtHigh } : null
 
   const dataMin = Math.min(...rows.map((r) => r.low))
   const dataMax = Math.max(...rows.map((r) => r.high))
@@ -282,6 +300,23 @@ export default function FootballField({
               />
             ))}
 
+            {/* Calibrated synthesis target band (behind the bars; same price axis) */}
+            {targetSpan && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  bottom: 16,
+                  left: `${xPctFor(targetSpan.low)}%`,
+                  width: `${Math.max(0.4, xPctFor(targetSpan.high) - xPctFor(targetSpan.low))}%`,
+                  background: 'color-mix(in srgb, var(--primary) 9%, transparent)',
+                  borderLeft: '1px dashed color-mix(in srgb, var(--primary) 40%, transparent)',
+                  borderRight: '1px dashed color-mix(in srgb, var(--primary) 40%, transparent)',
+                }}
+                title={`${t('chart.footballField.target')} ${fmtPrice(targetSpan.low)}–${fmtPrice(targetSpan.high)}`}
+              />
+            )}
+
             {/* Bars */}
             {rows.map((r, i) => {
               const xLow = xPctFor(r.low)
@@ -383,6 +418,41 @@ export default function FootballField({
                   }}
                 >
                   {t('chart.footballField.current')} {fmtCurrent(cp)}
+                </span>
+              </>
+            )}
+
+            {/* Weighted synthesis target marker (label rides the bottom so it
+                never collides with the current-price label pinned to the top) */}
+            {tgtPoint !== null && (
+              <>
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    bottom: 16,
+                    left: `${xPctFor(tgtPoint)}%`,
+                    width: 2,
+                    background: 'var(--primary)',
+                    boxShadow: '0 0 10px var(--primary)',
+                  }}
+                />
+                <span
+                  style={{
+                    position: 'absolute',
+                    bottom: 20,
+                    left: `calc(${xPctFor(tgtPoint)}% + 4px)`,
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 10,
+                    color: 'var(--primary)',
+                    letterSpacing: '0.04em',
+                    background: 'var(--ff-label-bg)',
+                    padding: '1px 4px',
+                    borderRadius: 3,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {t('chart.footballField.target')} {fmtPrice(tgtPoint)}
                 </span>
               </>
             )}

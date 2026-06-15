@@ -3225,6 +3225,10 @@ msgid "chart.footballField.history.now"
 msgstr "now"
 
 #. js-lingui-explicit-id
+msgid "chart.footballField.target"
+msgstr "Target"
+
+#. js-lingui-explicit-id
 msgid "coverage.col.ticker"
 msgstr "Ticker"
 

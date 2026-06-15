@@ -93,3 +93,30 @@ describe('FootballField historical-band provenance rail', () => {
     expect(container.textContent).not.toMatch(RAIL_SIGNAL)
   })
 })
+
+describe('FootballField calibrated synthesis target overlay', () => {
+  // 172 is not a method low/mid/high in KEYED_ROWS, so "$172" is a clean signal
+  // that the weighted-target marker mounted (price-space, same axis as the bars).
+  it('overlays the weighted-target marker on the price axis', () => {
+    const { container } = render(
+      <FootballField
+        data={KEYED_ROWS}
+        title="FF"
+        targetBand={{ low: 148, high: 178, point: 172 }}
+      />,
+    )
+    expect(container.textContent).toMatch(/\$172/)
+  })
+
+  it('draws the marker even when the band ends are absent (point only)', () => {
+    const { container } = render(
+      <FootballField data={KEYED_ROWS} title="FF" targetBand={{ point: 172 }} />,
+    )
+    expect(container.textContent).toMatch(/\$172/)
+  })
+
+  it('omits the target overlay when no target band is supplied', () => {
+    const { container } = render(<FootballField data={KEYED_ROWS} title="FF" />)
+    expect(container.textContent).not.toMatch(/\$172/)
+  })
+})

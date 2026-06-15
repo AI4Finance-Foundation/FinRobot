@@ -381,6 +381,14 @@ export function ChapterValuation({
             // Provenance rail: where the current EV/EBITDA (or P/FCF) multiple
             // sits vs the company's own 3-year band (frozen in technical_analysis).
             historicalBand={historicalBand}
+            // Calibrated synthesis target overlaid on the price axis: the
+            // confidence-weighted fair value + its target_low–target_high band,
+            // so the method bars visibly reconcile to the headline conclusion.
+            targetBand={{
+              low: valuationSynthesis?.target_low ?? null,
+              high: valuationSynthesis?.target_high ?? null,
+              point: valuationSynthesis?.weighted_price ?? null,
+            }}
           />
           {forwardEstimates?.source && (
             <p

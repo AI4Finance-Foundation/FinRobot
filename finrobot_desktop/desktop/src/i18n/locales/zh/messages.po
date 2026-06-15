@@ -3129,6 +3129,10 @@ msgid "chart.series.revenue"
 msgstr "营收"
 
 #. js-lingui-explicit-id
+msgid "chart.tooltip.projected"
+msgstr "预测 · 模型估算"
+
+#. js-lingui-explicit-id
 msgid "chart.series.ebitda"
 msgstr "EBITDA"
 

@@ -13,12 +13,16 @@
 // visual source of truth.
 
 import type { CSSProperties, ReactNode } from 'react'
+import { useI18n } from '../../i18n'
 
 interface TooltipPayloadItem {
   value?: number | string | null
   name?: string
   dataKey?: string | number
   color?: string
+  // Recharts attaches the full data row here; we read `is_forecast` off it to
+  // stamp projected points (the engine/provider seam) — see CosmicTooltip.
+  payload?: { is_forecast?: boolean } & Record<string, unknown>
 }
 
 export interface CosmicTooltipProps {
@@ -132,8 +136,15 @@ export function CosmicTooltip({
   labelFormat,
   labelColor,
 }: CosmicTooltipProps) {
+  const { t } = useI18n()
   if (!active || !payload || payload.length === 0) return null
   const header = labelFormat && label != null ? labelFormat(label) : label
+  // Forecast points are an ENGINE projection, not provider-reported data — stamp
+  // them so a hovered bar discloses its provenance (the "cite the computation"
+  // seam, inside the chart). Non-forecast rows carry no flag → no footer, so this
+  // is a no-op for charts whose rows are all reported. The bars are already
+  // colour-faded; this makes the distinction explicit on hover.
+  const isForecast = payload[0]?.payload?.is_forecast === true
   return (
     <CosmicTooltipShell label={header} labelColor={labelColor}>
       {payload.map((p) => {
@@ -147,6 +158,21 @@ export function CosmicTooltip({
           />
         )
       })}
+      {isForecast && (
+        <div
+          style={{
+            marginTop: 6,
+            paddingTop: 6,
+            borderTop: '1px solid var(--border-soft)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            letterSpacing: '0.04em',
+            color: 'var(--chart-forecast-revenue)',
+          }}
+        >
+          ◆ {t('chart.tooltip.projected')}
+        </div>
+      )}
     </CosmicTooltipShell>
   )
 }

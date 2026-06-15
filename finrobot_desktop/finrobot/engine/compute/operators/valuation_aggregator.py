@@ -184,10 +184,12 @@ def aggregate_valuation(
             warnings.append(
                 "comps_pe: 同业 P/E 中值为 N/A — 所有 peers TTM net income ≤ 0"
                 "（pre-profitability peer set），P/E 法无法应用。"
-                "建议通过 --peers 手动指定含盈利对标的同业集"
+                "建议通过 --peers 手动指定含盈利对标的同业集 — 方法退出"
             )
         elif peer_comps.target.net_income is None or peer_comps.target.net_income <= 0:
-            warnings.append("comps_pe: target TTM net income ≤ 0 — 目标公司本身亏损，P/E 法不适用")
+            warnings.append(
+                "comps_pe: target TTM net income ≤ 0 — 目标公司本身亏损，P/E 法不适用 — 方法退出"
+            )
 
     if (m := _ddm_method(ddm)) is not None:
         methods.append(m)

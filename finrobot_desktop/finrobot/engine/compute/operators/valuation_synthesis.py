@@ -446,6 +446,18 @@ def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
             f"${target:.2f}.{range_txt} {vs.degradation_note or ''}"
         ).strip()
 
+    # Substantive method suppressions — a runnable method a guard sent off (cyclical
+    # forward-P/E, thin peer sample, >10x premise mismatch, …) — are forwarded onto
+    # vs.warnings with the "方法退出" marker (build_valuation_synthesis). But basis above
+    # is built only from the dial's degradation_note and NEVER reads vs.warnings, so the
+    # headline said "only one method resolved" without the other half of the sentence
+    # (run_413ad4913cc1). The narrative prompt reads canonical.basis, so folding the exit
+    # reasons in here is the single point that surfaces the WHY in both the headline and
+    # the narrative — not just the artifact's machine-readable warnings[] list.
+    suppression_reasons = [w for w in vs.warnings if "方法退出" in w]
+    if suppression_reasons:
+        basis = f"{basis} {' '.join(suppression_reasons)}".strip()
+
     return CanonicalThesis(
         target=target,
         verdict=verdict,

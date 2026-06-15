@@ -19,7 +19,10 @@ from finrobot.engine.compute.operators.valuation_aggregator import (
     _ev_ebitda_method,
     aggregate_valuation,
 )
-from finrobot.engine.compute.operators.valuation_synthesis import synthesize_valuations
+from finrobot.engine.compute.operators.valuation_synthesis import (
+    resolve_canonical_thesis,
+    synthesize_valuations,
+)
 from finrobot.engine.models.financial import (
     CompanyFinancials,
     DCFInputs,
@@ -175,6 +178,30 @@ def _peer_comps_thin_pe() -> PeerComps:
     comps = _peer_comps()
     comps.pe_sample_n = 1
     return comps
+
+
+def _loss_making_peer_comps() -> PeerComps:
+    """Pre-profitability cohort — target AND peers are loss-making (TTM net income
+    ≤ 0), so no P/E median exists and comps_pe is structurally INAPPLICABLE (a
+    negative-earnings P/E is undefined, not merely missing data). A substantive
+    method exit, sibling of the thin-sample / cyclical exits — its reason must
+    surface with the 方法退出 marker, not silently degrade into a "forward EPS 不可得"
+    data-absence line."""
+    target = CompanyFinancials(
+        ticker="RIVN",
+        name="Rivian",
+        revenue=5e9,
+        ebitda=-4e9,
+        net_income=-5e9,
+        market_cap=16e9,
+        total_debt=5e9,
+        total_cash=8e9,
+        gross_margin=-0.30,
+        operating_margin=-1.0,
+        pe_ratio=None,
+    )
+    peer = target.model_copy(update={"ticker": "LCID", "net_income": -3e9, "pe_ratio": None})
+    return PeerComps(target=target, peers=[peer], median_pe=None, median_ev_ebitda=None)
 
 
 def _ddm() -> DDMResult:
@@ -588,6 +615,16 @@ _SUPPRESSION_SWEEP = [
         },
         "样本仅 1 家",
     ),
+    (
+        "comps_pe_loss_making_pe_inapplicable",
+        lambda: {
+            "financial_modeling": _dcf(40.0),
+            "peer_analysis": _loss_making_peer_comps(),
+            "forward_financials": _forward(),
+            "data_collection": _financial_data(),
+        },
+        "P/E 法无法应用",
+    ),
 ]
 
 
@@ -609,3 +646,37 @@ class TestMethodSuppressionSweep:
         assert any(
             expected_fragment in w and "方法退出" in w for w in vs.warnings
         ), f"抑制原因被吞掉,未带标记进 vs.warnings: {vs.warnings}"
+
+
+# ---------------------------------------------------------------------------
+# 兄弟位置闸(headline 层): 抑制原因必须到达分析师真正读的 CanonicalThesis.basis,
+# 不能只活在 vs.warnings(那只是 artifact 的另一个 list 面)。basis 当前从
+# method_breakdown + range + degradation_note 建,而 degradation_note 只来自
+# confidence dial、从不读 vs.warnings——所以 step1/step2 把退出原因 forward 进
+# vs.warnings 后,headline 仍只说 "only one method resolved",读者看不到另一半
+# 句子(run_413ad4913cc1 形状的根)。叙事 prompt 读 canonical.basis,故修好 basis
+# 同时修好叙事。复用 _SUPPRESSION_SWEEP: 同一张表同时钉 vs.warnings 面与 basis 面。
+# ---------------------------------------------------------------------------
+
+
+class TestSuppressionReasonReachesHeadline:
+    """每个 substantive 抑制原因必须出现在 CanonicalThesis.basis(分析师 headline),
+    不只在 vs.warnings。新增 substantive 抑制 → _SUPPRESSION_SWEEP 加一行,本闸自动覆盖。"""
+
+    @pytest.mark.parametrize(
+        "context_factory,expected_fragment",
+        [(c[1], c[2]) for c in _SUPPRESSION_SWEEP],
+        ids=[c[0] for c in _SUPPRESSION_SWEEP],
+    )
+    def test_suppression_reason_reaches_canonical_basis(
+        self, context_factory: object, expected_fragment: str
+    ) -> None:
+        vs = build_valuation_synthesis(context_factory(), current_price=100.0, ticker="X")  # type: ignore[operator]
+        assert vs is not None
+        thesis = resolve_canonical_thesis(vs, "X")
+        assert thesis.basis is not None, "抑制场景仍有方法解析 → basis 不应为 None"
+        assert expected_fragment in thesis.basis, (
+            f"抑制原因未到达分析师 headline(basis): 期望片段 {expected_fragment!r} 不在 basis。"
+            f" basis 只读 degradation_note 不读 vs.warnings = split-brain。\n"
+            f"basis={thesis.basis!r}\nvs.warnings={vs.warnings!r}"
+        )

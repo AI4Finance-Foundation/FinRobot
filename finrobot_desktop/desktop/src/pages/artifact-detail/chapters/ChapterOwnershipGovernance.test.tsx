@@ -249,7 +249,7 @@ describe('ChapterOwnershipGovernance signal strip', () => {
     expect(text).toMatch(/Insider open-market flow/i)
     // net = $5M buy − $2M sell = +$3.0M; the $99M grant + $1M tax stay out of it.
     expect(text).toMatch(/net \+\$3/)
-    expect(text).toMatch(/2 grants\/tax excluded/)
+    expect(text).toMatch(/2 non-market excluded/)
     // The grant's $99M must not leak into the strip (it shows in the table below).
     expect(text).not.toMatch(/99/)
   })

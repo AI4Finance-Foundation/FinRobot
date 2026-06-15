@@ -727,7 +727,8 @@ function HistoryRail({
           {t('chart.footballField.history.now')} {fx(cur)}
         </span>
         <span>
-          P25 {fx(p25)} · {t('chart.footballField.history.median')} {fx(med)} · P75 {fx(p75)}
+          P25 {fx(p25)} · {t('chart.footballField.history.median')} {fin(med) ? fx(med) : '—'} · P75{' '}
+          {fx(p75)}
         </span>
       </div>
     </div>

@@ -1134,7 +1134,7 @@ msgstr "净"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.signal.nonMarketExcl"
-msgstr "{n} 笔授予/代扣已排除"
+msgstr "{n} 笔非市场交易已排除"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.signal.topHolders"

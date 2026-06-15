@@ -20,18 +20,24 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
   const peerList = (peers?.peers ?? []).filter((p) => !target || p.ticker !== target.ticker)
   const all = target ? [target, ...peerList] : peerList
 
-  // Per-column peer median for cell heat-shading. Need ≥3 peers for the median to
-  // be stable; below that, leave the table un-shaded (nulls → heat() no-ops).
-  const med =
-    peerList.length >= 3
-      ? {
-          pe: peerMedian(peerList.map((p) => p.pe_ratio)),
-          corePe: peerMedian(peerList.map((p) => p.core_pe_ratio)),
-          evEbitda: peerMedian(peerList.map((p) => p.ev_ebitda)),
-          gross: peerMedian(peerList.map((p) => p.gross_margin)),
-          opMargin: peerMedian(peerList.map((p) => p.operating_margin)),
-        }
-      : { pe: null, corePe: null, evEbitda: null, gross: null, opMargin: null }
+  // Heat-shading reference = the SAME median the page advertises per column, so a
+  // cell's green/red can never contradict the stated "Peer median" line or the
+  // radar beside it.
+  //  • Multiples (P/E · core P/E · EV/EBITDA): the BACKEND median (peers.median_*),
+  //    which applies the NM-cap (drops P/E>75 etc.). A frontend re-median over all
+  //    visible peers diverged (uncapped P/E 83.6 vs the advertised 43.1), shading
+  //    a mid-range peer green while it sat ABOVE the stated median. No frontend
+  //    fallback — if the backend median is absent the column is simply un-shaded.
+  //  • Margins (gross · op): no backend median + no NM-cap → a frontend median over
+  //    ≥3 visible peers is both consistent and stable.
+  const marginsStable = peerList.length >= 3
+  const med = {
+    pe: peers?.median_pe ?? null,
+    corePe: peers?.median_core_pe ?? null,
+    evEbitda: peers?.median_ev_ebitda ?? null,
+    gross: marginsStable ? peerMedian(peerList.map((p) => p.gross_margin)) : null,
+    opMargin: marginsStable ? peerMedian(peerList.map((p) => p.operating_margin)) : null,
+  }
 
   // No fitting i18n key for the NOPAT-core caliber — inline literal per the
   // VersionDiffBanner precedent (do not touch .po in this task). The comps

@@ -1134,7 +1134,7 @@ msgstr "net"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.signal.nonMarketExcl"
-msgstr "{n} grants/tax excluded"
+msgstr "{n} non-market excluded"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.signal.topHolders"

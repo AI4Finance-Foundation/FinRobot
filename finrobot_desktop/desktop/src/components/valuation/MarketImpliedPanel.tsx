@@ -1,4 +1,4 @@
-// MarketImpliedPanel — the IC-debate "market-implied expectations" expert probe.
+// MarketImpliedPanel — the "market-implied expectations" reverse-DCF probe.
 //
 // Reverse DCF, presented honestly. The market price doesn't imply ONE valuation
 // — it implies a whole family of (growth, horizon) combinations at a given
@@ -10,8 +10,10 @@
 //   2. The (growth → implied horizon) equivalence line at a fixed WACC — the
 //      family itself. The WACC slider shifts the whole line (the third axis).
 //
-// It is NOT a verdict and never enters SWING_FACTOR. Default-collapsed: the
-// analyst opens it to interrogate the judge's one-line swing factor.
+// A ticker-level live probe (seeds its own DCF from current price, NOT a frozen
+// artifact). Lives in the stock workspace next to the live market data.
+// Default-collapsed: the analyst opens it to interrogate what today's price
+// requires to believe.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Line, LineChart, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
@@ -102,7 +104,10 @@ interface Props {
 
 export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null {
   const { t } = useI18n()
-  const [open, setOpen] = useState(false)
+  // Expanded by default — this probe is a primary valuation surface in the
+  // workspace, not an opt-in drill-down. The toggle still lets the analyst
+  // collapse it when the data rail gets long.
+  const [open, setOpen] = useState(true)
   const [seed, setSeed] = useState<SeedReverse | null>(null)
   const [line, setLine] = useState<EquivLine | null>(null)
   const [wacc, setWacc] = useState<number | null>(null)
@@ -130,21 +135,24 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
 
   // Reset the cached probe state when the ticker changes. The lazy-load
   // effect below guards on `seed`, so without this reset a mount point that
-  // survives navigation (/ic/AAPL → /ic/MSFT renders the same element) kept
-  // showing AAPL's market-implied growth/WACC under MSFT's header — a
+  // survives navigation (/stocks/AAPL → /stocks/MSFT renders the same element)
+  // kept showing AAPL's market-implied growth/WACC under MSFT's header — a
   // wrong-ticker number on an analyst-facing panel.
   const lastTicker = useRef(ticker)
   useEffect(() => {
     if (lastTicker.current === ticker) return
     lastTicker.current = ticker
-    setOpen(false)
+    // Stay expanded across ticker changes (default-open); just drop the cached
+    // numbers so the effect below re-fetches for the new ticker.
+    setOpen(true)
     setSeed(null)
     setLine(null)
     setWacc(null)
     setError(null)
   }, [ticker])
 
-  // Lazy: only fetch when the analyst opens the probe.
+  // Fetch when open and not yet seeded. Open defaults true, so this fires on
+  // mount; collapsing then re-opening reuses the cached seed.
   useEffect(() => {
     if (!open || seed) return
     void (async () => {
@@ -202,9 +210,9 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
         }}
       >
         <span style={{ color: 'var(--accent-violet, var(--primary))' }}>⌖</span>
-        {t('ic.implied.title')}
+        {t('valuation.implied.title')}
         <span style={{ color: 'var(--text-dim)', textTransform: 'none', letterSpacing: 0 }}>
-          {t('ic.implied.subtitle')}
+          {t('valuation.implied.subtitle')}
         </span>
         <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>{open ? '▾' : '▸'}</span>
       </button>
@@ -218,7 +226,7 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
           )}
           {!error && !seed && (
             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
-              {t('ic.implied.loading')}
+              {t('valuation.implied.loading')}
             </p>
           )}
 
@@ -233,7 +241,7 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
                   margin: '8px 0 14px',
                 }}
               >
-                {t('ic.implied.lede')}
+                {t('valuation.implied.lede')}
               </p>
 
               {/* Three anchor cards */}
@@ -246,17 +254,17 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
                 }}
               >
                 <AnchorCard
-                  axis={t('ic.implied.axis.growth')}
+                  axis={t('valuation.implied.axis.growth')}
                   verdict={growthVerdict(seed.reverse_growth?.implied_growth ?? null)}
                   value={
                     seed.reverse_growth?.implied_growth != null
                       ? `${(seed.reverse_growth.implied_growth * 100).toFixed(0)}%`
-                      : t('ic.implied.unreachable')
+                      : t('valuation.implied.unreachable')
                   }
                   message={seed.reverse_growth?.message ?? null}
                 />
                 <AnchorCard
-                  axis={t('ic.implied.axis.wacc')}
+                  axis={t('valuation.implied.axis.wacc')}
                   verdict={waccVerdict(seed.reverse_wacc?.implied_wacc ?? null)}
                   value={
                     seed.reverse_wacc?.implied_wacc != null
@@ -266,19 +274,20 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
                   message={seed.reverse_wacc?.message ?? null}
                 />
                 <AnchorCard
-                  axis={t('ic.implied.axis.horizon')}
+                  axis={t('valuation.implied.axis.horizon')}
                   verdict={horizonVerdict(seed.reverse_horizon?.implied_horizon ?? null)}
                   value={
                     seed.reverse_horizon?.implied_horizon != null
-                      ? `${seed.reverse_horizon.implied_horizon.toFixed(1)} ${t('ic.implied.years')}`
-                      : t('ic.implied.unreachable')
+                      ? `${seed.reverse_horizon.implied_horizon.toFixed(1)} ${t('valuation.implied.years')}`
+                      : t('valuation.implied.unreachable')
                   }
                   message={seed.reverse_horizon?.message ?? null}
                 />
               </div>
 
-              {/* Equivalence line */}
-              {line && (
+              {/* Equivalence line — guard on points so a partial/malformed
+                  response (no points array) degrades to no-chart, never a crash. */}
+              {line?.points && (
                 <div>
                   <div
                     style={{
@@ -288,9 +297,9 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
                       marginBottom: 6,
                     }}
                   >
-                    {t('ic.implied.lineTitle')} ·{' '}
+                    {t('valuation.implied.lineTitle')} ·{' '}
                     <span style={{ color: 'var(--accent-cyan)' }}>
-                      {t('ic.implied.fixedWacc')} {((wacc ?? line.wacc) * 100).toFixed(1)}%
+                      {t('valuation.implied.fixedWacc')} {((wacc ?? line.wacc) * 100).toFixed(1)}%
                     </span>
                   </div>
                   <ResponsiveContainer width="100%" height={190}>
@@ -358,7 +367,7 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
                       color: 'var(--text-muted)',
                     }}
                   >
-                    <span>{t('ic.implied.waccSlider')}</span>
+                    <span>{t('valuation.implied.waccSlider')}</span>
                     <input
                       type="range"
                       min={6}
@@ -388,7 +397,7 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
                   paddingTop: 10,
                 }}
               >
-                ⓘ {t('ic.implied.priorNote')}
+                ⓘ {t('valuation.implied.priorNote')}
               </p>
             </>
           )}
@@ -475,13 +484,15 @@ function LineTooltip({
   if (!active || !payload || payload.length === 0) return null
   const p = payload[0].payload
   return (
-    <CosmicTooltipShell label={t('ic.implied.tooltip.growth', { g: p.g.toFixed(0) })}>
+    <CosmicTooltipShell label={t('valuation.implied.tooltip.growth', { g: p.g.toFixed(0) })}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
         <span style={{ color: 'var(--text-secondary)' }}>
-          {t('ic.implied.tooltip.impliedYears')}
+          {t('valuation.implied.tooltip.impliedYears')}
         </span>
         <span style={{ color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-          {p.h != null ? `${p.h.toFixed(1)} ${t('ic.implied.years')}` : t('ic.implied.unreachable')}
+          {p.h != null
+            ? `${p.h.toFixed(1)} ${t('valuation.implied.years')}`
+            : t('valuation.implied.unreachable')}
         </span>
       </div>
     </CosmicTooltipShell>

@@ -505,10 +505,11 @@ def solve_for_implied_growth(
             "computed_price": None,
             "iterations": 0,
             "message": (
-                f"目标价 ${target_price:.2f} 在当前模型的增长区间 [{lo:.0%}, {hi:.0%}] 内"
-                f"无解。{lo:.0%} 增长 → ${p_lo:.2f}；{hi:.0%} 增长 → ${p_hi:.2f}。"
-                f"市场要么在为区间外的极端增长定价，要么其他输入（毛利 / WACC / 净债）"
-                f"需要重新检查。"
+                f"No solution for target ${target_price:.2f} within the model's growth "
+                f"range [{lo:.0%}, {hi:.0%}]. {lo:.0%} growth → ${p_lo:.2f}; "
+                f"{hi:.0%} growth → ${p_hi:.2f}. The market is either pricing in growth "
+                f"beyond that range, or another input (margins / WACC / net debt) needs "
+                f"re-checking."
             ),
         }
 
@@ -538,9 +539,10 @@ def solve_for_implied_growth(
     }
     if not converged:
         result["message"] = (
-            f"反推增长率在 {iterations} 次迭代后未收敛（区间宽度 {hi - lo:.2e} > "
-            f"容差 {tolerance:.0e}）。${target_price:.2f} 对应的隐含增长率约为 {mid:.2%}，"
-            "为近似值，请勿当作精确解。"
+            f"Implied-growth solve did not converge after {iterations} iterations "
+            f"(bracket width {hi - lo:.2e} > tolerance {tolerance:.0e}). The implied "
+            f"growth for ${target_price:.2f} is ~{mid:.2%} — an approximation, not an "
+            "exact solution."
         )
     return result
 
@@ -552,10 +554,9 @@ def compute_dcf_implied_price(
     """Thin entry point: run a full DCF with one or more assumption overrides
     and return only the implied equity price per share.
 
-    Used by the IC debate divergence recomputation layer so that bull/bear
-    sides can each substitute their own WACC or terminal-growth assumption into
-    the *same* DCF arithmetic that the single-stock report used — zero DCF math
-    lives outside dcf.py.
+    Used by the semantic-diff reverse-DCF repricing layer (artifact version
+    comparison) so a changed assumption can be substituted into the *same* DCF
+    arithmetic the single-stock report used — zero DCF math lives outside dcf.py.
 
     Supported override keys:
         ``"wacc"``              — replaces the CAPM-derived WACC.
@@ -659,8 +660,9 @@ def solve_for_implied_wacc(
             "computed_price": None,
             "iterations": 0,
             "message": (
-                f"目标价 ${target_price:.2f} 在 WACC 区间 [{lo:.0%}, {hi:.0%}] 内无解。"
-                f"WACC {lo:.0%} → ${p_lo:.2f}；WACC {hi:.0%} → ${p_hi:.2f}。"
+                f"No solution for target ${target_price:.2f} within the WACC range "
+                f"[{lo:.0%}, {hi:.0%}]. WACC {lo:.0%} → ${p_lo:.2f}; "
+                f"WACC {hi:.0%} → ${p_hi:.2f}."
             ),
         }
 
@@ -689,9 +691,10 @@ def solve_for_implied_wacc(
     }
     if not converged:
         result["message"] = (
-            f"反推 WACC 在 {iterations} 次迭代后未收敛（区间宽度 {hi - lo:.2e} > "
-            f"容差 {tolerance:.0e}）。${target_price:.2f} 对应的隐含 WACC 约为 {mid:.2%}，"
-            "为近似值，请勿当作精确解。"
+            f"Implied-WACC solve did not converge after {iterations} iterations "
+            f"(bracket width {hi - lo:.2e} > tolerance {tolerance:.0e}). The implied "
+            f"WACC for ${target_price:.2f} is ~{mid:.2%} — an approximation, not an "
+            "exact solution."
         )
     return result
 
@@ -767,8 +770,9 @@ def solve_for_implied_horizon(
             "price_at_lo": 0.0,
             "price_at_hi": 0.0,
             "message": (
-                f"在固定增长率 {growth_rate:.0%} 下，永续增长率 {tg:.1%} 不低于 WACC "
-                f"{wacc:.1%}，Gordon 模型无定义，无法反推年限。"
+                f"At a fixed {growth_rate:.0%} growth, terminal growth {tg:.1%} is not "
+                f"below WACC {wacc:.1%} — the Gordon model is undefined, so no horizon "
+                f"can be solved."
             ),
         }
 
@@ -784,10 +788,11 @@ def solve_for_implied_horizon(
         return {
             **base,
             "message": (
-                f"在固定增长率 {growth_rate:.0%} 下，目标价 ${target_price:.2f} 落在 "
-                f"1–{max_horizon} 年可达区间 [${p_lo:.2f}, ${p_hi:.2f}] 之外。"
-                f"{'增长假设太低、再长的高增长窗口也够不着' if target_price > p_hi else '当前价已低于最短窗口隐含价'}。"
-                f"换一个固定增长率会得到不同年限——隐含年限是增长假设的函数。"
+                f"At a fixed {growth_rate:.0%} growth, target ${target_price:.2f} falls "
+                f"outside the 1–{max_horizon}y reachable range [${p_lo:.2f}, ${p_hi:.2f}]. "
+                f"{'The growth assumption is too low — no high-growth window, however long, can reach it' if target_price > p_hi else 'The current price is already below the shortest-window implied value'}. "
+                f"A different fixed growth rate yields a different horizon — the implied "
+                f"horizon is a function of the growth assumption."
             ),
         }
 
@@ -802,8 +807,10 @@ def solve_for_implied_horizon(
         "implied_horizon": implied,
         "computed_price": target_price,
         "message": (
-            f"在固定增长率 {growth_rate:.0%}、WACC {wacc:.1%} 下，${target_price:.2f} 隐含约 "
-            f"{implied:.1f} 年高增长窗口（整数年线性插值近似）。注意：这个年限取决于所固定的 "
-            f"{growth_rate:.0%} 增长——换一个同样合理的增长率会得到不同年限。"
+            f"At a fixed {growth_rate:.0%} growth and {wacc:.1%} WACC, ${target_price:.2f} "
+            f"implies a ~{implied:.1f}-year high-growth window (linear interpolation "
+            f"between integer years). Note: this horizon depends on the fixed "
+            f"{growth_rate:.0%} growth — an equally plausible growth rate yields a "
+            f"different horizon."
         ),
     }

@@ -209,7 +209,7 @@ interface BackendRunSummary {
 // Errors are only forgiven once the stream proves stable again
 // (SSE_STABLE_SUCCESSES consecutive events) — resetting on ANY successful
 // event let a flapping connection ([error, event, error, event…]) dodge the
-// limit forever (BUG-044, shared with debateStore).
+// limit forever (BUG-044).
 const SSE_ERROR_LIMIT = 8
 const SSE_STABLE_SUCCESSES = 3
 const sseErrorCounts = new Map<string, number>()
@@ -578,9 +578,9 @@ export const useRunStreamStore = create<RunStreamState>((set, get) => {
         for (const run of summaries) {
           // Defensive re-filter: only non-terminal runs may be resurrected.
           if (run.status !== 'running' && run.status !== 'created') continue
-          // Debates are a different surface (debateStore) and ephemeral by
-          // design — resurrecting one here would render garbage pipeline steps
-          // and inflate the active-runs badge.
+          // Legacy debate runs (the IC-debate feature was removed) must never
+          // resurrect — an old local DB may still hold such rows, and replaying
+          // one here would render garbage pipeline steps + inflate the badge.
           if (run.pipeline_type === 'debate') continue
           // Rows arrive newest-first: the first row per ticker wins, and a run
           // this session is already tracking live is never clobbered.

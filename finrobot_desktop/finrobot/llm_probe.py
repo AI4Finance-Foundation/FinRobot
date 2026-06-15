@@ -4,7 +4,7 @@ One place owns "make the cheapest possible real call and classify the failure":
 
 - ``POST /api/settings/test-provider`` — config-time ✗ with a reason the UI
   localizes (the auto-test fired after the user saves a key).
-- ``POST /api/runs`` / ``POST /api/debate`` — submit-time gate. The
+- ``POST /api/runs`` — submit-time gate. The
   ``is_model_configured`` guard only proves a key EXISTS; a key that cannot
   authenticate used to be accepted, burn minutes of data collection, and only
   fail inside the first agent LLM step. ``LlmProbeGate`` rejects that run at

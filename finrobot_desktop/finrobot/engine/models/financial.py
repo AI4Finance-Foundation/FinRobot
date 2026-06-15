@@ -879,7 +879,7 @@ class ValuationMethod(BaseModel):
             "Short human-readable summary of the load-bearing assumptions behind "
             "`mid` — e.g. DCF's 'WACC 16.6% · 5年增长40%→2.5% · β2.24'. A mid like "
             "$73 is not a valuation, it's an answer conditional on these. Carried "
-            "downstream into the IC debate so a price is never cited naked."
+            "downstream so a price is never cited naked."
         ),
     )
 
@@ -1250,7 +1250,7 @@ class ValuationMethodRange(BaseModel):
         description=(
             "Short summary of the load-bearing assumptions behind `mid`, built at "
             "the source where the underlying result object is in scope. Propagated "
-            "to ValuationMethod.assumptions and into the IC debate evidence."
+            "to ValuationMethod.assumptions so a price is never cited naked."
         ),
     )
     warnings: list[str] = Field(default_factory=list)

@@ -27,9 +27,6 @@ const ArtifactDetailPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 )
-const IcDebatePage = lazy(() =>
-  import('./pages/ic/IcDebatePage').then((m) => ({ default: m.IcDebatePage })),
-)
 
 function RouteSuspense({ children }: { children: React.ReactNode }) {
   return (
@@ -114,17 +111,6 @@ export const router = createBrowserRouter([
           </RouteSuspense>
         ),
       },
-      {
-        // IC debate is entered from a report (ReportToolbar → onOpenIcDebate)
-        // with an artifact_id; there is no standalone landing/picker route.
-        path: 'ic/:ticker',
-        element: (
-          <RouteSuspense>
-            <IcDebatePage />
-          </RouteSuspense>
-        ),
-      },
-
       // v5 deprecation redirects (one release window) — spec §11.4.
       // Bare retired pages land on /coverage directly (the old /stocks landing
       // also retired into /coverage, so pointing here avoids a double hop).

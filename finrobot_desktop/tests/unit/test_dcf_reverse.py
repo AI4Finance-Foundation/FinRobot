@@ -80,7 +80,7 @@ def test_reverse_growth_target_too_high_returns_none():
         wacc_override=0.10,
     )
     assert out["implied_growth"] is None
-    assert "无解" in out["message"]
+    assert "No solution" in out["message"]
     assert out["price_at_hi"] < 5000.0
 
 
@@ -131,7 +131,7 @@ def test_reverse_growth_marks_non_convergence_when_iterations_capped():
     assert out["implied_growth"] is not None  # still returns the best estimate
     assert out["converged"] is False
     assert out["iterations"] == 3
-    assert "未收敛" in out["message"]
+    assert "did not converge" in out["message"]
 
 
 # ───────────────────────────────────────────────────────────────────
@@ -169,7 +169,7 @@ def test_reverse_wacc_target_too_low_returns_none():
         bracket=(0.05, 0.15),
     )
     assert out["implied_wacc"] is None
-    assert "无解" in out["message"]
+    assert "No solution" in out["message"]
 
 
 def test_reverse_wacc_clips_bracket_above_terminal_growth():
@@ -244,7 +244,7 @@ def test_reverse_horizon_unreachable_returns_none_with_growth_caveat():
     )
     assert out["implied_horizon"] is None
     assert out["assumed_growth"] == 0.05
-    assert "增长" in (out["message"] or "")
+    assert "growth" in (out["message"] or "")
 
 
 # ───────────────────────────────────────────────────────────────────

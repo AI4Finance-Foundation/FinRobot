@@ -58,7 +58,7 @@ _MAX_MULTIPLEX_IDS = 50
 async def ensure_llm_reachable(request: Request) -> None:
     """503 unless the configured (model, key) has passed one live probe.
 
-    Shared by every endpoint that spawns multi-step LLM work (runs, debate).
+    Shared by every endpoint that spawns multi-step LLM work (runs).
     ``is_model_configured`` only proves a key EXISTS; this proves it can
     authenticate, so a garbage key is rejected at submit time with the same
     classified reason the Settings ✗ shows — instead of burning minutes of data
@@ -502,7 +502,7 @@ async def cancel_run(run_id: str, request: Request) -> CancelRunResponse:
     """Cancel an in-flight run — the stop button for money-burning pipelines.
 
     Works for every task registered in app.state.run_tasks (research/dcf/lbo
-    pipelines AND debate runs — debate.py registers there too). Cancellation
+    pipelines). Cancellation
     is asyncio-native: the task unwinds at its next await (LLM/provider calls
     are httpx awaits, so spend stops within one chunk), its CancelledError
     handler persists the ``cancelled`` terminal state, and the SSE stream

@@ -31,8 +31,6 @@ interface ReportToolbarProps {
   /** Export the report as a self-contained interactive HTML. Owned by
       ArtifactDetailPage (it holds the artifact + the query cache to inline). */
   onExportHtml: () => void
-  /** Navigate to /ic/:ticker?artifact_id=<id>. Only passed for equity_research reports. */
-  onOpenIcDebate?: () => void
 }
 
 export function ReportToolbar({
@@ -43,7 +41,6 @@ export function ReportToolbar({
   snapshotPrice,
   snapshotAsOf,
   onExportHtml,
-  onOpenIcDebate,
 }: ReportToolbarProps): React.ReactElement {
   const navigate = useNavigate()
   // Back = return to wherever the user opened the report from. Falls back to the
@@ -220,16 +217,6 @@ export function ReportToolbar({
       {/* Version comparison moved inline: the VersionDiffBanner at the top of the
           report body shows "what changed vs a prior version" with a base selector,
           replacing the old modal diff button. */}
-      {/* IC Debate entry — only surfaces for equity_research reports. Rendered
-          conditionally (not disabled+title) because a disabled element fires no
-          hover and title tooltips are mouse-only, so keyboard/touch users would
-          get no reason it is unavailable. The handler is already undefined off
-          equity, so off-equity reports simply omit the button. */}
-      {reportType === 'equity_research' && onOpenIcDebate && (
-        <ToolbarButton onClick={onOpenIcDebate} title={t('report.toolbar.icDebateTitle')}>
-          ⚖ {t('report.toolbar.icDebate')}
-        </ToolbarButton>
-      )}
     </div>
   )
 }

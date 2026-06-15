@@ -39,7 +39,7 @@ import { allChapterLabels } from './artifact-detail/chapters/labels'
 // type (dcf / lbo / ddm / comps / earnings / ic_memo / peer_research / ad_hoc)
 // is a single deterministic computation and renders through the compact viewer
 // — forcing them into the 13-chapter shell produced empty chapters + an
-// irrelevant TOC / IC debate / Ownership rail (BUG-20260602-039).
+// irrelevant TOC / Ownership rail (BUG-20260602-039).
 function isEquityResearch(type: string): boolean {
   return type === 'equity_research'
 }
@@ -227,7 +227,7 @@ export function ArtifactDetailPage(): React.ReactElement {
   }
 
   // ── Non-research artifacts: compact single-column viewer ──────────────────
-  // No 13-chapter TOC, no IC-debate entry, no Ownership/What-if right rail, no
+  // No 13-chapter TOC, no Ownership/What-if right rail, no
   // chapter scroll-spy status bar. Just the toolbar (type-aware) + the focused
   // compact body that shows the artifact's real inputs / result / audit trail.
   if (!isResearch) {
@@ -292,11 +292,6 @@ export function ArtifactDetailPage(): React.ReactElement {
             snapshotPrice={snapshotPrice}
             snapshotAsOf={snapshotAsOf}
             onExportHtml={handleExportHtml}
-            onOpenIcDebate={
-              data.type === 'equity_research'
-                ? () => navigate(`/ic/${symbol}?artifact_id=${artifactId}`)
-                : undefined
-            }
           />
         </div>
 

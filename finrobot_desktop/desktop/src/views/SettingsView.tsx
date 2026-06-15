@@ -320,8 +320,8 @@ export default function SettingsView() {
             </div>
             <div style={{ color: 'var(--text-muted)', fontSize: 11, lineHeight: 1.5 }}>
               {locale === 'zh'
-                ? `价格、财务、估值(DCF / LBO / 可比公司)等所有确定性数字无需配置即可使用;只有 AI 研报${AI_CHAT_ENABLED ? '、AI 对话' : ''}、投委会辩论需要一个模型。在下方选择 provider、填入 key 即可开始。`
-                : `Prices, financials, and valuations (DCF / LBO / comps) — every deterministic number — work with no key. Only AI reports${AI_CHAT_ENABLED ? ', AI chat, and' : ' and'} the IC debate need a model. Pick a provider below and add its key to begin.`}
+                ? `价格、财务、估值(DCF / LBO / 可比公司)等所有确定性数字无需配置即可使用;只有 AI 研报${AI_CHAT_ENABLED ? '、AI 对话' : ''}需要一个模型。在下方选择 provider、填入 key 即可开始。`
+                : `Prices, financials, and valuations (DCF / LBO / comps) — every deterministic number — work with no key. Only AI reports${AI_CHAT_ENABLED ? ' and AI chat' : ''} need a model. Pick a provider below and add its key to begin.`}
             </div>
           </div>
         )}

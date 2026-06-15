@@ -537,7 +537,7 @@ class TestAggregatorContract:
 
     def test_dcf_row_carries_load_bearing_assumptions(self) -> None:
         """A DCF mid is an answer conditional on WACC / growth fade / beta — the
-        row must carry those so the debate never cites the price naked (the $73
+        row must carry those so no consumer cites the price naked (the $73
         NVDA pathology). See _dcf_assumptions."""
         agg = aggregate_valuation(
             ticker="NVDA",

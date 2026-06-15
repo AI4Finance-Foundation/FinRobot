@@ -1160,36 +1160,6 @@ export interface paths {
     patch?: never
     trace?: never
   }
-  '/api/debate': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /**
-     * Create Debate
-     * @description Launch an IC debate run for an existing equity_research artifact.
-     *
-     *     Steps:
-     *       1. Fetch the artifact from ArtifactStore; 404 if absent.
-     *       2. Extract deterministic evidence from artifact.outputs.structured.
-     *       3. Create a run in RunStore (pipeline_type="debate").
-     *       4. Build debate agents from settings.
-     *       5. Fire off background task; return run_id immediately.
-     *
-     *     The caller streams debate.point / debate.verdict events via the existing
-     *     generic SSE endpoint:  GET /api/runs/{run_id}/events
-     */
-    post: operations['create_debate_api_debate_post']
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
   '/api/sec-holdings/status': {
     parameters: {
       query?: never
@@ -2342,18 +2312,6 @@ export interface components {
       result: components['schemas']['DCFResult']
       /** Base Implied Price */
       base_implied_price: number
-    }
-    /** DebateRequest */
-    DebateRequest: {
-      /** Ticker */
-      ticker: string
-      /** Artifact Id */
-      artifact_id: string
-    }
-    /** DebateResponse */
-    DebateResponse: {
-      /** Run Id */
-      run_id: string
     }
     /**
      * DeltaItem
@@ -5439,39 +5397,6 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['SentimentSnapshot']
-        }
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
-      }
-    }
-  }
-  create_debate_api_debate_post: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['DebateRequest']
-      }
-    }
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['DebateResponse']
         }
       }
       /** @description Validation Error */

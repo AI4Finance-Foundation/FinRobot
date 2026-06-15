@@ -197,12 +197,12 @@ export function StockWorkspace(): React.ReactElement {
             alignItems: 'start',
           }}
         >
-          {/* Semantic split: LEFT = every live market surface (quote, chart,
-              financials, catalysts, sentiment — all Non-AI), RIGHT = the AI
-              report column. The right column is sticky so when the longer
-              market rail scrolls, the report stays in view instead of leaving
-              trailing whitespace (it only pins while shorter than the
-              viewport — the hot multi-chapter state simply scrolls). */}
+          {/* Semantic split: LEFT = every live market surface (chart, multiples,
+              market-implied reverse-DCF, financials, catalysts, sentiment — all
+              Non-AI), RIGHT = the AI report column. The right column is sticky so
+              when the longer market rail scrolls, the report stays in view
+              instead of leaving trailing whitespace (it only pins while shorter
+              than the viewport — the hot multi-chapter state simply scrolls). */}
           <MarketDataZone ticker={symbol} />
           {/* PipelineProgressPanel is rendered inside AIZone — it shares
               the AI column's visual real estate (cold / running / hot are

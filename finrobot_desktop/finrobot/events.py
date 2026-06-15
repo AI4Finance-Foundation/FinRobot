@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal, TypeAlias
+from typing import Literal, TypeAlias
 
 from typing_extensions import Required, TypedDict
 
@@ -98,40 +98,6 @@ class RunCancelled(TypedDict):
     ticker: str
 
 
-class DebateEvidence(TypedDict):
-    event: Literal["debate.evidence"]
-    run_id: str
-    ticker: str
-    current_price: float
-    # Confidence tier carried from ValuationSynthesis.confidence (replaces the
-    # deleted binary `reliable`). One of high/medium/low/very_low — the debate
-    # always issues a directional verdict; this tier explains how firmly.
-    confidence: str
-    # True when the synthesis honestly withheld its POINT target (orthogonal to
-    # the directional call, which still ships).
-    valuation_withheld: bool
-    items: list[dict[str, Any]]  # each item: {evidence_id, label, value, unit, formula_id}
-
-
-class DebatePoint(TypedDict):
-    event: Literal["debate.point"]
-    run_id: str
-    side: str
-    claim: str
-    evidence_ids: list[str]
-    verified: bool
-    reason: str
-
-
-class DebateVerdict(TypedDict):
-    event: Literal["debate.verdict"]
-    run_id: str
-    call: str
-    conviction: float | None
-    swing_factor: str
-    change_my_mind: str
-
-
 RunEvent: TypeAlias = (
     RunStarted
     | StepStarted
@@ -141,7 +107,4 @@ RunEvent: TypeAlias = (
     | RunCompleted
     | RunFailed
     | RunCancelled
-    | DebateEvidence
-    | DebatePoint
-    | DebateVerdict
 )

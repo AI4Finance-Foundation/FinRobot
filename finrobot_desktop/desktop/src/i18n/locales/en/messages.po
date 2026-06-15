@@ -2189,10 +2189,6 @@ msgid "landing.hero.sourcedNote"
 msgstr "open for source / basis / formula"
 
 #. js-lingui-explicit-id
-msgid "landing.hero.icDebate"
-msgstr "Bull / Bear IC debate · conviction"
-
-#. js-lingui-explicit-id
 msgid "landing.hero.bull"
 msgstr "BULL"
 
@@ -2825,218 +2821,6 @@ msgid "workspace.missingTicker"
 msgstr "No ticker specified — enter one via search or your watchlist."
 
 #. js-lingui-explicit-id
-msgid "ic.toast.missingParams.title"
-msgstr "Missing parameters"
-
-#. js-lingui-explicit-id
-msgid "ic.toast.missingParams.desc"
-msgstr "Ticker or artifact_id is empty. Please enter the Investment Committee from a research report."
-
-#. js-lingui-explicit-id
-msgid "ic.toast.startFailed.title"
-msgstr "Unable to start the IC debate"
-
-#. js-lingui-explicit-id
-msgid "ic.error.missingTicker"
-msgstr "Missing ticker parameter in the URL"
-
-#. js-lingui-explicit-id
-msgid "ic.breadcrumb.back"
-msgstr "Back to committee list"
-
-#. js-lingui-explicit-id
-msgid "ic.breadcrumb.committee"
-msgstr "Committee"
-
-#. js-lingui-explicit-id
-msgid "ic.action.reset"
-msgstr "Reset"
-
-#. js-lingui-explicit-id
-msgid "ic.action.retry"
-msgstr "Retry debate"
-
-#. js-lingui-explicit-id
-msgid "ic.start.title"
-msgstr "AI Investment Committee Debate"
-
-#. js-lingui-explicit-id
-msgid "ic.start.desc"
-msgstr "Drawing on the structured data of the generated report, the system pits a Bull member against a Bear member in a cross-examination. Every claim carries a verification status and traceable evidence; the committee delivers a verdict with a Conviction Score and the conditions that would Change My Mind."
-
-#. js-lingui-explicit-id
-msgid "ic.start.reportId"
-msgstr "Report ID"
-
-#. js-lingui-explicit-id
-msgid "ic.start.viewReport"
-msgstr "View report →"
-
-#. js-lingui-explicit-id
-msgid "ic.start.noArtifactWarning"
-msgstr "No report linked — the debate cannot cite structured evidence data"
-
-#. js-lingui-explicit-id
-msgid "ic.start.cta"
-msgstr "Start IC debate"
-
-#. js-lingui-explicit-id
-msgid "ic.landing.subtitle"
-msgstr "AI bull and bear members debate the report data in a structured format, delivering a conviction-weighted verdict and the conditions that would change the call. Select a generated equity report to begin the committee process."
-
-#. js-lingui-explicit-id
-msgid "ic.landing.loading"
-msgstr "Loading reports…"
-
-#. js-lingui-explicit-id
-msgid "ic.landing.loadError"
-msgstr "Unable to load reports. Please check the backend service."
-
-#. js-lingui-explicit-id
-msgid "ic.landing.empty.title"
-msgstr "No equity reports yet"
-
-#. js-lingui-explicit-id
-msgid "ic.landing.empty.line1"
-msgstr "First generate an Equity Research report for the target ticker on the Stocks page,"
-
-#. js-lingui-explicit-id
-msgid "ic.landing.empty.line2"
-msgstr "then you can launch an IC debate here once the report is ready."
-
-#. js-lingui-explicit-id
-msgid "ic.landing.empty.cta"
-msgstr "Go to stock analysis"
-
-#. js-lingui-explicit-id
-msgid "ic.landing.row.aria"
-msgstr "Launch the IC debate for {ticker}"
-
-#. js-lingui-explicit-id
-msgid "ic.landing.row.reportDate"
-msgstr "Report {date}"
-
-#. js-lingui-explicit-id
-msgid "ic.verdict.lowConfidenceWarning"
-msgstr "Low data confidence — current market data quality is limited, so conviction has been lowered. The directional call still stands; weigh it carefully against the report details."
-
-#. js-lingui-explicit-id
-msgid "ic.verdict.unavailable"
-msgstr "Verdict unavailable"
-
-#. js-lingui-explicit-id
-msgid "ic.verdict.running"
-msgstr "IC debate in progress…"
-
-#. js-lingui-explicit-id
-msgid "ic.verdict.runningHint"
-msgstr "AI members are cross-examining the bull and bear arguments"
-
-#. js-lingui-explicit-id
-msgid "ic.verdict.callAria"
-msgstr "Committee verdict: {call}"
-
-#. js-lingui-explicit-id
-msgid "ic.verdict.convictionAria"
-msgstr "Conviction: {value}"
-
-#. js-lingui-explicit-id
-msgid "ic.verdict.changeMyMindTitle"
-msgstr "Conditions that would make the committee change its stance"
-
-#. js-lingui-explicit-id
-msgid "ic.verdict.changeMyMindLabel"
-msgstr "· Conditions to change the call"
-
-#. js-lingui-explicit-id
-msgid "ic.column.bull.empty"
-msgstr "Building the bull case…"
-
-#. js-lingui-explicit-id
-msgid "ic.column.bear.empty"
-msgstr "Building the bear case…"
-
-#. js-lingui-explicit-id
-msgid "ic.column.pointCount"
-msgstr "{count, plural, one {# point} other {# points}}"
-
-#. js-lingui-explicit-id
-msgid "ic.column.provisional"
-msgstr "Data reliability is degraded — the valuation figures cited below (incl. DCF / comps mids) are provisional, not firm conclusions"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.title"
-msgstr "Market-implied expectations"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.subtitle"
-msgstr "· reverse-solve what the market is betting"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.loading"
-msgstr "Reverse-solving…"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.lede"
-msgstr "The market price implies a FAMILY of assumption combos, not one valuation. Each reverse solve pins two axes and solves the third — read it as 'fixing X, the market requires Y':"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.axis.growth"
-msgstr "Growth · fix WACC + 5y"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.axis.wacc"
-msgstr "Discount · fix growth curve"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.axis.horizon"
-msgstr "Horizon · fix growth + WACC"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.tooltip.growth"
-msgstr "{g}% growth"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.tooltip.impliedYears"
-msgstr "Implied years"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.unreachable"
-msgstr "unreachable"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.years"
-msgstr "y"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.lineTitle"
-msgstr "growth → implied horizon equivalence line"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.fixedWacc"
-msgstr "fixed WACC"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.waccSlider"
-msgstr "discount WACC"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.priorNote"
-msgstr "✓/⚠ are analyst credibility priors, not an objective verdict; swap the fixed axes and the answer changes. The market price sits on this line — which segment you believe is your call."
-
-#. js-lingui-explicit-id
-msgid "ic.column.verified"
-msgstr "Data verified"
-
-#. js-lingui-explicit-id
-msgid "ic.column.unverified"
-msgstr "Unverified"
-
-#. js-lingui-explicit-id
-msgid "ic.column.unverifiedReason"
-msgstr "Unverified: {reason}"
-
-#. js-lingui-explicit-id
 msgid "chatpanel.model.configuredInSettings"
 msgstr "Model is configured in Settings"
 
@@ -3303,14 +3087,6 @@ msgstr "the model implies clear undervaluation"
 #. js-lingui-explicit-id
 msgid "chart.footballField.offScaleSuffix"
 msgstr " — audit the assumption sources before drawing conclusions."
-
-#. js-lingui-explicit-id
-msgid "report.toolbar.icDebate"
-msgstr "IC Debate"
-
-#. js-lingui-explicit-id
-msgid "report.toolbar.icDebateTitle"
-msgstr "Run a bull/bear debate on this report in the IC"
 
 #. js-lingui-explicit-id
 msgid "chart.series.revenue"
@@ -3677,14 +3453,6 @@ msgid "hotState.targetWithheld"
 msgstr "Target withheld · valuation methods diverged on cross-validation — open the report for the reconciliation detail →"
 
 #. js-lingui-explicit-id
-msgid "ic.action.backToReport"
-msgstr "Back to report"
-
-#. js-lingui-explicit-id
-msgid "ic.action.backToCoverage"
-msgstr "Back to Coverage"
-
-#. js-lingui-explicit-id
 msgid "coverage.starter.quickPick"
 msgstr "Quick start"
 
@@ -4029,18 +3797,6 @@ msgid "runs.error.alreadyActive"
 msgstr "A run for {ticker} is already in progress."
 
 #. js-lingui-explicit-id
-msgid "ic.error.debateFailed"
-msgstr "Debate failed. Please retry."
-
-#. js-lingui-explicit-id
-msgid "ic.error.sseDropped"
-msgstr "Stream connection lost ({n} consecutive errors). Check the backend service and retry."
-
-#. js-lingui-explicit-id
-msgid "ic.error.alreadyRunning"
-msgstr "A debate for this report is already in progress."
-
-#. js-lingui-explicit-id
 msgid "report.toolbar.rerunRunningTitle"
 msgstr "A run for {ticker} is already in progress"
 
@@ -4071,3 +3827,63 @@ msgstr "Provider status unavailable — backend unreachable."
 #. js-lingui-explicit-id
 msgid "workspace.market.degraded.priceHistoryStale"
 msgstr "Stale history · chart & 52w range from last cached bars (live source served quote only)"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.title"
+msgstr "Market-implied expectations"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.subtitle"
+msgstr "· reverse-solve what the market is betting"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.loading"
+msgstr "Reverse-solving…"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.lede"
+msgstr "The market price implies a FAMILY of assumption combos, not one valuation. Each reverse solve pins two axes and solves the third — read it as 'fixing X, the market requires Y':"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.axis.growth"
+msgstr "Growth · fix WACC + 5y"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.axis.wacc"
+msgstr "Discount · fix growth curve"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.axis.horizon"
+msgstr "Horizon · fix growth + WACC"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.tooltip.growth"
+msgstr "{g}% growth"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.tooltip.impliedYears"
+msgstr "Implied years"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.unreachable"
+msgstr "unreachable"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.years"
+msgstr "y"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.lineTitle"
+msgstr "growth → implied horizon equivalence line"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.fixedWacc"
+msgstr "fixed WACC"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.waccSlider"
+msgstr "discount WACC"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.priorNote"
+msgstr "✓/⚠ are analyst credibility priors, not an objective verdict; swap the fixed axes and the answer changes. The market price sits on this line — which segment you believe is your call."

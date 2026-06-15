@@ -192,7 +192,7 @@ class FinRobotSettings(BaseSettings):
     # startup_error state and a banner that read like the product *demands*
     # OpenAI. Empty = "no model chosen yet" — a normal first-run onboarding
     # state, NOT an error: the deterministic data layer (prices/financials/DCF)
-    # runs without any LLM key; only AI report/chat/debate need a model. The
+    # runs without any LLM key; only AI report/chat need a model. The
     # server distinguishes empty (onboarding) from set-but-broken (real error)
     # via ``runtime_config_error`` / ``is_model_configured``.
     model_name: str = ""

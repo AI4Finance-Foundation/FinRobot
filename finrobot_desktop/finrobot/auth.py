@@ -44,7 +44,7 @@ _BEARER_PREFIX = "Bearer "
 def _extract_token(request: Request) -> str | None:
     """Pull the presented token from the Authorization header or ?token=.
 
-    EventSource (SSE) cannot set request headers, so the runs/debate event
+    EventSource (SSE) cannot set request headers, so the run event
     streams pass the token as a ``token`` query parameter instead.
     """
     header = request.headers.get("Authorization")

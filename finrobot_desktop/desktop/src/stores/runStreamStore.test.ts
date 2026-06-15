@@ -349,7 +349,8 @@ describe('restart reattach (P1-30)', () => {
         ticker: 'MSFT',
         created_at: '2026-06-10T00:00:01+00:00',
       },
-      // debate run — different surface (debateStore), ephemeral by design
+      // legacy debate run — feature removed; a stale local DB may still hold
+      // such rows and they must never resurrect on reattach
       {
         run_id: 'run-debate',
         status: 'running',

@@ -3,8 +3,9 @@
 // FMP / Adanos whether or not a pipeline has run on this ticker.
 //
 // One export: MarketDataZone — the LEFT column of the workspace grid, carrying
-// EVERY live (Non-AI) surface: quote snapshot, price trend, financials TTM,
-// catalyst calendar, retail sentiment. The right column is the AI/report side
+// EVERY live (Non-AI) surface, ordered by analyst importance: price trend →
+// valuation snapshot → market-implied expectations (reverse-DCF) → financials
+// TTM → catalyst calendar → retail sentiment. The right column is the AI/report side
 // (AIZone) — the semantic split is market vs report, full stop. (An earlier
 // layout moved catalysts + sentiment to a full-width band below the grid for
 // column-height symmetry; that read as "catalysts = market, sentiment = AI",
@@ -25,6 +26,7 @@ import { useI18n, tSync, type Locale } from '../../i18n'
 import { formatCurrencyCompact } from '../../utils/format'
 import { degradedLabel } from './degradedLabel'
 import { PriceTrendChart } from '../../components/charts/PriceTrendChart'
+import { MarketImpliedPanel } from '../../components/valuation/MarketImpliedPanel'
 
 interface MarketDataZoneProps {
   ticker: string
@@ -64,7 +66,27 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
       <ZoneHeader />
       <p style={zoneDesc}>{t('workspace.market.zoneDesc')}</p>
 
-      {/* 行情快照 */}
+      {/* Price chart — the visual anchor. Analysts orient on price action +
+          52w range first, so the richest single surface leads the column. */}
+      <MktCard title={t('workspace.market.priceTrend')} liveTag={providerTag(price?.data_source)}>
+        {priceError ? (
+          <CardError status={priceErr?.status} onRetry={() => void refetchPrice()} />
+        ) : (
+          <>
+            <PriceTrendChart
+              points={price?.history ?? null}
+              loading={pricePending}
+              currentPrice={price?.current_price}
+              sessionState={price?.session_state}
+            />
+            <TechnicalsStrip tech={price?.technicals} />
+            <WarningLines warnings={price?.warnings} />
+          </>
+        )}
+      </MktCard>
+
+      {/* 行情快照 — valuation multiples + size at a glance (the "what's it
+          worth" context the reverse-DCF probe below then interrogates). */}
       <MktCard title={t('workspace.market.snapshot')} liveTag={providerTag(fin?.data_source)}>
         {finError ? (
           <CardError status={finErr?.status} onRetry={() => void refetchFin()} />
@@ -101,23 +123,10 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
         )}
       </MktCard>
 
-      {/* Price chart */}
-      <MktCard title={t('workspace.market.priceTrend')} liveTag={providerTag(price?.data_source)}>
-        {priceError ? (
-          <CardError status={priceErr?.status} onRetry={() => void refetchPrice()} />
-        ) : (
-          <>
-            <PriceTrendChart
-              points={price?.history ?? null}
-              loading={pricePending}
-              currentPrice={price?.current_price}
-              sessionState={price?.session_state}
-            />
-            <TechnicalsStrip tech={price?.technicals} />
-            <WarningLines warnings={price?.warnings} />
-          </>
-        )}
-      </MktCard>
+      {/* Market-implied expectations — reverse-DCF probe that interrogates what
+          today's price requires you to believe. Placed right after the multiples
+          it reasons about; expanded by default (a primary valuation surface). */}
+      <MarketImpliedPanel ticker={ticker} />
 
       {/* Financial TTM */}
       <MktCard title={t('workspace.market.financialsTtm')} liveTag={providerTag(fin?.data_source)}>

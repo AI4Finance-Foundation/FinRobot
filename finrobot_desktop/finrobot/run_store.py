@@ -416,9 +416,8 @@ class RunStore:
         fetches trailing events, so the terminal event MUST be committed
         before the status flip or a poll landing in the gap never emits it
         (the client EventSource then reconnect-storms into the "请检查后端服务"
-        banner). runs.py honored this in a comment; debate.py wrote it
-        backwards — an invariant two call sites must share belongs in the
-        store, not in prose.
+        banner). An invariant every event writer must share belongs in the
+        store, not in each call site's prose.
         """
         await self.append_event(run_id, terminal_event)
         await self.update_run(

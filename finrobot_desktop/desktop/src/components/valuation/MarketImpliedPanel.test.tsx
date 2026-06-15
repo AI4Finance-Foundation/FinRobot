@@ -1,15 +1,15 @@
 /**
  * MarketImpliedPanel — wrong-ticker regression guard.
  *
- * The panel lazily caches seed/line/wacc in local state behind an
- * `if (!open || seed) return` effect. Mount points survive navigation
- * (/ic/AAPL → /ic/MSFT renders the same element), so without an explicit
+ * The panel caches seed/line/wacc in local state and fetches on mount
+ * (expanded by default). Mount points survive navigation (/stocks/AAPL →
+ * /stocks/MSFT renders the same element), so without an explicit
  * reset-on-ticker-change the panel kept showing ticker A's market-implied
  * growth/WACC under ticker B's header — a wrong-ticker number on an
  * analyst-facing panel.
  */
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MarketImpliedPanel } from './MarketImpliedPanel'
 
@@ -62,12 +62,12 @@ describe('MarketImpliedPanel ticker change', () => {
     fetchMock.mockReset()
   })
 
-  it('drops cached seed and collapses when the ticker changes', async () => {
+  it('drops cached seed and re-fetches when the ticker changes', async () => {
     mockBackend(0.25)
     const { rerender } = render(<MarketImpliedPanel ticker="AAPL" />)
 
-    fireEvent.click(screen.getByRole('button'))
-    // Seed loaded: the growth anchor card renders 25%.
+    // Expanded by default: the seed loads on mount, the growth anchor card
+    // renders 25% with no click needed.
     await waitFor(() => expect(screen.getByText('25%')).toBeInTheDocument())
 
     // Same element, new ticker — the stale AAPL probe must NOT survive.
@@ -75,8 +75,7 @@ describe('MarketImpliedPanel ticker change', () => {
     rerender(<MarketImpliedPanel ticker="MSFT" />)
     await waitFor(() => expect(screen.queryByText('25%')).not.toBeInTheDocument())
 
-    // Re-opening fetches MSFT's own seed (not the cached AAPL one).
-    fireEvent.click(screen.getByRole('button'))
+    // Stays expanded and fetches MSFT's own seed (not the cached AAPL one).
     await waitFor(() => expect(screen.getByText('40%')).toBeInTheDocument())
     const seedCalls = fetchMock.mock.calls.filter(([u]) => String(u).includes('dcf-seed'))
     expect(seedCalls).toHaveLength(2)

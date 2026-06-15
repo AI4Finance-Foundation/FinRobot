@@ -2189,10 +2189,6 @@ msgid "landing.hero.sourcedNote"
 msgstr "点开看数据源 / 口径 / 公式"
 
 #. js-lingui-explicit-id
-msgid "landing.hero.icDebate"
-msgstr "多空 IC 辩论 · 信念分"
-
-#. js-lingui-explicit-id
 msgid "landing.hero.bull"
 msgstr "看多"
 
@@ -2825,218 +2821,6 @@ msgid "workspace.missingTicker"
 msgstr "缺少股票代码，请通过搜索或自选股进入。"
 
 #. js-lingui-explicit-id
-msgid "ic.toast.missingParams.title"
-msgstr "参数缺失"
-
-#. js-lingui-explicit-id
-msgid "ic.toast.missingParams.desc"
-msgstr "ticker 或 artifact_id 为空，请从研报页面进入投委会"
-
-#. js-lingui-explicit-id
-msgid "ic.toast.startFailed.title"
-msgstr "无法启动投委会辩论"
-
-#. js-lingui-explicit-id
-msgid "ic.error.missingTicker"
-msgstr "URL 中缺少 ticker 参数"
-
-#. js-lingui-explicit-id
-msgid "ic.breadcrumb.back"
-msgstr "返回投委会列表"
-
-#. js-lingui-explicit-id
-msgid "ic.breadcrumb.committee"
-msgstr "投委会"
-
-#. js-lingui-explicit-id
-msgid "ic.action.reset"
-msgstr "重置"
-
-#. js-lingui-explicit-id
-msgid "ic.action.retry"
-msgstr "重试辩论"
-
-#. js-lingui-explicit-id
-msgid "ic.start.title"
-msgstr "AI 投委会对抗辩论"
-
-#. js-lingui-explicit-id
-msgid "ic.start.desc"
-msgstr "系统将基于已生成研报的结构化数据，驱动 Bull 委员和 Bear 委员进行交叉辩论。每条论点均附核验状态与溯源证据，委员会最终输出带信念度（Conviction Score）的裁决及\"改变立场所需条件\"（Change My Mind）。"
-
-#. js-lingui-explicit-id
-msgid "ic.start.reportId"
-msgstr "研报 ID"
-
-#. js-lingui-explicit-id
-msgid "ic.start.viewReport"
-msgstr "查看研报 →"
-
-#. js-lingui-explicit-id
-msgid "ic.start.noArtifactWarning"
-msgstr "未关联研报 — 辩论将无法引用结构化证据数据"
-
-#. js-lingui-explicit-id
-msgid "ic.start.cta"
-msgstr "开始投委会辩论"
-
-#. js-lingui-explicit-id
-msgid "ic.landing.subtitle"
-msgstr "AI 多空委员围绕研报数据进行结构化辩论，输出带信念度的裁决与改变立场条件。选择一份已生成的股票研报开始投委会流程。"
-
-#. js-lingui-explicit-id
-msgid "ic.landing.loading"
-msgstr "加载研报列表…"
-
-#. js-lingui-explicit-id
-msgid "ic.landing.loadError"
-msgstr "无法加载研报列表，请检查后端服务"
-
-#. js-lingui-explicit-id
-msgid "ic.landing.empty.title"
-msgstr "暂无股票研报"
-
-#. js-lingui-explicit-id
-msgid "ic.landing.empty.line1"
-msgstr "请先在「个股」页面为目标 ticker 生成 Equity Research 研报，"
-
-#. js-lingui-explicit-id
-msgid "ic.landing.empty.line2"
-msgstr "研报生成后即可在此发起投委会辩论。"
-
-#. js-lingui-explicit-id
-msgid "ic.landing.empty.cta"
-msgstr "前往个股分析"
-
-#. js-lingui-explicit-id
-msgid "ic.landing.row.aria"
-msgstr "发起 {ticker} 投委会辩论"
-
-#. js-lingui-explicit-id
-msgid "ic.landing.row.reportDate"
-msgstr "研报 {date}"
-
-#. js-lingui-explicit-id
-msgid "ic.verdict.lowConfidenceWarning"
-msgstr "数据置信偏低 — 当前行情数据质量受限，conviction 已下调。方向判断仍然成立；请结合研报细节审慎参考。"
-
-#. js-lingui-explicit-id
-msgid "ic.verdict.unavailable"
-msgstr "裁决不可用"
-
-#. js-lingui-explicit-id
-msgid "ic.verdict.running"
-msgstr "投委会辩论进行中…"
-
-#. js-lingui-explicit-id
-msgid "ic.verdict.runningHint"
-msgstr "AI 委员正在就多空论据交叉核验"
-
-#. js-lingui-explicit-id
-msgid "ic.verdict.callAria"
-msgstr "委员会裁决: {call}"
-
-#. js-lingui-explicit-id
-msgid "ic.verdict.convictionAria"
-msgstr "信念度: {value}"
-
-#. js-lingui-explicit-id
-msgid "ic.verdict.changeMyMindTitle"
-msgstr "使委员会改变立场所需的条件"
-
-#. js-lingui-explicit-id
-msgid "ic.verdict.changeMyMindLabel"
-msgstr "· 改变裁决所需条件"
-
-#. js-lingui-explicit-id
-msgid "ic.column.bull.empty"
-msgstr "多头论点积累中…"
-
-#. js-lingui-explicit-id
-msgid "ic.column.bear.empty"
-msgstr "空头论点积累中…"
-
-#. js-lingui-explicit-id
-msgid "ic.column.pointCount"
-msgstr "{count} 条论点"
-
-#. js-lingui-explicit-id
-msgid "ic.column.provisional"
-msgstr "数据可靠性不足 — 以下论点引用的估值数字（含 DCF / comps 中值）仅供参考，请勿当作确定结论"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.title"
-msgstr "市场隐含预期"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.subtitle"
-msgstr "· 反解市场押了什么"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.loading"
-msgstr "反解中…"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.lede"
-msgstr "市场价不对应一个估值，对应一族假设组合。三个反解各钉死两根轴、解第三根——读法是「固定 X，市场就要求 Y」："
-
-#. js-lingui-explicit-id
-msgid "ic.implied.axis.growth"
-msgstr "增长轴 · 固定 WACC + 5年"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.axis.wacc"
-msgstr "折现轴 · 固定增长曲线"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.axis.horizon"
-msgstr "年限轴 · 固定增长 + WACC"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.tooltip.growth"
-msgstr "{g}% 增长"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.tooltip.impliedYears"
-msgstr "隐含年限"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.unreachable"
-msgstr "够不着"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.years"
-msgstr "年"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.lineTitle"
-msgstr "增长 → 隐含年限 等价线"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.fixedWacc"
-msgstr "固定 WACC"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.waccSlider"
-msgstr "折现率 WACC"
-
-#. js-lingui-explicit-id
-msgid "ic.implied.priorNote"
-msgstr "✓/⚠ 是 analyst 可信先验，不是算法客观结论；换一组固定的轴，结论就变。市场价落在这条线上，你信线上哪一段，是你的判断。"
-
-#. js-lingui-explicit-id
-msgid "ic.column.verified"
-msgstr "数据已核验"
-
-#. js-lingui-explicit-id
-msgid "ic.column.unverified"
-msgstr "未核验"
-
-#. js-lingui-explicit-id
-msgid "ic.column.unverifiedReason"
-msgstr "未核验: {reason}"
-
-#. js-lingui-explicit-id
 msgid "chatpanel.model.configuredInSettings"
 msgstr "模型在 Settings 中配置"
 
@@ -3303,14 +3087,6 @@ msgstr "模型隐含明显低估"
 #. js-lingui-explicit-id
 msgid "chart.footballField.offScaleSuffix"
 msgstr "，请审计假设来源后再下结论。"
-
-#. js-lingui-explicit-id
-msgid "report.toolbar.icDebate"
-msgstr "投委会"
-
-#. js-lingui-explicit-id
-msgid "report.toolbar.icDebateTitle"
-msgstr "在投委会对此研报进行多空辩论"
 
 #. js-lingui-explicit-id
 msgid "chart.series.revenue"
@@ -3677,14 +3453,6 @@ msgid "hotState.targetWithheld"
 msgstr "目标价暂缓给出 · 估值方法在交叉验证中分歧 — 打开研报查看勾稽核对明细 →"
 
 #. js-lingui-explicit-id
-msgid "ic.action.backToReport"
-msgstr "返回研报"
-
-#. js-lingui-explicit-id
-msgid "ic.action.backToCoverage"
-msgstr "返回研究库"
-
-#. js-lingui-explicit-id
 msgid "coverage.starter.quickPick"
 msgstr "快速开始"
 
@@ -4029,18 +3797,6 @@ msgid "runs.error.alreadyActive"
 msgstr "{ticker} 已有任务正在运行。"
 
 #. js-lingui-explicit-id
-msgid "ic.error.debateFailed"
-msgstr "投委会辩论失败，请重试"
-
-#. js-lingui-explicit-id
-msgid "ic.error.sseDropped"
-msgstr "SSE 连接中断（连续 {n} 次错误）。请检查后端服务后重试。"
-
-#. js-lingui-explicit-id
-msgid "ic.error.alreadyRunning"
-msgstr "该报告的辩论已在进行中。"
-
-#. js-lingui-explicit-id
 msgid "report.toolbar.rerunRunningTitle"
 msgstr "{ticker} 已有任务正在运行"
 
@@ -4071,3 +3827,63 @@ msgstr "数据源状态不可用——后端未连接。"
 #. js-lingui-explicit-id
 msgid "workspace.market.degraded.priceHistoryStale"
 msgstr "历史K线为缓存旧数据 · 实时源仅提供现价"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.title"
+msgstr "市场隐含预期"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.subtitle"
+msgstr "· 反解市场押了什么"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.loading"
+msgstr "反解中…"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.lede"
+msgstr "市场价不对应一个估值，对应一族假设组合。三个反解各钉死两根轴、解第三根——读法是「固定 X，市场就要求 Y」："
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.axis.growth"
+msgstr "增长轴 · 固定 WACC + 5年"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.axis.wacc"
+msgstr "折现轴 · 固定增长曲线"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.axis.horizon"
+msgstr "年限轴 · 固定增长 + WACC"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.tooltip.growth"
+msgstr "{g}% 增长"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.tooltip.impliedYears"
+msgstr "隐含年限"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.unreachable"
+msgstr "够不着"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.years"
+msgstr "年"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.lineTitle"
+msgstr "增长 → 隐含年限 等价线"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.fixedWacc"
+msgstr "固定 WACC"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.waccSlider"
+msgstr "折现率 WACC"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.priorNote"
+msgstr "✓/⚠ 是 analyst 可信先验，不是算法客观结论；换一组固定的轴，结论就变。市场价落在这条线上，你信线上哪一段，是你的判断。"

@@ -42,7 +42,7 @@ export async function getCapabilityToken(): Promise<string | null> {
 
 /**
  * Append the capability token as a `token` query parameter. EventSource (SSE)
- * cannot set an Authorization header, so the runs/debate event streams carry
+ * cannot set an Authorization header, so the run event streams carry
  * the token this way instead. Returns the URL unchanged when no token is
  * configured (browser dev).
  */

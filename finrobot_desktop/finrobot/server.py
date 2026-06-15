@@ -39,7 +39,6 @@ from finrobot.routes.coverage import router as coverage_router
 from finrobot.routes.dashboard import router as dashboard_router
 from finrobot.routes.data import router as data_router
 from finrobot.routes.health import router as health_router
-from finrobot.routes.debate import router as debate_router
 from finrobot.routes.runs import router as runs_router
 from finrobot.routes.sec_holdings import router as sec_holdings_router
 from finrobot.routes.settings import load_non_secret_settings_with_error
@@ -316,8 +315,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # full (BUG-043). 429 only fires under abnormal volume — buckets are sized
     # well above the largest legitimate coverage batch.
     app.state.run_rate_limiter = RunRateLimiter()
-    # Submit-time LLM key-validity gate for the run-spawning endpoints (runs,
-    # debate): is_model_configured proves a key exists, this proves it can
+    # Submit-time LLM key-validity gate for the run-spawning endpoints (runs):
+    # is_model_configured proves a key exists, this proves it can
     # authenticate. Success cached per (model, key) fingerprint; a green
     # Settings auto-test pre-seeds it. See finrobot/llm_probe.py.
     app.state.llm_probe_gate = LlmProbeGate()
@@ -556,7 +555,6 @@ app.include_router(coverage_router)
 app.include_router(dashboard_router)
 app.include_router(valuation_router)
 app.include_router(sentiment_router)
-app.include_router(debate_router)
 app.include_router(sec_holdings_router)
 
 

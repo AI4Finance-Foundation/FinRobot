@@ -469,7 +469,7 @@ async def compute_dcf_what_if(
 class DcfEquivalenceLineRequest(BaseModel):
     """Inputs for the (growth, horizon) equivalence line at a fixed WACC.
 
-    Powers the IC-debate 'market-implied expectations' expert probe: for a fixed
+    Powers the 'market-implied expectations' reverse-DCF probe: for a fixed
     discount rate, every point on the line is a (constant growth, explicit-window
     length) pair that reprices the stock to ``target_price``. The line *is* the
     honest answer — the market price implies a family of (growth, horizon) combos,

@@ -67,7 +67,7 @@ function CockpitMotes(): React.ReactElement {
 
 // The five capability modules in the bottom dock. Each maps to a real engine
 // surface (compute/operators: dcf · ddm · lbo · multiples · monte_carlo ·
-// sniper · ownership · catalyst · signal; engine/agents IC debate). Copy lives
+// sniper · ownership · catalyst · signal). Copy lives
 // in i18n (landing.dock.*); `meta` is a mono tag kept as a Latin identifier in
 // both locales (like ticker / DCF).
 const MODULES = [

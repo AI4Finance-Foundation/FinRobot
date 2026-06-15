@@ -110,3 +110,7 @@ desktop/src-tauri/icon-source.png
 .coverage
 .coverage.*
 htmlcov/
+
+# Playwright output — .last-run.json marker + traces/screenshots/report, regenerated each run.
+test-results/
+playwright-report/

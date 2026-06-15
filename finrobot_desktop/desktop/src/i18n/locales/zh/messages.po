@@ -2501,6 +2501,10 @@ msgid "workspace.market.snapshot"
 msgstr "📊 行情快照"
 
 #. js-lingui-explicit-id
+msgid "workspace.market.valuationBand"
+msgstr "📐 倍数 vs 自身历史"
+
+#. js-lingui-explicit-id
 msgid "workspace.market.priceTrend"
 msgstr "📈 价格趋势"
 

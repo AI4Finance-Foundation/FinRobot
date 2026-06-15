@@ -2501,6 +2501,10 @@ msgid "workspace.market.snapshot"
 msgstr "📊 Quote Snapshot"
 
 #. js-lingui-explicit-id
+msgid "workspace.market.valuationBand"
+msgstr "📐 Multiple vs Own History"
+
+#. js-lingui-explicit-id
 msgid "workspace.market.priceTrend"
 msgstr "📈 Price Trend"
 

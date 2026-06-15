@@ -219,6 +219,43 @@ export function useTickerCatalysts(ticker: string) {
   })
 }
 
+// Mirror of finrobot.engine.primitives.historical_valuation output — the
+// current multiple vs the company's OWN multi-year percentile band. Same shape
+// the report freezes into technical_analysis.historical_bands.
+export interface HistoricalBand {
+  ticker?: string
+  metric?: 'ev_ebitda' | 'p_fcf' | string
+  current?: number | null
+  median?: number | null
+  p25?: number | null
+  p75?: number | null
+  p90?: number | null
+  sample_count?: number
+  classification?: 'expensive' | 'fair' | 'cheap' | 'unknown'
+  // Backend-generated, may be Chinese prose — NOT rendered raw in the EN UI.
+  warnings?: string[]
+}
+
+/** Fetch the current multiple vs its own multi-year band (EV/EBITDA · P/FCF).
+ *  Powers the workspace "vs own history" card — Koyfin's signature, pre-report.
+ *  Cheap + server-cached for studied tickers; cold tickers compute under the
+ *  heavy budget. Bands move slowly (annual percentiles) → long staleTime. */
+export function useTickerHistoricalBands(ticker: string) {
+  return useQuery<HistoricalBand, FetchHttpError>({
+    queryKey: ['ticker-historical-bands', ticker],
+    queryFn: ({ signal }) =>
+      fetchJsonOrThrowHttp<HistoricalBand>(
+        `${BASE_URL}/api/valuation/historical-bands/${ticker}`,
+        signal,
+        HEAVY_API_TIMEOUT_MS,
+      ),
+    enabled: !!ticker,
+    staleTime: 30 * 60_000,
+    refetchOnMount: false,
+    retry: false,
+  })
+}
+
 /** Fetch financial data for a ticker. */
 export function useTickerFinancials(ticker: string) {
   return useQuery<FinancialsData, FetchHttpError>({

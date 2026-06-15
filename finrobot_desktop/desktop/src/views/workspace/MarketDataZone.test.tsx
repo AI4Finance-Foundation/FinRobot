@@ -22,13 +22,19 @@ vi.mock('../../hooks/useTickerData', () => ({
   useTickerPrice: vi.fn(),
   useTickerFinancials: vi.fn(),
   useTickerCatalysts: vi.fn(),
+  useTickerHistoricalBands: vi.fn(),
 }))
 vi.mock('../../hooks/useTickerSentiment', () => ({
   useTickerSentiment: vi.fn(),
 }))
 
 import { MarketDataZone } from './MarketDataZone'
-import { useTickerPrice, useTickerFinancials, useTickerCatalysts } from '../../hooks/useTickerData'
+import {
+  useTickerPrice,
+  useTickerFinancials,
+  useTickerCatalysts,
+  useTickerHistoricalBands,
+} from '../../hooks/useTickerData'
 import { useTickerSentiment, type SentimentSnapshot } from '../../hooks/useTickerSentiment'
 
 type AnyQuery = Record<string, unknown>
@@ -73,6 +79,8 @@ beforeEach(() => {
   vi.mocked(useTickerFinancials).mockReturnValue(settled({}) as never)
   vi.mocked(useTickerCatalysts).mockReturnValue(settled([]) as never)
   vi.mocked(useTickerSentiment).mockReturnValue(settled(SENTIMENT_OK) as never)
+  // Band card hides when no band — the existing cases don't assert on it.
+  vi.mocked(useTickerHistoricalBands).mockReturnValue({ data: undefined } as never)
 })
 
 describe('MarketDataZone — catalyst calendar loading state', () => {
@@ -158,5 +166,33 @@ describe('MarketDataZone — retail sentiment honest states', () => {
     renderZone()
     expect(screen.getByTestId('sentiment-available')).toBeInTheDocument()
     expect(screen.queryByTestId('sentiment-unconfigured')).not.toBeInTheDocument()
+  })
+})
+
+describe('MarketDataZone — valuation band card', () => {
+  const BAND = {
+    ticker: 'NVDA',
+    metric: 'ev_ebitda',
+    current: 15,
+    p25: 22,
+    median: 24,
+    p75: 26,
+    p90: 29,
+    sample_count: 751,
+    classification: 'cheap',
+  }
+
+  it('renders the multiple-vs-own-history card when a band is present', () => {
+    vi.mocked(useTickerHistoricalBands).mockReturnValue({ data: BAND } as never)
+    renderZone()
+    expect(screen.getByText(/Multiple vs Own History/i)).toBeInTheDocument()
+    expect(screen.getByText('cheap')).toBeInTheDocument() // classification badge
+    expect(screen.getByText(/now 15\.0/)).toBeInTheDocument() // current multiple marker
+  })
+
+  it('hides the card when no band could be computed (cold ticker / thin history)', () => {
+    vi.mocked(useTickerHistoricalBands).mockReturnValue({ data: undefined } as never)
+    renderZone()
+    expect(screen.queryByText(/Multiple vs Own History/i)).not.toBeInTheDocument()
   })
 })

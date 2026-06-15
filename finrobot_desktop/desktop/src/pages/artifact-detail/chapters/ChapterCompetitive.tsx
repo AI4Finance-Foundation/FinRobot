@@ -20,6 +20,19 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
   const peerList = (peers?.peers ?? []).filter((p) => !target || p.ticker !== target.ticker)
   const all = target ? [target, ...peerList] : peerList
 
+  // Per-column peer median for cell heat-shading. Need ≥3 peers for the median to
+  // be stable; below that, leave the table un-shaded (nulls → heat() no-ops).
+  const med =
+    peerList.length >= 3
+      ? {
+          pe: peerMedian(peerList.map((p) => p.pe_ratio)),
+          corePe: peerMedian(peerList.map((p) => p.core_pe_ratio)),
+          evEbitda: peerMedian(peerList.map((p) => p.ev_ebitda)),
+          gross: peerMedian(peerList.map((p) => p.gross_margin)),
+          opMargin: peerMedian(peerList.map((p) => p.operating_margin)),
+        }
+      : { pe: null, corePe: null, evEbitda: null, gross: null, opMargin: null }
+
   // No fitting i18n key for the NOPAT-core caliber — inline literal per the
   // VersionDiffBanner precedent (do not touch .po in this task). The comps
   // price target (football-field "Comps (core P/E)") is computed on this core
@@ -101,6 +114,13 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
             <tbody>
               {all.map((c, i) => {
                 const isTarget = i === 0 && target !== undefined
+                const h = {
+                  pe: heat(c.pe_ratio, med.pe, true),
+                  corePe: heat(c.core_pe_ratio, med.corePe, true),
+                  ev: heat(c.ev_ebitda, med.evEbitda, true),
+                  gross: heat(c.gross_margin, med.gross, false),
+                  op: heat(c.operating_margin, med.opMargin, false),
+                }
                 return (
                   <tr
                     key={`${isTarget ? 'target' : 'peer'}:${c.ticker}:${i}`}
@@ -141,7 +161,10 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
                         mislabel the normalized values (BUG-030). */}
                       {formatCurrencyCompact(c.revenue, 'USD', locale)}
                     </td>
-                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                    <td
+                      style={{ ...tdStyle, textAlign: 'right', ...h.pe.style }}
+                      title={h.pe.title}
+                    >
                       {c.pe_ratio !== null && c.pe_ratio !== undefined
                         ? c.pe_ratio.toFixed(1)
                         : '—'}
@@ -151,21 +174,32 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
                         ...tdStyle,
                         textAlign: 'right',
                         color: 'var(--accent-cyan)',
+                        ...h.corePe.style,
                       }}
+                      title={h.corePe.title}
                     >
                       {c.core_pe_ratio !== null && c.core_pe_ratio !== undefined
                         ? c.core_pe_ratio.toFixed(1)
                         : '—'}
                     </td>
-                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                    <td
+                      style={{ ...tdStyle, textAlign: 'right', ...h.ev.style }}
+                      title={h.ev.title}
+                    >
                       {c.ev_ebitda !== null && c.ev_ebitda !== undefined
                         ? c.ev_ebitda.toFixed(1)
                         : '—'}
                     </td>
-                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                    <td
+                      style={{ ...tdStyle, textAlign: 'right', ...h.gross.style }}
+                      title={h.gross.title}
+                    >
                       {c.gross_margin != null ? (c.gross_margin * 100).toFixed(1) + '%' : '—'}
                     </td>
-                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                    <td
+                      style={{ ...tdStyle, textAlign: 'right', ...h.op.style }}
+                      title={h.op.title}
+                    >
                       {c.operating_margin != null
                         ? (c.operating_margin * 100).toFixed(1) + '%'
                         : '—'}
@@ -263,4 +297,44 @@ const mutedNote: React.CSSProperties = {
   background: 'var(--bg-card-50)',
   border: '1px dashed var(--border-soft)',
   borderRadius: 'var(--radius-sm)',
+}
+
+// ── Comps heat-shading ──────────────────────────────────────────────────────
+// Shade each numeric cell by its signed deviation from THIS table's peer median
+// (computed over the visible peers, the same set the football-field comps target
+// anchored on — "cite the computation"). Conventional comps read: lower multiple
+// = cheaper = green; higher margin = better = green (涨绿跌红). Subtle by design —
+// a scannability aid, never a verdict (the call lives on the cover).
+function peerMedian(nums: Array<number | null | undefined>): number | null {
+  const xs = nums.filter((n): n is number => typeof n === 'number' && Number.isFinite(n))
+  if (xs.length === 0) return null
+  const sorted = [...xs].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2
+}
+
+interface HeatCell {
+  style?: React.CSSProperties
+  title?: string
+}
+
+// lowerFavorable: true for valuation multiples (cheaper = green), false for
+// margins (higher = green). Deadband ±5% of median reads as "in line" (no tint).
+function heat(
+  value: number | null | undefined,
+  med: number | null,
+  lowerFavorable: boolean,
+): HeatCell {
+  if (value == null || !Number.isFinite(value) || med == null || med <= 0) return {}
+  const dev = (value - med) / Math.abs(med)
+  if (Math.abs(dev) < 0.05) return {}
+  const favorable = lowerFavorable ? dev < 0 : dev > 0
+  const intensity = Math.min(1, (Math.abs(dev) - 0.05) / 0.6)
+  const alpha = Math.round(6 + intensity * 14) // 6%–20%
+  return {
+    style: {
+      background: `color-mix(in srgb, ${favorable ? 'var(--success)' : 'var(--danger)'} ${alpha}%, transparent)`,
+    },
+    title: `${dev > 0 ? '+' : ''}${(dev * 100).toFixed(0)}% vs peer median`,
+  }
 }

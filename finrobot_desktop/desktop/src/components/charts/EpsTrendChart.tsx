@@ -1,4 +1,13 @@
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from 'recharts'
+import {
+  BarChart,
+  Bar,
+  Cell,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  LabelList,
+} from 'recharts'
 import { useI18n } from '../../i18n'
 import { CosmicTooltipShell, CosmicTooltipRow } from './chartTooltip'
 
@@ -14,6 +23,15 @@ interface ChartProps {
 }
 
 const BAR_COLOR = 'var(--primary)'
+
+// Color each EPS bar by its YoY direction (涨绿跌红): growth green, contraction
+// red, the baseline year (no prior comparison) neutral. The exact % already
+// lives in the tooltip; the per-bar color makes the growth trajectory scannable
+// without hovering each bar (the Koyfin convention).
+export function epsBarColor(yoy: number | null): string {
+  if (yoy == null || !Number.isFinite(yoy)) return BAR_COLOR
+  return yoy >= 0 ? 'var(--success)' : 'var(--danger)'
+}
 
 const AXIS_TICK = {
   fill: 'var(--text-muted)',
@@ -81,6 +99,9 @@ export default function EpsTrendChart({ data, title }: ChartProps) {
               radius={[3, 3, 0, 0]}
               isAnimationActive={false}
             >
+              {data.map((row, i) => (
+                <Cell key={`eps-${i}`} fill={epsBarColor(row.yoy)} />
+              ))}
               <LabelList
                 dataKey="eps"
                 position="top"

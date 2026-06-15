@@ -302,3 +302,30 @@ async def test_enrich_company_forward_populates_row(monkeypatch):
     await _helpers._enrich_company_forward(foreign, deps, usd_safe=False)
     assert foreign.forward_eps is None
     assert foreign.forward_pe is None
+
+
+async def test_enrich_company_forward_swallows_typeerror(monkeypatch):
+    """2026-06-12 TSLA hardening: forward enrichment is best-effort (never a drop
+    reason), so a storm-time TypeError from a library internal on this path must be
+    swallowed — forward_eps/forward_pe abstain to None and the peer fetch survives —
+    rather than bubble up and vaporize the whole comps step."""
+    from types import SimpleNamespace
+
+    from finrobot.engine.models.financial import CompanyFinancials
+    from finrobot.engine.pipelines import _helpers
+
+    def _boom(**_kw):
+        raise TypeError("'NoneType' object is not subscriptable")
+
+    monkeypatch.setattr(_helpers, "get_forward_financials", _boom)
+    deps = SimpleNamespace(
+        data_layer=SimpleNamespace(
+            fetch=AsyncMock(return_value=SimpleNamespace(data={})),
+            fetch_canonical=AsyncMock(return_value=SimpleNamespace(payload=lambda: {})),
+        )
+    )
+    company = CompanyFinancials(ticker="TSLA", revenue=9.79e10, market_cap=1.49e12)
+    # Must NOT raise — the TypeError is caught and the row simply carries no forward.
+    await _helpers._enrich_company_forward(company, deps, usd_safe=True)
+    assert company.forward_eps is None
+    assert company.forward_pe is None

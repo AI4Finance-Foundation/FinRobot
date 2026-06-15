@@ -554,11 +554,17 @@ class Pipeline:
                 validation_error = (
                     f"executor 异常(不可恢复,降级继续): " f"{type(exc).__name__}: {str(exc)[:400]}"
                 )
+                # exc_info=True: capture the full traceback for an exception-degrade.
+                # A non-recoverable boundary exception (e.g. a storm-time TypeError
+                # from a third-party lib) otherwise logs only its message, leaving
+                # the origin frame unknowable post-hoc — 2026-06-12 TSLA peer_analysis
+                # could not be pinned because the frames were never logged.
                 logger.warning(
                     "Step '%s' (non-critical) raised non-recoverable %s — degrading: %s",
                     step.name,
                     type(exc).__name__,
                     exc,
+                    exc_info=True,
                 )
             elapsed = time.monotonic() - t0
             if validation_error:

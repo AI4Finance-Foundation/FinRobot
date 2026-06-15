@@ -151,6 +151,30 @@ class TestExecutePeerAnalysisOverride:
                 )
             )
 
+    def test_peer_typeerror_drops_peer_not_crashes_step(self, monkeypatch):
+        """2026-06-12 TSLA hardening: a storm-time TypeError raised by a third-party
+        lib (yfinance/pandas/edgartools) on the peer-fetch path must be caught at
+        the per-peer 'drop one, keep the set' boundary — not escape `asyncio.gather`
+        and vaporize the whole comps step into a single-method valuation. With every
+        peer raising TypeError → 0 survivors → the HANDLED ProviderError (recoverable
+        by type → retries then degrades), never a raw TypeError that crashes the run.
+        """
+
+        async def _typeerror(*_a, **_k):
+            raise TypeError("'NoneType' object is not subscriptable")
+
+        async def _boom(*_a, **_k):
+            raise AssertionError("automatic peer selection must not run when --peers is given")
+
+        monkeypatch.setattr(_helpers, "_deterministic_select_peers", _boom)
+        deps = SimpleNamespace(
+            data_layer=SimpleNamespace(fetch_canonical=_typeerror, fetch=_typeerror)
+        )
+        with pytest.raises(ProviderError, match="QCOM"):
+            asyncio.run(
+                execute_peer_analysis(None, deps, "", {}, "AAPL", peers=["NVDA", "AMD", "QCOM"])
+            )
+
 
 class TestStickyPeerSelection:
     @staticmethod

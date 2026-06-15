@@ -317,7 +317,13 @@ async def _enrich_company_forward(
         company.forward_eps = _fwd.forward_eps
         if _fwd.forward_net_income and company.market_cap > 0:
             company.forward_pe = company.market_cap / _fwd.forward_net_income
-    except (ProviderError, ValueError, KeyError, ArithmeticError) as _fwd_err:
+    # TypeError is in the tuple deliberately: forward enrichment is best-effort
+    # (never a drop reason). Under a provider storm a third-party lib
+    # (yfinance/pandas) can raise a bare TypeError in a frame outside our wrapped
+    # boundaries; abstaining forward P/E to None on it keeps the hiccup from
+    # bubbling up and killing the peer fetch (2026-06-12 TSLA: a storm-time
+    # TypeError on this path vaporized comps → silent single-method DCF).
+    except (ProviderError, ValueError, KeyError, ArithmeticError, TypeError) as _fwd_err:
         logger.debug("forward P/E unavailable for %s: %s", company.ticker, _fwd_err)
 
 
@@ -400,7 +406,14 @@ async def execute_peer_analysis(
             # peer wrongly pass the single-currency gate.
             await _enrich_company_forward(company, deps, usd_safe=forward_usd_safe)
             return company
-        except (ProviderError, ValueError, KeyError, ArithmeticError) as e:
+        # TypeError is caught too: this is the per-peer "drop one, keep the set"
+        # boundary, so a storm-time TypeError raised by a third-party lib
+        # (yfinance/pandas/edgartools) in a frame outside our wrapped blocks must
+        # drop THIS peer — named in peer_drops, surfaced in the artifact warning —
+        # never escape to vaporize the whole comps step into a single-method
+        # valuation (2026-06-12 TSLA incident). A systematic TypeError bug still
+        # shows: it drops every peer → thin/empty set → the thin-comps warning.
+        except (ProviderError, ValueError, KeyError, ArithmeticError, TypeError) as e:
             peer_drops[peer_ticker] = str(e)
             logger.warning(f"Skipping peer {peer_ticker}: {e}")
             return None

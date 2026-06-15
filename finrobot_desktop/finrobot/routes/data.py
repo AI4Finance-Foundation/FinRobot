@@ -180,11 +180,7 @@ async def get_catalysts(
         logger.error("Catalyst classification failed for %s: %s", ticker_upper, e)
         raise HTTPException(
             status_code=500,
-            detail={
-                "error": "catalyst_classification_failed",
-                "message": str(e),
-                "ticker": ticker_upper,
-            },
+            detail=f"Catalyst classification failed ({ticker_upper}): {e}",
         ) from e
 
     raw_list = payload.get("catalysts", [])

@@ -169,7 +169,12 @@ async def test_catalysts_classification_failure_500_not_cached(app_with_deps):
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             failed = await client.get("/api/data/AAPL/catalysts")
             assert failed.status_code == 500
-            assert failed.json()["detail"]["error"] == "catalyst_classification_failed"
+            # detail is a plain string (every backend HTTPException uses string
+            # detail); it must surface the ticker and the underlying LLM cause.
+            detail = failed.json()["detail"]
+            assert isinstance(detail, str)
+            assert "AAPL" in detail
+            assert "LLM provider 503" in detail
 
             # Now the LLM recovers — because the 500 wasn't cached, this re-runs
             # the pipeline and succeeds rather than serving a poisoned empty slot.

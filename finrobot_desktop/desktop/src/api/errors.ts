@@ -1,10 +1,11 @@
 /**
  * Centralised HTTP error parsing for fetch-based hooks.
  *
- * The backend returns Chinese, user-facing detail strings on errors (see
- * finrobot/routes/data.py _data_http_error). This helper pulls that detail out
- * of the FastAPI error envelope `{detail: string|object}` and falls back to a
- * caller-supplied 中文 default if the body is empty or unparseable.
+ * The backend returns user-facing detail strings on errors (see
+ * finrobot/routes/data.py _data_http_error). Every HTTPException across the
+ * backend uses a string detail, so this helper pulls that string out of the
+ * FastAPI error envelope `{detail: string}` and falls back to a caller-supplied
+ * default if the body is empty or unparseable.
  *
  * Status code semantics (matching the backend):
  *   422 — input invalid / ticker not recognised (ValueError)
@@ -17,11 +18,6 @@ export async function extractErrorDetail(resp: Response, fallback: string): Prom
 
   const detail = body?.detail
   if (typeof detail === 'string' && detail.trim()) return detail
-  if (detail && typeof detail === 'object') {
-    // Some endpoints (catalysts) return {error, message, ticker}
-    const message = (detail as { message?: string }).message ?? (detail as { error?: string }).error
-    if (message) return message
-  }
   // Do not leak HTTP status to end users — they don't care, and "HTTP 500"
   // looks like a crash. The dev-side info is still in resp.status / network tab.
   return fallback

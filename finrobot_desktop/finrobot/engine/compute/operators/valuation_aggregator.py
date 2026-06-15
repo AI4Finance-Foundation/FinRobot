@@ -222,6 +222,13 @@ def aggregate_valuation(
             "lbo: missing shares_outstanding — target-price reverse calculation skipped"
         )
 
+    ev_inputs_present = (
+        forward_ebitda is not None
+        and forward_ebitda > 0
+        and historical_ev_ebitda_band is not None
+        and shares_outstanding is not None
+        and shares_outstanding > 0
+    )
     if (
         m := _ev_ebitda_method(
             forward_ebitda,
@@ -229,30 +236,27 @@ def aggregate_valuation(
             shares_outstanding,
             current_net_debt,
             band_sample_n=historical_ev_ebitda_sample_n,
+            warnings=warnings,
         )
     ) is not None:
         methods.append(m)
-    elif (
-        forward_ebitda is not None
-        and forward_ebitda > 0
-        and historical_ev_ebitda_band is not None
-        and shares_outstanding is not None
-        and shares_outstanding > 0
-        and current_net_debt is None
-    ):
-        # Inputs are all present EXCEPT current net debt — refuse to bridge
-        # EV→equity on a fabricated debt figure. EV/EBITDA is a *current*
-        # relative-multiple method; without current net debt there is no honest
-        # bridge, so the row is hidden with a口径-explicit provenance note.
+    elif not ev_inputs_present:
+        # Genuine input absence (band / forward EBITDA / shares missing) — row hidden.
+        warnings.append(
+            "ev_ebitda: historical valuation band (PR3 not wired) or forward EBITDA unavailable — multiple row degraded and hidden"
+        )
+    elif current_net_debt is None:
+        # Inputs all present EXCEPT current net debt — refuse to bridge EV→equity on a
+        # fabricated debt figure. EV/EBITDA is a *current* relative-multiple method;
+        # without current net debt there is no honest bridge, so the row is hidden.
         warnings.append(
             "ev_ebitda: current net debt (total_debt − cash) unavailable — refusing to fabricate the "
             "EV→equity bridge with 0 or LBO's future ending_debt; this row is hidden "
             "(EV/EBITDA is a current-multiple method and must subtract current net debt)"
         )
-    else:
-        warnings.append(
-            "ev_ebitda: historical valuation band (PR3 not wired) or forward EBITDA unavailable — multiple row degraded and hidden"
-        )
+    # else: inputs present + net debt present but the method still dropped (non-positive
+    # band / negative implied equity) — _ev_ebitda_method already recorded the precise
+    # reason (with the marker) into `warnings`, so we add no (mis-)diagnostic here.
 
     if (m := _p_fcf_method(forward_fcf, historical_p_fcf_band, shares_outstanding)) is not None:
         methods.append(m)
@@ -682,6 +686,7 @@ def _ev_ebitda_method(
     current_net_debt: float | None,
     *,
     band_sample_n: int | None = None,
+    warnings: list[str] | None = None,
 ) -> ValuationMethodRange | None:
     if (
         forward_ebitda is None
@@ -699,10 +704,19 @@ def _ev_ebitda_method(
     # simulated debt at exit (t+hold) — a time-point mismatch that
     # systematically overstates the target. ``current_net_debt`` may be negative
     # (net cash), which correctly lifts the implied equity value.
+    # current_net_debt None is an input-absence case the caller (aggregate_valuation)
+    # diagnoses with its own caliber-explicit note — drop silently here.
     if current_net_debt is None:
         return None
     p25, p75 = band
     if p25 <= 0 or p75 <= 0:
+        # The band itself is degenerate (non-positive percentile) — no valid
+        # historical multiple range. Record WHY (with the marker) so it surfaces.
+        if warnings is not None:
+            warnings.append(
+                "ev_ebitda: historical EV/EBITDA percentile band is non-positive (p25/p75 ≤ 0) — "
+                "no valid historical range for the multiple, this row is hidden — method withheld"
+            )
         return None
     raw_low = (p25 * forward_ebitda - current_net_debt) / shares
     raw_high = (p75 * forward_ebitda - current_net_debt) / shares
@@ -713,6 +727,15 @@ def _ev_ebitda_method(
     # the football field as a real method. (raw_low < 0 < raw_high is a legitimate
     # near-wipeout: floor the low end to ~0 but keep the real p75 upside.)
     if raw_high <= 0:
+        # All inputs present but the bridge yields non-positive equity across the
+        # whole band — record the precise reason (with the marker) so aggregate does
+        # NOT mis-report it as "band/forward unavailable" (they ARE present).
+        if warnings is not None:
+            warnings.append(
+                "ev_ebitda: even at the optimistic p75 multiple the implied equity is ≤ 0 "
+                "(current net debt exceeds the implied EV) — multiple method does not apply, "
+                "this row is hidden — method withheld"
+            )
         return None
     low = max(0.01, raw_low)
     high = max(low, raw_high)

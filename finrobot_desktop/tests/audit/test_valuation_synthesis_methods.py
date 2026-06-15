@@ -578,6 +578,28 @@ class TestEvEbitdaBandRevivesMethod:
         assert row is not None
         assert row.warnings == []
 
+    def test_negative_equity_diagnosed_with_marker_not_misreported(self) -> None:
+        """Step3 兄弟漏洞:净债 > 即便 p75 乐观倍数下的隐含 EV → 隐含股权全程 ≤ 0,方法 drop。
+        此前 aggregate 的 elif 链落到 else,误报「historical valuation band ... unavailable」
+        (band/forward 其实在场)。修后:_ev_ebitda_method 记带 marker 的负权益拒因,
+        aggregate 不再误诊。直测 aggregate_valuation(端到端 band 穿线另需 financial_data
+        plumbing,此处直给输入更确定)。"""
+        agg = aggregate_valuation(
+            ticker="X",
+            current_price=100.0,
+            forward_ebitda=10e9,
+            historical_ev_ebitda_band=(5.0, 8.0),  # p75 × forward = 80e9
+            shares_outstanding=2e9,
+            current_net_debt=200e9,  # > 80e9 → implied equity ≤ 0 across the whole band
+        )
+        assert "ev_ebitda" not in [m.method for m in agg.methods]
+        assert any(
+            "ev_ebitda" in w and "method withheld" in w and "equity" in w for w in agg.warnings
+        ), f"negative-equity reason must surface with the marker: {agg.warnings}"
+        assert not any(
+            "ev_ebitda: historical valuation band (PR3 not wired)" in w for w in agg.warnings
+        ), "ev_ebitda must not be mis-diagnosed as band/forward unavailable (they are present)"
+
 
 # ---------------------------------------------------------------------------
 # 兄弟摊开 sweep: EVERY substantive method-suppression reason surfaces to artifact

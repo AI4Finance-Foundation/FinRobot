@@ -628,6 +628,14 @@ _SUPPRESSION_SWEEP = [
         },
         "P/E method cannot be applied",
     ),
+    (
+        "dcf_nonpositive_implied_price",
+        lambda: {
+            "financial_modeling": _dcf(-5.0),  # implied price ≤ 0 → method withheld
+            "peer_analysis": _peer_comps(),  # comps_pe co-resolves so vs is non-None
+        },
+        "dcf: implied share price",
+    ),
 ]
 
 

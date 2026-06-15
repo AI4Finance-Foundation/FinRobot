@@ -149,6 +149,16 @@ def aggregate_valuation(
         methods.append(m)
     elif dcf is None:
         warnings.append("dcf: no DCF artifact — this row appears after running the full AI report")
+    else:
+        # DCF resolved but implied price ≤ 0 — equity is negative/zero after the
+        # net-debt bridge. A non-positive price can't be plotted; the row drops.
+        # Surface WHY (with the marker so build_valuation_synthesis forwards it to
+        # vs.warnings and the headline), rather than dropping it silently.
+        warnings.append(
+            f"dcf: implied share price ≤ 0 (${dcf.implied_price:,.2f}: equity is negative/zero "
+            "after subtracting net debt from enterprise value) — DCF method does not apply — "
+            "method withheld"
+        )
 
     # Cyclical → P/B is the primary relative multiple (book equity is cycle-stable).
     # Listed BEFORE comps_pe so the football field leads with it; the through-cycle/

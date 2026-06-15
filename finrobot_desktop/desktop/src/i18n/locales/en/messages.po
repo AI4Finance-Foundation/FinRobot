@@ -821,6 +821,14 @@ msgid "chapter.valuation.marketImplied.na"
 msgstr "Unreachable"
 
 #. js-lingui-explicit-id
+msgid "chapter.valuation.kv.marketImpliedWacc"
+msgstr "Market-Implied WACC"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.marketImplied.vsDcf"
+msgstr "vs DCF {wacc}"
+
+#. js-lingui-explicit-id
 msgid "chapter.valuation.marketImplied.unreachableNote"
 msgstr "Market-implied growth is unreachable: even {ceiling} annual growth only implies {price} — the market is pricing optionality no cash-flow model can capture, so a DCF point value does not apply to this name."
 

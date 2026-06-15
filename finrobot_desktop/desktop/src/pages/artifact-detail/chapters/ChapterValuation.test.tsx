@@ -91,6 +91,11 @@ describe('ChapterValuation market-implied growth', () => {
     expect(screen.getByText(/10 年期|over 10y/)).toBeInTheDocument()
     // No unreachable note in the reachable state.
     expect(screen.queryByText(/无解|Unreachable/)).not.toBeInTheDocument()
+    // Companion reverse-DCF lever: implied WACC + a descriptive delta vs our DCF
+    // WACC (DCF.wacc = 0.0852 → "vs DCF 8.5%"). Was computed but never rendered.
+    expect(screen.getByText(/市场隐含 WACC|Market-Implied WACC/)).toBeInTheDocument()
+    expect(screen.getByText('7.2%')).toBeInTheDocument()
+    expect(screen.getByText(/vs DCF 8\.5%/)).toBeInTheDocument()
   })
 
   it('renders the unreachable state with the quantified ceiling note', () => {
@@ -112,11 +117,14 @@ describe('ChapterValuation market-implied growth', () => {
     expect(note).toBeInTheDocument()
     expect(note.textContent).toMatch(/50%/)
     expect(note.textContent).toMatch(/期权价值|optionality/)
+    // Implied-WACC cell is suppressed in the unreachable regime (no finite solve).
+    expect(screen.queryByText(/市场隐含 WACC|Market-Implied WACC/)).not.toBeInTheDocument()
   })
 
   it('renders no implied-growth cell when the field is absent (legacy artifacts)', () => {
     renderChapter(DCF)
     expect(screen.queryByText(/市场隐含增长|Market-Implied Growth/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/市场隐含 WACC|Market-Implied WACC/)).not.toBeInTheDocument()
   })
 })
 

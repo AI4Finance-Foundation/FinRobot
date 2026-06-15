@@ -821,6 +821,14 @@ msgid "chapter.valuation.marketImplied.na"
 msgstr "无解"
 
 #. js-lingui-explicit-id
+msgid "chapter.valuation.kv.marketImpliedWacc"
+msgstr "市场隐含 WACC"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.marketImplied.vsDcf"
+msgstr "vs DCF {wacc}"
+
+#. js-lingui-explicit-id
 msgid "chapter.valuation.marketImplied.unreachableNote"
 msgstr "市场隐含增长无解:即便 {ceiling} 的年增长也只能推到 {price} — 市场在为现金流模型无法捕捉的期权价值定价,DCF 点估值不适用于此类标的。"
 

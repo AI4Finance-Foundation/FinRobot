@@ -168,6 +168,22 @@ export function ChapterValuation({
         delta: t('chapter.valuation.marketImplied.horizon', { n: mi.horizon_years }),
         tone: (mi.growth_unreachable ? 'down' : undefined) as 'down' | undefined,
       } as Cell),
+    // Companion reverse-DCF lever: the discount rate that would equate the DCF to
+    // the CURRENT price (solved independently of the implied-growth path). Shown
+    // beside implied growth so the reality check carries BOTH levers, with a
+    // descriptive delta vs our own DCF WACC (no verdict — that's the analyst's).
+    // Was computed (market_implied.implied_wacc) but never rendered before.
+    mi !== null &&
+      !mi.growth_unreachable &&
+      mi.implied_wacc != null &&
+      wacc != null &&
+      ({
+        label: t('chapter.valuation.kv.marketImpliedWacc'),
+        value: `${(mi.implied_wacc * 100).toFixed(1)}%`,
+        delta: t('chapter.valuation.marketImplied.vsDcf', {
+          wacc: `${(wacc * 100).toFixed(1)}%`,
+        }),
+      } as Cell),
     ev !== null &&
       ({
         label: (

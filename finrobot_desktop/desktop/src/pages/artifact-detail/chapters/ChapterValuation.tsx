@@ -8,6 +8,7 @@ import { FieldCaveat, findingsFor } from './FieldCaveat'
 import type {
   DcfShape,
   ForwardEstimatesShape,
+  HistoricalBandShape,
   NumericAuditShape,
   SOTPBreakdownShape,
   ThesisShape,
@@ -39,6 +40,11 @@ interface ChapterValuationProps {
   // (enterprise_value / ev_ebitda / ev_revenue) is a category error (bank EV)
   // or dimensionally mixed (cross-currency ratio). null on legacy artifacts.
   numericAudit?: NumericAuditShape | null
+  // Frozen historical multiple band (EV/EBITDA · P/FCF) from technical_analysis.
+  // Feeds the football field's provenance rail: where the current multiple sits
+  // vs the company's own 3-year P25–P75 — the "why" behind that method's target.
+  // null on legacy artifacts / when the band could not be computed.
+  historicalBand?: HistoricalBandShape | null
 }
 
 export function ChapterValuation({
@@ -50,6 +56,7 @@ export function ChapterValuation({
   quoteCurrency,
   reportingCurrency,
   numericAudit = null,
+  historicalBand = null,
 }: ChapterValuationProps): React.ReactElement {
   const { t, locale } = useI18n()
   const overview = thesis?.valuation_overview ?? null
@@ -355,6 +362,9 @@ export function ChapterValuation({
             // read from the FROZEN provenance the artifact persisted — not a live
             // aggregate refetch.
             forwardFiscalPeriod={forwardEstimates?.fiscal_period ?? null}
+            // Provenance rail: where the current EV/EBITDA (or P/FCF) multiple
+            // sits vs the company's own 3-year band (frozen in technical_analysis).
+            historicalBand={historicalBand}
           />
           {forwardEstimates?.source && (
             <p

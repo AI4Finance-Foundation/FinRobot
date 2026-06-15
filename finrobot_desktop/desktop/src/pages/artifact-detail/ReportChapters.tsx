@@ -131,6 +131,9 @@ export function ReportChapters({
         quoteCurrency={d.quoteCurrency}
         reportingCurrency={d.reportingCurrency}
         numericAudit={d.numericAudit}
+        // Same EV/EBITDA band the Technical chapter charts — surfaced here as the
+        // football field's per-multiple provenance rail (frozen, no live refetch).
+        historicalBand={d.technical?.historical_bands ?? null}
       />
       <ChapterNews thesis={d.thesis} />
       <ChapterSensitivity dcf={d.dcf} quoteCurrency={d.quoteCurrency} />

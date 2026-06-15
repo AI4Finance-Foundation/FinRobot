@@ -3185,6 +3185,38 @@ msgid "chart.footballField.mid"
 msgstr "中值"
 
 #. js-lingui-explicit-id
+msgid "chart.footballField.history.title"
+msgstr "{metric} · 当前 vs 自身 3 年区间"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.cheap"
+msgstr "偏低"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.fair"
+msgstr "中性"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.rich"
+msgstr "偏高"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.unknown"
+msgstr "无"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.samples"
+msgstr "{count} 期"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.median"
+msgstr "中位"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.now"
+msgstr "当前"
+
+#. js-lingui-explicit-id
 msgid "coverage.col.ticker"
 msgstr "代码"
 

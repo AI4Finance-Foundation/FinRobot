@@ -1,11 +1,19 @@
 import { useMemo } from 'react'
 import { useI18n } from '../../i18n'
+import type { HistoricalBandShape } from '../../pages/artifact-detail/chapters/types'
 
 interface ChartProps {
   data: Record<string, number | string | boolean | null>[]
   title: string
   currentPrice?: number | null
   forwardFiscalPeriod?: string | null
+  // Per-multiple historical band (e.g. EV/EBITDA) frozen in the artifact's
+  // technical_analysis. When its `metric` matches a rendered method we draw a
+  // provenance rail beneath the plot: where the CURRENT multiple sits vs the
+  // stock's own 3-year P25–P75 — i.e. WHY that method's price target is what it
+  // is. Multiple-space (its own mini-axis), never overlaid on the price plot
+  // (the bars are price-space, the band is multiple-space — different units).
+  historicalBand?: HistoricalBandShape | null
 }
 
 const METHOD_LABEL: Record<string, string> = {
@@ -66,6 +74,7 @@ export default function FootballField({
   title,
   currentPrice,
   forwardFiscalPeriod,
+  historicalBand,
 }: ChartProps) {
   const { t } = useI18n()
   const rows: Row[] = useMemo(
@@ -93,6 +102,18 @@ export default function FootballField({
   )
 
   if (rows.length === 0) return null
+
+  // Provenance rail: show the band only when its metric matches a rendered
+  // method (so it reads as that bar's "why") and the core stats are finite.
+  const band: HistoricalBandShape | null =
+    historicalBand &&
+    historicalBand.metric != null &&
+    rows.some((r) => r.method === historicalBand.metric) &&
+    [historicalBand.current, historicalBand.p25, historicalBand.p75].every(
+      (v) => typeof v === 'number' && Number.isFinite(v),
+    )
+      ? historicalBand
+      : null
 
   const dataMin = Math.min(...rows.map((r) => r.low))
   const dataMax = Math.max(...rows.map((r) => r.high))
@@ -437,6 +458,207 @@ export default function FootballField({
             })}
           </div>
         </div>
+
+        {band && (
+          <HistoryRail
+            band={band}
+            label={METHOD_LABEL[band.metric ?? ''] ?? (band.metric ?? '').toUpperCase()}
+            t={t}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Provenance rail for a comps method: where the CURRENT multiple sits inside the
+ * company's own 3-year P25–P75 band. Multiple-space (its OWN mini-axis) so it is
+ * never confused with the price plot above — it answers "is the multiple this
+ * method applied cheap or rich vs the stock's own history", the missing
+ * "cite-the-computation" link that Bloomberg EQRV shows but cannot trace.
+ */
+function HistoryRail({
+  band,
+  label,
+  t,
+}: {
+  band: HistoricalBandShape
+  label: string
+  t: (key: string, params?: Record<string, string | number>) => string
+}) {
+  const cur = Number(band.current)
+  const p25 = Number(band.p25)
+  const p75 = Number(band.p75)
+  const med = Number(band.median)
+  const p90 = Number(band.p90)
+  const fin = (v: number) => Number.isFinite(v)
+  const pts = [cur, p25, p75, med, p90].filter(fin)
+  const lo = Math.min(...pts) * 0.94
+  const hi = Math.max(...pts) * 1.04
+  const span = hi - lo || 1
+  const x = (v: number) => `${((v - lo) / span) * 100}%`
+  const fx = (v: number) => `${v.toFixed(1)}×`
+
+  const cls = band.classification ?? 'unknown'
+  const clsColor =
+    cls === 'cheap'
+      ? 'var(--success)'
+      : cls === 'expensive'
+        ? 'var(--danger)'
+        : cls === 'fair'
+          ? 'var(--text-secondary)'
+          : 'var(--text-muted)'
+  const clsKey = cls === 'expensive' ? 'rich' : cls
+
+  return (
+    <div
+      style={{
+        margin: '4px 16px 0',
+        paddingTop: 14,
+        borderTop: '1px dashed var(--border-soft)',
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          marginBottom: 16,
+          flexWrap: 'wrap',
+        }}
+      >
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10.5,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            color: 'var(--text-secondary)',
+          }}
+        >
+          {t('chart.footballField.history.title', { metric: label })}
+        </span>
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9.5,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            padding: '1px 8px',
+            borderRadius: 999,
+            color: clsColor,
+            border: `1px solid color-mix(in srgb, ${clsColor} 45%, transparent)`,
+            background: `color-mix(in srgb, ${clsColor} 12%, transparent)`,
+          }}
+        >
+          {t(`chart.footballField.history.${clsKey}`)}
+        </span>
+        {typeof band.sample_count === 'number' && (
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 9.5, color: 'var(--text-dim)' }}>
+            {t('chart.footballField.history.samples', { count: band.sample_count })}
+          </span>
+        )}
+      </div>
+
+      <div style={{ position: 'relative', height: 28 }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: 14,
+            left: 0,
+            right: 0,
+            height: 1,
+            background: 'var(--border-grid)',
+          }}
+        />
+        {fin(p25) && fin(p75) && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 8,
+              left: x(p25),
+              width: `calc(${x(p75)} - ${x(p25)})`,
+              height: 12,
+              borderRadius: 3,
+              background:
+                'linear-gradient(90deg, color-mix(in srgb, var(--primary) 18%, transparent), color-mix(in srgb, var(--secondary) 26%, transparent))',
+              border: '1px solid color-mix(in srgb, var(--secondary) 35%, transparent)',
+            }}
+          />
+        )}
+        {fin(med) && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 5,
+              left: x(med),
+              width: 1.5,
+              height: 18,
+              background: 'var(--text-secondary)',
+            }}
+            title={`${t('chart.footballField.history.median')} ${fx(med)}`}
+          />
+        )}
+        {fin(p90) && (
+          <div
+            style={{
+              position: 'absolute',
+              top: 9,
+              left: x(p90),
+              width: 1,
+              height: 10,
+              background: 'var(--text-dim)',
+            }}
+            title={`P90 ${fx(p90)}`}
+          />
+        )}
+        {fin(cur) && (
+          <>
+            <div
+              style={{
+                position: 'absolute',
+                top: 3,
+                bottom: 3,
+                left: x(cur),
+                width: 2,
+                background: clsColor,
+                boxShadow: `0 0 8px ${clsColor}`,
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                top: -3,
+                left: x(cur),
+                transform: 'translateX(-50%)',
+                width: 0,
+                height: 0,
+                borderLeft: '4px solid transparent',
+                borderRight: '4px solid transparent',
+                borderTop: `5px solid ${clsColor}`,
+              }}
+            />
+          </>
+        )}
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginTop: 4,
+          fontFamily: 'var(--font-mono)',
+          fontSize: 9.5,
+          color: 'var(--text-muted)',
+        }}
+      >
+        <span style={{ color: clsColor }}>
+          {t('chart.footballField.history.now')} {fx(cur)}
+        </span>
+        <span>
+          P25 {fx(p25)} · {t('chart.footballField.history.median')} {fx(med)} · P75 {fx(p75)}
+        </span>
       </div>
     </div>
   )

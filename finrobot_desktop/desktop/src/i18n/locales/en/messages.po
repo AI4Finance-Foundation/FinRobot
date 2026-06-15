@@ -3185,6 +3185,38 @@ msgid "chart.footballField.mid"
 msgstr "Mid"
 
 #. js-lingui-explicit-id
+msgid "chart.footballField.history.title"
+msgstr "{metric} · now vs own 3-yr range"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.cheap"
+msgstr "cheap"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.fair"
+msgstr "fair"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.rich"
+msgstr "rich"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.unknown"
+msgstr "n/a"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.samples"
+msgstr "{count} obs"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.median"
+msgstr "median"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.now"
+msgstr "now"
+
+#. js-lingui-explicit-id
 msgid "coverage.col.ticker"
 msgstr "Ticker"
 

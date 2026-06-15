@@ -547,13 +547,20 @@ class TestConfidenceDial:
         assert vs.confidence == "very_low"
         assert vs.valuation_withheld is True
 
-    def test_single_method_off_market_withholds_point(self):
+    def test_single_method_off_market_withholds_point_but_keeps_band(self):
         # RIVN: single dcf $6 vs $17 (0.36x, out of [0.5x,2x] single band) → very_low
-        # + withheld (the only number would be the market price in costume).
+        # + POINT withheld (no false-precise headline stamped on a lone far-from-market
+        # method). The BAND still ships (contract ②: 单方法→给区间、标低置信、不撤回;
+        # 交付物永远 100% 完整字段, never a None range that blanks the UI) — and this
+        # mirrors the multi-method extreme-withhold path, which also emits lo/hi while
+        # withholding the point. The band is the lone method's mid ± single-method frac.
         vs = synthesize_valuations([self._m("dcf", 6)], 17.0, cyclical=False)
         assert vs.confidence == "very_low"
         assert vs.valuation_withheld is True
-        assert vs.target_low is None
+        assert vs.target_low == pytest.approx(6 * (1 - 0.25))
+        assert vs.target_high == pytest.approx(6 * (1 + 0.25))
+        # The POINT is still withheld even though the band is present.
+        assert resolve_canonical_thesis(vs, "RIVN").target is None
 
     def test_single_method_in_band_medium_with_widened_range(self):
         # F: single comps_pe $12 vs $15 (0.8x, in band) → medium, point kept, band widened.
@@ -570,3 +577,24 @@ class TestConfidenceDial:
         assert vs.confidence == "high"
         assert vs.anchor_method is None
         assert vs.valuation_withheld is False
+
+    def test_dial_always_emits_a_band_never_blanks_the_range(self):
+        """机械闸门(契约② 单方法→给区间不撤回 + 新规矩 交付物永远 100% 完整字段):
+        _confidence_dial 对任何非空方法集都必须给出 target_low/high — 撤的只是 POINT,
+        区间永不为 None。这样 UI <TargetRange> 永远有带可画、绝不渲染空白(masked-or-not
+        the deliverable's range field is complete). Covers every dial branch incl. the
+        two withhold paths (single off-market + multi extreme), which must be symmetric."""
+        cases = [
+            ([self._m("dcf", 6)], 17.0, False),  # single off-market → POINT withheld
+            ([self._m("dcf", 300)], 240.0, False),  # single in-band
+            ([self._m("dcf", 33), self._m("comps_pe", 24)], 406.0, False),  # multi extreme withheld
+            ([self._m("dcf", 100), self._m("comps_pe", 120)], 110.0, False),  # multi corroborate
+            ([self._m("dcf", 188), self._m("comps_pb", 1332)], 982.0, True),  # cyclical divergence
+        ]
+        for methods, price, cyc in cases:
+            vs = synthesize_valuations(methods, price, cyclical=cyc)
+            names = [m.name for m in methods]
+            assert (
+                vs.target_low is not None and vs.target_high is not None
+            ), f"dial blanked the range for {names} @ {price} (withheld={vs.valuation_withheld})"
+            assert vs.target_high >= vs.target_low

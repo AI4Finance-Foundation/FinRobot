@@ -94,8 +94,8 @@ def _confidence_dial(
     if len(methods) == 1:
         only = methods[0]
         ratio = only.mid / current_price if current_price > 0 else float("inf")
+        band = abs(only.mid) * _DIAL_SINGLE_BAND_FRAC
         if 1.0 / SINGLE_METHOD_DIVERGENCE_RATIO_K <= ratio <= SINGLE_METHOD_DIVERGENCE_RATIO_K:
-            band = abs(only.mid) * _DIAL_SINGLE_BAND_FRAC
             return (
                 "medium",
                 None,
@@ -104,15 +104,22 @@ def _confidence_dial(
                 False,
                 f"单一方法 {only.name} 无交叉校验 — 区间放宽,置信中等。",
             )
+        # Off the single-method calibration band: withhold the POINT (no false-precise
+        # headline stamped on a lone, far-from-market method) — but STILL ship the band.
+        # Contract ②: 单方法/估值远离市价 → 给区间、标低置信、不撤回(给基本面底 + 市价 gap),
+        # never blank a field. This mirrors the multi-method extreme-withhold path below,
+        # which likewise returns lo/hi while withholding the point — the two withhold paths
+        # must be symmetric (a lone method is not LESS deserving of a visible range).
         return (
             "very_low",
             None,
-            None,
-            None,
+            only.mid - band,
+            only.mid + band,
             True,
             f"单一方法 {only.name} ${only.mid:.0f} 为市价的 {ratio:.2g}x,出 "
             f"[{1.0 / SINGLE_METHOD_DIVERGENCE_RATIO_K:.2g}x,"
-            f"{SINGLE_METHOD_DIVERGENCE_RATIO_K:.0f}x] 单法校准带 — 点目标暂缺,方向取市场隐含。",
+            f"{SINGLE_METHOD_DIVERGENCE_RATIO_K:.0f}x] 单法校准带 — 点目标暂缺(避免在唯一离市"
+            f"方法上盖假精确值),区间仍给出基本面底,方向取市场隐含。",
         )
 
     # ≥2 methods: tier from inter-method agreement (NOT market distance).

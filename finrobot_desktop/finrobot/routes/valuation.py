@@ -26,6 +26,7 @@ from finrobot.engine.data.cache import cached_fetch
 from finrobot.engine.data.historical_loaders import (
     classify_band,
     compute_bands_via_data_layer,
+    fetch_reverse_multiple_band,
 )
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
@@ -64,6 +65,14 @@ async def aggregate_for_ticker(ticker: str, request: Request) -> ValuationAggreg
     forward = await _forward_financials(ticker, data_layer, fmp_api_key=_fmp_api_key(request))
     as_of = datetime.now(tz=timezone.utc)
 
+    # Self historical EV/EBITDA band (P25/P75) → revives the EV/EBITDA reverse row
+    # (band × forward consensus EBITDA − current net debt). Previously hardcoded
+    # None, so the row could never fire here even though the band is fully
+    # computable (it powers /historical-bands). p_fcf stays None: forward_fcf is
+    # always None (FMP /analyst-estimates has no FCF field), so band-wiring alone
+    # can't honestly revive P/FCF — that needs a separate forward_fcf source.
+    ev_band = await fetch_reverse_multiple_band(ticker, "ev_ebitda", data_layer)
+
     return aggregate_valuation(
         ticker=ticker,
         current_price=current_price,
@@ -79,7 +88,8 @@ async def aggregate_for_ticker(ticker: str, request: Request) -> ValuationAggreg
         forward_fiscal_period=forward.fiscal_period,
         forward_confidence=forward.confidence,
         forward_source=forward.source,
-        historical_ev_ebitda_band=None,
+        historical_ev_ebitda_band=(ev_band.p25, ev_band.p75) if ev_band else None,
+        historical_ev_ebitda_sample_n=ev_band.sample_count if ev_band else None,
         historical_p_fcf_band=None,
         # Memory/storage via the ticker anchor (the route lacks the snapshot's
         # industry tag); adds the P/B comps row for a cyclical, same as the report path.

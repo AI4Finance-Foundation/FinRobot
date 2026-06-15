@@ -131,3 +131,70 @@ async def test_load_yearly_financials_missing_balance_leg_keeps_net_debt_none():
 
     yf, _ = out[0]
     assert yf.net_debt is None
+
+
+# ---------------------------------------------------------------------------
+# fetch_reverse_multiple_band — the door that revives the EV/EBITDA reverse row.
+# Pins: a real band yields (p25, p75) + sample_count; a too-thin band is withheld
+# (no degenerate point); a degenerate/non-positive band is withheld.
+# ---------------------------------------------------------------------------
+
+
+def _band(*, p25, p75, sample_count, current=24.0):
+    from finrobot.engine.primitives.historical_valuation import HistoricalBand
+
+    return HistoricalBand(
+        metric="ev_ebitda",
+        current=current,
+        median=(p25 + p75) / 2 if p25 and p75 else None,
+        p25=p25,
+        p75=p75,
+        p90=p75,
+        timeline=[],
+        sample_count=sample_count,
+        warnings=[],
+    )
+
+
+@pytest.mark.asyncio
+async def test_fetch_reverse_multiple_band_returns_spread(monkeypatch):
+    from finrobot.engine.data import historical_loaders as hl
+
+    async def _fake(ticker, metric, years, data_layer, *, current_override=None):
+        return _band(p25=20.0, p75=30.0, sample_count=900)
+
+    monkeypatch.setattr(hl, "compute_bands_via_data_layer", _fake)
+    spread = await hl.fetch_reverse_multiple_band("AAPL", "ev_ebitda", object())
+    assert spread is not None
+    assert (spread.p25, spread.p75, spread.sample_count) == (20.0, 30.0, 900)
+
+
+@pytest.mark.asyncio
+async def test_fetch_reverse_multiple_band_withholds_thin_history(monkeypatch):
+    """Below the sample floor the band carries no distribution — p25/p75 would
+    echo one multiple dressed as a range. Withhold rather than emit a fake range."""
+    from finrobot.engine.data import historical_loaders as hl
+
+    async def _fake(ticker, metric, years, data_layer, *, current_override=None):
+        return _band(p25=23.0, p75=23.0, sample_count=hl._MIN_BAND_SAMPLES - 1)
+
+    monkeypatch.setattr(hl, "compute_bands_via_data_layer", _fake)
+    assert await hl.fetch_reverse_multiple_band("IPO", "ev_ebitda", object()) is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_reverse_multiple_band_withholds_nonpositive_band(monkeypatch):
+    from finrobot.engine.data import historical_loaders as hl
+
+    async def _fake(ticker, metric, years, data_layer, *, current_override=None):
+        return _band(p25=None, p75=None, sample_count=900)
+
+    monkeypatch.setattr(hl, "compute_bands_via_data_layer", _fake)
+    assert await hl.fetch_reverse_multiple_band("X", "ev_ebitda", object()) is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_reverse_multiple_band_none_layer_returns_none():
+    from finrobot.engine.data import historical_loaders as hl
+
+    assert await hl.fetch_reverse_multiple_band("X", "ev_ebitda", None) is None

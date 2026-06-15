@@ -9,7 +9,13 @@ Pins three contracts broken by Bug A + Bug B:
 
 from __future__ import annotations
 
-from finrobot.engine.compute.operators.valuation_aggregator import aggregate_valuation
+from datetime import datetime, timezone
+
+from finrobot.engine.compute.operators.forward_estimates import ForwardFinancials
+from finrobot.engine.compute.operators.valuation_aggregator import (
+    _ev_ebitda_method,
+    aggregate_valuation,
+)
 from finrobot.engine.compute.operators.valuation_synthesis import synthesize_valuations
 from finrobot.engine.models.financial import (
     CompanyFinancials,
@@ -17,8 +23,12 @@ from finrobot.engine.models.financial import (
     DCFResult,
     DDMInputs,
     DDMResult,
+    FinancialData,
+    IncomeStatement,
+    BalanceSheet,
     LBOResult,
     LBOYear,
+    MarketData,
     PeerComps,
     ValuationMethod,
 )
@@ -304,3 +314,100 @@ class TestGuardExitReasonsReachArtifact:
         assert vs is not None
         assert [m.name for m in vs.methods] == ["dcf"], "comps_pe 应被 thin-sample 守卫退出"
         assert any("样本仅 1 家" in w and "方法退出" in w for w in vs.warnings)
+
+
+def _financial_data(*, reporting: str = "USD", quote: str = "USD") -> FinancialData:
+    """Minimal single-currency FinancialData with a real net-debt bridge."""
+    return FinancialData(
+        ticker="AAPL",
+        timestamp=datetime.now(tz=timezone.utc),
+        income=IncomeStatement(revenue=390e9, ebitda=120e9, net_income=95e9),
+        balance=BalanceSheet(total_debt=110e9, total_cash=62e9),
+        market=MarketData(market_cap=2.8e12, shares_outstanding=15.4e9, current_price=170.0),
+        reporting_currency=reporting,
+        quote_currency=quote,
+    )
+
+
+def _forward(*, forward_ebitda: float | None = 130e9) -> ForwardFinancials:
+    return ForwardFinancials(
+        ticker="AAPL",
+        forward_eps=7.0,
+        forward_revenue=420e9,
+        forward_ebitda=forward_ebitda,
+        forward_fcf=None,
+        confidence="high",
+        source="test",
+        warnings=[],
+        fiscal_period="2026-09-30",
+    )
+
+
+class TestEvEbitdaBandRevivesMethod:
+    """The EV/EBITDA reverse-multiple row was structurally dead in production —
+    both callers passed band=None, so it never fired regardless of inputs. Wiring
+    the self historical EV/EBITDA band (a real degraded proxy: own历史倍数 P25/P75
+    × forward consensus EBITDA − current net debt, every input reported) revives
+    it, giving the synthesis MORE corroborating methods. Pins that the band, once
+    threaded, actually emits the row and that the degradation is recorded."""
+
+    def test_ev_ebitda_row_emitted_when_band_threaded(self) -> None:
+        structured_context: dict[str, object] = {
+            "financial_modeling": _dcf(150.0),
+            "data_collection": _financial_data(),
+            "forward_financials": _forward(),
+        }
+        vs = build_valuation_synthesis(
+            structured_context,
+            current_price=170.0,
+            ticker="AAPL",
+            historical_ev_ebitda_band=(20.0, 30.0),
+            historical_ev_ebitda_sample_n=900,
+        )
+        assert vs is not None
+        assert "ev_ebitda" in [
+            m.name for m in vs.methods
+        ], "EV/EBITDA must appear once the band is threaded — it was dead before"
+
+    def test_ev_ebitda_row_absent_without_band(self) -> None:
+        """No band threaded (the old production state) → row stays dead. This is the
+        exact regression the fix addresses: same inputs, band=None → no row."""
+        structured_context: dict[str, object] = {
+            "financial_modeling": _dcf(150.0),
+            "data_collection": _financial_data(),
+            "forward_financials": _forward(),
+        }
+        vs = build_valuation_synthesis(structured_context, current_price=170.0, ticker="AAPL")
+        assert vs is not None
+        assert "ev_ebitda" not in [m.name for m in vs.methods]
+
+    def test_ev_ebitda_withheld_on_currency_mismatch_not_fabricated(self) -> None:
+        """A native-currency forward EBITDA must NOT mix with a USD net-debt bridge.
+        reporting ≠ quote → forward_ebitda gated out → row drops (no fabrication)."""
+        structured_context: dict[str, object] = {
+            "financial_modeling": _dcf(150.0),
+            "data_collection": _financial_data(reporting="TWD", quote="USD"),
+            "forward_financials": _forward(),
+        }
+        vs = build_valuation_synthesis(
+            structured_context,
+            current_price=170.0,
+            ticker="TSM",
+            historical_ev_ebitda_band=(20.0, 30.0),
+            historical_ev_ebitda_sample_n=900,
+        )
+        assert vs is not None
+        assert "ev_ebitda" not in [m.name for m in vs.methods]
+
+    def test_degradation_recorded_on_emitted_row(self) -> None:
+        """The band's sample depth must surface on the row's warnings so the dial
+        and the analyst see a thin-history reverse multiple for what it is."""
+        row = _ev_ebitda_method(40e9, (20.0, 30.0), 2.4e9, 30e9, band_sample_n=120)
+        assert row is not None
+        assert any("120 个样本" in w and "历史" in w for w in row.warnings)
+
+    def test_no_degradation_warning_when_sample_n_unknown(self) -> None:
+        """band_sample_n=None (hand-built / legacy caller) → no fabricated count."""
+        row = _ev_ebitda_method(40e9, (20.0, 30.0), 2.4e9, 30e9, band_sample_n=None)
+        assert row is not None
+        assert row.warnings == []

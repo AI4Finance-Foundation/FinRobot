@@ -47,6 +47,7 @@ from finrobot.engine.compute.operators.valuation_synthesis import (
 )
 from finrobot.engine.compute.coordinators.extractor import normalize_financials_to_usd
 from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
+from finrobot.engine.data.historical_loaders import fetch_reverse_multiple_band
 from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.compute.operators.ownership import compute_ownership_governance
 from finrobot.engine.compute.coordinators.technical_payload import (
@@ -579,7 +580,14 @@ async def _execute_financial_modeling(
         if current_price > 0:
             from finrobot.engine.pipelines._helpers import build_valuation_synthesis
 
-            vs = build_valuation_synthesis(structured_context, current_price, ticker=ticker)
+            ev_band = await fetch_reverse_multiple_band(ticker, "ev_ebitda", deps.data_layer)
+            vs = build_valuation_synthesis(
+                structured_context,
+                current_price,
+                ticker=ticker,
+                historical_ev_ebitda_band=(ev_band.p25, ev_band.p75) if ev_band else None,
+                historical_ev_ebitda_sample_n=ev_band.sample_count if ev_band else None,
+            )
             if vs is not None:
                 structured_context["valuation_synthesis"] = vs
         return StepOutput(
@@ -698,7 +706,20 @@ async def _execute_financial_modeling(
     if current_price > 0:
         from finrobot.engine.pipelines._helpers import build_valuation_synthesis
 
-        vs = build_valuation_synthesis(structured_context, current_price, ticker=ticker)
+        # Self historical EV/EBITDA band → revives the EV/EBITDA reverse-multiple
+        # row (band P25/P75 × forward consensus EBITDA − current net debt). Without
+        # this the row was structurally dead in the report — both callers passed
+        # band=None, so the football field lost a whole real method and the
+        # synthesis ran on fewer corroborating methods (lower confidence). Every
+        # input is a reported figure; net debt stays None≠0-gated downstream.
+        ev_band = await fetch_reverse_multiple_band(ticker, "ev_ebitda", deps.data_layer)
+        vs = build_valuation_synthesis(
+            structured_context,
+            current_price,
+            ticker=ticker,
+            historical_ev_ebitda_band=(ev_band.p25, ev_band.p75) if ev_band else None,
+            historical_ev_ebitda_sample_n=ev_band.sample_count if ev_band else None,
+        )
         if vs is not None:
             structured_context["valuation_synthesis"] = vs
 

@@ -248,6 +248,81 @@ async def compute_bands_via_data_layer(
     )
 
 
+# Minimum price-multiple samples behind a historical band before it may price a
+# reverse-multiple method (EV/EBITDA, P/FCF) on the Football Field.
+# ``sample_count`` counts daily (price × trailing-annual-financial) multiples, so
+# a name with even one year of public price history clears this easily (~250
+# trading days). The floor only screens out a band so sparse it carries no
+# distribution — a freshly-listed name with a handful of price points whose p25/p75
+# would just echo a single multiple, dressing one number as a range. Below the
+# floor the band is withheld (method drops with a warning) rather than emitting a
+# degenerate point in a range's clothing.
+_MIN_BAND_SAMPLES = 60
+
+
+@dataclass(frozen=True)
+class HistoricalBandSpread:
+    """The (p25, p75) reverse-multiple band + provenance for a Football Field row.
+
+    ``sample_count`` and ``years_thin`` let the consumer record on the emitted
+    ``ValuationMethodRange`` HOW degraded the band is, so the confidence dial and
+    the analyst both see a thin-history reverse multiple for what it is rather than
+    a fully-corroborated one.
+    """
+
+    p25: float
+    p75: float
+    sample_count: int
+
+
+async def fetch_reverse_multiple_band(
+    ticker: str,
+    metric: HistoricalMetricName,
+    data_layer: DataLayer | None,
+    *,
+    years: int = 5,
+    current_override: float | None = None,
+) -> HistoricalBandSpread | None:
+    """Resolve the (p25, p75) historical-multiple band for a reverse method.
+
+    This is the single door both the equity-research pipeline
+    (``build_valuation_synthesis``) and the ``/api/valuation/aggregate`` route use
+    to feed ``aggregate_valuation``'s ``historical_ev_ebitda_band`` /
+    ``historical_p_fcf_band`` inputs. Before this existed both callers passed
+    ``None``, so the EV/EBITDA and P/FCF reverse-multiple rows could NEVER fire in
+    production even though the band itself is fully computable (it already powers
+    ``GET /api/valuation/historical-bands``). Wiring it revives a real degraded
+    valuation method: the band's own historical P25/P75 multiple × a real forward
+    number − real net debt — every input a reported figure, none fabricated.
+
+    Returns None (the method then drops, as before) when no data layer is
+    configured, the band fetch fails, the band has no usable P25/P75, or the
+    sample count is below ``_MIN_BAND_SAMPLES`` (too sparse to be a distribution).
+    """
+    if data_layer is None:
+        return None
+    try:
+        band = await compute_bands_via_data_layer(
+            ticker, metric, years, data_layer, current_override=current_override
+        )
+    except (ProviderError, ValueError, KeyError, TypeError) as exc:
+        logger.info("reverse-multiple band fetch failed for %s/%s: %s", ticker, metric, exc)
+        return None
+    p25, p75 = band.p25, band.p75
+    if p25 is None or p75 is None or p25 <= 0 or p75 <= 0:
+        return None
+    if band.sample_count < _MIN_BAND_SAMPLES:
+        logger.info(
+            "reverse-multiple band for %s/%s has only %d samples (< %d) — withheld",
+            ticker,
+            metric,
+            band.sample_count,
+            _MIN_BAND_SAMPLES,
+        )
+        return None
+    return HistoricalBandSpread(p25=p25, p75=p75, sample_count=band.sample_count)
+
+
 def classify_band(band: HistoricalBand) -> BandClassification:
     """UI hint: where does `current` sit vs P25 / P75 / P90 (spec §6.6)."""
     if band.current is None or band.p25 is None or band.p75 is None:

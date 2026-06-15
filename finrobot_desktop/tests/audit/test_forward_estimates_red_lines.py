@@ -88,6 +88,11 @@ class TestSingleEntryPoint:
         # routes/valuation.py wires the route handler to the aggregator —
         # passes forward_* by kwarg name, never invents the numbers.
         Path("finrobot/routes/valuation.py"),
+        # _helpers.py is the pipeline-side mirror of routes/valuation.py: it
+        # wires build_valuation_synthesis → aggregate_valuation, passing the
+        # leaf's already-minted forward EBITDA straight through by kwarg name
+        # (gated single-currency). Like the route, it never derives the number.
+        Path("finrobot/engine/pipelines/_helpers.py"),
         # yfinance provider is allowed to surface "forward_eps" through its
         # raw dict (the leaf reads from there) — but it must not derive
         # forward EBITDA / FCF.

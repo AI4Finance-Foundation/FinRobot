@@ -12,12 +12,15 @@ single 5×5 division loop. Running ``calculate_lbo`` once per (entry, exit) cell
 would 25× the cost of the endpoint with zero accuracy benefit.
 
 EV/EBITDA and P/FCF rows are *multiple* methods — they reverse-engineer a
-band from the company's own 3-year multiple distribution (P25/P75) times a
-forward profit number. Forward profit now comes from FMP analyst estimates
-(compute/forward_estimates.py); the historical-band input (PR3) is still
-unwired at the aggregate route, so the multiple rows stay omitted with a
-warning until that lands — the UI surfaces "降级显示 4 行 valuation, 2 行
-multiple 未就绪".
+band from the company's own multi-year multiple distribution (P25/P75) times a
+forward profit number. Forward profit comes from FMP analyst estimates
+(compute/forward_estimates.py); the historical-band input is fetched by both
+callers via ``historical_loaders.fetch_reverse_multiple_band`` and threaded in
+as ``historical_ev_ebitda_band``. EV/EBITDA fires whenever that band + a forward
+EBITDA + current net debt are all present (net debt stays None≠0-gated — a
+missing figure hides the row rather than fabricating a debt-free bridge). P/FCF
+stays omitted: FMP /analyst-estimates carries no free-cash-flow figure, so
+``forward_fcf`` is always None and band-wiring alone cannot honestly revive it.
 """
 
 from __future__ import annotations
@@ -122,6 +125,7 @@ def aggregate_valuation(
     forward_confidence: str | None = None,
     forward_source: str | None = None,
     historical_ev_ebitda_band: tuple[float, float] | None = None,
+    historical_ev_ebitda_sample_n: int | None = None,
     historical_p_fcf_band: tuple[float, float] | None = None,
     cyclical: bool = False,
     as_of: datetime | None = None,
@@ -195,7 +199,11 @@ def aggregate_valuation(
 
     if (
         m := _ev_ebitda_method(
-            forward_ebitda, historical_ev_ebitda_band, shares_outstanding, current_net_debt
+            forward_ebitda,
+            historical_ev_ebitda_band,
+            shares_outstanding,
+            current_net_debt,
+            band_sample_n=historical_ev_ebitda_sample_n,
         )
     ) is not None:
         methods.append(m)
@@ -639,6 +647,8 @@ def _ev_ebitda_method(
     band: tuple[float, float] | None,
     shares: float | None,
     current_net_debt: float | None,
+    *,
+    band_sample_n: int | None = None,
 ) -> ValuationMethodRange | None:
     if (
         forward_ebitda is None
@@ -674,6 +684,17 @@ def _ev_ebitda_method(
     low = max(0.01, raw_low)
     high = max(low, raw_high)
     mid = (low + high) / 2
+    # Disclose the depth of the historical-multiple distribution behind the band so
+    # the analyst (and the confidence dial reading method spread) can tell a band
+    # built on a full multi-year multiple history from a thin one — the band is a
+    # real degraded proxy (own历史倍数 × forward EBITDA − net debt, every input a
+    # reported figure), not a corroborated point, and the provenance must say so.
+    method_warnings: list[str] = []
+    if band_sample_n is not None:
+        method_warnings.append(
+            f"ev_ebitda: 自身历史 EV/EBITDA 分位带（{band_sample_n} 个样本）× forward EBITDA"
+            f" − 当前净债 — 降级相对估值法,倍数取自标的自身历史区间,非同业。"
+        )
     return ValuationMethodRange(
         method="ev_ebitda",
         method_type="multiple",
@@ -682,6 +703,7 @@ def _ev_ebitda_method(
         high=high,
         confidence=0.72,
         source="self_3y_p25_p75 × forward_ebitda − current_net_debt",
+        warnings=method_warnings,
     )
 
 

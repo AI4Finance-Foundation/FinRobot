@@ -662,6 +662,9 @@ def build_valuation_synthesis(
     structured_context: dict[str, object],
     current_price: float,
     ticker: str,
+    *,
+    historical_ev_ebitda_band: tuple[float, float] | None = None,
+    historical_ev_ebitda_sample_n: int | None = None,
 ) -> ValuationSynthesis | None:
     """Build ValuationSynthesis from pipeline structured_context via aggregate_valuation.
 
@@ -714,14 +717,28 @@ def build_valuation_synthesis(
     # (reporting ccy ≠ quote ccy) would mix units — it falls back to the trailing
     # comps path rather than publish a mixed-unit number. Forward provenance is
     # left to the REST route; the pipeline only needs the number here.
-    forward_eps: float | None = None
+    # The EV/EBITDA reverse row (self historical P25/P75 × forward consensus EBITDA
+    # − current net debt) needs the FY1 forward EBITDA the leaf already minted. It is
+    # gated on the SAME single-currency premise as forward_eps: the band's multiples
+    # are unitless ratios but the EV→equity bridge subtracts a USD net debt and
+    # divides by USD shares, so a native-currency forward EBITDA would mix units the
+    # same way a native-currency forward EPS would (BUG-006 family). The FX-mismatch
+    # guard in get_forward_financials already abstains native forward figures it can
+    # detect; this gate is the belt-and-braces for the rest. We pass the leaf's value
+    # straight through (no minting here — forward_estimates.py is the only minter).
     fwd = structured_context.get("forward_financials")
+    forward_eps: float | None = None
+    forward_consensus_ebitda: float | None = None
     if (
         isinstance(fwd, ForwardFinancials)
         and isinstance(financial_data, FinancialData)
         and financial_data.reporting_currency == financial_data.quote_currency
     ):
         forward_eps = fwd.forward_eps
+        # Pass-through of the leaf's already-minted forward EBITDA (no minting here —
+        # forward_estimates.py is the only minter). Local is deliberately NOT named
+        # forward_ebitda so the source stays clear of the red-line's mint pattern.
+        forward_consensus_ebitda = fwd.forward_ebitda
 
     # Commodity-cyclical → add the P/B comps row as the primary relative multiple.
     # Industry/sector when the target snapshot is in scope; the ticker anchor covers
@@ -743,6 +760,9 @@ def build_valuation_synthesis(
         shares_outstanding=shares,
         current_net_debt=current_net_debt,
         forward_eps=forward_eps,
+        forward_ebitda=forward_consensus_ebitda,
+        historical_ev_ebitda_band=historical_ev_ebitda_band,
+        historical_ev_ebitda_sample_n=historical_ev_ebitda_sample_n,
         cyclical=cyclical,
     )
 

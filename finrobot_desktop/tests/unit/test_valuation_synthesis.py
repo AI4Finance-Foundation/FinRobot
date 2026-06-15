@@ -229,7 +229,7 @@ class TestSynthesizeValuations:
         ]
         result = synthesize_valuations(methods, current_price=100.0)
         assert result.confidence == "low"
-        assert any("校准带" in w for w in [result.degradation_note or ""])
+        assert any("calibration band" in w for w in [result.degradation_note or ""])
 
 
 class TestVerdictFromUpside:

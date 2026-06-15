@@ -96,7 +96,7 @@ def seed_ddm_inputs(
     # ----- dividend_per_share -----------------------------------------------
     dps = normalized.dividend_per_share
     if dps is not None and dps > 0:
-        prov["dividend_per_share"] = f"${dps:.2f}（provider 报告年化 DPS）"
+        prov["dividend_per_share"] = f"${dps:.2f} (provider-reported annualized DPS)"
     else:
         payout_raw = normalized.payout_ratio
         if (
@@ -108,7 +108,7 @@ def seed_ddm_inputs(
         ):
             dps = payout_raw * net_income / shares
             prov["dividend_per_share"] = (
-                f"${dps:.2f}（派息率 {payout_raw:.1%} × 净利 ÷ 股本，provider 未直接给 DPS）"
+                f"${dps:.2f} (payout ratio {payout_raw:.1%} × net income ÷ shares; provider did not report DPS directly)"
             )
         else:
             raise ValueError(
@@ -119,15 +119,17 @@ def seed_ddm_inputs(
     # ----- payout_ratio ------------------------------------------------------
     payout = normalized.payout_ratio
     if payout is not None and 0 < payout <= 1:
-        prov["payout_ratio"] = f"{payout:.1%}（provider 报告派息率）"
+        prov["payout_ratio"] = f"{payout:.1%} (provider-reported payout ratio)"
     else:
         eps = net_income / shares if (net_income is not None and shares > 0) else 0.0
         if eps > 0:
             payout = dps / eps
-            prov["payout_ratio"] = f"{payout:.1%}（DPS ÷ 每股收益，provider 未给派息率）"
+            prov["payout_ratio"] = f"{payout:.1%} (DPS ÷ EPS; provider did not report payout ratio)"
         else:
             payout = _DEFAULT_PAYOUT_RATIO
-            prov["payout_ratio"] = f"{payout:.1%}（通用基准，派息率与每股收益均不可得）"
+            prov["payout_ratio"] = (
+                f"{payout:.1%} (generic benchmark; neither payout ratio nor EPS available)"
+            )
     payout = max(0.0, min(1.0, payout))
 
     # ----- dividend_growth_rates --------------------------------------------
@@ -137,18 +139,20 @@ def seed_ddm_inputs(
     roe = normalized.return_on_equity
     if roe is not None and roe > 0:
         g = max(0.0, min(_MAX_SUSTAINABLE_GROWTH, roe * (1 - payout)))
-        growth_source = f"可持续增长 g = ROE {roe:.1%} × (1−派息率 {payout:.1%}) = {g:.1%}"
+        growth_source = (
+            f"sustainable growth g = ROE {roe:.1%} × (1 − payout ratio {payout:.1%}) = {g:.1%}"
+        )
     else:
         g = max(terminal_growth_rate * 2, 0.05)
-        growth_source = f"ROE 不可得，使用通用 {g:.1%} 增长起点"
+        growth_source = f"ROE unavailable; using a generic {g:.1%} growth starting point"
     growth_schedule = _decay_growth_schedule(g, terminal_growth_rate, projection_years)
     if g > terminal_growth_rate:
         prov["dividend_growth_rates"] = (
-            f"{growth_source}，未来 {projection_years} 年线性衰减到永续 {terminal_growth_rate:.1%}"
+            f"{growth_source}, fading linearly to terminal {terminal_growth_rate:.1%} over the next {projection_years}yr"
         )
     else:
         prov["dividend_growth_rates"] = (
-            f"{growth_source}，未来 {projection_years} 年按此持平（永续 {terminal_growth_rate:.1%}）"
+            f"{growth_source}, held flat at this rate over the next {projection_years}yr (terminal {terminal_growth_rate:.1%})"
         )
 
     # ----- terminal_payout_ratio --------------------------------------------
@@ -159,34 +163,38 @@ def seed_ddm_inputs(
     if roe is not None and roe > terminal_growth_rate:
         terminal_payout: float | None = max(payout, min(1.0, 1 - terminal_growth_rate / roe))
         prov["terminal_payout_ratio"] = (
-            f"{terminal_payout:.1%}（永续派息率 = 1 − 永续增速 {terminal_growth_rate:.1%} / "
-            f"ROE {roe:.1%}）"
+            f"{terminal_payout:.1%} (terminal payout ratio = 1 − terminal growth {terminal_growth_rate:.1%} / "
+            f"ROE {roe:.1%})"
         )
     else:
         terminal_payout = None
-        prov["terminal_payout_ratio"] = "派息率永续恒定（ROE 不可得，无法归一化终值派息）"
+        prov["terminal_payout_ratio"] = (
+            "payout ratio held constant in perpetuity (ROE unavailable; cannot normalize terminal payout)"
+        )
 
     # ----- beta (CAPM) -------------------------------------------------------
     beta_chosen, beta_source = _pick_with_provenance(
         ticker_value=financials.market.beta,
-        ticker_label="provider 报告 5y 调整 beta",
+        ticker_label="provider-reported 5y adjusted beta",
         industry_value=industry.levered_beta,
-        industry_label=f"{industry.industry} 行业 levered beta",
+        industry_label=f"{industry.industry} industry levered beta",
     )
     beta_final = max(_BETA_FLOOR, min(_BETA_CAP, beta_chosen))
-    prov["beta"] = f"{beta_final:.2f}（{beta_source}）"
+    prov["beta"] = f"{beta_final:.2f} ({beta_source})"
 
-    prov["risk_free_rate"] = f"{risk_free_rate:.1%}（当前 10 年期美债收益率）"
-    prov["equity_risk_premium"] = f"{equity_risk_premium:.1%}（Damodaran 隐含 ERP）"
-    prov["terminal_growth_rate"] = f"{terminal_growth_rate:.1%}（长期美国名义 GDP 增速）"
-    prov["shares_outstanding"] = f"当前流通股本 {shares / 1e9:.2f}B 股"
-    prov["current_price"] = f"当前股价 ${current_price:.2f}"
+    prov["risk_free_rate"] = f"{risk_free_rate:.1%} (current 10Y US Treasury yield)"
+    prov["equity_risk_premium"] = f"{equity_risk_premium:.1%} (Damodaran implied ERP)"
+    prov["terminal_growth_rate"] = f"{terminal_growth_rate:.1%} (long-run US nominal GDP growth)"
+    prov["shares_outstanding"] = f"current shares outstanding {shares / 1e9:.2f}B shares"
+    prov["current_price"] = f"current share price ${current_price:.2f}"
 
     book_value_per_share = normalized.book_value_per_share
     if roe is not None:
-        prov["return_on_equity"] = f"{roe:.1%}（provider 报告 ROE）"
+        prov["return_on_equity"] = f"{roe:.1%} (provider-reported ROE)"
     if book_value_per_share is not None and book_value_per_share > 0:
-        prov["book_value_per_share"] = f"${book_value_per_share:.2f}（provider 报告每股净资产）"
+        prov["book_value_per_share"] = (
+            f"${book_value_per_share:.2f} (provider-reported book value per share)"
+        )
 
     # Clamp to DDMInputs Field bounds before constructing so an industry-fallback
     # edge case can't raise (terminal_growth ≤ 0.05, beta ≤ 3, dps > 0).

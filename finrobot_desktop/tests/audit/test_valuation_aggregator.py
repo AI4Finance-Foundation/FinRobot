@@ -291,7 +291,7 @@ class TestAggregatorContract:
         assert row.high == 1080.0  # 900 * 1.2
         # Honest placeholder label — no modelled distribution behind the band.
         assert "± 20%" in row.source
-        assert "占位区间" in row.source
+        assert "placeholder band" in row.source
 
     def test_dcf_band_never_emits_monte_carlo_source(self) -> None:
         # The Monte Carlo P10/P90 branch was dead code: nothing in the pipeline
@@ -395,7 +395,7 @@ class TestAggregatorContract:
             as_of=AS_OF,
         )
         assert not any(m.method == "ev_ebitda" for m in agg.methods)
-        assert any("当前净债务" in w for w in agg.warnings)
+        assert any("current net debt" in w for w in agg.warnings)
 
     def test_ev_ebitda_never_borrows_lbo_ending_debt(self) -> None:
         """Even with a full LBO artifact present, EV/EBITDA must NOT reach into
@@ -547,7 +547,7 @@ class TestAggregatorContract:
         )
         row = next(m for m in agg.methods if m.method == "dcf")
         # fixture: wacc 0.082, growth [0.10,0.08,0.06], terminal 0.025, beta 1.2
-        assert row.assumptions == "WACC 8.2% · 3年增长 10%→2.5% · β1.20"
+        assert row.assumptions == "WACC 8.2% · 3yr growth 10%→2.5% · β1.20"
 
     def test_comps_pe_row_carries_caliber_assumption(self) -> None:
         """comps_pe's load-bearing bet is 'NVDA deserves the peer median P/E' on a
@@ -562,7 +562,10 @@ class TestAggregatorContract:
         )
         row = next(m for m in agg.methods if m.method == "comps_pe")
         # The caliber now discloses the as-reported peer-P/E口径 (BUG-029).
-        assert row.assumptions == "押同业中值 P/E 28.0× × forward EPS（as-reported 同业 P/E）"
+        assert (
+            row.assumptions
+            == "anchored to peer median P/E 28.0× × forward EPS (as-reported peer P/E)"
+        )
 
     def test_ddm_row_carries_discount_and_growth_assumption(self) -> None:
         agg = aggregate_valuation(
@@ -573,7 +576,10 @@ class TestAggregatorContract:
         )
         row = next(m for m in agg.methods if m.method == "ddm")
         # fixture: cost_of_equity 0.10, dividend growth [0.05,0.04,0.03], terminal 0.02
-        assert row.assumptions == "折现率(股权成本) 10.0% · 股息增长 5%→永续 2.0%"
+        assert (
+            row.assumptions
+            == "discount rate (cost of equity) 10.0% · dividend growth 5%→terminal 2.0%"
+        )
 
     def test_lbo_row_carries_exit_multiple_and_hold_assumption(self) -> None:
         agg = aggregate_valuation(
@@ -585,4 +591,4 @@ class TestAggregatorContract:
         )
         row = next(m for m in agg.methods if m.method == "lbo")
         # fixture: exit_multiples [10,11,12], 5-year schedule
-        assert row.assumptions == "退出 EV/EBITDA 10.0–12.0× · 持有 5 年"
+        assert row.assumptions == "exit EV/EBITDA 10.0–12.0× · hold 5yr"

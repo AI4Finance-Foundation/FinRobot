@@ -1557,7 +1557,7 @@ async def test_deterministic_peer_selection_uses_candidate_screen(mock_deps):
 
     assert selection.tickers == ["AVGO", "AMD", "QCOM"]
     assert "TSM" not in selection.tickers
-    assert "角色剔除 2 家" in selection.rationale
+    assert "role-dropped 2" in selection.rationale
 
 
 @pytest.mark.asyncio
@@ -1868,7 +1868,7 @@ async def test_thesis_single_method_in_band_publishes_with_caveat(mock_deps):
         target_low=217.18,
         target_high=361.96,
         valuation_withheld=False,
-        degradation_note="单一方法 comps_pe 无交叉校验 — 区间放宽,置信中等。",
+        degradation_note="single method comps_pe with no cross-validation — band widened, confidence medium.",
     )
 
     with patch(
@@ -1887,7 +1887,7 @@ async def test_thesis_single_method_in_band_publishes_with_caveat(mock_deps):
     # -6.9% upside → HOLD (medium-tier SELL needs -35%).
     assert thesis.recommendation == "HOLD"
     # Basis must disclose the single-method / no-cross-check caliber.
-    assert "无交叉" in thesis.price_target_basis
+    assert "no cross-validation" in thesis.price_target_basis
     prompt = agent.run.call_args[0][0]
     assert "AUTHORITATIVE PRICE TARGET" in prompt
 

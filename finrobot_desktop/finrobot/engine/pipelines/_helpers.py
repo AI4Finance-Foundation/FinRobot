@@ -797,7 +797,7 @@ def build_valuation_synthesis(
     # synthesis basis says "only one method resolved" and the reader needs the
     # other half of that sentence. Same diagnosability rule as the DCF degrade
     # warning; the REST aggregate route already surfaces agg.warnings whole.
-    exit_reasons = [w for w in agg.warnings if "方法退出" in w]
+    exit_reasons = [w for w in agg.warnings if "method withheld" in w]
     if exit_reasons:
         vs.warnings.extend(w for w in exit_reasons if w not in vs.warnings)
     return vs

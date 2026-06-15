@@ -93,17 +93,17 @@ def _comps_median_refusal(
     """
     if 0 < sample_n < _COMPS_MIN_MULTIPLE_SAMPLE:
         return (
-            f"{method}: 同业 {label} 样本仅 {sample_n} 家"
-            f"（< {_COMPS_MIN_MULTIPLE_SAMPLE}），单一对手的倍数不构成中位数 — 方法退出"
+            f"{method}: peer {label} sample is only {sample_n} firm(s) "
+            f"(< {_COMPS_MIN_MULTIPLE_SAMPLE}); a single peer's multiple is not a median — method withheld"
         )
     if target_multiple is not None and target_multiple > 0:
         mismatch = max(target_multiple, median_val) / min(target_multiple, median_val)
         if mismatch > _COMPS_MULTIPLE_MISMATCH_MAX:
             return (
-                f"{method}: 标的自身 {label} {target_multiple:.0f}x 与同业中位 "
-                f"{median_val:.1f}x 相差 {mismatch:.0f}x"
-                f"（> {_COMPS_MULTIPLE_MISMATCH_MAX:.0f}x）——市场从未按同业中位"
-                f"为该标的定价，「向同业收敛」前提不适用 — 方法退出"
+                f"{method}: the target's own {label} {target_multiple:.0f}x is {mismatch:.0f}x away from "
+                f"the peer median {median_val:.1f}x "
+                f"(> {_COMPS_MULTIPLE_MISMATCH_MAX:.0f}x) — the market has never priced this name "
+                f"at the peer median, so the 'converge to peers' premise does not apply — method withheld"
             )
     return None
 
@@ -148,7 +148,7 @@ def aggregate_valuation(
     if (m := _dcf_method(dcf)) is not None:
         methods.append(m)
     elif dcf is None:
-        warnings.append("dcf: 无 DCF artifact — 跑 AI 完整研报后此行展示")
+        warnings.append("dcf: no DCF artifact — this row appears after running the full AI report")
 
     # Cyclical → P/B is the primary relative multiple (book equity is cycle-stable).
     # Listed BEFORE comps_pe so the football field leads with it; the through-cycle/
@@ -170,11 +170,13 @@ def aggregate_valuation(
         # below — the method didn't fail on data, it declined the forward-peak口径.
         pass
     elif peer_comps is None:
-        warnings.append("comps_pe: 无 peer_analysis artifact — 跑 AI 完整研报后此行展示")
+        warnings.append(
+            "comps_pe: no peer_analysis artifact — this row appears after running the full AI report"
+        )
     elif forward_eps is None:
         warnings.append(
-            "comps_pe: forward EPS 不可得（无 FMP analyst-estimates 数据 / 未配置 FMP key）— "
-            "降级使用 trailing EPS"
+            "comps_pe: forward EPS unavailable (no FMP analyst-estimates data / FMP key not configured) — "
+            "degrading to trailing EPS"
         )
     else:
         # peer_comps present, method still returned None — diagnose why
@@ -182,13 +184,13 @@ def aggregate_valuation(
         core_pe_n = sum(1 for p in peer_comps.peers if p.core_pe_ratio is not None)
         if pe_n == 0 and core_pe_n == 0:
             warnings.append(
-                "comps_pe: 同业 P/E 中值为 N/A — 所有 peers TTM net income ≤ 0"
-                "（pre-profitability peer set），P/E 法无法应用。"
-                "建议通过 --peers 手动指定含盈利对标的同业集 — 方法退出"
+                "comps_pe: peer P/E median is N/A — all peers' TTM net income ≤ 0 "
+                "(pre-profitability peer set), so the P/E method cannot be applied. "
+                "Suggest specifying a profitable peer set manually via --peers — method withheld"
             )
         elif peer_comps.target.net_income is None or peer_comps.target.net_income <= 0:
             warnings.append(
-                "comps_pe: target TTM net income ≤ 0 — 目标公司本身亏损，P/E 法不适用 — 方法退出"
+                "comps_pe: target TTM net income ≤ 0 — the target itself is loss-making, so the P/E method does not apply — method withheld"
             )
 
     if (m := _ddm_method(ddm)) is not None:
@@ -197,7 +199,9 @@ def aggregate_valuation(
     if (m := _lbo_method(lbo, shares_outstanding)) is not None:
         methods.append(m)
     elif lbo is not None and shares_outstanding is None:
-        warnings.append("lbo: 缺少 shares_outstanding — 目标价反推被跳过")
+        warnings.append(
+            "lbo: missing shares_outstanding — target-price reverse calculation skipped"
+        )
 
     if (
         m := _ev_ebitda_method(
@@ -222,18 +226,21 @@ def aggregate_valuation(
         # relative-multiple method; without current net debt there is no honest
         # bridge, so the row is hidden with a口径-explicit provenance note.
         warnings.append(
-            "ev_ebitda: 当前净债务(total_debt − cash)不可得 — 拒绝用 0 或 LBO 未来 ending_debt "
-            "伪造 EV→equity 桥,该行隐藏(EV/EBITDA 为当前倍数法,必须减当前净债)"
+            "ev_ebitda: current net debt (total_debt − cash) unavailable — refusing to fabricate the "
+            "EV→equity bridge with 0 or LBO's future ending_debt; this row is hidden "
+            "(EV/EBITDA is a current-multiple method and must subtract current net debt)"
         )
     else:
         warnings.append(
-            "ev_ebitda: 历史估值带(PR3 未接) 或 forward EBITDA 不可得 — multiple 行降级隐藏"
+            "ev_ebitda: historical valuation band (PR3 not wired) or forward EBITDA unavailable — multiple row degraded and hidden"
         )
 
     if (m := _p_fcf_method(forward_fcf, historical_p_fcf_band, shares_outstanding)) is not None:
         methods.append(m)
     else:
-        warnings.append("p_fcf: 历史估值带(PR3 未接) 或 forward FCF 不可得 — multiple 行降级隐藏")
+        warnings.append(
+            "p_fcf: historical valuation band (PR3 not wired) or forward FCF unavailable — multiple row degraded and hidden"
+        )
 
     return ValuationAggregate(
         ticker=ticker.upper(),
@@ -282,9 +289,9 @@ def _dcf_assumptions(dcf: DCFResult) -> str:
     tg = dcf.inputs.terminal_growth_rate
     if rates:
         g0 = rates[0]
-        growth = f"{len(rates)}年增长 {g0:.0%}→{tg:.1%}"
+        growth = f"{len(rates)}yr growth {g0:.0%}→{tg:.1%}"
     else:
-        growth = f"永续增长 {tg:.1%}"
+        growth = f"terminal growth {tg:.1%}"
     return f"WACC {dcf.wacc:.1%} · {growth} · β{dcf.inputs.beta:.2f}"
 
 
@@ -300,7 +307,7 @@ def _dcf_band(mid: float) -> tuple[float, float, str]:
     return (
         mid * (1 - _DCF_BAND_WIDTH),
         mid * (1 + _DCF_BAND_WIDTH),
-        "implied_price ± 20%（占位区间，非真实分布）",
+        "implied_price ± 20% (placeholder band, not a real distribution)",
     )
 
 
@@ -333,10 +340,10 @@ def _comps_pe_method(
     # are untouched — the entire path below runs exactly as before.
     if cyclical:
         _warn(
-            "comps_pe: 周期股 — 抑制 forward P/E × 周期顶 EPS 口径"
-            "（成长股 forward 倍数 × 周期顶 EPS = MU $2974 伪值);"
-            "改由 comps_pb(账面价值,周期稳定)主导 + through-cycle P/E(DCF 锚)兜底"
-            " — 方法退出"
+            "comps_pe: cyclical — suppressing the forward P/E × cycle-peak EPS basis "
+            "(growth-stock forward multiple × cycle-peak EPS = MU $2974 spurious value); "
+            "led instead by comps_pb (book value, cycle-stable) + through-cycle P/E (DCF anchor) as fallback"
+            " — method withheld"
         )
         return None
 
@@ -370,9 +377,9 @@ def _comps_pe_method(
             # income, set per peer in _fetch_one_peer). Slightly higher confidence
             # than the as-reported fallback because the calibers now agree.
             mid = peer_comps.median_forward_pe * forward_eps  # type: ignore[operator]
-            source = "peer_median_forward_pe × forward_eps（同业 forward P/E × 标的 forward EPS，同口径）"
+            source = "peer_median_forward_pe × forward_eps (peer forward P/E × target forward EPS, same caliber)"
             multiple = peer_comps.median_forward_pe
-            caliber = "forward EPS（同业 forward P/E，同口径）"
+            caliber = "forward EPS (peer forward P/E, same caliber)"
             confidence = 0.80
         elif peer_comps.median_pe is not None and peer_comps.median_pe > 0:
             refusal = _comps_median_refusal(
@@ -393,9 +400,9 @@ def _comps_pe_method(
             # NOPAT-core median_core_pe. The label states the caliber explicitly
             # rather than silently mixing definitions.
             mid = peer_comps.median_pe * forward_eps  # type: ignore[operator]
-            source = "peer_median_pe × forward_eps（as-reported 同业 P/E，含非经营性收益；无 peer forward 口径）"
+            source = "peer_median_pe × forward_eps (as-reported peer P/E, includes non-operating income; no peer forward caliber)"
             multiple = peer_comps.median_pe
-            caliber = "forward EPS（as-reported 同业 P/E）"
+            caliber = "forward EPS (as-reported peer P/E)"
             confidence = 0.78
     else:
         # Trailing path: use the NOPAT core caliber so the target EPS and the
@@ -422,9 +429,11 @@ def _comps_pe_method(
                 return None
             core_eps = core_ni / shares_outstanding  # type: ignore[operator]
             mid = peer_comps.median_core_pe * core_eps
-            source = "peer_median_core_pe × core_eps（NOPAT 核心盈利口径，forward 不可得）"
+            source = (
+                "peer_median_core_pe × core_eps (NOPAT core-earnings caliber; forward unavailable)"
+            )
             multiple = peer_comps.median_core_pe
-            caliber = "NOPAT 核心盈利 EPS"
+            caliber = "NOPAT core-earnings EPS"
             confidence = 0.55
         elif peer_comps.median_pe is not None and peer_comps.median_pe > 0 and has_shares:
             # Fallback: core caliber unavailable (provider omitted operating
@@ -442,7 +451,7 @@ def _comps_pe_method(
                     _warn(refusal)
                     return None
                 mid = peer_comps.median_pe * (net_income / shares_outstanding)  # type: ignore[operator]
-                source = "peer_median_pe × trailing_eps (forward 不可得)"
+                source = "peer_median_pe × trailing_eps (forward unavailable)"
                 multiple = peer_comps.median_pe
                 caliber = "trailing EPS"
                 confidence = 0.55
@@ -451,7 +460,9 @@ def _comps_pe_method(
         return None
 
     band = mid * _COMPS_PE_BAND_WIDTH
-    assumptions = f"押同业中值 P/E {multiple:.1f}× × {caliber}" if multiple is not None else None
+    assumptions = (
+        f"anchored to peer median P/E {multiple:.1f}× × {caliber}" if multiple is not None else None
+    )
     return ValuationMethodRange(
         method="comps_pe",
         method_type="valuation",
@@ -491,8 +502,8 @@ def _comps_pb_method(
         return None
     if target_bvps is None or target_bvps <= 0:
         _warn(
-            "comps_pb: 标的每股账面价值不可得（provider 未报 / 负权益 / ADR 跨币种）—"
-            "周期股 P/B 法降级,退回 P/E — 方法退出"
+            "comps_pb: target book value per share unavailable (provider did not report / negative equity / cross-currency ADR) — "
+            "cyclical P/B method degraded, falling back to P/E — method withheld"
         )
         return None
     refusal = _comps_median_refusal(
@@ -514,8 +525,8 @@ def _comps_pb_method(
         # Slightly above comps_pe's trailing confidence: for a cyclical, P/B is the
         # more reliable relative anchor than a cycle-distorted P/E.
         confidence=0.60,
-        source="peer_median_pb × target_book_value_per_share（周期股账面价值口径,主倍数）",
-        assumptions=f"押同业中值 P/B {median_pb:.2f}× × 每股账面 ${target_bvps:,.2f}",
+        source="peer_median_pb × target_book_value_per_share (cyclical book-value caliber, primary multiple)",
+        assumptions=f"anchored to peer median P/B {median_pb:.2f}× × book value per share ${target_bvps:,.2f}",
     )
 
 
@@ -542,7 +553,7 @@ def _ddm_assumptions(ddm: DDMResult) -> str:
     rates = ddm.inputs.dividend_growth_rates
     tg = ddm.inputs.terminal_growth_rate
     g0 = rates[0] if rates else tg
-    return f"折现率(股权成本) {ddm.cost_of_equity:.1%} · 股息增长 {g0:.0%}→永续 {tg:.1%}"
+    return f"discount rate (cost of equity) {ddm.cost_of_equity:.1%} · dividend growth {g0:.0%}→terminal {tg:.1%}"
 
 
 def _lbo_method(
@@ -592,8 +603,8 @@ def _lbo_method(
         confidence=0.60,
         source=(
             f"ability-to-pay: (exit_multiple × exit_ebitda − remaining_debt) "
-            f"按 sponsor hurdle {SPONSOR_IRR_HURDLE:.0%} 折现 {holding_years} 年 "
-            f"(复用 sensitivity 网格)"
+            f"discounted at the sponsor hurdle {SPONSOR_IRR_HURDLE:.0%} over {holding_years}yr "
+            f"(reusing the sensitivity grid)"
         ),
         assumptions=_lbo_assumptions(exit_multiples, lbo.schedule),
     )
@@ -607,7 +618,7 @@ def _lbo_assumptions(exit_multiples: list[Any], schedule: list[Any]) -> str | No
     mults = [float(m) for m in exit_multiples if _is_floatable(m)]
     if not mults:
         return None
-    return f"退出 EV/EBITDA {min(mults):.1f}–{max(mults):.1f}× · 持有 {len(schedule)} 年"
+    return f"exit EV/EBITDA {min(mults):.1f}–{max(mults):.1f}× · hold {len(schedule)}yr"
 
 
 def _is_floatable(v: Any) -> bool:
@@ -695,8 +706,8 @@ def _ev_ebitda_method(
     method_warnings: list[str] = []
     if band_sample_n is not None:
         method_warnings.append(
-            f"ev_ebitda: 自身历史 EV/EBITDA 分位带（{band_sample_n} 个样本）× forward EBITDA"
-            f" − 当前净债 — 降级相对估值法,倍数取自标的自身历史区间,非同业。"
+            f"ev_ebitda: own historical EV/EBITDA percentile band ({band_sample_n} samples) × forward EBITDA"
+            f" − current net debt — degraded relative-valuation method; multiple taken from the target's own historical range, not from peers."
         )
     return ValuationMethodRange(
         method="ev_ebitda",

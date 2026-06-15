@@ -343,11 +343,16 @@ def _build_attribution(
     fair = REGISTRY["implied_price"]
 
     if a_dcf is None or b_dcf is None:
-        return Attribution(available=False, disabled_reason="本类型不支持估值贡献拆解")
+        return Attribution(
+            available=False,
+            disabled_reason="Valuation contribution breakdown is not supported for this type",
+        )
     a_implied = a_dcf.get("implied_price")
     b_implied = b_dcf.get("implied_price")
     if not isinstance(a_implied, (int, float)) or not isinstance(b_implied, (int, float)):
-        return Attribution(available=False, disabled_reason="缺少 DCF 公允价值，无法归因")
+        return Attribution(
+            available=False, disabled_reason="DCF fair value missing; attribution not possible"
+        )
 
     total = float(b_implied) - float(a_implied)
     fmt_total = format_caliber_value(fair, total, currency=currency)
@@ -366,7 +371,7 @@ def _build_attribution(
     if not a_inputs_dump:
         return Attribution(
             available=False,
-            disabled_reason="缺少可复算的 DCF 假设",
+            disabled_reason="No re-computable DCF assumptions available",
             total_change=total,
             formatted_total=fmt_total,
         )
@@ -375,7 +380,7 @@ def _build_attribution(
     except (TypeError, ValueError):
         return Attribution(
             available=False,
-            disabled_reason="DCF 假设无法复算",
+            disabled_reason="DCF assumptions cannot be re-computed",
             total_change=total,
             formatted_total=fmt_total,
         )
@@ -607,7 +612,7 @@ def _market_implied_item(
         ceil_parts.append(f"v1 ≤ ${ceil_a:,.2f}")
     if unreach_b and ceil_b is not None:
         ceil_parts.append(f"v2 ≤ ${ceil_b:,.2f}")
-    note = "现金流上限 " + " · ".join(ceil_parts) if ceil_parts else None
+    note = "cash-flow ceiling " + " · ".join(ceil_parts) if ceil_parts else None
 
     return DeltaItem(
         key="implied_growth",
@@ -640,10 +645,10 @@ def _peer_set_item(a: Artifact, b: Artifact) -> tuple[DeltaItem | None, Comparab
     if removed and added:
         note_parts.append(f"{'/'.join(removed)}→{'/'.join(added)}")
     elif removed:
-        note_parts.append(f"剔除 {'/'.join(removed)}")
+        note_parts.append(f"removed {'/'.join(removed)}")
     elif added:
-        note_parts.append(f"新增 {'/'.join(added)}")
-    note = "；".join(note_parts) if note_parts else None
+        note_parts.append(f"added {'/'.join(added)}")
+    note = "; ".join(note_parts) if note_parts else None
 
     item = DeltaItem(
         key="peer_set",
@@ -697,18 +702,18 @@ def build_semantic_delta(a: Artifact, b: Artifact) -> SemanticDelta:
     blocked_reason: str | None = None
     if a.compute_version.formula_id != b.compute_version.formula_id:
         blocked_reason = (
-            f"计算公式不同（{a.compute_version.formula_id} → {b.compute_version.formula_id}），"
-            "两版数字不可相减归因，仅并列展示。"
+            f"Compute formula changed ({a.compute_version.formula_id} → "
+            f"{b.compute_version.formula_id}); values are shown side by side, "
+            "attribution disabled."
         )
         flags.append(
             ComparabilityFlag(
                 kind="formula",
-                message_zh=blocked_reason,
-                message_en=(
-                    f"Compute formula changed ({a.compute_version.formula_id} → "
-                    f"{b.compute_version.formula_id}); values are shown side by side, "
-                    "attribution disabled."
+                message_zh=(
+                    f"计算公式不同（{a.compute_version.formula_id} → {b.compute_version.formula_id}），"
+                    "两版数字不可相减归因，仅并列展示。"
                 ),
+                message_en=blocked_reason,
                 blocks_attribution=True,
             )
         )
@@ -802,7 +807,7 @@ def build_semantic_delta(a: Artifact, b: Artifact) -> SemanticDelta:
         cal = REGISTRY[reg_key]
         # absolute fundamentals across an earnings season aren't like-for-like
         comparable = not (period_drift and cal.unit == "currency_abs")
-        note = "口径已变更（TTM 已滚动）" if not comparable else None
+        note = "caliber changed (TTM has rolled)" if not comparable else None
         is_override = reg_key in overrides_a or reg_key in overrides_b
         drivers.append(
             _numeric_item(

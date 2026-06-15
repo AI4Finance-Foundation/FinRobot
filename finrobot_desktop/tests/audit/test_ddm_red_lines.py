@@ -98,12 +98,12 @@ def test_ddm_params_step_uses_seed_not_llm() -> None:
     src = (REPO_ROOT / "finrobot" / "engine" / "pipelines" / "ddm.py").read_text()
 
     # The deterministic executor must exist and be wired into the step.
-    assert "async def _execute_ddm_seed(" in src, (
-        "_execute_ddm_seed missing from pipelines/ddm.py — did you rename it?"
-    )
-    assert "executor=_execute_ddm_seed" in src, (
-        "ddm_params step must use executor=_execute_ddm_seed."
-    )
+    assert (
+        "async def _execute_ddm_seed(" in src
+    ), "_execute_ddm_seed missing from pipelines/ddm.py — did you rename it?"
+    assert (
+        "executor=_execute_ddm_seed" in src
+    ), "ddm_params step must use executor=_execute_ddm_seed."
     assert "seed_ddm_inputs" in src, "pipelines/ddm.py must call seed_ddm_inputs()."
 
     # The banned LLM-selects-numbers path must be fully gone.
@@ -182,14 +182,15 @@ def test_assumption_provenance_covers_every_seeded_field() -> None:
     assert not missing, f"Missing provenance for fields: {sorted(missing)}"
 
 
-def test_assumption_provenance_messages_are_chinese() -> None:
+def test_assumption_provenance_messages_are_english() -> None:
     inputs = seed_ddm_inputs(_financials(), _normalized())
     offenders = [
         f"{k}: {msg}"
         for k, msg in inputs.assumption_provenance.items()
-        if not any("一" <= ch <= "鿿" for ch in msg)
+        if any("一" <= ch <= "鿿" for ch in msg)
+        or not any(ch.isascii() and ch.isalpha() for ch in msg)
     ]
-    assert not offenders, "Provenance messages must contain Chinese:\n" + "\n".join(offenders)
+    assert not offenders, "Provenance messages must be readable English:\n" + "\n".join(offenders)
 
 
 if __name__ == "__main__":

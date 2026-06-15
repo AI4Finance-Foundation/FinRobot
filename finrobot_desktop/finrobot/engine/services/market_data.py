@@ -70,10 +70,10 @@ async def fetch_price_history(data_layer: DataLayer, ticker: str) -> dict[str, A
         if _is_yfinance_service_down(e):
             raise
         # Non-service-down provider error → treat as invalid / unknown ticker.
-        raise ValueError(f"未知 ticker '{ticker}': {e}") from e
+        raise ValueError(f"unknown ticker '{ticker}': {e}") from e
 
     if not price.bars and not price.current_price:
-        raise ValueError(f"未知 ticker '{ticker}': 无价格数据")
+        raise ValueError(f"unknown ticker '{ticker}': no price data")
 
     change, change_pct = price.latest_session_change()
 

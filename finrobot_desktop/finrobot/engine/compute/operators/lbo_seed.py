@@ -97,7 +97,7 @@ def seed_lbo_inputs(
 
     # ----- revenue_base ------------------------------------------------------
     revenue_base = financials.income.revenue
-    prov["revenue_base"] = f"最新年报营收 ${revenue_base / 1e9:.1f}B"
+    prov["revenue_base"] = f"latest annual revenue ${revenue_base / 1e9:.1f}B"
 
     # ----- ltm_ebitda --------------------------------------------------------
     ltm_ebitda = financials.income.ebitda
@@ -106,17 +106,17 @@ def seed_lbo_inputs(
         # non-positive, fall back to industry-implied value via
         # revenue × industry EBITDA margin. Prov flag this clearly.
         ltm_ebitda_note = (
-            "最新 EBITDA 不可得"
+            "latest EBITDA unavailable"
             if ltm_ebitda is None
-            else f"最新 EBITDA ${ltm_ebitda / 1e9:.1f}B 为非正"
+            else f"latest EBITDA ${ltm_ebitda / 1e9:.1f}B is non-positive"
         )
         ltm_ebitda = max(revenue_base * industry.ebitda_pct_revenue, 1.0)
         prov["ltm_ebitda"] = (
-            f"${ltm_ebitda / 1e9:.1f}B（{ltm_ebitda_note}，按"
-            f" {industry.industry} 行业 EBITDA 利润率 {industry.ebitda_pct_revenue:.1%} 估算）"
+            f"${ltm_ebitda / 1e9:.1f}B ({ltm_ebitda_note};"
+            f" estimated at the {industry.industry} industry EBITDA margin {industry.ebitda_pct_revenue:.1%})"
         )
     else:
-        prov["ltm_ebitda"] = f"最新年报 EBITDA ${ltm_ebitda / 1e9:.1f}B"
+        prov["ltm_ebitda"] = f"latest annual EBITDA ${ltm_ebitda / 1e9:.1f}B"
 
     # ----- revenue_growth_rate (constant for LBO model) ---------------------
     # LBO assumes a single steady-state growth rate. Take historical 3y CAGR
@@ -126,50 +126,52 @@ def seed_lbo_inputs(
         revenue_growth_rate = max(0.0, min(0.15, raw_growth))
         n_years = len(historical.years)
         prov["revenue_growth_rate"] = (
-            f"{revenue_growth_rate:.1%}（过去 {n_years} 年营收 CAGR {raw_growth:.1%}，"
-            f"夹紧到 PE 承销区间 0%-15%）"
+            f"{revenue_growth_rate:.1%} (trailing {n_years}yr revenue CAGR {raw_growth:.1%}, "
+            f"clamped to the PE underwriting band 0%-15%)"
         )
     else:
         revenue_growth_rate = 0.05
-        prov["revenue_growth_rate"] = "5.0%（历史增长率不可得，按 PE 行业承销基准）"
+        prov["revenue_growth_rate"] = (
+            "5.0% (historical growth rate unavailable; PE industry underwriting benchmark)"
+        )
 
     # ----- ebitda_margin ----------------------------------------------------
     _ebitda_ticker, ebitda_value, ebitda_label = _ticker_median_with_label(
-        _median_recent(historical.ebitda_margin), "EBITDA 利润率中位数"
+        _median_recent(historical.ebitda_margin), "median EBITDA margin"
     )
     ebitda_margin, ebitda_source = _pick_with_provenance(
         ticker_value=ebitda_value,
         ticker_label=ebitda_label,
         industry_value=industry.ebitda_pct_revenue,
-        industry_label=f"{industry.industry} 行业中位数",
-        rejected_ticker_reason="为非正，亏损/缺 EBITDA 年份不作为 LBO 正常化利润率",
+        industry_label=f"{industry.industry} industry median",
+        rejected_ticker_reason="non-positive; loss-making / missing-EBITDA years are not used as the LBO normalized margin",
     )
-    prov["ebitda_margin"] = f"{ebitda_margin:.1%}（{ebitda_source}）"
+    prov["ebitda_margin"] = f"{ebitda_margin:.1%} ({ebitda_source})"
 
     # ----- capex_pct_revenue ------------------------------------------------
     _capex_ticker, capex_value, capex_label = _ticker_median_with_label(
-        _median_ratio(historical.capital_expenditure, historical.revenue), "CapEx / 营收 中位数"
+        _median_ratio(historical.capital_expenditure, historical.revenue), "median CapEx / revenue"
     )
     capex_pct, capex_source = _pick_with_provenance(
         ticker_value=capex_value,
         ticker_label=capex_label,
         industry_value=industry.capex_pct_revenue,
-        industry_label=f"{industry.industry} 行业中位数",
+        industry_label=f"{industry.industry} industry median",
     )
-    prov["capex_pct_revenue"] = f"{capex_pct:.1%}（{capex_source}）"
+    prov["capex_pct_revenue"] = f"{capex_pct:.1%} ({capex_source})"
 
     # ----- da_pct_revenue ---------------------------------------------------
     _da_ticker, da_value, da_label = _ticker_median_with_label(
         _median_ratio(historical.depreciation_amortization, historical.revenue),
-        "D&A / 营收 中位数",
+        "median D&A / revenue",
     )
     da_pct, da_source = _pick_with_provenance(
         ticker_value=da_value,
         ticker_label=da_label,
         industry_value=industry.da_pct_revenue,
-        industry_label=f"{industry.industry} 行业中位数",
+        industry_label=f"{industry.industry} industry median",
     )
-    prov["da_pct_revenue"] = f"{da_pct:.1%}（{da_source}）"
+    prov["da_pct_revenue"] = f"{da_pct:.1%} ({da_source})"
 
     # ----- nwc_change_pct_revenue -------------------------------------------
     # FMP changeInWorkingCapital carries the cash-flow sign (negative = NWC grew =
@@ -180,11 +182,13 @@ def seed_lbo_inputs(
         nwc_median, nwc_n = nwc_result
         nwc_pct = max(-0.10, min(0.10, -nwc_median))
         prov["nwc_change_pct_revenue"] = (
-            f"{nwc_pct:.1%}（过去 {nwc_n} 年 ΔNWC / 营收 中位数，正=占用现金）"
+            f"{nwc_pct:.1%} (trailing {nwc_n}yr ΔNWC / revenue median; positive = cash absorbed)"
         )
     else:
         nwc_pct = DEFAULT_NWC_PCT_REVENUE
-        prov["nwc_change_pct_revenue"] = f"{nwc_pct:.1%}（历史不可得，按 PE 承销基准）"
+        prov["nwc_change_pct_revenue"] = (
+            f"{nwc_pct:.1%} (historical unavailable; PE underwriting benchmark)"
+        )
 
     # ----- tax_rate ---------------------------------------------------------
     # Clamp the industry rate into [floor, cap], then disclose the floor/cap when
@@ -194,16 +198,16 @@ def seed_lbo_inputs(
     tax_rate = max(LBO_TAX_RATE_FLOOR, min(LBO_TAX_RATE_CAP, raw_industry_tax))
     if raw_industry_tax < LBO_TAX_RATE_FLOOR:
         prov["tax_rate"] = (
-            f"{tax_rate:.1%}（{industry.industry} 行业实际有效税率 {raw_industry_tax:.1%}，"
-            f"已夹至下限 {LBO_TAX_RATE_FLOOR:.0%}）"
+            f"{tax_rate:.1%} ({industry.industry} industry effective tax rate {raw_industry_tax:.1%}, "
+            f"clamped to the {LBO_TAX_RATE_FLOOR:.0%} floor)"
         )
     elif raw_industry_tax > LBO_TAX_RATE_CAP:
         prov["tax_rate"] = (
-            f"{tax_rate:.1%}（{industry.industry} 行业实际有效税率 {raw_industry_tax:.1%}，"
-            f"已夹至上限 {LBO_TAX_RATE_CAP:.0%}）"
+            f"{tax_rate:.1%} ({industry.industry} industry effective tax rate {raw_industry_tax:.1%}, "
+            f"clamped to the {LBO_TAX_RATE_CAP:.0%} cap)"
         )
     else:
-        prov["tax_rate"] = f"{tax_rate:.1%}（{industry.industry} 行业实际有效税率）"
+        prov["tax_rate"] = f"{tax_rate:.1%} ({industry.industry} industry effective tax rate)"
 
     # ----- interest_rate ---------------------------------------------------
     # LBO debt is typically TLB + HY-bond mix. Prefer the company's effective
@@ -219,20 +223,28 @@ def seed_lbo_inputs(
         # company's current investment-grade or hybrid mix.
         interest_rate = min(0.15, cod + 0.02)
         prov["interest_rate"] = (
-            f"{interest_rate:.1%}（公司当前实际成本 {cod:.1%} + LBO 风险溢价 2%）"
+            f"{interest_rate:.1%} (company's current actual cost {cod:.1%} + LBO risk premium 2%)"
         )
     else:
         interest_rate = DEFAULT_INTEREST_RATE
-        prov["interest_rate"] = f"{interest_rate:.1%}（PE LBO 杠杆贷款 + 高收益债综合基准）"
+        prov["interest_rate"] = (
+            f"{interest_rate:.1%} (PE LBO leveraged-loan + high-yield-bond blended benchmark)"
+        )
 
     # ----- Deal structure (PE convention; recorded for transparency) -------
-    prov["entry_ev_ebitda"] = f"{entry_ev_ebitda:.1f}× EBITDA（PE 中端市场 LBO 入场倍数惯例）"
-    prov["exit_ev_ebitda"] = f"{exit_ev_ebitda:.1f}× EBITDA（保守假设，无倍数扩张）"
-    prov["leverage_multiple"] = (
-        f"{leverage_multiple:.1f}× EBITDA（PE LBO 总债务 / EBITDA 行业基准）"
+    prov["entry_ev_ebitda"] = (
+        f"{entry_ev_ebitda:.1f}× EBITDA (PE mid-market LBO entry-multiple convention)"
     )
-    prov["holding_period_years"] = f"{holding_period_years} 年（PE 持有期惯例）"
-    prov["mandatory_amort_pct"] = f"{DEFAULT_MANDATORY_AMORT:.1%}（Term Loan B 强制摊销率惯例）"
+    prov["exit_ev_ebitda"] = (
+        f"{exit_ev_ebitda:.1f}× EBITDA (conservative assumption, no multiple expansion)"
+    )
+    prov["leverage_multiple"] = (
+        f"{leverage_multiple:.1f}× EBITDA (PE LBO total Debt / EBITDA industry benchmark)"
+    )
+    prov["holding_period_years"] = f"{holding_period_years}yr (PE holding-period convention)"
+    prov["mandatory_amort_pct"] = (
+        f"{DEFAULT_MANDATORY_AMORT:.1%} (Term Loan B mandatory-amortization convention)"
+    )
 
     return LBOInputs(
         ticker=financials.ticker,

@@ -178,14 +178,14 @@ def get_forward_financials(
             historical_ebitda_margins,
             historical_fcf_margins,
             initial_warnings=[
-                "FMP analyst-estimates 不可用："
-                + "；".join(fmp_result.warnings)
-                + " — 降级到 yfinance forward EPS"
+                "FMP analyst-estimates unavailable: "
+                + "; ".join(fmp_result.warnings)
+                + " — degraded to yfinance forward EPS"
             ],
         )
 
     if not yf_info:
-        return _unavailable(ticker, "无 yfinance info — forward 全部不可得")
+        return _unavailable(ticker, "no yfinance info — all forward figures unavailable")
 
     return _from_yfinance(
         ticker,
@@ -247,13 +247,13 @@ def _guard_fx_mismatch(
 
     if ni_trips and ni_ratio is not None:
         why = (
-            f"是 trailing 净利(USD) {trailing_net_income_usd / 1e9:.1f}B 的 "  # type: ignore[operator]
-            f"{ni_ratio:.0f}×（>{_FX_MISMATCH_NI_RATIO:g}×）"
+            f"is {ni_ratio:.0f}× trailing net income (USD) {trailing_net_income_usd / 1e9:.1f}B "  # type: ignore[operator]
+            f"(>{_FX_MISMATCH_NI_RATIO:g}×)"
         )
     else:
         why = (
-            f"是 trailing 营收(USD) {trailing_revenue_usd / 1e9:.1f}B 的 "  # type: ignore[operator]
-            f"{rev_ratio:.1f}×（>{_FX_MISMATCH_REV_RATIO:g}×，净利不可能超营收）"
+            f"is {rev_ratio:.1f}× trailing revenue (USD) {trailing_revenue_usd / 1e9:.1f}B "  # type: ignore[operator]
+            f"(>{_FX_MISMATCH_REV_RATIO:g}×; net income cannot exceed revenue)"
         )
     return replace(
         result,
@@ -267,9 +267,9 @@ def _guard_fx_mismatch(
         confidence="unavailable",
         warnings=[
             *result.warnings,
-            f"forward NI/EPS abstained：FMP consensus 隐含净利 {fwd_ni / 1e9:.1f}B {why}"
-            f"——/analyst-estimates 无币种字段，疑为原生报表币(非 USD)，"
-            f"拒绝跨币 forward P/E，置 None",
+            f"forward NI/EPS abstained: FMP consensus implied net income {fwd_ni / 1e9:.1f}B {why}"
+            f" — /analyst-estimates carries no currency field, likely native reporting currency (non-USD); "
+            f"cross-currency forward P/E rejected, set to None",
         ],
     )
 
@@ -286,7 +286,9 @@ def _from_yfinance(
 
     forward_eps = _coerce_positive_float(yf_info.get("forward_eps") or yf_info.get("forwardEps"))
     if forward_eps is None:
-        warnings.append("forward_eps 不可得 — FMP analyst-estimates / yfinance 均未提供可用值")
+        warnings.append(
+            "forward_eps unavailable — neither FMP analyst-estimates nor yfinance provided a usable value"
+        )
 
     # Without FMP we have no consensus forward revenue, so forward EBITDA / FCF
     # can't be derived either. Stay honest rather than back-fill.
@@ -295,8 +297,8 @@ def _from_yfinance(
     forward_fcf: float | None = None
     if forward_eps is not None:
         warnings.append(
-            "forward_revenue / forward_ebitda / forward_fcf 暂不可得："
-            "yfinance 只有 forward EPS，consensus 营收/利润待 FMP analyst-estimates 集成"
+            "forward_revenue / forward_ebitda / forward_fcf unavailable: "
+            "yfinance only carries forward EPS; consensus revenue / earnings pending FMP analyst-estimates integration"
         )
 
     confidence: ConfidenceLevel = "low" if forward_eps is not None else "unavailable"
@@ -307,9 +309,9 @@ def _from_yfinance(
         confidence = "low"
 
     source = (
-        "yfinance.info.forwardEps (degraded · FMP consensus 不可用)"
+        "yfinance.info.forwardEps (degraded · FMP consensus unavailable)"
         if forward_eps is not None
-        else "无可用 forward 数据源"
+        else "no available forward data source"
     )
 
     return ForwardFinancials(
@@ -394,11 +396,13 @@ def _from_fmp(
     """
     rows = fmp.get("rows") if isinstance(fmp, dict) else fmp
     if not isinstance(rows, list) or not rows:
-        return _unavailable(ticker, "FMP analyst-estimates 返回空 — 降级到 yfinance forward EPS")
+        return _unavailable(
+            ticker, "FMP analyst-estimates returned empty — degraded to yfinance forward EPS"
+        )
 
     chosen, period_warning = _select_forward_row(rows, as_of)
     if chosen is None:
-        return _unavailable(ticker, "FMP analyst-estimates 行格式异常")
+        return _unavailable(ticker, "FMP analyst-estimates row has a malformed format")
     if period_warning is not None:
         warnings.append(period_warning)
 
@@ -408,7 +412,7 @@ def _from_fmp(
     forward_net_income = _coerce_positive_float(chosen.get("netIncomeAvg"))
 
     if forward_eps is None and forward_revenue is None:
-        return _unavailable(ticker, "FMP 行缺关键字段 (eps/revenue)")
+        return _unavailable(ticker, "FMP row missing key fields (eps/revenue)")
 
     # FMP analyst-estimates supplies consensus EPS / revenue / EBITDA / net
     # income but NO free cash flow figure (true in v3 and stable alike) →
@@ -417,7 +421,7 @@ def _from_fmp(
     # (forward P/E AND forward EV/EBITDA both consensus-driven); 'medium' =
     # EPS / revenue only.
     if forward_eps is None:
-        warnings.append("FMP 行无 epsAvg — forward P/E 不可得")
+        warnings.append("FMP row has no epsAvg — forward P/E unavailable")
     confidence: ConfidenceLevel = "high" if forward_ebitda is not None else "medium"
 
     fiscal_period = chosen.get("date") if isinstance(chosen.get("date"), str) else None
@@ -461,12 +465,15 @@ def _select_forward_row(rows: list[Any], as_of: date) -> tuple[dict[str, Any] | 
     if dated:
         latest = max(dated, key=lambda dr: dr[0])
         return latest[1], (
-            f"FMP analyst-estimates 最新预测期 {latest[0].isoformat()} 早于 "
-            f"{as_of.isoformat()} — forward 数据可能过期"
+            f"FMP analyst-estimates latest forecast period {latest[0].isoformat()} is earlier than "
+            f"{as_of.isoformat()} — forward data may be stale"
         )
 
     if undated_first is not None:
-        return undated_first, "FMP analyst-estimates 行缺 date — 无法确认 forward 财年口径"
+        return (
+            undated_first,
+            "FMP analyst-estimates row missing date — cannot confirm the forward fiscal-year caliber",
+        )
 
     return None, None
 
@@ -493,7 +500,7 @@ def _unavailable(ticker: str, reason: str) -> ForwardFinancials:
         forward_ebitda=None,
         forward_fcf=None,
         confidence="unavailable",
-        source="未集成 / 数据缺失",
+        source="not integrated / data missing",
         warnings=[reason],
     )
 
@@ -511,8 +518,8 @@ def _margin_volatility_warning(
         stdev = statistics.pstdev(series)
         if stdev / abs(mean) > _TTM_VOLATILITY_THRESHOLD:
             return (
-                f"TTM {label} 利润率波动 {stdev / abs(mean):.0%} > 20% — "
-                "forward 推算 confidence 降为 low"
+                f"TTM {label} margin volatility {stdev / abs(mean):.0%} > 20% — "
+                "forward-estimate confidence lowered to low"
             )
     return None
 

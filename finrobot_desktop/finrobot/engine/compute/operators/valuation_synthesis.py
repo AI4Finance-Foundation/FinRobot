@@ -102,7 +102,7 @@ def _confidence_dial(
                 only.mid - band,
                 only.mid + band,
                 False,
-                f"单一方法 {only.name} 无交叉校验 — 区间放宽,置信中等。",
+                f"single method {only.name} with no cross-validation — band widened, confidence medium.",
             )
         # Off the single-method calibration band: withhold the POINT (no false-precise
         # headline stamped on a lone, far-from-market method) — but STILL ship the band.
@@ -116,10 +116,10 @@ def _confidence_dial(
             only.mid - band,
             only.mid + band,
             True,
-            f"单一方法 {only.name} ${only.mid:.0f} 为市价的 {ratio:.2g}x,出 "
+            f"single method {only.name} ${only.mid:.0f} is {ratio:.2g}x the market price, outside the "
             f"[{1.0 / SINGLE_METHOD_DIVERGENCE_RATIO_K:.2g}x,"
-            f"{SINGLE_METHOD_DIVERGENCE_RATIO_K:.0f}x] 单法校准带 — 点目标暂缺(避免在唯一离市"
-            f"方法上盖假精确值),区间仍给出基本面底,方向取市场隐含。",
+            f"{SINGLE_METHOD_DIVERGENCE_RATIO_K:.0f}x] single-method calibration band — point target withheld (avoid stamping "
+            f"false precision on a lone far-from-market method); the band still provides a fundamental floor, with direction taken from the market implied.",
         )
 
     # ≥2 methods: tier from inter-method agreement (NOT market distance).
@@ -136,10 +136,10 @@ def _confidence_dial(
         point = anchor.mid if anchor else statistics.median(mids)
         tier = "medium" if span <= _DIAL_MILD_SPAN else "low"
         note = (
-            f"方法分歧 {span:.2g}x — 锚定 {anchor_name} ${point:.0f}"
-            f"(可比性:{'周期股现金流/账面' if cyclical else 'peer 倍数'}),其余方法作区间界。"
+            f"method divergence {span:.2g}x — anchored to {anchor_name} ${point:.0f} "
+            f"(comparability: {'cyclical cash flow / book value' if cyclical else 'peer multiples'}); the remaining methods set the range bounds."
             if anchor_name
-            else f"方法分歧 {span:.2g}x,取中位。"
+            else f"method divergence {span:.2g}x; taking the median."
         )
 
     # Out-of-calibration cap (option-value regime): model/market outside [0.25x, 4x].
@@ -153,8 +153,10 @@ def _confidence_dial(
         )
         tier = _floor_tier(tier, "very_low" if extreme else "low")
         note = (note or "") + (
-            f" 模型 ${point:.0f} 为市价的 {ratio:.2g}x,出 [0.25x,4x] 校准带 — "
-            "市场或在定价模型未捕捉的期权价值,置信下调" + ("、点目标暂缺" if extreme else "") + "。"
+            f" model ${point:.0f} is {ratio:.2g}x the market price, outside the [0.25x, 4x] calibration band — "
+            "the market may be pricing option value the valuation models do not capture; confidence reduced"
+            + (", point target withheld" if extreme else "")
+            + "."
         )
         if extreme:
             return tier, anchor_name, lo, hi, True, note.strip()
@@ -429,7 +431,7 @@ def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
         basis = (
             f"POINT TARGET WITHHELD (confidence={vs.confidence}): the only number "
             f"available ({anchor_txt} ${point:.2f}) would be fabricated, so it is not "
-            f"published (绝不编数字). The {verdict} verdict stands on the directional "
+            f"published (never fabricate a number). The {verdict} verdict stands on the directional "
             f"read of the market-implied valuation, not a point estimate. "
             f"Methods: {method_breakdown}.{range_txt} {vs.degradation_note or ''}"
         ).strip()
@@ -454,7 +456,7 @@ def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
     # (run_413ad4913cc1). The narrative prompt reads canonical.basis, so folding the exit
     # reasons in here is the single point that surfaces the WHY in both the headline and
     # the narrative — not just the artifact's machine-readable warnings[] list.
-    suppression_reasons = [w for w in vs.warnings if "方法退出" in w]
+    suppression_reasons = [w for w in vs.warnings if "method withheld" in w]
     if suppression_reasons:
         basis = f"{basis} {' '.join(suppression_reasons)}".strip()
 

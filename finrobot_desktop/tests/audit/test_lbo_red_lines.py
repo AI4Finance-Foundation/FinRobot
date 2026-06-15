@@ -219,15 +219,19 @@ def test_lbo_assumption_provenance_covers_every_field():
     assert not missing, f"Missing LBO provenance for fields: {sorted(missing)}"
 
 
-def test_lbo_assumption_provenance_messages_are_chinese():
-    """Provenance text targets retail Chinese users — guard against
-    accidental English-only strings sneaking back in."""
+def test_lbo_assumption_provenance_messages_are_english():
+    """Provenance text targets English-speaking analysts — guard against
+    Chinese strings sneaking back in."""
     inputs = seed_lbo_inputs(_minimal_financials(), _empty_historical())
     offenders: list[str] = []
     for key, msg in inputs.assumption_provenance.items():
-        if not any("一" <= ch <= "鿿" for ch in msg):
+        if any("一" <= ch <= "鿿" for ch in msg) or not any(
+            ch.isascii() and ch.isalpha() for ch in msg
+        ):
             offenders.append(f"{key}: {msg}")
-    assert not offenders, "LBO provenance messages must contain Chinese:\n" + "\n".join(offenders)
+    assert not offenders, "LBO provenance messages must be readable English:\n" + "\n".join(
+        offenders
+    )
 
 
 def _out_of_band_industry(monkeypatch: pytest.MonkeyPatch, rate: float) -> None:
@@ -271,7 +275,8 @@ def test_lbo_tax_rate_clamp_cap_disclosed(monkeypatch: pytest.MonkeyPatch) -> No
     assert f"{LBO_TAX_RATE_CAP:.1%}" in prov
     # ...and discloses the dropped raw rate + the cap
     assert "52.0%" in prov
-    assert "已夹至上限" in prov
+    assert "clamped to the" in prov
+    assert "cap" in prov
 
 
 def test_lbo_tax_rate_clamp_floor_disclosed(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -289,7 +294,8 @@ def test_lbo_tax_rate_clamp_floor_disclosed(monkeypatch: pytest.MonkeyPatch) -> 
     assert inputs.tax_rate == pytest.approx(LBO_TAX_RATE_FLOOR)
     assert f"{LBO_TAX_RATE_FLOOR:.1%}" in prov
     assert "4.0%" in prov
-    assert "已夹至下限" in prov
+    assert "clamped to the" in prov
+    assert "floor" in prov
 
 
 def test_lbo_tax_rate_in_band_no_clamp_note(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -301,7 +307,7 @@ def test_lbo_tax_rate_in_band_no_clamp_note(monkeypatch: pytest.MonkeyPatch) -> 
 
     assert inputs.tax_rate == pytest.approx(0.21)
     assert "21.0%" in prov
-    assert "已夹至" not in prov
+    assert "clamped" not in prov
 
 
 def test_lbo_missing_ebitda_falls_back_to_industry_estimate():
@@ -312,7 +318,7 @@ def test_lbo_missing_ebitda_falls_back_to_industry_estimate():
     fin.income.ebitda = None
     inputs = seed_lbo_inputs(fin, _empty_historical())
     assert inputs.ltm_ebitda > 0
-    assert "不可得" in inputs.assumption_provenance["ltm_ebitda"]
+    assert "unavailable" in inputs.assumption_provenance["ltm_ebitda"]
 
 
 def test_lbo_loss_maker_profitability_fallback_is_disclosed():
@@ -328,10 +334,10 @@ def test_lbo_loss_maker_profitability_fallback_is_disclosed():
     inputs = seed_lbo_inputs(fin, hist)
 
     assert inputs.ltm_ebitda > 0
-    assert "为非正" in inputs.assumption_provenance["ltm_ebitda"]
+    assert "non-positive" in inputs.assumption_provenance["ltm_ebitda"]
     assert inputs.ebitda_margin > 0
     assert "-20.0%" in inputs.assumption_provenance["ebitda_margin"]
-    assert "为非正" in inputs.assumption_provenance["ebitda_margin"]
+    assert "non-positive" in inputs.assumption_provenance["ebitda_margin"]
 
 
 if __name__ == "__main__":

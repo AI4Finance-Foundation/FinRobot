@@ -354,10 +354,10 @@ class TestDcfSeedProvenance:
         )
         inputs = seed_dcf_inputs(_make_minimal_financials(), hist)
         prov = inputs.assumption_provenance["revenue_growth_rates"]
-        # Must contain CAGR percentage, not "不可得" or "缺口"
+        # Must contain CAGR percentage, not "unavailable" or "gaps"
         assert "CAGR" in prov or "%" in prov
-        assert "不可得" not in prov
-        assert "缺口" not in prov
+        assert "unavailable" not in prov
+        assert "gaps" not in prov
 
     def test_nan_cagr_provenance_is_honest(self) -> None:
         """When cagr_revenue is NaN (not None), provenance must say 'NaN缺口', not '历史增长率不可得'."""
@@ -385,7 +385,7 @@ class TestDcfSeedProvenance:
         inputs = seed_dcf_inputs(_make_minimal_financials(), hist)
         prov = inputs.assumption_provenance["revenue_growth_rates"]
         # Must acknowledge the NaN, not pretend data is simply unavailable
-        assert "缺口" in prov or "NaN" in prov
+        assert "gaps" in prov or "NaN" in prov
 
     def test_none_cagr_provenance_says_data_insufficient(self) -> None:
         """When cagr_revenue is None (no data), provenance says 'histor data insufficient'."""
@@ -412,6 +412,6 @@ class TestDcfSeedProvenance:
         )
         inputs = seed_dcf_inputs(_make_minimal_financials(), hist)
         prov = inputs.assumption_provenance["revenue_growth_rates"]
-        assert "历史" in prov
+        assert "historical" in prov
         # Must NOT blame NaN when the issue is data absence
-        assert "缺口" not in prov
+        assert "gaps" not in prov

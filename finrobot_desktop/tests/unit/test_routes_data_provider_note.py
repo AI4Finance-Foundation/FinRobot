@@ -41,7 +41,7 @@ def test_price_payload_note_appended_once_and_list_coerced() -> None:
     out = _with_fmp_degradation_note(req, payload)
     assert out is payload
     assert out["warnings"][0] == "existing"
-    assert any("yfinance 降级" in w for w in out["warnings"])
+    assert any("yfinance fallback" in w for w in out["warnings"])
 
     # Idempotent — re-running the note never duplicates it.
     n = len(out["warnings"])
@@ -87,4 +87,4 @@ def test_historical_metrics_payload_roundtrips_through_note() -> None:
     out = _with_fmp_degradation_note(_request("fmp-key"), payload)
     revalidated = HistoricalMetrics.model_validate(out)
     assert revalidated.data_source == "yfinance"
-    assert any("yfinance 降级" in w for w in revalidated.warnings)
+    assert any("yfinance fallback" in w for w in revalidated.warnings)

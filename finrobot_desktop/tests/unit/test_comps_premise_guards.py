@@ -52,7 +52,7 @@ class TestThinSampleGuard:
         comps = _comps(median_forward_pe=5.8, forward_pe_sample_n=1)
         m = _comps_pe_method(comps, 1.88, shares_outstanding=3.2e9, warnings=warnings)
         assert m is None
-        assert any("样本仅 1 家" in w for w in warnings)
+        assert any("sample is only 1" in w for w in warnings)
 
     def test_forward_median_of_three_passes(self):
         warnings: list[str] = []
@@ -75,7 +75,7 @@ class TestThinSampleGuard:
         comps = _comps(median_pe=19.4, pe_sample_n=2)
         m = _comps_pe_method(comps, None, shares_outstanding=3.2e9, warnings=warnings)
         assert m is None
-        assert any("样本仅 2 家" in w for w in warnings)
+        assert any("sample is only 2" in w for w in warnings)
 
 
 class TestMultipleMismatchGuard:
@@ -85,7 +85,7 @@ class TestMultipleMismatchGuard:
         comps = _comps(median_forward_pe=5.8, forward_pe_sample_n=4, target_forward_pe=322.4)
         m = _comps_pe_method(comps, 1.88, shares_outstanding=3.2e9, warnings=warnings)
         assert m is None
-        assert any("相差 56x" in w or "相差 55x" in w for w in warnings)
+        assert any("56x away" in w or "55x away" in w for w in warnings)
 
     def test_amd_shaped_2x_premium_passes(self):
         """正常龙头溢价(AMD 63.6x vs 33x = 1.9x)必须继续定价——守卫只拦荒谬错位。"""

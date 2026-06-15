@@ -468,13 +468,17 @@ async def test_overview_network_mode_default_cache_only_false() -> None:
 
 def test_field_caveats_and_join() -> None:
     fw = {"ev_ebitda": ["ev_missing_net_debt"], "pe": ["shares_derived"]}
-    assert _field_caveats(fw, "ev_ebitda") == ["缺净债(total_debt/cash)，EV 类无法计算"]
-    assert _field_caveats(fw, "pe") == ["股数缺失，按市值/价反推，每股指标近似"]
+    assert _field_caveats(fw, "ev_ebitda") == [
+        "net debt (total_debt/cash) missing; EV-based metrics cannot be computed"
+    ]
+    assert _field_caveats(fw, "pe") == [
+        "shares outstanding missing; derived from market cap / price, so per-share metrics are approximate"
+    ]
     assert _field_caveats(fw, "market_cap") == []  # no code → no caveat
     assert (
         _field_caveats({"ev_ebitda": ["unknown_code"]}, "ev_ebitda") == []
     )  # unmapped code dropped
-    assert _join_caveats(None, "a", None, "b") == "a；b"
+    assert _join_caveats(None, "a", None, "b") == "a; b"
     assert _join_caveats(None, None) is None
 
 
@@ -499,7 +503,10 @@ async def test_overview_field_warnings_land_on_the_right_cell() -> None:
     (row,) = ov.rows
     assert row.ev_ebitda is None  # uncomputable, not fabricated
     assert row.sources.ev_ebitda is not None
-    assert row.sources.ev_ebitda.formula_warning == "缺净债(total_debt/cash)，EV 类无法计算"
+    assert (
+        row.sources.ev_ebitda.formula_warning
+        == "net debt (total_debt/cash) missing; EV-based metrics cannot be computed"
+    )
 
 
 async def test_overview_degraded_market_leaves_sources_empty() -> None:

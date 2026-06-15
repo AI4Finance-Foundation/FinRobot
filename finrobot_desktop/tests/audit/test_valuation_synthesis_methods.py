@@ -416,7 +416,7 @@ class TestGuardExitReasonsReachArtifact:
         vs = build_valuation_synthesis(structured_context, current_price=396.0, ticker="TSLA")
         assert vs is not None
         assert [m.name for m in vs.methods] == ["dcf"], "comps_pe 应被 thin-sample 守卫退出"
-        assert any("样本仅 1 家" in w and "方法退出" in w for w in vs.warnings)
+        assert any("sample is only 1" in w and "method withheld" in w for w in vs.warnings)
 
     def test_comps_pb_guard_exit_reason_lands_on_synthesis_warnings(self) -> None:
         """兄弟位置:comps_pb 是 comps_pe 的姊妹腿,共用 _comps_median_refusal 与
@@ -434,7 +434,8 @@ class TestGuardExitReasonsReachArtifact:
         assert vs is not None
         assert "comps_pb" not in [m.name for m in vs.methods], "comps_pb 应被 thin-sample 守卫退出"
         assert any(
-            "comps_pb" in w and "样本仅 1 家" in w and "方法退出" in w for w in vs.warnings
+            "comps_pb" in w and "sample is only 1" in w and "method withheld" in w
+            for w in vs.warnings
         ), f"comps_pb 退出原因必须 surface 到 vs.warnings,实际: {vs.warnings}"
 
     @pytest.mark.parametrize("method", ["comps_pe", "comps_pb"])
@@ -460,7 +461,9 @@ class TestGuardExitReasonsReachArtifact:
             method=method,
         )
         assert reason is not None, f"{method} {branch} 分支应产生拒因"
-        assert "方法退出" in reason, f"{method} {branch} 拒因缺 surface 标记,会被吞掉: {reason!r}"
+        assert (
+            "method withheld" in reason
+        ), f"{method} {branch} 拒因缺 surface 标记,会被吞掉: {reason!r}"
         assert method in reason, f"拒因必须标明是哪个方法退出: {reason!r}"
 
 
@@ -559,7 +562,7 @@ class TestEvEbitdaBandRevivesMethod:
         and the analyst see a thin-history reverse multiple for what it is."""
         row = _ev_ebitda_method(40e9, (20.0, 30.0), 2.4e9, 30e9, band_sample_n=120)
         assert row is not None
-        assert any("120 个样本" in w and "历史" in w for w in row.warnings)
+        assert any("120 samples" in w and "historical" in w for w in row.warnings)
 
     def test_no_degradation_warning_when_sample_n_unknown(self) -> None:
         """band_sample_n=None (hand-built / legacy caller) → no fabricated count."""
@@ -587,7 +590,7 @@ _SUPPRESSION_SWEEP = [
             "peer_analysis": _cyclical_peer_comps_thin_pb(),
             "data_collection": _financial_data(industry="Steel"),
         },
-        "comps_pe: 周期股",
+        "comps_pe: cyclical",
     ),
     (
         "comps_pb_book_value_unavailable",
@@ -596,7 +599,7 @@ _SUPPRESSION_SWEEP = [
             "peer_analysis": _cyclical_peer_comps_no_bvps(),
             "data_collection": _financial_data(industry="Steel"),
         },
-        "comps_pb: 标的每股账面价值不可得",
+        "comps_pb: target book value per share unavailable",
     ),
     (
         "comps_pb_thin_sample",
@@ -605,7 +608,7 @@ _SUPPRESSION_SWEEP = [
             "peer_analysis": _cyclical_peer_comps_thin_pb(),
             "data_collection": _financial_data(industry="Steel"),
         },
-        "comps_pb: 同业 P/B 样本仅 1 家",
+        "comps_pb: peer P/B sample is only 1",
     ),
     (
         "comps_pe_thin_sample",
@@ -613,7 +616,7 @@ _SUPPRESSION_SWEEP = [
             "financial_modeling": _dcf(40.0),
             "peer_analysis": _peer_comps_thin_pe(),
         },
-        "样本仅 1 家",
+        "sample is only 1",
     ),
     (
         "comps_pe_loss_making_pe_inapplicable",
@@ -623,7 +626,7 @@ _SUPPRESSION_SWEEP = [
             "forward_financials": _forward(),
             "data_collection": _financial_data(),
         },
-        "P/E 法无法应用",
+        "P/E method cannot be applied",
     ),
 ]
 
@@ -644,7 +647,7 @@ class TestMethodSuppressionSweep:
         vs = build_valuation_synthesis(context_factory(), current_price=100.0, ticker="X")  # type: ignore[operator]
         assert vs is not None, "被抑制方法之外仍有方法解析 → 应产出 ValuationSynthesis"
         assert any(
-            expected_fragment in w and "方法退出" in w for w in vs.warnings
+            expected_fragment in w and "method withheld" in w for w in vs.warnings
         ), f"抑制原因被吞掉,未带标记进 vs.warnings: {vs.warnings}"
 
 

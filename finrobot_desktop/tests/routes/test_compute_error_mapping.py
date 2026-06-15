@@ -64,9 +64,9 @@ _WACC_BODY = {
 
 # ── shared handler mapping ──────────────────────────────────────────────
 def test_compute_http_error_value_error_is_422() -> None:
-    err = _compute_http_error(ValueError("terminal growth >= wacc"), context="DCF 计算")
+    err = _compute_http_error(ValueError("terminal growth >= wacc"), context="DCF calculation")
     assert err.status_code == 422
-    assert "DCF 计算" in err.detail
+    assert "DCF calculation" in err.detail
 
 
 def test_compute_http_error_provider_error_is_502() -> None:
@@ -139,13 +139,13 @@ def test_dcf_seed_provider_error_maps_to_502() -> None:
     ):
         resp = _client(with_deps=True).post("/api/compute/dcf-seed", json={"ticker": "AAPL"})
     assert resp.status_code == 502, resp.text
-    assert "数据源" in resp.json()["detail"]
+    assert "Data source" in resp.json()["detail"]
 
 
 def test_dcf_seed_value_error_maps_to_422() -> None:
     with patch(
         "finrobot.routes.compute._seed_dcf_inputs_for_ticker",
-        new=AsyncMock(side_effect=ValueError("未知 ticker")),
+        new=AsyncMock(side_effect=ValueError("unknown ticker")),
     ):
         resp = _client(with_deps=True).post("/api/compute/dcf-seed", json={"ticker": "ZZZZ"})
     assert resp.status_code == 422, resp.text
@@ -171,7 +171,7 @@ def test_lbo_seed_provider_error_maps_to_502() -> None:
     client = TestClient(app, raise_server_exceptions=False)
     resp = client.post("/api/compute/lbo-seed", json={"ticker": "AAPL"})
     assert resp.status_code == 502, resp.text
-    assert "数据源" in resp.json()["detail"]
+    assert "Data source" in resp.json()["detail"]
 
 
 def test_dcf_what_if_degenerate_override_maps_to_422() -> None:

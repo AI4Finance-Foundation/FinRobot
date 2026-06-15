@@ -182,17 +182,17 @@ class TestMarketDivergenceRatioBoundary:
     def test_just_below_k_high_side_not_capped(self) -> None:
         result = self._synth(MARKET_DIVERGENCE_RATIO_K - _EPS)
         assert result.confidence == "high"
-        assert "校准带" not in (result.degradation_note or "")
+        assert "calibration band" not in (result.degradation_note or "")
 
     def test_at_k_high_side_is_boundary_not_capped(self) -> None:
         result = self._synth(MARKET_DIVERGENCE_RATIO_K)
         assert result.confidence == "high"
-        assert "校准带" not in (result.degradation_note or "")
+        assert "calibration band" not in (result.degradation_note or "")
 
     def test_just_above_k_high_side_caps(self) -> None:
         result = self._synth(MARKET_DIVERGENCE_RATIO_K + _EPS)
         assert result.confidence != "high"
-        assert "校准带" in (result.degradation_note or "")
+        assert "calibration band" in (result.degradation_note or "")
 
     def test_low_side_band_is_symmetric(self) -> None:
         # 1/K is the floor; the gate is strict so 1/K itself PASSES (high), below it caps.
@@ -201,9 +201,9 @@ class TestMarketDivergenceRatioBoundary:
         at_floor = self._synth(inv_k)
         below_floor = self._synth(inv_k * (1.0 - _EPS))
         assert at_floor.confidence == "high"
-        assert "校准带" not in (at_floor.degradation_note or "")
+        assert "calibration band" not in (at_floor.degradation_note or "")
         assert below_floor.confidence != "high"
-        assert "校准带" in (below_floor.degradation_note or "")
+        assert "calibration band" in (below_floor.degradation_note or "")
 
 
 class TestSingleMethodDivergenceRatioBoundary:

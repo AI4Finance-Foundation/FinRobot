@@ -76,7 +76,9 @@ def test_no_hardcoded_dcf_defaults_in_ui():
                 if hits:
                     line_refs = ", ".join(f"L{n}" for n, _ in hits)
                     offenders.append(f"{path.relative_to(REPO_ROOT)} ({line_refs}): {token}")
-    assert not offenders, "DCF hardcoded defaults must come from /api/compute/dcf-seed:\n" + "\n".join(offenders)
+    assert not offenders, (
+        "DCF hardcoded defaults must come from /api/compute/dcf-seed:\n" + "\n".join(offenders)
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -98,12 +100,12 @@ _RAW_DOLLAR_TICK_FMT = re.compile(
 # the chart will never render a trillion-scale value.
 _RAW_TICK_ALLOWLIST = {
     "CandlestickChart.tsx",  # stock OHLC, always $-hundreds
-    "MonteCarloChart.tsx",   # implied-price histogram, $-hundreds bins
-    "EpsPeChart.tsx",        # EPS in $, single digits
+    "MonteCarloChart.tsx",  # implied-price histogram, $-hundreds bins
+    "EpsPeChart.tsx",  # EPS in $, single digits
     "EpsSurpriseChart.tsx",  # EPS surprise in $
-    "EpsTrendChart.tsx",     # annual EPS bars in $, single digits (eps.toFixed(2))
-    "FootballField.tsx",     # valuation range in $ per share
-    "PriceTrendChart.tsx",   # 1Y share-price line, Y-axis = close prices ($-hundreds)
+    "EpsTrendChart.tsx",  # annual EPS bars in $, single digits (eps.toFixed(2))
+    "FootballField.tsx",  # valuation range in $ per share
+    "PriceTrendChart.tsx",  # 1Y share-price line, Y-axis = close prices ($-hundreds)
 }
 
 
@@ -127,15 +129,13 @@ def test_charts_dont_use_raw_dollar_tick_formatter_for_aggregates():
     assert not offenders, (
         "Charts must use fmtUsd / similar helpers for $ ticks, not raw `$${v}`. "
         "If the chart only renders <$1000 stock prices, add it to "
-        "_RAW_TICK_ALLOWLIST in this file.\n"
-        + "\n".join(offenders)
+        "_RAW_TICK_ALLOWLIST in this file.\n" + "\n".join(offenders)
     )
 
 
 # ---------------------------------------------------------------------------
 # 3. Provenance coverage
 # ---------------------------------------------------------------------------
-
 
 
 _REQUIRED_PROVENANCE_KEYS = {
@@ -213,15 +213,17 @@ def test_assumption_provenance_covers_every_dcf_input_field():
     assert not missing, f"Missing provenance for fields: {sorted(missing)}"
 
 
-def test_assumption_provenance_messages_are_chinese():
-    """Provenance text targets retail Chinese users — guard against
-    accidental English-only strings sneaking back in."""
+def test_assumption_provenance_messages_are_english():
+    """Provenance text targets English-speaking analysts — guard against
+    Chinese strings sneaking back in."""
     inputs = seed_dcf_inputs(_minimal_financials(), _empty_historical())
     offenders: list[str] = []
     for key, msg in inputs.assumption_provenance.items():
-        if not any("一" <= ch <= "鿿" for ch in msg):
+        if any("一" <= ch <= "鿿" for ch in msg) or not any(
+            ch.isascii() and ch.isalpha() for ch in msg
+        ):
             offenders.append(f"{key}: {msg}")
-    assert not offenders, "Provenance messages must contain Chinese:\n" + "\n".join(offenders)
+    assert not offenders, "Provenance messages must be readable English:\n" + "\n".join(offenders)
 
 
 # ---------------------------------------------------------------------------
@@ -265,8 +267,7 @@ def test_ic_memo_financials_step_uses_seed_dcf_inputs():
 
     func_marker = "async def _execute_ic_financials("
     assert func_marker in src, (
-        "_execute_ic_financials function missing from ic_memo.py — "
-        "did you rename it?"
+        "_execute_ic_financials function missing from ic_memo.py — " "did you rename it?"
     )
     start = src.index(func_marker)
     next_func = src.find("\nasync def ", start + 1)
@@ -276,9 +277,9 @@ def test_ic_memo_financials_step_uses_seed_dcf_inputs():
         next_func = len(src)
     body = src[start:next_func]
 
-    assert "seed_dcf_inputs" in body, (
-        "_execute_ic_financials must call seed_dcf_inputs() to construct DCFInputs."
-    )
+    assert (
+        "seed_dcf_inputs" in body
+    ), "_execute_ic_financials must call seed_dcf_inputs() to construct DCFInputs."
 
     body_no_docstring = re.sub(r'"""[\s\S]*?"""', "", body, count=1)
     banned = {
@@ -350,8 +351,7 @@ def test_equity_research_financial_modeling_uses_seed_dcf_inputs():
     }
     offenders = [tok for tok in banned_in_body if tok in body_no_docstring]
     assert not offenders, "\n".join(
-        f"_execute_financial_modeling body contains banned token '{tok}': "
-        f"{banned_in_body[tok]}"
+        f"_execute_financial_modeling body contains banned token '{tok}': " f"{banned_in_body[tok]}"
         for tok in offenders
     )
 

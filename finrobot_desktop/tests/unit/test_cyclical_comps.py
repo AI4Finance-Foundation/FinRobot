@@ -184,7 +184,7 @@ class TestCompsPbMethod:
         m = _comps_pb_method(comps, warnings)
         assert m is None
         # refusal is tagged comps_pb (not comps_pe) so the analyst sees which multiple退出
-        assert any("comps_pb" in w and "样本仅 2" in w for w in warnings)
+        assert any("comps_pb" in w and "sample is only 2" in w for w in warnings)
 
     def test_refuses_on_premise_mismatch_over_10x(self):
         warnings: list[str] = []
@@ -192,14 +192,14 @@ class TestCompsPbMethod:
         comps = self._comps_with_median(2.0, 4, target_bvps=40.0, target_pb=50.0)
         m = _comps_pb_method(comps, warnings)
         assert m is None
-        assert any("comps_pb" in w and "相差" in w for w in warnings)
+        assert any("comps_pb" in w and "away from" in w for w in warnings)
 
     def test_falls_back_when_target_bvps_unavailable(self):
         warnings: list[str] = []
         comps = self._comps_with_median(2.0, 4, target_bvps=None)
         m = _comps_pb_method(comps, warnings)
         assert m is None
-        assert any("每股账面价值不可得" in w for w in warnings)
+        assert any("book value per share unavailable" in w for w in warnings)
 
 
 class TestAggregatorCyclicalWiring:
@@ -275,7 +275,7 @@ class TestCyclicalCompsPeSuppression:
         m = _comps_pe_method(comps, 58.9, 1.13e9, warnings, cyclical=True)
         assert m is None
         # the suppression is口径-explicit and tagged comps_pe
-        assert any("comps_pe" in w and "周期股" in w and "抑制" in w for w in warnings)
+        assert any("comps_pe" in w and "cyclical" in w and "suppressing" in w for w in warnings)
 
     def test_non_cyclical_forward_comps_pe_unchanged(self):
         # Same inputs, cyclical=False → forward path runs exactly as before:
@@ -305,7 +305,7 @@ class TestCyclicalCompsPeSuppression:
         # the misleading data-quality diagnostics ("net income ≤ 0" etc.) must NOT
         # fire — the row was declined on口径, not on data
         assert not any("net income ≤ 0" in w for w in agg.warnings)
-        assert any("周期股" in w and "抑制" in w for w in agg.warnings)
+        assert any("cyclical" in w and "suppressing" in w for w in agg.warnings)
 
     def test_aggregator_non_cyclical_keeps_pe_row(self):
         agg = aggregate_valuation(

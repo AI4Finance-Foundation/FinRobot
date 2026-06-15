@@ -323,22 +323,24 @@ def screen_peers(
     pool_median = _median(eligible_pool_pes)
 
     sector_note = (
-        f"高亲和层(同行业+互荐) {high_affinity_count} 家 ≥ {min_affinity_for_sector}，"
-        "跳过跨行业同板块层"
+        f"high-affinity tier (same industry + mutual-rec) {high_affinity_count} firms "
+        f">= {min_affinity_for_sector}, skipping the cross-industry same-sector tier"
         if not use_sector
-        else f"高亲和层仅 {high_affinity_count} 家 < {min_affinity_for_sector}，"
-        f"启用同板块层补足(严格带 [{1 / mcap_band:.2g}x, {mcap_band:.0f}x])"
+        else f"high-affinity tier only {high_affinity_count} firms < {min_affinity_for_sector}, "
+        f"enabling the same-sector tier to top up (strict band [{1 / mcap_band:.2g}x, {mcap_band:.0f}x])"
     )
     rationale = (
-        f"确定性筛选：候选池 {len(seen_pool)} 家 → 高亲和层市值带 "
-        f"[{1 / high_affinity_floor_band:.3g}x, {mcap_band:.0f}x]（同行业/互荐的真实可比"
-        f"不因更小而剔除）+ 价值链角色一致 + 正 P/E（成员门 pe>0，高倍数对手保留入集、"
-        f"其失真倍数在中位数处单独 NM）过滤后 "
-        f"{len(eligible_pool_pes)} 家（亏损剔除 {len(dropped_nm)} 家"
-        f"{'：' + ', '.join(dropped_nm[:6]) if dropped_nm else ''}；"
-        f"角色剔除 {len(dropped_role)} 家"
-        f"{'：' + ', '.join(dropped_role[:6]) if dropped_role else ''}）；"
-        f"{sector_note} → 按 同行业>互荐>同板块 分层、层内规模邻近取 {len(chosen)} 家："
+        f"Deterministic screen: candidate pool {len(seen_pool)} firms -> high-affinity market-cap band "
+        f"[{1 / high_affinity_floor_band:.3g}x, {mcap_band:.0f}x] (genuine same-industry / mutual-rec "
+        f"comparables are not dropped for being smaller) + consistent value-chain role + positive P/E "
+        f"(membership gate pe>0; high-multiple peers are kept in the set, their distorted multiple marked "
+        f"NM only at the median) -> after filtering, "
+        f"{len(eligible_pool_pes)} firms (loss-making dropped {len(dropped_nm)}"
+        f"{': ' + ', '.join(dropped_nm[:6]) if dropped_nm else ''}; "
+        f"role-dropped {len(dropped_role)}"
+        f"{': ' + ', '.join(dropped_role[:6]) if dropped_role else ''}); "
+        f"{sector_note} -> tiered by same-industry > mutual-rec > same-sector, "
+        f"picking {len(chosen)} firms by within-tier size proximity: "
         f"{', '.join(trace_picks)}"
     )
 

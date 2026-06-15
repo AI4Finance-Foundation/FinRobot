@@ -70,7 +70,7 @@ async def test_historical_endpoint_invalid_ticker_returns_422(app_with_deps):
 
     with patch(
         "finrobot.routes.data.fetch_historical_metrics",
-        new=AsyncMock(side_effect=ValueError("未知 ticker 'INVALID'")),
+        new=AsyncMock(side_effect=ValueError("unknown ticker 'INVALID'")),
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -96,4 +96,6 @@ async def test_historical_endpoint_provider_error_returns_502(app_with_deps):
             resp = await client.get("/api/data/AAPL/historical")
 
     assert resp.status_code == 502
-    assert "数据源" in resp.json()["detail"] or "暂不可用" in resp.json()["detail"]
+    assert (
+        "Data source" in resp.json()["detail"] or "temporarily unavailable" in resp.json()["detail"]
+    )

@@ -376,7 +376,7 @@ async def test_aggregate_endpoint_degrades_to_trailing_without_estimates(
     # comps_pe is labeled trailing (not a forward multiple passed off as valid),
     # and the forward EV/EBITDA + P/FCF rows drop out with explicit warnings.
     assert "trailing" in comps["source"]
-    assert "forward 不可得" in comps["source"]
+    assert "forward unavailable" in comps["source"]
     assert any("forward EBITDA" in w for w in body["warnings"])
 
 

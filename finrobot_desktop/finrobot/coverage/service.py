@@ -76,7 +76,7 @@ _MARKET_DEGRADABLE = (
 )
 
 _SYSTEM_GROUP_NAME = "Studied Tickers"
-_SYSTEM_GROUP_DESC = "打开过的股票自动进这里；可改名、删 ticker 或删除整组。"
+_SYSTEM_GROUP_DESC = "Tickers you have opened land here automatically; you can rename it, remove tickers, or delete the whole group."
 
 # Artifact types that embed a DCF result. equity_research nests it under
 # `financial_modeling`, ic_memo under `dcf_result`, and a plain dcf artifact
@@ -201,7 +201,7 @@ async def _assemble_row(
         )
     except (sqlite3.Error, RuntimeError, OSError) as exc:
         summaries = []
-        row.warnings.append(f"{ticker} 研报读取失败：{exc}")
+        row.warnings.append(f"Failed to read research for {ticker}: {exc}")
     _apply_research_fields(row, summaries)
 
     # 2. Market side — degradable independently of the research side. The
@@ -279,16 +279,16 @@ def _apply_research_fields(row: CoverageRow, summaries: list[ArtifactSummary]) -
 # concise Chinese note (matching the row-warning style). Only codes with a clear
 # single-field attribution live here.
 _DEGRADED_CAVEAT = {
-    DEGRADED_CLOSE_ONLY: "实时价缺失，用最近收盘价",
-    DEGRADED_TTM_LAG: "TTM 口径滞后(P/E 分母)",
+    DEGRADED_CLOSE_ONLY: "live price unavailable; using the most recent close",
+    DEGRADED_TTM_LAG: "TTM caliber lags (P/E denominator)",
 }
 
 # Structured field-warning codes (from extract_financial_data) → cell caveat.
 # Attribution happens at the generation site (the field is known there), so this
 # maps code→文案 without coupling to the extractor's English prose.
 _FIELD_WARN_CAVEAT = {
-    FIELD_WARN_EV_MISSING_NET_DEBT: "缺净债(total_debt/cash)，EV 类无法计算",
-    FIELD_WARN_SHARES_DERIVED: "股数缺失，按市值/价反推，每股指标近似",
+    FIELD_WARN_EV_MISSING_NET_DEBT: "net debt (total_debt/cash) missing; EV-based metrics cannot be computed",
+    FIELD_WARN_SHARES_DERIVED: "shares outstanding missing; derived from market cap / price, so per-share metrics are approximate",
 }
 
 
@@ -305,7 +305,7 @@ def _field_caveats(field_warnings: dict[str, list[str]], field: str) -> list[str
 def _join_caveats(*parts: str | None) -> str | None:
     """Join the non-empty caveats for one cell; None when there are none."""
     items = [p for p in parts if p]
-    return "；".join(items) if items else None
+    return "; ".join(items) if items else None
 
 
 def _source(
@@ -388,11 +388,11 @@ async def _apply_market_fields(
             try:
                 price_norm = await data_layer.fetch_canonical(DataType.PRICE, ticker)
             except _MARKET_DEGRADABLE as exc:
-                row.warnings.append(f"{ticker} 行情获取失败：{exc}")
+                row.warnings.append(f"Failed to fetch quotes for {ticker}: {exc}")
         try:
             fin_norm = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
         except _MARKET_DEGRADABLE as exc:
-            row.warnings.append(f"{ticker} 财务获取失败：{exc}")
+            row.warnings.append(f"Failed to fetch financials for {ticker}: {exc}")
 
     if price_norm is not None:
         prov = price_norm.provenance
@@ -424,7 +424,7 @@ async def _apply_market_fields(
         try:
             fd = extract_financial_data(fin_norm, price_norm)
         except _MARKET_DEGRADABLE as exc:
-            row.warnings.append(f"{ticker} 财务字段提取失败：{exc}")
+            row.warnings.append(f"Failed to extract financial fields for {ticker}: {exc}")
         else:
             fprov = fin_norm.provenance
             row.market_cap = fd.market.market_cap
@@ -503,7 +503,7 @@ def _needs_refresh(row: CoverageRow) -> list[NeedsRefreshReason]:
         reasons.append(
             NeedsRefreshReason(
                 kind="run_failed",
-                detail=f"上次运行失败：{row.run_error or '未知错误'}",
+                detail=f"Last run failed: {row.run_error or 'unknown error'}",
             )
         )
         return reasons
@@ -511,7 +511,11 @@ def _needs_refresh(row: CoverageRow) -> list[NeedsRefreshReason]:
     # standalone DCF/LBO/comps (artifact_count > 0 but research_count == 0) still
     # owes a Research run, which is exactly what the detail copy promises.
     if row.research_count == 0:
-        reasons.append(NeedsRefreshReason(kind="never_run", detail="覆盖池中但从未跑过 Research"))
+        reasons.append(
+            NeedsRefreshReason(
+                kind="never_run", detail="In the coverage pool but Research has never been run"
+            )
+        )
         return reasons
     # Reuse the signal's own band logic — no second magic threshold. A closed
     # signal means the target was hit or the thesis broke → time to re-evaluate.
@@ -519,7 +523,7 @@ def _needs_refresh(row: CoverageRow) -> list[NeedsRefreshReason]:
         reasons.append(
             NeedsRefreshReason(
                 kind="signal_closed",
-                detail="现价已达/超过目标价，结论待复核",
+                detail="Current price has reached/exceeded the target price; conclusion pending review",
                 artifact_id=row.latest_artifact_id,
             )
         )
@@ -527,7 +531,7 @@ def _needs_refresh(row: CoverageRow) -> list[NeedsRefreshReason]:
         reasons.append(
             NeedsRefreshReason(
                 kind="signal_closed",
-                detail="现价已跌破论点区间，结论待复核",
+                detail="Current price has fallen below the thesis range; conclusion pending review",
                 artifact_id=row.latest_artifact_id,
             )
         )
@@ -627,7 +631,7 @@ async def _apply_market_implied(
     try:
         found = await _latest_dcf_result(artifact_store, summaries)
     except (sqlite3.Error, RuntimeError, OSError) as exc:
-        row.warnings.append(f"{ticker} 隐含增长读取失败：{exc}")
+        row.warnings.append(f"Failed to read implied growth for {ticker}: {exc}")
         return
     if found is None:
         return
@@ -637,13 +641,13 @@ async def _apply_market_implied(
             dcf.inputs, live_price, horizon_years=dcf.projection_years
         )
     except (ValueError, ZeroDivisionError) as exc:
-        row.warnings.append(f"{ticker} 隐含增长反推失败：{exc}")
+        row.warnings.append(f"Failed to reverse-solve implied growth for {ticker}: {exc}")
         return
     row.sources.market_implied = NumberSource(
         formula_id="market_implied_nature",
         as_of=found.created_at,
         artifact_id=found.artifact_id,
-        formula_warning="现价反推；DCF 假设取自该 vintage 的存量模型",
+        formula_warning="reverse-solved from current price; DCF assumptions taken from this vintage's stored model",
     )
 
 

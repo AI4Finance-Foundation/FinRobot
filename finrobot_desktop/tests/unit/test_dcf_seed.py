@@ -232,7 +232,8 @@ class TestCostOfDebtProvenanceClamp:
         )
         inputs = seed_dcf_inputs(fin, _aapl_historical())
         assert inputs.cost_of_debt == COST_OF_DEBT_FLOOR
-        assert "夹至下限" in inputs.assumption_provenance["cost_of_debt"]
+        assert "clamped to the" in inputs.assumption_provenance["cost_of_debt"]
+        assert "floor" in inputs.assumption_provenance["cost_of_debt"]
 
     def test_clamp_above_cap_marked(self):
         fin = _aapl_financials()
@@ -242,13 +243,14 @@ class TestCostOfDebtProvenanceClamp:
         )
         inputs = seed_dcf_inputs(fin, _aapl_historical())
         assert inputs.cost_of_debt == COST_OF_DEBT_CAP
-        assert "夹至上限" in inputs.assumption_provenance["cost_of_debt"]
+        assert "clamped to the" in inputs.assumption_provenance["cost_of_debt"]
+        assert "cap" in inputs.assumption_provenance["cost_of_debt"]
 
     def test_normal_rate_not_marked_as_clamped(self):
         inputs = seed_dcf_inputs(_aapl_financials(), _aapl_historical())
         prov = inputs.assumption_provenance["cost_of_debt"]
-        assert "夹至" not in prov
-        assert "最新利息支出 / 总债务" in prov
+        assert "clamped" not in prov
+        assert "latest interest expense / total debt" in prov
 
 
 # ---------------------------------------------------------------------------
@@ -325,11 +327,12 @@ class TestSeedDcfInputsAapl:
         }
         assert critical <= set(self.inputs.assumption_provenance)
 
-    def test_provenance_messages_are_chinese(self):
-        """Provenance text should be human-readable Chinese for retail users."""
+    def test_provenance_messages_are_english(self):
+        """Provenance text should be human-readable English for analysts."""
         for key, msg in self.inputs.assumption_provenance.items():
-            # At least one CJK char in each message
-            assert any("一" <= ch <= "鿿" for ch in msg), f"{key}: {msg}"
+            # No CJK chars, and each message carries readable ASCII prose.
+            assert not any("一" <= ch <= "鿿" for ch in msg), f"{key}: {msg}"
+            assert any(ch.isascii() and ch.isalpha() for ch in msg), f"{key}: {msg}"
 
     def test_nwc_pct_revenue_positive_when_working_capital_drains_cash(self):
         """FMP changeInWorkingCapital carries the cash-flow sign (negative = NWC
@@ -394,10 +397,10 @@ class TestSeedDcfInputsIndustryFallback:
         assert inputs.ebitda_margin > 0
 
     def test_provenance_marks_industry_fallback(self, empty_history):
-        """When history isn't available, provenance should say "行业中位数"."""
+        """When history isn't available, provenance should say "industry median"."""
         inputs = seed_dcf_inputs(_aapl_financials(), empty_history)
-        assert "行业" in inputs.assumption_provenance["capex_pct_revenue"]
-        assert "行业" in inputs.assumption_provenance["da_pct_revenue"]
+        assert "industry" in inputs.assumption_provenance["capex_pct_revenue"]
+        assert "industry" in inputs.assumption_provenance["da_pct_revenue"]
 
     def test_negative_company_ebitda_margin_rejection_is_disclosed(self):
         hist = _aapl_historical().model_copy(update={"ebitda_margin": [-0.30, -0.20, -0.10, -0.05]})
@@ -405,9 +408,9 @@ class TestSeedDcfInputsIndustryFallback:
         provenance = inputs.assumption_provenance["ebitda_margin"]
 
         assert inputs.ebitda_margin > 0
-        assert "行业中位数" in provenance
+        assert "industry median" in provenance
         assert "-10.0%" in provenance
-        assert "为非正" in provenance
+        assert "non-positive" in provenance
 
 
 class TestSeedDcfInputsUnknownIndustry:
@@ -441,8 +444,8 @@ class TestDecliningFirmGrowth:
         assert inputs.revenue_growth_rates[0] == pytest.approx(-0.10)
         # base ≤ terminal → held flat across the explicit window.
         assert all(r == pytest.approx(-0.10) for r in inputs.revenue_growth_rates)
-        # Provenance must not falsely claim a "衰减" that doesn't happen.
-        assert "持平" in inputs.assumption_provenance["revenue_growth_rates"]
+        # Provenance must not falsely claim a "fade" that doesn't happen.
+        assert "held flat" in inputs.assumption_provenance["revenue_growth_rates"]
 
     def test_severe_decline_floored_at_minus_20pct(self):
         fin = _aapl_financials()
@@ -457,7 +460,7 @@ class TestDecliningFirmGrowth:
         inputs = seed_dcf_inputs(fin, hist)
         assert inputs.revenue_growth_rates[0] == pytest.approx(0.30)
         assert inputs.revenue_growth_rates[-1] == pytest.approx(0.030)
-        assert "衰减" in inputs.assumption_provenance["revenue_growth_rates"]
+        assert "fading" in inputs.assumption_provenance["revenue_growth_rates"]
 
 
 # ---------------------------------------------------------------------------
@@ -495,7 +498,7 @@ class TestEffectiveTaxRate:
         fin.income.net_income = 70_587_000_000
         inputs = seed_dcf_inputs(fin, _aapl_historical())
         assert inputs.tax_rate == pytest.approx(0.2096, abs=1e-3)
-        assert "最新财报有效税率" in inputs.assumption_provenance["tax_rate"]
+        assert "latest-filing effective tax rate" in inputs.assumption_provenance["tax_rate"]
 
     def test_outlier_rate_provenance_reports_used_value_and_discloses_cap(self):
         """High-tax one-off year (raw 60% > 45% cap): the DCF must USE the
@@ -528,8 +531,8 @@ class TestEffectiveTaxRate:
         # ...and discloses the dropped raw rate + the cap, not a false "no tax line"
         assert "60.0%" in prov
         assert f"{TAX_RATE_OUTLIER_CAP:.0%}" in prov
-        assert "上限" in prov
-        assert "无可用税项" not in prov
+        assert "cap" in prov
+        assert "no usable tax line" not in prov
 
     def test_company_rate_above_model_cap_uses_and_displays_clamped(self):
         """A company effective rate ACCEPTED by _effective_tax_rate (≤45%) but
@@ -560,7 +563,8 @@ class TestEffectiveTaxRate:
         assert f"{inputs.tax_rate:.1%}" in prov
         # ...and discloses the dropped raw rate + the cap, not a bare "42%"
         assert "42.0%" in prov
-        assert "已夹至上限" in prov
+        assert "clamped to the" in prov
+        assert "cap" in prov
         assert f"{DCF_TAX_RATE_CAP:.0%}" in prov
 
     def test_in_band_rate_provenance_equals_raw_no_clamp_note(self):
@@ -575,9 +579,9 @@ class TestEffectiveTaxRate:
 
         assert inputs.tax_rate == pytest.approx(0.21, abs=1e-4)
         assert f"{inputs.tax_rate:.1%}" in prov
-        assert "最新财报有效税率" in prov
-        assert "上限" not in prov
-        assert "已弃用" not in prov
+        assert "latest-filing effective tax rate" in prov
+        assert "clamped" not in prov
+        assert "discarded" not in prov
 
 
 # ---------------------------------------------------------------------------
@@ -605,7 +609,7 @@ class TestCapexConsistencyCap:
         # the consistency guard must not touch it even if low.
         inputs = seed_dcf_inputs(_aapl_financials(), _aapl_historical())
         assert 0.02 <= inputs.capex_pct_revenue <= 0.04
-        assert "过去 3 年 CapEx" in inputs.assumption_provenance["capex_pct_revenue"]
+        assert "trailing 3yr CapEx" in inputs.assumption_provenance["capex_pct_revenue"]
 
 
 # ---------------------------------------------------------------------------
@@ -700,25 +704,25 @@ class TestMedianWindowBug026:
     def test_five_year_provenance_says_three_years(self):
         inputs = seed_dcf_inputs(_aapl_financials(), _five_year_historical())
         prov = inputs.assumption_provenance
-        assert "过去 3 年 CapEx" in prov["capex_pct_revenue"]
-        assert "过去 3 年 D&A" in prov["da_pct_revenue"]
-        assert "过去 3 年 EBITDA" in prov["ebitda_margin"]
-        assert "过去 3 年 ΔNWC" in prov["nwc_pct_revenue"]
+        assert "trailing 3yr CapEx" in prov["capex_pct_revenue"]
+        assert "trailing 3yr D&A" in prov["da_pct_revenue"]
+        assert "trailing 3yr EBITDA" in prov["ebitda_margin"]
+        assert "trailing 3yr ΔNWC" in prov["nwc_pct_revenue"]
 
     def test_two_year_history_works_and_provenance_says_two_years(self):
         """Only 2 years of data: median still computed (count 2) and the label
-        reports the real "过去 2 年", never a hardcoded 3 (would re-lie)."""
+        reports the real "trailing 2yr", never a hardcoded 3 (would re-lie)."""
         inputs = seed_dcf_inputs(_aapl_financials(), _two_year_historical())
         assert inputs.capex_pct_revenue == pytest.approx(0.04)  # median(3%,5%)
         assert inputs.ebitda_margin == pytest.approx(0.32)  # median(30%,34%)
         prov = inputs.assumption_provenance
-        assert "过去 2 年 CapEx" in prov["capex_pct_revenue"]
-        assert "过去 2 年 D&A" in prov["da_pct_revenue"]
-        assert "过去 2 年 EBITDA" in prov["ebitda_margin"]
-        assert "过去 2 年 ΔNWC" in prov["nwc_pct_revenue"]
+        assert "trailing 2yr CapEx" in prov["capex_pct_revenue"]
+        assert "trailing 2yr D&A" in prov["da_pct_revenue"]
+        assert "trailing 2yr EBITDA" in prov["ebitda_margin"]
+        assert "trailing 2yr ΔNWC" in prov["nwc_pct_revenue"]
         # Must NOT claim 3 years of history it doesn't have.
-        assert "过去 3 年" not in prov["capex_pct_revenue"]
-        assert "过去 3 年" not in prov["ebitda_margin"]
+        assert "trailing 3yr" not in prov["capex_pct_revenue"]
+        assert "trailing 3yr" not in prov["ebitda_margin"]
 
 
 class TestForwardGrowthSeed:
@@ -758,12 +762,12 @@ class TestForwardGrowthSeed:
         assert inputs.revenue_growth_rates[0] == pytest.approx(0.40)
         assert inputs.revenue_growth_rates[1] == pytest.approx(0.40)
 
-    def test_forward_growth_provenance_is_chinese_and_names_consensus(self):
+    def test_forward_growth_provenance_is_english_and_names_consensus(self):
         inputs = seed_dcf_inputs(
             _aapl_financials(), _aapl_historical(), forward_growth=[0.149, 0.084, 0.071]
         )
         prov = inputs.assumption_provenance["revenue_growth_rates"]
-        assert "一致预期" in prov
+        assert "analyst consensus" in prov
 
     def test_empty_forward_growth_falls_back_to_trailing(self):
         base = seed_dcf_inputs(_aapl_financials(), _aapl_historical())
@@ -796,7 +800,7 @@ class TestForwardGrowthSeed:
             forward_growth=[float("nan"), float("inf")],
         )
         assert fb.revenue_growth_rates == base.revenue_growth_rates
-        assert "一致预期" not in fb.assumption_provenance["revenue_growth_rates"]
+        assert "analyst consensus" not in fb.assumption_provenance["revenue_growth_rates"]
 
     def test_provenance_fy_count_never_exceeds_projection_window(self):
         """When consensus is longer than projection_years the tail years are
@@ -908,7 +912,7 @@ class TestSeedTerminalNwc:
         assert inputs.terminal_nwc_pct_revenue is not None
         assert abs(inputs.terminal_nwc_pct_revenue - (-0.0043097)) < 1e-4
         prov = inputs.assumption_provenance["terminal_nwc_pct_revenue"]
-        assert "边际 NWC 比率" in prov
+        assert "marginal NWC ratio" in prov
 
     def test_seed_falls_back_to_none_without_growth_years(self):
         hist = _aapl_historical()
@@ -916,7 +920,7 @@ class TestSeedTerminalNwc:
         inputs = seed_dcf_inputs(_aapl_financials(), hist)
         assert inputs.terminal_nwc_pct_revenue is None
         prov = inputs.assumption_provenance["terminal_nwc_pct_revenue"]
-        assert "沿用" in prov
+        assert "reuses" in prov
 
 
 # ---------------------------------------------------------------------------
@@ -1124,7 +1128,7 @@ class TestCyclicalNormalization:
         raw_capex_pairs = sorted(c / r for c, r in zip(hist.capital_expenditure, hist.revenue))
         raw_capex_median = raw_capex_pairs[len(raw_capex_pairs) // 2]
         assert cyc.capex_pct_revenue < raw_capex_median - 0.05
-        assert "维护性再投资" in cyc.assumption_provenance["capex_pct_revenue"]
+        assert "maintenance reinvestment" in cyc.assumption_provenance["capex_pct_revenue"]
 
     def test_cyclical_capex_anchor_is_noop_when_capex_below_da(self):
         """A low-capex cyclical (WDC/STX: CapEx ≈ D&A already) is NOT raised — the
@@ -1139,7 +1143,7 @@ class TestCyclicalNormalization:
         ]
         # Unchanged from the raw through-cycle CapEx median (no maintenance cap).
         assert cyc.capex_pct_revenue == pytest.approx(expected_capex_median, abs=0.005)
-        assert "维护性再投资" not in cyc.assumption_provenance["capex_pct_revenue"]
+        assert "maintenance reinvestment" not in cyc.assumption_provenance["capex_pct_revenue"]
 
     def test_cyclical_provenance_exposes_cycle_shape(self):
         """Provenance must carry the peak/trough/median the normalized base
@@ -1148,21 +1152,21 @@ class TestCyclicalNormalization:
         prov = cyc.assumption_provenance
         assert "cyclical_normalization" in prov
         assert "through-cycle" in prov["ebitda_margin"]
-        assert "峰" in prov["ebitda_margin"] and "谷" in prov["ebitda_margin"]
+        assert "peak" in prov["ebitda_margin"] and "trough" in prov["ebitda_margin"]
         # Damodaran normalization marker, not the trailing-3y wording.
-        assert "非近 3 年中位" in prov["ebitda_margin"]
+        assert "not the trailing-3yr median" in prov["ebitda_margin"]
 
     def test_full_cycle_claim_names_real_peak_trough_fy(self):
         """The 9y MU fixture genuinely spans a full cycle, so the provenance may
-        claim '罩完整周期' — and must name the REAL peak (FY2018) and trough
+        claim 'covering a full cycle' — and must name the REAL peak (FY2018) and trough
         (FY2023) fiscal years, not an unconditional template phrase."""
         cyc = seed_dcf_inputs(_mu_financials(), _mu_cyclical_historical(), cyclical=True)
         note = cyc.assumption_provenance["cyclical_normalization"]
-        assert "罩完整" in note
+        assert "covers a full" in note
         assert "FY2018" in note  # peak
         assert "FY2023" in note  # trough
         # The disclosed window count = the 9 usable years actually in-window.
-        assert "9 年" in note
+        assert "9yr" in note
 
     def test_truncated_window_does_not_claim_full_cycle(self):
         """A short-history cyclical (only the recovery phase, <6y) must NOT claim a
@@ -1187,8 +1191,8 @@ class TestCyclicalNormalization:
         note = cyc.assumption_provenance["cyclical_normalization"]
         # The depressed-recovery 4y window DOES carry a real swing (FY2023 trough →
         # FY2025 recovery), but is too SHALLOW (<6y) to be a full cycle.
-        assert "罩完整 峰→谷→恢复 周期" not in note
-        assert "未必罩完整周期" in note or "可能未罩完整周期" in note
+        assert "covers a full peak→trough→recovery cycle" not in note
+        assert "may not cover a full cycle" in note
         # Still names what it actually has.
         assert "FY20" in note
 
@@ -1216,7 +1220,7 @@ class TestCyclicalNormalization:
         cyc = seed_dcf_inputs(_mu_financials(), _mu_cyclical_historical(), cyclical=True)
         note = cyc.assumption_provenance["cyclical_normalization"]
         assert "memory/storage" in note
-        assert "行业白名单" not in note
+        assert "industry whitelist" not in note
 
     def test_industry_arm_does_not_claim_memory_storage(self):
         """An auto OEM (TSLA-like) qualifies via the UNCONDITIONAL industry
@@ -1229,7 +1233,7 @@ class TestCyclicalNormalization:
         cyc = seed_dcf_inputs(fin, _mu_cyclical_historical(), cyclical=True)
         note = cyc.assumption_provenance["cyclical_normalization"]
         assert "memory/storage" not in note
-        assert "行业白名单" in note
+        assert "industry whitelist" in note
         # Still a through-cycle normalization — only the arm label differs.
         assert "through-cycle" in note
 

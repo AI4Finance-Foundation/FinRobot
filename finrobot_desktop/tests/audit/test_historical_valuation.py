@@ -109,7 +109,7 @@ class TestEvEbitdaBand:
         # trailing-annual EBITDA basis — that口径 must be disclosed so a caller
         # (the standalone /historical-bands route) can't silently flip 贵/合理/
         # 便宜 on an annual basis against the report's TTM verdict.
-        assert any("年报" in w or "TTM" in w for w in band.warnings), band.warnings
+        assert any("annual" in w or "TTM" in w for w in band.warnings), band.warnings
 
     def test_nan_close_does_not_poison_band_quantiles(self) -> None:
         """A single NaN close (halted session / bad provider row) used to slip
@@ -193,7 +193,7 @@ class TestEvEbitdaBand:
         )
         assert band.current == 40.0
         # Fell back to the trailing-annual current → discloses the口径 (W1-C2).
-        assert any("年报" in w or "TTM" in w for w in band.warnings), band.warnings
+        assert any("annual" in w or "TTM" in w for w in band.warnings), band.warnings
 
     def test_annual_fallback_current_discloses_caliber(self) -> None:
         """W1-C2: when no TTM ``current_override`` is supplied the band's current
@@ -209,7 +209,7 @@ class TestEvEbitdaBand:
             shares_outstanding=10,
         )
         assert band.current == 40.0
-        assert any("年报" in w for w in band.warnings), band.warnings
+        assert any("annual" in w for w in band.warnings), band.warnings
 
     def test_net_debt_added_to_ev(self) -> None:
         yearly = [_yearly(2024, ebitda=10, debt=500)]
@@ -236,7 +236,7 @@ class TestEvEbitdaBand:
             shares_outstanding=10,
         )
         assert band.sample_count == 1
-        assert any("早于最早的 fiscal year" in w for w in band.warnings)
+        assert any("predate the earliest fiscal year" in w for w in band.warnings)
 
 
 class TestPFcfBand:

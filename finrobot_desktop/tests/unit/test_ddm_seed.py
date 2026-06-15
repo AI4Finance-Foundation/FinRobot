@@ -159,7 +159,7 @@ class TestSeedFallbacks:
         inputs = seed_ddm_inputs(_financials(), _normalized(dividend_per_share=None))
         expected_dps = JPM_PAYOUT * JPM_NET_INCOME / JPM_SHARES
         assert inputs.dividend_per_share == pytest.approx(expected_dps)
-        assert "派息率" in inputs.assumption_provenance["dividend_per_share"]
+        assert "payout ratio" in inputs.assumption_provenance["dividend_per_share"]
 
     def test_no_dividend_raises(self) -> None:
         """No DPS and no payout ⇒ DDM is inapplicable."""
@@ -190,7 +190,7 @@ class TestSeedFallbacks:
         inputs = seed_ddm_inputs(_financials(), _normalized(payout_ratio=None))
         eps = JPM_NET_INCOME / JPM_SHARES
         assert inputs.payout_ratio == pytest.approx(JPM_DPS / eps)
-        assert "每股收益" in inputs.assumption_provenance["payout_ratio"]
+        assert "EPS" in inputs.assumption_provenance["payout_ratio"]
 
     def test_roe_missing_uses_generic_growth(self) -> None:
         inputs = seed_ddm_inputs(_financials(), _normalized(return_on_equity=None))
@@ -198,13 +198,13 @@ class TestSeedFallbacks:
         expected_g = max(DEFAULT_TERMINAL_GROWTH * 2, 0.05)
         assert inputs.dividend_growth_rates[0] == pytest.approx(expected_g, abs=1e-6)
         assert inputs.terminal_payout_ratio is None
-        assert "ROE 不可得" in inputs.assumption_provenance["terminal_payout_ratio"]
+        assert "ROE unavailable" in inputs.assumption_provenance["terminal_payout_ratio"]
 
     def test_beta_falls_back_to_industry(self) -> None:
         """Provider beta missing ⇒ Damodaran bank levered beta (≠ default 1.0)."""
         inputs = seed_ddm_inputs(_financials(beta=None), _normalized(beta=None))
         assert 0.3 <= inputs.beta <= 2.5
-        assert "行业" in inputs.assumption_provenance["beta"]
+        assert "industry" in inputs.assumption_provenance["beta"]
 
 
 class TestSeedClamps:
@@ -250,11 +250,12 @@ class TestSeedProvenance:
         missing = self._REQUIRED_KEYS - set(inputs.assumption_provenance.keys())
         assert not missing, f"Missing provenance for: {sorted(missing)}"
 
-    def test_messages_are_chinese(self) -> None:
+    def test_messages_are_english(self) -> None:
         inputs = seed_ddm_inputs(_financials(), _normalized())
         offenders = [
             f"{k}: {msg}"
             for k, msg in inputs.assumption_provenance.items()
-            if not any("一" <= ch <= "鿿" for ch in msg)
+            if any("一" <= ch <= "鿿" for ch in msg)
+            or not any(ch.isascii() and ch.isalpha() for ch in msg)
         ]
-        assert not offenders, "Provenance must be Chinese:\n" + "\n".join(offenders)
+        assert not offenders, "Provenance must be readable English:\n" + "\n".join(offenders)

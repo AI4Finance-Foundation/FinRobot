@@ -58,10 +58,14 @@ def _compute_http_error(exc: Exception, *, context: str | None = None) -> HTTPEx
     were called bare, so an operator ``ValueError`` or a provider outage became
     an opaque 500. ``context`` is a short phrase (ticker or operation) for detail.
     """
-    where = f"（{context}）" if context else ""
+    where = f" ({context})" if context else ""
     if isinstance(exc, ProviderError):
-        return HTTPException(status_code=502, detail=f"数据源暂不可用{where}：{exc}")
-    return HTTPException(status_code=422, detail=f"计算无法完成{where}：{exc}")
+        return HTTPException(
+            status_code=502, detail=f"Data source temporarily unavailable{where}: {exc}"
+        )
+    return HTTPException(
+        status_code=422, detail=f"Computation could not be completed{where}: {exc}"
+    )
 
 
 def apply_growth_scale_override(inputs: DCFInputs, scale: float | None) -> DCFInputs:
@@ -610,7 +614,7 @@ async def compute_dcf_sensitivity(
             request.tg_range,
         )
     except ValueError as exc:
-        raise _compute_http_error(exc, context="DCF 敏感性") from exc
+        raise _compute_http_error(exc, context="DCF sensitivity") from exc
     return DcfSensitivityResult(**raw)
 
 

@@ -110,11 +110,13 @@ def compute_historical_band(
     warnings: list[str] = []
 
     if shares_outstanding <= 0:
-        return _empty(metric, ["shares_outstanding 不可得 — historical bands 无法计算"])
+        return _empty(
+            metric, ["shares_outstanding unavailable — historical bands cannot be computed"]
+        )
     if not prices:
-        return _empty(metric, ["price 历史为空 — 无法计算 historical bands"])
+        return _empty(metric, ["price history is empty — historical bands cannot be computed"])
     if not yearly:
-        return _empty(metric, ["financials 历史为空 — 无法计算 historical bands"])
+        return _empty(metric, ["financials history is empty — historical bands cannot be computed"])
 
     fiscal_dates, fiscals = _sort_yearly(yearly)
 
@@ -135,10 +137,14 @@ def compute_historical_band(
         samples.append((point.sample_date, multiple))
 
     if not samples:
-        return _empty(metric, ["所有 sample 均无法计算 multiple — 检查 EBITDA / FCF 是否报披露"])
+        return _empty(
+            metric, ["no sample could compute a multiple — check whether EBITDA / FCF is disclosed"]
+        )
 
     if skipped_no_financial:
-        warnings.append(f"{skipped_no_financial} 个 price 早于最早的 fiscal year — 已跳过")
+        warnings.append(
+            f"{skipped_no_financial} price point(s) predate the earliest fiscal year — skipped"
+        )
 
     values = [v for _, v in samples]
     timeline = _downsample(samples, _MAX_TIMELINE_POINTS)
@@ -153,8 +159,8 @@ def compute_historical_band(
         if timeline:
             timeline = [*timeline[:-1], (timeline[-1][0], current_override)]
         warnings.append(
-            "current 点用 TTM EBITDA（与 comps 口径一致）；历史分位用各年报年度 EBITDA，"
-            "两者存在口径基差（无季度数据，无法逐点重建滚动 TTM）。"
+            "current point uses TTM EBITDA (consistent with the comps caliber); historical quantiles use each annual-report year's EBITDA, "
+            "so the two carry a caliber basis difference (no quarterly data, so a rolling TTM cannot be reconstructed point by point)."
         )
     else:
         current = samples[-1][1]  # last sample is the most recent price multiple
@@ -165,9 +171,9 @@ def compute_historical_band(
         # classify a ticker 贵/合理/便宜 on an annual basis while the report calls
         # the same ticker the opposite on TTM (the signal flip).
         warnings.append(
-            "current 点基于最近价对应的【年报年度】EBITDA(无 canonical TTM 倍数传入)——"
-            "与研报 comps / technical 章节的 TTM 口径存在基差;贵/合理/便宜判定按年报基准,"
-            "勿与 TTM 口径直接比较。"
+            "current point is based on the [annual-report year] EBITDA matching the most recent price (no canonical TTM multiple passed in) — "
+            "this carries a basis difference vs the TTM caliber of the report's comps / technical chapters; the expensive/fair/cheap classification is on an annual-report basis, "
+            "so do not compare it directly with the TTM caliber."
         )
 
     return HistoricalBand(

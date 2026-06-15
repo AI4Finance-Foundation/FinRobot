@@ -160,7 +160,7 @@ class TestDegradation:
             historical_ebitda_margins=volatile,
         )
         assert out.confidence == "low"
-        assert any("波动" in w for w in out.warnings)
+        assert any("volatility" in w for w in out.warnings)
 
     def test_fmp_consensus_path_promotes_confidence(self) -> None:
         out = get_forward_financials(
@@ -271,7 +271,7 @@ class TestDegradation:
         assert out.forward_fcf is None
         assert out.confidence == "low"
         assert "yfinance" in out.source
-        assert any("FMP analyst-estimates 不可用" in w for w in out.warnings)
+        assert any("FMP analyst-estimates unavailable" in w for w in out.warnings)
 
     def test_fmp_malformed_rows_falls_back_to_yfinance_forward_eps(self) -> None:
         out = get_forward_financials(
@@ -331,7 +331,7 @@ class TestForwardPeriodSelection:
         # No future FY left — fall back to the most recent and warn rather than
         # silently serve a stale "forward" number.
         assert out.fiscal_period == "2029-09-30"
-        assert any("过期" in w for w in out.warnings)
+        assert any("stale" in w for w in out.warnings)
 
     def test_non_numeric_eps_treated_as_missing(self) -> None:
         out = get_forward_financials(
@@ -408,7 +408,7 @@ class TestForwardFxMismatchGuard:
         assert out.forward_net_income is None
         assert out.forward_eps is None
         assert out.confidence == "unavailable"
-        assert any("营收" in w for w in out.warnings)
+        assert any("revenue" in w for w in out.warnings)
 
     def test_clean_usd_issuer_not_abstained(self) -> None:
         # AAPL FY2026 (probe): forward NI 131.6B vs trailing 122.6B = 1.07x => kept.

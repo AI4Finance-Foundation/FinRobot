@@ -168,5 +168,5 @@ def enforce_live_data_limit(request: "Request") -> None:
 
         raise HTTPException(
             status_code=429,
-            detail="数据请求过于频繁，已触发只读限流——请稍候重试。",
+            detail="Too many data requests; read-only rate limiting has been triggered. Please retry shortly.",
         )

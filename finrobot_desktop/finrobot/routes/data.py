@@ -53,11 +53,11 @@ def _data_http_error(exc: Exception, ticker: str) -> HTTPException:
     if isinstance(exc, ProviderError):
         return HTTPException(
             status_code=502,
-            detail=f"数据源暂不可用（{ticker}）：{exc}",
+            detail=f"Data source temporarily unavailable ({ticker}): {exc}",
         )
     return HTTPException(
         status_code=422,
-        detail=f"无法获取 {ticker} 的数据：{exc}",
+        detail=f"Unable to fetch data for {ticker}: {exc}",
     )
 
 
@@ -91,8 +91,8 @@ def _fmp_degradation_warning(request: Request, provider: str | None) -> str | No
         return None
     if provider is not None and provider.startswith("yfinance"):
         return (
-            "已配置 FMP，但本次数据来自 yfinance 降级——请到 设置 → 数据源 测试 FMP key "
-            "是否仍有效（key 失效或 FMP 故障时会自动回退）。"
+            "FMP is configured, but this data came from a yfinance fallback. Go to Settings -> Data Sources to test whether the FMP key "
+            "is still valid (the layer falls back automatically when the key is invalid or FMP is down)."
         )
     return None
 
@@ -267,7 +267,9 @@ async def get_price(ticker: str, request: Request, period: PricePeriod = "1y") -
             stale_payload = dict(cached.data.data)
             raw_warnings = stale_payload.get("warnings", [])
             warnings = list(raw_warnings) if isinstance(raw_warnings, list) else []
-            warnings.insert(0, f"数据源请求失败，正在显示缓存行情（{ticker_upper} / {period}）。")
+            warnings.insert(
+                0, f"Data source request failed; showing cached quotes ({ticker_upper} / {period})."
+            )
             stale_payload["warnings"] = _dedupe(warnings)
             return _with_fmp_degradation_note(
                 request,
@@ -280,7 +282,7 @@ async def get_price(ticker: str, request: Request, period: PricePeriod = "1y") -
                 cache,
                 ticker_upper,
                 include_stale=True,
-                warning=f"数据源请求失败，正在显示缓存行情（{ticker_upper} / provider）。",
+                warning=f"Data source request failed; showing cached quotes ({ticker_upper} / provider).",
             )
             if stale_provider is not None:
                 return _with_fmp_degradation_note(request, stale_provider)
@@ -346,7 +348,7 @@ async def get_earnings_calls(
         # Detail is Chinese + actionable so UI can prompt the user to fix it.
         raise HTTPException(
             status_code=503,
-            detail="财报电话会逐字稿需要 FMP API 密钥。请在 设置 → API 密钥 配置 FMP_API_KEY 后重试。",
+            detail="Earnings-call transcripts require an FMP API key. Configure FMP_API_KEY in Settings -> API Keys and retry.",
         )
 
     ticker_upper = _normalize_ticker_param(ticker)

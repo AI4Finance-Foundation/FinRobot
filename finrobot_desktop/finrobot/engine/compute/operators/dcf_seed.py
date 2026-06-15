@@ -378,39 +378,41 @@ def seed_dcf_inputs(
         )
         if _cyc_full:
             _cycle_note = (
-                f"through-cycle 中位（{_cyc_n} 年 罩完整周期:"
-                f"峰 FY{_cyc_peak_fy} / 谷 FY{_cyc_trough_fy}）"
+                f"through-cycle median ({_cyc_n}yr covering a full cycle: "
+                f"peak FY{_cyc_peak_fy} / trough FY{_cyc_trough_fy})"
             )
-            _coverage_cn = f"窗口 {_cyc_n} 年罩完整 峰→谷→恢复 周期(峰 FY{_cyc_peak_fy} / 谷 FY{_cyc_trough_fy})"
+            _coverage_cn = f"{_cyc_n}yr window covers a full peak→trough→recovery cycle (peak FY{_cyc_peak_fy} / trough FY{_cyc_trough_fy})"
         elif _cyc_n > 0:
             # Honest about a truncated window — name what we actually have, don't
             # claim a full cycle the data can't support.
             _cycle_note = (
-                f"through-cycle 中位（仅 {_cyc_n} 年,窗口未必罩完整周期:"
-                f"峰 FY{_cyc_peak_fy} / 谷 FY{_cyc_trough_fy}）"
+                f"through-cycle median (only {_cyc_n}yr; window may not cover a full cycle: "
+                f"peak FY{_cyc_peak_fy} / trough FY{_cyc_trough_fy})"
             )
             _coverage_cn = (
-                f"窗口仅 {_cyc_n} 年,可能未罩完整周期"
-                f"(现有 峰 FY{_cyc_peak_fy} / 谷 FY{_cyc_trough_fy})"
+                f"window only {_cyc_n}yr; may not cover a full cycle "
+                f"(available: peak FY{_cyc_peak_fy} / trough FY{_cyc_trough_fy})"
             )
         else:
-            _cycle_note = "through-cycle 中位（历史不足,退行业基准）"
-            _coverage_cn = "历史不足,无法构造 through-cycle 窗口"
+            _cycle_note = (
+                "through-cycle median (insufficient history; fell back to industry benchmark)"
+            )
+            _coverage_cn = "insufficient history; cannot construct a through-cycle window"
         # Name the REAL arm that fired — an auto OEM (TSLA/F/GM) hits the industry
         # whitelist, NOT the memory/storage keyword; claiming "memory/storage 命中"
         # for it is fabricated provenance, and downstream the memory-supercycle
         # narrative (审校修正 1) gates on this exact substring.
         _arm_cn = (
-            "行业白名单命中:钢铁/航运/化工/油气/汽车等大宗周期"
+            "industry whitelist hit: steel / shipping / chemicals / oil & gas / autos and other commodity cyclicals"
             if commodity_cyclical_basis(financials.market.industry) == "industry"
-            else "memory/storage 白名单/关键词命中"
+            else "memory/storage whitelist / keyword hit"
         )
         prov["cyclical_normalization"] = (
-            f"判定为大宗周期股({_arm_cn}) → 盈利基底走 "
-            "through-cycle 正常化:EBITDA 利润率取周期中位、D&A 营收加权 through-cycle、"
-            f"显式期 CapEx 取 through-cycle 中位;{_coverage_cn};"
-            "营收基保持当前 TTM(Damodaran 口径 3:正常化 margin × 当前营收,"
-            "不重基营收以免数两遍周期相位)。"
+            f"Classified as a commodity-cyclical ({_arm_cn}) → earnings base uses "
+            "through-cycle normalization: EBITDA margin = through-cycle median, D&A = revenue-weighted through-cycle, "
+            f"explicit-window CapEx = through-cycle median; {_coverage_cn}; "
+            "revenue base held at current TTM (Damodaran convention 3: normalized margin × current revenue; "
+            "revenue is not re-based, to avoid double-counting the cycle phase)."
         )
 
     # ----- revenue_base ------------------------------------------------------
@@ -420,11 +422,11 @@ def seed_dcf_inputs(
     revenue_base = financials.income.revenue
     _basis = financials.provenance.period_basis if financials.provenance else "ttm"
     _basis_cn = {
-        "ttm": "最新 TTM 营收(滚动 12 个月)",
-        "annual": "最新年报营收",
-        "quarterly": "最新季度营收(年化)",
-    }.get(_basis, f"最新营收({_basis})")
-    prov["revenue_base"] = f"{_basis_cn} ${revenue_base / 1e9:.1f}B"
+        "ttm": "latest TTM revenue (trailing 12 months)",
+        "annual": "latest annual revenue",
+        "quarterly": "latest quarterly revenue (annualized)",
+    }.get(_basis, f"latest revenue ({_basis})")
+    prov["revenue_base"] = _basis_cn
 
     # ----- revenue_growth_rates ---------------------------------------------
     # cagr_revenue is None when: fewer than 2 data points, start revenue ≤ 0,
@@ -461,8 +463,8 @@ def seed_dcf_inputs(
         growth_schedule = explicit
         pct = "/".join(f"{g:.1%}" for g in growth_schedule[:n_consensus])
         prov["revenue_growth_rates"] = (
-            f"分析师一致预期 FY1-{n_consensus} 增长 {pct}，"
-            f"之后线性衰减到永续 {terminal_growth_rate:.1%}"
+            f"analyst consensus FY1-{n_consensus} growth {pct}, "
+            f"then linear fade to terminal {terminal_growth_rate:.1%}"
         )
     elif has_real_cagr:
         assert cagr is not None  # narrowing for mypy
@@ -480,15 +482,15 @@ def seed_dcf_inputs(
         n_years = len(historical.years)
         if base_growth > terminal_growth_rate:
             prov["revenue_growth_rates"] = (
-                f"过去 {n_years} 年营收 CAGR {base_growth:.1%}，"
-                f"未来 {projection_years} 年线性衰减到永续 {terminal_growth_rate:.1%}"
+                f"trailing {n_years}yr revenue CAGR {base_growth:.1%}, "
+                f"fading linearly to terminal {terminal_growth_rate:.1%} over the next {projection_years}yr"
             )
         else:
             # base ≤ terminal (mature or declining): held flat across the
             # explicit window — don't claim a decay that doesn't happen.
             prov["revenue_growth_rates"] = (
-                f"过去 {n_years} 年营收 CAGR {base_growth:.1%}，"
-                f"未来 {projection_years} 年按此持平（永续 {terminal_growth_rate:.1%}）"
+                f"trailing {n_years}yr revenue CAGR {base_growth:.1%}, "
+                f"held flat over the next {projection_years}yr (terminal {terminal_growth_rate:.1%})"
             )
     else:
         # No reliable historical CAGR (data absent or NaN-polluted).
@@ -498,16 +500,20 @@ def seed_dcf_inputs(
         growth_schedule = _decay_growth_schedule(
             base_growth, terminal_growth_rate, projection_years
         )
-        nan_note = "历史数据含 NaN 缺口，" if cagr is not None else "历史数据不足，"
+        nan_note = (
+            "historical data has NaN gaps, "
+            if cagr is not None
+            else "insufficient historical data, "
+        )
         prov["revenue_growth_rates"] = (
-            f"{nan_note}使用通用 {base_growth:.1%} 起点衰减到永续 {terminal_growth_rate:.1%}"
+            f"{nan_note}using a generic {base_growth:.1%} starting point fading to terminal {terminal_growth_rate:.1%}"
         )
 
     # ----- ebitda_margin ----------------------------------------------------
     # Cyclical: median EBITDA margin across the FULL cycle window (peak→trough→
     # recovery) — the normalized through-cycle earnings power, not the current
     # phase. Non-cyclical: unchanged trailing-3y median.
-    _ebitda_suffix = "EBITDA 利润率 through-cycle 中位" if cyclical else "EBITDA 利润率中位数"
+    _ebitda_suffix = "EBITDA margin, through-cycle median" if cyclical else "EBITDA margin median"
     ebitda_ticker, ebitda_value, ebitda_label = _ticker_median_with_label(
         _median_recent(historical.ebitda_margin, window=earnings_window), _ebitda_suffix
     )
@@ -515,22 +521,24 @@ def seed_dcf_inputs(
         ticker_value=ebitda_value,
         ticker_label=ebitda_label,
         industry_value=industry.ebitda_pct_revenue,
-        industry_label=f"{industry.industry} 行业中位数",
-        rejected_ticker_reason="为非正，亏损/缺 EBITDA 年份不作为 going-concern 正常化利润率",
+        industry_label=f"{industry.industry} industry median",
+        rejected_ticker_reason="is non-positive; loss-making / missing-EBITDA years are not used as the going-concern normalized margin",
     )
     if cyclical and ebitda_ticker is not None:
         _through = _cycle_stats(historical.ebitda_margin, window=earnings_window)
         prov["ebitda_margin"] = (
-            f"{ebitda_margin:.1%}（{ebitda_source}；{_cycle_note}"
-            f"{_through}；大宗周期股 Damodaran 正常化口径,非近 3 年中位）"
+            f"{ebitda_margin:.1%} ({ebitda_source}; {_cycle_note}"
+            f"{_through}; commodity-cyclical Damodaran normalization convention, not the trailing-3yr median)"
         )
     else:
-        prov["ebitda_margin"] = f"{ebitda_margin:.1%}（{ebitda_source}）"
+        prov["ebitda_margin"] = f"{ebitda_margin:.1%} ({ebitda_source})"
 
     # ----- capex_pct_revenue -----------------------------------------------
     # Cyclical: explicit-window CapEx% over the FULL cycle (avoid anchoring on a
     # single peak/trough year's capex/revenue). Non-cyclical: trailing-3y median.
-    _capex_suffix = "CapEx / 营收 through-cycle 中位" if cyclical else "CapEx / 营收 中位数"
+    _capex_suffix = (
+        "CapEx / revenue, through-cycle median" if cyclical else "CapEx / revenue median"
+    )
     capex_ticker, capex_value, capex_label = _ticker_median_with_label(
         _median_ratio(historical.capital_expenditure, historical.revenue, window=earnings_window),
         _capex_suffix,
@@ -539,7 +547,7 @@ def seed_dcf_inputs(
         ticker_value=capex_value,
         ticker_label=capex_label,
         industry_value=industry.capex_pct_revenue,
-        industry_label=f"{industry.industry} 行业中位数",
+        industry_label=f"{industry.industry} industry median",
     )
     # Consistency guard (防地雷): when CapEx falls back to the industry aggregate
     # but EBITDA margin is the company's own, the pair can be mutually
@@ -551,12 +559,12 @@ def seed_dcf_inputs(
     # historical CapEx ratio is never touched.
     if capex_ticker is None and capex_pct > ebitda_margin:
         prov["capex_pct_revenue"] = (
-            f"{ebitda_margin:.1%}（{capex_source} {capex_pct:.1%} 收敛到 EBITDA 利润率 "
-            f"{ebitda_margin:.1%}——行业聚合 CapEx 高于本公司 EBITDA，不可持续）"
+            f"{ebitda_margin:.1%} ({capex_source} {capex_pct:.1%} converged to EBITDA margin "
+            f"{ebitda_margin:.1%} — industry-aggregate CapEx exceeds the company's own EBITDA, which is unsustainable)"
         )
         capex_pct = ebitda_margin
     else:
-        prov["capex_pct_revenue"] = f"{capex_pct:.1%}（{capex_source}）"
+        prov["capex_pct_revenue"] = f"{capex_pct:.1%} ({capex_source})"
 
     # ----- da_pct_revenue ---------------------------------------------------
     # Cyclical: revenue-WEIGHTED through-cycle D&A% (Σ D&A / Σ revenue). D&A is a
@@ -567,18 +575,18 @@ def seed_dcf_inputs(
         _da_result = _weighted_ratio(
             historical.depreciation_amortization, historical.revenue, window=earnings_window
         )
-        _da_suffix = "D&A / 营收 营收加权 through-cycle"
+        _da_suffix = "D&A / revenue, revenue-weighted through-cycle"
     else:
         _da_result = _median_ratio(historical.depreciation_amortization, historical.revenue)
-        _da_suffix = "D&A / 营收 中位数"
+        _da_suffix = "D&A / revenue median"
     _da_ticker, da_value, da_label = _ticker_median_with_label(_da_result, _da_suffix)
     da_pct, da_source = _pick_with_provenance(
         ticker_value=da_value,
         ticker_label=da_label,
         industry_value=industry.da_pct_revenue,
-        industry_label=f"{industry.industry} 行业中位数",
+        industry_label=f"{industry.industry} industry median",
     )
-    prov["da_pct_revenue"] = f"{da_pct:.1%}（{da_source}）"
+    prov["da_pct_revenue"] = f"{da_pct:.1%} ({da_source})"
 
     # ----- cyclical explicit-window capex → maintenance anchor ---------------
     # A cyclical normalized to THROUGH-CYCLE earnings power must also normalize
@@ -598,9 +606,9 @@ def seed_dcf_inputs(
         _full_capex = capex_pct
         capex_pct = da_pct
         prov["capex_pct_revenue"] = (
-            f"{capex_pct:.1%}（through-cycle CapEx {_full_capex:.1%} 收敛到维护性再投资 "
-            f"min(D&A, CapEx)={da_pct:.1%}——周期股正常化:超级周期的扩张 CapEx 不进永续基底,"
-            f"与终值 min(D&A,CapEx) 锚同口径）"
+            f"{capex_pct:.1%} (through-cycle CapEx {_full_capex:.1%} converged to maintenance reinvestment "
+            f"min(D&A, CapEx)={da_pct:.1%} — cyclical normalization: super-cycle expansion CapEx is excluded from the perpetuity base, "
+            f"on the same basis as the terminal-value min(D&A, CapEx) anchor)"
         )
 
     # ----- nwc_pct_revenue --------------------------------------------------
@@ -613,11 +621,11 @@ def seed_dcf_inputs(
         nwc_median, nwc_n = nwc_result
         nwc_pct = max(-0.10, min(0.10, -nwc_median))
         prov["nwc_pct_revenue"] = (
-            f"{nwc_pct:.1%}（过去 {nwc_n} 年 ΔNWC / 营收 中位数，正=占用现金）"
+            f"{nwc_pct:.1%} (trailing {nwc_n}yr ΔNWC / revenue median; positive = cash absorbed)"
         )
     else:
         nwc_pct = 0.01
-        prov["nwc_pct_revenue"] = "1.0%（历史不可得，按通用基准）"
+        prov["nwc_pct_revenue"] = "1.0% (history unavailable; generic benchmark applied)"
 
     # ----- terminal_nwc_pct_revenue ------------------------------------------
     # The explicit-window ΔNWC/revenue median embeds the HISTORICAL growth rate
@@ -635,12 +643,14 @@ def seed_dcf_inputs(
     if terminal_nwc is not None:
         marginal_ratio, terminal_nwc_pct = terminal_nwc
         prov["terminal_nwc_pct_revenue"] = (
-            f"{terminal_nwc_pct:.2%}（边际 NWC 比率 median(ΔNWC/Δ营收) "
-            f"{marginal_ratio:.1%} × 永续增长 {terminal_growth_rate:.1%}）"
+            f"{terminal_nwc_pct:.2%} (marginal NWC ratio median(ΔNWC/Δrevenue) "
+            f"{marginal_ratio:.1%} × terminal growth {terminal_growth_rate:.1%})"
         )
     else:
         terminal_nwc_pct = None
-        prov["terminal_nwc_pct_revenue"] = f"沿用 {nwc_pct:.1%}（无营收增长年可推边际 NWC 比率）"
+        prov["terminal_nwc_pct_revenue"] = (
+            f"reuses {nwc_pct:.1%} (no revenue-growth year available to derive the marginal NWC ratio)"
+        )
 
     # ----- tax_rate ---------------------------------------------------------
     # Company effective tax = income_tax_expense / pretax, where
@@ -659,7 +669,7 @@ def seed_dcf_inputs(
     # AFTER the modelling clamp so it always equals the rate the DCF uses.
     if company_tax is not None:
         chosen_tax = company_tax
-        tax_reason = "最新财报有效税率 = 所得税 / 税前利润"
+        tax_reason = "latest-filing effective tax rate = income tax / pretax income"
     else:
         # Company rate was rejected. The DCF uses the industry fallback, and the
         # provenance must state the REAL reason — never imply "no tax line" when
@@ -676,16 +686,16 @@ def seed_dcf_inputs(
                 raw_tax_rate = tax_expense / pretax
         if raw_tax_rate is not None and raw_tax_rate > TAX_RATE_OUTLIER_CAP:
             tax_reason = (
-                f"{industry.industry} 行业实际有效税率——财报有效税率 "
-                f"{raw_tax_rate:.1%} 超 {TAX_RATE_OUTLIER_CAP:.0%} 上限属一次性税项，已弃用"
+                f"{industry.industry} industry effective tax rate — filing effective rate "
+                f"{raw_tax_rate:.1%} exceeds the {TAX_RATE_OUTLIER_CAP:.0%} cap and is a one-off tax item, discarded"
             )
         elif raw_tax_rate is not None and raw_tax_rate < TAX_RATE_OUTLIER_FLOOR:
             tax_reason = (
-                f"{industry.industry} 行业实际有效税率——财报有效税率 "
-                f"{raw_tax_rate:.1%} 低于 {TAX_RATE_OUTLIER_FLOOR:.0%} 下限属一次性税项抵免，已弃用"
+                f"{industry.industry} industry effective tax rate — filing effective rate "
+                f"{raw_tax_rate:.1%} is below the {TAX_RATE_OUTLIER_FLOOR:.0%} floor and is a one-off tax credit, discarded"
             )
         else:
-            tax_reason = f"{industry.industry} 行业实际有效税率——财报无可用税项/税前为负"
+            tax_reason = f"{industry.industry} industry effective tax rate — no usable tax line in filing / pretax is negative"
 
     # Step 2 — apply the modelling band [DCF_TAX_RATE_FLOOR, DCF_TAX_RATE_CAP] that
     # the DCF actually uses, and build provenance from the CLAMPED value, disclosing
@@ -696,14 +706,14 @@ def seed_dcf_inputs(
     tax_rate = max(DCF_TAX_RATE_FLOOR, min(DCF_TAX_RATE_CAP, chosen_tax))
     if chosen_tax > DCF_TAX_RATE_CAP:
         prov["tax_rate"] = (
-            f"{tax_rate:.1%}（{tax_reason}：{chosen_tax:.1%}，已夹至上限 {DCF_TAX_RATE_CAP:.0%}）"
+            f"{tax_rate:.1%} ({tax_reason}: {chosen_tax:.1%}, clamped to the {DCF_TAX_RATE_CAP:.0%} cap)"
         )
     elif chosen_tax < DCF_TAX_RATE_FLOOR:
         prov["tax_rate"] = (
-            f"{tax_rate:.1%}（{tax_reason}：{chosen_tax:.1%}，已夹至下限 {DCF_TAX_RATE_FLOOR:.0%}）"
+            f"{tax_rate:.1%} ({tax_reason}: {chosen_tax:.1%}, clamped to the {DCF_TAX_RATE_FLOOR:.0%} floor)"
         )
     else:
-        prov["tax_rate"] = f"{tax_rate:.1%}（{tax_reason}）"
+        prov["tax_rate"] = f"{tax_rate:.1%} ({tax_reason})"
 
     # ----- WACC components --------------------------------------------------
     # Beta: prefer provider-reported beta, fall back to industry levered beta,
@@ -713,13 +723,13 @@ def seed_dcf_inputs(
     # CAPM cost of equity — a discount rate no analyst applies to a mega-cap.
     raw_beta, beta_source = _pick_with_provenance(
         ticker_value=financials.market.beta,
-        ticker_label="provider 报告 5y beta",
+        ticker_label="provider-reported 5y beta",
         industry_value=industry.levered_beta,
-        industry_label=f"{industry.industry} 行业 levered beta",
+        industry_label=f"{industry.industry} industry levered beta",
     )
     beta_chosen = adjust_beta_blume(raw_beta)
     prov["beta"] = (
-        f"{beta_chosen:.2f}（{beta_source} {raw_beta:.2f} 经 Blume 调整 2/3·β+1/3·1.0 向 1.0 收敛）"
+        f"{beta_chosen:.2f} ({beta_source} {raw_beta:.2f}, Blume-adjusted 2/3·β+1/3·1.0 toward 1.0)"
     )
 
     # Cost of debt: try interest_expense / total_debt; fall back to 5%.
@@ -734,39 +744,41 @@ def seed_dcf_inputs(
         raw_rate = interest_exp / total_debt  # type: ignore[operator]
         if raw_rate < COST_OF_DEBT_FLOOR:
             prov["cost_of_debt"] = (
-                f"{cost_of_debt:.1%}（利息支出 / 总债务 = {raw_rate:.2%}，已夹至下限 "
-                f"{COST_OF_DEBT_FLOOR:.0%}）"
+                f"{cost_of_debt:.1%} (interest expense / total debt = {raw_rate:.2%}, clamped to the "
+                f"{COST_OF_DEBT_FLOOR:.0%} floor)"
             )
         elif raw_rate > COST_OF_DEBT_CAP:
             prov["cost_of_debt"] = (
-                f"{cost_of_debt:.1%}（利息支出 / 总债务 = {raw_rate:.1%}，已夹至上限 "
-                f"{COST_OF_DEBT_CAP:.0%}）"
+                f"{cost_of_debt:.1%} (interest expense / total debt = {raw_rate:.1%}, clamped to the "
+                f"{COST_OF_DEBT_CAP:.0%} cap)"
             )
         else:
-            prov["cost_of_debt"] = f"{cost_of_debt:.1%}（最新利息支出 / 总债务）"
+            prov["cost_of_debt"] = f"{cost_of_debt:.1%} (latest interest expense / total debt)"
     else:
         cost_of_debt = DEFAULT_COST_OF_DEBT
-        prov["cost_of_debt"] = f"{cost_of_debt:.1%}（投资级公司债基准）"
+        prov["cost_of_debt"] = f"{cost_of_debt:.1%} (investment-grade corporate-bond benchmark)"
 
     # Debt ratio: from current market cap + total debt.
     market_cap = financials.market.market_cap if financials.market else 0
     if total_debt is not None and total_debt > 0 and market_cap > 0:
         debt_ratio = total_debt / (total_debt + market_cap)
         prov["debt_ratio"] = (
-            f"{debt_ratio:.1%}（总债务 ${total_debt / 1e9:.1f}B / "
-            f"(债务+市值 ${market_cap / 1e9:.1f}B)）"
+            f"{debt_ratio:.1%} (total debt ${total_debt / 1e9:.1f}B / "
+            f"(debt + market cap ${market_cap / 1e9:.1f}B))"
         )
     else:
         debt_ratio = industry.debt_ratio
-        prov["debt_ratio"] = f"{debt_ratio:.1%}（{industry.industry} 行业 D/(D+E)）"
+        prov["debt_ratio"] = f"{debt_ratio:.1%} ({industry.industry} industry D/(D+E))"
 
-    prov["risk_free_rate"] = f"{risk_free_rate:.1%}（当前 10 年期美债收益率）"
-    prov["equity_risk_premium"] = f"{equity_risk_premium:.1%}（Damodaran 隐含 ERP）"
-    prov["terminal_growth_rate"] = f"{terminal_growth_rate:.1%}（长期美国名义 GDP 增速）"
+    prov["risk_free_rate"] = f"{risk_free_rate:.1%} (current 10Y US Treasury yield)"
+    prov["equity_risk_premium"] = f"{equity_risk_premium:.1%} (Damodaran implied ERP)"
+    prov["terminal_growth_rate"] = f"{terminal_growth_rate:.1%} (long-run US nominal GDP growth)"
 
     # ----- Balance items ----------------------------------------------------
     shares_outstanding = financials.market.shares_outstanding
-    prov["shares_outstanding"] = f"当前流通股本 {shares_outstanding / 1e9:.2f}B 股"
+    prov["shares_outstanding"] = (
+        f"current shares outstanding {shares_outstanding / 1e9:.2f}B shares"
+    )
 
     # None ≠ 0: a missing debt/cash component is "not reported", not zero. The DCF
     # equity bridge still needs a net-debt scalar, so coerce the missing side to 0
@@ -778,16 +790,18 @@ def seed_dcf_inputs(
     nd_cash = raw_cash if raw_cash is not None else 0.0
     net_debt = nd_debt - nd_cash
     if total_debt is None or raw_cash is None:
-        missing = " 和 ".join(
-            label for label, value in (("总债务", total_debt), ("现金", raw_cash)) if value is None
+        missing = " and ".join(
+            label
+            for label, value in (("total debt", total_debt), ("cash", raw_cash))
+            if value is None
         )
         prov["net_debt"] = (
-            f"${net_debt / 1e9:+.1f}B（{missing}未披露，缺失项按 0 处理 — 净债务可能被低估）"
+            f"${net_debt / 1e9:+.1f}B ({missing} not disclosed; missing item treated as 0 — net debt may be understated)"
         )
     else:
         prov["net_debt"] = (
             f"${net_debt / 1e9:+.1f}B "
-            f"（总债务 - 现金 = {nd_debt / 1e9:.1f}B - {nd_cash / 1e9:.1f}B）"
+            f"(total debt − cash = {nd_debt / 1e9:.1f}B − {nd_cash / 1e9:.1f}B)"
         )
 
     # ----- Final clamp + construct -----------------------------------------
@@ -870,9 +884,9 @@ def _cycle_stats(values: list[float | None], *, window: int) -> str:
     if not usable:
         return ""
     return (
-        f"（峰 {max(usable):.1%} / 谷 {min(usable):.1%} / 中位 "
-        f"{statistics.median(usable):.1%} / 均值 {statistics.mean(usable):.1%}，"
-        f"{len(usable)} 年）"
+        f"(peak {max(usable):.1%} / trough {min(usable):.1%} / median "
+        f"{statistics.median(usable):.1%} / mean {statistics.mean(usable):.1%}, "
+        f"{len(usable)}yr)"
     )
 
 
@@ -933,9 +947,9 @@ def _ticker_median_with_label(
         because ``_pick_with_provenance`` takes the industry branch.
     """
     if result is None:
-        return None, None, f"过去 {_MEDIAN_WINDOW_YEARS} 年 {suffix}"
+        return None, None, f"trailing {_MEDIAN_WINDOW_YEARS}yr {suffix}"
     value, count = result
-    return result, value, f"过去 {count} 年 {suffix}"
+    return result, value, f"trailing {count}yr {suffix}"
 
 
 def _pick_with_provenance(
@@ -953,7 +967,7 @@ def _pick_with_provenance(
     if ticker_value is not None and rejected_ticker_reason is not None:
         return (
             industry_value,
-            f"{industry_label}；{ticker_label} {ticker_value:.1%} {rejected_ticker_reason}",
+            f"{industry_label}; {ticker_label} {ticker_value:.1%} {rejected_ticker_reason}",
         )
     return industry_value, industry_label
 

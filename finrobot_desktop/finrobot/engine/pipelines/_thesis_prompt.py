@@ -119,7 +119,7 @@ def build_thesis_prompt(
             cyclical_clause = (
                 " This is a COMMODITY-CYCLICAL: frame the gap as the market pricing the "
                 "super-cycle PEAK earnings power as a PERPETUAL steady state, NOT as an "
-                "impossible margin. Cite the through-cycle 峰/谷/中位 band from the "
+                "impossible margin. Cite the through-cycle peak/trough/median band from the "
                 f"ebitda_margin provenance ({cycle_band}) as the ANNUAL record, and say "
                 "explicitly that the price requires the cyclical PEAK to hold forever while "
                 "the industry has never sustained that on a full-year basis — even though a "
@@ -180,7 +180,7 @@ def build_thesis_prompt(
             f"({canonical_verdict}) — it stands on the DIRECTIONAL read of the valuation "
             f"vs the market, NOT on a point estimate. "
             f"Your `price_target` field MUST be null/omitted — the only point we could "
-            f"give would be fabricated, and we never invent a number (绝不编数字). "
+            f"give would be fabricated, and we never invent a number. "
             f"Your `price_target_basis` MUST explain, in plain language, WHY the point is "
             f"withheld (cite the reason in the derivation above — methods diverge too far "
             f"to blend into an honest point, and/or the model sits outside its calibration "

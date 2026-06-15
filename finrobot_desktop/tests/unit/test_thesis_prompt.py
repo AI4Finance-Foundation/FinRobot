@@ -122,7 +122,7 @@ class TestBuildThesisPrompt:
         assert "REVIEW" not in prompt
         assert "AUTHORITATIVE RECOMMENDATION (do not deviate):" in prompt
         assert "`price_target` field MUST be null" in prompt
-        assert "绝不编数字" in prompt
+        assert "we never invent a number" in prompt
         # On the withheld path no authoritative-target block is injected.
         assert "AUTHORITATIVE PRICE TARGET (do not deviate)" not in prompt
 

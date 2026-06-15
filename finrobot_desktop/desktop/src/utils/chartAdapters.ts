@@ -120,47 +120,70 @@ export function compsResultToRadarData(
   const peerGrossMedian = medianOf(result.peers.map((p) => p.gross_margin))
   const peerOpMedian = medianOf(result.peers.map((p) => p.operating_margin))
 
-  const dims: { label: string; company: number | null; median: number | null }[] = [
-    { label: tSync('chart.radar.dim.pe'), company: t.pe_ratio, median: result.median_pe },
+  // lowerBetter marks the valuation-multiple axes (cheaper = better) vs the
+  // margin axes (higher = better) so both can be mapped to a consistent
+  // "outward = more favorable" radial direction below.
+  const dims: {
+    label: string
+    company: number | null
+    median: number | null
+    lowerBetter: boolean
+  }[] = [
+    {
+      label: tSync('chart.radar.dim.pe'),
+      company: t.pe_ratio,
+      median: result.median_pe,
+      lowerBetter: true,
+    },
     {
       label: tSync('chart.radar.dim.evEbitda'),
       company: t.ev_ebitda,
       median: result.median_ev_ebitda,
+      lowerBetter: true,
     },
     {
       label: tSync('chart.radar.dim.evRevenue'),
       company: t.ev_revenue,
       median: result.median_ev_revenue,
+      lowerBetter: true,
     },
     {
       label: tSync('chart.radar.dim.grossMargin'),
       company: t.gross_margin,
       median: peerGrossMedian,
+      lowerBetter: false,
     },
     {
       label: tSync('chart.radar.dim.operatingMargin'),
       company: t.operating_margin,
       median: peerOpMedian,
+      lowerBetter: false,
     },
   ]
 
+  // Map each axis so "outward = more favorable vs the peer median" CONSISTENTLY:
+  // a cheaper multiple (lower) AND a higher margin both push the company point OUT
+  // past the benchmark ring. The old normalization divided by max(|company|,
+  // |median|), so a cheaper — i.e. better — multiple plotted *smaller/inside* and
+  // read backwards. The peer median is pinned to a fixed ring (100); the company
+  // sits at favorability×100, capped to [0,200] so an extreme outlier (e.g. a
+  // 226× P/E peer) can't blow out the axis. Ill-defined axes are dropped: a
+  // multiple needs company>0 & median>0 (a negative P/E is N/A, not "cheap").
   return dims
-    .filter(
-      (d) =>
-        d.company != null &&
-        d.median != null &&
-        isFinite(d.company) &&
-        isFinite(d.median) &&
-        Math.max(Math.abs(d.company), Math.abs(d.median)) > 0,
-    )
+    .filter((d) => {
+      if (d.company == null || d.median == null || !isFinite(d.company) || !isFinite(d.median)) {
+        return false
+      }
+      return d.lowerBetter ? d.company > 0 && d.median > 0 : d.median > 0
+    })
     .map((d) => {
       const company = d.company as number
       const median = d.median as number
-      const scale = Math.max(Math.abs(company), Math.abs(median))
+      const ratio = d.lowerBetter ? median / company : company / median
       return {
         dimension: d.label,
-        value: Math.round((company / scale) * 100),
-        benchmark: Math.round((median / scale) * 100),
+        value: Math.round(Math.max(0, Math.min(200, ratio * 100))),
+        benchmark: 100,
       }
     })
 }

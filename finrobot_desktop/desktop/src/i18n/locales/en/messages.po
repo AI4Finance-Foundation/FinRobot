@@ -1694,7 +1694,7 @@ msgstr "P/E & EV/EBITDA vs Peers"
 
 #. js-lingui-explicit-id
 msgid "chapter.competitive.chart.radar"
-msgstr "Target vs Peer Median (normalised 0–100)"
+msgstr "Target vs Peer Median (median = 100; outward = more favorable)"
 
 #. js-lingui-explicit-id
 msgid "chapter.financial.table.unit"

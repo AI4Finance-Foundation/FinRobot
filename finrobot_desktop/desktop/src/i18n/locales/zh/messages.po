@@ -1694,7 +1694,7 @@ msgstr "P/E 与 EV/EBITDA 对比同业"
 
 #. js-lingui-explicit-id
 msgid "chapter.competitive.chart.radar"
-msgstr "标的 vs 同业中位数（归一化 0–100）"
+msgstr "标的 vs 同业中位数（中位=100;越往外越有利）"
 
 #. js-lingui-explicit-id
 msgid "chapter.financial.table.unit"

@@ -64,8 +64,16 @@ def _reachable_dcf(*, cyclical: bool) -> DCFResult:
 def _dcf_result(*, cyclical: bool, market_implied: MarketImpliedCheck) -> DCFResult:
     prov: dict[str, str] = {}
     if cyclical:
-        prov["cyclical_normalization"] = "判定为大宗周期股(memory/storage) → through-cycle 正常化"
-        prov["ebitda_margin"] = "52.9%（峰 49.3% / 谷 -37.0% / 中位 28.9% / 均值 20.1%，7 年）"
+        # Provenance VALUES mirror the real English generator output (dcf_seed
+        # `_cycle_stats` + the cyclical_normalization string), so this fixture
+        # reflects what production actually injects — not a stale Chinese format.
+        prov["cyclical_normalization"] = (
+            "Classified as a commodity-cyclical (memory/storage whitelist / keyword hit) "
+            "→ through-cycle normalization"
+        )
+        prov["ebitda_margin"] = (
+            "52.9% (peak 49.3% / trough -37.0% / median 28.9% / mean 20.1%, 7yr)"
+        )
     inputs = DCFInputs(
         revenue_base=58e9,
         revenue_growth_rates=[0.15, 0.10, 0.08, 0.06, 0.04],
@@ -204,7 +212,7 @@ class TestBuildThesisPrompt:
         assert "COMMODITY-CYCLICAL" in prompt
         assert "PERPETUAL steady state" in prompt
         # the through-cycle band travels from provenance (not invented)
-        assert "峰 49.3% / 谷 -37.0%" in prompt
+        assert "peak 49.3% / trough -37.0%" in prompt
         # the un-attackable point is permanence, NOT 'implied margin above the peak'
         assert "do NOT claim the implied" in prompt
         assert "permanence, not the level" in prompt
@@ -251,7 +259,7 @@ class TestBuildThesisPrompt:
         # and the cyclical permanence reframe rides along
         assert "COMMODITY-CYCLICAL" in prompt
         assert "PERPETUAL steady state" in prompt
-        assert "峰 49.3% / 谷 -37.0%" in prompt
+        assert "peak 49.3% / trough -37.0%" in prompt
         assert "permanence, not the level" in prompt
 
     def test_industry_cyclical_auto_oem_gets_no_supercycle_clause(self):
@@ -262,8 +270,8 @@ class TestBuildThesisPrompt:
         pricing suggests a super-cycle peak")."""
         dcf = _reachable_dcf(cyclical=True)
         dcf.inputs.assumption_provenance["cyclical_normalization"] = (
-            "判定为大宗周期股(行业白名单命中:钢铁/航运/化工/油气/汽车等大宗周期) "
-            "→ 盈利基底走 through-cycle 正常化"
+            "Classified as a commodity-cyclical (industry whitelist hit: steel / shipping / "
+            "chemicals / oil & gas / autos and other commodity cyclicals) → through-cycle normalization"
         )
         methods = [
             ValuationMethod(name="DCF", low=40, mid=52, high=70, confidence=0.5, source="DCF"),

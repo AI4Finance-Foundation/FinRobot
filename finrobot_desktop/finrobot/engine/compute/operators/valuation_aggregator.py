@@ -334,6 +334,7 @@ def _comps_pe_method(
             "comps_pe: 周期股 — 抑制 forward P/E × 周期顶 EPS 口径"
             "（成长股 forward 倍数 × 周期顶 EPS = MU $2974 伪值);"
             "改由 comps_pb(账面价值,周期稳定)主导 + through-cycle P/E(DCF 锚)兜底"
+            " — 方法退出"
         )
         return None
 
@@ -489,7 +490,7 @@ def _comps_pb_method(
     if target_bvps is None or target_bvps <= 0:
         _warn(
             "comps_pb: 标的每股账面价值不可得（provider 未报 / 负权益 / ADR 跨币种）—"
-            "周期股 P/B 法降级,退回 P/E"
+            "周期股 P/B 法降级,退回 P/E — 方法退出"
         )
         return None
     refusal = _comps_median_refusal(

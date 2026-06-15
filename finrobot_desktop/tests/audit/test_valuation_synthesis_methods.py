@@ -137,6 +137,46 @@ def _cyclical_peer_comps_thin_pb() -> PeerComps:
     )
 
 
+def _cyclical_peer_comps_no_bvps() -> PeerComps:
+    """Cyclical peer set with a healthy P/B median (pb_sample_n≥3) but the TARGET
+    carries no book value per share — comps_pb is degraded ("退回 P/E") for a
+    substantive reason (负权益 / provider 未报 / ADR 跨币种), the sibling shape of
+    the cyclical comps_pe suppression. The reason must surface, not be swallowed."""
+    target = CompanyFinancials(
+        ticker="X",
+        name="Steelco",
+        revenue=20e9,
+        ebitda=4e9,
+        net_income=2e9,
+        market_cap=15e9,
+        total_debt=8e9,
+        total_cash=2e9,
+        gross_margin=0.20,
+        operating_margin=0.12,
+        pe_ratio=8.0,
+        ev_ebitda=5.0,
+        book_value_per_share=None,
+        pb_ratio=None,
+    )
+    peer = target.model_copy(update={"ticker": "Y", "book_value_per_share": 28.0, "pb_ratio": 1.1})
+    return PeerComps(
+        target=target,
+        peers=[peer],
+        median_pe=8.5,
+        median_ev_ebitda=5.5,
+        median_pb=1.2,
+        pb_sample_n=4,
+    )
+
+
+def _peer_comps_thin_pe() -> PeerComps:
+    """Non-cyclical peer set whose P/E median rests on a single peer
+    (``pe_sample_n=1``) → comps_pe thin-sample refusal (the original兄弟 case)."""
+    comps = _peer_comps()
+    comps.pe_sample_n = 1
+    return comps
+
+
 def _ddm() -> DDMResult:
     return DDMResult(
         cost_of_equity=0.10,
@@ -499,3 +539,73 @@ class TestEvEbitdaBandRevivesMethod:
         row = _ev_ebitda_method(40e9, (20.0, 30.0), 2.4e9, 30e9, band_sample_n=None)
         assert row is not None
         assert row.warnings == []
+
+
+# ---------------------------------------------------------------------------
+# 兄弟摊开 sweep: EVERY substantive method-suppression reason surfaces to artifact
+# ---------------------------------------------------------------------------
+
+# 每行 = 一个被 guard「请出场」的估值方法,因 substantive 分析理由(非单纯输入缺失)
+# 退出/降级。其原因 **必须** 进 ValuationSynthesis.warnings(带 "方法退出" 标记被
+# build_valuation_synthesis 转发),绝不能只活在 debug 日志(run_413ad4913cc1 兄弟形状:
+# basis 写「only one method resolved」而读者看不到另一半句子)。新增一种 substantive
+# 抑制 → 这里加一行,否则它未经此闸就发布。注意区分:「无 X artifact / 输入不可得」是
+# 行未展示的 data-absence 诊断,不在此列——那不是 guard 把能跑的方法请出场。
+_SUPPRESSION_SWEEP = [
+    # (case_id, structured_context factory, 期望出现在 vs.warnings 的原因片段)
+    (
+        "comps_pe_cyclical_forward_peak_suppression",
+        lambda: {
+            "financial_modeling": _dcf(40.0),
+            "peer_analysis": _cyclical_peer_comps_thin_pb(),
+            "data_collection": _financial_data(industry="Steel"),
+        },
+        "comps_pe: 周期股",
+    ),
+    (
+        "comps_pb_book_value_unavailable",
+        lambda: {
+            "financial_modeling": _dcf(40.0),
+            "peer_analysis": _cyclical_peer_comps_no_bvps(),
+            "data_collection": _financial_data(industry="Steel"),
+        },
+        "comps_pb: 标的每股账面价值不可得",
+    ),
+    (
+        "comps_pb_thin_sample",
+        lambda: {
+            "financial_modeling": _dcf(40.0),
+            "peer_analysis": _cyclical_peer_comps_thin_pb(),
+            "data_collection": _financial_data(industry="Steel"),
+        },
+        "comps_pb: 同业 P/B 样本仅 1 家",
+    ),
+    (
+        "comps_pe_thin_sample",
+        lambda: {
+            "financial_modeling": _dcf(40.0),
+            "peer_analysis": _peer_comps_thin_pe(),
+        },
+        "样本仅 1 家",
+    ),
+]
+
+
+class TestMethodSuppressionSweep:
+    """兄弟位置闸:遍历每个被 guard 请出场的估值方法,其退出/抑制原因都必须 surface
+    到 artifact(vs.warnings),不是只进 debug 日志。新增 substantive 抑制 → 在
+    _SUPPRESSION_SWEEP 加一行,否则未经此闸就发布。"""
+
+    @pytest.mark.parametrize(
+        "context_factory,expected_fragment",
+        [(c[1], c[2]) for c in _SUPPRESSION_SWEEP],
+        ids=[c[0] for c in _SUPPRESSION_SWEEP],
+    )
+    def test_suppression_reason_surfaces(
+        self, context_factory: object, expected_fragment: str
+    ) -> None:
+        vs = build_valuation_synthesis(context_factory(), current_price=100.0, ticker="X")  # type: ignore[operator]
+        assert vs is not None, "被抑制方法之外仍有方法解析 → 应产出 ValuationSynthesis"
+        assert any(
+            expected_fragment in w and "方法退出" in w for w in vs.warnings
+        ), f"抑制原因被吞掉,未带标记进 vs.warnings: {vs.warnings}"

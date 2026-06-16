@@ -40,6 +40,40 @@ _MAX_AGE_DAYS = 1
 _FETCH_TIMEOUT = 20.0
 _WORD_SPLIT_RE = re.compile(r"[^a-z0-9]+")
 
+# Corporate filler words excluded from company-name matching: nobody searches for
+# them, and matching on them is pure noise (a query "c" should not surface NVIDIA
+# via "NVIDIA Corp" or Amazon via "Amazon Com"). Real name words ("Apple",
+# "Coca", "Cisco") are kept.
+_NAME_STOPWORDS = frozenset(
+    {
+        "corp",
+        "corporation",
+        "inc",
+        "incorporated",
+        "co",
+        "com",
+        "company",
+        "companies",
+        "cos",
+        "holding",
+        "holdings",
+        "group",
+        "grp",
+        "ltd",
+        "limited",
+        "plc",
+        "llc",
+        "lp",
+        "llp",
+        "the",
+        "and",
+        "class",
+        "common",
+        "series",
+        "trust",
+    }
+)
+
 # How many market-cap ranks an exact ticker match is "worth". Calibrated against
 # the live SEC universe (2026-06-16): big enough to lift a mid-cap exact match
 # (APP / AppLovin, rank 90) above a mega-cap name match (AAPL / Apple, rank 2)
@@ -47,6 +81,12 @@ _WORD_SPLIT_RE = re.compile(r"[^a-z0-9]+")
 # (AP / Ampco-Pittsburgh, rank 4193) does NOT bury that same mega-cap when the
 # user types "ap" (Apple should win). Valid window 88–1880; 1000 sits mid-window.
 _EXACT_MATCH_RANK_BONUS = 1000
+
+# The exact-ticker bonus only applies to queries this long or longer. A 1–2 char
+# query is usually someone mid-typing toward a bigger company, so market cap wins
+# there ("a" → Apple/Amazon, not Agilent/Antero), while a deliberate full-ish
+# ticker ("app" → AppLovin, "aapl" → Apple) still gets promoted.
+_EXACT_BONUS_MIN_QUERY_LEN = 3
 
 
 @dataclass(frozen=True)
@@ -76,10 +116,12 @@ class SymbolIndex:
     def search(self, q: str, limit: int = 8) -> list[SymbolHit]:
         """Rank matches for ``q`` by market cap, with a bounded bonus for an exact
         symbol match (see ``_EXACT_MATCH_RANK_BONUS``): a match is symbol-prefix
-        OR company-name word-prefix; an exact symbol hit is promoted by a fixed
-        number of ranks so the intended ticker surfaces without burying a far
-        bigger company. Junk / empty / over-long queries return ``[]`` — never
-        raise."""
+        OR company-name word-prefix; an exact symbol hit on a query of
+        ``_EXACT_BONUS_MIN_QUERY_LEN``+ chars is promoted by a fixed number of
+        ranks so the intended ticker surfaces without burying a far bigger
+        company — but short (1–2 char) queries rank purely by market cap so a
+        prefix toward a mega-cap isn't buried by a tiny exact ticker. Junk /
+        empty / over-long queries return ``[]`` — never raise."""
         q_norm = (q or "").strip().upper()  # tolerate None/empty defensively
         if not q_norm:
             return []
@@ -93,6 +135,9 @@ class SymbolIndex:
         except ValueError:
             pass
         q_word = q.strip().lower()
+        exact_bonus = (
+            _EXACT_MATCH_RANK_BONUS if len(q_norm) >= _EXACT_BONUS_MIN_QUERY_LEN else 0
+        )
 
         scored: list[tuple[int, str]] = []  # (score, symbol); lower score ranks first
         for e in self.entries:
@@ -101,14 +146,16 @@ class SymbolIndex:
             name_prefix = any(w.startswith(q_word) for w in e.name_words)
             if not (exact or sym_prefix or name_prefix):
                 continue
-            score = e.rank - (_EXACT_MATCH_RANK_BONUS if exact else 0)
+            score = e.rank - (exact_bonus if exact else 0)
             scored.append((score, e.symbol))
         scored.sort()
         return [SymbolHit(s, self._by_symbol[s].name) for _, s in scored[:limit]]
 
 
 def _name_words(name: str) -> tuple[str, ...]:
-    return tuple(w for w in _WORD_SPLIT_RE.split(name.lower()) if w)
+    return tuple(
+        w for w in _WORD_SPLIT_RE.split(name.lower()) if w and w not in _NAME_STOPWORDS
+    )
 
 
 def build_index_from_payload(payload: Any) -> SymbolIndex:

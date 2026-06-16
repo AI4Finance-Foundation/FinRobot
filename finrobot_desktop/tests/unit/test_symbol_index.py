@@ -123,11 +123,10 @@ def test_limit_respected(index: SymbolIndex) -> None:
 # small acceptance fixture above can't, since every rank < the bonus).
 
 def _idx(*entries: tuple[str, str, int]) -> SymbolIndex:
+    # Use the real _name_words (stop-word filtering included) so these fixtures
+    # match production behaviour, not a hand-rolled split.
     return SymbolIndex(
-        [
-            SymbolEntry(sym, name, rank, tuple(name.lower().replace(",", " ").split()))
-            for sym, name, rank in entries
-        ]
+        [SymbolEntry(sym, name, rank, si._name_words(name)) for sym, name, rank in entries]
     )
 
 
@@ -150,6 +149,29 @@ def test_mid_cap_exact_beats_megacap_name() -> None:
 def test_micro_cap_exact_does_not_bury_tesla() -> None:
     idx = _idx(("TSLA", "Tesla Inc.", 6), ("TE", "Tdh Holdings", 1886))
     assert idx.search("te")[0].symbol == "TSLA"
+
+
+def test_short_query_ranks_by_market_cap_not_short_exact_ticker() -> None:
+    """User decision (2026-06-16): for 1–2 char queries a mega-cap name match
+    beats a short exact ticker (the user is usually mid-typing a longer ticker).
+    The exact-ticker bonus only kicks in at >=3 chars."""
+    one = _idx(("AAPL", "Apple Inc.", 2), ("A", "Agilent Technologies Inc", 300))
+    assert one.search("a")[0].symbol == "AAPL"  # 1-char: Apple, not Agilent
+    two = _idx(("AMZN", "Amazon Com Inc", 4), ("AM", "Antero Midstream Corp", 976))
+    assert two.search("am")[0].symbol == "AMZN"  # 2-char: Amazon, not Antero
+    # but a deliberate 3-char ticker still wins (bonus applies):
+    three = _idx(("AAPL", "Apple Inc.", 2), ("APP", "AppLovin Corp", 90))
+    assert three.search("app")[0].symbol == "APP"
+
+
+def test_corporate_filler_words_excluded_from_name_match() -> None:
+    """A query must not match a company via a corporate filler word: "c" should
+    NOT surface NVIDIA through "NVIDIA Corp" (noise), only real name words /
+    symbol prefixes."""
+    idx = _idx(("NVDA", "NVIDIA Corp", 0), ("CSCO", "Cisco Systems Inc", 50))
+    syms = [h.symbol for h in idx.search("c")]
+    assert "NVDA" not in syms  # only matched via "Corp" -> excluded
+    assert "CSCO" in syms  # symbol-prefix C + real word "Cisco"
 
 
 # --- global singleton: self-heal vs backoff after a transient fetch failure ---

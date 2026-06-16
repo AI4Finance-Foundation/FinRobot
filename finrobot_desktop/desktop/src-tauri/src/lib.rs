@@ -18,6 +18,7 @@ mod sidecar;
 use std::sync::Mutex;
 
 use tauri::{Manager, RunEvent};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_shell::process::CommandChild;
 
 /// Holds the spawned Python sidecar so we can terminate it when the app exits.
@@ -38,6 +39,35 @@ struct CapabilityToken(String);
 #[tauri::command]
 fn capability_token(state: tauri::State<'_, CapabilityToken>) -> String {
     state.0.clone()
+}
+
+/// Show a blocking error dialog explaining why the backend never started, then
+/// return so the caller can exit. Without this the only failure signal was an
+/// `eprintln!` followed by a silent `process::exit(1)` — on a packaged app with
+/// no terminal attached the window simply never appeared, so a user with port
+/// 8321 already taken (a leftover sidecar, or any other process) saw nothing.
+///
+/// `MessageDialogBuilder::blocking_show` must not run on the main-thread event
+/// loop, and we are inside an async task here, so we hop onto a blocking worker
+/// via `spawn_blocking` and await it.
+async fn fatal_startup_dialog(handle: &tauri::AppHandle, detail: &str) {
+    let handle = handle.clone();
+    let detail = detail.to_string();
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        handle
+            .dialog()
+            .message(format!(
+                "FinRobot could not start its backend.\n\n{detail}\n\nThis usually \
+                 means port 8321 is already in use by another process (often a \
+                 leftover FinRobot backend). Quit that process — or any app holding \
+                 the port — and relaunch FinRobot."
+            ))
+            .title("FinRobot failed to start")
+            .kind(MessageDialogKind::Error)
+            .buttons(MessageDialogButtons::Ok)
+            .blocking_show();
+    })
+    .await;
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -108,10 +138,12 @@ pub fn run() {
                     }
                     Ok(Err(e)) => {
                         eprintln!("[desktop] fatal: sidecar failed to start: {e}");
+                        fatal_startup_dialog(&handle, &e).await;
                         std::process::exit(1);
                     }
                     Err(e) => {
                         eprintln!("[desktop] fatal: join error: {e}");
+                        fatal_startup_dialog(&handle, &e.to_string()).await;
                         std::process::exit(1);
                     }
                 }

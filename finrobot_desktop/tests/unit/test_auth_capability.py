@@ -87,7 +87,34 @@ async def test_health_is_exempt(monkeypatch):
     async with _client() as c:
         resp = await c.get("/health")
     assert resp.status_code == 200
+    assert resp.json()["status"] == "ready"
+
+
+@pytest.mark.asyncio
+async def test_health_echoes_token_when_configured(monkeypatch):
+    """When a token is configured, /health echoes it so the readiness loop can
+    prove the backend on :8321 is its own spawned child, not a port squatter.
+
+    The probe stays exempt (no token required on the request) — this is an
+    identity stamp, not an auth gate.
+    """
+    monkeypatch.setenv(CAPABILITY_TOKEN_ENV, _TOKEN)
+    async with _client() as c:
+        resp = await c.get("/health")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ready", "token": _TOKEN}
+
+
+@pytest.mark.asyncio
+async def test_health_omits_token_when_unconfigured(monkeypatch):
+    """Browser dev loop / live-backend / tests run without a token; /health must
+    stay backward compatible and omit the field entirely."""
+    monkeypatch.delenv(CAPABILITY_TOKEN_ENV, raising=False)
+    async with _client() as c:
+        resp = await c.get("/health")
+    assert resp.status_code == 200
     assert resp.json() == {"status": "ready"}
+    assert "token" not in resp.json()
 
 
 def test_redact_secrets_filter_scrubs_token_and_apikey():

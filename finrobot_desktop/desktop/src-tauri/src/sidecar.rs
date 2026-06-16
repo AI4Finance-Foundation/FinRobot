@@ -7,6 +7,7 @@
 //! kill it on exit.
 
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -114,6 +115,15 @@ pub fn spawn_and_wait_for_ready(
         Arc::new(Mutex::new(VecDeque::with_capacity(STDERR_RING_CAPACITY)));
     let stderr_ring_for_task = stderr_ring.clone();
 
+    // Death flag: the only task that owns the CommandEvent stream is the
+    // forwarder below, so it is the only place we learn the child has
+    // Terminated. Bridge that signal to the readiness loop via an atomic so a
+    // child that dies on bind failure (port 8321 already taken → SystemExit in
+    // finrobot/cli.py) fails readiness *immediately* instead of letting the
+    // loop poll a foreign backend that happens to answer 200 on the same port.
+    let child_dead = Arc::new(AtomicBool::new(false));
+    let child_dead_for_task = child_dead.clone();
+
     // Forward sidecar output to our own stderr in a background task.
     // This keeps the log stream visible during development without blocking.
     tauri::async_runtime::spawn(async move {
@@ -151,6 +161,10 @@ pub fn spawn_and_wait_for_ready(
                         "[sidecar] process terminated (code={:?})",
                         payload.code
                     );
+                    // Tell the readiness loop the child is gone so it stops
+                    // (or never starts) trusting a 200 from whatever else is on
+                    // :8321.
+                    child_dead_for_task.store(true, Ordering::SeqCst);
                     break;
                 }
                 _ => {}
@@ -159,14 +173,73 @@ pub fn spawn_and_wait_for_ready(
     });
 
     // Poll /health until 200 OK or timeout.
+    //
+    // A bare "200 from :8321" is NOT proof our child is up: loopback is shared,
+    // and if our child died on a bind clash (port already taken → SystemExit in
+    // finrobot/cli.py) some *other* finrobot backend may be answering on the
+    // same port. We close that hole two ways:
+    //   1. If the child has Terminated (death flag set by the forward task),
+    //      bail immediately — never return Ok holding a corpse handle.
+    //   2. Match the capability token echoed by /health against the one we
+    //      minted and handed the child via env. A foreign process cannot read
+    //      our env, so it cannot echo our token. We only enforce this when we
+    //      actually minted a token (it is always set in the spawned-sidecar
+    //      posture; the live-backend dev posture never reaches this function).
     let deadline = Instant::now() + Duration::from_secs(READINESS_TIMEOUT_SECS);
     while Instant::now() < deadline {
+        if child_dead.load(Ordering::SeqCst) {
+            return Err(
+                "sidecar process exited during startup (port 8321 may be occupied \
+                 by another process). See replayed stderr above."
+                    .to_string(),
+            );
+        }
+
         std::thread::sleep(Duration::from_millis(500));
+
+        // Re-check after the sleep so a death during the wait short-circuits
+        // before we trust a /health 200 from whatever else holds the port.
+        if child_dead.load(Ordering::SeqCst) {
+            return Err(
+                "sidecar process exited during startup (port 8321 may be occupied \
+                 by another process). See replayed stderr above."
+                    .to_string(),
+            );
+        }
+
         let result = ureq::get("http://127.0.0.1:8321/health")
             .timeout(Duration::from_secs(2))
             .call();
         match result {
             Ok(resp) if resp.status() == 200 => {
+                // When we minted a token, the backend answering must echo it
+                // back — otherwise it is a port squatter, not our child.
+                if !capability_token.is_empty() {
+                    let body = resp.into_string().unwrap_or_default();
+                    let echoed = serde_json::from_str::<serde_json::Value>(&body)
+                        .ok()
+                        .and_then(|v| v.get("token").and_then(|t| t.as_str()).map(str::to_owned));
+                    match echoed {
+                        Some(token) if token == capability_token => {
+                            eprintln!("[sidecar] server ready on http://127.0.0.1:8321");
+                            return Ok(child);
+                        }
+                        _ => {
+                            // 200 but no matching token: a different backend is
+                            // squatting :8321. Stop trusting it. Our child is
+                            // already dead (bind clash) or about to be; the
+                            // death-flag check above will turn the next loop
+                            // into a clean Err, and the timeout Err is the
+                            // backstop if the event is slow to arrive.
+                            eprintln!(
+                                "[sidecar] /health on :8321 answered without our \
+                                 capability token — another process is occupying \
+                                 the port; not trusting it"
+                            );
+                            continue;
+                        }
+                    }
+                }
                 eprintln!("[sidecar] server ready on http://127.0.0.1:8321");
                 return Ok(child);
             }

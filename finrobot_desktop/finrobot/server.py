@@ -20,7 +20,7 @@ from starlette.responses import JSONResponse, Response, StreamingResponse
 from pydantic_ai.ui.vercel_ai import VercelAIAdapter
 
 from finrobot.auth import CapabilityAuthMiddleware
-from finrobot.config import DATA_PROVIDER_SECRET_FIELDS, get_settings
+from finrobot.config import DATA_PROVIDER_SECRET_FIELDS, get_capability_token, get_settings
 from finrobot.llm_probe import LlmProbeGate
 from finrobot.obs import bind_session, setup_logging
 from finrobot.obs.middleware import RequestTraceMiddleware
@@ -1295,4 +1295,21 @@ async def chat(request: Request) -> Response:
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {"status": "ready"}
+    """Readiness probe for the Tauri shell's sidecar poll.
+
+    Stays auth-exempt (see ``finrobot.auth._EXEMPT_PATHS``) because the shell
+    polls it before the WebView — and hence the token — exists. It echoes the
+    per-launch capability token back so the readiness loop can prove the
+    backend answering on :8321 is *its own* spawned child, not a stale or
+    foreign process squatting the port. The probe does not require the caller
+    to present the token; this is an identity stamp, not an auth gate.
+
+    When no token is configured (browser dev loop, live-backend posture,
+    tests) the ``token`` field is omitted, keeping the response backward
+    compatible with callers that only read ``status``.
+    """
+    body = {"status": "ready"}
+    token = get_capability_token()
+    if token:
+        body["token"] = token
+    return body

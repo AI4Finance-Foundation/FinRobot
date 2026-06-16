@@ -717,10 +717,13 @@ def seed_dcf_inputs(
 
     # ----- WACC components --------------------------------------------------
     # Beta: prefer provider-reported beta, fall back to industry levered beta,
-    # then apply the Blume/Bloomberg adjustment (2/3·β + 1/3·1.0). A raw 5y
-    # regression beta is a noisy estimate of the FORWARD beta and empirically
-    # mean-reverts toward 1.0; using it unadjusted put NVDA's 2.24 into a 16.6%
-    # CAPM cost of equity — a discount rate no analyst applies to a mega-cap.
+    # then apply the Blume/Bloomberg adjustment ASYMMETRICALLY (see adjust_beta_blume).
+    # A raw 5y regression beta is a noisy estimate of the FORWARD beta: for HIGH-beta
+    # names (β > 1.0) the noise mean-reverts toward 1.0, so 2/3·β+1/3·1.0 applies —
+    # using NVDA's raw 2.24 unadjusted put it at a 16.6% CAPM cost of equity, a
+    # discount rate no analyst applies to a mega-cap. For structurally low-beta
+    # defensive names (β ≤ 1.0) the low beta is real (cash flows don't co-move with
+    # the cycle), not noise, so the raw beta is kept — never inflated toward 1.0.
     raw_beta, beta_source = _pick_with_provenance(
         ticker_value=financials.market.beta,
         ticker_label="provider-reported 5y beta",
@@ -728,9 +731,15 @@ def seed_dcf_inputs(
         industry_label=f"{industry.industry} industry levered beta",
     )
     beta_chosen = adjust_beta_blume(raw_beta)
-    prov["beta"] = (
-        f"{beta_chosen:.2f} ({beta_source} {raw_beta:.2f}, Blume-adjusted 2/3·β+1/3·1.0 toward 1.0)"
-    )
+    # Provenance must match the branch actually taken (same 1.0 threshold as
+    # adjust_beta_blume) — printing "Blume-adjusted" for a β ≤ 1.0 name that was
+    # NOT adjusted would be a false provenance trail (CLAUDE.md core contract:
+    # every number must be traceable to what really produced it).
+    if raw_beta > 1.0:
+        beta_note = "Blume-adjusted 2/3·β+1/3·1.0 toward 1.0 (high-β estimate mean-reverts)"
+    else:
+        beta_note = "raw regression β (structural low-β defensive — not inflated)"
+    prov["beta"] = f"{beta_chosen:.2f} ({beta_source} {raw_beta:.2f}, {beta_note})"
 
     # Cost of debt: try interest_expense / total_debt; fall back to 5%.
     total_debt = financials.balance.total_debt

@@ -8,7 +8,7 @@
 // technical chapter). Live quotes belong to the workspace dashboard. The chrome
 // lives in one 48px row so the chapter content gets the screen height. Version
 // switching lives in the right-rail Version Timeline (click a version → its
-// report); What-if assumption editing lives in the right rail too.
+// report).
 
 import { useNavigate } from 'react-router-dom'
 import { useHistoryBack } from '../../../hooks/useHistoryBack'

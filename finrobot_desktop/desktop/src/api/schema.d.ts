@@ -67,32 +67,6 @@ export interface paths {
     patch?: never
     trace?: never
   }
-  '/api/compute/artifacts/{artifact_id}/what-if/dcf': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /**
-     * Compute Dcf What If
-     * @description Replay a saved report's frozen DCF, overriding only the slider field(s).
-     *
-     *     Loads the artifact, reads its persisted DCFInputs (frozen at generation
-     *     time), applies the What-if overrides, and runs the pure ``calculate_dcf``.
-     *     No ``data_layer.fetch_canonical`` / ``seed_dcf_inputs`` — so dragging a
-     *     slider on an old report cannot smear in fresh price/financials/Damodaran
-     *     drift. Returns BASE (persisted) and NEW (recomputed) implied prices.
-     */
-    post: operations['compute_dcf_what_if_api_compute_artifacts__artifact_id__what_if_dcf_post']
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
   '/api/compute/dcf-equivalence-line': {
     parameters: {
       query?: never
@@ -2021,7 +1995,7 @@ export interface components {
       }
       /**
        * Inputs Fetched At
-       * @description Wall-clock time the market/financial inputs behind this seed were fetched (= FinancialData.timestamp, the canonical fetch time). Stamped by seed_dcf_inputs so every surface that prints a DCF/WACC (REST /dcf-seed, what-if, chat Monte-Carlo, artifacts via DCFResult.inputs) can show 'inputs as of X' — 门四溯源半. None for direct construction (user-supplied REST bodies have no fetch time; never fabricate a now()) and for JSON-round-tripped legacy artifacts (read-compat, ttm_quarter_ends precedent).
+       * @description Wall-clock time the market/financial inputs behind this seed were fetched (= FinancialData.timestamp, the canonical fetch time). Stamped by seed_dcf_inputs so every surface that prints a DCF/WACC (REST /dcf-seed, chat Monte-Carlo, artifacts via DCFResult.inputs) can show 'inputs as of X' — 门四溯源半. None for direct construction (user-supplied REST bodies have no fetch time; never fabricate a now()) and for JSON-round-tripped legacy artifacts (read-compat, ttm_quarter_ends precedent).
        */
       inputs_fetched_at?: string | null
     }
@@ -2228,7 +2202,7 @@ export interface components {
       tg_override?: number | null
       /**
        * Growth Scale Override
-       * @description Multiplier applied uniformly to every seeded revenue_growth_rate. 0.1 → +10% to each year's growth, -0.2 → -20%, None → unchanged. Drives the What-if Editor's 'Revenue Growth Scale' slider.
+       * @description Multiplier applied uniformly to every seeded revenue_growth_rate. 0.1 → +10% to each year's growth, -0.2 → -20%, None → unchanged.
        */
       growth_scale_override?: number | null
       /**
@@ -2272,46 +2246,6 @@ export interface components {
       tg_values: number[]
       /** Implied Prices */
       implied_prices: (number | null)[][]
-    }
-    /**
-     * DcfWhatIfRequest
-     * @description What-if recompute on a SAVED report's frozen DCF inputs.
-     *
-     *     Unlike /dcf-seed (which re-fetches live financials/price/history and reseeds
-     *     from scratch), this path replays the artifact's persisted DCFInputs verbatim
-     *     and overrides ONLY the slider field(s). The BASE/NEW delta is therefore
-     *     attributable solely to the slider — no live-data drift leaks in. Omitted
-     *     overrides leave the frozen assumption untouched.
-     */
-    DcfWhatIfRequest: {
-      /** Wacc Override */
-      wacc_override?: number | null
-      /** Tg Override */
-      tg_override?: number | null
-      /**
-       * Growth Scale Override
-       * @description Multiplier applied uniformly to every FROZEN revenue_growth_rate. 0.1 → +10% each year, -0.2 → -20%, None → unchanged.
-       */
-      growth_scale_override?: number | null
-      /**
-       * Mid Year
-       * @default false
-       */
-      mid_year: boolean
-    }
-    /**
-     * DcfWhatIfResponse
-     * @description Replayed DCF output. ``base_implied_price`` is the artifact's persisted
-     *     implied price (the UI's BASE); ``result.implied_price`` is NEW. They differ
-     *     only by the applied overrides — never by data drift.
-     */
-    DcfWhatIfResponse: {
-      /** Artifact Id */
-      artifact_id: string
-      inputs: components['schemas']['DCFInputs']
-      result: components['schemas']['DCFResult']
-      /** Base Implied Price */
-      base_implied_price: number
     }
     /**
      * DeltaItem
@@ -3963,41 +3897,6 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['DcfSeedResponse']
-        }
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
-      }
-    }
-  }
-  compute_dcf_what_if_api_compute_artifacts__artifact_id__what_if_dcf_post: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        artifact_id: string
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        'application/json': components['schemas']['DcfWhatIfRequest']
-      }
-    }
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['DcfWhatIfResponse']
         }
       }
       /** @description Validation Error */

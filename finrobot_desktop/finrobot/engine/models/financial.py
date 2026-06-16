@@ -521,7 +521,7 @@ class DCFInputs(BaseModel):
             "Wall-clock time the market/financial inputs behind this seed were "
             "fetched (= FinancialData.timestamp, the canonical fetch time). "
             "Stamped by seed_dcf_inputs so every surface that prints a DCF/WACC "
-            "(REST /dcf-seed, what-if, chat Monte-Carlo, artifacts via "
+            "(REST /dcf-seed, chat Monte-Carlo, artifacts via "
             "DCFResult.inputs) can show 'inputs as of X' — 门四溯源半. None for "
             "direct construction (user-supplied REST bodies have no fetch time; "
             "never fabricate a now()) and for JSON-round-tripped legacy "

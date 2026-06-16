@@ -6,7 +6,7 @@
 //   - sticky top toolbar  (price overlay · version switcher · diff · re-run)
 //   - left sticky TOC     (13 chapters with scroll-spy active highlight)
 //   - center scroll area  (chapters 01–13, each a structured Section)
-//   - right sticky rail   (Version Timeline + live DCF What-if Editor)
+//   - right sticky rail   (Version Timeline)
 //
 // The 13 chapters are split into per-file components under
 // pages/artifact-detail/chapters/. They consume artifact.outputs.structured
@@ -154,7 +154,7 @@ export function ArtifactDetailPage(): React.ReactElement {
   // the single source of truth shared with the standalone export viewer. For
   // non-research artifacts only `versionLabel`/`createdAt` are meaningful (the
   // 13-chapter shapes resolve to null) — the body renders via CompactArtifactViewer.
-  const { thesis, dcf, createdAt, versionLabel, snapshotPrice, snapshotAsOf } = deriveReportData(
+  const { thesis, createdAt, versionLabel, snapshotPrice, snapshotAsOf } = deriveReportData(
     data,
     timeline ?? [],
     locale,
@@ -227,7 +227,7 @@ export function ArtifactDetailPage(): React.ReactElement {
   }
 
   // ── Non-research artifacts: compact single-column viewer ──────────────────
-  // No 13-chapter TOC, no Ownership/What-if right rail, no
+  // No 13-chapter TOC, no Version Timeline right rail, no
   // chapter scroll-spy status bar. Just the toolbar (type-aware) + the focused
   // compact body that shows the artifact's real inputs / result / audit trail.
   if (!isResearch) {
@@ -317,9 +317,6 @@ export function ArtifactDetailPage(): React.ReactElement {
           currentArtifactId={artifactId}
           timeline={timeline ?? []}
           reportType={data.type}
-          wacc={dcf?.wacc ?? null}
-          terminalGrowth={dcf?.inputs?.terminal_growth_rate ?? null}
-          originalImpliedPrice={dcf?.implied_price ?? null}
         />
       </div>
     </div>

@@ -1,8 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { BASE_URL } from '../../../api/client'
-import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../../../api/fetch'
 import type { ArtifactSummaryV5, Signal } from '../../../types/v5'
 import { useI18n, type Locale } from '../../../i18n'
 import { formatDate } from '../../../utils/format'
@@ -13,63 +9,11 @@ interface ReportRightRailProps {
   currentArtifactId: string
   timeline: ArtifactSummaryV5[]
   reportType: string
-  wacc: number | null
-  terminalGrowth: number | null
-  /** Baseline implied price from the artifact — used as the "original" benchmark. */
-  originalImpliedPrice: number | null
 }
 
-interface DcfWhatIfResponse {
-  artifact_id: string
-  inputs: { wacc?: number; terminal_growth_rate?: number } & Record<string, unknown>
-  result: { implied_price: number; wacc: number }
-  base_implied_price: number
-}
-
-interface PostDcfWhatIfBody {
-  artifactId: string
-  wacc_override: number
-  tg_override: number
-  growth_scale_override: number | null
-}
-
-/**
- * Replay the CURRENT artifact's FROZEN DCF inputs, overriding only the slider
- * field(s). Hits /api/compute/artifacts/{id}/what-if/dcf — NOT the live
- * /dcf-seed reseed path — so the BASE→NEW delta is attributable solely to the
- * slider, never to data drift (latest price/financials/Damodaran fallback).
- */
-async function postDcfWhatIf({
-  artifactId,
-  ...overrides
-}: PostDcfWhatIfBody): Promise<DcfWhatIfResponse> {
-  const resp = await fetchWithTimeout(
-    `${BASE_URL}/api/compute/artifacts/${encodeURIComponent(artifactId)}/what-if/dcf`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...overrides, mid_year: false }),
-    },
-    HEAVY_API_TIMEOUT_MS,
-  )
-  if (!resp.ok) {
-    const detail = await resp.text().catch(() => '')
-    throw new Error(`${resp.status} ${detail.slice(0, 160)}`)
-  }
-  return (await resp.json()) as DcfWhatIfResponse
-}
-
-// Cap (px) on the timeline's scroll viewport on a roomy window — ~5–6 rows show
-// before the body scrolls internally; the full count is always in the panel
-// header. The card is fixed-height (never grows with version count), so a long
-// history can't shove the What-If card below it off-screen.
+// Cap (px) on the timeline's scroll viewport — ~5–6 rows show before the body
+// scrolls internally; the full count is always in the panel header.
 const TIMELINE_MAX_HEIGHT = 320
-
-// Space (px) the rest of the rail needs inside the viewport — the rail's top
-// offset plus the What-If card beneath the timeline. On short windows (e.g. a
-// 1366×768 laptop) `calc(100vh - reserve)` shrinks the timeline below the cap so
-// the What-If card stays above the fold instead of being pushed off-screen.
-const TIMELINE_VIEWPORT_RESERVE = 480
 
 // Distance (px) from a row's top edge to its dot centre — kept in one place so
 // the connecting spine segments line up exactly with the dots.
@@ -80,9 +24,6 @@ export function ReportRightRail({
   currentArtifactId,
   timeline,
   reportType,
-  wacc,
-  terminalGrowth,
-  originalImpliedPrice,
 }: ReportRightRailProps): React.ReactElement {
   const navigate = useNavigate()
   const { locale, t } = useI18n()
@@ -117,12 +58,12 @@ export function ReportRightRail({
           <div
             // Fixed-height scroll box: newest (current) version sits at the top
             // and shows without scrolling; older versions stay reachable by
-            // scrolling instead of pushing the rail's lower cards off-screen.
+            // scrolling instead of pushing the panel off-screen.
             data-testid="timeline-scroll"
             style={{
               display: 'flex',
               flexDirection: 'column',
-              maxHeight: `min(${TIMELINE_MAX_HEIGHT}px, calc(100vh - ${TIMELINE_VIEWPORT_RESERVE}px))`,
+              maxHeight: TIMELINE_MAX_HEIGHT,
               overflowY: 'auto',
             }}
           >
@@ -144,341 +85,7 @@ export function ReportRightRail({
           </div>
         )}
       </RailPanel>
-
-      {/* key={currentArtifactId} forces a fresh remount when the report version
-          changes, so the sliders reset to the NEW artifact's base assumptions
-          instead of keeping the previous report's WACC/TG (BUG-007). */}
-      <WhatIfEditor
-        key={currentArtifactId}
-        artifactId={currentArtifactId}
-        initialWacc={wacc}
-        initialTg={terminalGrowth}
-        originalImpliedPrice={originalImpliedPrice}
-      />
     </aside>
-  )
-}
-
-export function WhatIfEditor({
-  artifactId,
-  initialWacc,
-  initialTg,
-  originalImpliedPrice,
-}: {
-  artifactId: string
-  initialWacc: number | null
-  initialTg: number | null
-  originalImpliedPrice: number | null
-}): React.ReactElement {
-  const { t } = useI18n()
-  const baseWacc = initialWacc ?? 0.1
-  const baseTg = initialTg ?? 0.025
-
-  const [waccPct, setWaccPct] = useState<number>(baseWacc * 100)
-  const [tgPct, setTgPct] = useState<number>(baseTg * 100)
-  // Revenue growth scale: 0 = seeded growth schedule untouched.
-  // Slider is in percent (-50 .. +50) → backend gets it as fraction (-0.5 .. +0.5).
-  const [growthScalePct, setGrowthScalePct] = useState<number>(0)
-
-  const mutation = useMutation({
-    mutationFn: postDcfWhatIf,
-  })
-
-  // Capture latest mutation methods so the debounce effect can stay free of
-  // mutation refs (which churn on every render).
-  const mutationRef = useRef(mutation)
-  useEffect(() => {
-    mutationRef.current = mutation
-  }, [mutation])
-
-  // Debounce slider changes so dragging doesn't fire 50 requests.
-  useEffect(() => {
-    const handle = setTimeout(() => {
-      const waccDirty = Math.abs(waccPct / 100 - baseWacc) > 1e-4
-      const tgDirty = Math.abs(tgPct / 100 - baseTg) > 1e-4
-      const growthDirty = Math.abs(growthScalePct) > 0.1
-      if (!waccDirty && !tgDirty && !growthDirty) {
-        mutationRef.current.reset()
-        return
-      }
-      mutationRef.current.mutate({
-        artifactId,
-        wacc_override: waccPct / 100,
-        tg_override: tgPct / 100,
-        growth_scale_override: growthDirty ? growthScalePct / 100 : null,
-      })
-    }, 380)
-    return () => clearTimeout(handle)
-  }, [waccPct, tgPct, growthScalePct, artifactId, baseWacc, baseTg])
-
-  const handleReset = useCallback(() => {
-    setWaccPct(baseWacc * 100)
-    setTgPct(baseTg * 100)
-    setGrowthScalePct(0)
-    mutationRef.current.reset()
-  }, [baseWacc, baseTg])
-
-  const newImplied = mutation.data?.result?.implied_price ?? null
-  const dirty =
-    Math.abs(waccPct / 100 - baseWacc) > 1e-4 ||
-    Math.abs(tgPct / 100 - baseTg) > 1e-4 ||
-    Math.abs(growthScalePct) > 0.1
-  const delta =
-    newImplied !== null && originalImpliedPrice !== null
-      ? ((newImplied - originalImpliedPrice) / originalImpliedPrice) * 100
-      : null
-  const deltaUp = delta !== null && delta >= 0
-
-  return (
-    <RailPanel
-      title={t('report.rightRail.whatif')}
-      headerAction={
-        dirty ? (
-          <button
-            type="button"
-            onClick={handleReset}
-            style={resetButtonStyle}
-            title={t('report.rightRail.resetTitle')}
-            data-testid="whatif-reset"
-          >
-            {t('report.rightRail.reset')}
-          </button>
-        ) : undefined
-      }
-    >
-      <SliderRow
-        label="WACC"
-        valueLabel={`${waccPct.toFixed(2)}%`}
-        min={5}
-        max={20}
-        step={0.1}
-        value={waccPct}
-        onChange={setWaccPct}
-        testid="whatif-slider-wacc"
-      />
-      <SliderRow
-        label={t('report.rightRail.terminalGrowth')}
-        valueLabel={`${tgPct.toFixed(2)}%`}
-        min={-2}
-        max={5}
-        step={0.1}
-        value={tgPct}
-        onChange={setTgPct}
-        testid="whatif-slider-tg"
-      />
-      <SliderRow
-        label={t('report.rightRail.revenueGrowthScale')}
-        valueLabel={`${growthScalePct >= 0 ? '+' : ''}${growthScalePct.toFixed(0)}%`}
-        min={-50}
-        max={50}
-        step={5}
-        value={growthScalePct}
-        onChange={setGrowthScalePct}
-        testid="whatif-slider-growth"
-      />
-
-      <ComparePanel
-        original={originalImpliedPrice}
-        newImplied={newImplied}
-        delta={delta}
-        deltaUp={deltaUp}
-        isPending={mutation.isPending}
-        isError={mutation.isError}
-      />
-    </RailPanel>
-  )
-}
-
-function ComparePanel({
-  original,
-  newImplied,
-  delta,
-  deltaUp,
-  isPending,
-  isError,
-}: {
-  original: number | null
-  newImplied: number | null
-  delta: number | null
-  deltaUp: boolean
-  isPending: boolean
-  isError: boolean
-}): React.ReactElement {
-  const { t } = useI18n()
-  return (
-    <div
-      data-testid="whatif-compare"
-      style={{
-        marginTop: 12,
-        padding: '10px 12px',
-        background: 'var(--bg-card-deep)',
-        border: '1px solid var(--border-soft)',
-        borderRadius: 'var(--radius-sm)',
-        fontFamily: 'var(--font-mono)',
-        display: 'grid',
-        gridTemplateColumns: '1fr auto 1fr',
-        alignItems: 'center',
-        gap: 10,
-      }}
-    >
-      <ComparePrice
-        label="BASE"
-        price={original}
-        accent="var(--text-secondary)"
-        testid="whatif-base-price"
-      />
-
-      <span
-        aria-hidden
-        style={{
-          color: 'var(--text-dim)',
-          fontSize: 16,
-          padding: '0 4px',
-          letterSpacing: 0,
-        }}
-      >
-        →
-      </span>
-
-      {isError ? (
-        <div
-          style={{ fontSize: 10.5, color: 'var(--danger)', textAlign: 'right' }}
-          data-testid="whatif-error"
-        >
-          {t('report.rightRail.recomputeError')}
-        </div>
-      ) : (
-        <div style={{ textAlign: 'right' }}>
-          <div
-            style={{
-              fontSize: 9.5,
-              color: 'var(--text-muted)',
-              letterSpacing: '0.1em',
-              marginBottom: 2,
-            }}
-          >
-            NEW
-          </div>
-          <div
-            data-testid="whatif-new-price"
-            style={{
-              fontSize: 18,
-              color: isPending
-                ? 'var(--text-muted)'
-                : newImplied !== null
-                  ? 'var(--accent-cyan)'
-                  : 'var(--text-dim)',
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {isPending
-              ? t('report.rightRail.computing')
-              : newImplied !== null
-                ? `$${newImplied.toFixed(2)}`
-                : '—'}
-          </div>
-          {!isPending && delta !== null && (
-            <div
-              data-testid="whatif-delta"
-              style={{
-                fontSize: 10.5,
-                color: deltaUp ? 'var(--success)' : 'var(--danger)',
-                fontVariantNumeric: 'tabular-nums',
-                marginTop: 2,
-              }}
-            >
-              {deltaUp ? '+' : ''}
-              {delta.toFixed(1)}%
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ComparePrice({
-  label,
-  price,
-  accent,
-  testid,
-}: {
-  label: string
-  price: number | null
-  accent: string
-  testid?: string
-}): React.ReactElement {
-  return (
-    <div>
-      <div
-        style={{
-          fontSize: 9.5,
-          color: 'var(--text-muted)',
-          letterSpacing: '0.1em',
-          marginBottom: 2,
-        }}
-      >
-        {label}
-      </div>
-      <div
-        data-testid={testid}
-        style={{
-          fontSize: 18,
-          color: accent,
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {price !== null ? `$${price.toFixed(2)}` : '—'}
-      </div>
-    </div>
-  )
-}
-
-function SliderRow({
-  label,
-  valueLabel,
-  min,
-  max,
-  step,
-  value,
-  onChange,
-  testid,
-}: {
-  label: string
-  valueLabel: string
-  min: number
-  max: number
-  step: number
-  value: number
-  onChange: (v: number) => void
-  testid?: string
-}): React.ReactElement {
-  return (
-    <div style={{ marginBottom: 10 }}>
-      <label
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10.5,
-          color: 'var(--text-muted)',
-          marginBottom: 4,
-        }}
-      >
-        <span>{label}</span>
-        <span style={{ color: 'var(--accent-cyan)' }}>{valueLabel}</span>
-      </label>
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        style={{ width: '100%', accentColor: 'var(--secondary)' }}
-        data-testid={testid}
-      />
-    </div>
   )
 }
 
@@ -757,16 +364,4 @@ function SignalBadge({
       {t(`signal.${signal}`)}
     </span>
   )
-}
-
-const resetButtonStyle: React.CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 9.5,
-  padding: '2px 7px',
-  borderRadius: 4,
-  background: 'transparent',
-  color: 'var(--text-muted)',
-  border: '1px solid var(--border-soft)',
-  cursor: 'pointer',
-  letterSpacing: '0.04em',
 }

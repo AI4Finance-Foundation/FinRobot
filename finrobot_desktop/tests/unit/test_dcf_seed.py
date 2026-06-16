@@ -821,7 +821,7 @@ class TestForwardGrowthSeed:
 class TestInputsFetchedAtProvenance:
     """门四溯源半: the seeded DCFInputs must carry WHEN its market/financial
     inputs were fetched, so every surface that prints a DCF (REST /dcf-seed,
-    what-if, chat MC, artifact) can show "inputs as of X" without an artifact
+    chat MC, artifact) can show "inputs as of X" without an artifact
     envelope. Stamped from FinancialData.timestamp — the canonical fetch time —
     never from a wall clock (the operator stays pure)."""
 

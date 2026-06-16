@@ -122,7 +122,7 @@ describe('ArtifactDetailPage ticker canonicalization (BUG-014)', () => {
 
 // BUG-20260602-039: only equity_research gets the 13-chapter shell. A dcf (or
 // any other) artifact must render the compact viewer — NOT the empty equity
-// shell with its TOC / right-rail (Ownership, What-if) / scroll-spy.
+// shell with its TOC / right-rail (Version Timeline) / scroll-spy.
 describe('ArtifactDetailPage type branch (BUG-039)', () => {
   beforeEach(() => {
     navigateSpy.mockClear()

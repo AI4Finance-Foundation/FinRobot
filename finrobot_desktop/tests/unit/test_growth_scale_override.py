@@ -1,5 +1,5 @@
-"""Tests for apply_growth_scale_override — the What-if Editor's 'Revenue
-Growth Scale' slider path through /api/compute/dcf-seed.
+"""Tests for apply_growth_scale_override — the 'Revenue Growth Scale'
+override path through /api/compute/dcf-seed.
 
 Verifies:
 - scale=None is the identity

@@ -172,30 +172,3 @@ def test_lbo_seed_provider_error_maps_to_502() -> None:
     resp = client.post("/api/compute/lbo-seed", json={"ticker": "AAPL"})
     assert resp.status_code == 502, resp.text
     assert "Data source" in resp.json()["detail"]
-
-
-def test_dcf_what_if_degenerate_override_maps_to_422() -> None:
-    """The what-if route was added after 21c2fe07 and missed the router's
-    exception-mapping convention: a slider combo that degenerates the model
-    (wacc_override <= frozen terminal growth) raised the operator ValueError
-    as an opaque 500. It must be a 422 like every sibling route."""
-    app = FastAPI()
-    app.include_router(compute_router)
-    artifact = MagicMock()
-    artifact.outputs.structured = {
-        "financial_modeling": {
-            "inputs": _dcf_inputs().model_dump(),
-            "implied_price": 123.45,
-        }
-    }
-    store = MagicMock()
-    store.get = AsyncMock(return_value=artifact)
-    app.state.artifact_store = store
-    client = TestClient(app, raise_server_exceptions=False)
-
-    # wacc_override (1%) below the frozen terminal growth (2.5%) → tg >= wacc.
-    resp = client.post(
-        "/api/compute/artifacts/some-artifact/what-if/dcf",
-        json={"wacc_override": 0.01},
-    )
-    assert resp.status_code == 422, resp.text

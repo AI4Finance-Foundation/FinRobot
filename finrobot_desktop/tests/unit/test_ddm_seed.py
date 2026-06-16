@@ -259,3 +259,29 @@ class TestSeedProvenance:
             or not any(ch.isascii() and ch.isalpha() for ch in msg)
         ]
         assert not offenders, "Provenance must be readable English:\n" + "\n".join(offenders)
+
+
+class TestDdmBetaBand:
+    """DDM shares the same WACC-layer beta judge as DCF: an out-of-band vendor beta
+    must not crash seed_ddm_inputs and must substitute the industry levered-beta
+    proxy (then clamp to DDMInputs' [0.3, 2.5] band); in-band betas are kept raw.
+    """
+
+    @pytest.mark.parametrize("beta", [-0.248, -0.752, 0.0, 6.0])
+    def test_out_of_band_beta_no_crash_uses_industry(self, beta) -> None:
+        inputs = seed_ddm_inputs(_financials(beta=beta), _normalized())
+        # DDMInputs.beta is bounded [0.3, 3]; the proxy (≥0.3) survives, never the
+        # raw negative/>5 glitch. Provenance discloses the substitution.
+        assert 0.3 <= inputs.beta <= 2.5
+        prov = inputs.assumption_provenance["beta"]
+        assert "industry levered beta" in prov
+        assert "industry levered-beta proxy" in prov
+
+    def test_in_band_low_beta_kept_raw(self) -> None:
+        # A genuine low-β defensive (0.354) is kept, clamped only by the 0.3 floor
+        # (0.354 > 0.3 → untouched), and provenance shows the provider source.
+        inputs = seed_ddm_inputs(_financials(beta=0.354), _normalized())
+        assert inputs.beta == pytest.approx(0.354)
+        prov = inputs.assumption_provenance["beta"]
+        assert "provider-reported" in prov
+        assert "industry levered-beta proxy" not in prov

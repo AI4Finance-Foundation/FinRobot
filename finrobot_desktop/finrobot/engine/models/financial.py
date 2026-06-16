@@ -98,7 +98,17 @@ class MarketData(BaseModel):
     # this is True (confirmed ADRs file in USD legitimately). None (yfinance path
     # / unknown) or False keeps the banner — a True is required to suppress.
     is_adr: bool | None = None
-    beta: float | None = Field(default=None, ge=0, le=5)
+    # Raw provider-reported 5y beta — stored UNCONSTRAINED on purpose. This is the
+    # raw-value layer (no financial judgement here, per the engine contract: raw
+    # values stay traceable, sanity rulings happen in compute). Vendors emit short-
+    # window glitches outside any economically possible band (SHEL −0.248, BP
+    # −0.239, EQNR −0.752 — a whole sector compressed by a common upstream feed;
+    # negative beta is impossible for a cyclical oil major), and clamping/rejecting
+    # at the schema would crash the entire extraction for that ticker (refuse-to-
+    # conclude). The WACC layer (_pick_with_provenance in dcf_seed/ddm_seed) is the
+    # single point that judges the band [0, 5] and routes anything outside it to the
+    # Damodaran industry levered beta proxy with disclosed provenance.
+    beta: float | None = None
 
 
 class ValuationMetrics(BaseModel):

@@ -26,10 +26,14 @@ from finrobot.engine.compute.operators.dcf_seed import (
     COST_OF_DEBT_FLOOR,
     DCF_TAX_RATE_CAP,
     TAX_RATE_OUTLIER_CAP,
+    _BETA_BAND_CEILING,
+    _BETA_BAND_FLOOR,
+    _BETA_OUT_OF_BAND_REASON,
     _cost_of_debt,
     _decay_growth_schedule,
     _effective_tax_rate,
     _median_ratio,
+    _pick_with_provenance,
     _terminal_nwc_pct,
     _median_recent,
     _weighted_ratio,
@@ -1281,3 +1285,115 @@ class TestCyclicalSeedEquivalence:
         )
         assert reverse["implied_growth"] is not None
         assert abs(reverse["computed_price"] - forward.implied_price) < 0.10
+
+
+class TestPickWithProvenanceBetaBand:
+    """_pick_with_provenance is the single WACC-layer judge of the beta band.
+
+    The raw MarketData.beta schema is now unconstrained (it stores vendor glitches
+    verbatim); this helper decides whether a ticker's beta is economically usable
+    or must fall to the Damodaran industry levered-beta proxy. Out-of-band = ≤0 or
+    >5. In-band raw values (incl. genuine low-β defensives like KO 0.354 / VZ 0.22
+    and high-β NVDA 2.20) must be kept untouched.
+    """
+
+    _IND = 0.30  # stand-in for a Damodaran industry levered beta (e.g. Oil/Gas)
+
+    def _pick(self, raw):
+        return _pick_with_provenance(
+            ticker_value=raw,
+            ticker_label="provider-reported 5y beta",
+            industry_value=self._IND,
+            industry_label="Oil/Gas integrated industry levered beta",
+            floor=_BETA_BAND_FLOOR,
+            ceiling=_BETA_BAND_CEILING,
+            rejected_ticker_reason=_BETA_OUT_OF_BAND_REASON,
+            reject_value_fmt="{:.2f}",
+        )
+
+    @pytest.mark.parametrize("raw", [-0.248, -0.752, -1.0, 0.0])
+    def test_non_positive_beta_routes_to_industry(self, raw):
+        # SHEL −0.248 / EQNR −0.752 vendor glitches → industry proxy, with the
+        # rejected raw disclosed in the provenance trail.
+        val, src = self._pick(raw)
+        assert val == self._IND
+        assert "Oil/Gas integrated industry levered beta" in src
+        assert "industry levered-beta proxy" in src
+        assert f"{raw:.2f}" in src  # raw value disclosed at .2f, not as a %
+
+    @pytest.mark.parametrize("raw", [5.01, 6.0, 100.0])
+    def test_above_ceiling_beta_routes_to_industry(self, raw):
+        val, src = self._pick(raw)
+        assert val == self._IND
+        assert "industry levered-beta proxy" in src
+        assert f"{raw:.2f}" in src
+
+    @pytest.mark.parametrize("raw", [0.354, 0.385, 0.256, 0.22, 1.0, 2.20, 2.17, 5.0])
+    def test_in_band_beta_kept_raw(self, raw):
+        # KO 0.354, PG 0.385, JNJ 0.256, VZ 0.22 (real low-β defensives) and
+        # NVDA 2.20 / MU 2.17 (high-β) all sit INSIDE [0, 5] → raw kept verbatim.
+        val, src = self._pick(raw)
+        assert val == raw
+        assert src == "provider-reported 5y beta"
+
+    def test_rejection_string_never_prints_beta_as_percent(self):
+        # Regression: the old code formatted the rejected beta with .1% → SHEL's
+        # −0.248 beta was shown as "−24.8%", a fabricated number to the user.
+        _, src = self._pick(-0.248)
+        assert "-0.25" in src
+        assert "%" not in src.split("provider-reported")[1]
+
+
+class TestSeedDcfBetaEndToEnd:
+    """End-to-end: a negative provider beta must not crash seed_dcf_inputs and must
+    land the industry proxy in DCFInputs, while a low-β defensive keeps its raw beta.
+    """
+
+    def test_negative_beta_falls_to_industry_proxy_no_crash(self):
+        fin = _aapl_financials()
+        fin.market.beta = -0.248  # SHEL-style vendor glitch
+        inputs = seed_dcf_inputs(fin, _aapl_historical())
+        # The industry proxy (Damodaran levered, clamped [0.3, 2.5]) survives, never a
+        # negative value. DCFInputs.beta Field(ge=0, le=5) is the only modeling bound.
+        assert inputs.beta > 0
+        prov = inputs.assumption_provenance["beta"]
+        assert "industry levered beta" in prov
+        assert "-0.25" in prov  # raw disclosed at .2f
+        assert "industry levered-beta proxy" in prov
+
+    def test_high_glitch_beta_falls_to_industry_proxy_no_crash(self):
+        fin = _aapl_financials()
+        fin.market.beta = 6.0  # above the band ceiling
+        inputs = seed_dcf_inputs(fin, _aapl_historical())
+        assert inputs.beta <= 5.0  # DCFInputs Field ceiling; proxy is ≤2.5
+        prov = inputs.assumption_provenance["beta"]
+        assert "industry levered beta" in prov
+        assert "6.00" in prov
+
+    def test_low_beta_defensive_keeps_raw(self):
+        # KO-style raw 0.354 is a real structural low beta — kept verbatim, not
+        # substituted, not inflated by Blume (≤1.0 branch), NO modeling floor lift.
+        fin = _aapl_financials()
+        fin.market.beta = 0.354
+        inputs = seed_dcf_inputs(fin, _aapl_historical())
+        assert inputs.beta == pytest.approx(0.354)
+        prov = inputs.assumption_provenance["beta"]
+        assert "provider-reported 5y beta" in prov
+        assert "industry levered-beta proxy" not in prov
+
+    def test_below_0_30_defensive_kept_raw_not_floored(self):
+        # VZ 0.22 / JNJ 0.256 are GENUINE low-β defensives inside the [0, 5] band —
+        # they must be kept verbatim, NOT lifted to any 0.30 floor. There is no DCF
+        # beta modeling floor: the only bound is DCFInputs.beta Field(ge=0, le=5).
+        # Adding a 0.30 floor would be an unauthorized evidence-free calibration that
+        # raises a defensive name's WACC with no basis (CRITICAL PROTOCOL §1).
+        for raw in (0.22, 0.256):
+            fin = _aapl_financials()
+            fin.market.beta = raw
+            inputs = seed_dcf_inputs(fin, _aapl_historical())
+            assert inputs.beta == pytest.approx(raw), f"raw {raw} must be kept, not floored"
+            prov = inputs.assumption_provenance["beta"]
+            assert "provider-reported 5y beta" in prov  # raw source, not the proxy
+            assert "industry levered-beta proxy" not in prov
+            assert "modeling floor" not in prov
+            assert prov.startswith(f"{raw:.2f}")  # shown value == used raw value

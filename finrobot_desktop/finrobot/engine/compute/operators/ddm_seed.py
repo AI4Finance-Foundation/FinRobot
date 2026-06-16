@@ -27,6 +27,9 @@ from __future__ import annotations
 from typing import Final
 
 from finrobot.engine.compute.operators.dcf_seed import (
+    _BETA_BAND_CEILING,
+    _BETA_BAND_FLOOR,
+    _BETA_OUT_OF_BAND_REASON,
     DEFAULT_EQUITY_RISK_PREMIUM,
     DEFAULT_PROJECTION_YEARS,
     DEFAULT_RISK_FREE_RATE,
@@ -178,7 +181,16 @@ def seed_ddm_inputs(
         ticker_label="provider-reported 5y adjusted beta",
         industry_value=industry.levered_beta,
         industry_label=f"{industry.industry} industry levered beta",
+        floor=_BETA_BAND_FLOOR,
+        ceiling=_BETA_BAND_CEILING,
+        rejected_ticker_reason=_BETA_OUT_OF_BAND_REASON,
+        reject_value_fmt="{:.2f}",
     )
+    # Pre-existing DDM clamp — load-bearing for crash safety: DDMInputs.beta is
+    # Field(ge=0, le=3), tighter than DCF's le=5, so a high in-band raw beta whose
+    # Blume value would exceed 3 (e.g. raw 4.8 → 3.53) MUST be capped here or the
+    # construction raises. Left exactly as found; the negative-beta fix only changes
+    # the _pick_with_provenance call above (out-of-band → industry proxy).
     beta_final = max(_BETA_FLOOR, min(_BETA_CAP, beta_chosen))
     prov["beta"] = f"{beta_final:.2f} ({beta_source})"
 

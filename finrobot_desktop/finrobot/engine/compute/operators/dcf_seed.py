@@ -92,6 +92,23 @@ TAX_RATE_OUTLIER_CAP: Final[float] = 0.45
 DCF_TAX_RATE_FLOOR: Final[float] = 0.05
 DCF_TAX_RATE_CAP: Final[float] = 0.40
 
+# Economically possible band for a provider-reported equity beta. Anything outside
+# it is a vendor short-window glitch, not a real systematic-risk reading, so it is
+# rejected in favour of the Damodaran industry levered beta proxy (with disclosed
+# provenance). Lower bound is exclusive (a non-positive beta means a stock that
+# rallies in recessions — impossible for any going concern, and SHEL/BP/EQNR's
+# −0.25/−0.24/−0.75 are a whole sector compressed by a shared upstream feed). Upper
+# bound 5.0 rejects feed spikes that would otherwise produce an absurd CAPM cost of
+# equity. Genuine low-β defensives (KO 0.354, VZ 0.22) and high-β names (NVDA 2.20,
+# MU 2.17) sit INSIDE the band and keep their raw provider value. Shared by the DCF
+# and DDM WACC seeds so both judge beta identically.
+_BETA_BAND_FLOOR: Final[float] = 0.0
+_BETA_BAND_CEILING: Final[float] = 5.0
+_BETA_OUT_OF_BAND_REASON: Final[str] = (
+    "outside the economically possible beta band [0, 5] (vendor short-window glitch); "
+    "using the industry levered-beta proxy"
+)
+
 # Minimum historical samples required before we trust the ticker's own median.
 # Fewer than this ⇒ fall back to industry median. This is purely a THRESHOLD;
 # it does NOT bound how many years feed the median (that is _MEDIAN_WINDOW_YEARS).
@@ -729,17 +746,32 @@ def seed_dcf_inputs(
         ticker_label="provider-reported 5y beta",
         industry_value=industry.levered_beta,
         industry_label=f"{industry.industry} industry levered beta",
+        floor=_BETA_BAND_FLOOR,
+        ceiling=_BETA_BAND_CEILING,
+        rejected_ticker_reason=_BETA_OUT_OF_BAND_REASON,
+        reject_value_fmt="{:.2f}",
     )
     beta_chosen = adjust_beta_blume(raw_beta)
     # Provenance must match the branch actually taken (same 1.0 threshold as
     # adjust_beta_blume) — printing "Blume-adjusted" for a β ≤ 1.0 name that was
     # NOT adjusted would be a false provenance trail (CLAUDE.md core contract:
-    # every number must be traceable to what really produced it).
-    if raw_beta > 1.0:
-        beta_note = "Blume-adjusted 2/3·β+1/3·1.0 toward 1.0 (high-β estimate mean-reverts)"
+    # every number must be traceable to what really produced it). When the provider
+    # beta was out-of-band, raw_beta IS the industry proxy (no Blume — the proxy is
+    # already a levered industry beta, not a noisy regression); beta_source already
+    # discloses the substitution + the rejected raw value, so emit just the chosen
+    # value + that self-complete source rather than a false regression/Blume note.
+    in_band_ticker = (
+        financials.market.beta is not None
+        and _BETA_BAND_FLOOR < financials.market.beta <= _BETA_BAND_CEILING
+    )
+    if not in_band_ticker:
+        prov["beta"] = f"{beta_chosen:.2f} ({beta_source})"
     else:
-        beta_note = "raw regression β (structural low-β defensive — not inflated)"
-    prov["beta"] = f"{beta_chosen:.2f} ({beta_source} {raw_beta:.2f}, {beta_note})"
+        if raw_beta > 1.0:
+            beta_note = "Blume-adjusted 2/3·β+1/3·1.0 toward 1.0 (high-β estimate mean-reverts)"
+        else:
+            beta_note = "raw regression β (structural low-β defensive — not inflated)"
+        prov["beta"] = f"{beta_chosen:.2f} ({beta_source} {raw_beta:.2f}, {beta_note})"
 
     # Cost of debt: try interest_expense / total_debt; fall back to 5%.
     total_debt = financials.balance.total_debt
@@ -828,7 +860,12 @@ def seed_dcf_inputs(
         # clamp is disclosed in provenance; this is an idempotent safety net.
         tax_rate=max(DCF_TAX_RATE_FLOOR, min(DCF_TAX_RATE_CAP, tax_rate)),
         risk_free_rate=risk_free_rate,
-        beta=max(0.3, min(2.5, beta_chosen)),
+        # beta_chosen is already in (0, 5]: _pick_with_provenance returns an in-band
+        # raw (0 < β ≤ 5) or the Damodaran industry proxy (levered, clamped [0.3, 2.5]),
+        # and Blume only mean-reverts high betas downward — so the DCFInputs.beta
+        # Field(ge=0, le=5) is the sole modeling bound and never binds. NO extra floor:
+        # a genuine low-β defensive (VZ 0.22, JNJ 0.256) keeps its raw value untouched.
+        beta=beta_chosen,
         equity_risk_premium=equity_risk_premium,
         cost_of_debt=cost_of_debt,
         # Cap market-leverage at 0.80 for WACC weighting. Above ~80% debt the
@@ -968,15 +1005,33 @@ def _pick_with_provenance(
     industry_value: float,
     industry_label: str,
     floor: float = 0.0,
+    ceiling: float | None = None,
     rejected_ticker_reason: str | None = None,
+    reject_value_fmt: str = "{:.1%}",
 ) -> tuple[float, str]:
-    """Pick ticker_value when reasonable, else industry_value. Return (value, source_label)."""
-    if ticker_value is not None and ticker_value > floor:
-        return ticker_value, ticker_label
+    """Pick ticker_value when in band, else industry_value. Return (value, source_label).
+
+    The ticker value is accepted only when ``floor < ticker_value`` AND (when a
+    ``ceiling`` is given) ``ticker_value <= ceiling``. Anything outside the band —
+    a non-positive margin, or a vendor beta glitch below 0 / above 5 — routes to the
+    industry proxy. When ``rejected_ticker_reason`` is set the rejected raw value is
+    disclosed in the provenance so the substitution is traceable.
+
+    ``reject_value_fmt`` formats that disclosed raw value: ratios (margins, capex%)
+    are percentages (default "{:.1%}"); beta is a plain coefficient, so the beta
+    callers pass "{:.2f}" — printing a beta with "%" would assert a false number
+    (e.g. SHEL's −0.248 beta shown as "−24.8%").
+    """
+    in_band = ticker_value is not None and ticker_value > floor
+    if in_band and ceiling is not None and ticker_value > ceiling:  # type: ignore[operator]
+        in_band = False
+    if in_band:
+        return ticker_value, ticker_label  # type: ignore[return-value]
     if ticker_value is not None and rejected_ticker_reason is not None:
         return (
             industry_value,
-            f"{industry_label}; {ticker_label} {ticker_value:.1%} {rejected_ticker_reason}",
+            f"{industry_label}; {ticker_label} {reject_value_fmt.format(ticker_value)} "
+            f"{rejected_ticker_reason}",
         )
     return industry_value, industry_label
 

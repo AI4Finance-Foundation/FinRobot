@@ -92,6 +92,22 @@ def test_extract_financial_data_valid():
     assert fd.income.gross_margin == 0.47
 
 
+@pytest.mark.parametrize("beta", [-0.248, -1.0, 0.0, 6.0, 100.0])
+def test_extract_financial_data_survives_out_of_band_beta(beta):
+    """Out-of-band vendor beta must NOT crash extraction (refuse-to-conclude).
+
+    Real vendor glitch: SHEL live beta = −0.248 (FMP and yfinance byte-identical,
+    same upstream feed; BP −0.239, EQNR −0.752 — a whole sector compressed). The
+    old MarketData.beta = Field(ge=0, le=5) raised ValidationError here, killing
+    the entire extraction for every negative-beta energy name. The raw value is now
+    stored verbatim; the WACC seed (not the schema) judges the band and substitutes
+    the industry proxy. extract_financial_data must pass the raw beta straight
+    through without raising.
+    """
+    fd = extract_financial_data(_make_fin(beta=beta), _make_price())
+    assert fd.market.beta == beta
+
+
 def test_extract_financial_data_carries_is_adr():
     # is_adr must reach MarketData so the family-1 acceptor can read fin.market.is_adr.
     fd = extract_financial_data(_make_fin(country="TW", is_adr=True), _make_price())

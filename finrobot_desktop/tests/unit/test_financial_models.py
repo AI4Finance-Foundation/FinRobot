@@ -150,6 +150,27 @@ def test_dcf_inputs_rejects_high_beta():
         )
 
 
+@pytest.mark.parametrize("beta", [-0.248, -1.0, 0.0, 6.0, 0.354, None])
+def test_market_data_accepts_out_of_band_beta(beta):
+    """Raw MarketData.beta is UNCONSTRAINED — it is the raw-value layer.
+
+    Vendors emit short-window glitches outside any economically possible band
+    (SHEL −0.248, BP −0.239, EQNR −0.752 — a whole sector compressed by a shared
+    upstream feed; impossible for a cyclical oil major). The OLD schema clamped
+    beta to [0, 5] and raised ValidationError, which crashed the entire extraction
+    for that ticker (refuse-to-conclude). Sanity now lives in the WACC layer
+    (_pick_with_provenance), which routes out-of-band betas to the industry proxy.
+    The schema must store the raw value verbatim (traceability) and never raise.
+    """
+    md = MarketData(
+        market_cap=1e11,
+        shares_outstanding=1e9,
+        current_price=100.0,
+        beta=beta,
+    )
+    assert md.beta == beta
+
+
 def test_dcf_inputs_allows_negative_nwc():
     inputs = DCFInputs(
         revenue_base=100e9,

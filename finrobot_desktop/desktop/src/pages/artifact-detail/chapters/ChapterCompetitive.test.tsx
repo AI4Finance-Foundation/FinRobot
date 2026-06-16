@@ -85,3 +85,40 @@ describe('ChapterCompetitive comps heat-shading', () => {
     expect(screen.getByText('50.0%').getAttribute('title')).toBeNull() // …but target gross margin does not
   })
 })
+
+describe('ChapterCompetitive heat-shading legend', () => {
+  it('renders a legend whose semantics match heat(): green = cheaper/stronger, red = richer/weaker, ±5% in-line', () => {
+    render(<ChapterCompetitive peers={PEERS} thesis={null} />)
+    // green chip == heat() favorable side (lowerFavorable multiples / higher margins)
+    expect(screen.getByText('cheaper / stronger')).toBeInTheDocument()
+    // red chip == heat() unfavorable side
+    expect(screen.getByText('richer / weaker')).toBeInTheDocument()
+    // deadband: heat() returns {} when |dev| < 0.05 → "no tint"
+    expect(screen.getByText(/within ±5% = in-line/)).toBeInTheDocument()
+    // anchored to the same peer median the shading uses
+    expect(screen.getByText(/Cell shading vs peer median/)).toBeInTheDocument()
+  })
+
+  it('omits the legend entirely when there are no comparables (no table to explain)', () => {
+    render(<ChapterCompetitive peers={{ target: undefined, peers: [] }} thesis={null} />)
+    expect(screen.queryByText('cheaper / stronger')).toBeNull()
+  })
+})
+
+describe('ChapterCompetitive target (subject) row emphasis', () => {
+  it('marks the target row with the EQRV subject accent rail, leaving peers unmarked', () => {
+    const { container } = render(<ChapterCompetitive peers={PEERS} thesis={null} />)
+    // exactly one row carries the subject marker
+    const marked = container.querySelectorAll('tr[data-target]')
+    expect(marked).toHaveLength(1)
+    const targetRow = marked[0] as HTMLElement
+    // it IS the target row (TGT ticker appears in its first cell)
+    expect(targetRow.textContent).toContain('TGT')
+    // the cyan left rail is drawn via an inset box-shadow on the row
+    expect(targetRow.getAttribute('style') ?? '').toContain('inset 3px 0 0 0 var(--accent-cyan)')
+    // a peer row is NOT marked as the subject (fixture sets name == ticker, so
+    // "P1" appears twice in the row — either node resolves to the same <tr>).
+    const peerRow = screen.getAllByText('P1')[0].closest('tr')!
+    expect(peerRow.getAttribute('data-target')).toBeNull()
+  })
+})

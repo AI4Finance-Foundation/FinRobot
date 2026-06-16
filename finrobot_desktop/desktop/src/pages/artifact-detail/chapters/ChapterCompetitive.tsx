@@ -130,9 +130,17 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
                 return (
                   <tr
                     key={`${isTarget ? 'target' : 'peer'}:${c.ticker}:${i}`}
+                    // Bloomberg EQRV "subject row": the target gets a thick cyan
+                    // left rail (on top of the existing faint cyan tint) so it is
+                    // instantly separable from the peers below it. data-target lets
+                    // the test assert the marker without coupling to inline colors.
+                    data-target={isTarget ? '' : undefined}
                     style={
                       isTarget
-                        ? { background: 'color-mix(in srgb, var(--accent-cyan) 6%, transparent)' }
+                        ? {
+                            background: 'color-mix(in srgb, var(--accent-cyan) 6%, transparent)',
+                            boxShadow: 'inset 3px 0 0 0 var(--accent-cyan)',
+                          }
                         : undefined
                     }
                   >
@@ -220,6 +228,31 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
         <p style={mutedNote}>{t('chapter.competitive.empty')}</p>
       )}
 
+      {/* Heat-shading legend — describes EXACTLY what heat() does so the green/red
+        tints read without a manual: green = the company is cheaper (lower
+        multiple) OR stronger (higher margin) than the peer median; red = richer /
+        weaker; the ±5% deadband shows no tint. The first chip mirrors the target
+        row's left accent so the "subject row" marker is self-explaining too. */}
+      {all.length > 0 && (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 14,
+            marginTop: 8,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            color: 'var(--text-muted)',
+          }}
+        >
+          <span>{t('chapter.competitive.heat.label')}</span>
+          <HeatSwatch color="var(--success)" label={t('chapter.competitive.heat.favorable')} />
+          <HeatSwatch color="var(--danger)" label={t('chapter.competitive.heat.unfavorable')} />
+          <span>{t('chapter.competitive.heat.inline')}</span>
+        </div>
+      )}
+
       {(peers?.median_pe !== null && peers?.median_pe !== undefined) ||
       (peers?.median_core_pe !== null && peers?.median_core_pe !== undefined) ||
       (peers?.median_ev_ebitda !== null && peers?.median_ev_ebitda !== undefined) ? (
@@ -276,6 +309,20 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
         </SubChapter>
       )}
     </Chapter>
+  )
+}
+
+// One legend chip: a small color swatch + its meaning. Inline SVG swatch (a
+// rounded rect filled with the same token the heat() background uses) keeps the
+// legend visually matched to the cells without an animation or new token.
+function HeatSwatch({ color, label }: { color: string; label: string }): React.ReactElement {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <svg width={14} height={14} viewBox="0 0 14 14" aria-hidden role="presentation">
+        <rect x={1} y={1} width={12} height={12} rx={3} fill={color} opacity={0.85} />
+      </svg>
+      {label}
+    </span>
   )
 }
 

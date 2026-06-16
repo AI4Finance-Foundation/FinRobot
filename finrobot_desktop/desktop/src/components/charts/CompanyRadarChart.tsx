@@ -40,19 +40,31 @@ export default function CompanyRadarChart({ data, title }: ChartProps) {
             <PolarRadiusAxis tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={false} />
             <Tooltip content={<CosmicTooltip format={(v) => v.toFixed(1)} />} />
             <Legend content={<CosmicLegend />} />
-            <Radar
-              name={t('chart.radar.company')}
-              dataKey="value"
-              stroke={COMPANY_COLOR}
-              fill={COMPANY_COLOR}
-              fillOpacity={0.25}
-            />
+            {/* `value` is the TARGET company (compsResultToRadarData maps
+              t.pe_ratio/… → value); `benchmark` is the peer-median ring pinned
+              at 100. Render the target as the unmistakable hero — thicker,
+              brighter stroke + denser fill — and dim the peer-median series so
+              the subject reads first (Bloomberg EQRV subject-vs-peer emphasis).
+              The benchmark also drops to a thin dashed ring so it reads as a
+              reference outline, not a competing shape. */}
             <Radar
               name={t('chart.radar.benchmark')}
               dataKey="benchmark"
               stroke={BENCHMARK_COLOR}
+              strokeWidth={1}
+              strokeOpacity={0.55}
+              strokeDasharray="4 3"
               fill={BENCHMARK_COLOR}
-              fillOpacity={0.15}
+              fillOpacity={0.08}
+            />
+            <Radar
+              name={t('chart.radar.company')}
+              dataKey="value"
+              stroke={COMPANY_COLOR}
+              strokeWidth={2.5}
+              fill={COMPANY_COLOR}
+              fillOpacity={0.32}
+              dot={{ fill: COMPANY_COLOR, r: 2.5, strokeWidth: 0 }}
             />
           </RechartsRadarChart>
         </ResponsiveContainer>

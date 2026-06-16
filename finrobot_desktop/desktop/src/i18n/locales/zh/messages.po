@@ -1737,6 +1737,22 @@ msgid "chapter.competitive.chart.radar"
 msgstr "标的 vs 同业中位数（中位=100;越往外越有利）"
 
 #. js-lingui-explicit-id
+msgid "chapter.competitive.heat.label"
+msgstr "单元格底色 vs 同业中位数："
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.heat.favorable"
+msgstr "更便宜 / 更强"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.heat.unfavorable"
+msgstr "更贵 / 更弱"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.heat.inline"
+msgstr "±5% 以内 = 持平（不着色）"
+
+#. js-lingui-explicit-id
 msgid "chapter.financial.table.unit"
 msgstr "金额"
 

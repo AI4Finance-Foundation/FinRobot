@@ -1737,6 +1737,22 @@ msgid "chapter.competitive.chart.radar"
 msgstr "Target vs Peer Median (median = 100; outward = more favorable)"
 
 #. js-lingui-explicit-id
+msgid "chapter.competitive.heat.label"
+msgstr "Cell shading vs peer median:"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.heat.favorable"
+msgstr "cheaper / stronger"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.heat.unfavorable"
+msgstr "richer / weaker"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.heat.inline"
+msgstr "within ±5% = in-line (no tint)"
+
+#. js-lingui-explicit-id
 msgid "chapter.financial.table.unit"
 msgstr "Amount"
 

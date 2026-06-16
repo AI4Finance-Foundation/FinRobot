@@ -1,23 +1,38 @@
 #!/usr/bin/env python3
-"""Harness-drift sentinel.
+"""Harness-drift sentinel (dual-root: workbench + code repo).
 
-The AI coding harness (root CLAUDE.md ≡ AGENTS.md, hook configs in
-.claude/settings.json + .claude/hooks/*.sh + .codex/hooks.json, and any agent
-files under .claude/agents/ with .codex/agents/ mirrors) hard-codes file paths
-and references. When the codebase moves, those references silently rot: a grep
-against a renamed directory emits a warning and returns nothing, so an agent
-pastes "no findings" and the red-line scan is dead. This script makes that rot
-loud.
+This dev gate lives in the SOURCE repo (finrobot-copy/scripts/) so it is
+version-controlled, but the AI coding harness it guards is split across TWO
+roots:
+
+  CODE_ROOT      = .../AI4Finance/finrobot-copy   (this repo: finrobot/ tests/
+                   desktop/ scripts/)
+  WORKBENCH_ROOT = CODE_ROOT.parent = .../AI4Finance   (the workbench: root
+                   CLAUDE.md ≡ AGENTS.md, .claude/ .codex/ .agents/,
+                   project-memory/ docs/ specs/ — none of which are in git)
+
+The harness (root CLAUDE.md ≡ AGENTS.md, project CLAUDE.md ≡ AGENTS.md, hook
+configs, skills) hard-codes file paths. When the codebase moves, those
+references silently rot: a grep against a renamed directory emits a warning and
+returns nothing, so an agent pastes "no findings" and the red-line scan is dead.
+This script makes that rot loud — and it routes each path token to the CORRECT
+root (project files reference workbench knowledge as `../project-memory/...`;
+the `../` is resolved against the file's repo, not swallowed).
 
 Checks:
-  1. No harness or active knowledge file references legacy live-code roots
-     such as `finagent/` or `ui/src/`
-     (the real package is `finrobot/`).
-  2. Every fully-qualified path token (finrobot/ specs/ docs/ project-memory/
-     tests/ desktop/ scripts/) referenced in the harness actually exists on disk.
-  3. Every .claude/agents/<name>.md has a .codex/agents/<name>.toml mirror, and
+  1. No harness or active knowledge file references legacy live-code roots such
+     as `finagent/` or `ui/src/` (the real package is `finrobot/`).
+  2. Every fully-qualified path token referenced in the harness exists on disk,
+     routed to CODE_ROOT (finrobot/ tests/ desktop/ scripts/) or WORKBENCH_ROOT
+     (project-memory/ docs/ specs/ .claude/ .codex/ .agents/).
+  3. Skill parity: every .claude/skills/<name> (authoritative source) has a
+     .agents/skills/<name>/SKILL.md mirror (else Codex cannot see the skill);
+     financial recall/caliber skills must additionally be BYTE-IDENTICAL, so the
+     mirror can never silently drift from the source.
+  4. Every .claude/agents/<name>.md has a .codex/agents/<name>.toml mirror, and
      vice versa.
-  4. CLAUDE.md and AGENTS.md are byte-identical.
+  5. Root CLAUDE.md ≡ AGENTS.md and project CLAUDE.md ≡ AGENTS.md are each
+     byte-identical (mirror drift).
 
 Exit 0 if clean, 1 if any drift. No third-party deps; runs anywhere.
 """
@@ -28,16 +43,22 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+CODE_ROOT = Path(__file__).resolve().parent.parent
+WORKBENCH_ROOT = CODE_ROOT.parent
 
+# Harness control files actually live at the workbench root (gitignored), EXCEPT
+# the per-project CLAUDE.md/AGENTS.md which live in the code repo. List every
+# file we read + scan, so a fresh checkout that is missing them is visible.
 HARNESS_FILES = [
-    *sorted((ROOT / ".claude/agents").glob("*.md")),
-    *sorted((ROOT / ".codex/agents").glob("*.toml")),
-    *sorted((ROOT / ".claude/hooks").glob("*.sh")),
-    ROOT / ".claude/settings.json",
-    ROOT / ".codex/hooks.json",
-    ROOT / "CLAUDE.md",
-    ROOT / "AGENTS.md",
+    WORKBENCH_ROOT / "CLAUDE.md",
+    WORKBENCH_ROOT / "AGENTS.md",
+    CODE_ROOT / "CLAUDE.md",
+    CODE_ROOT / "AGENTS.md",
+    *sorted((WORKBENCH_ROOT / ".claude/agents").glob("*.md")),
+    *sorted((WORKBENCH_ROOT / ".codex/agents").glob("*.toml")),
+    *sorted((WORKBENCH_ROOT / ".claude/hooks").glob("*.sh")),
+    WORKBENCH_ROOT / ".claude/settings.json",
+    WORKBENCH_ROOT / ".codex/hooks.json",
 ]
 
 KNOWLEDGE_ROOTS = ("project-memory", "docs", "specs")
@@ -52,34 +73,51 @@ LEGACY_LIVE_ROOTS = {
     "ui/src/": "desktop/src/",
 }
 
-# Roots whose fully-qualified references we verify exist on disk.
-PATH_ROOTS = (
-    "finrobot/",
-    "specs/",
-    "docs/",
-    "project-memory/",
-    "tests/",
-    "desktop/",
-    "scripts/",
-)
-# A path token = one of the roots followed by path chars (incl. CJK for 中文 filenames),
-# stopping at whitespace, quotes, backticks, parens (half/full width), template <...>,
-# and prose punctuation in both widths (, ; : ! ? em-dash interpunct ellipsis) — repo
-# filenames never contain these, but hook/instruction prose right after a path does.
+# Path roots routed to CODE_ROOT vs WORKBENCH_ROOT. A `../project-memory/...`
+# reference in a code-repo file and a bare `project-memory/...` in a workbench
+# file both target WORKBENCH_ROOT/project-memory — routing by root name resolves
+# both correctly (these root names are unambiguous about which repo they live in).
+CODE_PATH_ROOTS = ("finrobot/", "tests/", "desktop/", "scripts/")
+WORKBENCH_PATH_ROOTS = ("project-memory/", "docs/", "specs/", ".claude/", ".codex/", ".agents/")
+PATH_ROOTS = CODE_PATH_ROOTS + WORKBENCH_PATH_ROOTS
+
+# A path token = one of the roots followed by path chars (incl. CJK for 中文
+# filenames), stopping at whitespace, quotes, backticks, parens (half/full
+# width), template <...>, and prose punctuation in both widths — repo filenames
+# never contain these, but hook/instruction prose right after a path does.
 TOKEN_RE = re.compile(
     r"(?:" + "|".join(re.escape(r) for r in PATH_ROOTS) + r")"
     r"[^\s`'\"\\，。、；：！？（）()<>|\[\],;:!?—·…]+"
 )
 
 
+def base_for(cand: str) -> Path | None:
+    """Which root a candidate path resolves against (None = not a tracked root)."""
+    # The agent memory dir lives under $HOME (`$HOME/.claude/projects/.../memory`),
+    # not the workbench — never existence-check it against WORKBENCH_ROOT.
+    if cand.startswith(".claude/projects/"):
+        return None
+    for r in CODE_PATH_ROOTS:
+        if cand.startswith(r):
+            return CODE_ROOT
+    for r in WORKBENCH_PATH_ROOTS:
+        if cand.startswith(r):
+            return WORKBENCH_ROOT
+    return None
+
+
 def candidate_paths(token: str) -> list[str]:
     """Expand a raw token into concrete paths to existence-check.
 
+    - drop a leading `../` (relative hop from code repo back to workbench;
+      routing is by root name, so the hop is informational)
     - drop trailing punctuation/slashes
     - {a,b,c} brace groups -> one path per alternative
     - a `*` wildcard segment -> check the parent directory instead
     - skip template placeholders containing `<`
     """
+    while token.startswith("../"):
+        token = token[3:]
     token = token.rstrip("/.,:;")
     if "<" in token or "*" in token.split("/")[0]:
         return []
@@ -97,11 +135,11 @@ def candidate_paths(token: str) -> list[str]:
 def active_knowledge_files() -> list[Path]:
     files: list[Path] = []
     for root in KNOWLEDGE_ROOTS:
-        base = ROOT / root
+        base = WORKBENCH_ROOT / root
         if not base.exists():
             continue
         for path in sorted(p for p in base.rglob("*") if p.is_file()):
-            rel = path.relative_to(ROOT).as_posix()
+            rel = path.relative_to(WORKBENCH_ROOT).as_posix()
             if any(rel == part or rel.startswith(f"{part}/") for part in KNOWLEDGE_EXCLUDE_PARTS):
                 continue
             files.append(path)
@@ -113,7 +151,11 @@ def check_legacy_live_roots(files: list[Path], violations: list[str]) -> None:
         if not f.exists():
             continue
         text = f.read_text(encoding="utf-8")
-        rel = f.relative_to(ROOT)
+        # report path relative to whichever root the file lives under
+        try:
+            rel = f.relative_to(WORKBENCH_ROOT)
+        except ValueError:
+            rel = f
         for ln, line in enumerate(text.splitlines(), 1):
             for legacy, current in LEGACY_LIVE_ROOTS.items():
                 if legacy in line:
@@ -122,42 +164,88 @@ def check_legacy_live_roots(files: list[Path], violations: list[str]) -> None:
                     )
 
 
-def main() -> int:
-    violations: list[str] = []
-    knowledge_files = active_knowledge_files()
-
-    check_legacy_live_roots([*HARNESS_FILES, *knowledge_files], violations)
-
+def check_path_tokens(violations: list[str]) -> None:
     for f in HARNESS_FILES:
         if not f.exists():
             continue
         text = f.read_text(encoding="utf-8")
-        rel = f.relative_to(ROOT)
-
+        try:
+            rel = f.relative_to(WORKBENCH_ROOT)
+        except ValueError:
+            rel = f
         seen: set[str] = set()
         for raw in TOKEN_RE.findall(text):
             for cand in candidate_paths(raw):
                 if cand in seen:
                     continue
                 seen.add(cand)
-                if not (ROOT / cand).exists():
+                base = base_for(cand)
+                if base is None:
+                    continue
+                if not (base / cand).exists():
                     violations.append(
-                        f"{rel}: references missing path `{cand}` (from token `{raw}`)"
+                        f"{rel}: references missing path `{cand}` "
+                        f"(from token `{raw}`, root {base.name})"
                     )
 
-    # .md <-> .toml mirror parity
-    md = {p.stem for p in (ROOT / ".claude/agents").glob("*.md")}
-    toml = {p.stem for p in (ROOT / ".codex/agents").glob("*.toml")}
+
+def check_skill_parity(violations: list[str]) -> None:
+    """.claude/skills = authoritative; .agents/skills = machine-checked mirror.
+
+    Existence parity for every skill (else Codex never sees it); byte-identity
+    for financial recall/caliber skills so the mirror can't silently drift.
+    """
+    claude_skills = WORKBENCH_ROOT / ".claude/skills"
+    agents_skills = WORKBENCH_ROOT / ".agents/skills"
+    if not claude_skills.exists():
+        return
+    for d in sorted(p for p in claude_skills.iterdir() if p.is_dir()):
+        name = d.name
+        src = d / "SKILL.md"
+        if not src.exists():
+            continue  # not a skill dir
+        mirror = agents_skills / name / "SKILL.md"
+        if not mirror.exists():
+            violations.append(
+                f".claude/skills/{name} has no .agents/skills/{name}/SKILL.md mirror "
+                f"(Codex would not see this skill)"
+            )
+            continue
+        if name.endswith("-recall") or "caliber" in name:
+            if src.read_bytes() != mirror.read_bytes():
+                violations.append(
+                    f".agents/skills/{name}/SKILL.md is not byte-identical to "
+                    f"authoritative .claude/skills/{name}/SKILL.md (re-mirror it)"
+                )
+
+
+def check_agent_mirror_parity(violations: list[str]) -> None:
+    md = {p.stem for p in (WORKBENCH_ROOT / ".claude/agents").glob("*.md")}
+    toml = {p.stem for p in (WORKBENCH_ROOT / ".codex/agents").glob("*.toml")}
     for name in sorted(md - toml):
         violations.append(f".claude/agents/{name}.md has no .codex/agents/{name}.toml mirror")
     for name in sorted(toml - md):
         violations.append(f".codex/agents/{name}.toml has no .claude/agents/{name}.md mirror")
 
-    # CLAUDE.md == AGENTS.md
-    claude, agents = ROOT / "CLAUDE.md", ROOT / "AGENTS.md"
-    if claude.exists() and agents.exists():
-        if claude.read_bytes() != agents.read_bytes():
-            violations.append("CLAUDE.md and AGENTS.md are not byte-identical (mirror drift)")
+
+def check_pair_identical(violations: list[str]) -> None:
+    for a, b, label in (
+        (WORKBENCH_ROOT / "CLAUDE.md", WORKBENCH_ROOT / "AGENTS.md", "workbench root"),
+        (CODE_ROOT / "CLAUDE.md", CODE_ROOT / "AGENTS.md", "project finrobot-copy"),
+    ):
+        if a.exists() and b.exists() and a.read_bytes() != b.read_bytes():
+            violations.append(f"{label} CLAUDE.md and AGENTS.md are not byte-identical (mirror drift)")
+
+
+def main() -> int:
+    violations: list[str] = []
+    knowledge_files = active_knowledge_files()
+
+    check_legacy_live_roots([*HARNESS_FILES, *knowledge_files], violations)
+    check_path_tokens(violations)
+    check_skill_parity(violations)
+    check_agent_mirror_parity(violations)
+    check_pair_identical(violations)
 
     if violations:
         print("HARNESS DRIFT — the AI coding harness references reality that no longer exists:\n")
@@ -174,8 +262,10 @@ def main() -> int:
             "harness drift check: no local harness files present (gitignored / fresh checkout) — nothing to validate"
         )
         return 0
+    skills = len(list((WORKBENCH_ROOT / ".claude/skills").glob("*/SKILL.md")))
     print(
-        f"harness drift check: OK ({present} harness files, {len(knowledge_files)} active knowledge files)"
+        f"harness drift check: OK ({present} harness files, "
+        f"{len(knowledge_files)} active knowledge files, {skills} skills mirrored)"
     )
     return 0
 

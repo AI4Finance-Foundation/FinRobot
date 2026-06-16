@@ -1670,11 +1670,27 @@ msgstr "Key Takeaways"
 
 #. js-lingui-explicit-id
 msgid "chapter.news.empty"
-msgstr "This report has no news-sentiment section — regenerate the report to produce an overall-sentiment read on the last 30 days of key events plus thesis support / challenge analysis here."
+msgstr "This report has no news-sentiment section — regenerate the report to produce a thesis support / challenge read on the key events here."
 
 #. js-lingui-explicit-id
 msgid "chapter.news.snapshotNote"
 msgstr "Snapshot frozen at artifact creation · compare across artifact versions to track how the narrative evolved"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.feed.heading"
+msgstr "Sourced feed"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.feed.empty"
+msgstr "No sourced events were captured for this report — the AI summary above stands on its own."
+
+#. js-lingui-explicit-id
+msgid "chapter.news.feed.sourceTooltip"
+msgstr "Open source: {source}"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.feed.impactTooltip"
+msgstr "Impact {score}/5"
 
 #. js-lingui-explicit-id
 msgid "chapter.competitive.empty"

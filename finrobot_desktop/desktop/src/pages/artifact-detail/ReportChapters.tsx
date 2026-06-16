@@ -146,7 +146,7 @@ export function ReportChapters({
         // football field's per-multiple provenance rail (frozen, no live refetch).
         historicalBand={d.technical?.historical_bands ?? null}
       />
-      <ChapterNews thesis={d.thesis} />
+      <ChapterNews thesis={d.thesis} catalysts={d.catalysts} />
       <ChapterSensitivity dcf={d.dcf} quoteCurrency={d.quoteCurrency} />
       <ChapterCatalysts catalysts={d.catalysts} thesis={d.thesis} />
       <ChapterTechnical

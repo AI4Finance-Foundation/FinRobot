@@ -68,6 +68,13 @@ export interface CatalystEventShape {
   impact_score: number
   probability: number
   reasoning?: string
+  // Source provenance for the chronological news feed (ChapterNews). `published`
+  // is an ISO date (null when the source didn't carry one → sorts last); `url`
+  // is the source endpoint (finnhub.io = API endpoint, NOT an article page;
+  // www.sec.gov = a real filing) — null when source-less. The Catalysts chapter
+  // ignores both; the News feed renders an honest source chip from the domain.
+  published?: string | null
+  url?: string | null
 }
 
 export interface CatalystAnalysisShape {

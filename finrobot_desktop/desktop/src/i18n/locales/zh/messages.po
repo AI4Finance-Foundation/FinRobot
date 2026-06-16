@@ -1670,11 +1670,27 @@ msgstr "核心要点"
 
 #. js-lingui-explicit-id
 msgid "chapter.news.empty"
-msgstr "该研报未生成新闻情绪段 — 重新生成研报即在此章产出近 30 天关键事件的整体情绪与论点支撑 / 挑战分析。"
+msgstr "该研报未生成新闻情绪段 — 重新生成研报即在此章产出关键事件的论点支撑 / 挑战分析。"
 
 #. js-lingui-explicit-id
 msgid "chapter.news.snapshotNote"
 msgstr "快照冻结于研报生成时 · 跨研报版本对比可追踪叙事演变"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.feed.heading"
+msgstr "可溯源事件流"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.feed.empty"
+msgstr "该研报未抓取到可溯源事件 — 以上方 AI 摘要为准。"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.feed.sourceTooltip"
+msgstr "打开来源：{source}"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.feed.impactTooltip"
+msgstr "影响力 {score}/5"
 
 #. js-lingui-explicit-id
 msgid "chapter.competitive.empty"

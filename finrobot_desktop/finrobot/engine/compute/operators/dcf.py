@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Any
 
 from finrobot.engine.models.financial import (
@@ -8,6 +9,40 @@ from finrobot.engine.models.financial import (
 )
 from finrobot.engine.models.valuation_thresholds import MIN_GORDON_SPREAD
 from finrobot.engine.compute.operators.wacc import calculate_wacc
+
+
+class ReverseSolveReason(StrEnum):
+    """Structured outcome code for the reverse-DCF solvers.
+
+    Contract ① — compute operators emit numbers + a machine code, never
+    human-readable prose. The reverse solvers used to return an English
+    ``message`` f-string that the desktop panel rendered raw, bypassing i18n.
+    They now return this code; the presentation layer (MarketImpliedPanel)
+    maps it to a localized sentence, interpolating the structured fields
+    (target_price / bracket / price_at_lo|hi / assumed_growth / wacc …) the
+    same result already carries. No number is recomputed for display.
+
+    Codes:
+        SOLVED              — a value was found (horizon success path; the
+                              growth/wacc solvers omit a code on success).
+        NOT_CONVERGED       — bisection hit max_iterations; the returned value
+                              is a coarse approximation, not an exact root.
+        TARGET_ABOVE_RANGE  — target price exceeds the highest reachable price
+                              in the solved axis' bracket → no solution.
+        TARGET_BELOW_RANGE  — target price sits below the lowest reachable
+                              price in the bracket → no solution.
+        OUT_OF_WACC_RANGE   — target price lies outside the WACC bracket's
+                              price span (implied WACC solver).
+        GORDON_UNDEFINED    — terminal growth ≥ WACC, so the Gordon perpetuity
+                              is undefined and no horizon can be solved.
+    """
+
+    SOLVED = "solved"
+    NOT_CONVERGED = "not_converged"
+    TARGET_ABOVE_RANGE = "target_above_range"
+    TARGET_BELOW_RANGE = "target_below_range"
+    OUT_OF_WACC_RANGE = "out_of_wacc_range"
+    GORDON_UNDEFINED = "gordon_undefined"
 
 
 def calculate_dcf(
@@ -499,18 +534,20 @@ def solve_for_implied_growth(
     }
 
     if not (p_lo <= target_price <= p_hi):
+        # Price is monotonically increasing in growth: above the high-bracket
+        # price ⇒ target needs more growth than the range allows; below the
+        # low-bracket price ⇒ the cheapest growth already overshoots.
+        reason = (
+            ReverseSolveReason.TARGET_ABOVE_RANGE
+            if target_price > p_hi
+            else ReverseSolveReason.TARGET_BELOW_RANGE
+        )
         return {
             **base,
             "implied_growth": None,
             "computed_price": None,
             "iterations": 0,
-            "message": (
-                f"No solution for target ${target_price:.2f} within the model's growth "
-                f"range [{lo:.0%}, {hi:.0%}]. {lo:.0%} growth → ${p_lo:.2f}; "
-                f"{hi:.0%} growth → ${p_hi:.2f}. The market is either pricing in growth "
-                f"beyond that range, or another input (margins / WACC / net debt) needs "
-                f"re-checking."
-            ),
+            "reason_code": reason,
         }
 
     iterations = 0
@@ -538,12 +575,7 @@ def solve_for_implied_growth(
         "converged": converged,
     }
     if not converged:
-        result["message"] = (
-            f"Implied-growth solve did not converge after {iterations} iterations "
-            f"(bracket width {hi - lo:.2e} > tolerance {tolerance:.0e}). The implied "
-            f"growth for ${target_price:.2f} is ~{mid:.2%} — an approximation, not an "
-            "exact solution."
-        )
+        result["reason_code"] = ReverseSolveReason.NOT_CONVERGED
     return result
 
 
@@ -659,11 +691,7 @@ def solve_for_implied_wacc(
             "implied_wacc": None,
             "computed_price": None,
             "iterations": 0,
-            "message": (
-                f"No solution for target ${target_price:.2f} within the WACC range "
-                f"[{lo:.0%}, {hi:.0%}]. WACC {lo:.0%} → ${p_lo:.2f}; "
-                f"WACC {hi:.0%} → ${p_hi:.2f}."
-            ),
+            "reason_code": ReverseSolveReason.OUT_OF_WACC_RANGE,
         }
 
     iterations = 0
@@ -690,12 +718,7 @@ def solve_for_implied_wacc(
         "converged": converged,
     }
     if not converged:
-        result["message"] = (
-            f"Implied-WACC solve did not converge after {iterations} iterations "
-            f"(bracket width {hi - lo:.2e} > tolerance {tolerance:.0e}). The implied "
-            f"WACC for ${target_price:.2f} is ~{mid:.2%} — an approximation, not an "
-            "exact solution."
-        )
+        result["reason_code"] = ReverseSolveReason.NOT_CONVERGED
     return result
 
 
@@ -769,11 +792,7 @@ def solve_for_implied_horizon(
             "bracket": [1.0, float(max_horizon)],
             "price_at_lo": 0.0,
             "price_at_hi": 0.0,
-            "message": (
-                f"At a fixed {growth_rate:.0%} growth, terminal growth {tg:.1%} is not "
-                f"below WACC {wacc:.1%} — the Gordon model is undefined, so no horizon "
-                f"can be solved."
-            ),
+            "reason_code": ReverseSolveReason.GORDON_UNDEFINED,
         }
 
     p_lo = prices[0][1]
@@ -785,15 +804,17 @@ def solve_for_implied_horizon(
     # Price is monotonically increasing in horizon (longer high-growth window ⇒
     # more value). Target outside [p_lo, p_hi] ⇒ no horizon in range justifies it.
     if not (p_lo <= target_price <= p_hi):
+        # Price is monotonically increasing in horizon: above the longest-window
+        # price ⇒ growth too low for any window to reach the target; below the
+        # shortest-window price ⇒ already implied by <1y.
+        reason = (
+            ReverseSolveReason.TARGET_ABOVE_RANGE
+            if target_price > p_hi
+            else ReverseSolveReason.TARGET_BELOW_RANGE
+        )
         return {
             **base,
-            "message": (
-                f"At a fixed {growth_rate:.0%} growth, target ${target_price:.2f} falls "
-                f"outside the 1–{max_horizon}y reachable range [${p_lo:.2f}, ${p_hi:.2f}]. "
-                f"{'The growth assumption is too low — no high-growth window, however long, can reach it' if target_price > p_hi else 'The current price is already below the shortest-window implied value'}. "
-                f"A different fixed growth rate yields a different horizon — the implied "
-                f"horizon is a function of the growth assumption."
-            ),
+            "reason_code": reason,
         }
 
     # Linear-interpolate the fractional horizon between the two bracketing years.
@@ -806,11 +827,5 @@ def solve_for_implied_horizon(
         **base,
         "implied_horizon": implied,
         "computed_price": target_price,
-        "message": (
-            f"At a fixed {growth_rate:.0%} growth and {wacc:.1%} WACC, ${target_price:.2f} "
-            f"implies a ~{implied:.1f}-year high-growth window (linear interpolation "
-            f"between integer years). Note: this horizon depends on the fixed "
-            f"{growth_rate:.0%} growth — an equally plausible growth rate yields a "
-            f"different horizon."
-        ),
+        "reason_code": ReverseSolveReason.SOLVED,
     }

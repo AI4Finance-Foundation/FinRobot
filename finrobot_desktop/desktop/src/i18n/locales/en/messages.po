@@ -3999,3 +3999,35 @@ msgstr "discount WACC"
 #. js-lingui-explicit-id
 msgid "valuation.implied.priorNote"
 msgstr "✓/⚠ are analyst credibility priors, not an objective verdict; swap the fixed axes and the answer changes. The market price sits on this line — which segment you believe is your call."
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.solved"
+msgstr "At a fixed {growth}% growth and {wacc}% WACC, ${target} implies a ~{horizon}-year high-growth window (linear interpolation between integer years). Note: this horizon depends on the fixed {growth}% growth — an equally plausible growth rate yields a different horizon."
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.notConverged"
+msgstr "Did not converge to an exact solution after the iteration cap — the value shown is an approximation, not an exact root."
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.growth.aboveRange"
+msgstr "No solution for ${target} within the model's growth range [{lo}%, {hi}%]. {lo}% growth → ${priceLo}; {hi}% growth → ${priceHi}. The market is either pricing in growth beyond that range, or another input (margins / WACC / net debt) needs re-checking."
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.growth.belowRange"
+msgstr "No solution for ${target}: the price already sits below what the model's lowest growth ({lo}% → ${priceLo}) produces — even the slowest growth in range overshoots it."
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.outOfWaccRange"
+msgstr "No solution for ${target} within the WACC range [{lo}%, {hi}%]. WACC {lo}% → ${priceLo}; WACC {hi}% → ${priceHi}."
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.horizon.aboveRange"
+msgstr "At a fixed {growth}% growth, ${target} falls outside the 1–{maxHorizon}y reachable range [${priceLo}, ${priceHi}]. The growth assumption is too low — no high-growth window, however long, can reach it. A different fixed growth rate yields a different horizon."
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.horizon.belowRange"
+msgstr "At a fixed {growth}% growth, ${target} falls outside the 1–{maxHorizon}y reachable range [${priceLo}, ${priceHi}]. The current price is already below the shortest-window implied value. A different fixed growth rate yields a different horizon."
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.gordonUndefined"
+msgstr "At a fixed {growth}% growth, terminal growth {tg}% is not below WACC {wacc}% — the Gordon model is undefined, so no horizon can be solved."

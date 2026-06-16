@@ -7,6 +7,7 @@ test_dcf.py and tests/audit/test_financial_sanity.py.
 """
 
 from finrobot.engine.compute.operators.dcf import (
+    ReverseSolveReason,
     _price_for,
     calculate_dcf,
     solve_for_implied_growth,
@@ -80,7 +81,8 @@ def test_reverse_growth_target_too_high_returns_none():
         wacc_override=0.10,
     )
     assert out["implied_growth"] is None
-    assert "No solution" in out["message"]
+    # $5000 sits above the high-bracket (10% growth) price → above-range code.
+    assert out["reason_code"] is ReverseSolveReason.TARGET_ABOVE_RANGE
     assert out["price_at_hi"] < 5000.0
 
 
@@ -131,7 +133,7 @@ def test_reverse_growth_marks_non_convergence_when_iterations_capped():
     assert out["implied_growth"] is not None  # still returns the best estimate
     assert out["converged"] is False
     assert out["iterations"] == 3
-    assert "did not converge" in out["message"]
+    assert out["reason_code"] is ReverseSolveReason.NOT_CONVERGED
 
 
 # ───────────────────────────────────────────────────────────────────
@@ -169,7 +171,7 @@ def test_reverse_wacc_target_too_low_returns_none():
         bracket=(0.05, 0.15),
     )
     assert out["implied_wacc"] is None
-    assert "No solution" in out["message"]
+    assert out["reason_code"] is ReverseSolveReason.OUT_OF_WACC_RANGE
 
 
 def test_reverse_wacc_clips_bracket_above_terminal_growth():
@@ -233,7 +235,8 @@ def test_reverse_horizon_echoes_assumed_growth():
 
 def test_reverse_horizon_unreachable_returns_none_with_growth_caveat():
     """A target above what even max_horizon of the fixed growth can reach ⇒ no
-    horizon solves it; message must flag that the answer hinges on the growth."""
+    horizon solves it; reason_code flags above-range so the UI can say the growth
+    assumption is too low (the localized sentence still echoes assumed_growth)."""
     inputs = _make_inputs()
     out = solve_for_implied_horizon(
         inputs,
@@ -244,7 +247,7 @@ def test_reverse_horizon_unreachable_returns_none_with_growth_caveat():
     )
     assert out["implied_horizon"] is None
     assert out["assumed_growth"] == 0.05
-    assert "growth" in (out["message"] or "")
+    assert out["reason_code"] is ReverseSolveReason.TARGET_ABOVE_RANGE
 
 
 # ───────────────────────────────────────────────────────────────────

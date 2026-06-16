@@ -24,14 +24,31 @@ import { useI18n } from '../../i18n'
 import { FetchHttpError, mapErrorToUserMessage } from '../../utils/errorMessage'
 import { CosmicTooltipShell } from '../charts/chartTooltip'
 
+// The reverse solver's outcome code (mirrors backend ReverseSolveReason). The
+// operator emits this machine code, not prose — the localized sentence is built
+// here so it goes through i18n instead of rendering a raw backend string.
+type ReverseReasonCode =
+  | 'solved'
+  | 'not_converged'
+  | 'target_above_range'
+  | 'target_below_range'
+  | 'out_of_wacc_range'
+  | 'gordon_undefined'
+
 interface ReverseResult {
+  solve_for: string
   implied_growth: number | null
   implied_wacc: number | null
   implied_horizon: number | null
   assumed_growth: number | null
   wacc: number | null
   terminal_growth: number
-  message: string | null
+  target_price: number
+  horizon_years: number
+  bracket: number[]
+  price_at_lo: number
+  price_at_hi: number
+  reason_code: ReverseReasonCode | null
 }
 
 interface SeedReverse {
@@ -94,6 +111,80 @@ function growthVerdict(g: number | null): 'distorted' | 'arguable' | 'unreachabl
 function badge(v: 'distorted' | 'arguable' | 'unreachable'): { mark: string; color: string } {
   if (v === 'arguable') return { mark: '✓', color: 'var(--success)' }
   return { mark: '⚠', color: 'var(--warning)' }
+}
+
+// Map the operator's structured reason_code to a localized sentence, filling the
+// numbers from the same result fields the solver already returned (no value is
+// recomputed for display). Returns null when there is no code to surface — the
+// growth/wacc solvers omit a code on a clean solve, so their cards show only the
+// headline value. above/below-range and the success path are axis-specific
+// because the original prose framed growth, WACC and horizon differently.
+function reasonText(
+  r: ReverseResult,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string | null {
+  if (!r.reason_code) return null
+  const pct0 = (x: number): string => (x * 100).toFixed(0)
+  const pct1 = (x: number): string => (x * 100).toFixed(1)
+  const usd = (x: number): string => x.toFixed(2)
+  const [lo, hi] = r.bracket
+  switch (r.reason_code) {
+    case 'solved':
+      return t('valuation.implied.reason.solved', {
+        growth: pct0(r.assumed_growth ?? 0),
+        wacc: pct1(r.wacc ?? 0),
+        target: usd(r.target_price),
+        horizon: (r.implied_horizon ?? 0).toFixed(1),
+      })
+    case 'not_converged':
+      return t('valuation.implied.reason.notConverged')
+    case 'out_of_wacc_range':
+      return t('valuation.implied.reason.outOfWaccRange', {
+        target: usd(r.target_price),
+        lo: pct0(lo),
+        hi: pct0(hi),
+        priceLo: usd(r.price_at_lo),
+        priceHi: usd(r.price_at_hi),
+      })
+    case 'gordon_undefined':
+      return t('valuation.implied.reason.gordonUndefined', {
+        growth: pct0(r.assumed_growth ?? 0),
+        tg: pct1(r.terminal_growth),
+        wacc: pct1(r.wacc ?? 0),
+      })
+    case 'target_above_range':
+    case 'target_below_range': {
+      const above = r.reason_code === 'target_above_range'
+      if (r.solve_for === 'horizon') {
+        // Horizon bracket carries integer years; prose frames it against the
+        // fixed growth and the 1–Ny reachable price band.
+        return t(
+          above
+            ? 'valuation.implied.reason.horizon.aboveRange'
+            : 'valuation.implied.reason.horizon.belowRange',
+          {
+            growth: pct0(r.assumed_growth ?? 0),
+            target: usd(r.target_price),
+            maxHorizon: r.horizon_years,
+            priceLo: usd(r.price_at_lo),
+            priceHi: usd(r.price_at_hi),
+          },
+        )
+      }
+      return t(
+        above
+          ? 'valuation.implied.reason.growth.aboveRange'
+          : 'valuation.implied.reason.growth.belowRange',
+        {
+          target: usd(r.target_price),
+          lo: pct0(lo),
+          hi: pct0(hi),
+          priceLo: usd(r.price_at_lo),
+          priceHi: usd(r.price_at_hi),
+        },
+      )
+    }
+  }
 }
 
 interface Props {
@@ -261,7 +352,7 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
                       ? `${(seed.reverse_growth.implied_growth * 100).toFixed(0)}%`
                       : t('valuation.implied.unreachable')
                   }
-                  message={seed.reverse_growth?.message ?? null}
+                  message={seed.reverse_growth ? reasonText(seed.reverse_growth, t) : null}
                 />
                 <AnchorCard
                   axis={t('valuation.implied.axis.wacc')}
@@ -271,7 +362,7 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
                       ? `${(seed.reverse_wacc.implied_wacc * 100).toFixed(1)}%`
                       : '—'
                   }
-                  message={seed.reverse_wacc?.message ?? null}
+                  message={seed.reverse_wacc ? reasonText(seed.reverse_wacc, t) : null}
                 />
                 <AnchorCard
                   axis={t('valuation.implied.axis.horizon')}
@@ -281,7 +372,7 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
                       ? `${seed.reverse_horizon.implied_horizon.toFixed(1)} ${t('valuation.implied.years')}`
                       : t('valuation.implied.unreachable')
                   }
-                  message={seed.reverse_horizon?.message ?? null}
+                  message={seed.reverse_horizon ? reasonText(seed.reverse_horizon, t) : null}
                 />
               </div>
 

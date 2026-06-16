@@ -26,13 +26,19 @@ function jsonResponse(payload: unknown): { ok: boolean; json: () => Promise<unkn
 
 function seedFor(growth: number): unknown {
   const reverse = {
+    solve_for: 'horizon',
     implied_growth: growth,
     implied_wacc: 0.11,
     implied_horizon: 7,
     assumed_growth: 0.2,
     wacc: 0.09,
     terminal_growth: 0.025,
-    message: null,
+    target_price: 100,
+    horizon_years: 30,
+    bracket: [1, 30],
+    price_at_lo: 80,
+    price_at_hi: 140,
+    reason_code: 'solved',
   }
   return {
     reverse_growth: reverse,

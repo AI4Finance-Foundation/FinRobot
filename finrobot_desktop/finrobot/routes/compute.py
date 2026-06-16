@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from starlette.requests import Request
 
 from finrobot.engine.compute.operators.dcf import (
+    ReverseSolveReason,
     calculate_dcf,
     calculate_sensitivity,
     solve_for_implied_growth,
@@ -179,7 +180,13 @@ class DcfReverseResult(BaseModel):
     # it from the response, so a caller couldn't tell an exact solve from a
     # capped approximation (BUG-035). Horizon solves omit it → default True.
     converged: bool = True
-    message: str | None = None
+    # Structured outcome code (contract ①). Replaces the legacy human-readable
+    # ``message`` f-string: the operators emit a machine code, the desktop panel
+    # maps it to a localized sentence (bypassing the prose-through-the-API leak
+    # where the old message rendered raw, skipping i18n). The growth/wacc solvers
+    # omit a code on success; the horizon solver always emits one (SOLVED on the
+    # happy path).
+    reason_code: ReverseSolveReason | None = None
 
 
 class LboSeedRequest(BaseModel):

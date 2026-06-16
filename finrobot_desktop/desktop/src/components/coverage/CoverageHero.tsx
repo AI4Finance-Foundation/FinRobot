@@ -421,7 +421,10 @@ export function CoverageHero(): React.ReactElement {
       </div>
 
       {/* ── Capability dock (lifted off the bottom edge) ── */}
-      <div style={{ position: 'relative', zIndex: 3, padding: '0 26px 44px' }}>
+      {/* zIndex 2 (below the cockpit-center's zIndex 3) so the autocomplete
+          dropdown — which lives in the cockpit-center subtree and extends down
+          over this dock — paints ON TOP of it instead of being covered. */}
+      <div style={{ position: 'relative', zIndex: 2, padding: '0 26px 44px' }}>
         <div className="capability-dock">
           {MODULES.map((m) => (
             <div key={m.key} className={`capability-module ${m.glyph}`}>

@@ -18,6 +18,7 @@ import { Chapter, Narrative, SubChapter } from './ChapterBase'
 import type { CatalystAnalysisShape, CatalystEventShape, ThesisShape } from './types'
 import { useI18n, type Locale } from '../../../i18n'
 import { formatDate } from '../../../utils/format'
+import { ImpactMeter } from '../../../components/ImpactMeter'
 
 interface ChapterNewsProps {
   thesis: ThesisShape | null
@@ -138,7 +139,7 @@ function FeedRow({
         <SourceChip name={src.name} url={event.url ?? null} t={t} />
         {event.published && <span>{formatDate(event.published, locale)}</span>}
         <CategoryChip category={event.category} />
-        <ImpactMeter score={event.impact_score} t={t} />
+        <ImpactMeter score={event.impact_score} />
       </div>
     </div>
   )
@@ -256,38 +257,6 @@ function titleCase(raw: string): string {
     .filter(Boolean)
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(' ')
-}
-
-// Bloomberg "relevance meter" idiom: a 5-segment bar, filled = impact_score
-// (clamped 0–5), dim = remainder. Inline SVG per cosmic spec §6.5. The colour
-// is deliberately neutral (not the sentiment colour) — impact is magnitude,
-// not direction; direction is already on the row border.
-function ImpactMeter({ score, t }: { score: number; t: Translator }): React.ReactElement {
-  const filled = Math.max(0, Math.min(5, Math.round(score)))
-  const segW = 5
-  const gap = 2
-  const segH = 8
-  const width = 5 * segW + 4 * gap
-  return (
-    <span
-      style={{ display: 'inline-flex', alignItems: 'center' }}
-      title={t('chapter.news.feed.impactTooltip', { score: filled })}
-    >
-      <svg width={width} height={segH} viewBox={`0 0 ${width} ${segH}`} aria-hidden>
-        {Array.from({ length: 5 }, (_, i) => (
-          <rect
-            key={i}
-            x={i * (segW + gap)}
-            y={0}
-            width={segW}
-            height={segH}
-            rx={1}
-            fill={i < filled ? 'var(--accent-cyan)' : 'var(--border-grid)'}
-          />
-        ))}
-      </svg>
-    </span>
-  )
 }
 
 const mutedNote: CSSProperties = {

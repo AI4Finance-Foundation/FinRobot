@@ -50,4 +50,26 @@ describe('SensitivityHeatmap', () => {
     expect(screen.getByText('$150.00')).toBeInTheDocument()
     expect(screen.getByText('$110.00')).toBeInTheDocument()
   })
+
+  // W3 — color-scale legend. The green end MUST read "higher implied value" and
+  // the red end "lower implied value" (heatmapClass maps higher normalised price
+  // → hm-5 = --legacy-green-30). The ramp runs red→green left-to-right so the
+  // text labels frame it: "Lower implied value" [red…green] "Higher implied value".
+  it('renders a color-scale legend with the correct (green = higher value) direction', () => {
+    render(<SensitivityHeatmap data={SAMPLE_DATA} title="Sensitivity" />)
+    const legend = screen.getByTestId('heatmap-legend')
+    expect(legend).toBeInTheDocument()
+    // EN catalog strings (app renders en by default in tests).
+    expect(screen.getByText('Lower implied value')).toBeInTheDocument()
+    expect(screen.getByText('Higher implied value')).toBeInTheDocument()
+  })
+
+  it('paints the legend ramp red→green (lowest value on the left, highest on the right)', () => {
+    render(<SensitivityHeatmap data={SAMPLE_DATA} title="Sensitivity" />)
+    const swatches = [...screen.getByTestId('heatmap-legend').querySelectorAll('span > span')].map(
+      (s) => (s as HTMLElement).style.background,
+    )
+    expect(swatches[0]).toBe('var(--legacy-red-25)') // leftmost = lowest implied value
+    expect(swatches[swatches.length - 1]).toBe('var(--legacy-green-30)') // rightmost = highest
+  })
 })

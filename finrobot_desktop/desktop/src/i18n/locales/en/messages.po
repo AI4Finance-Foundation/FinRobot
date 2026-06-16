@@ -933,6 +933,14 @@ msgid "chapter.sensitivity.driver.tg"
 msgstr "terminal growth"
 
 #. js-lingui-explicit-id
+msgid "chart.sensitivity.legend.lower"
+msgstr "Lower implied value"
+
+#. js-lingui-explicit-id
+msgid "chart.sensitivity.legend.higher"
+msgstr "Higher implied value"
+
+#. js-lingui-explicit-id
 msgid "chart.priceTrend.close"
 msgstr "Close"
 

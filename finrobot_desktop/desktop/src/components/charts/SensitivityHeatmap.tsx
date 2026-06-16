@@ -1,9 +1,27 @@
 import { useMemo } from 'react'
 
+import { useI18n } from '../../i18n'
+
 interface ChartProps {
   data: Record<string, number | string | boolean | null>[]
   title: string
 }
+
+// The 8 heatmap tiers, ordered HIGH implied value → LOW. These are the exact
+// `hm-*` cell backgrounds (App.css): hm-5 = --legacy-green-30 (the most green,
+// = highest implied price via heatmapClass mapping normalised≥0.9), down to
+// hm--2 = --legacy-red-25 (the most red, = lowest implied price). The legend
+// therefore reads green = higher implied value, red = lower implied value.
+const LEGEND_RAMP = [
+  'var(--legacy-green-30)',
+  'var(--legacy-green-18)',
+  'var(--legacy-green-08)',
+  'var(--legacy-amber-06)',
+  'var(--legacy-amber-12)',
+  'var(--legacy-red-08)',
+  'var(--legacy-red-15)',
+  'var(--legacy-red-25)',
+] as const
 
 /**
  * Map normalised value [0, 1] to heatmap CSS class.
@@ -26,6 +44,7 @@ interface GridCell {
 }
 
 export default function SensitivityHeatmap({ data, title }: ChartProps) {
+  const { t } = useI18n()
   const memo = useMemo(() => {
     if (!data || data.length === 0) return null
     const cells: GridCell[] = data.map((d) => ({
@@ -101,6 +120,40 @@ export default function SensitivityHeatmap({ data, title }: ChartProps) {
               ))}
             </tbody>
           </table>
+        </div>
+        <div
+          data-testid="heatmap-legend"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            marginTop: 12,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'var(--text-muted)',
+            letterSpacing: '0.03em',
+          }}
+        >
+          <span>{t('chart.sensitivity.legend.lower')}</span>
+          <span
+            aria-hidden
+            style={{
+              display: 'flex',
+              flex: '0 0 auto',
+              height: 10,
+              borderRadius: 2,
+              overflow: 'hidden',
+              border: '1px solid var(--border-subtle)',
+            }}
+          >
+            {/* Ramp ordered LOW→HIGH (red→green) left-to-right to match the
+                "lower" → "higher" label flow; LEGEND_RAMP is HIGH→LOW so we
+                walk it in reverse. */}
+            {[...LEGEND_RAMP].reverse().map((c, i) => (
+              <span key={i} style={{ width: 14, height: '100%', background: c }} />
+            ))}
+          </span>
+          <span>{t('chart.sensitivity.legend.higher')}</span>
         </div>
       </div>
     </div>

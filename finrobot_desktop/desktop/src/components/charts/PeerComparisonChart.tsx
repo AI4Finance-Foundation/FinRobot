@@ -1,4 +1,14 @@
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts'
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Cell,
+  LabelList,
+} from 'recharts'
 import { useI18n } from '../../i18n'
 import { CosmicTooltip, CosmicLegend } from './chartTooltip'
 
@@ -16,6 +26,22 @@ const AXIS_TICK = {
   fill: 'var(--text-muted)',
   fontSize: 11,
   fontFamily: "'JetBrains Mono', monospace",
+}
+
+// These bars plot valuation MULTIPLES, so labels carry the "x" suffix (e.g.
+// "22.5x") — matching the tooltip's `${v.toFixed(1)}x`. NEVER currency here.
+// With ~6 tickers × 2 series the cluster is dense, so only the PRIMARY series
+// (EV/EBITDA) gets a bar-top label; the P/E values stay tooltip-only to avoid
+// overlapping labels. Matches EpsTrendChart's mono LabelList styling.
+const LABEL_STYLE = {
+  fill: 'var(--text-secondary)',
+  fontFamily: "'JetBrains Mono', monospace",
+  fontSize: 9,
+  fontWeight: 600,
+} as const
+
+export function multipleLabel(v: unknown): string {
+  return typeof v === 'number' && Number.isFinite(v) ? `${v.toFixed(1)}x` : ''
 }
 
 export default function PeerComparisonChart({ data, title }: ChartProps) {
@@ -49,6 +75,12 @@ export default function PeerComparisonChart({ data, title }: ChartProps) {
               {data.map((entry, index) => (
                 <Cell key={`ev-${index}`} fill={entry.is_target ? TARGET_HIGHLIGHT : PRIMARY} />
               ))}
+              <LabelList
+                dataKey="ev_ebitda"
+                position="top"
+                formatter={multipleLabel}
+                style={LABEL_STYLE}
+              />
             </Bar>
             <Bar dataKey="pe_ratio" name={t('chart.peer.pe')} fill={ACCENT} radius={[3, 3, 0, 0]}>
               {data.map((entry, index) => (

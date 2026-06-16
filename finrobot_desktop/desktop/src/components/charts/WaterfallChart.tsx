@@ -7,6 +7,7 @@ import {
   ResponsiveContainer,
   Cell,
   ReferenceLine,
+  LabelList,
 } from 'recharts'
 import { useMemo } from 'react'
 
@@ -37,6 +38,11 @@ interface WaterfallBar {
   base: number
   delta: number
   fill: string
+  // Signed value shown on the bar-top label and tooltip: the running cumulative
+  // for total bars, the signed contribution for component bars. (`delta` is the
+  // unsigned stack HEIGHT, so it can't be labelled directly — it would drop the
+  // minus sign on cash outflows.)
+  labelValue: number
 }
 
 // Bespoke content (Add / Subtract / Total) but the shared cosmic shell so it
@@ -84,6 +90,7 @@ export default function WaterfallChart({ data, title }: ChartProps) {
           base: 0,
           delta: runningTotal,
           fill: TOTAL_COLOR,
+          labelValue: runningTotal,
         }
         return bar
       }
@@ -97,6 +104,7 @@ export default function WaterfallChart({ data, title }: ChartProps) {
         base: value >= 0 ? base : base + value,
         delta: Math.abs(value),
         fill: value >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR,
+        labelValue: value,
       }
     })
   }, [data])
@@ -139,6 +147,22 @@ export default function WaterfallChart({ data, title }: ChartProps) {
               {bars.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.fill} />
               ))}
+              {/* Label positions on the visible `delta` bar but reads the SIGNED
+                  `labelValue` (currency-compact, matching the tooltip) so cash
+                  outflows keep their minus sign. */}
+              <LabelList
+                dataKey="labelValue"
+                position="top"
+                formatter={(v: unknown) =>
+                  typeof v === 'number' ? formatCurrencyCompact(v, 'USD', locale) : ''
+                }
+                style={{
+                  fill: 'var(--text-secondary)',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 9,
+                  fontWeight: 600,
+                }}
+              />
             </Bar>
           </BarChart>
         </ResponsiveContainer>

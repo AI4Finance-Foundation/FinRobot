@@ -5,6 +5,7 @@
 import { Chapter, SubChapter } from './ChapterBase'
 import type { CatalystAnalysisShape, CatalystEventShape, ThesisShape } from './types'
 import { useI18n } from '../../../i18n'
+import { ImpactMeter } from '../../../components/ImpactMeter'
 
 interface ChapterCatalystsProps {
   catalysts: CatalystAnalysisShape | null
@@ -119,15 +120,27 @@ function CatalystList({
           {e.headline}
           <div
             style={{
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 6,
               fontFamily: 'var(--font-mono)',
               fontSize: 10,
               color: 'var(--text-muted)',
               marginTop: 4,
             }}
           >
-            {t('chapter.catalysts.metaCategory')} {e.category} · {t('chapter.catalysts.metaImpact')}{' '}
-            {e.impact_score}/5 · {t('chapter.catalysts.metaProbability')}{' '}
-            {(e.probability * 100).toFixed(0)}%
+            <span>
+              {t('chapter.catalysts.metaCategory')} {e.category}
+            </span>
+            <span>·</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              {t('chapter.catalysts.metaImpact')} <ImpactMeter score={e.impact_score} />
+            </span>
+            <span>·</span>
+            <span>
+              {t('chapter.catalysts.metaProbability')} {(e.probability * 100).toFixed(0)}%
+            </span>
           </div>
         </div>
       ))}

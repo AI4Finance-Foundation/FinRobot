@@ -249,3 +249,75 @@ def test_hk_overnight_in_session_is_true():
 def test_unresolvable_exchange_is_none():
     """Unknown foreign listing: can't assert closed — caller must refetch."""
     assert has_newer_session_since(FRI_CLOSE_DT, ticker="ABC.XYZ", now=SAT) is None
+
+
+# --- free-form exchange labels resolve US via contains-match (BUG: no-op gate) --
+# The cross-provider ``exchange`` field arrives as opaque yfinance codes
+# (``NMS``/``NYQ``) OR free-form, non-deterministic FMP labels for the SAME ticker
+# (``NasdaqGS``/``NasdaqGM``/``NasdaqCM``/``NYSEArca``/the full
+# ``New York Stock Exchange``). A US name carrying ANY of these must resolve to a
+# US session so a closed-market refresh is a provable no-op. An exact-match table
+# silently missed the FMP labels → ``has_newer_session_since`` returned ``None`` →
+# 13/20 common US tickers refetched a closed-market close they should have skipped.
+# Live-probe baseline (2026-06-15 FMP): AAPL/MSFT=NasdaqGS, QQQ=NasdaqGM,
+# SPY=NYSEArca, KO=NYSE.
+_US_FREEFORM_LABELS = [
+    "NasdaqGS",
+    "NasdaqGM",
+    "NasdaqCM",
+    "NYSEArca",
+    "New York Stock Exchange",
+    "NYSE",
+    "NMS",  # yfinance code still resolves
+    "NYQ",
+]
+
+
+def test_freeform_us_labels_are_noop_when_closed():
+    """Every cross-provider US label → no newer session on a closed Saturday."""
+    for label in _US_FREEFORM_LABELS:
+        assert (
+            has_newer_session_since(FRI_CLOSE_DT, ticker="AAPL", exchange=label, now=SAT) is False
+        ), f"{label!r} should be a closed-market no-op (False), not refetch"
+
+
+def test_freeform_us_labels_force_fetch_in_session():
+    """In-session, the SAME labels must return True — never falsely no-op a live
+    session into a stale price (the asymmetric safety guarantee)."""
+    for label in _US_FREEFORM_LABELS:
+        assert (
+            has_newer_session_since(FRI_CLOSE_DT, ticker="AAPL", exchange=label, now=MON_INSESSION)
+            is True
+        ), f"{label!r} must force a fetch while the session is live"
+
+
+def test_freeform_us_labels_session_state_closed_and_live():
+    """The shared chokepoint also feeds compute_session_state: the labels classify
+    closed/live in lockstep with the no-op gate (no path divergence)."""
+    for label in _US_FREEFORM_LABELS:
+        assert (
+            compute_session_state(FRI_CLOSE_DT.isoformat(), ticker="AAPL", exchange=label, now=SAT)
+            == "closed"
+        ), f"{label!r} closed-market quote should classify closed"
+        # 2026-06-08 is a Monday; 14:30Z = 10:30 ET → US regular session in progress.
+        assert (
+            compute_session_state("2026-06-08", ticker="AAPL", exchange=label, now=MON_INSESSION)
+            == "live"
+        ), f"{label!r} in-session quote should classify live"
+
+
+def test_nonus_freeform_exchange_label_stays_unresolvable():
+    """A suffix-less ticker whose provider exchange names a NON-US venue (no US
+    token) must NOT be faked into a US session — return None (refetch)."""
+    for label in ["Frankfurt Stock Exchange", "Toronto Stock Exchange", "London Stock Exchange"]:
+        assert (
+            has_newer_session_since(FRI_CLOSE_DT, ticker="SAP", exchange=label, now=SAT) is None
+        ), f"{label!r} is non-US — must stay unresolvable, not asserted US"
+
+
+def test_foreign_suffix_still_unresolvable_despite_us_label():
+    """The dotted suffix wins over the exchange string: a ``.XYZ`` we don't map
+    stays None even if a (spurious) US-looking exchange tags along."""
+    assert (
+        has_newer_session_since(FRI_CLOSE_DT, ticker="ABC.XYZ", exchange="NASDAQ", now=SAT) is None
+    )

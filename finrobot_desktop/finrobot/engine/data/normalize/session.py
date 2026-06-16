@@ -115,29 +115,67 @@ _SESSION_BY_SUFFIX: dict[str, _MarketSession] = {
     "SI": _MarketSession("Asia/Singapore", time(9, 0), time(17, 0)),
 }
 
-# US exchange codes (yfinance/FMP) — used when a ticker carries no suffix but
-# the provider reports an exchange, to confirm a US session vs. fall to unknown.
-_US_EXCHANGE_CODES = frozenset(
-    {"NMS", "NYQ", "NGM", "NCM", "NASDAQ", "NYSE", "AMEX", "PCX", "BATS", "ASE"}
-)
+# Exact US exchange codes/abbreviations (yfinance ``exchange`` codes + common
+# abbreviations) that are NOT recognizable by a substring token. Free-form labels
+# (FMP's ``NasdaqGS`` / ``NYSEArca`` / ``New York Stock Exchange``) are caught by
+# the substring tokens in :func:`_classify_us_exchange` instead, so this set only
+# needs the opaque codes that carry no ``NASDAQ``/``NYSE`` token.
+_US_EXCHANGE_CODES = frozenset({"NMS", "NYQ", "NGM", "NCM", "AMEX", "PCX", "BATS", "ASE"})
+
+# Substring tokens that, when present in an upper-cased exchange string, prove a
+# US listing. ``contains`` (not exact ``in`` a code set) is mandatory because the
+# two providers feed this ONE field incompatibly: yfinance emits opaque codes
+# (``NMS`` / ``NYQ``) while FMP emits free-form, non-deterministic labels for the
+# same ticker (``NasdaqGS`` / ``NasdaqGM`` / ``NasdaqCM`` / ``NYSEArca`` / the
+# full ``New York Stock Exchange``). An exact match silently fails the FMP labels
+# → the no-op gate returns ``None`` → a closed-market refresh refetches a US name
+# it should have skipped. ``ARCA`` covers the bare ``Arca`` venue label;
+# ``NEW YORK STOCK`` covers the spelled-out NYSE name (which contains no ``NYSE``
+# substring — "New York" has a space — so the abbreviation token alone misses it).
+_US_EXCHANGE_TOKENS = ("NASDAQ", "NYSE", "ARCA", "NEW YORK STOCK")
+
+
+def _classify_us_exchange(exchange: str | None) -> bool | None:
+    """Map a provider exchange string to US-listing membership.
+
+    Returns ``True`` (a recognized US listing), ``False`` (a recognized non-US
+    exchange — out of scope here, never returned by this function), or ``None``
+    (no exchange hint OR an unrecognized string — the caller decides). The single
+    place that turns the raw, cross-provider ``exchange`` field into a market
+    judgment, so the no-op gate and the session-state classifier agree by
+    construction instead of via two drifting copies.
+
+    ``None`` (not ``False``) for an empty exchange: a suffix-less US ticker often
+    arrives with no exchange hint, and the caller defaults that to US.
+    """
+    if not exchange:
+        return None
+    s = exchange.strip().upper()
+    if not s:
+        return None
+    if s in _US_EXCHANGE_CODES or any(tok in s for tok in _US_EXCHANGE_TOKENS):
+        return True
+    return None
 
 
 def _resolve_market_session(ticker: str | None, exchange: str | None) -> _MarketSession | None:
     """Pick the exchange session for ``ticker``, or ``None`` when undeterminable.
 
     Resolution order: yfinance ticker suffix (``.HK`` / ``.SS`` / …) → US for a
-    suffix-less ticker carrying a known US exchange code → US for a suffix-less
-    ticker with no exchange hint (the common US case). Returns ``None`` for a
-    suffix we don't map, so the caller can honestly say "unknown" instead of
-    asserting a US session for a foreign listing.
+    suffix-less ticker whose exchange string resolves US (via
+    :func:`_classify_us_exchange`, contains-matching the cross-provider field) →
+    US for a suffix-less ticker with no exchange hint (the common US case).
+    Returns ``None`` for a mapped-foreign suffix or a non-US/unrecognized
+    exchange, so the caller can honestly say "unknown" instead of asserting a US
+    session for a foreign listing.
     """
     if ticker:
         _, dot, suffix = ticker.rpartition(".")
         if dot:
             return _SESSION_BY_SUFFIX.get(suffix.upper())  # unmapped suffix → None
     # No dotted suffix: a local listing or a US name.
-    if exchange and exchange.upper() not in _US_EXCHANGE_CODES:
-        # Provider names a non-US exchange we don't recognize — don't fake US.
+    if exchange and _classify_us_exchange(exchange) is None:
+        # Provider names a non-US / unrecognized exchange — don't fake US.
         return None
     return _US_SESSION
 

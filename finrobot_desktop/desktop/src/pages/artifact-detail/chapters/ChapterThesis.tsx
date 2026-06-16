@@ -2,12 +2,35 @@
 // rationale + key_takeaways. Maps —'s investment_overview_agent +
 // major_takeaways_agent output.
 
+import type { ConfidenceTier } from '../../../utils/verdict'
 import { Chapter, Narrative } from './ChapterBase'
 import type { ThesisShape } from './types'
-import { verdictLabel } from '../../../utils/verdict'
+import { ConfidenceChip } from '../../../components/ConfidenceChip'
+import { TargetRange } from '../../../components/TargetRange'
+import { verdictLabel, verdictTone, normalizeConfidence } from '../../../utils/verdict'
 import { useI18n } from '../../../i18n'
 
-export function ChapterThesis({ thesis }: { thesis: ThesisShape | null }): React.ReactElement {
+interface ChapterThesisProps {
+  thesis: ThesisShape | null
+  /** Confidence dial (valuation_synthesis) → tier chip + TargetRange band width.
+   * Defaults to 'low' on legacy artifacts (normalizeConfidence). */
+  confidence?: ConfidenceTier | string | null
+  targetLow?: number | null
+  targetHigh?: number | null
+  anchorMethod?: string | null
+  currentPrice?: number | null
+  quoteCurrency?: string
+}
+
+export function ChapterThesis({
+  thesis,
+  confidence = null,
+  targetLow = null,
+  targetHigh = null,
+  anchorMethod = null,
+  currentPrice = null,
+  quoteCurrency = 'USD',
+}: ChapterThesisProps): React.ReactElement {
   const { t } = useI18n()
   if (!thesis) {
     return (
@@ -20,7 +43,12 @@ export function ChapterThesis({ thesis }: { thesis: ThesisShape | null }): React
   }
 
   const verdict = (thesis.recommendation ?? '').toUpperCase()
+  const tone = verdictTone(verdict)
   const target = thesis.price_target ?? null
+  const tier = normalizeConfidence(typeof confidence === 'string' ? confidence : null)
+  // Point target honestly withheld — gate on target===null (verdict-independent).
+  // The directional verdict still stands; only the precise number is held.
+  const targetWithheld = !!verdict && target === null
   const takeaways = thesis.key_takeaways ?? []
   const narrative = thesis.narrative ?? ''
 
@@ -30,7 +58,7 @@ export function ChapterThesis({ thesis }: { thesis: ThesisShape | null }): React
         <div
           style={{
             display: 'flex',
-            alignItems: 'baseline',
+            alignItems: 'center',
             gap: 16,
             flexWrap: 'wrap',
             marginBottom: 16,
@@ -40,38 +68,46 @@ export function ChapterThesis({ thesis }: { thesis: ThesisShape | null }): React
           {verdict && (
             <span
               data-testid="thesis-verdict"
+              data-verdict={verdict}
+              data-confidence={tier}
               style={{
                 fontFamily: 'var(--font-display)',
                 fontSize: 18,
                 letterSpacing: '3px',
                 padding: '4px 14px',
                 borderRadius: 6,
-                background: 'var(--secondary-soft)',
-                color: 'var(--secondary)',
-                border: '1px solid var(--secondary)',
+                background: tone.bg,
+                color: tone.fg,
+                border: `1px solid ${tone.border}`,
               }}
             >
               {verdictLabel(verdict)}
             </span>
           )}
-          {target !== null ? (
-            <span
-              style={{
-                fontSize: 22,
-                color: 'var(--text-primary)',
-                fontVariantNumeric: 'tabular-nums',
-              }}
-            >
-              {t('chapter.thesis.target', { value: target.toFixed(2) })}
+          {/* Confidence tier — a NON-hue channel beside the directional badge. */}
+          {verdict && <ConfidenceChip tier={tier} />}
+          {/* TargetRange: live tick + point tick (AT the anchor) + the confidence-
+              scaled band. In the withheld state the point tick is dropped — the
+              rating still stands on direction, only the precise number is held. */}
+          {(target !== null || targetWithheld) && (
+            <TargetRange
+              point={target}
+              low={targetLow}
+              high={targetHigh}
+              currentPrice={currentPrice}
+              confidence={tier}
+              quoteCurrency={quoteCurrency}
+              anchorMethod={anchorMethod}
+            />
+          )}
+          {/* Withheld with no band to draw → TargetRange renders nothing
+              (resolveBand needs the point or an explicit low/high). Keep a plain
+              text restatement so the verdict header never silently drops the
+              "target withheld" state on those artifacts. */}
+          {targetWithheld && targetLow === null && targetHigh === null && (
+            <span style={{ fontSize: 18, color: 'var(--text-secondary)' }}>
+              {t('chapter.thesis.targetWithheld')}
             </span>
-          ) : (
-            // Point target honestly withheld — the directional verdict still
-            // stands, so gate on target===null (not on any verdict value).
-            verdict && (
-              <span style={{ fontSize: 18, color: 'var(--text-secondary)' }}>
-                {t('chapter.thesis.targetWithheld')}
-              </span>
-            )
           )}
           {thesis.price_target_basis && (
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>

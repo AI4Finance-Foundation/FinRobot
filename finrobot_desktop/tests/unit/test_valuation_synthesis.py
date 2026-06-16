@@ -127,10 +127,10 @@ class TestSynthesizeValuations:
     def test_divergent_pair_anchors_msft_2026_06_05(self):
         """Regression for the 2026-06-05 MSFT bug: DCF $189.65 (c=0.85) vs
         comps_pe $487.31 (c=0.55), 2.57x apart. The deleted binary `reliable`
-        gate withheld the whole target; the dial now anchors comps (rich-peer,
-        non-cyclical) instead of blending the methods into a phantom $306.59
-        midpoint, and grades the call medium (1.5x < 2.57x ≤ 3x mild band). The
-        point sits AT the anchor (in-band vs $425 market → not withheld)."""
+        gate withheld the whole call; the dial now keeps the call and range, but
+        withholds the point because the methods do not corroborate (>2x span).
+        The comparability anchor is still comps (for explanation), never the
+        phantom $306.59 blended midpoint."""
         methods = [
             ValuationMethod(
                 name="dcf", low=151.72, mid=189.65, high=227.58, confidence=0.85, source="DCF"
@@ -145,7 +145,9 @@ class TestSynthesizeValuations:
         assert result.weighted_price == pytest.approx(306.59, abs=0.05)
         assert result.anchor_method == "comps_pe"
         assert result.confidence == "medium"
-        assert result.valuation_withheld is False
+        assert result.valuation_withheld is True
+        assert result.target_low == pytest.approx(189.65, abs=0.01)
+        assert result.target_high == pytest.approx(487.31, abs=0.01)
 
     def test_corroborating_pair_within_2x_blends_high_confidence(self):
         """Two methods within the 1.5x corroboration band blend into a high-tier
@@ -381,8 +383,8 @@ class TestResolveCanonicalThesis:
     def test_divergent_pair_anchors_not_blends(self):
         """2.57x method disagreement (MSFT 2026-06-05): the dial anchors comps
         (rich-peer rule, non-cyclical) instead of blending into a phantom
-        midpoint. Verdict directional, NOT REVIEW. Point at the anchor (in-band,
-        not withheld). medium confidence (1.5x < span 2.57x ≤ 3x mild band)."""
+        midpoint. Verdict directional, NOT REVIEW, but the point is withheld
+        because >2x method span means no single publishable headline target."""
         methods = [
             ValuationMethod(
                 name="dcf", low=151.72, mid=189.65, high=227.58, confidence=0.85, source="DCF"
@@ -395,11 +397,12 @@ class TestResolveCanonicalThesis:
         canonical = resolve_canonical_thesis(vs, "MSFT")
         assert canonical.verdict in ("BUY", "HOLD", "SELL")
         # comps_pe $487.31 anchored (rich-peer rule), upside +14.7% — low-tier BUY
-        # needs +40%, so HOLD. The point sits AT the anchor, not a blended midpoint.
+        # needs +40%, so HOLD. The point is withheld; the range still discloses
+        # both methods instead of publishing either endpoint as false precision.
         assert vs.anchor_method == "comps_pe"
-        assert canonical.target == pytest.approx(487.31, abs=0.01)
+        assert canonical.target is None
         assert canonical.verdict == "HOLD"
-        assert canonical.valuation_withheld is False
+        assert canonical.valuation_withheld is True
         assert canonical.confidence == "medium"
 
     def test_methods_agree_far_below_market_withholds_point_keeps_direction(self):
@@ -508,25 +511,52 @@ class TestConfidenceDial:
     def test_cyclical_divergence_anchors_dcf_not_midpoint(self):
         # MU: dcf $188 vs comps_pb $1332 (7x), cyclical → anchor the cycle-stable DCF,
         # NEVER the ~$760 midpoint no method produced. 0.19x market → out-of-band but
-        # not extreme → low, point kept; range spans both methods.
+        # not extreme → low; point withheld because methods do not corroborate, and
+        # range spans both methods.
         vs = synthesize_valuations(
             [self._m("dcf", 188), self._m("comps_pb", 1332)], 982.0, cyclical=True
         )
         assert vs.confidence == "low"
         assert vs.anchor_method == "dcf"
-        assert vs.valuation_withheld is False
+        assert vs.valuation_withheld is True
         assert vs.target_low == pytest.approx(188) and vs.target_high == pytest.approx(1332)
         anchor = next(m for m in vs.methods if m.name == vs.anchor_method)
         assert abs(anchor.mid - (188 + 1332) / 2) > 100  # decisively not the midpoint
 
     def test_noncyclical_divergence_anchors_comps(self):
-        # AAPL: dcf $104 vs comps_pe $303 (2.9x), rich peers → anchor comps.
+        # AAPL: dcf $104 vs comps_pe $303 (2.9x), rich peers → anchor comps for
+        # the explanation, but withhold the point because span >2x.
         vs = synthesize_valuations(
             [self._m("dcf", 104), self._m("comps_pe", 303)], 291.0, cyclical=False
         )
         assert vs.confidence == "medium"
         assert vs.anchor_method == "comps_pe"
-        assert vs.valuation_withheld is False
+        assert vs.valuation_withheld is True
+
+    def test_run_5ae06f55_mu_wide_range_spanning_market_is_hold_without_point(self):
+        """Regression for run_5ae06f55b2ce: DCF $188, EV/EBITDA $803, comps P/B
+        $1415, current $1088. A low-confidence range that spans market must not
+        publish the DCF endpoint as a naked SELL target."""
+        vs = synthesize_valuations(
+            [
+                self._m("dcf", 188.12, 0.85),
+                self._m("ev_ebitda", 803.15, 0.72),
+                self._m("comps_pb", 1414.52, 0.60),
+            ],
+            1087.99,
+            cyclical=True,
+        )
+        canonical = resolve_canonical_thesis(vs, "MU")
+        assert vs.confidence == "low"
+        assert vs.anchor_method == "dcf"
+        assert vs.valuation_withheld is True
+        assert canonical.target is None
+        assert canonical.verdict == "HOLD"
+        assert canonical.upside == pytest.approx(0.0)
+        assert canonical.basis is not None
+        assert "range spans the current market price" in canonical.basis
+        assert vs.target_low == pytest.approx(188.12)
+        assert vs.target_high == pytest.approx(1414.52)
 
     def test_market_distance_within_band_does_not_lower_confidence(self):
         # KO: dcf $27 + comps_pe $49, both below $83 market but within [0.25x,4x] →

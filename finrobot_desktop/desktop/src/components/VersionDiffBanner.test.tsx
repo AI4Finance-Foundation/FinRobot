@@ -70,7 +70,12 @@ const DELTA = {
   },
 }
 
-function renderBanner(props: { parentArtifactId?: string | null; timeline: ArtifactSummaryV5[] }) {
+function renderBanner(props: {
+  parentArtifactId?: string | null
+  timeline: ArtifactSummaryV5[]
+  currentTargetRange?: { low: number | null; high: number | null; currency: string } | null
+  currentTargetWithheld?: boolean
+}) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
@@ -80,6 +85,8 @@ function renderBanner(props: { parentArtifactId?: string | null; timeline: Artif
         reportType="equity_research"
         parentArtifactId={props.parentArtifactId ?? null}
         timeline={props.timeline}
+        currentTargetRange={props.currentTargetRange}
+        currentTargetWithheld={props.currentTargetWithheld}
       />
     </QueryClientProvider>,
   )
@@ -110,6 +117,43 @@ describe('VersionDiffBanner', () => {
     await waitFor(() => expect(screen.getByText('$180.00')).toBeInTheDocument())
     // pct badge string comes pre-formatted from the backend, rendered verbatim
     expect(screen.getByText(/-7\.7%/)).toBeInTheDocument()
+  })
+
+  it('renders target range instead of a blank target-price diff when the point target is withheld', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        ...DELTA,
+        conclusion: [
+          {
+            ...DELTA.conclusion[0],
+            old_value: null,
+            new_value: null,
+            formatted_old: '—',
+            formatted_new: '—',
+            pct_change: null,
+            formatted_pct_change: null,
+            direction: 'flat',
+            sentiment: 'neutral',
+          },
+        ],
+      }),
+    })
+
+    renderBanner({
+      timeline: [
+        summary('art_cur', '2026-05-10T00:00:00Z'),
+        summary('art_old', '2026-05-01T00:00:00Z', 'HOLD'),
+      ],
+      currentTargetRange: { low: 188.12, high: 1414.52, currency: 'USD' },
+      currentTargetWithheld: true,
+    })
+
+    await waitFor(() => expect(screen.getByTestId('diff-target-range')).toBeInTheDocument())
+    expect(screen.getByText('Target range')).toBeInTheDocument()
+    expect(screen.getByText(/\$188\.12.*\$1,414\.52/)).toBeInTheDocument()
+    expect(screen.getByText('· Point target withheld')).toBeInTheDocument()
+    expect(screen.queryByText('Target price')).not.toBeInTheDocument()
   })
 
   it('renders peer-set comparability flags from the backend', async () => {

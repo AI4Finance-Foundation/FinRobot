@@ -155,6 +155,10 @@ function TimelineRow({
 }): React.ReactElement {
   const target = a.target_price
   const hasTarget = target !== null && target !== undefined
+  // Timeline summaries do not yet carry target_low/high, so a null target cannot
+  // render the range here. Still, it must not look like a missing calculation:
+  // in equity-research history a null point target means the point was withheld.
+  const targetLabel = hasTarget ? `$${target.toFixed(2)}` : verdictLabel('WITHHELD', locale)
   return (
     <button
       type="button"
@@ -235,7 +239,7 @@ function TimelineRow({
               fontVariantNumeric: 'tabular-nums',
             }}
           >
-            {target !== null && target !== undefined ? `$${target.toFixed(2)}` : '—'}
+            {targetLabel}
           </span>
           <VerdictBadge verdict={a.verdict} />
           <SignalBadge signal={a.signal} t={t} />

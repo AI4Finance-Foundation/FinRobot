@@ -15,7 +15,7 @@ import { useHistoryBack } from '../../../hooks/useHistoryBack'
 import { useRunStreamStore, selectRunByTicker } from '../../../stores/runStreamStore'
 import { useToastStore } from '../../../stores/toastStore'
 import { useI18n } from '../../../i18n'
-import { formatDate } from '../../../utils/format'
+import { formatCurrency, formatDate } from '../../../utils/format'
 import { mapErrorToUserMessage } from '../../../utils/errorMessage'
 
 interface ReportToolbarProps {
@@ -23,6 +23,10 @@ interface ReportToolbarProps {
   artifactId: string
   reportType: string
   targetPrice: number | null
+  targetLow: number | null
+  targetHigh: number | null
+  valuationWithheld: boolean
+  quoteCurrency: string
   /** The report's frozen data-fetch snapshot quote + when it was taken. The
       toolbar renders THIS, never a live refetch, so the price (and distance to
       target) can't drift away from the frozen report body. */
@@ -38,6 +42,10 @@ export function ReportToolbar({
   artifactId,
   reportType,
   targetPrice,
+  targetLow,
+  targetHigh,
+  valuationWithheld,
+  quoteCurrency,
   snapshotPrice,
   snapshotAsOf,
   onExportHtml,
@@ -54,6 +62,17 @@ export function ReportToolbar({
   const isRunActive = activeRun?.status === 'running'
   const addToast = useToastStore((s) => s.addToast)
   const { t, locale } = useI18n()
+  const rangeLabel =
+    isFiniteNumber(targetLow) && isFiniteNumber(targetHigh)
+      ? `${formatCurrency(targetLow, quoteCurrency, locale, 2)}–${formatCurrency(
+          targetHigh,
+          quoteCurrency,
+          locale,
+          2,
+        )}`
+      : null
+  const targetRangeCopy = locale === 'zh' ? '目标区间' : 'Target range'
+  const withheldCopy = locale === 'zh' ? '点目标价已隐藏' : 'Point target withheld'
 
   // Distance to target is measured from the SNAPSHOT price (the price the target
   // was set against), so it reconciles with the cover's upside — not a live gap.
@@ -191,6 +210,30 @@ export function ReportToolbar({
               {distancePct.toFixed(1)}%
             </span>
           )}
+          {distancePct === null && valuationWithheld && rangeLabel && (
+            <>
+              <span
+                style={{
+                  ...quoteChipStyle,
+                  color: 'var(--accent-amber)',
+                  background: 'var(--warning-soft)',
+                  border: '1px solid color-mix(in srgb, var(--warning) 45%, transparent)',
+                }}
+              >
+                {targetRangeCopy} {rangeLabel}
+              </span>
+              <span
+                style={{
+                  ...quoteChipStyle,
+                  color: 'var(--text-muted)',
+                  background: 'var(--wash-white-04)',
+                  border: '1px solid var(--border-faint)',
+                }}
+              >
+                {withheldCopy}
+              </span>
+            </>
+          )}
         </div>
       )}
 
@@ -219,6 +262,10 @@ export function ReportToolbar({
           replacing the old modal diff button. */}
     </div>
   )
+}
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v)
 }
 
 function ArrowLeft(): React.ReactElement {

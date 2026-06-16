@@ -14,6 +14,7 @@ from typing import Literal
 from finrobot.engine.models.financial import ValuationMethod, ValuationSynthesis
 from finrobot.engine.models.valuation_thresholds import (
     MARKET_DIVERGENCE_RATIO_K,
+    METHOD_CORROBORATION_SPAN_K,
     SINGLE_METHOD_DIVERGENCE_RATIO_K,
 )
 
@@ -125,6 +126,7 @@ def _confidence_dial(
     # ≥2 methods: tier from inter-method agreement (NOT market distance).
     span = hi / lo if lo > 0 else float("inf")
     tier: ConfidenceTier
+    point_withheld = False
     if span <= _DIAL_CORROBORATE_SPAN:
         point = sum(m.mid * m.confidence for m in methods) / sum(m.confidence for m in methods)
         tier = "high"
@@ -141,6 +143,13 @@ def _confidence_dial(
             if anchor_name
             else f"method divergence {span:.2g}x; taking the median."
         )
+        if span > METHOD_CORROBORATION_SPAN_K:
+            point_withheld = True
+            note += (
+                f" Method span exceeds the {METHOD_CORROBORATION_SPAN_K:.0f}x "
+                "corroboration limit — no single method is publishable as a headline "
+                "point; publish the range instead."
+            )
 
     # Out-of-calibration cap (option-value regime): model/market outside [0.25x, 4x].
     # Even when methods agree (TSLA: both ~14x below market), a confident point is
@@ -161,7 +170,7 @@ def _confidence_dial(
         if extreme:
             return tier, anchor_name, lo, hi, True, note.strip()
 
-    return tier, anchor_name, lo, hi, False, (note or None)
+    return tier, anchor_name, lo, hi, point_withheld, (note or None)
 
 
 def synthesize_valuations(
@@ -368,6 +377,14 @@ def _anchor_point(vs: ValuationSynthesis) -> float | None:
     return None
 
 
+def _range_spans_market(vs: ValuationSynthesis) -> bool:
+    """True when the disclosed valuation band includes the current market price."""
+    if vs.target_low is None or vs.target_high is None or vs.current_price <= 0:
+        return False
+    low, high = sorted((vs.target_low, vs.target_high))
+    return low <= vs.current_price <= high
+
+
 def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
     """Resolve the deterministic headline verdict (+ maybe target) from a synthesis.
 
@@ -413,7 +430,9 @@ def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
             confidence=vs.confidence,
         )
 
-    upside = (point - vs.current_price) / vs.current_price
+    range_spans_market = vs.valuation_withheld and _range_spans_market(vs)
+    verdict_point = vs.current_price if range_spans_market else point
+    upside = (verdict_point - vs.current_price) / vs.current_price
     verdict = verdict_from_upside(upside, vs.confidence)
     target = None if vs.valuation_withheld else round(point, 2)
 
@@ -428,11 +447,17 @@ def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
     )
     if vs.valuation_withheld:
         anchor_txt = f"anchor {vs.anchor_method}" if vs.anchor_method else "the surviving method"
+        verdict_basis = (
+            "The HOLD verdict stands because the published valuation range spans the "
+            "current market price, so the methods do not support a one-sided call."
+            if range_spans_market
+            else f"The {verdict} verdict stands on the directional read of the "
+            "market-implied valuation, not a point estimate."
+        )
         basis = (
             f"POINT TARGET WITHHELD (confidence={vs.confidence}): the only number "
             f"available ({anchor_txt} ${point:.2f}) would be fabricated, so it is not "
-            f"published (never fabricate a number). The {verdict} verdict stands on the directional "
-            f"read of the market-implied valuation, not a point estimate. "
+            f"published (never fabricate a number). {verdict_basis} "
             f"Methods: {method_breakdown}.{range_txt} {vs.degradation_note or ''}"
         ).strip()
     else:

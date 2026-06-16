@@ -20,7 +20,7 @@ import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
 import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../api/fetch'
 import { useI18n } from '../i18n'
-import { formatDate } from '../utils/format'
+import { formatCurrency, formatDate } from '../utils/format'
 import { FetchHttpError } from '../utils/errorMessage'
 import type { ArtifactSummaryV5 } from '../types/v5'
 
@@ -116,6 +116,9 @@ const CHROME = {
     loading: '加载对比…',
     loadError: '加载对比失败',
     archived: '已归档',
+    targetRange: '目标区间',
+    pointTargetWithheld: '点目标价已隐藏',
+    fairUnavailable: '不可归因',
     // Withheld-target state: DCF fair value is withheld (—→—) so it can't be
     // attributed; the attributable signal is the market-implied growth shift
     // above. Demote the fair-value row to this footnote instead of a blank chip.
@@ -136,6 +139,9 @@ const CHROME = {
     loading: 'Loading comparison…',
     loadError: 'Failed to load comparison',
     archived: 'archived',
+    targetRange: 'Target range',
+    pointTargetWithheld: 'Point target withheld',
+    fairUnavailable: 'not attributable',
     fairNotAttributable:
       'Fair value not attributable when the target is withheld — track the market-implied growth shift above instead',
   },
@@ -209,6 +215,8 @@ export interface VersionDiffBannerProps {
   reportType: string
   parentArtifactId: string | null
   timeline: ArtifactSummaryV5[]
+  currentTargetRange?: { low: number | null; high: number | null; currency: string } | null
+  currentTargetWithheld?: boolean
 }
 
 export function VersionDiffBanner({
@@ -217,6 +225,8 @@ export function VersionDiffBanner({
   reportType,
   parentArtifactId,
   timeline,
+  currentTargetRange,
+  currentTargetWithheld = false,
 }: VersionDiffBannerProps): React.ReactElement | null {
   const { locale } = useI18n()
   const c = CHROME[locale]
@@ -292,6 +302,17 @@ export function VersionDiffBanner({
 
   const label_ = (it: { label_zh: string; label_en: string }) =>
     locale === 'zh' ? it.label_zh : it.label_en
+  const currentTargetRangeLabel =
+    currentTargetRange &&
+    isFiniteNumber(currentTargetRange.low) &&
+    isFiniteNumber(currentTargetRange.high)
+      ? `${formatCurrency(currentTargetRange.low, currentTargetRange.currency, locale, 2)}–${formatCurrency(
+          currentTargetRange.high,
+          currentTargetRange.currency,
+          locale,
+          2,
+        )}`
+      : null
 
   return (
     <div data-testid="version-diff-banner" className="version-diff-card">
@@ -339,15 +360,41 @@ export function VersionDiffBanner({
                 (it.key === 'implied_price' || it.key === 'dcf_fair_value') &&
                 it.old_value === null &&
                 it.new_value === null
+              const isTargetPointWithheld = (it: DeltaItem): boolean =>
+                it.key === 'target_price' && it.old_value === null && it.new_value === null
               const demoteFair = hasGrowthRow
-              const primaryChips = demoteFair
+              const showTargetRangeChip =
+                currentTargetWithheld &&
+                currentTargetRangeLabel !== null &&
+                data.conclusion.some(isTargetPointWithheld)
+              const primaryChipsBeforeTargetRange = demoteFair
                 ? data.conclusion.filter((it) => !isFairWithheld(it))
                 : data.conclusion
+              const primaryChips = showTargetRangeChip
+                ? primaryChipsBeforeTargetRange.filter((it) => !isTargetPointWithheld(it))
+                : primaryChipsBeforeTargetRange
               const demotedFair = demoteFair ? data.conclusion.find(isFairWithheld) : undefined
               return (
                 <>
                   {/* A-section: conclusion chips */}
                   <div className="version-diff-metrics">
+                    {showTargetRangeChip && (
+                      <div
+                        className="version-diff-metric version-diff-metric--target_price version-diff-rail--target"
+                        data-testid="diff-target-range"
+                        data-key="target_range"
+                      >
+                        <div className="version-diff-metric__label">{c.targetRange}</div>
+                        <div className="version-diff-metric__row">
+                          <span className="version-diff-metric__new version-diff-tone--target">
+                            {currentTargetRangeLabel}
+                          </span>
+                          <span className="version-diff-metric__note">
+                            · {c.pointTargetWithheld}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     {primaryChips.map((it) => (
                       <div
                         key={it.key}
@@ -383,7 +430,7 @@ export function VersionDiffBanner({
                       data-testid="diff-fair-demoted"
                     >
                       <span className="version-diff-card__demoted-key">{label_(demotedFair)}</span>
-                      <span className="version-diff-card__demoted-dash">— → —</span>
+                      <span className="version-diff-card__demoted-dash">{c.fairUnavailable}</span>
                       <span>{c.fairNotAttributable}</span>
                     </div>
                   )}
@@ -498,4 +545,8 @@ export function VersionDiffBanner({
       </div>
     </div>
   )
+}
+
+function isFiniteNumber(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v)
 }

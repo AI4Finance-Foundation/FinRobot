@@ -154,11 +154,15 @@ export function ArtifactDetailPage(): React.ReactElement {
   // the single source of truth shared with the standalone export viewer. For
   // non-research artifacts only `versionLabel`/`createdAt` are meaningful (the
   // 13-chapter shapes resolve to null) — the body renders via CompactArtifactViewer.
-  const { thesis, createdAt, versionLabel, snapshotPrice, snapshotAsOf } = deriveReportData(
-    data,
-    timeline ?? [],
-    locale,
-  )
+  const {
+    thesis,
+    valuationSynthesis,
+    createdAt,
+    versionLabel,
+    snapshotPrice,
+    snapshotAsOf,
+    quoteCurrency,
+  } = deriveReportData(data, timeline ?? [], locale)
 
   const parentArtifactId =
     (data as unknown as { meta?: { parent_artifact_id?: string | null } }).meta
@@ -246,6 +250,10 @@ export function ArtifactDetailPage(): React.ReactElement {
               artifactId={artifactId}
               reportType={data.type}
               targetPrice={null}
+              targetLow={null}
+              targetHigh={null}
+              valuationWithheld={false}
+              quoteCurrency={quoteCurrency}
               snapshotPrice={snapshotPrice}
               snapshotAsOf={snapshotAsOf}
               onExportHtml={handleExportHtml}
@@ -289,6 +297,10 @@ export function ArtifactDetailPage(): React.ReactElement {
             artifactId={artifactId}
             reportType={data.type}
             targetPrice={thesis?.price_target ?? null}
+            targetLow={valuationSynthesis?.target_low ?? null}
+            targetHigh={valuationSynthesis?.target_high ?? null}
+            valuationWithheld={valuationSynthesis?.valuation_withheld === true}
+            quoteCurrency={quoteCurrency}
             snapshotPrice={snapshotPrice}
             snapshotAsOf={snapshotAsOf}
             onExportHtml={handleExportHtml}
@@ -308,6 +320,12 @@ export function ArtifactDetailPage(): React.ReactElement {
             reportType={data.type}
             parentArtifactId={parentArtifactId}
             timeline={timeline ?? []}
+            currentTargetRange={{
+              low: valuationSynthesis?.target_low ?? null,
+              high: valuationSynthesis?.target_high ?? null,
+              currency: quoteCurrency,
+            }}
+            currentTargetWithheld={valuationSynthesis?.valuation_withheld === true}
           />
           <ReportChapters artifact={data} timeline={timeline ?? []} />
         </div>

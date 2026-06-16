@@ -223,3 +223,26 @@ describe('CoverageCard freshness / session affordance', () => {
     expect(change.textContent).not.toContain('1D')
   })
 })
+
+describe('CoverageCard verdict signal chroma', () => {
+  function signal(over: Partial<CoverageRow>): string | null {
+    const { container } = render(
+      <MemoryRouter>
+        <CoverageCard row={row(over)} density="comfort" onOpen={vi.fn()} />
+      </MemoryRouter>,
+    )
+    return (container.querySelector('.coverage-card') as HTMLElement).getAttribute('data-signal')
+  }
+
+  it('maps the three directional verdicts to their hue bucket', () => {
+    expect(signal({ latest_verdict: 'BUY' })).toBe('buy')
+    expect(signal({ latest_verdict: 'SELL' })).toBe('sell')
+    expect(signal({ latest_verdict: 'HOLD' })).toBe('hold')
+  })
+
+  it('treats NOT RUN (null) and the legacy WITHHELD/REVIEW token as neutral', () => {
+    expect(signal({ latest_verdict: null })).toBe('neutral')
+    expect(signal({ latest_verdict: 'WITHHELD' })).toBe('neutral')
+    expect(signal({ latest_verdict: 'REVIEW' })).toBe('neutral')
+  })
+})

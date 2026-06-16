@@ -21,7 +21,6 @@ import {
 } from '../../utils/format'
 import { SourcedNumber } from '../SourcedNumber'
 import { TargetGauge } from '../TargetGauge'
-import { coveragePriority } from './coveragePriority'
 import type { CoverageRow, MarketImpliedNature } from '../../api/coverage'
 import type { CoverageDensity } from '../../stores/coverageStore'
 
@@ -39,6 +38,24 @@ const VERDICT: Record<string, { color: string; bg: string }> = {
   BUY: { color: 'var(--success)', bg: 'var(--success-soft)' },
   HOLD: { color: 'var(--warning)', bg: 'var(--warning-soft)' },
   SELL: { color: 'var(--danger)', bg: 'var(--danger-soft)' },
+}
+
+// Card chroma bucket from the latest directional verdict. BUY/SELL/HOLD tint the
+// slab top + carry a 1px signal hairline; everything else — NOT RUN (verdict
+// null) and the legacy WITHHELD/REVIEW token — is a neutral slab with no
+// hairline. Drives the `data-signal` rules in App.css (graphite-slab redesign).
+type CardSignal = 'buy' | 'sell' | 'hold' | 'neutral'
+function signalClass(verdict: string | null | undefined): CardSignal {
+  switch ((verdict ?? '').toUpperCase()) {
+    case 'BUY':
+      return 'buy'
+    case 'SELL':
+      return 'sell'
+    case 'HOLD':
+      return 'hold'
+    default:
+      return 'neutral'
+  }
 }
 
 function changeColor(v: number | null): string {
@@ -81,7 +98,7 @@ export const CoverageCard = memo(function CoverageCard({
   const ccy = row.currency || 'USD'
   const verdict = row.latest_verdict ? VERDICT[row.latest_verdict] : null
   const status = cardStatus(row, t)
-  const needsWarn = coveragePriority(row).needsAction
+  const signal = signalClass(row.latest_verdict)
 
   // A row with no snapshot yet (price null) is genuinely cold → shimmer while
   // the revalidate runs. A row that already holds a (stale) snapshot shows its
@@ -133,7 +150,7 @@ export const CoverageCard = memo(function CoverageCard({
       className={`coverage-card${compact ? ' coverage-card--compact' : ''}`}
       data-ticker={row.ticker}
       data-testid={`coverage-card-${row.ticker}`}
-      data-warn={needsWarn ? 'true' : undefined}
+      data-signal={signal}
       role="link"
       tabIndex={0}
       aria-label={t('coverage.card.open', { ticker: row.ticker })}

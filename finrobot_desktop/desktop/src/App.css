@@ -95,6 +95,27 @@
   /* Top fade strip behind the ticker hero header — bg-card → transparent. */
   --gradient-hero-strip: linear-gradient(180deg, rgba(13, 16, 24, 0.68) 0%, transparent 100%);
 
+  /* ── Coverage card verdict chroma (研究库 card wall) ──────────────────────
+     Each analyzed card is a graphite slab whose TOP edge carries its verdict
+     hue, fading to the neutral card floor #0c1016 by 60%; the border is a deep
+     same-hue tint; analyzed cards (BUY/SELL/HOLD) also get a 1px top hairline in
+     the signal hue. NOT RUN / WITHHELD = neutral, no hairline. 涨绿跌红. This is
+     a deliberately brighter signal palette than the --success/--danger/--warning
+     badge tokens (lighter f87171/34d399/f5b544 reads at the top of a dark slab);
+     the verdict badge keeps the deeper semantic tokens. Hex centralised here so
+     the card rules below reference tokens only (cosmic spec §2). */
+  --card-sell-bg: linear-gradient(180deg, #171318 0%, #0c1016 60%);
+  --card-sell-edge: #2a1d22;
+  --card-sell-line: linear-gradient(90deg, transparent, rgba(248, 113, 113, 0.55), transparent);
+  --card-hold-bg: linear-gradient(180deg, #16140e 0%, #0c1016 60%);
+  --card-hold-edge: #2a2418;
+  --card-hold-line: linear-gradient(90deg, transparent, rgba(245, 181, 68, 0.55), transparent);
+  --card-buy-bg: linear-gradient(180deg, #0f1714 0%, #0c1016 60%);
+  --card-buy-edge: #18271f;
+  --card-buy-line: linear-gradient(90deg, transparent, rgba(52, 211, 153, 0.55), transparent);
+  --card-neutral-bg: linear-gradient(180deg, #11161e 0%, #0c1016 100%);
+  --card-neutral-edge: #1a212b;
+
   /* ── Amber accent (HOLD verdict + market-data zone headers).
      Distinct from --warning (which is the deeper #D97706 used for actual
      warning banners). Several sites historically wrote the literal
@@ -6818,15 +6839,17 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   min-height: 248px;
   padding: 16px;
 }
-/* Top 1px gradient glow line (cosmic spec §6.1 「顶部渐变发光线 必加」). Inset
-   from the rounded corners so it never pokes past the radius. */
+/* Top 1px signal hairline (cosmic spec §6.1 「顶部渐变发光线 必加」). Full-width
+   top:0 — the card's overflow:hidden + radius clips it to the rounded corners.
+   The hue is per-verdict (data-signal rules below); its 0.55 alpha is baked into
+   the gradient, so this base layer is fully opaque. Neutral cards hide it. */
 .coverage-card::before {
   content: '';
   position: absolute;
-  inset: 0 18px auto 18px;
+  inset: 0 0 auto 0;
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--border-glow), transparent);
-  opacity: 0.55;
+  opacity: 1;
   transition: opacity 0.18s ease;
   pointer-events: none;
 }
@@ -6844,6 +6867,44 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   position: relative;
   z-index: 1;
 }
+/* Verdict signal chroma — slab tint + edge + top hairline, keyed off the
+   data-signal set by CoverageCard from latest_verdict. This OWNS the card edge
+   and top line: it replaces the old coveragePriority "needs action" amber edge
+   (which would have masked the verdict hue on every stale name); the needs-action
+   signal still rides the footer status pill + the Needs Action filter. */
+.coverage-card[data-signal='sell'] {
+  background: var(--card-sell-bg);
+  border-color: var(--card-sell-edge);
+}
+.coverage-card[data-signal='sell']::before {
+  background: var(--card-sell-line);
+}
+.coverage-card[data-signal='hold'] {
+  background: var(--card-hold-bg);
+  border-color: var(--card-hold-edge);
+}
+.coverage-card[data-signal='hold']::before {
+  background: var(--card-hold-line);
+}
+.coverage-card[data-signal='buy'] {
+  background: var(--card-buy-bg);
+  border-color: var(--card-buy-edge);
+}
+.coverage-card[data-signal='buy']::before {
+  background: var(--card-buy-line);
+}
+/* NOT RUN / WITHHELD — neutral slab, no hairline. */
+.coverage-card[data-signal='neutral'] {
+  background: var(--card-neutral-bg);
+  border-color: var(--card-neutral-edge);
+}
+.coverage-card[data-signal='neutral']::before {
+  display: none;
+}
+/* Hover / keyboard focus brightens the edge to the blue glow ring (the focus
+   affordance) and lifts — declared AFTER the data-signal edges so, at equal
+   specificity, it wins on :hover/:focus-visible and the verdict edge resumes at
+   rest. */
 .coverage-card:hover,
 .coverage-card:focus-visible {
   border-color: var(--border-glow);
@@ -6851,25 +6912,6 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
     0 22px 54px var(--accent-glow),
     0 2px 10px var(--scrim);
   transform: translateY(-2px);
-}
-.coverage-card:hover::before,
-.coverage-card:focus-visible::before {
-  opacity: 1;
-}
-/* Attention edge — a name flagged by coveragePriority. Amber rail + amber top
-   line, lifting to a warm glow on hover. */
-.coverage-card[data-warn='true'] {
-  border-color: var(--border-amber-soft);
-}
-.coverage-card[data-warn='true']::before {
-  background: linear-gradient(90deg, transparent, var(--warning), transparent);
-}
-.coverage-card[data-warn='true']:hover,
-.coverage-card[data-warn='true']:focus-visible {
-  border-color: var(--accent-amber);
-  box-shadow:
-    0 12px 34px var(--warning-glow),
-    0 2px 10px var(--scrim);
 }
 
 .coverage-card__header {

@@ -22,6 +22,7 @@ import logging
 import os
 import re
 import tempfile
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -228,27 +229,49 @@ async def load_symbol_index(
 
 _INDEX: SymbolIndex | None = None
 _LOCK = asyncio.Lock()
+# A successful SEC fetch always yields ~10k entries, so an EMPTY index always
+# means a failed load (transient fetch error, no cache). We don't cache that as
+# final: it's retried, but at most once per backoff so an outage can't turn the
+# typeahead into a per-keystroke SEC hammer.
+_RETRY_AFTER_S = 60.0
+_next_retry_at = 0.0  # monotonic deadline; only consulted when the index is empty
+
+
+async def _load_into_global(user_agent: str) -> SymbolIndex:
+    """Load + publish the global index, arming the retry backoff on an empty
+    (failed) result. Caller must hold ``_LOCK``."""
+    global _INDEX, _next_retry_at
+    _INDEX = await load_symbol_index(user_agent)
+    if not _INDEX.entries:
+        _next_retry_at = time.monotonic() + _RETRY_AFTER_S
+    return _INDEX
 
 
 async def warm_symbol_index(user_agent: str) -> SymbolIndex:
-    """Force a (re)load of the global index under the single-flight lock. Used by
-    the startup warm task; safe to fire-and-forget."""
-    global _INDEX
+    """Force a (re)load of the global index. Used by the startup warm task; safe
+    to fire-and-forget."""
     async with _LOCK:
-        _INDEX = await load_symbol_index(user_agent)
-        return _INDEX
+        return await _load_into_global(user_agent)
 
 
 async def ensure_symbol_index(user_agent: str) -> SymbolIndex:
-    """Return the warmed global index, loading it exactly once (single-flight via
-    a locked double-check) if the startup warm hasn't completed yet."""
-    global _INDEX
-    if _INDEX is not None:
-        return _INDEX
+    """Return the warmed index. A populated index is served immediately and stays
+    put (refreshed only by the daily on-disk cache / next startup warm). An empty
+    index — a transient SEC failure with no cache — is retried at most once per
+    ``_RETRY_AFTER_S`` so a single blip doesn't disable the typeahead for the
+    whole session, without fetching per keystroke during an outage."""
+    idx = _INDEX
+    if idx is not None and idx.entries:
+        return idx
+    if idx is not None and time.monotonic() < _next_retry_at:
+        return idx  # empty, but inside the backoff window -> serve degraded
     async with _LOCK:
-        if _INDEX is None:
-            _INDEX = await load_symbol_index(user_agent)
-        return _INDEX
+        idx = _INDEX
+        if idx is not None and idx.entries:
+            return idx
+        if idx is not None and time.monotonic() < _next_retry_at:
+            return idx
+        return await _load_into_global(user_agent)
 
 
 def get_symbol_index() -> SymbolIndex:

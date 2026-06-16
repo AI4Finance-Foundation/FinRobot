@@ -40,6 +40,7 @@ from finrobot.routes.dashboard import router as dashboard_router
 from finrobot.routes.data import router as data_router
 from finrobot.routes.health import router as health_router
 from finrobot.routes.runs import router as runs_router
+from finrobot.routes.search import router as search_router
 from finrobot.routes.sec_holdings import router as sec_holdings_router
 from finrobot.routes.settings import load_non_secret_settings_with_error
 from finrobot.routes.settings import router as settings_router
@@ -425,6 +426,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         except (OSError, ValueError, TypeError, RuntimeError):
             logger.exception("Startup data-cache eviction failed — non-fatal")
 
+    async def _warm_symbol_index_background() -> None:
+        # Load the SEC ticker-autocomplete index once at startup (cached daily to
+        # ~/.finrobot/) so the homepage typeahead serves from memory. Non-fatal:
+        # warm_symbol_index never raises (a fetch failure degrades to an empty /
+        # stale index), but guard the gather anyway.
+        from finrobot.engine.data.symbol_index import warm_symbol_index
+
+        try:
+            index = await warm_symbol_index(settings.sec_user_agent)
+            logger.info("Symbol autocomplete index warmed: %d symbols", len(index.entries))
+        except Exception:  # noqa: BLE001 -- best-effort warmup, must not crash startup
+            logger.exception("Symbol index warmup failed — non-fatal (typeahead degrades)")
+
     async def _refresh_sec_holdings_background() -> None:
         # Auto-refresh is OFF by default (heavy whole-quarter download). When
         # on, delegate to the shared trigger so startup auto-refresh and the
@@ -440,6 +454,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         asyncio.create_task(_evict_data_cache_background()),
         asyncio.create_task(_migrate_then_warm_background()),
         asyncio.create_task(_refresh_sec_holdings_background()),
+        asyncio.create_task(_warm_symbol_index_background()),
     ]
 
     yield
@@ -556,6 +571,7 @@ app.include_router(dashboard_router)
 app.include_router(valuation_router)
 app.include_router(sentiment_router)
 app.include_router(sec_holdings_router)
+app.include_router(search_router)
 
 
 def _extract_user_text(message: dict[str, Any]) -> str:

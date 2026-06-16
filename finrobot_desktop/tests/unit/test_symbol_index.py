@@ -10,6 +10,10 @@ from __future__ import annotations
 
 import pytest
 
+import asyncio
+import time
+
+from finrobot.engine.data import symbol_index as si
 from finrobot.engine.data.symbol_index import (
     SymbolEntry,
     SymbolIndex,
@@ -146,6 +150,39 @@ def test_mid_cap_exact_beats_megacap_name() -> None:
 def test_micro_cap_exact_does_not_bury_tesla() -> None:
     idx = _idx(("TSLA", "Tesla Inc.", 6), ("TE", "Tdh Holdings", 1886))
     assert idx.search("te")[0].symbol == "TSLA"
+
+
+# --- global singleton: self-heal vs backoff after a transient fetch failure ---
+
+def test_empty_index_self_heals_after_backoff(monkeypatch) -> None:
+    """A startup warm that failed (empty index) must not disable the typeahead for
+    the whole session: once the backoff expires, the next request reloads."""
+    monkeypatch.setattr(si, "_INDEX", SymbolIndex([]))
+    monkeypatch.setattr(si, "_next_retry_at", time.monotonic() - 1)  # expired
+
+    async def fake_load(_ua: str) -> SymbolIndex:
+        return build_index_from_payload(_FAKE_SEC)
+
+    monkeypatch.setattr(si, "load_symbol_index", fake_load)
+    idx = asyncio.run(si.ensure_symbol_index("ua"))
+    assert idx.search("nvda")[0].symbol == "NVDA"
+
+
+def test_empty_index_in_backoff_serves_degraded_without_refetch(monkeypatch) -> None:
+    """Within the backoff window an empty index serves [] and does NOT hit SEC —
+    no per-keystroke hammer during an outage."""
+    monkeypatch.setattr(si, "_INDEX", SymbolIndex([]))
+    monkeypatch.setattr(si, "_next_retry_at", time.monotonic() + 1e6)
+    calls = {"n": 0}
+
+    async def fake_load(_ua: str) -> SymbolIndex:
+        calls["n"] += 1
+        return build_index_from_payload(_FAKE_SEC)
+
+    monkeypatch.setattr(si, "load_symbol_index", fake_load)
+    idx = asyncio.run(si.ensure_symbol_index("ua"))
+    assert idx.entries == []
+    assert calls["n"] == 0
 
 
 # --- dirty input / degradation --------------------------------------------

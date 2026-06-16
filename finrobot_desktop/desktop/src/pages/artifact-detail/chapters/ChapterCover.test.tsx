@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 import { ChapterCover } from './ChapterCover'
-import type { ThesisShape } from './types'
+import type { DcfShape, ThesisShape } from './types'
 
 const BASE = {
   ticker: 'MU',
@@ -47,6 +47,38 @@ describe('ChapterCover — withheld-target self-explanation', () => {
     expect(badge).not.toHaveTextContent('REVIEW')
     // The TargetRange renders in withheld mode (no point tick).
     expect(screen.getByTestId('target-range')).toHaveAttribute('data-withheld', 'true')
+  })
+
+  it('suppresses the standalone TargetRange once the reverse-DCF gap headline renders (live price + band drawn once, not duplicated)', () => {
+    render(
+      <ChapterCover
+        {...BASE}
+        thesis={thesis({ recommendation: 'HOLD' })}
+        withheldReason={null}
+        currentPrice={995.87}
+        marketImplied={
+          {
+            horizon_years: 10,
+            implied_growth: 0.349,
+            growth_unreachable: false,
+          } as NonNullable<DcfShape['market_implied']>
+        }
+        dcfMethod={{
+          name: 'dcf',
+          low: 157.97,
+          mid: 197.46,
+          high: 236.96,
+          confidence: 0.5,
+          source: 'dcf',
+        }}
+      />,
+    )
+    // The reverse-DCF gap headline (the verdict-grade visual) renders…
+    expect(screen.getByTestId('reverse-dcf-headline')).toBeInTheDocument()
+    // …and the standalone TargetRange is NOT also drawn — the live price and the
+    // cash-flow band live on the ruler/anchors, never duplicated in a second
+    // primitive (this duplication was the cover's "drawn 3-4×" clutter).
+    expect(screen.queryByTestId('target-range')).toBeNull()
   })
 
   it('renders a confidence chip + a non-withheld TargetRange for a normal directional call', () => {

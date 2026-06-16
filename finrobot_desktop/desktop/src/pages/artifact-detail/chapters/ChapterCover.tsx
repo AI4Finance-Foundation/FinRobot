@@ -152,8 +152,12 @@ export function ChapterCover({
 
         {/* TargetRange: live tick + point tick (AT the anchor) + the confidence-
             scaled band. In the withheld state the point tick is dropped — the
-            rating still stands on direction, only the precise number is held. */}
-        {(target !== null || targetWithheld) && (
+            rating still stands on direction, only the precise number is held.
+            SUPPRESSED when the reverse-DCF gap headline renders below: that
+            headline already carries the live price (ruler), the cash-flow band
+            (anchor) and the gap — a second band+live-tick here was the cover's
+            worst duplication (live price drawn 3-4×). One price axis, one place. */}
+        {(target !== null || targetWithheld) && !showReverseDcf && (
           <TargetRange
             point={target}
             low={targetLow}
@@ -172,6 +176,8 @@ export function ChapterCover({
           dcfMethod={dcfMethod}
           currentPrice={currentPrice}
           quoteCurrency={quoteCurrency}
+          targetLow={targetLow}
+          targetHigh={targetHigh}
         />
       )}
 

@@ -1513,28 +1513,28 @@ msgid "chapter.cover.reverseDcf.marketSitsAt"
 msgstr "Market sits at"
 
 #. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.livePriceAnchor"
-msgstr "live price · pricing anchor"
-
-#. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.higher"
-msgstr "higher"
-
-#. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.short"
 msgstr "short"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.withheldTitle"
-msgstr "A 12-month target is withheld"
+msgstr "Priced for growth"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.withheldBody"
-msgstr "the model refuses to fabricate a number it can't defend."
+msgstr "the price sits {multiple} above the cash-flow floor; that premium is a bet on the implied growth, not a value entry."
 
 #. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.notFailure"
-msgstr "This isn't a failure."
+msgid "chapter.cover.reverseDcf.fairValueBand"
+msgstr "Cash-flow fair value"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.bandWidensNote"
+msgstr "range widens as confidence falls"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.dcfMid"
+msgstr "DCF mid"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.ledeB.pre"
@@ -1581,10 +1581,6 @@ msgid "chapter.cover.reverseDcf.anchor.ceiling"
 msgstr "Cash-flow ceiling"
 
 #. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.anchor.anchorPrice"
-msgstr "Pricing anchor"
-
-#. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.badge.stretch"
 msgstr "stretch"
 
@@ -1595,10 +1591,6 @@ msgstr "unreachable"
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.badge.defensible"
 msgstr "defensible"
-
-#. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.badge.live"
-msgstr "live · market"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.typeLabel"

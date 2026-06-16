@@ -1513,28 +1513,28 @@ msgid "chapter.cover.reverseDcf.marketSitsAt"
 msgstr "市价处于"
 
 #. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.livePriceAnchor"
-msgstr "实时价 · 定价锚"
-
-#. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.higher"
-msgstr "倍于上限"
-
-#. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.short"
 msgstr "仍够不到"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.withheldTitle"
-msgstr "12 个月目标价已扣留"
+msgstr "为增长定价"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.withheldBody"
-msgstr "模型拒绝编造一个它无法辩护的数字。"
+msgstr "现价比现金流底高出 {multiple} ;这部分溢价押的是隐含增长,不是价值买点。"
 
 #. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.notFailure"
-msgstr "这不是失败。"
+msgid "chapter.cover.reverseDcf.fairValueBand"
+msgstr "现金流公允区间"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.bandWidensNote"
+msgstr "置信越低,区间越宽"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.dcfMid"
+msgstr "DCF 中点"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.ledeB.pre"
@@ -1581,10 +1581,6 @@ msgid "chapter.cover.reverseDcf.anchor.ceiling"
 msgstr "现金流上限"
 
 #. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.anchor.anchorPrice"
-msgstr "定价锚"
-
-#. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.badge.stretch"
 msgstr "高难度"
 
@@ -1595,10 +1591,6 @@ msgstr "无解"
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.badge.defensible"
 msgstr "可辩护"
-
-#. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.badge.live"
-msgstr "实时 · 市价"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.typeLabel"

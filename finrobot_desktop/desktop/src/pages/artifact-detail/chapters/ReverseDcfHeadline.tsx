@@ -34,6 +34,12 @@ interface ReverseDcfHeadlineProps {
   /** valuation_synthesis.current_price — the live pricing anchor (cyan-eligible). */
   currentPrice: number | null
   quoteCurrency: string
+  /** valuation_synthesis target band (confidence-widened). Drives the fair-value
+   * band shown in the right column — the one the cover's standalone <TargetRange>
+   * used to draw before it was suppressed here to kill the duplicate. Falls back
+   * to the dcf method range when the synthesis didn't ship an explicit band. */
+  targetLow?: number | null
+  targetHigh?: number | null
 }
 
 // ── log-scale ruler geometry ────────────────────────────────────────────────
@@ -347,6 +353,8 @@ export function ReverseDcfHeadline({
   dcfMethod,
   currentPrice,
   quoteCurrency,
+  targetLow = null,
+  targetHigh = null,
 }: ReverseDcfHeadlineProps): React.ReactElement | null {
   const { t, locale } = useI18n()
   const [rulerRef, { w: rw, h: rh }] = useRulerSize()
@@ -382,14 +390,22 @@ export function ReverseDcfHeadline({
   const scale = buildScale(rulerVals, rulerTop, rulerBottom)
   const yMarket = scale.y(market)
   const yCeil = scale.y(ceilingValue)
-  const yLow = !unreachable && dcfMethod ? scale.y(dcfMethod.low) : yCeil
-  const yHigh = !unreachable && dcfMethod ? scale.y(dcfMethod.high) : yCeil
 
   const growthPct =
     !unreachable && mi.implied_growth != null ? `${(mi.implied_growth * 100).toFixed(1)}%` : null
   const ceilingGrowthPct =
     mi.growth_ceiling != null ? `${(mi.growth_ceiling * 100).toFixed(0)}%` : null
   const horizon = `${mi.horizon_years}y`
+
+  // Fair-value band for the right column — the synthesis target band when the
+  // backend shipped one (already confidence-widened), else the dcf method range.
+  // This is the band the cover's standalone <TargetRange> used to draw; it now
+  // lives here so the live price + band appear once, in one place. Reachable
+  // only (an unreachable name has no defensible cash-flow band to plot).
+  const fvLow = targetLow ?? dcfMethod?.low ?? null
+  const fvHigh = targetHigh ?? dcfMethod?.high ?? null
+  const fvMid = dcfMid ?? (fvLow != null && fvHigh != null ? (fvLow + fvHigh) / 2 : null)
+  const showFvBand = !unreachable && fvLow != null && fvHigh != null && fvHigh > fvLow
 
   return (
     <section
@@ -478,10 +494,6 @@ export function ReverseDcfHeadline({
                 <stop offset="0%" stopColor={accent} stopOpacity="0.3" />
                 <stop offset="60%" stopColor={accent} stopOpacity="0.09" />
                 <stop offset="100%" stopColor={accent} stopOpacity="0.03" />
-              </linearGradient>
-              <linearGradient id="rdcf-band" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--text-secondary)" stopOpacity="0.2" />
-                <stop offset="100%" stopColor="var(--text-muted)" stopOpacity="0.1" />
               </linearGradient>
               <filter id="rdcf-cyan" x="-60%" y="-60%" width="220%" height="220%">
                 <feGaussianBlur stdDeviation="3.2" result="b" />
@@ -620,19 +632,13 @@ export function ReverseDcfHeadline({
               )}
             </g>
 
-            {/* DCF reachable band (reachable only) */}
+            {/* DCF mid marker on the gap axis — a single cash-flow point, NOT the
+                boxed low–high range. The range lives once in the right-column
+                fair-value band; the ruler's job is the spread (market line vs one
+                cash-flow point), so a second range box here was the same numbers
+                twice for exactly the single-method withheld reports this renders on. */}
             {!unreachable && dcfMethod && (
               <>
-                <rect
-                  x={spineX - 22}
-                  y={yHigh}
-                  width={36}
-                  height={Math.max(2, yLow - yHigh)}
-                  rx="3"
-                  fill="url(#rdcf-band)"
-                  stroke="var(--text-muted)"
-                  strokeWidth="1"
-                />
                 <line
                   x1={spineX - 26}
                   y1={yCeil}
@@ -649,34 +655,26 @@ export function ReverseDcfHeadline({
                   stroke="var(--bg-card)"
                   strokeWidth="1"
                 />
-                <g transform={`translate(${spineX + 22} ${yCeil - 16})`}>
+                <g transform={`translate(${spineX + 22} ${yCeil - 5})`}>
                   <text
                     fontFamily="var(--font-mono)"
                     x="0"
                     y="0"
-                    fontSize="8.5"
+                    fontSize="7.5"
+                    letterSpacing="0.06em"
                     fill="var(--text-dim)"
                   >
-                    {cur(dcfMethod.high)}
+                    {t('chapter.cover.reverseDcf.dcfMid')}
                   </text>
                   <text
                     fontFamily="var(--font-mono)"
                     x="0"
-                    y="18"
+                    y="15"
                     fontSize="13"
                     fontWeight="600"
                     fill="var(--text-secondary)"
                   >
                     {cur(dcfMethod.mid)}
-                  </text>
-                  <text
-                    fontFamily="var(--font-mono)"
-                    x="0"
-                    y="34"
-                    fontSize="8.5"
-                    fill="var(--text-dim)"
-                  >
-                    {cur(dcfMethod.low)}
                   </text>
                 </g>
               </>
@@ -918,21 +916,112 @@ export function ReverseDcfHeadline({
             accentRail="var(--success)"
             valueColor="var(--text-primary)"
           />
-          {/* anchor 3 · pricing anchor = LIVE market quantity → cyan + the gap multiple */}
-          <AnchorChip
-            index="03"
-            label={t('chapter.cover.reverseDcf.anchor.anchorPrice')}
-            badge={{ kind: 'live', text: t('chapter.cover.reverseDcf.badge.live') }}
-            value={cur(market)}
-            sub={t('chapter.cover.reverseDcf.livePriceAnchor')}
-            accentRail="var(--accent-cyan)"
-            valueColor="var(--accent-cyan)"
-            valueGlow="0 0 18px var(--accent-cyan-glow-soft)"
-            multiple={`${multipleLabel} ${unreachable ? t('chapter.cover.reverseDcf.short') : t('chapter.cover.reverseDcf.higher')}`}
-            multipleColor={accent}
-            multipleGlow={accentGlow}
-          />
+          {/* NOTE: the 3rd "pricing anchor" chip was deleted — it restated the
+              LIVE price already plotted on the ruler (and formerly on the cover
+              TargetRange). Live price now appears once, on the ruler. The gap
+              multiple it carried moves into the framing footer below. */}
         </div>
+
+        {/* fair-value band — the defensible cash-flow range, on its own price
+            rail. Fills the column the deleted pricing-anchor chip used to, and
+            restores the band the suppressed cover <TargetRange> carried. The
+            point marker is the dcf mid; width = the synthesis band (already
+            widened as confidence drops). No live tick here — the gap vs market
+            is the ruler's job; this rail is "where cash flows defend". */}
+        {showFvBand && fvLow != null && fvHigh != null && (
+          <div style={{ marginBottom: 18 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: 8,
+                flexWrap: 'wrap',
+                marginBottom: 7,
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 9.5,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: 'var(--text-muted)',
+                }}
+              >
+                {t('chapter.cover.reverseDcf.fairValueBand')}
+              </span>
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {cur(fvLow)} – {cur(fvHigh)}
+              </span>
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 9,
+                  letterSpacing: '0.03em',
+                  color: 'var(--text-dim)',
+                }}
+              >
+                {t('chapter.cover.reverseDcf.bandWidensNote')}
+              </span>
+            </div>
+            {(() => {
+              const pad = (fvHigh - fvLow) * 0.12 || 1
+              const vMin = fvLow - pad
+              const span = fvHigh + pad - vMin || 1
+              const px = (v: number): number => ((v - vMin) / span) * 100
+              const midX = fvMid != null ? px(fvMid) : null
+              return (
+                <svg
+                  viewBox="0 0 100 14"
+                  preserveAspectRatio="none"
+                  role="img"
+                  aria-label={`Cash-flow fair value ${cur(fvLow)} to ${cur(fvHigh)}`}
+                  style={{ display: 'block', width: '100%', height: 14, overflow: 'visible' }}
+                >
+                  <line
+                    x1="0"
+                    y1="7"
+                    x2="100"
+                    y2="7"
+                    stroke="var(--border-soft)"
+                    strokeWidth="1"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <rect
+                    x={px(fvLow)}
+                    y="3.5"
+                    width={Math.max(0.5, px(fvHigh) - px(fvLow))}
+                    height="7"
+                    rx="1"
+                    fill="color-mix(in srgb, var(--success) 16%, transparent)"
+                    stroke="color-mix(in srgb, var(--success) 42%, transparent)"
+                    strokeWidth="0.6"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  {midX != null && (
+                    <line
+                      x1={midX}
+                      y1="1"
+                      x2={midX}
+                      y2="13"
+                      stroke="var(--text-primary)"
+                      strokeWidth="2"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  )}
+                </svg>
+              )
+            })()}
+          </div>
+        )}
 
         {/* the reframing footer — verdict-aware (reachable = discipline, B = optionality) */}
         <div
@@ -1000,19 +1089,7 @@ export function ReverseDcfHeadline({
                 <b style={{ color: accent, fontWeight: 600 }}>
                   {t('chapter.cover.reverseDcf.withheldTitle')}
                 </b>{' '}
-                — {t('chapter.cover.reverseDcf.withheldBody')}
-                <span
-                  style={{
-                    display: 'block',
-                    marginTop: 4,
-                    fontSize: 12,
-                    color: 'var(--text-muted)',
-                  }}
-                >
-                  <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>
-                    {t('chapter.cover.reverseDcf.notFailure')}
-                  </span>
-                </span>
+                — {t('chapter.cover.reverseDcf.withheldBody', { multiple: multipleLabel })}
               </>
             )}
           </span>

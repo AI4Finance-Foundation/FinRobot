@@ -262,6 +262,33 @@ class TestBuildThesisPrompt:
         assert "peak 49.3% / trough -37.0%" in prompt
         assert "permanence, not the level" in prompt
 
+    def test_reachable_growth_withheld_prompt_does_not_inject_option_value(self):
+        """Contradiction fix (2026-06-16): on the point-withheld path, when the
+        reverse-DCF read is REACHABLE (growth_unreachable=False), the prompt must NOT
+        inject the unconditional 'the market prices option value the models cannot
+        capture' framing — a reachable implied growth is AGGRESSIVE GROWTH, not
+        optionality. Shipped MU output had price_target_basis asserting 'option value'
+        while valuation_overview correctly read 'implied 36.9% growth'; the two
+        surfaces contradicted. The nature-of-gap claim is the reverse-DCF's alone, and
+        on the reachable branch its verdict is aggressive growth — never option value."""
+        methods = [
+            ValuationMethod(name="dcf", low=160, mid=188, high=226, confidence=0.85, source="DCF"),
+            ValuationMethod(
+                name="comps_pb", low=1200, mid=1414, high=1620, confidence=0.6, source="Comps"
+            ),
+        ]
+        prompt = _build(
+            methods,
+            current_price=1088.0,
+            ticker="MU",
+            extra_context={"financial_modeling": _reachable_dcf(cyclical=True)},
+        )
+        assert "POINT PRICE TARGET WITHHELD" in prompt  # point withheld (span 7.5x)
+        assert "implies ~28.1%/yr" in prompt  # the authoritative reachable read is cited
+        # the contradictory unconditional option-value injection is GONE
+        assert "option value" not in prompt.lower()
+        assert "option-value" not in prompt.lower()
+
     def test_industry_cyclical_auto_oem_gets_no_supercycle_clause(self):
         """A volume-cyclical auto OEM (TSLA — industry-whitelist arm, provenance
         names 行业白名单 not memory/storage) must NOT inherit the memory-supercycle

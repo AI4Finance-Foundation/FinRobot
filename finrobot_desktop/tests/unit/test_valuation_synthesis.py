@@ -233,6 +233,28 @@ class TestSynthesizeValuations:
         assert result.confidence == "low"
         assert any("calibration band" in w for w in [result.degradation_note or ""])
 
+    def test_band_cap_note_discloses_breach_but_never_claims_option_value(self):
+        """The out-of-calibration cap GRADES the gap's SIZE (confidence ↓) — it must
+        NOT classify its NATURE. 'Option value' is the reverse-DCF's verdict
+        (classify_market_implied_nature), not this band's: the [0.25x, 4x] band fires
+        for MU at 0.17x while MU's price is REACHABLE at ~37% growth, so a hardcoded
+        'option value' here contradicted the reverse-DCF read in shipped MU output
+        (price_target_basis vs valuation_overview, 2026-06-16). Lock both sides of the
+        band: the breach IS disclosed, its nature is never asserted."""
+        for mid, price in ((188.0, 1088.0), (450.0, 100.0)):  # 0.17x (MU) and 4.5x
+            methods = [
+                ValuationMethod(
+                    name="DCF", low=mid * 0.9, mid=mid, high=mid * 1.1, confidence=0.6, source="DCF"
+                ),
+                ValuationMethod(
+                    name="Comps", low=mid * 0.92, mid=mid, high=mid * 1.08, confidence=0.4, source="Comps"
+                ),
+            ]
+            note = (synthesize_valuations(methods, current_price=price).degradation_note or "").lower()
+            assert "calibration band" in note  # the size-of-gap breach IS disclosed
+            assert "option value" not in note  # …but its NATURE is never claimed here
+            assert "optionality" not in note
+
 
 class TestVerdictFromUpside:
     """The Buy/Hold/Sell classifier: confidence-tiered, asymmetric bands.

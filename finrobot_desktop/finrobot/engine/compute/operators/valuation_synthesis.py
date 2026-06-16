@@ -151,10 +151,16 @@ def _confidence_dial(
                 "point; publish the range instead."
             )
 
-    # Out-of-calibration cap (option-value regime): model/market outside [0.25x, 4x].
-    # Even when methods agree (TSLA: both ~14x below market), a confident point is
-    # unsafe — the market prices something the models structurally miss. Cap the
-    # tier; if extreme, withhold the point (keep the directional verdict).
+    # Out-of-calibration cap: model/market outside [0.25x, 4x]. Even when methods
+    # agree (TSLA: both ~14x below market), a confident point is unsafe — the market
+    # prices growth/discount the normalized model doesn't. Cap the tier; if extreme,
+    # withhold the point (keep the directional verdict). This band only GRADES the
+    # gap's SIZE — it does NOT classify its NATURE (reachable aggressive growth vs
+    # genuine optionality); that is the reverse-DCF's job (classify_market_implied_
+    # nature), so the note must NOT assert "option value" here. The [0.25x,4x] band
+    # fires for MU at 0.17x, yet MU's price IS reachable at ~37% growth — asserting
+    # "option value" here contradicted the reverse-DCF's "implied 37% growth" read in
+    # shipped MU output (price_target_basis vs valuation_overview, fixed 2026-06-16).
     ratio = point / current_price if current_price > 0 else float("inf")
     if ratio > MARKET_DIVERGENCE_RATIO_K or ratio < 1.0 / MARKET_DIVERGENCE_RATIO_K:
         extreme = ratio > 2 * MARKET_DIVERGENCE_RATIO_K or ratio < 1.0 / (
@@ -163,7 +169,8 @@ def _confidence_dial(
         tier = _floor_tier(tier, "very_low" if extreme else "low")
         note = (note or "") + (
             f" model ${point:.0f} is {ratio:.2g}x the market price, outside the [0.25x, 4x] calibration band — "
-            "the market may be pricing option value the valuation models do not capture; confidence reduced"
+            "the market is pricing materially different growth/discount than the model's "
+            "normalized assumptions; confidence reduced"
             + (", point target withheld" if extreme else "")
             + "."
         )

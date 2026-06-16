@@ -2569,6 +2569,18 @@ msgid "workspace.market.dataUnavailableHint"
 msgstr "Upstream returned {status} · click to retry"
 
 #. js-lingui-explicit-id
+msgid "workspace.market.dataUnavailableHintNoStatus"
+msgstr "Source temporarily unavailable · click to retry"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentRateLimited"
+msgstr "Retail sentiment source is rate-limited"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentRateLimitedHint"
+msgstr "Upstream throttled (HTTP 429) · auto-retrying shortly"
+
+#. js-lingui-explicit-id
 msgid "workspace.market.retry"
 msgstr "Retry"
 
@@ -3419,6 +3431,10 @@ msgstr "Toggle sort direction"
 #. js-lingui-explicit-id
 msgid "coverage.card.fresh"
 msgstr "fresh"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.target"
+msgstr "Tgt"
 
 #. js-lingui-explicit-id
 msgid "coverage.implied.label"

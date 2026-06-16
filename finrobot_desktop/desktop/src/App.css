@@ -7066,6 +7066,67 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
 .coverage-card__metric-value > span[style] > .coverage-source-number {
   text-shadow: 0 0 12px currentColor;
 }
+/* Price-target gauge — a diverging bar anchored on the live price (centre tick),
+   with the thesis target marked left (below → red) / right (above → green). One
+   dense row: label · track · target value. Only rendered when a stored target +
+   live price exist (degrade = omit). */
+.coverage-card__target {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+.coverage-card__target-label {
+  flex: none;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.coverage-card__target-track {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--border-faint);
+}
+.coverage-card__target-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--radius-pill);
+  opacity: 0.55;
+}
+/* The "now" reference tick sits dead-centre — the live price the gap is read
+   against. A thin neutral divider so the green/red fill reads as "from here". */
+.coverage-card__target-now {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: 50%;
+  width: 1px;
+  margin-left: -0.5px;
+  background: var(--text-dim);
+}
+.coverage-card__target-mark {
+  position: absolute;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: var(--radius-pill);
+}
+.coverage-card__target-value {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
 .coverage-card__footer {
   display: flex;
   align-items: center;

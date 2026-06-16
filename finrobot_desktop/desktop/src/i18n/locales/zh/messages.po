@@ -3421,6 +3421,10 @@ msgid "coverage.card.fresh"
 msgstr "数据新鲜"
 
 #. js-lingui-explicit-id
+msgid "coverage.card.target"
+msgstr "目标价"
+
+#. js-lingui-explicit-id
 msgid "coverage.implied.label"
 msgstr "市场隐含"
 

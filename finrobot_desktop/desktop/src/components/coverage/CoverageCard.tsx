@@ -19,7 +19,7 @@ import {
   formatNumber,
   formatPercent,
 } from '../../utils/format'
-import { SourcedNumber } from '../SourcedNumber'
+import { SourcedNumber, type NumberSource } from '../SourcedNumber'
 import { coveragePriority } from './coveragePriority'
 import type { CoverageRow, MarketImpliedNature } from '../../api/coverage'
 import type { CoverageDensity } from '../../stores/coverageStore'
@@ -269,6 +269,19 @@ export const CoverageCard = memo(function CoverageCard({
         </Metric>
       </div>
 
+      {!showShimmer && (
+        <TargetGauge
+          price={row.price}
+          target={row.target_price}
+          upside={row.upside_to_target_live}
+          source={row.sources?.upside_to_target_live ?? undefined}
+          ticker={row.ticker}
+          ccy={ccy}
+          locale={locale}
+          t={t}
+        />
+      )}
+
       {!showShimmer && impliedView && (
         <div
           className="coverage-card__implied"
@@ -330,6 +343,75 @@ function Metric({
     <div className="coverage-card__metric">
       <span className="coverage-card__metric-label">{label}</span>
       <span className="coverage-card__metric-value">{children}</span>
+    </div>
+  )
+}
+
+// Analyst price-target gauge: a diverging bar anchored on the live price (the
+// centre tick), with the stored thesis target marked left (below → red) or right
+// (above → green) of it. The 2×2 band already carries the bare upside %; this
+// adds what was missing — the absolute target and a one-glance read of the gap's
+// DIRECTION and MAGNITUDE. The target stays SourcedNumber-wrapped (provenance
+// rides the upside_to_target_live source: same artifact, same as-of). Omitted
+// whenever the data can't honestly back it (no stored target, no live price) so
+// the names without a thesis target render nothing rather than a broken bar.
+function TargetGauge({
+  price,
+  target,
+  upside,
+  source,
+  ticker,
+  ccy,
+  locale,
+  t,
+}: {
+  price: number | null
+  target: number | null
+  upside: number | null
+  source: NumberSource | undefined
+  ticker: string
+  ccy: string
+  locale: Locale
+  t: (k: string, p?: Record<string, string | number>) => string
+}): React.ReactElement | null {
+  if (price == null || target == null || price <= 0) return null
+  // Signed gap to target. Prefer the backend's computed upside (it owns the
+  // canonical formula); fall back to a direct ratio only if it's absent.
+  const gap = upside != null ? upside : target / price - 1
+  const up = gap >= 0
+  const tone = up ? 'var(--success)' : 'var(--danger)'
+  // The target marker's offset from the centre tick, as a fraction of each half
+  // of the track. Clamp the magnitude at 50% so a moon-shot target still renders
+  // a bounded bar (the exact figure rides the label + popover, not the geometry).
+  const frac = Math.min(Math.abs(gap), 0.5) / 0.5
+  // Centre = 50%; target sits left (below) or right (above) of it.
+  const targetPct = up ? 50 + frac * 50 : 50 - frac * 50
+  const fillLeft = up ? 50 : targetPct
+  const fillWidth = Math.abs(targetPct - 50)
+
+  return (
+    <div className="coverage-card__target" aria-hidden={false}>
+      <span className="coverage-card__target-label">{t('coverage.card.target')}</span>
+      <span className="coverage-card__target-track">
+        <span
+          className="coverage-card__target-fill"
+          style={{ left: `${fillLeft}%`, width: `${fillWidth}%`, background: tone }}
+        />
+        <span className="coverage-card__target-now" />
+        <span
+          className="coverage-card__target-mark"
+          style={{ left: `${targetPct}%`, background: tone, boxShadow: `0 0 8px ${tone}` }}
+        />
+      </span>
+      <span className="coverage-card__target-value" style={{ color: tone }}>
+        <SourcedNumber
+          className="coverage-source-number"
+          value={target}
+          source={source}
+          ticker={ticker}
+          format={(v) => formatCurrency(v, ccy, locale)}
+        />
+      </span>
     </div>
   )
 }

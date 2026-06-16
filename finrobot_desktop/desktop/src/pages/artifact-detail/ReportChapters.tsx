@@ -126,7 +126,15 @@ export function ReportChapters({
         currentPrice={d.valuationSynthesis?.current_price ?? null}
         quoteCurrency={d.quoteCurrency}
       />
-      <ChapterCompanyOverview thesis={d.thesis} />
+      <ChapterCompanyOverview
+        thesis={d.thesis}
+        rawData={d.inputs.raw_data ?? null}
+        historicalMetrics={d.historicalMetrics}
+        // Market cap is a quote-currency figure (same arg ChapterFinancialData uses).
+        quoteCurrency={d.quoteCurrency}
+        dataSource={d.inputs.data_source ?? null}
+        fetchedAt={d.inputs.data_fetched_at ?? null}
+      />
       <ChapterFinancialAnalysis
         dcf={d.dcf}
         rawData={d.inputs.raw_data ?? null}

@@ -2109,6 +2109,22 @@ msgid "settings.savedOk"
 msgstr "✓ 已保存"
 
 #. js-lingui-explicit-id
+msgid "shell.about.aria"
+msgstr "关于 FinRobot"
+
+#. js-lingui-explicit-id
+msgid "shell.about.charity"
+msgstr "501(c)(3) 非营利 · 开源"
+
+#. js-lingui-explicit-id
+msgid "shell.about.starGithub"
+msgstr "在 GitHub 点亮 Star"
+
+#. js-lingui-explicit-id
+msgid "shell.footer.copyright"
+msgstr "版权所有 © AI4Finance Foundation"
+
+#. js-lingui-explicit-id
 msgid "shell.sidebar.ic"
 msgstr "投委会"
 

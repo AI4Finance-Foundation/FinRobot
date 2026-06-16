@@ -12,6 +12,7 @@ import ToastContainer from '../components/Toast'
 import { MandatoryUpdateGate } from '../components/MandatoryUpdateGate'
 import { AiOnboardingGate } from '../components/AiOnboardingGate'
 import { BootSplash } from '../components/BootSplash'
+import { AppFooter } from '../components/AppFooter'
 import { useHealth } from '../hooks/useHealth'
 import { useUiStore } from '../stores/uiStore'
 import { useUpdaterStore } from '../stores/updaterStore'
@@ -108,6 +109,7 @@ export function AppShell(): React.ReactElement {
         </main>
         {AI_CHAT_ENABLED && !booting ? <RightChatPanel /> : null}
       </div>
+      <AppFooter />
       {/* v5: toast portal — mounted at shell level so every page / section
           can pop toasts (pipeline launch / completion / errors). */}
       <ToastContainer />

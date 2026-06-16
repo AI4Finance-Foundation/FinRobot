@@ -330,6 +330,7 @@
 
   /* ── Shell layout dimensions ─────────────────────────────────── */
   --titlebar-h: 44px;
+  --app-footer-h: 34px; /* global brand footer (AppFooter) row height */
   --activitybar-w: 64px; /* slim icon-only — cosmic spec §5.2 */
   --explorer-w: 260px;
   --aipanel-w: 420px;
@@ -3997,7 +3998,8 @@ select.settings-input {
   flex-direction: row;
   overflow: hidden;
   margin-top: 0;
-  height: calc(100vh - var(--titlebar-h));
+  /* Leave room for the TitleBar (top) and the global brand footer (bottom). */
+  height: calc(100vh - var(--titlebar-h) - var(--app-footer-h));
   position: relative;
   z-index: 1;
 }
@@ -4011,6 +4013,46 @@ select.settings-input {
      (--app-shell-bg, or the homepage cockpit) shows through behind the
      scrolling content and its translucent cards. */
   background: transparent;
+}
+
+/* ── Global brand footer (AppFooter) ──────────────────────────────────
+   Third flex row of .app-shell: a faint, BORDERLESS attribution strip pinned
+   to the window bottom on every route — NOT the retired terminal StatusBar
+   (no top border, no status pills). Transparent so the cosmic shell shows
+   through; .main-content scrolls above it, so content is never occluded. */
+.app-footer {
+  flex: 0 0 var(--app-footer-h);
+  height: var(--app-footer-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  position: relative;
+  z-index: 2;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.3px;
+  user-select: none;
+}
+.app-footer-copy {
+  color: var(--text-muted);
+}
+.app-footer-sep {
+  color: var(--text-dim);
+}
+.app-footer-link {
+  border: 0;
+  background: none;
+  padding: 2px 3px;
+  font: inherit;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.2s ease;
+}
+.app-footer-link:hover {
+  color: var(--accent-cyan);
+  text-shadow: var(--glow-cyan);
 }
 
 /* ── Title bar ── */
@@ -4035,14 +4077,149 @@ select.settings-input {
   flex: 0 0 72px;
 }
 
-/* Brand cluster — conic mark + wordmark, separated from the nav by space. */
+/* Brand cluster — app icon + wordmark, now the click affordance for the About
+   popover (BrandAbout). The wrap spans the full bar height so the popover can
+   anchor to the titlebar's bottom edge. */
+.tb-brand-wrap {
+  position: relative;
+  flex: 0 0 auto;
+  height: var(--titlebar-h);
+  display: flex;
+  align-items: center;
+  padding-right: 26px;
+}
 .tb-brand {
   display: flex;
   align-items: center;
   gap: 9px;
-  flex: 0 0 auto;
-  padding-right: 26px;
+  border: 0;
+  background: none;
+  padding: 5px 8px;
+  margin: 0 -8px;
+  border-radius: var(--radius-sm);
   color: var(--text-primary);
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.tb-brand:hover,
+.tb-brand.open {
+  background: var(--bg-elevated);
+  box-shadow: inset 0 0 0 1px var(--border-soft);
+}
+.tb-brand-chevron {
+  color: var(--text-muted);
+  transition:
+    transform 0.22s ease,
+    color 0.22s ease;
+}
+.tb-brand.open .tb-brand-chevron {
+  transform: rotate(180deg);
+  color: var(--accent-cyan);
+}
+
+/* About popover — cosmic card dropped under the wordmark (BrandAbout). */
+.brand-about {
+  position: absolute;
+  top: calc(100% - 7px);
+  left: -2px;
+  z-index: 90;
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 1px var(--border-faint);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  overflow: hidden;
+}
+.brand-about-head {
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border-faint);
+}
+.brand-about-name {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  line-height: 1;
+  color: var(--text-primary);
+}
+.brand-about-name b {
+  font-weight: 700;
+  color: var(--accent-cyan);
+}
+.brand-about-meta {
+  display: block;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+}
+.brand-about-links {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  gap: 1px;
+  border-bottom: 1px solid var(--border-faint);
+}
+.brand-about-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  background: none;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease;
+}
+.brand-about-link:hover {
+  background: var(--bg-elevated);
+  color: var(--accent-cyan);
+}
+.brand-about-star {
+  color: var(--text-secondary);
+  transition: color 0.18s ease;
+}
+.brand-about-link:hover .brand-about-star {
+  color: var(--accent-cyan);
+}
+.brand-about-arrow {
+  flex: none;
+  color: var(--text-dim);
+  transition: color 0.18s ease;
+}
+.brand-about-link:hover .brand-about-arrow {
+  color: var(--accent-cyan);
+}
+.brand-about-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 16px 14px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.5;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+.brand-about-charity {
+  color: var(--text-dim);
 }
 .tb-wordmark {
   font-family: var(--font-display);

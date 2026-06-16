@@ -20,7 +20,7 @@ import { useI18n } from '../i18n'
 import { startWindowDrag } from '../lib/tauri'
 import { UpdatePill } from '../components/UpdatePill'
 import { AI_CHAT_ENABLED } from '../config/features'
-import appIcon from '../assets/app-icon.png'
+import { BrandAbout } from '../components/BrandAbout'
 
 interface NavDoor {
   /** i18n message id resolved at render time. */
@@ -123,15 +123,9 @@ export function TitleBar(): React.ReactElement {
       {/* macOS traffic lights overlay reservation */}
       <div className="tb-traffic-reserve" aria-hidden />
 
-      {/* Brandmark — the real app icon + FinRobot wordmark (Robot in cyan).
-          Purely decorative: no click/interaction (⌘K opens the command
-          palette via its own shortcut). */}
-      <div className="tb-brand">
-        <img className="tb-brand-mark" src={appIcon} alt="" aria-hidden />
-        <span className="tb-wordmark">
-          Fin<b>Robot</b>
-        </span>
-      </div>
+      {/* Brandmark — FinRobot wordmark, now the affordance for the About
+          popover (version · license · foundation links · copyright). */}
+      <BrandAbout />
 
       {/* HUD instrument cluster — the three product doors, icon-first. */}
       <nav className="tb-cluster" aria-label={locale === 'zh' ? '主导航' : 'Primary'}>

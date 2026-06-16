@@ -7,7 +7,7 @@
 //
 // Presentational only: open/active state and keyboard nav live in CoverageHero.
 
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { tSync } from '../../i18n'
 import type { SymbolSuggestion } from '../../api/search'
 
@@ -84,8 +84,31 @@ export function TickerSuggestions({
   onSelect,
   onHover,
 }: TickerSuggestionsProps): React.ReactElement {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const rowRefs = useRef<(HTMLDivElement | null)[]>([])
+  const [maxHeight, setMaxHeight] = useState<number | undefined>(undefined)
+
+  // Cap the dropdown to the gap between its top and the viewport bottom so a long
+  // list scrolls INSIDE the panel instead of running off-screen and unreachable.
+  useLayoutEffect(() => {
+    function measure(): void {
+      const el = containerRef.current
+      if (!el) return
+      setMaxHeight(Math.max(180, window.innerHeight - el.getBoundingClientRect().top - 16))
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    return () => window.removeEventListener('resize', measure)
+  }, [results.length])
+
+  // Keep the keyboard-highlighted row in view as the user arrows down/up.
+  useLayoutEffect(() => {
+    if (activeIndex >= 0) rowRefs.current[activeIndex]?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex])
+
   return (
     <div
+      ref={containerRef}
       id={labelId}
       role="listbox"
       aria-label={tSync('landing.hero.suggestionsAria')}
@@ -104,7 +127,9 @@ export function TickerSuggestions({
         border: '1px solid var(--border-soft)',
         borderRadius: 'var(--radius-md)',
         boxShadow: '0 12px 40px rgba(0,0,0,0.45)',
-        overflow: 'hidden',
+        maxHeight,
+        overflowY: 'auto',
+        overscrollBehavior: 'contain',
         paddingBottom: 4,
       }}
     >
@@ -134,6 +159,9 @@ export function TickerSuggestions({
         return (
           <div
             key={r.symbol}
+            ref={(el) => {
+              rowRefs.current[i] = el
+            }}
             id={`ticker-opt-${i}`}
             role="option"
             aria-selected={active}

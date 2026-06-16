@@ -436,7 +436,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         try:
             index = await warm_symbol_index(settings.sec_user_agent)
             logger.info("Symbol autocomplete index warmed: %d symbols", len(index.entries))
-        except Exception:  # noqa: BLE001 -- best-effort warmup, must not crash startup
+        except (OSError, RuntimeError, ValueError, TypeError, KeyError, ImportError, AttributeError):
+            # warm_symbol_index degrades internally and is contracted never to raise;
+            # this enumerates the concrete modes a regression could still leak (disk,
+            # async/loop, malformed SEC payload, lazy import) so a warmup blip never
+            # crashes startup — honouring the project's no-bare-`except Exception` rule.
             logger.exception("Symbol index warmup failed — non-fatal (typeahead degrades)")
 
     async def _refresh_sec_holdings_background() -> None:

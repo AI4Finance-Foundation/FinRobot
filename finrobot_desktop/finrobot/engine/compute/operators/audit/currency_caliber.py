@@ -36,16 +36,23 @@ def audit_foreign_issuer_usd_tags(fin: FinancialData) -> list[Finding]:
     reports in USD (SHEL/BP/LULU class). Both deserve an analyst's eye, neither
     deserves a withheld target, hence severity ``review`` (banner only).
 
-    Two deliberate suppressions:
+    Three deliberate suppressions:
     - ``fx_normalized`` in provenance: the canonical FX gate converted a
       reporting≠quote snapshot to single-currency and rewrote the tag — that
       double-USD is constructed, not suspicious.
     - country missing/blank: "unknown" is not "foreign"; never guess.
+    - ``is_adr`` True: a confirmed ADR (FMP /profile isAdr) files in USD
+      legitimately, so a USD/USD foreign-issuer snapshot is expected, not a
+      mis-tag — no banner. ``is_adr`` None (yfinance path / unknown) or False
+      still fires: only a confirmed-True suppresses, so a genuinely mis-tagged
+      home-currency reporter is never silently waved through.
     """
     if fin.reporting_currency != "USD" or fin.quote_currency != "USD":
         return []  # mixed tags are audit_currency_caliber's jurisdiction
     degraded = fin.provenance.degraded if fin.provenance is not None else []
     if DEGRADED_FX_NORMALIZED in degraded:
+        return []
+    if fin.market.is_adr is True:
         return []
     country = (fin.market.country or "").strip()
     if not country or country.upper() in _US_COUNTRY_TOKENS:

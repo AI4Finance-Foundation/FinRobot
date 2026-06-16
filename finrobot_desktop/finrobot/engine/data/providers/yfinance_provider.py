@@ -423,6 +423,11 @@ class YFinanceProvider(DataProvider):
             # ADR where yfinance returns financialCurrency="USD" despite IS/BS
             # being reported in TWD).
             "country": info.get("country"),
+            # yfinance .info carries no ADR structural flag, so is_adr stays None
+            # on this path — the family-1 acceptor keeps its full review behavior
+            # for yfinance snapshots (None ≠ False: "unknown", not "confirmed
+            # non-ADR"). Only FMP's /profile isAdr can suppress the banner.
+            "is_adr": None,
         }
         return DataResult(
             data=data,

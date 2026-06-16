@@ -61,8 +61,11 @@ def normalize_financials(result: DataResult) -> NormalizedFinancials:
     quote_currency = (data.get("quote_currency") or "USD").upper()
     # country flows into the snapshot untouched — the family-1 verifier
     # (audit_foreign_issuer_usd_tags) needs it to flag double-USD foreign
-    # issuers for review; it never alters the currency tags here.
+    # issuers for review; it never alters the currency tags here. is_adr rides
+    # alongside (FMP /profile isAdr; None on yfinance) so the same verifier can
+    # suppress the banner for a confirmed ADR.
     country = data.get("country")
+    is_adr = data.get("is_adr")
 
     period_end = _parse_date(data.get("fiscal_year") or data.get("date"))
     _raw_basis: str = data.get("period_basis") or ""
@@ -124,6 +127,7 @@ def normalize_financials(result: DataResult) -> NormalizedFinancials:
         industry=data.get("industry"),
         sector=data.get("sector"),
         country=country,
+        is_adr=is_adr,
         beta=_f(data.get("beta")),
         ttm_quarter_ends=[
             d for d in (_parse_date(x) for x in (data.get("ttm_quarter_ends") or [])) if d

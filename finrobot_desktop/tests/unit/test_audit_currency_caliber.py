@@ -39,6 +39,7 @@ def _fd(
     ev_ebitda: float | None = None,
     ev_revenue: float | None = None,
     country: str | None = None,
+    is_adr: bool | None = None,
     degraded: tuple[str, ...] = (),
 ) -> FinancialData:
     fd = FinancialData(
@@ -51,6 +52,7 @@ def _fd(
             current_price=100.0,
             pe_ratio=pe_ratio,
             country=country,
+            is_adr=is_adr,
         ),
         valuation=ValuationMetrics(
             enterprise_value=enterprise_value, ev_ebitda=ev_ebitda, ev_revenue=ev_revenue
@@ -158,4 +160,25 @@ class TestForeignIssuerUsdTags:
         fd = _fd(country="TW")
         fd.provenance = None
         f = audit_foreign_issuer_usd_tags(fd)
+        assert _checks(f) == {("reporting_currency", "foreign_issuer_usd_tags", "review")}
+
+    def test_confirmed_adr_suppressed(self):
+        # FMP /profile isAdr=True (SAP/SHEL/TSM/BABA/NVO/TM/BP): a confirmed ADR
+        # files in USD legitimately, so a USD/USD foreign snapshot is expected,
+        # not a mis-tag — no banner. (SHEL country=GB, TSM=TW etc. all isAdr=True.)
+        assert audit_foreign_issuer_usd_tags(_fd(country="GB", is_adr=True)) == []
+        assert audit_foreign_issuer_usd_tags(_fd(country="TW", is_adr=True)) == []
+
+    def test_is_adr_none_still_fires(self):
+        # None = "unknown" (yfinance path has no isAdr): only a confirmed True
+        # suppresses, so a possibly mis-tagged home-currency reporter is never
+        # silently waved through. This is the constructed-dirty-sample case.
+        f = audit_foreign_issuer_usd_tags(_fd(country="JP", is_adr=None))
+        assert _checks(f) == {("reporting_currency", "foreign_issuer_usd_tags", "review")}
+
+    def test_is_adr_false_still_fires(self):
+        # isAdr=False (LULU: Canadian-incorporated USD reporter, direct NASDAQ
+        # listing — FMP returns False, NOT an ADR) keeps the banner: a genuine
+        # non-ADR foreign USD reporter still deserves an analyst's currency check.
+        f = audit_foreign_issuer_usd_tags(_fd(country="CA", is_adr=False))
         assert _checks(f) == {("reporting_currency", "foreign_issuer_usd_tags", "review")}

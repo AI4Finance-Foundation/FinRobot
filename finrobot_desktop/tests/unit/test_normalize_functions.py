@@ -214,6 +214,22 @@ def test_financials_usd_tag_passes_through_for_foreign_issuer():
     assert "ccy_inferred" not in fin.provenance.degraded
 
 
+def test_financials_is_adr_passes_through():
+    # FMP /profile isAdr rides into the snapshot so the family-1 acceptor can
+    # suppress its USD/USD review banner for a confirmed ADR (SHEL/TSM class).
+    fin = normalize_financials(
+        _fin_result(revenue=1e9, country="Taiwan", is_adr=True, date="2026-03-31")
+    )
+    assert fin.is_adr is True
+
+
+def test_financials_is_adr_absent_defaults_none():
+    # yfinance path (and old cached payloads) carry no is_adr → None = "unknown",
+    # which keeps the banner; only a confirmed True suppresses it.
+    fin = normalize_financials(_fin_result(revenue=1e9, country="Taiwan", date="2026-03-31"))
+    assert fin.is_adr is None
+
+
 def test_financials_non_usd_tag_passes_through():
     # 正确打 tag 的外国发行人(TSM=TWD 类)不受影响:tag 原样直通,FX 闸照常转换。
     fin = normalize_financials(

@@ -267,6 +267,7 @@ def extract_financial_data(
             industry=fin.industry,
             sector=fin.sector,
             country=fin.country,
+            is_adr=fin.is_adr,
             beta=fin.beta,
         ),
         valuation=ValuationMetrics(

@@ -93,6 +93,11 @@ class MarketData(BaseModel):
     # ("US"/"TW"), yfinance .info gives full names ("United States"/"Taiwan").
     # Consumed by the family-1 foreign_issuer_usd_tags acceptor; None = unknown.
     country: str | None = None
+    # FMP /profile isAdr structural flag (True = confirmed ADR). The family-1
+    # foreign_issuer_usd_tags acceptor suppresses its USD/USD review banner when
+    # this is True (confirmed ADRs file in USD legitimately). None (yfinance path
+    # / unknown) or False keeps the banner — a True is required to suppress.
+    is_adr: bool | None = None
     beta: float | None = Field(default=None, ge=0, le=5)
 
 

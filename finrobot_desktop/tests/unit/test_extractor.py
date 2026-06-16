@@ -92,6 +92,14 @@ def test_extract_financial_data_valid():
     assert fd.income.gross_margin == 0.47
 
 
+def test_extract_financial_data_carries_is_adr():
+    # is_adr must reach MarketData so the family-1 acceptor can read fin.market.is_adr.
+    fd = extract_financial_data(_make_fin(country="TW", is_adr=True), _make_price())
+    assert fd.market.is_adr is True
+    fd_none = extract_financial_data(_make_fin(country="TW"), _make_price())
+    assert fd_none.market.is_adr is None
+
+
 def test_extract_financial_data_dual_ebitda_caliber():
     """EBITDA is recomputed from absolute line items in two calibers; the
     opaque provider ebitda field (here deliberate garbage) is ignored.

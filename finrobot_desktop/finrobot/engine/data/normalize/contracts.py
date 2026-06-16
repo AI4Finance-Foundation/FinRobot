@@ -343,6 +343,12 @@ class NormalizedFinancials(BaseModel):
     industry: str | None = None
     sector: str | None = None
     country: str | None = None
+    # FMP /profile isAdr structural flag (True = confirmed ADR). Lets the family-1
+    # foreign_issuer_usd_tags acceptor suppress its USD/USD review banner for a
+    # confirmed ADR. None on the yfinance path (.info has no isAdr) = "unknown",
+    # which keeps the banner. Optional → read-compatible with cached canonical
+    # payloads (BUG-038 precedent), so no schema-version bump.
+    is_adr: bool | None = None
     beta: float | None = None
     # Quarter-end dates of the quarters summed into a TTM snapshot (numeric-audit
     # family-4 non-overlap check). Populated only on the FMP TTM path (Σ 4

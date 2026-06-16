@@ -646,6 +646,11 @@ class FMPProvider(DataProvider):
             "financial_currency": inc.get("reportedCurrency"),
             "quote_currency": prof.get("currency"),
             "country": prof.get("country"),
+            # FMP /profile structural flag: True for confirmed ADRs (SAP/SHEL/TSM
+            # /BABA/NVO/TM). Lets the family-1 foreign_issuer_usd_tags acceptor
+            # suppress its review banner for a confirmed-ADR USD/USD snapshot
+            # (legitimate USD filing) while still flagging an unverified one.
+            "is_adr": prof.get("isAdr"),
         }
 
     @classmethod
@@ -789,6 +794,9 @@ class FMPProvider(DataProvider):
             "financial_currency": latest.get("reportedCurrency"),
             "quote_currency": prof.get("currency"),
             "country": prof.get("country"),
+            # FMP /profile structural flag — see _build_single_year_data. Lets the
+            # family-1 acceptor suppress its review banner for a confirmed ADR.
+            "is_adr": prof.get("isAdr"),
         }
 
     async def _fetch_price(self, ticker: str) -> DataResult:

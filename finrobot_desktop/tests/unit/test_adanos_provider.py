@@ -143,17 +143,66 @@ class TestAdanosFetch:
         assert result.data["average_buzz"] is not None
 
     @pytest.mark.asyncio
-    async def test_fetch_sentiment_all_sources_fail(self, provider):
+    async def test_fetch_all_sources_fail_raises_provider_error(self, provider):
+        """EVERY platform attempt raised → this is a provider-level failure, NOT a
+        "no buzz" answer. The provider must RAISE so the DataLayer failure path
+        engages (stale fallback + circuit breaker) instead of returning a
+        successful empty 0/3 snapshot that poisons the cache and records a false
+        success. Timeouts aren't throttling, so it's a plain ProviderError."""
         async def mock_get(path, params=None):
             raise httpx.TimeoutException("timeout")
 
         with patch.object(provider, "_get", side_effect=mock_get):
-            result = await provider.fetch("AAPL", "sentiment")
+            with pytest.raises(ProviderError) as exc_info:
+                await provider.fetch("AAPL", "sentiment")
+        # Timeouts are not rate-limit — must NOT be classified as throttling.
+        assert not is_rate_limit_error(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_fetch_all_sources_429_raises_rate_limited_error(self, provider):
+        """The reported MU scenario: all three Adanos endpoints return HTTP 429.
+        The provider must raise the TYPED RateLimitedProviderError so the
+        DataLayer trips the circuit breaker (BUG-045) and serves last-known-good
+        stale sentiment instead of caching an empty 0/3 snapshot for the TTL."""
+        request = httpx.Request("GET", "https://adanos.example/api")
+        response = httpx.Response(429, request=request)
+
+        async def mock_get(path, params=None):
+            raise httpx.HTTPStatusError(
+                "429 Too Many Requests", request=request, response=response
+            )
+
+        with patch.object(provider, "_get", side_effect=mock_get):
+            with pytest.raises(RateLimitedProviderError) as exc_info:
+                await provider.fetch("MU", "sentiment")
+        assert is_rate_limit_error(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_fetch_partial_errors_with_one_response_does_not_raise(self, provider):
+        """Discriminator is "did EVERY attempt raise", NOT "is coverage 0/3". When
+        at least one platform RESPONDS (here an untracked-ticker HTTP 200 with zero
+        buzz) the snapshot is a legitimate, cacheable answer even though two other
+        platforms 429'd — we genuinely reached Adanos. It must NOT raise."""
+        request = httpx.Request("GET", "https://adanos.example/api")
+        response = httpx.Response(429, request=request)
+
+        async def mock_get(path, params=None):
+            if "reddit" in path:
+                return _mock_response(
+                    {"stocks": [{"ticker": "ZZZZ", "buzz_score": 0, "mentions": 0}]}
+                )
+            raise httpx.HTTPStatusError(
+                "429 Too Many Requests", request=request, response=response
+            )
+
+        with patch.object(provider, "_get", side_effect=mock_get):
+            result = await provider.fetch("ZZZZ", "sentiment")
 
         assert result.data["coverage"] == "0/3"
         assert result.data["coverage_ratio"] == 0.0
         assert result.data["average_buzz"] is None
         assert result.data["bullish_avg"] is None
+        assert len(result.warnings) == 2  # the two 429'd platforms
 
     @pytest.mark.asyncio
     async def test_unsupported_type_raises(self, provider):

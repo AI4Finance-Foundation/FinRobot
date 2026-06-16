@@ -3375,10 +3375,11 @@ export interface components {
        * Reason
        * @description Why `available` is False, so the UI never mislabels a transient hiccup as a missing API key:
        *       • 'unconfigured' — no Adanos key registered → show the 'add key' CTA.
-       *       • 'provider_error' — key IS configured but the call failed → show a retry affordance, NOT the config CTA.
+       *       • 'rate_limited' — upstream throttled us (HTTP 429); transient and self-healing → soft auto-retry notice, NOT a red outage / fabricated 5xx.
+       *       • 'provider_error' — key IS configured but the call genuinely failed (non-429) → show a retry affordance, NOT the config CTA.
        *       • None — the snapshot is available (or success).
        */
-      reason?: ('unconfigured' | 'provider_error') | null
+      reason?: ('unconfigured' | 'provider_error' | 'rate_limited') | null
       /**
        * Coverage
        * @description N/3 platforms returned data, e.g. '2/3'

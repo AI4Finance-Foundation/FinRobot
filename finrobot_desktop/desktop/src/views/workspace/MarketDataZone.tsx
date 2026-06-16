@@ -270,6 +270,50 @@ const ALIGNMENT_KEYS = new Set([
   'no_data',
 ])
 
+// Soft state for an upstream rate-limit (HTTP 429). Self-healing, so it must NOT
+// read as a hard outage (no --danger red, no fabricated status). Muted copy + an
+// immediate-retry button; useTickerSentiment also auto-refetches on this reason.
+function SentimentRateLimited({ onRetry }: { onRetry: () => void }): React.ReactElement {
+  const { t } = useI18n()
+  return (
+    <div
+      data-testid="sentiment-rate-limited"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-start',
+        gap: 8,
+        padding: '12px 4px',
+        fontFamily: 'var(--font-mono)',
+      }}
+    >
+      <span style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
+        {t('workspace.market.sentimentRateLimited')}
+      </span>
+      <span style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.55 }}>
+        {t('workspace.market.sentimentRateLimitedHint')}
+      </span>
+      <button
+        type="button"
+        onClick={onRetry}
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10.5,
+          color: 'var(--accent-cyan)',
+          background: 'transparent',
+          border: '1px solid var(--border-cyan-soft)',
+          borderRadius: 4,
+          padding: '4px 12px',
+          cursor: 'pointer',
+          letterSpacing: '0.04em',
+        }}
+      >
+        {t('workspace.market.retry')}
+      </button>
+    </div>
+  )
+}
+
 function SentimentCard({
   snapshot,
   isPending,
@@ -287,9 +331,17 @@ function SentimentCard({
     return <SentimentSkeleton />
   }
 
+  // Upstream throttled us (HTTP 429). Transient and self-healing — show a SOFT
+  // "rate-limited, auto-retrying" notice, NOT the red outage error and NOT a
+  // fabricated "Upstream returned 5xx" (the call never reached a 5xx). The hook
+  // auto-refetches on this reason; the button is an immediate manual retry.
+  if (snapshot?.reason === 'rate_limited') {
+    return <SentimentRateLimited onRetry={onRetry} />
+  }
+
   // Transport failure (network/timeout/non-2xx) OR the backend reached Adanos
-  // but the call failed (reason='provider_error'). The key is configured — show
-  // a retry, never the "go configure" CTA, which would be a lie.
+  // but the call genuinely failed (reason='provider_error'). The key is
+  // configured — show a retry, never the "go configure" CTA, which would be a lie.
   if (isError || !snapshot || snapshot.reason === 'provider_error') {
     return <CardError onRetry={onRetry} />
   }
@@ -1041,7 +1093,12 @@ function CardError({
         ⚠ {message ?? t('workspace.market.dataUnavailable')}
       </span>
       <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>
-        {t('workspace.market.dataUnavailableHint', { status: status ?? '5xx' })}
+        {/* Never fabricate a status. Real HTTP errors (price/financials carry
+            err.status) print the code; a 200-body failure (sentiment
+            provider_error) has none → a status-free hint, not a made-up "5xx". */}
+        {status != null
+          ? t('workspace.market.dataUnavailableHint', { status })
+          : t('workspace.market.dataUnavailableHintNoStatus')}
       </span>
       <button
         type="button"

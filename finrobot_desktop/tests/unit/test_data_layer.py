@@ -2205,3 +2205,59 @@ class TestFetchSegments:
         out = await layer.fetch_segments("AAPL")
         assert out == {"segments": [{"name": "iPhone"}]}
         assert stub.calls == 1  # attempted the fetch, fell back to stale
+
+
+class TestSentimentRateLimitEntersFailureMachinery:
+    """A real AdanosProvider whose every platform 429s must enter the DataLayer
+    failure path — NOT be folded into a successful empty 0/3 snapshot. This nails
+    the cross-component contract behind the reported MU panel: the all-429 fetch
+    must (1) yield the no-data sentinel (route → reason='provider_error'),
+    (2) leave NOTHING in the cache (no empty-snapshot poisoning for the TTL),
+    (3) trip the circuit breaker so the next call stops hammering Adanos.
+    """
+
+    def _all_429_provider(self):
+        import httpx
+        from unittest.mock import AsyncMock, patch
+
+        from finrobot.engine.data.providers.adanos_provider import AdanosProvider
+
+        provider = AdanosProvider(api_key="test-key")
+        request = httpx.Request("GET", "https://adanos.example/api")
+        response = httpx.Response(429, request=request)
+        get_mock = AsyncMock(
+            side_effect=httpx.HTTPStatusError(
+                "429 Too Many Requests", request=request, response=response
+            )
+        )
+        return provider, patch.object(provider, "_get", get_mock), get_mock
+
+    async def test_all_429_no_cache_yields_no_data_and_caches_nothing(self, cache):
+        provider, patched, _ = self._all_429_provider()
+        layer = DataLayer([provider], cache)
+        with patched:
+            result = await layer.fetch(DataType.SENTIMENT, "MU", days_back=7)
+            await provider.close()
+
+        # No-data sentinel, not a successful empty snapshot.
+        assert result.provider == "none"
+        assert "error" in result.data
+        # Empty result was NOT cached — the next request can retry once Adanos
+        # recovers (no 1h blank-panel poisoning). cache_key mirrors DataLayer's:
+        # ticker + sorted kwargs.
+        assert await cache.get(DataType.SENTIMENT, "MU:days_back=7") is None
+
+    async def test_all_429_trips_breaker_and_stops_hammering_adanos(self, cache):
+        provider, patched, get_mock = self._all_429_provider()
+        layer = DataLayer([provider], cache)
+        with patched:
+            await layer.fetch(DataType.SENTIMENT, "MU", days_back=7)
+            calls_after_first = get_mock.call_count  # 3 platforms attempted
+            # Breaker is now open → the second fetch must skip Adanos entirely.
+            second = await layer.fetch(DataType.SENTIMENT, "MU", days_back=7)
+            await provider.close()
+
+        assert calls_after_first == 3
+        assert get_mock.call_count == 3, "breaker should have gated the 2nd fetch"
+        assert layer._health.is_available("adanos") is False
+        assert second.provider == "none"

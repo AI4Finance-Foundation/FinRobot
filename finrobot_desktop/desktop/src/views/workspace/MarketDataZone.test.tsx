@@ -150,6 +150,24 @@ describe('MarketDataZone — retail sentiment honest states', () => {
     renderZone()
     expect(screen.getByTestId('market-card-error')).toBeInTheDocument()
     expect(screen.queryByTestId('sentiment-unconfigured')).not.toBeInTheDocument()
+    // The sentiment failure arrives as a 200 body (no HTTP status) — the card
+    // must NOT fabricate "Upstream returned 5xx" (the prior `status ?? '5xx'`
+    // bug). A status-free hint instead.
+    expect(screen.queryByText(/5xx/i)).not.toBeInTheDocument()
+  })
+
+  it('reason=rate_limited → soft auto-retry notice, NOT the red 5xx error card', () => {
+    vi.mocked(useTickerSentiment).mockReturnValue(
+      settled(sentiment({ reason: 'rate_limited' })) as never,
+    )
+    renderZone()
+    // Soft, self-healing state — distinct from the red outage error and never a
+    // fabricated 5xx (the reported "Upstream returned 5xx" for a 429 throttle).
+    expect(screen.getByTestId('sentiment-rate-limited')).toBeInTheDocument()
+    expect(screen.queryByTestId('market-card-error')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('sentiment-unconfigured')).not.toBeInTheDocument()
+    expect(screen.queryByText(/5xx/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/auto-retrying/i)).toBeInTheDocument()
   })
 
   it('reason=unconfigured → the add-key CTA', () => {

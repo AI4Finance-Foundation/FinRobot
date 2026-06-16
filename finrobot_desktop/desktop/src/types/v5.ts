@@ -69,10 +69,12 @@ export interface SentimentSnapshot {
   days: number
   available: boolean
   // Why `available` is false, so the UI never mislabels a transient hiccup as a
-  // missing key: 'unconfigured' → show the "add Adanos key" CTA; 'provider_error'
-  // → key IS set but the call failed, show a retry (not the config CTA); null →
-  // available (or success). Optional for back-compat with older payloads.
-  reason?: 'unconfigured' | 'provider_error' | null
+  // missing key: 'unconfigured' → show the "add Adanos key" CTA; 'rate_limited'
+  // → upstream throttled us (429, self-healing), show a soft auto-retry notice
+  // (NOT a red outage / fabricated 5xx); 'provider_error' → key IS set but the
+  // call genuinely failed, show a retry (not the config CTA); null → available
+  // (or success). Optional for back-compat with older payloads.
+  reason?: 'unconfigured' | 'provider_error' | 'rate_limited' | null
   coverage: string | null
   bullish_pct: number | null
   bearish_pct: number | null

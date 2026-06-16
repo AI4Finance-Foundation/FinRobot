@@ -21,6 +21,7 @@ from finrobot.engine.data.interface import (
     DataResult,
     ProviderError,
     RateLimitedProviderError,
+    is_rate_limit_error,
 )
 from finrobot.engine.data.types import DataType
 
@@ -105,6 +106,27 @@ class AdanosProvider(DataProvider):
         """Fetch sentiment from all platforms concurrently."""
         tasks = [self._fetch_one_platform(spec, ticker, days_back) for spec in _PLATFORM_SPECS]
         results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Every platform attempt raised → a provider-level failure (throttle /
+        # outage), NOT a "no buzz" answer. Raise so the DataLayer failure path
+        # engages: serve last-known-good sentiment from cache (stale + retry
+        # note) or a typed no-data result, AND skip caching this empty snapshot /
+        # recording a false success. Folding the errors into warnings and
+        # returning a successful 0/3 dict (the old behaviour) poisoned the cache
+        # for the full TTL and bypassed the circuit breaker — the provider-level
+        # form of "provider 全失败不许静默变空" (T2 #4). A successful-but-empty
+        # response (untracked ticker, HTTP 200, zero activity) is NOT an
+        # exception and flows through below as a legitimate, cacheable result.
+        errors = [r for r in results if isinstance(r, BaseException)]
+        if len(errors) == len(_PLATFORM_SPECS):
+            detail = "; ".join(
+                f"{spec['label']}: {r}" for spec, r in zip(_PLATFORM_SPECS, results)
+            )
+            if all(is_rate_limit_error(e) for e in errors):
+                raise RateLimitedProviderError(
+                    f"Adanos rate limited on all platforms — {detail}"
+                )
+            raise ProviderError(f"Adanos unavailable on all platforms — {detail}")
 
         sources: list[dict[str, Any]] = []
         warnings: list[str] = []

@@ -10,6 +10,7 @@ from httpx import ASGITransport, AsyncClient
 from pydantic import BaseModel, ConfigDict
 
 from finrobot.engine.data.interface import DataProvider, DataResult, ProviderError
+from finrobot.engine.data.provider_health import ProviderState
 from finrobot.engine.data.types import DataType
 from finrobot.routes.sentiment import router
 
@@ -78,9 +79,29 @@ class _AdanosLike(DataProvider):
         )
 
 
+class _RawResultProvider(DataProvider):
+    """Returns a caller-supplied DataResult verbatim — used to simulate what the
+    real DataLayer hands the route after it has caught a provider failure: either
+    a no-data error result (provider='none') or a stale-cache fallback."""
+
+    def __init__(self, result: DataResult) -> None:
+        self._result = result
+
+    @property
+    def name(self) -> str:
+        return "raw-stub"
+
+    def capabilities(self) -> list[str | DataType]:
+        return [DataType.SENTIMENT]
+
+    async def fetch(self, ticker: str, data_type: str | DataType, **kwargs: object) -> DataResult:
+        return self._result
+
+
 class _StubDataLayer:
-    def __init__(self, providers: list[DataProvider]) -> None:
+    def __init__(self, providers: list[DataProvider], *, rate_limited: bool = False) -> None:
         self._providers = providers
+        self._rate_limited = rate_limited
 
     async def fetch(self, data_type: DataType | str, ticker: str, **kwargs: object) -> DataResult:
         for p in self._providers:
@@ -88,16 +109,25 @@ class _StubDataLayer:
                 return await p.fetch(ticker, data_type, **kwargs)
         raise ProviderError(f"no provider for {data_type}")
 
+    def provider_status(self) -> list[tuple[str, bool, ProviderState]]:
+        # Mirrors DataLayer.provider_status(): the route reads each sentiment
+        # provider's ``last_rate_limited`` off the breaker to tell a 429 throttle
+        # (transient → auto-retry) apart from a generic provider failure.
+        return [
+            (p.name, True, ProviderState(last_rate_limited=self._rate_limited))
+            for p in self._providers
+        ]
+
 
 class _StubDeps(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     data_layer: _StubDataLayer
 
 
-def _app(providers: list[DataProvider]) -> FastAPI:
+def _app(providers: list[DataProvider], *, rate_limited: bool = False) -> FastAPI:
     app = FastAPI()
     app.include_router(router)
-    app.state.deps = _StubDeps(data_layer=_StubDataLayer(providers))
+    app.state.deps = _StubDeps(data_layer=_StubDataLayer(providers, rate_limited=rate_limited))
     return app
 
 
@@ -201,16 +231,126 @@ async def test_sentiment_returns_unavailable_when_provider_missing() -> None:
 
 @pytest.mark.asyncio
 async def test_sentiment_returns_unavailable_when_provider_raises() -> None:
-    app = _app([_AdanosLike(raise_for="rate limited by adanos")])
+    # A GENERIC provider failure (not a throttle) → 'provider_error' so the UI
+    # shows a retry, not the misleading "not configured" CTA (the reported bug).
+    app = _app([_AdanosLike(raise_for="adanos upstream connection reset")])
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
         r = await client.get("/api/sentiment/NVDA")
     assert r.status_code == 200
     body = r.json()
     assert body["available"] is False
-    # Key IS configured but the call failed → 'provider_error' so the UI shows a
-    # retry, not the misleading "not configured" CTA (the reported bug).
     assert body["reason"] == "provider_error"
     assert any("调用失败" in w for w in body["warnings"])
+
+
+@pytest.mark.asyncio
+async def test_sentiment_provider_raises_rate_limit_maps_to_rate_limited() -> None:
+    # A provider error that IS a 429 throttle must classify as 'rate_limited' —
+    # distinct from a generic outage so the UI can say "rate-limited, retrying"
+    # instead of fabricating "Upstream returned 5xx".
+    app = _app([_AdanosLike(raise_for="Adanos rate limited (HTTP 429)")])
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/sentiment/MU")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is False
+    assert body["reason"] == "rate_limited"
+
+
+@pytest.mark.asyncio
+async def test_sentiment_no_data_with_rate_limited_breaker_maps_to_rate_limited() -> None:
+    # The common live path: all platforms 429 with no cache → DataLayer returns a
+    # no-data sentinel (it does NOT re-raise) and the breaker recorded the
+    # rate-limit. The route reads ``last_rate_limited`` off provider_status() and
+    # classifies 'rate_limited' — the accurate signal behind the "5xx" copy bug.
+    err = DataResult(
+        data={"error": "Data unavailable (MU / sentiment): all data sources failed"},
+        provider="none",
+        ticker="MU",
+        data_type=DataType.SENTIMENT,
+        timestamp=NOW,
+        warnings=["Adanos rate limited on all platforms"],
+    )
+    app = _app([_RawResultProvider(err)], rate_limited=True)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/sentiment/MU")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is False
+    assert body["reason"] == "rate_limited"
+
+
+def test_reason_literal_is_exhaustive() -> None:
+    # T8 #1/#2: the frontend whitelist (SentimentCard reason switch + v5.ts union)
+    # must mirror this set exactly — a new backend reason with no frontend case is
+    # a silently dead UI state. Pin the contract here so adding/removing a reason
+    # fails this test until both sides move together.
+    from typing import get_args, get_type_hints
+
+    from finrobot.routes.sentiment import SentimentSnapshot
+
+    reason_field = get_type_hints(SentimentSnapshot)["reason"]
+    literal = get_args(reason_field)[0]  # Optional[Literal[...]] → Literal[...]
+    assert set(get_args(literal)) == {"unconfigured", "provider_error", "rate_limited"}
+
+
+@pytest.mark.asyncio
+async def test_sentiment_no_data_error_result_maps_to_provider_error() -> None:
+    # When every Adanos platform 429s and there's no cache, the real DataLayer
+    # returns a no-data DataResult (provider='none', data={'error': ...}) rather
+    # than raising. The route must classify this as a transient failure
+    # (reason='provider_error' → retry affordance), NOT render available=True
+    # with a null coverage, and NOT send a configured user to the settings CTA.
+    err = DataResult(
+        data={"error": "Data unavailable (MU / sentiment): all data sources failed"},
+        provider="none",
+        ticker="MU",
+        data_type=DataType.SENTIMENT,
+        timestamp=NOW,
+        warnings=["Adanos rate limited on all platforms"],
+    )
+    app = _app([_RawResultProvider(err)])
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/sentiment/MU")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is False
+    assert body["reason"] == "provider_error"
+    assert body["coverage"] is None
+    assert body["warnings"]  # carries the underlying failure text
+
+
+@pytest.mark.asyncio
+async def test_sentiment_stale_cache_fallback_renders_available_with_warning() -> None:
+    # When Adanos 429s but the DataLayer has last-known-good sentiment, it serves
+    # the stale snapshot (real numbers) plus a 'retry later' warning. The route
+    # must render it as available=True with those numbers — the graceful degrade,
+    # not a blanked panel.
+    stale = DataResult(
+        data={
+            "ticker": "MU",
+            "coverage": "3/3",
+            "bullish_avg": 61.0,
+            "average_buzz": 88.0,
+            "source_alignment": "aligned",
+            "sources": [],
+        },
+        provider="adanos",
+        ticker="MU",
+        data_type=DataType.SENTIMENT,
+        timestamp=NOW,
+        warnings=["All data sources failed; showing cached data from 1h ago. Retry later."],
+        from_stale_cache=True,
+    )
+    app = _app([_RawResultProvider(stale)])
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/sentiment/MU")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is True
+    assert body["bullish_pct"] == 61.0
+    assert body["coverage"] == "3/3"
+    assert any("Retry later" in w for w in body["warnings"])
 
 
 @pytest.mark.asyncio

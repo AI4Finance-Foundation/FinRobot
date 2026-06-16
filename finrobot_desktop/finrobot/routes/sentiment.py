@@ -18,7 +18,7 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from starlette.requests import Request
 
-from finrobot.engine.data.interface import ProviderError
+from finrobot.engine.data.interface import ProviderError, is_rate_limit_error
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.providers.adanos_provider import AlignmentToken
 from finrobot.engine.data.ticker import validate_ticker
@@ -51,14 +51,18 @@ class SentimentSnapshot(BaseModel):
             "platform requests failed — UI shows '未配置 Adanos · [跳设置 →]'."
         )
     )
-    reason: Literal["unconfigured", "provider_error"] | None = Field(
+    reason: Literal["unconfigured", "provider_error", "rate_limited"] | None = Field(
         default=None,
         description=(
             "Why `available` is False, so the UI never mislabels a transient hiccup "
             "as a missing API key:\n"
             "  • 'unconfigured' — no Adanos key registered → show the 'add key' CTA.\n"
-            "  • 'provider_error' — key IS configured but the call failed → show a "
-            "retry affordance, NOT the config CTA.\n"
+            "  • 'rate_limited' — upstream throttled us (HTTP 429); transient and "
+            "self-healing → show a soft 'rate-limited, auto-retrying' notice, NOT a "
+            "red outage error (and NEVER a fabricated '5xx': the call never reached "
+            "a 5xx, it was throttled).\n"
+            "  • 'provider_error' — key IS configured but the call genuinely failed "
+            "(non-429 outage) → show a retry affordance, NOT the config CTA.\n"
             "  • None — the snapshot is available (or success)."
         ),
     )
@@ -113,15 +117,62 @@ async def get_sentiment(
         result = await data_layer.fetch(DataType.SENTIMENT, ticker, days_back=days)
     except (ProviderError, ValueError, KeyError) as exc:
         logger.info("sentiment fetch failed for %s: %s", ticker, exc)
+        reason: Literal["rate_limited", "provider_error"] = (
+            "rate_limited" if is_rate_limit_error(exc) else "provider_error"
+        )
         return SentimentSnapshot(
             ticker=ticker,
             days=days,
             available=False,
-            reason="provider_error",
+            reason=reason,
             warnings=[f"adanos 调用失败 — {exc}"],
         )
 
+    # DataLayer doesn't re-raise on total provider failure: when every Adanos
+    # platform fails (e.g. all-429) and no cache exists, it returns a no-data
+    # sentinel DataResult (data={"error": ...}, provider="none"). That's a
+    # transient failure, not a missing key — never available=True with a null
+    # coverage and never the "configure Adanos" CTA. Classify throttle (429,
+    # self-healing) vs genuine outage so the UI shows the right state: the old
+    # generic 'provider_error' made the card fabricate "Upstream returned 5xx"
+    # for what was actually a rate-limit. A stale-cache fallback (real numbers +
+    # retry warning) carries no "error" key and flows through to _to_snapshot as
+    # the graceful degrade.
+    if isinstance(result.data, dict) and result.data.get("error"):
+        logger.info("sentiment unavailable for %s: %s", ticker, result.data["error"])
+        return SentimentSnapshot(
+            ticker=ticker,
+            days=days,
+            available=False,
+            reason=_sentiment_failure_reason(data_layer),
+            warnings=list(result.warnings) or [f"adanos 调用失败 — {result.data['error']}"],
+        )
+
     return _to_snapshot(ticker, days, result.data, list(result.warnings))
+
+
+def _sentiment_failure_reason(
+    data_layer: DataLayer,
+) -> Literal["rate_limited", "provider_error"]:
+    """Classify a sentiment no-data result: upstream rate-limit (429, transient →
+    UI can auto-retry) vs a genuine provider failure.
+
+    DataLayer collapses the typed ``RateLimitedProviderError`` into a generic
+    no-data sentinel, so the 429-ness is gone by the time we get here — but the
+    circuit breaker recorded it (``record_failure(rate_limited=…)``). Read it back
+    off ``provider_status()`` for the sentiment-capable provider(s). Worst case
+    (a concurrent success resets the flag) we fall back to 'provider_error', which
+    is still an honest retry state — never a fabricated 5xx.
+    """
+    sentiment_providers = {
+        p.name
+        for p in data_layer._providers  # noqa: SLF001 — only sane way to introspect caps
+        if DataType.SENTIMENT in p.capabilities()
+    }
+    for name, _available, state in data_layer.provider_status():
+        if name in sentiment_providers and state.last_rate_limited:
+            return "rate_limited"
+    return "provider_error"
 
 
 def _data_layer(request: Request) -> DataLayer | None:

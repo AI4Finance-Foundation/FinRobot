@@ -2569,6 +2569,18 @@ msgid "workspace.market.dataUnavailableHint"
 msgstr "上游返回 {status} · 点击重试"
 
 #. js-lingui-explicit-id
+msgid "workspace.market.dataUnavailableHintNoStatus"
+msgstr "数据源暂时不可用 · 点击重试"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentRateLimited"
+msgstr "散户情绪源被限流"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentRateLimitedHint"
+msgstr "上游限流(HTTP 429)· 稍后自动重试"
+
+#. js-lingui-explicit-id
 msgid "workspace.market.retry"
 msgstr "重试"
 

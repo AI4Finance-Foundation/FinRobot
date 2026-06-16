@@ -39,5 +39,10 @@ export function useTickerSentiment(ticker: string, days = 7) {
     staleTime: 5 * 60_000,
     refetchOnMount: false,
     retry: 1,
+    // When the upstream is rate-limiting us (429), the backend's circuit breaker
+    // cools down on its own — so poll (a touch above the 60s base cooldown) to
+    // pick the data back up automatically once it clears. Makes the card's
+    // "auto-retrying" copy truthful; any other state polls never.
+    refetchInterval: (query) => (query.state.data?.reason === 'rate_limited' ? 90_000 : false),
   })
 }

@@ -5,6 +5,7 @@
 import { Chapter } from './ChapterBase'
 import { formatDate } from '../../../utils/format'
 import { useI18n } from '../../../i18n'
+import { FOUNDATION_NAME, SITE_LABEL } from '../../../config/links'
 
 interface ChapterDisclaimerProps {
   artifactId: string
@@ -99,6 +100,17 @@ export function ChapterDisclaimer({
               {isEn ? 'GENERATED' : '生成时间'} {formatDate(createdAt, locale, 'datetime')}
             </>
           )}
+        </p>
+        <p
+          style={{
+            marginTop: 10,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10.5,
+            letterSpacing: 0.2,
+            color: 'var(--text-muted)',
+          }}
+        >
+          {isEn ? 'Copyright' : '版权所有'} © {FOUNDATION_NAME} · {SITE_LABEL}
         </p>
       </div>
     </Chapter>

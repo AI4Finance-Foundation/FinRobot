@@ -17,7 +17,7 @@ import type { CSSProperties } from 'react'
 import { Chapter, Narrative, SubChapter } from './ChapterBase'
 import type { CatalystAnalysisShape, CatalystEventShape, ThesisShape } from './types'
 import { useI18n, type Locale } from '../../../i18n'
-import { formatDate } from '../../../utils/format'
+import { formatSourceDate } from '../../../utils/format'
 import { ImpactMeter } from '../../../components/ImpactMeter'
 
 interface ChapterNewsProps {
@@ -137,7 +137,7 @@ function FeedRow({
         }}
       >
         <SourceChip name={src.name} url={event.url ?? null} t={t} />
-        {event.published && <span>{formatDate(event.published, locale)}</span>}
+        {event.published && <span>{formatSourceDate(event.published, locale)}</span>}
         <CategoryChip category={event.category} />
         <ImpactMeter score={event.impact_score} />
       </div>

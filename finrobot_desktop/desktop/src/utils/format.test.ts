@@ -3,6 +3,7 @@ import {
   formatAge,
   formatCurrencyCompact,
   formatDate,
+  formatSourceDate,
   freshnessColor,
   freshnessTier,
   FRESHNESS_WARN_SECONDS,
@@ -157,5 +158,38 @@ describe('formatDate — date-only strings are TZ-safe (western-hemisphere off-b
     // UTC 06:20 = 14:20 in Shanghai.
     expect(formatDate('2026-06-11T06:20:00Z', 'zh', 'time')).toBe('14:20')
     expect(formatDate('2026-06-11T06:20:00Z', 'en', 'time')).toBe('2:20 PM')
+  })
+})
+
+describe('formatSourceDate — UTC calendar day, TZ-stable (source-reported dates)', () => {
+  const proc = (globalThis as unknown as { process: { env: Record<string, string | undefined> } })
+    .process
+  const originalTZ = proc.env.TZ
+  afterEach(() => {
+    if (originalTZ === undefined) delete proc.env.TZ
+    else proc.env.TZ = originalTZ
+  })
+
+  it('renders the source UTC day regardless of viewer timezone (the +1-day bug)', () => {
+    // 16:20Z = next local day east of UTC; formatDate would roll it forward.
+    // formatSourceDate must show the SOURCE day (06-11) in BOTH zones.
+    proc.env.TZ = 'Asia/Shanghai'
+    expect(formatSourceDate('2026-06-11T16:20:00Z', 'en')).toBe('2026-06-11')
+    proc.env.TZ = 'America/New_York'
+    expect(formatSourceDate('2026-06-11T16:20:00Z', 'en')).toBe('2026-06-11')
+    // Contrast: plain formatDate DOES shift east of UTC (instant semantics).
+    proc.env.TZ = 'Asia/Shanghai'
+    expect(formatDate('2026-06-11T16:20:00Z', 'en', 'short')).toBe('2026-06-12')
+  })
+
+  it('passes a bare date-only string through unshifted', () => {
+    proc.env.TZ = 'America/New_York'
+    expect(formatSourceDate('2026-03-31', 'en')).toBe('2026-03-31')
+  })
+
+  it('returns the em-dash for null/undefined/invalid', () => {
+    expect(formatSourceDate(null, 'en')).toBe('—')
+    expect(formatSourceDate(undefined, 'en')).toBe('—')
+    expect(formatSourceDate('not-a-date', 'en')).toBe('—')
   })
 })

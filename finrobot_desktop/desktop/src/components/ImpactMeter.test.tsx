@@ -49,6 +49,14 @@ describe('ImpactMeter', () => {
     expect(filledCount()).toBe(0)
   })
 
+  it('renders 0 lit segments (never "NaN") for a non-finite score', () => {
+    const { rerender } = render(<ImpactMeter score={NaN} />)
+    expect(filledCount()).toBe(0)
+    expect(screen.getByTestId('impact-meter').getAttribute('title')).toBe('Impact 0/5')
+    rerender(<ImpactMeter score={Infinity} />)
+    expect(filledCount()).toBe(0)
+  })
+
   it('exposes an impact tooltip with the clamped score', () => {
     render(<ImpactMeter score={4} />)
     // EN catalog: "Impact {score}/5"

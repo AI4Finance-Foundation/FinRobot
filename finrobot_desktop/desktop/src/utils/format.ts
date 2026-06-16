@@ -253,6 +253,34 @@ export function formatDate(
   }).format(date)
 }
 
+/**
+ * Render the UTC calendar day of an instant ("2026-06-11" from
+ * "2026-06-11T16:20:00Z"), timezone-STABLE. A source-reported timestamp (a news
+ * `published`, a filing instant) names a publication DAY; passing the full ISO
+ * to formatDate('short') renders it with the viewer's LOCAL getters, so an
+ * evening-UTC instant rolls to the next day east of UTC (UTC+8 turned
+ * 06-11T16:20Z into "2026-06-12" — a rendered-vs-source mismatch on a
+ * traceability surface). Use this for any source date that must match what the
+ * source reported regardless of viewer timezone. Date-only "YYYY-MM-DD" inputs
+ * already round-trip via parseDateInput, so this also handles them (their UTC
+ * getters off a real Date would mis-shift — we detect and pass them through).
+ */
+export function formatSourceDate(
+  d: string | number | Date | null | undefined,
+  _locale: Locale,
+): string {
+  if (d === null || d === undefined) return '—'
+  // A bare date-only string is already a calendar day with no instant — keep it
+  // verbatim (UTC getters on its local-midnight Date would shift it backwards).
+  if (typeof d === 'string' && DATE_ONLY_RE.test(d)) return d
+  const dt = d instanceof Date ? d : new Date(d)
+  if (Number.isNaN(dt.getTime())) return '—'
+  const y = dt.getUTCFullYear()
+  const m = String(dt.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(dt.getUTCDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 /** Stale 阈值常量（秒）。> WARN 视为 delayed；> DANGER 视为 stale。 */
 export const FRESHNESS_WARN_SECONDS = 5 * 60 // 5min
 export const FRESHNESS_DANGER_SECONDS = 30 * 60 // 30min

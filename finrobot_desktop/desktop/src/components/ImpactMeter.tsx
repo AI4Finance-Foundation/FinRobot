@@ -14,7 +14,10 @@ interface ImpactMeterProps {
 
 export function ImpactMeter({ score }: ImpactMeterProps): React.ReactElement {
   const { t } = useI18n()
-  const filled = Math.max(0, Math.min(5, Math.round(score)))
+  // Defensive: a non-finite score (NaN/Infinity) clamps to 0 lit segments
+  // rather than leaking "NaN" into data-filled / the tooltip. impact_score is a
+  // required number in practice, but never render a fabricated/garbage count.
+  const filled = Number.isFinite(score) ? Math.max(0, Math.min(5, Math.round(score))) : 0
   const segW = 5
   const gap = 2
   const segH = 8

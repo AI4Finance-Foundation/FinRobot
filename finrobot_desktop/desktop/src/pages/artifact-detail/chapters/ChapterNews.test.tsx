@@ -4,7 +4,7 @@
 // crashing when the feed is empty or a field is null. The app renders EN by
 // default (defaultLocale), so the assertions use the EN catalog strings.
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 
 import { ChapterNews } from './ChapterNews'
@@ -116,5 +116,28 @@ describe('ChapterNews sourced feed', () => {
     expect(
       screen.getByText(/No sourced events were captured/i, { exact: false }),
     ).toBeInTheDocument()
+  })
+})
+
+// Regression: a full-ISO `published` instant must display its SOURCE (UTC)
+// calendar day, not the viewer's local day. Pre-fix, formatDate('short') used
+// local getters, rolling an evening-UTC instant forward east of UTC (the moat is
+// "the date matches what the source reported"). Locks the formatSourceDate wiring.
+describe('ChapterNews source-date is timezone-stable', () => {
+  const proc = (globalThis as unknown as { process: { env: Record<string, string | undefined> } })
+    .process
+  const originalTZ = proc.env.TZ
+  afterEach(() => {
+    if (originalTZ === undefined) delete proc.env.TZ
+    else proc.env.TZ = originalTZ
+  })
+
+  it('shows the UTC source day for an evening-UTC instant in a UTC+8 viewer', () => {
+    proc.env.TZ = 'Asia/Shanghai'
+    const cat = catalysts([ev({ headline: 'Evening UTC', published: '2026-06-11T16:20:00Z' })])
+    render(<ChapterNews thesis={null} catalysts={cat} />)
+    const row = screen.getByTestId('news-feed-row')
+    expect(within(row).getByText('2026-06-11')).toBeInTheDocument()
+    expect(within(row).queryByText('2026-06-12')).toBeNull()
   })
 })

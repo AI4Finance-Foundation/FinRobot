@@ -183,6 +183,9 @@ export function CoverageHero(): React.ReactElement {
           justifyContent: 'center',
           gap: 12,
           padding: '12px 24px 0',
+          // Nudge the whole cockpit up a touch so the search console sits a bit
+          // higher and the autocomplete dropdown has more room to open below it.
+          transform: 'translateY(-80px)',
         }}
       >
         <div className="cockpit-eyebrow">{t('landing.hero.cockpitLabel')}</div>

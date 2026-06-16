@@ -1861,34 +1861,6 @@ msgid "report.rightRail.timeline"
 msgstr "版本时间线"
 
 #. js-lingui-explicit-id
-msgid "report.rightRail.whatif"
-msgstr "What-if 编辑器"
-
-#. js-lingui-explicit-id
-msgid "report.rightRail.resetTitle"
-msgstr "重置到研报原始假设"
-
-#. js-lingui-explicit-id
-msgid "report.rightRail.reset"
-msgstr "重置"
-
-#. js-lingui-explicit-id
-msgid "report.rightRail.terminalGrowth"
-msgstr "永续增长率"
-
-#. js-lingui-explicit-id
-msgid "report.rightRail.revenueGrowthScale"
-msgstr "营收增速调整"
-
-#. js-lingui-explicit-id
-msgid "report.rightRail.recomputeError"
-msgstr "重算失败 · 检查参数范围"
-
-#. js-lingui-explicit-id
-msgid "report.rightRail.computing"
-msgstr "计算中…"
-
-#. js-lingui-explicit-id
 msgid "chapter.financial.subheading.eps"
 msgstr "每股收益（EPS）趋势"
 
@@ -3779,6 +3751,14 @@ msgstr "确定性计算 + LLM 叙事 · 数字皆可回溯"
 #. js-lingui-explicit-id
 msgid "landing.hero.popular"
 msgstr "热门"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.suggestionsLabel"
+msgstr "搜索建议"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.suggestionsAria"
+msgstr "股票代码建议"
 
 #. js-lingui-explicit-id
 msgid "landing.dock.research.name"

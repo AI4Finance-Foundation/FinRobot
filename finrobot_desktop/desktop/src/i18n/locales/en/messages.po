@@ -1861,34 +1861,6 @@ msgid "report.rightRail.timeline"
 msgstr "Version Timeline"
 
 #. js-lingui-explicit-id
-msgid "report.rightRail.whatif"
-msgstr "What-if Editor"
-
-#. js-lingui-explicit-id
-msgid "report.rightRail.resetTitle"
-msgstr "Reset to the report's original assumptions"
-
-#. js-lingui-explicit-id
-msgid "report.rightRail.reset"
-msgstr "Reset"
-
-#. js-lingui-explicit-id
-msgid "report.rightRail.terminalGrowth"
-msgstr "Terminal Growth"
-
-#. js-lingui-explicit-id
-msgid "report.rightRail.revenueGrowthScale"
-msgstr "Revenue Growth Scale"
-
-#. js-lingui-explicit-id
-msgid "report.rightRail.recomputeError"
-msgstr "Recompute failed · check parameter ranges"
-
-#. js-lingui-explicit-id
-msgid "report.rightRail.computing"
-msgstr "computing…"
-
-#. js-lingui-explicit-id
 msgid "chapter.financial.subheading.eps"
 msgstr "Earnings per Share (EPS) Trend"
 
@@ -3779,6 +3751,14 @@ msgstr "Deterministic compute + LLM narrative · every number traces back"
 #. js-lingui-explicit-id
 msgid "landing.hero.popular"
 msgstr "Popular"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.suggestionsLabel"
+msgstr "Suggestions"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.suggestionsAria"
+msgstr "Ticker suggestions"
 
 #. js-lingui-explicit-id
 msgid "landing.dock.research.name"

@@ -13,11 +13,15 @@
 // and no avatar — those were dropped per the design and because a liveness
 // claim would be dishonest (the assistant is on-demand).
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SplineHero } from '../SplineHero'
+import { TickerSuggestions } from './TickerSuggestions'
+import { useTickerSearch } from '../../hooks/useTickerSearch'
 import { isValidTicker, sanitizeTickerInput } from '../../utils/ticker'
 import { useI18n, tSync } from '../../i18n'
+
+const SUGGESTIONS_ID = 'ticker-suggestions-list'
 
 const HOT_TICKERS = ['AAPL', 'MSFT', 'NVDA', 'TSLA', 'AMD']
 
@@ -85,15 +89,40 @@ export function CoverageHero(): React.ReactElement {
   const [inputValue, setInputValue] = useState('')
   const [inputError, setInputError] = useState('')
   const [focused, setFocused] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const [dismissed, setDismissed] = useState(false)
+
+  const results = useTickerSearch(inputValue)
+  const hasInput = inputValue.trim().length > 0
+  const open = focused && hasInput && !dismissed && results.length > 0
+
+  // A fresh result set clears any prior highlight, so Enter submits the typed
+  // ticker (even an ETF not in the index) unless the user arrows/hovers onto a
+  // suggestion — suggestions augment, they never hijack a deliberate Enter.
+  useEffect(() => {
+    setActiveIndex(-1)
+  }, [results])
 
   const handleInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(sanitizeTickerInput(e.target.value))
     setInputError('')
+    setDismissed(false)
   }, [])
+
+  const selectSuggestion = useCallback(
+    (symbol: string) => {
+      navigate(`/stocks/${symbol}`)
+    },
+    [navigate],
+  )
 
   const handleSubmit = useCallback(
     (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault()
+      if (open && activeIndex >= 0 && results[activeIndex]) {
+        selectSuggestion(results[activeIndex].symbol)
+        return
+      }
       const sym = inputValue.trim().toUpperCase()
       if (!sym) return
       if (!isValidTicker(sym)) {
@@ -102,10 +131,27 @@ export function CoverageHero(): React.ReactElement {
       }
       navigate(`/stocks/${sym}`)
     },
-    [inputValue, navigate],
+    [open, activeIndex, results, selectSuggestion, inputValue, navigate],
   )
 
-  const hasInput = inputValue.trim().length > 0
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Escape') {
+        setDismissed(true)
+        setActiveIndex(-1)
+        return
+      }
+      if (!open) return
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setActiveIndex((i) => Math.min(i + 1, results.length - 1))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setActiveIndex((i) => (i <= 0 ? -1 : i - 1))
+      }
+    },
+    [open, results.length],
+  )
 
   return (
     <section
@@ -217,74 +263,94 @@ export function CoverageHero(): React.ReactElement {
 
             {/* Ticker input — the one action (no console-hint line above it). */}
             <form onSubmit={handleSubmit} style={{ width: '100%' }}>
-              <div className={`halo-input${focused ? ' focused' : ''}`} style={{ padding: 1 }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 14,
-                    minHeight: 72,
-                    padding: '12px 14px 12px 20px',
-                    background: 'var(--bg-input)',
-                    borderRadius: 'var(--radius-md)',
-                    boxShadow: 'var(--glow-blue)',
-                  }}
-                >
-                  <span
+              <div style={{ position: 'relative', width: '100%' }}>
+                <div className={`halo-input${focused ? ' focused' : ''}`} style={{ padding: 1 }}>
+                  <div
                     style={{
-                      color: 'var(--accent-cyan)',
-                      fontFamily: 'var(--font-mono)',
-                      fontSize: 16,
-                      fontWeight: 600,
-                      textShadow: 'var(--glow-cyan)',
-                      flexShrink: 0,
-                    }}
-                    aria-hidden
-                  >
-                    {'▸ TICKER'}
-                  </span>
-                  <input
-                    type="text"
-                    value={inputValue}
-                    onChange={handleInput}
-                    onFocus={() => setFocused(true)}
-                    onBlur={() => setFocused(false)}
-                    placeholder={t('landing.hero.searchPlaceholder')}
-                    maxLength={12}
-                    spellCheck={false}
-                    aria-label={t('landing.hero.tickerAria')}
-                    aria-describedby={inputError ? 'coverage-hero-ticker-error' : undefined}
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      fontSize: 22,
-                      fontFamily: 'var(--font-mono)',
-                      fontWeight: 700,
-                      background: 'transparent',
-                      color: 'var(--text-primary)',
-                      border: 'none',
-                      outline: 'none',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.1em',
-                    }}
-                  />
-                  <button
-                    type="submit"
-                    disabled={!hasInput}
-                    aria-label={t('landing.hero.analyze')}
-                    className="btn-shimmer"
-                    style={{
-                      flexShrink: 0,
-                      minWidth: 116,
-                      padding: '13px 22px',
-                      fontSize: 12,
-                      opacity: hasInput ? 1 : 0.4,
-                      cursor: hasInput ? 'pointer' : 'not-allowed',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 14,
+                      minHeight: 72,
+                      padding: '12px 14px 12px 20px',
+                      background: 'var(--bg-input)',
+                      borderRadius: 'var(--radius-md)',
+                      boxShadow: 'var(--glow-blue)',
                     }}
                   >
-                    {t('landing.hero.analyze')}
-                  </button>
+                    <span
+                      style={{
+                        color: 'var(--accent-cyan)',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 16,
+                        fontWeight: 600,
+                        textShadow: 'var(--glow-cyan)',
+                        flexShrink: 0,
+                      }}
+                      aria-hidden
+                    >
+                      {'▸ TICKER'}
+                    </span>
+                    <input
+                      type="text"
+                      value={inputValue}
+                      onChange={handleInput}
+                      onFocus={() => setFocused(true)}
+                      onBlur={() => setFocused(false)}
+                      onKeyDown={handleKeyDown}
+                      role="combobox"
+                      aria-expanded={open}
+                      aria-controls={SUGGESTIONS_ID}
+                      aria-autocomplete="list"
+                      aria-activedescendant={
+                        open && activeIndex >= 0 ? `ticker-opt-${activeIndex}` : undefined
+                      }
+                      placeholder={t('landing.hero.searchPlaceholder')}
+                      maxLength={12}
+                      spellCheck={false}
+                      aria-label={t('landing.hero.tickerAria')}
+                      aria-describedby={inputError ? 'coverage-hero-ticker-error' : undefined}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        fontSize: 22,
+                        fontFamily: 'var(--font-mono)',
+                        fontWeight: 700,
+                        background: 'transparent',
+                        color: 'var(--text-primary)',
+                        border: 'none',
+                        outline: 'none',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.1em',
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!hasInput}
+                      aria-label={t('landing.hero.analyze')}
+                      className="btn-shimmer"
+                      style={{
+                        flexShrink: 0,
+                        minWidth: 116,
+                        padding: '13px 22px',
+                        fontSize: 12,
+                        opacity: hasInput ? 1 : 0.4,
+                        cursor: hasInput ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      {t('landing.hero.analyze')}
+                    </button>
+                  </div>
                 </div>
+                {open && (
+                  <TickerSuggestions
+                    results={results}
+                    activeIndex={activeIndex}
+                    query={inputValue}
+                    labelId={SUGGESTIONS_ID}
+                    onSelect={selectSuggestion}
+                    onHover={setActiveIndex}
+                  />
+                )}
               </div>
 
               {inputError && (

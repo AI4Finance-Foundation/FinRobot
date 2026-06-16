@@ -839,6 +839,17 @@ class CatalystEvent(BaseModel):
     reasoning: str
     published: datetime | None = None
     url: str | None = None
+    source_count: int = Field(
+        default=1,
+        ge=1,
+        description=(
+            "How many near-duplicate news items collapsed into this one event "
+            "after cluster_near_duplicates (1 = no dedup applied / singleton). "
+            "The same regulatory lawsuit covered by 4 different law-firm press "
+            "releases is ONE catalyst with source_count=4, not 4 events double-"
+            "counted in net_sentiment / total_catalysts."
+        ),
+    )
 
 
 class CatalystAnalysis(BaseModel):

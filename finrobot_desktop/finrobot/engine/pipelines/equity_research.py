@@ -27,6 +27,7 @@ from finrobot.engine.models.financial import (
 from finrobot.engine.models.reconcile_tolerances import NARRATIVE_DRIFT_TOLERANCE
 from finrobot.engine.compute.operators.catalyst import (
     extract_catalysts_from_news,
+    cluster_near_duplicates,
     filter_fresh_news,
     compute_expected_impact,
     summarize_catalyst_outlook,
@@ -330,6 +331,12 @@ async def _execute_catalyst_analysis(
         ]
         for event in material_8ks[:_MAX_8K_CATALYSTS]:
             catalysts.append(_sec_8k_to_catalyst(event))
+    # Collapse near-duplicate coverage (one lawsuit across multiple law-firm
+    # press releases = ONE catalyst) BEFORE scoring, so total_catalysts and
+    # net_sentiment (which divides by len) aren't inflated by the same fact
+    # repeated N times. Conservative clustering — never false-merges distinct
+    # events. Runs after the 8-K append so SEC events are deduped against news too.
+    catalysts = cluster_near_duplicates(catalysts)
     catalysts = compute_expected_impact(catalysts)
     summary = summarize_catalyst_outlook(catalysts)
 

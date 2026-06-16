@@ -6,6 +6,7 @@ from finrobot.engine.compute.operators.catalyst import (
     filter_by_impact,
     classify_catalyst_type,
     extract_catalysts_from_news,
+    cluster_near_duplicates,
     filter_fresh_news,
     compute_expected_impact,
     summarize_catalyst_outlook,
@@ -423,3 +424,216 @@ class TestFilterFreshNews:
         result, stale_count = filter_fresh_news([fresh, undated], max_age_days=30)
         assert [i.title for i in result] == ["Fresh"]
         assert stale_count == 1
+
+
+def _cat_event(
+    headline: str,
+    category: str = "regulatory",
+    sentiment: str = "negative",
+    impact_score: int = 4,
+    probability: float = 0.7,
+    days_ago: int = 0,
+    url: str | None = None,
+) -> CatalystEvent:
+    pub = datetime.now(tz=timezone.utc) - timedelta(days=days_ago)
+    return CatalystEvent(
+        category=category,  # type: ignore[arg-type]  # narrow Literal in test helper
+        headline=headline,
+        sentiment=sentiment,  # type: ignore[arg-type]
+        impact_score=impact_score,
+        probability=probability,
+        reasoning=headline,
+        published=pub,
+        url=url,
+    )
+
+
+class TestClusterNearDuplicates:
+    def test_msft_same_lawsuit_four_law_firms_merge_to_one(self):
+        """POSITIVE case: one antitrust suit covered by 4 different law-firm press
+        releases — different headlines, SAME entity (one ticker)/category, within
+        the 3-day window — must collapse to ONE catalyst with source_count == 4.
+        Headlines share the company + action nouns, so token Jaccard clears 0.6."""
+        events = [
+            _cat_event(
+                "Microsoft hit with shareholder antitrust lawsuit over Activision deal",
+                days_ago=0,
+                url="https://lawfirm-a.com/microsoft-antitrust",
+            ),
+            _cat_event(
+                "Microsoft faces shareholder antitrust lawsuit over Activision deal",
+                days_ago=1,
+                url="https://lawfirm-b.com/microsoft-antitrust",
+            ),
+            _cat_event(
+                "Shareholder antitrust lawsuit filed against Microsoft over Activision deal",
+                days_ago=1,
+                url="https://lawfirm-c.com/msft-suit",
+            ),
+            _cat_event(
+                "Microsoft shareholder antitrust lawsuit over Activision deal advances",
+                days_ago=2,
+                url="https://lawfirm-d.com/msft-antitrust",
+            ),
+        ]
+        clustered = cluster_near_duplicates(events)
+        assert len(clustered) == 1
+        assert clustered[0].source_count == 4
+
+    def test_distinct_events_never_false_merge(self):
+        """NEGATIVE case (the hard门): three GENUINELY distinct same-ticker events
+        — earnings beat, product launch, regulatory suit — must stay 3 separate
+        catalysts. Different categories alone block merging; even if they shared a
+        window they describe different facts. false-merge == 0 is the cardinal rule."""
+        events = [
+            _cat_event(
+                "Microsoft posts record Q4 earnings beat on cloud strength",
+                category="earnings",
+                sentiment="positive",
+                days_ago=0,
+            ),
+            _cat_event(
+                "Microsoft launches new Surface Pro and Copilot+ PCs",
+                category="product_launch",
+                sentiment="positive",
+                days_ago=1,
+            ),
+            _cat_event(
+                "Microsoft faces shareholder antitrust lawsuit over Activision deal",
+                category="regulatory",
+                sentiment="negative",
+                days_ago=1,
+            ),
+        ]
+        clustered = cluster_near_duplicates(events)
+        assert len(clustered) == 3
+        assert all(e.source_count == 1 for e in clustered)
+
+    def test_same_category_distinct_events_not_merged(self):
+        """Even within ONE category, two DIFFERENT regulatory matters (EU antitrust
+        probe vs DOJ privacy suit) share too few title tokens (Jaccard < 0.6) and
+        different domains — must NOT merge despite same category + window."""
+        events = [
+            _cat_event(
+                "Microsoft faces EU antitrust probe over Teams bundling",
+                category="regulatory",
+                days_ago=0,
+                url="https://reuters.com/eu-teams",
+            ),
+            _cat_event(
+                "Microsoft sued by DOJ over consumer data privacy violations",
+                category="regulatory",
+                days_ago=1,
+                url="https://bloomberg.com/doj-privacy",
+            ),
+        ]
+        clustered = cluster_near_duplicates(events)
+        assert len(clustered) == 2
+
+    def test_net_sentiment_not_amplified_by_duplicate_coverage(self):
+        """Before/after contrast: the SAME negative event repeated by N sources
+        must not drag net_sentiment N times harder than a single offsetting
+        positive event. With dedup, one positive + one (deduped) negative of equal
+        magnitude net to ~0; without dedup the 4× negative coverage would swamp it."""
+        # One positive earnings event.
+        positive = _cat_event(
+            "Microsoft posts record Q4 earnings beat",
+            category="earnings",
+            sentiment="positive",
+            impact_score=4,
+            probability=0.7,
+            days_ago=0,
+        )
+        # Same negative lawsuit reported 4× (equal magnitude to the positive).
+        negatives = [
+            _cat_event(
+                "Microsoft hit with shareholder antitrust lawsuit over Activision deal",
+                category="regulatory",
+                sentiment="negative",
+                impact_score=4,
+                probability=0.7,
+                days_ago=i,
+                url=f"https://lawfirm-{i}.com/msft-antitrust",
+            )
+            for i in range(4)
+        ]
+        raw_events = [positive, *negatives]
+
+        # WITHOUT dedup: 1 positive vs 4 identical negatives → net pulled negative.
+        raw_net = summarize_catalyst_outlook(raw_events)["net_sentiment"]
+        assert raw_net < 0, f"sanity: undeduped net should skew negative, got {raw_net}"
+
+        # WITH dedup: negatives collapse to ONE event → 1 pos + 1 neg of equal
+        # magnitude net to ~0 (not dragged 4× negative).
+        deduped = cluster_near_duplicates(raw_events)
+        assert len(deduped) == 2  # positive + one representative negative
+        deduped_net = summarize_catalyst_outlook(deduped)["net_sentiment"]
+        assert abs(deduped_net) < 1e-9, f"deduped net should be ~0, got {deduped_net}"
+        # And the deduped magnitude is strictly less negative than the inflated one.
+        assert deduped_net > raw_net
+
+    def test_undated_events_never_merge(self):
+        """An event with no publish date cannot prove temporal proximity, so it is
+        never merged even with an otherwise-identical headline (false-merge guard)."""
+        a = _cat_event("Microsoft antitrust lawsuit over Activision deal")
+        a = a.model_copy(update={"published": None})
+        b = _cat_event("Microsoft antitrust lawsuit over Activision deal")
+        b = b.model_copy(update={"published": None})
+        clustered = cluster_near_duplicates([a, b])
+        assert len(clustered) == 2
+
+    def test_singleton_and_empty_normalize_source_count(self):
+        assert cluster_near_duplicates([]) == []
+        single = cluster_near_duplicates([_cat_event("Lone event")])
+        assert len(single) == 1
+        assert single[0].source_count == 1
+
+    def test_representative_is_highest_signal(self):
+        """The kept representative is the cluster member with the highest
+        impact_score × probability, not just the first seen."""
+        weak = _cat_event(
+            "Microsoft antitrust lawsuit over Activision deal filed",
+            impact_score=3,
+            probability=0.5,
+            days_ago=0,
+            url="https://a.com/x",
+        )
+        strong = _cat_event(
+            "Microsoft antitrust lawsuit over Activision deal expands",
+            impact_score=5,
+            probability=0.9,
+            days_ago=1,
+            url="https://b.com/y",
+        )
+        clustered = cluster_near_duplicates([weak, strong])
+        assert len(clustered) == 1
+        assert clustered[0].headline == strong.headline
+        assert clustered[0].source_count == 2
+
+    def test_same_domain_same_day_clusters_low_jaccard(self):
+        """Even when titles share few tokens, same URL domain + same calendar day
+        is treated as duplicate coverage (a wire re-running the same story under a
+        reworded headline)."""
+        a = _cat_event(
+            "Regulators open formal review of acquisition",
+            category="regulatory",
+            days_ago=0,
+            url="https://wire.example.com/story1",
+        )
+        b = _cat_event(
+            "Deal scrutiny intensifies as officials weigh in",
+            category="regulatory",
+            days_ago=0,
+            url="https://wire.example.com/story2",
+        )
+        clustered = cluster_near_duplicates([a, b])
+        assert len(clustered) == 1
+        assert clustered[0].source_count == 2
+
+    def test_outside_window_not_merged(self):
+        """Identical headlines >3 days apart are distinct re-occurrences, not
+        duplicate coverage of one dated event."""
+        a = _cat_event("Microsoft antitrust lawsuit over Activision deal", days_ago=0)
+        b = _cat_event("Microsoft antitrust lawsuit over Activision deal", days_ago=10)
+        clustered = cluster_near_duplicates([a, b])
+        assert len(clustered) == 2

@@ -47,6 +47,11 @@ vi.mock('../../hooks/useHealth', () => ({
     isPlaceholderData: false,
   }),
 }))
+// AIZone now reads the live quote (TargetGauge "now" tick). Stub it so these
+// cold/running auto-advance scenarios don't need a QueryClientProvider.
+vi.mock('../../hooks/useTickerData', () => ({
+  useTickerPrice: () => ({ data: undefined }),
+}))
 vi.mock('../../stores/toastStore', () => ({ useToastStore: () => vi.fn() }))
 vi.mock('../../i18n', () => ({
   useI18n: () => ({ locale: 'en', t: (k: string) => k }),

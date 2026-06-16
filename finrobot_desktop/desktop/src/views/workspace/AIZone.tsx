@@ -10,6 +10,7 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLatestArtifact, useV5ArtifactTimeline } from '../../hooks/useV5Artifacts'
+import { useTickerPrice } from '../../hooks/useTickerData'
 import { useRunStreamStore, selectRunByTicker } from '../../stores/runStreamStore'
 import { useToastStore } from '../../stores/toastStore'
 import { useHealth } from '../../hooks/useHealth'
@@ -21,6 +22,7 @@ import { useI18n, tSync, type Locale } from '../../i18n'
 import { allChapterLabels } from '../../pages/artifact-detail/chapters/labels'
 import type { ArtifactSummaryV5 } from '../../types/v5'
 import { ArchivedPill } from '../../components/ArchivedPill'
+import { TargetGauge } from '../../components/TargetGauge'
 
 // Display label per non-research artifact type (dcf / lbo / comps / …). Kept
 // inline (not in .po) per the VersionDiffBanner precedent — these are short,
@@ -111,6 +113,14 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
   // health lands. Only a RESOLVED bad health blocks.
   const { data: healthData, isPlaceholderData: healthPlaceholder } = useHealth()
   const health = healthPlaceholder ? null : healthData
+  // Live quote for the verdict card's TargetGauge "now" tick. NOT a new fetch:
+  // StockWorkspace / TickerHero / MarketDataZone already run this exact query
+  // (key ['ticker-price', ticker]); React Query dedupes us onto their cached
+  // result. The artifact only carries entry_price (its creation-time anchor),
+  // so this is the only honest CURRENT price in scope. Degrades to entry_price
+  // when the live quote is absent (cold / provider outage).
+  const { data: priceData } = useTickerPrice(ticker)
+  const livePrice = priceData?.current_price ?? null
 
   const sameTypeTimeline = (timeline ?? []).filter((a) => a.type === 'equity_research')
   // BUG-040: all NON-equity_research artifacts (dcf / lbo / comps / earnings /
@@ -336,6 +346,7 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
           latest={latest}
           timeline={sameTypeTimeline}
           isRunning={isRunning}
+          livePrice={livePrice}
           onRerun={launchResearch}
           onOpen={(id) => navigate(`/stocks/${ticker}/runs/${id}`)}
         />
@@ -777,6 +788,7 @@ function HotState({
   latest,
   timeline,
   isRunning,
+  livePrice,
   onRerun,
   onOpen,
 }: {
@@ -784,6 +796,7 @@ function HotState({
   latest: NonNullable<ReturnType<typeof useLatestArtifact>['latest']>
   timeline: ReturnType<typeof useV5ArtifactTimeline>['data']
   isRunning: boolean
+  livePrice: number | null
   onRerun: () => void
   onOpen: (id: string) => void
 }): React.ReactElement {
@@ -798,6 +811,15 @@ function HotState({
   // Withheld POINT target — gate on target===null (verdict-independent). The
   // directional rating still stands; only the precise number is honestly held.
   const targetWithheld = verdict !== null && target === null
+  // The gauge's "now" anchor. PREFER the live quote (dedupe-shared from the
+  // workspace's price query); fall back to the artifact's entry_price, which is
+  // the price AT CREATION — a degraded anchor (it mislabels the gap direction if
+  // the price has since moved). The artifact summary carries no per-number source
+  // for target_price (only `id`), so the gauge value is plain but still honest;
+  // we hand SourcedNumber the artifact_id so the popover still deep-links to the
+  // report that produced this target.
+  const gaugePrice = livePrice ?? latest.entry_price ?? null
+  const gaugeUsingEntry = livePrice == null && latest.entry_price != null
 
   return (
     <>
@@ -862,10 +884,14 @@ function HotState({
               data-testid="ai-zone-verdict"
               data-verdict={verdict}
               style={{
+                // 18px (was 28px): match the report's restatement size and free
+                // vertical room for the TargetGauge below. The badge is the
+                // directional call, not the page's hero number — the target +
+                // its gauge are.
                 fontFamily: 'var(--font-display)',
-                fontSize: 28,
-                letterSpacing: '4px',
-                padding: '4px 20px',
+                fontSize: 18,
+                letterSpacing: '3px',
+                padding: '4px 16px',
                 background: tone.bg,
                 color: tone.fg,
                 border: `1.5px solid ${tone.border}`,
@@ -903,6 +929,38 @@ function HotState({
             </div>
           )}
         </div>
+
+        {/* TargetGauge: where the target sits vs the CURRENT price (centre tick,
+            target left/below → red / right/above → green). NOT TargetRange — the
+            workspace summary carries no confidence tier, so a confidence-scaled
+            band would be fabricated. The gauge shows only target + direction.
+            Rendered only when a target AND a price exist (degrade = omit). */}
+        {target !== null && gaugePrice !== null && (
+          <div data-testid="ai-zone-target-gauge" style={{ marginBottom: 14 }}>
+            <TargetGauge
+              targetPrice={target}
+              currentPrice={gaugePrice}
+              quoteCurrency="USD"
+              ticker={ticker}
+              source={{ artifact_id: latest.id }}
+            />
+            {gaugeUsingEntry && (
+              <p
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 9.5,
+                  color: 'var(--text-dim)',
+                  letterSpacing: '0.04em',
+                  marginTop: 4,
+                }}
+              >
+                {locale === 'zh'
+                  ? '对比建仓时价格(实时报价不可用)'
+                  : 'vs price at creation (live quote unavailable)'}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* The POINT target was honestly withheld (target_price null) while the
             directional rating still stands — gate on target===null, NOT on any

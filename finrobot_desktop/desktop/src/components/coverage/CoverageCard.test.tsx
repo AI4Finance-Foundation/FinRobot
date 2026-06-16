@@ -137,16 +137,16 @@ describe('CoverageCard price-target gauge', () => {
         />
       </MemoryRouter>,
     )
-    return container.querySelector('.coverage-card__target') as HTMLElement
+    return container.querySelector('.target-gauge') as HTMLElement
   }
 
   it('renders the target value + a green marker when the target is ABOVE price', () => {
     const el = renderC({ price: 399.76, target_price: 558.78, upside_to_target_live: 0.3978 })
     expect(el).not.toBeNull()
     expect(el.textContent).toContain('558.78')
-    const value = el.querySelector('.coverage-card__target-value') as HTMLElement
+    const value = el.querySelector('.target-gauge__value') as HTMLElement
     expect(value.style.color).toBe('var(--success)')
-    const mark = el.querySelector('.coverage-card__target-mark') as HTMLElement
+    const mark = el.querySelector('.target-gauge__mark') as HTMLElement
     // Above price → marker sits right of the centre tick (>50%).
     expect(parseFloat(mark.style.left)).toBeGreaterThan(50)
   })
@@ -154,9 +154,9 @@ describe('CoverageCard price-target gauge', () => {
   it('renders a red marker LEFT of centre when the target is BELOW price', () => {
     const el = renderC({ price: 296.42, target_price: 195.04, upside_to_target_live: -0.342 })
     expect(el.textContent).toContain('195.04')
-    const value = el.querySelector('.coverage-card__target-value') as HTMLElement
+    const value = el.querySelector('.target-gauge__value') as HTMLElement
     expect(value.style.color).toBe('var(--danger)')
-    const mark = el.querySelector('.coverage-card__target-mark') as HTMLElement
+    const mark = el.querySelector('.target-gauge__mark') as HTMLElement
     expect(parseFloat(mark.style.left)).toBeLessThan(50)
   })
 

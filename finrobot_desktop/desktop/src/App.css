@@ -7066,17 +7066,18 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
 .coverage-card__metric-value > span[style] > .coverage-source-number {
   text-shadow: 0 0 12px currentColor;
 }
-/* Price-target gauge — a diverging bar anchored on the live price (centre tick),
-   with the thesis target marked left (below → red) / right (above → green). One
-   dense row: label · track · target value. Only rendered when a stored target +
-   live price exist (degrade = omit). */
-.coverage-card__target {
+/* Price-target gauge (shared: Coverage card + workspace verdict card) — a
+   diverging bar anchored on the current price (centre tick), with the thesis
+   target marked left (below → red) / right (above → green). One dense row:
+   label · track · target value. Only rendered when a stored target + current
+   price exist (degrade = omit). */
+.target-gauge {
   display: flex;
   align-items: center;
   gap: 10px;
   margin-top: 2px;
 }
-.coverage-card__target-label {
+.target-gauge__label {
   flex: none;
   color: var(--text-muted);
   font-family: var(--font-body);
@@ -7084,7 +7085,7 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-.coverage-card__target-track {
+.target-gauge__track {
   position: relative;
   flex: 1 1 auto;
   min-width: 0;
@@ -7092,16 +7093,16 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   border-radius: var(--radius-pill);
   background: var(--border-faint);
 }
-.coverage-card__target-fill {
+.target-gauge__fill {
   position: absolute;
   top: 0;
   bottom: 0;
   border-radius: var(--radius-pill);
   opacity: 0.55;
 }
-/* The "now" reference tick sits dead-centre — the live price the gap is read
+/* The "now" reference tick sits dead-centre — the current price the gap is read
    against. A thin neutral divider so the green/red fill reads as "from here". */
-.coverage-card__target-now {
+.target-gauge__now {
   position: absolute;
   top: -2px;
   bottom: -2px;
@@ -7110,7 +7111,7 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   margin-left: -0.5px;
   background: var(--text-dim);
 }
-.coverage-card__target-mark {
+.target-gauge__mark {
   position: absolute;
   top: 50%;
   width: 7px;
@@ -7118,7 +7119,7 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   margin: -3.5px 0 0 -3.5px;
   border-radius: var(--radius-pill);
 }
-.coverage-card__target-value {
+.target-gauge__value {
   flex: none;
   font-family: var(--font-mono);
   font-size: 11px;

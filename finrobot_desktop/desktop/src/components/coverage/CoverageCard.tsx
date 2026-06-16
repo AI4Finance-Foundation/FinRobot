@@ -34,10 +34,13 @@ interface Props {
   onOpen: (ticker: string) => void
 }
 
+// Badge text + dot ride the bright signal hue (matches the card's top hairline);
+// the soft tinted bg stays the deep-token derivative. Coverage cards only — the
+// report cover/right-rail verdict badges keep the deeper semantic tokens.
 const VERDICT: Record<string, { color: string; bg: string }> = {
-  BUY: { color: 'var(--success)', bg: 'var(--success-soft)' },
-  HOLD: { color: 'var(--warning)', bg: 'var(--warning-soft)' },
-  SELL: { color: 'var(--danger)', bg: 'var(--danger-soft)' },
+  BUY: { color: 'var(--card-buy-fg)', bg: 'var(--success-soft)' },
+  HOLD: { color: 'var(--card-hold-fg)', bg: 'var(--warning-soft)' },
+  SELL: { color: 'var(--card-sell-fg)', bg: 'var(--danger-soft)' },
 }
 
 // Card chroma bucket from the latest directional verdict. BUY/SELL/HOLD tint the

@@ -80,7 +80,7 @@ class SymbolIndex:
         number of ranks so the intended ticker surfaces without burying a far
         bigger company. Junk / empty / over-long queries return ``[]`` — never
         raise."""
-        q_norm = q.strip().upper()
+        q_norm = (q or "").strip().upper()  # tolerate None/empty defensively
         if not q_norm:
             return []
         # Canonical query variant (brk.b -> BRK-B) via the shared chokepoint so a
@@ -220,6 +220,19 @@ async def load_symbol_index(
     index = build_index_from_payload(payload)
     if index.entries:
         _write_cache(cache_path, index)
+        return index
+    # A non-None SEC payload that builds to 0 entries means the response shape
+    # changed (field rename / error body) — don't silently blank the typeahead:
+    # warn and prefer a stale cache over an empty index (T2#4 "never silently
+    # degrade to empty").
+    logger.warning(
+        "symbol index: SEC payload yielded 0 entries (possible schema drift) — falling back to cache"
+    )
+    stale = _read_cache(cache_path, require_fresh=False)
+    if stale is not None:
+        fallback = build_index_from_payload(stale)
+        if fallback.entries:
+            return fallback
     return index
 
 

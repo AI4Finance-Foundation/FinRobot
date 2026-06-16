@@ -185,6 +185,28 @@ def test_empty_index_in_backoff_serves_degraded_without_refetch(monkeypatch) -> 
     assert calls["n"] == 0
 
 
+# --- adversarial-QA hardening: None-safety + SEC schema drift ----------------
+
+def test_search_tolerates_none_query(index: SymbolIndex) -> None:
+    """Defensive: search must not raise on None even though the route never
+    passes it (q: str = Query(""))."""
+    assert index.search(None) == []  # type: ignore[arg-type]
+
+
+def test_schema_drift_payload_falls_back_to_stale_cache(monkeypatch, tmp_path) -> None:
+    """A non-None SEC payload that builds to 0 entries (field rename / error body)
+    must NOT silently blank the typeahead: warn + serve the stale cache."""
+    cache = tmp_path / "idx.json"
+    si._write_cache(cache, build_index_from_payload(_FAKE_SEC))  # seed a good cache
+
+    async def drifted_fetch(_ua: str) -> dict:
+        return {"0": {"symbol": "X", "name": "Y"}}  # renamed fields -> 0 entries
+
+    monkeypatch.setattr(si, "_fetch_sec", drifted_fetch)
+    idx = asyncio.run(si.load_symbol_index("ua", cache_path=cache, force=True))
+    assert idx.search("nvda")[0].symbol == "NVDA"  # served from stale cache, not blank
+
+
 # --- dirty input / degradation --------------------------------------------
 
 @pytest.mark.parametrize("q", ["", "   ", "zzzz", "'; --", "苹果", "A" * 50])

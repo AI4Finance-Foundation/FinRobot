@@ -302,25 +302,15 @@ def _make_base_compute_version(
 
 
 def _collect_warnings(result: "PipelineResult") -> list[str]:
-    """Collect warnings from all structured data objects in the result.
+    """The artifact's machine-readable warning haul.
 
-    ``failed_validations`` is part of the haul: a step that degraded after
-    exhausting its retries previously existed only in summary_text's prose
-    warning block — the artifact's machine-readable ``warnings`` array said
-    nothing, so the desktop UI / coverage consumers treated a half-degraded
-    report exactly like a clean one.
+    Delegates to ``PipelineResult.collect_warnings`` (the single source of
+    truth) so the artifact and the /runs detail endpoint never drift apart:
+    run-level degrades + failed-validation lines + structured-object warnings.
+    Per-builder ``audit_warnings``/``drift``/``contract`` lines are appended on
+    top at each call site.
     """
-    warnings: list[str] = list(result.warnings)
-    for fv in result.failed_validations:
-        line = f"步骤 {fv.get('step', '?')} 降级(验证未通过): {fv.get('error', '')}"
-        if line not in warnings:
-            warnings.append(line)
-    for val in result.structured_data.values():
-        if hasattr(val, "warnings"):
-            for w in val.warnings:
-                if w not in warnings:
-                    warnings.append(w)
-    return warnings
+    return result.collect_warnings()
 
 
 # ---------------------------------------------------------------------------

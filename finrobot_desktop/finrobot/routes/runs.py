@@ -876,22 +876,20 @@ def _format_sse(seq: int, event: RunEvent) -> str:
 
 def _result_to_json(result: PipelineResult) -> dict[str, Any]:
     structured: dict[str, Any] = {}
-    warnings: list[str] = []
     for key, value in result.structured_data.items():
         if hasattr(value, "model_dump"):
             dumped = value.model_dump(mode="json")
         else:
             dumped = str(value)
         structured[key] = dumped
-        if hasattr(value, "warnings"):
-            for warning in value.warnings:
-                if warning not in warnings:
-                    warnings.append(warning)
     return {
         "structured_data": structured,
         "steps": result.steps,
         "failed_validations": result.failed_validations,
-        "warnings": warnings,
+        # Same authoritative haul the artifact builder uses (run-level degrades
+        # + failed-validation lines + structured warnings) so the /runs view and
+        # the artifact view can never disagree about whether a run degraded.
+        "warnings": result.collect_warnings(),
     }
 
 

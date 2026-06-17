@@ -78,6 +78,36 @@ def _make_run_record(
 # ---------------------------------------------------------------------------
 
 
+def test_result_to_json_warnings_match_artifact_haul() -> None:
+    """Regression: /runs detail warnings must include run-level degrades AND
+    failed-validation lines — not just structured-object warnings. Previously a
+    half-degraded run read 'clean' in the run view while the artifact view
+    surfaced the degrade (the two rendering surfaces disagreed). Both now route
+    through PipelineResult.collect_warnings — the single authoritative haul."""
+    from types import SimpleNamespace
+
+    from finrobot.engine.pipelines.base import PipelineResult
+    from finrobot.routes.runs import _result_to_json
+
+    result = PipelineResult(
+        steps={"financial_modeling": "DCF FAIR VALUE —"},
+        structured_data={
+            "data_collection": SimpleNamespace(warnings=["provider X stale cache"]),
+        },
+        failed_validations=[
+            {"step": "financial_modeling", "error": "WACC 0.0280 below minimum 0.03"},
+        ],
+        warnings=["DCF not applicable: WACC ≤ terminal growth"],
+    )
+    out_warnings = _result_to_json(result)["warnings"]
+    blob = "\n".join(out_warnings)
+    assert "WACC 0.0280 below minimum 0.03" in blob  # failed_validations surfaced
+    assert "DCF not applicable" in blob  # run-level warning surfaced
+    assert "provider X stale cache" in blob  # structured-object warning surfaced
+    # Identical to the artifact's authoritative haul — single source of truth.
+    assert out_warnings == result.collect_warnings()
+
+
 @pytest.mark.asyncio
 async def test_get_run_with_dict_result_json() -> None:
     """Normal path: result_json is a dict → fields extracted correctly."""

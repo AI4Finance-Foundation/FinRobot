@@ -17,6 +17,31 @@ class PipelineResult(BaseModel):
         """Get structured data from a previous step. Returns None if not found."""
         return self.structured_data.get(step_name)
 
+    def collect_warnings(self) -> list[str]:
+        """The authoritative machine-readable warning haul for this run.
+
+        Includes run-level degrades (``warnings``), steps that degraded after
+        exhausting their retries (``failed_validations``) and every structured
+        object's own ``warnings`` — deduped, order-preserving. Both the artifact
+        builder and the /runs detail endpoint route through this so a
+        half-degraded run reads IDENTICALLY in both rendering surfaces. (The
+        /runs view previously collected only structured-object warnings, so a
+        DCF degrade or a failed-validation line showed in the artifact but made
+        the run look clean.)
+        """
+        warnings: list[str] = list(self.warnings)
+        for fv in self.failed_validations:
+            line = f"步骤 {fv.get('step', '?')} 降级(验证未通过): {fv.get('error', '')}"
+            if line not in warnings:
+                warnings.append(line)
+        for val in self.structured_data.values():
+            val_warnings = getattr(val, "warnings", None)
+            if val_warnings:
+                for w in val_warnings:
+                    if w not in warnings:
+                        warnings.append(w)
+        return warnings
+
     @property
     def has_failures(self) -> bool:
         return len(self.failed_validations) > 0

@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from starlette.requests import Request
 
 from finrobot.engine.data.interface import ProviderError
-from finrobot.engine.data.types import DataType
+from finrobot.engine.data.quote_cache import Quote
 
 logger = logging.getLogger(__name__)
 
@@ -331,13 +331,13 @@ async def recent_research(
         logger.exception("Cache-only quote read failed for recent-research")
         quotes = dict.fromkeys(top_tickers)
 
-    # The cache-only quote is a bare quote-currency float; the latest-run signal
-    # lamp (_signal_for → compute_signal) compares it against the USD entry/target,
-    # so a foreign LOCAL listing's lamp would flip on a mixed-currency comparison.
-    # Convert to USD before building the inputs — but allow_network=False: this
-    # strip is a progressive enhancement that must never cold-fetch, so a cold
-    # canonical quote currency stays a no-op (lamp pending) rather than blocking.
-    quotes = await _signal_prices_usd(quotes, deps.data_layer, allow_network=False)
+    # Each cache-only quote carries its own currency (Quote.price + Quote.currency),
+    # so the latest-run signal lamp (_signal_for → compute_signal) can compare it
+    # against the USD entry/target in USD. Convert to a USD float per ticker: USD →
+    # as-is; foreign + FX → converted; foreign + FX-miss OR unknown-currency →
+    # None (lamp pending — never assume USD). No cold provider call: the cache-only
+    # contract holds because the currency rode in WITH the warm quote.
+    usd_quotes = await _signal_prices_usd(quotes, deps.data_layer)
 
     # Per-row verdict comes straight from ArtifactSummary.verdict (already
     # extracted at save time, stored as an indexed SQLite column). Older
@@ -352,7 +352,7 @@ async def recent_research(
     for ticker in top_tickers:
         group = sorted(by_ticker[ticker], key=lambda s: s.created_at, reverse=True)
         latest = group[0]
-        current = quotes.get(ticker)
+        current = usd_quotes.get(ticker)
         for s in group:
             is_latest = s.id == latest.id
             inputs.append(
@@ -448,15 +448,12 @@ async def _collect_signal_inputs(
         logger.exception("Quote batch failed for hit-rate overview")
         quotes = dict.fromkeys(quote_tickers)
 
-    # The QUOTE batch returns a bare quote-currency float (no currency tag, no
-    # FX). entry/target are canonical USD. For a foreign LOCAL listing (2330.TW,
-    # quote=TWD) compute_signal would compare a TWD price against a USD target →
-    # mis-bucketed verdicts (same cross-currency hole fixed in coverage + the
-    # valuation route). Convert each ticker's quote to USD here, before building
-    # the signal input. allow_network=True: the hit-rate banner already cold-
-    # fetches quotes, so it can resolve the (rarely-cold) canonical quote currency
-    # over the network too. US / pure-ADR (quote=USD) → strict no-op (no FX call).
-    usd_by_ticker = await _signal_prices_usd(quotes, data_layer, allow_network=True)
+    # Each quote carries its own currency (Quote.price + Quote.currency), so
+    # compute_signal can compare it against the canonical-USD entry/target in USD.
+    # For a foreign LOCAL listing (2330.TW, quote=TWD) the raw price would otherwise
+    # be compared against a USD target → mis-bucketed verdicts (same cross-currency
+    # hole fixed in coverage + valuation). USD / pure-ADR → strict no-op.
+    usd_by_ticker = await _signal_prices_usd(quotes, data_layer)
     return [
         ArtifactSignalInput(
             entry_price=s.entry_price,
@@ -471,57 +468,43 @@ async def _collect_signal_inputs(
 
 
 async def _signal_prices_usd(
-    quotes: dict[str, float | None],
+    quotes: dict[str, Quote | None],
     data_layer: Any,
-    *,
-    allow_network: bool,
 ) -> dict[str, float | None]:
-    """Convert each ticker's live quote (in its quote currency) to USD — the basis
-    entry/target sit on — for the signal-lamp / hit-rate comparison.
+    """Convert each carried quote to a USD price — the basis entry/target sit on —
+    for the signal-lamp / hit-rate comparison.
 
-    A bare quote float carries no currency, so the quote currency is read off the
-    canonical PRICE snapshot (``quote_currency``): cache-only first (no network),
-    falling back to a canonical fetch only when ``allow_network`` (the hit-rate
-    path, which already cold-fetches). USD quotes — US issuers, pure ADRs — and a
-    cold/unresolvable currency are a strict no-op (the price passes through
-    unchanged; the overwhelmingly common USD case never touches FX). A foreign
-    quote is multiplied by ``DataLayer.fx_rate_to_usd``; on an FX miss the price
-    becomes None so the artifact's signal drops (``_signal_for`` already treats
-    None as "insufficient data"), never a mixed-currency fabrication.
+    The currency travels WITH the price (``Quote.currency``, stamped by the QUOTE
+    provider from its own source), so there is no second currency lookup and no
+    quote-batch-warm + canonical-cold mismatch (the strip mis-lit-lamp root fix):
+      - USD quote (US issuer, pure ADR) → price as-is, strict no-op, no FX call.
+      - foreign quote + FX available → price × ``DataLayer.fx_rate_to_usd``.
+      - foreign quote + FX miss, OR unknown currency (provider couldn't resolve) →
+        None, so the artifact's signal drops (``_signal_for`` treats None as
+        insufficient data). NEVER assume USD on an unknown currency, never fabricate
+        a mixed-currency comparison.
     """
     out: dict[str, float | None] = {}
-    for ticker, price in quotes.items():
+    for ticker, quote in quotes.items():
+        price = quote.price if quote is not None else None
         if price is None or price <= 0:
             out[ticker] = price
             continue
-        ccy = await _quote_currency(ticker, data_layer, allow_network=allow_network)
+        ccy = (quote.currency or "").upper() if quote is not None else ""
         if ccy == "USD":
             out[ticker] = price
+            continue
+        if not ccy:
+            # Currency unknown — cannot align to USD; abstain rather than assume USD.
+            out[ticker] = None
             continue
         try:
             rate = await data_layer.fx_rate_to_usd(ccy)
         except _QUOTE_BATCH_DEGRADABLE + (ProviderError,) as exc:
-            logger.info("signal-price FX %s→USD failed for %s — dropping signal: %s", ccy, ticker, exc)
+            logger.info(
+                "signal-price FX %s→USD failed for %s — dropping signal: %s", ccy, ticker, exc
+            )
             out[ticker] = None
             continue
         out[ticker] = price * rate
     return out
-
-
-async def _quote_currency(ticker: str, data_layer: Any, *, allow_network: bool) -> str:
-    """The ticker's quote currency from the canonical PRICE snapshot ("USD" when
-    unresolvable). Cache-only by default; a canonical fetch fallback only when
-    ``allow_network`` and the cache is cold (so the cache-only strip never fans
-    out to a provider). Any failure → "USD" (the no-op default — a missing currency
-    must never be guessed via a country heuristic; recall ❌ country→currency)."""
-    try:
-        hit = await data_layer.read_canonical_cached(DataType.PRICE, ticker)
-        if hit is not None:
-            snapshot, _ = hit
-            return (getattr(snapshot, "quote_currency", "USD") or "USD").upper()
-        if allow_network:
-            snapshot = await data_layer.fetch_canonical(DataType.PRICE, ticker)
-            return (getattr(snapshot, "quote_currency", "USD") or "USD").upper()
-    except _QUOTE_BATCH_DEGRADABLE + (ProviderError,) as exc:
-        logger.info("signal-price quote-currency lookup failed for %s: %s", ticker, exc)
-    return "USD"

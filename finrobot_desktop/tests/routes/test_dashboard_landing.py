@@ -53,38 +53,47 @@ def _set_quotes(prices: dict[str, float]) -> None:
     _QUOTE_PRICES.update({k.upper(): v for k, v in prices.items()})
 
 
-def _warm_quote_cache(db_path: Path, prices: dict[str, float]) -> None:
-    """Seed fresh L2 QuoteCache rows so the cache-only recent-research endpoint
-    can light its signal lamps.
+def _warm_quote_cache(
+    db_path: Path, prices: dict[str, float], currencies: dict[str, str] | None = None
+) -> None:
+    """Seed fresh L2 QuoteCache rows (schema v2: price + currency) so the
+    cache-only recent-research endpoint can light its signal lamps.
 
     Mirrors the production post-warmup state: the strip endpoint never
-    cold-fetches, so a fresh row here is the only way a lamp resolves. Written
-    synchronously via sqlite3 (no asyncio) to dodge cross-event-loop entangle-
-    ment with the QuoteCache aiosqlite worker. Must run AFTER ``_clear_caches``
-    has rebound ``paths.QUOTES_DB`` to this ``db_path``.
+    cold-fetches, so a fresh row here is the only way a lamp resolves. The
+    ``currency`` now rides WITH the price in the cache (the strip mis-lit-lamp
+    root fix) — pass ``currencies`` to warm a foreign listing's quote currency.
+    Written synchronously via sqlite3 (no asyncio) to dodge cross-event-loop
+    entanglement with the QuoteCache aiosqlite worker. Must run AFTER
+    ``_clear_caches`` has rebound ``paths.QUOTES_DB`` to this ``db_path``.
     """
     import sqlite3
     import time
 
-    from finrobot.engine.data.quote_cache import _CREATE_TABLE
+    from finrobot.engine.data.quote_cache import _CREATE_TABLE, _QUOTES_TABLE
 
+    ccy = {k.upper(): v.upper() for k, v in (currencies or {}).items()}
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     try:
         conn.execute(_CREATE_TABLE)
         now = time.time()
         conn.executemany(
-            "INSERT OR REPLACE INTO quotes_cache(ticker, last_price, fetched_at) VALUES (?, ?, ?)",
-            [(k.upper(), v, now) for k, v in prices.items()],
+            f"INSERT OR REPLACE INTO {_QUOTES_TABLE}(ticker, last_price, currency, fetched_at) "
+            f"VALUES (?, ?, ?, ?)",
+            [(k.upper(), v, ccy.get(k.upper()), now) for k, v in prices.items()],
         )
         conn.commit()
     finally:
         conn.close()
 
 
-# Per-test ticker→quote-currency (drives the canonical PRICE snapshot the
-# signal adapter reads to learn each ticker's quote currency) and FX rates.
+# Per-test ticker→quote-currency the fake QUOTE provider stamps onto its payload.
+# Real providers return USD for US issuers / pure ADRs, so an unset ticker defaults
+# to USD here; tickers listed in _UNKNOWN_CCY get currency=None (the provider could
+# not resolve it → consumer abstains). _FX_* drive fx_rate_to_usd.
 _QUOTE_CURRENCIES: dict[str, str] = {}
+_UNKNOWN_CCY: set[str] = set()
 _FX_RATES: dict[str, float] = {}
 _FX_RAISES: set[str] = set()
 
@@ -92,6 +101,13 @@ _FX_RAISES: set[str] = set()
 def _set_quote_currencies(ccys: dict[str, str]) -> None:
     _QUOTE_CURRENCIES.clear()
     _QUOTE_CURRENCIES.update({k.upper(): v.upper() for k, v in ccys.items()})
+
+
+def _set_unknown_currency(*tickers: str) -> None:
+    """Mark tickers whose QUOTE provider returns NO currency (None) — the consumer
+    must abstain, never assume USD."""
+    _UNKNOWN_CCY.clear()
+    _UNKNOWN_CCY.update(t.upper() for t in tickers)
 
 
 def _set_fx(rates: dict[str, float], *, raises: set[str] | None = None) -> None:
@@ -102,46 +118,31 @@ def _set_fx(rates: dict[str, float], *, raises: set[str] | None = None) -> None:
 
 
 class _FakeQuoteLayer:
-    """Minimal DataLayer stand-in exposing the surface the dashboard adapters
-    touch: ``fetch_quote`` (hit-rate cold path), ``read_canonical_cached`` /
-    ``fetch_canonical`` PRICE (the quote-currency source for the signal-price
-    USD conversion), and ``fx_rate_to_usd``."""
+    """Minimal DataLayer stand-in: ``fetch_quote`` (hit-rate cold path, now stamping
+    the quote currency onto its payload like the real providers do) and
+    ``fx_rate_to_usd``. The signal path no longer reads canonical PRICE for the
+    currency — it rides with the quote — so this fake doesn't need it."""
 
     async def fetch_quote(self, ticker: str) -> DataResult:
         price = _QUOTE_PRICES.get(ticker.upper())
         if price is None:
             raise ProviderError(f"no quote for {ticker}")
+        data: dict[str, object] = {"price": price}
+        # The currency rides on the QUOTE payload (yfinance fast_info / FMP profile).
+        # Real providers return USD for US issuers / pure ADRs, so an unset ticker
+        # defaults to USD; an _UNKNOWN_CCY ticker yields None (provider couldn't
+        # resolve it → consumer abstains, never assumes USD).
+        if ticker.upper() in _UNKNOWN_CCY:
+            data["quote_currency"] = None
+        else:
+            data["quote_currency"] = _QUOTE_CURRENCIES.get(ticker.upper(), "USD")
         return DataResult(
-            data={"price": price},
+            data=data,
             provider="fake",
             ticker=ticker,
             data_type=DataType.QUOTE,
             timestamp=datetime.now(tz=UTC),
         )
-
-    def _price_snapshot(self, ticker: str):
-        from finrobot.engine.data.normalize.contracts import NormalizedPrice, Provenance
-
-        return NormalizedPrice(
-            ticker=ticker.upper(),
-            current_price=_QUOTE_PRICES.get(ticker.upper(), 1.0),
-            quote_currency=_QUOTE_CURRENCIES.get(ticker.upper(), "USD"),
-            bars=[],
-            provenance=Provenance(provider="fake", as_of=NOW, fetched_at=NOW),
-        )
-
-    async def read_canonical_cached(self, data_type, ticker, **_):
-        if DataType(data_type) != DataType.PRICE:
-            return None
-        # A ticker with no configured currency is a cold canonical cache miss.
-        if ticker.upper() not in _QUOTE_CURRENCIES:
-            return None
-        return self._price_snapshot(ticker), False
-
-    async def fetch_canonical(self, data_type, ticker, **_):
-        if DataType(data_type) != DataType.PRICE:
-            raise ProviderError(f"unsupported canonical {data_type}")
-        return self._price_snapshot(ticker)
 
     async def fx_rate_to_usd(self, currency: str) -> float:
         cu = currency.upper()
@@ -218,6 +219,7 @@ def _clear_caches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     dashboard_mod._RECENT_CACHE.clear()
     _QUOTE_PRICES.clear()
     _QUOTE_CURRENCIES.clear()
+    _UNKNOWN_CCY.clear()
     _FX_RATES.clear()
     _FX_RAISES.clear()
     # Isolate the QuoteCache L1/L2 per-test so the singleton does not bleed
@@ -480,9 +482,10 @@ def test_recent_research_rolls_up_same_ticker_into_one_card(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Three AAPL artifacts collapse into one card with 3 runs newest-first."""
-    # Cache-only endpoint: pre-warm L2 so the latest run's signal lamp resolves
-    # (entry=100, target=130, current=115 → "watching").
-    _warm_quote_cache(tmp_path / "quotes.db", {"AAPL": 115.0})
+    # Cache-only endpoint: pre-warm L2 (price + USD currency, as a real US quote
+    # carries) so the latest run's signal lamp resolves (entry=100, target=130,
+    # current=115 → "watching").
+    _warm_quote_cache(tmp_path / "quotes.db", {"AAPL": 115.0}, {"AAPL": "USD"})
     for i, days in enumerate([1, 5, 10]):
         _save(
             store,
@@ -518,13 +521,18 @@ def test_recent_research_foreign_listing_lamp_uses_usd_price(
     store: ArtifactStore,
     tmp_path: Path,
 ) -> None:
-    """The strip's signal lamp (_signal_for → compute_signal) must compare a
-    foreign LOCAL listing's quote-currency price against the USD entry/target in
-    USD, not raw. TWD quote 3300, USD entry 100 / target 130, rate 0.03178 →
-    $104.9 USD → 'watching' (+16% of the +30 expected move); raw 3300 ≫ 130 would
-    falsely read 'hit'."""
-    _warm_quote_cache(tmp_path / "quotes.db", {"2330.TW": 3300.0})
-    _set_quote_currencies({"2330.TW": "TWD"})
+    """REGRESSION (the窄 residual root fix): QuoteCache WARM for a foreign listing
+    (price + currency) while canonical PRICE is COLD — the strip lamp must still
+    convert correctly because the currency now rides WITH the warm quote, not from
+    a separately-cached canonical snapshot. The fake DataLayer has NO
+    read_canonical_cached / fetch_canonical, so if the strip tried to recover the
+    currency from canonical it would error — proving it doesn't.
+
+    TWD quote 3300, USD entry 100 / target 130, rate 0.03178 → $104.9 USD →
+    'watching' (+16% of the +30 expected move). Pre-fix (warm quote + cold
+    canonical → guessed USD) the raw-TWD 3300 ≫ 130 falsely read 'hit'."""
+    # Warm L2 WITH the TWD currency (the fix: currency travels with the price).
+    _warm_quote_cache(tmp_path / "quotes.db", {"2330.TW": 3300.0}, {"2330.TW": "TWD"})
     _set_fx({"TWD": 0.03178})
     _save(
         store,
@@ -542,6 +550,56 @@ def test_recent_research_foreign_listing_lamp_uses_usd_price(
     # $104.9 = +4.9 of the +30 expected move (16%) → 'watching', the honest USD
     # verdict. The raw-TWD 3300 ≫ 130 target would have falsely read 'hit'.
     assert card["latest_signal"] == "watching"
+
+
+def test_recent_research_strip_foreign_fx_unavailable_pending_not_mislit(
+    client: TestClient,
+    store: ArtifactStore,
+    tmp_path: Path,
+) -> None:
+    """Foreign listing, currency known (TWD) but FX rate unobtainable → the lamp is
+    PENDING (None), never lit on a raw cross-currency comparison. Abstain, not guess."""
+    _warm_quote_cache(tmp_path / "quotes.db", {"2330.TW": 3300.0}, {"2330.TW": "TWD"})
+    _set_fx({}, raises={"TWD"})
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_2330_nofx",
+            ticker="2330.TW",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=30,
+        ),
+    )
+    data = client.get("/api/dashboard/recent-research?limit=5").json()
+    card = next(c for c in data["items"] if c["ticker"] == "2330.TW")
+    assert card["latest_signal"] is None  # pending, not a mis-lit lamp
+
+
+def test_recent_research_strip_us_listing_lit_normally(
+    client: TestClient,
+    store: ArtifactStore,
+    tmp_path: Path,
+) -> None:
+    """US universe must NOT regress: a USD-quote warm row lights its lamp as before,
+    no FX, no pending."""
+    _warm_quote_cache(tmp_path / "quotes.db", {"AAPL": 115.0}, {"AAPL": "USD"})
+    _set_fx({}, raises={"TWD", "EUR"})  # would error if a USD row touched FX
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_aapl_strip",
+            ticker="AAPL",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=30,
+        ),
+    )
+    data = client.get("/api/dashboard/recent-research?limit=5").json()
+    card = next(c for c in data["items"] if c["ticker"] == "AAPL")
+    assert card["latest_signal"] in ("hit", "watching")  # lit, not pending
 
 
 def test_recent_research_caps_runs_per_card_and_reports_overflow(

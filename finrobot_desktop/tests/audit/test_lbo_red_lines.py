@@ -35,6 +35,7 @@ import pytest
 from finrobot.engine.compute.operators.lbo_seed import seed_lbo_inputs
 from finrobot.engine.models.financial import (
     BalanceSheet,
+    DataProvenance,
     FinancialData,
     HistoricalMetrics,
     IncomeStatement,
@@ -232,6 +233,31 @@ def test_lbo_assumption_provenance_messages_are_english():
     assert not offenders, "LBO provenance messages must be readable English:\n" + "\n".join(
         offenders
     )
+
+
+def _financials_with_basis(period_basis: str) -> FinancialData:
+    fin = _minimal_financials()
+    fin.provenance = DataProvenance(provider="test", period_basis=period_basis)
+    return fin
+
+
+def test_lbo_revenue_ebitda_basis_labelled_honestly():
+    """revenue_base / ltm_ebitda read ``income.revenue`` / ``income.ebitda``,
+    which are TTM by default. Hardcoding "latest annual …" mislabels TTM as a
+    fiscal-year figure — exactly the口径 error CLAUDE.md forbids and the same
+    bug dcf_seed already fixed (it reads ``provenance.period_basis``). Mirror
+    that honesty here.
+    """
+    ttm = seed_lbo_inputs(_financials_with_basis("ttm"), _empty_historical())
+    assert "annual" not in ttm.assumption_provenance["revenue_base"].lower()
+    assert "annual" not in ttm.assumption_provenance["ltm_ebitda"].lower()
+    assert "TTM" in ttm.assumption_provenance["revenue_base"]
+    assert "TTM" in ttm.assumption_provenance["ltm_ebitda"]
+
+    # An issuer that genuinely reports on an annual basis should still say so.
+    annual = seed_lbo_inputs(_financials_with_basis("annual"), _empty_historical())
+    assert "annual" in annual.assumption_provenance["revenue_base"].lower()
+    assert "annual" in annual.assumption_provenance["ltm_ebitda"].lower()
 
 
 def _out_of_band_industry(monkeypatch: pytest.MonkeyPatch, rate: float) -> None:

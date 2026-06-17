@@ -96,8 +96,18 @@ def seed_lbo_inputs(
     prov: dict[str, str] = {}
 
     # ----- revenue_base ------------------------------------------------------
+    # Label the basis HONESTLY: revenue/ebitda are the canonical financials'
+    # figures, which are TTM by default (not annual). Mislabeling TTM as "annual"
+    # is exactly the口径 error the project forbids — dcf_seed already reads
+    # ``provenance.period_basis`` here; mirror it instead of hardcoding "annual".
+    _basis = financials.provenance.period_basis if financials.provenance else "ttm"
+    _basis_word = {
+        "ttm": "TTM",
+        "annual": "annual",
+        "quarterly": "quarterly (annualized)",
+    }.get(_basis, _basis)
     revenue_base = financials.income.revenue
-    prov["revenue_base"] = f"latest annual revenue ${revenue_base / 1e9:.1f}B"
+    prov["revenue_base"] = f"latest {_basis_word} revenue ${revenue_base / 1e9:.1f}B"
 
     # ----- ltm_ebitda --------------------------------------------------------
     ltm_ebitda = financials.income.ebitda
@@ -116,7 +126,7 @@ def seed_lbo_inputs(
             f" estimated at the {industry.industry} industry EBITDA margin {industry.ebitda_pct_revenue:.1%})"
         )
     else:
-        prov["ltm_ebitda"] = f"latest annual EBITDA ${ltm_ebitda / 1e9:.1f}B"
+        prov["ltm_ebitda"] = f"latest {_basis_word} EBITDA ${ltm_ebitda / 1e9:.1f}B"
 
     # ----- revenue_growth_rate (constant for LBO model) ---------------------
     # LBO assumes a single steady-state growth rate. Take historical 3y CAGR

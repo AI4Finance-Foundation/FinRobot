@@ -158,10 +158,12 @@ describe('ArtifactDetailPage type branch (BUG-039)', () => {
     // Audit trail surfaced.
     expect(screen.getByText('pipeline:dcf')).toBeTruthy()
 
-    // The 13-chapter equity shell must be ABSENT.
+    // The 13-chapter equity shell must be ABSENT — neither the chapter body nor
+    // the left-rail chrome mounts for a dcf artifact (the left rail is the only
+    // shell sentinel that exists post-redesign; the old TOC / right-rail mocks
+    // were removed when those components were merged into ReportLeftRail).
     expect(screen.queryByTestId('mock-report-chapters')).toBeNull()
-    expect(screen.queryByTestId('mock-toc')).toBeNull()
-    expect(screen.queryByTestId('mock-right-rail')).toBeNull()
+    expect(screen.queryByTestId('mock-left-rail')).toBeNull()
   })
 
   it('still renders the 13-chapter shell for equity_research', () => {

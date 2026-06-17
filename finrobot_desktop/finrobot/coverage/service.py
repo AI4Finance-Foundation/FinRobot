@@ -229,8 +229,20 @@ async def _assemble_row(
         row.run_error = latest_run.error
 
     # 4. Derived — signal + live upside + refresh reasons.
-    row.signal = _safe_signal(row, now)
-    row.upside_to_target_live = _upside(row.target_price, row.price)
+    #
+    # entry/target are canonical USD (the normalize→USD invariant; the
+    # equity_research / ic_memo builders fold data_collection into USD). The live
+    # PRICE canonical, however, is NEVER FX-normalized — the FX gate is
+    # FINANCIALS-only ("PRICE is unaffected", layer._apply_canonical_fx) — so for a
+    # foreign LOCAL listing (2330.TW, quote=TWD) ``row.price`` is in TWD. Comparing
+    # a TWD live price against a USD target collapsed upside to ~−97% garbage.
+    # Convert the live price to USD HERE (at the consumption point) before signal /
+    # upside; the displayed ``row.price`` stays in the honest quote currency. US
+    # issuers / pure ADRs (currency == USD) are a strict no-op — no FX call. On an
+    # FX miss the derived legs degrade to None (never a mixed-currency fabrication).
+    usd_price = await _live_price_usd(row, data_layer)
+    row.signal = _safe_signal(row, usd_price, now)
+    row.upside_to_target_live = _upside(row.target_price, usd_price)
     if row.upside_to_target_live is not None:
         # Derived from the artifact's target vs the live price — traces back to
         # the report (as_of = its created_at), not to a data provider.
@@ -452,17 +464,21 @@ async def _apply_market_fields(
             )
 
 
-def _safe_signal(row: CoverageRow, now: datetime) -> str | None:
-    """compute_signal against the live price, mirroring the route adapter's guards.
+def _safe_signal(row: CoverageRow, usd_price: float | None, now: datetime) -> str | None:
+    """compute_signal against the USD live price, mirroring the route adapter's guards.
 
-    Returns None when the row lacks entry/target/price or compute_signal
-    rejects a degenerate artifact (entry==target) — never raises.
+    ``usd_price`` is the live price already converted to the canonical USD basis the
+    entry/target sit on (see ``_live_price_usd``) — None when the price is missing
+    or its FX conversion failed, in which case no signal is computed (the three legs
+    would otherwise be cross-currency). Returns None when the row lacks
+    entry/target/USD-price or compute_signal rejects a degenerate artifact
+    (entry==target) — never raises.
     """
     if (
         row.entry_price is None
         or row.target_price is None
-        or row.price is None
-        or row.price <= 0
+        or usd_price is None
+        or usd_price <= 0
         or row.latest_at is None
     ):
         return None
@@ -470,7 +486,7 @@ def _safe_signal(row: CoverageRow, now: datetime) -> str | None:
         verdict: Signal = compute_signal(
             target_price=row.target_price,
             entry_price=row.entry_price,
-            current_price=row.price,
+            current_price=usd_price,
             entry_date=row.latest_at,
             target_date=row.target_date,
             now=now,
@@ -478,6 +494,33 @@ def _safe_signal(row: CoverageRow, now: datetime) -> str | None:
     except ValueError:
         return None
     return verdict
+
+
+async def _live_price_usd(row: CoverageRow, data_layer: DataLayer) -> float | None:
+    """The row's live price expressed in USD — the basis entry/target are on.
+
+    No-op (returns ``row.price`` unchanged) when the price is absent / non-positive
+    or already USD (``row.currency`` is None or "USD" — US issuers, pure ADRs whose
+    quote currency is USD). For a foreign quote currency the live price is FX-normalized
+    to USD via the DataLayer's FX chokepoint. On an FX miss the price can't be put on
+    the entry/target basis, so this returns None (and warns) rather than handing a
+    quote-currency number to a USD comparison — signal / upside then degrade to None,
+    never a mixed-currency fabrication.
+    """
+    if row.price is None or row.price <= 0:
+        return row.price
+    currency = (row.currency or "USD").upper()
+    if currency == "USD":
+        return row.price
+    try:
+        rate = await data_layer.fx_rate_to_usd(currency)
+    except _MARKET_DEGRADABLE as exc:
+        row.warnings.append(
+            f"FX {currency}→USD 不可得 — 无法将 {row.ticker} 现价对齐 USD 目标价,"
+            f"signal / upside 降级隐藏: {exc}"
+        )
+        return None
+    return row.price * rate
 
 
 def _upside(target: float | None, current: float | None) -> float | None:

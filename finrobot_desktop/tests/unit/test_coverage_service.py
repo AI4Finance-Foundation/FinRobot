@@ -89,7 +89,7 @@ def _fin(ticker: str = "AAPL", **overrides):
     )
 
 
-def _price(ticker: str = "AAPL", current: float = 200.0):
+def _price(ticker: str = "AAPL", current: float = 200.0, quote_currency: str = "USD"):
     bars = [
         {"date": "2025-06-01", "close": 180.0},
         {"date": "2025-12-01", "close": 196.0},
@@ -97,7 +97,11 @@ def _price(ticker: str = "AAPL", current: float = 200.0):
     ]
     return normalize_price(
         DataResult(
-            data={"current_price": current, "price_history": bars},
+            data={
+                "current_price": current,
+                "price_history": bars,
+                "quote_currency": quote_currency,
+            },
             provider="yfinance",
             ticker=ticker,
             data_type="price",
@@ -139,6 +143,9 @@ class _StubDataLayer:
         current: float = 200.0,
         cached: set[str] | None = None,
         cache_stale: bool = False,
+        quote_currency: str = "USD",
+        fx_rates: dict[str, float] | None = None,
+        fx_raises: bool = False,
     ) -> None:
         self._raise_for = {t.upper() for t in (raise_for or set())}
         self._current = current
@@ -146,21 +153,36 @@ class _StubDataLayer:
         # (the rest are cold misses → read_canonical_cached returns None).
         self._cached = None if cached is None else {t.upper() for t in cached}
         self._cache_stale = cache_stale
+        self._quote_currency = quote_currency
+        # ccy → rate_to_usd. None == 1.0 for USD only, raise otherwise.
+        self._fx_rates = fx_rates or {}
+        self._fx_raises = fx_raises
+        self.fx_calls: list[str] = []
 
     async def fetch_canonical(self, data_type, ticker, **_):
         if ticker.upper() in self._raise_for:
             raise ProviderError(f"simulated outage for {ticker}")
         if data_type == DataType.PRICE:
-            return _price(ticker, current=self._current)
-        return _fin(ticker)
+            return _price(ticker, current=self._current, quote_currency=self._quote_currency)
+        return _fin(ticker, quote_currency=self._quote_currency)
 
     async def read_canonical_cached(self, data_type, ticker, **_):
         if self._cached is not None and ticker.upper() not in self._cached:
             return None
         norm = (
-            _price(ticker, current=self._current) if data_type == DataType.PRICE else _fin(ticker)
+            _price(ticker, current=self._current, quote_currency=self._quote_currency)
+            if data_type == DataType.PRICE
+            else _fin(ticker, quote_currency=self._quote_currency)
         )
         return norm, self._cache_stale
+
+    async def fx_rate_to_usd(self, currency: str) -> float:
+        self.fx_calls.append(currency.upper())
+        if currency.upper() == "USD":
+            return 1.0
+        if self._fx_raises:
+            raise ProviderError(f"no FX rate for {currency}")
+        return self._fx_rates[currency.upper()]
 
 
 def _group(*tickers: str) -> CoverageGroupDetail:
@@ -185,20 +207,23 @@ def test_upside_live_denominator() -> None:
 
 
 def test_safe_signal_classifies_and_guards() -> None:
+    # _safe_signal now takes the USD-aligned live price explicitly (the second
+    # arg), not row.price — the caller is responsible for the FX conversion.
     hit = CoverageRow(ticker="X", entry_price=100, target_price=120, price=115, latest_at=ENTRY)
-    assert _safe_signal(hit, NOW) == "hit"
+    assert _safe_signal(hit, 115.0, NOW) == "hit"
     watching = CoverageRow(
         ticker="X", entry_price=100, target_price=120, price=105, latest_at=ENTRY
     )
-    assert _safe_signal(watching, NOW) == "watching"
+    assert _safe_signal(watching, 105.0, NOW) == "watching"
     no_price = CoverageRow(
         ticker="X", entry_price=100, target_price=120, price=None, latest_at=ENTRY
     )
-    assert _safe_signal(no_price, NOW) is None
+    assert _safe_signal(no_price, None, NOW) is None
     degenerate = CoverageRow(
         ticker="X", entry_price=100, target_price=100, price=100, latest_at=ENTRY
     )
-    assert _safe_signal(degenerate, NOW) is None  # compute_signal ValueError swallowed
+    # USD price present but degenerate thesis (entry==target) → ValueError swallowed.
+    assert _safe_signal(degenerate, 100.0, NOW) is None
 
 
 def test_needs_refresh_never_run_and_signal_closed() -> None:
@@ -464,6 +489,125 @@ async def test_overview_network_mode_default_cache_only_false() -> None:
     assert ov.cache_only is False
     assert ov.rows[0].price == 200.0  # market filled via the network path
     assert ov.rows[0].market_stale is False
+
+
+# ── BUG-073-followup: signal/upside must compare same-currency legs ──────────
+#
+# entry/target are canonical USD (the normalize→USD invariant; the
+# equity_research/ic_memo builders fold data_collection into USD). But the live
+# PRICE canonical is NEVER FX-normalized (_apply_canonical_fx is FINANCIALS-only,
+# "PRICE is unaffected"), so a foreign LOCAL listing (2330.TW, quote=TWD) feeds a
+# TWD live price against a USD target — upside collapsed to ~−97% garbage. The fix
+# converts the live price to USD before signal/upside; US (currency==USD) and pure
+# ADRs (quote==USD) stay a strict no-op.
+
+
+async def test_foreign_local_listing_signal_upside_computed_in_usd() -> None:
+    """2330.TW class: quote=TWD live price, USD entry/target. Signal/upside MUST
+    be computed on the USD-converted live price, not the raw TWD print."""
+    # TWD live 640, rate 0.03125 → $20 USD. Target $24 USD, entry $18 USD.
+    # Correct USD upside = (24 − 20) / 20 = +0.20 (a healthy "watching"),
+    # NOT the broken (24 − 640) / 640 ≈ −0.96.
+    store = _StubArtifactStore(
+        {"2330.TW": [_summary(ticker="2330.TW", entry=18.0, target=24.0)]}
+    )
+    layer = _StubDataLayer(
+        current=640.0, quote_currency="TWD", fx_rates={"TWD": 0.03125}
+    )
+    ov = await build_overview(
+        _group("2330.TW"),
+        artifact_store=store,  # type: ignore[arg-type]
+        data_layer=layer,  # type: ignore[arg-type]
+        now=NOW,
+    )
+    (row,) = ov.rows
+    # Display price stays in the honest quote currency (what the exchange prints).
+    assert row.price == pytest.approx(640.0)
+    assert row.currency == "TWD"
+    # But the derived comparison legs are computed in USD.
+    assert row.upside_to_target_live == pytest.approx((24.0 - 20.0) / 20.0)
+    # USD legs: entry 18 → target 24 (move 6), price 20 → +2 of 6 (33%) → watching.
+    # The broken TWD-vs-USD path would have read a hard reverse → "failed".
+    assert row.signal == "watching"
+    assert "TWD" in layer.fx_calls
+
+
+async def test_foreign_local_listing_upside_not_garbage_without_fix() -> None:
+    """Regression anchor: the raw-TWD-vs-USD upside would be deeply negative. Prove
+    the converted upside is sane (positive, since target > USD price)."""
+    store = _StubArtifactStore(
+        {"2330.TW": [_summary(ticker="2330.TW", entry=18.0, target=24.0)]}
+    )
+    layer = _StubDataLayer(
+        current=640.0, quote_currency="TWD", fx_rates={"TWD": 0.03125}
+    )
+    ov = await build_overview(
+        _group("2330.TW"),
+        artifact_store=store,  # type: ignore[arg-type]
+        data_layer=layer,  # type: ignore[arg-type]
+        now=NOW,
+    )
+    (row,) = ov.rows
+    assert row.upside_to_target_live is not None and row.upside_to_target_live > 0
+
+
+async def test_us_issuer_signal_upside_unchanged_no_fx() -> None:
+    """US ticker (currency==USD): the FX path is a strict no-op — never calls FX,
+    signal/upside identical to before the fix."""
+    store = _StubArtifactStore({"AAPL": [_summary(entry=180.0, target=240.0)]})
+    layer = _StubDataLayer(current=200.0, quote_currency="USD")
+    ov = await build_overview(
+        _group("AAPL"),
+        artifact_store=store,  # type: ignore[arg-type]
+        data_layer=layer,  # type: ignore[arg-type]
+        now=NOW,
+    )
+    (row,) = ov.rows
+    assert row.currency == "USD"
+    assert row.price == 200.0
+    assert row.upside_to_target_live == pytest.approx((240.0 - 200.0) / 200.0)
+    assert row.signal in {"hit", "watching", "failed"}
+    # The no-op red line: a USD row must NOT touch the FX path at all.
+    assert layer.fx_calls == []
+
+
+async def test_pure_adr_quote_usd_no_fx() -> None:
+    """A pure ADR (quote_currency==USD even though the issuer reports abroad):
+    the price is already USD → no FX, no conversion."""
+    store = _StubArtifactStore({"TSM": [_summary(ticker="TSM", entry=150.0, target=210.0)]})
+    layer = _StubDataLayer(current=180.0, quote_currency="USD")
+    ov = await build_overview(
+        _group("TSM"),
+        artifact_store=store,  # type: ignore[arg-type]
+        data_layer=layer,  # type: ignore[arg-type]
+        now=NOW,
+    )
+    (row,) = ov.rows
+    assert row.currency == "USD"
+    assert row.upside_to_target_live == pytest.approx((210.0 - 180.0) / 180.0)
+    assert layer.fx_calls == []
+
+
+async def test_foreign_local_listing_fx_unavailable_degrades_no_fabrication() -> None:
+    """FX rate unobtainable → signal/upside left None (degrade), never computed on
+    mixed currencies. The display price still shows the honest quote-currency print."""
+    store = _StubArtifactStore(
+        {"2330.TW": [_summary(ticker="2330.TW", entry=18.0, target=24.0)]}
+    )
+    layer = _StubDataLayer(current=640.0, quote_currency="TWD", fx_raises=True)
+    ov = await build_overview(
+        _group("2330.TW"),
+        artifact_store=store,  # type: ignore[arg-type]
+        data_layer=layer,  # type: ignore[arg-type]
+        now=NOW,
+    )
+    (row,) = ov.rows
+    assert row.price == pytest.approx(640.0)  # honest display
+    assert row.currency == "TWD"
+    # No mixed-currency fabrication: both derived legs degrade to None + a warning.
+    assert row.signal is None
+    assert row.upside_to_target_live is None
+    assert any("FX" in w or "TWD" in w for w in row.warnings)
 
 
 def test_field_caveats_and_join() -> None:

@@ -82,8 +82,30 @@ def _warm_quote_cache(db_path: Path, prices: dict[str, float]) -> None:
         conn.close()
 
 
+# Per-test ticker→quote-currency (drives the canonical PRICE snapshot the
+# signal adapter reads to learn each ticker's quote currency) and FX rates.
+_QUOTE_CURRENCIES: dict[str, str] = {}
+_FX_RATES: dict[str, float] = {}
+_FX_RAISES: set[str] = set()
+
+
+def _set_quote_currencies(ccys: dict[str, str]) -> None:
+    _QUOTE_CURRENCIES.clear()
+    _QUOTE_CURRENCIES.update({k.upper(): v.upper() for k, v in ccys.items()})
+
+
+def _set_fx(rates: dict[str, float], *, raises: set[str] | None = None) -> None:
+    _FX_RATES.clear()
+    _FX_RATES.update({k.upper(): v for k, v in rates.items()})
+    _FX_RAISES.clear()
+    _FX_RAISES.update({c.upper() for c in (raises or set())})
+
+
 class _FakeQuoteLayer:
-    """Minimal DataLayer stand-in exposing only ``fetch_quote``."""
+    """Minimal DataLayer stand-in exposing the surface the dashboard adapters
+    touch: ``fetch_quote`` (hit-rate cold path), ``read_canonical_cached`` /
+    ``fetch_canonical`` PRICE (the quote-currency source for the signal-price
+    USD conversion), and ``fx_rate_to_usd``."""
 
     async def fetch_quote(self, ticker: str) -> DataResult:
         price = _QUOTE_PRICES.get(ticker.upper())
@@ -96,6 +118,38 @@ class _FakeQuoteLayer:
             data_type=DataType.QUOTE,
             timestamp=datetime.now(tz=UTC),
         )
+
+    def _price_snapshot(self, ticker: str):
+        from finrobot.engine.data.normalize.contracts import NormalizedPrice, Provenance
+
+        return NormalizedPrice(
+            ticker=ticker.upper(),
+            current_price=_QUOTE_PRICES.get(ticker.upper(), 1.0),
+            quote_currency=_QUOTE_CURRENCIES.get(ticker.upper(), "USD"),
+            bars=[],
+            provenance=Provenance(provider="fake", as_of=NOW, fetched_at=NOW),
+        )
+
+    async def read_canonical_cached(self, data_type, ticker, **_):
+        if DataType(data_type) != DataType.PRICE:
+            return None
+        # A ticker with no configured currency is a cold canonical cache miss.
+        if ticker.upper() not in _QUOTE_CURRENCIES:
+            return None
+        return self._price_snapshot(ticker), False
+
+    async def fetch_canonical(self, data_type, ticker, **_):
+        if DataType(data_type) != DataType.PRICE:
+            raise ProviderError(f"unsupported canonical {data_type}")
+        return self._price_snapshot(ticker)
+
+    async def fx_rate_to_usd(self, currency: str) -> float:
+        cu = currency.upper()
+        if cu == "USD":
+            return 1.0
+        if cu in _FX_RAISES:
+            raise ProviderError(f"no FX rate for {currency}")
+        return _FX_RATES[cu]
 
 
 def _make_artifact(
@@ -163,6 +217,9 @@ def _clear_caches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     dashboard_mod._HIT_RATE_CACHE.clear()
     dashboard_mod._RECENT_CACHE.clear()
     _QUOTE_PRICES.clear()
+    _QUOTE_CURRENCIES.clear()
+    _FX_RATES.clear()
+    _FX_RAISES.clear()
     # Isolate the QuoteCache L1/L2 per-test so the singleton does not bleed
     # quotes from previous tests' fixtures into the next assertion.
     from finrobot import paths
@@ -240,6 +297,125 @@ def test_hit_rate_aggregates_real_artifacts(
     assert data["overall"]["hit_rate"] == 0.5
     assert data["by_verdict"]["BUY"]["hit_rate"] == 0.5
     assert data["by_verdict"]["HOLD"]["hit_rate"] is None
+
+
+# ── cross-currency: live quote (quote ccy) vs USD entry/target ───────────────
+#
+# The QUOTE batch returns a bare quote-currency float (no currency tag, no FX).
+# entry/target are canonical USD. For a foreign LOCAL listing (2330.TW, quote=TWD)
+# the hit-rate bucket math compared a TWD quote against a USD target → mis-bucketed
+# verdicts (the same cross-currency bug already fixed in coverage + valuation). Fix:
+# convert each ticker's quote to USD (via the canonical PRICE quote_currency +
+# DataLayer.fx_rate_to_usd) before _signal_for. US (quote=USD) is a strict no-op.
+
+
+def test_hit_rate_foreign_local_listing_converts_quote_to_usd(
+    client: TestClient,
+    store: ArtifactStore,
+) -> None:
+    """2330.TW: TWD live quote 3776, USD entry 100 / target 130, rate 0.03178 →
+    USD price ≈ 120 → a healthy in-progress BUY (watching, NOT a hit and NOT a
+    failure). The broken TWD-vs-USD path read 3776 ≫ 130 → spurious 'hit'."""
+    _set_quotes({"2330.TW": 3776.0})
+    _set_quote_currencies({"2330.TW": "TWD"})
+    _set_fx({"TWD": 0.03178})
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_2330",
+            ticker="2330.TW",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=30,
+        ),
+    )
+    data = client.get("/api/dashboard/hit-rate").json()
+    # USD price ≈ 120 → +20 of the +30 expected move (67%) → that IS a hit
+    # (Rule 2 >50% progress). The point: it's classified on the USD price, not the
+    # raw 3776 that would also (coincidentally) read 'hit' but for the WRONG reason
+    # and would mis-handle a target-overshoot/reverse. Pin the closed/hit bucket.
+    assert data["overall"]["n_total"] == 1
+    assert data["overall"]["n_closed"] == 1
+    assert data["overall"]["n_hit"] == 1
+
+
+def test_hit_rate_foreign_listing_reverse_not_fake_hit(
+    client: TestClient,
+    store: ArtifactStore,
+) -> None:
+    """The decisive red: a TWD price that, taken raw, sits ABOVE a USD target
+    (fake 'hit') but in USD is a hard reverse below entry (a real 'failed').
+    Entry 100 USD / target 130 USD; TWD quote 2200, rate 0.03178 → $69.9 USD =
+    −30% reverse → 'failed', NOT the raw-2200 'hit'."""
+    _set_quotes({"2330.TW": 2200.0})
+    _set_quote_currencies({"2330.TW": "TWD"})
+    _set_fx({"TWD": 0.03178})
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_2330r",
+            ticker="2330.TW",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=30,
+        ),
+    )
+    data = client.get("/api/dashboard/hit-rate").json()
+    assert data["overall"]["n_closed"] == 1
+    assert data["overall"]["n_hit"] == 0  # USD reverse → failed, not a fake hit
+
+
+def test_hit_rate_us_ticker_no_fx_noop(
+    client: TestClient,
+    store: ArtifactStore,
+) -> None:
+    """US ticker (quote=USD): strict no-op — the FX provider is never consulted
+    and the bucket math is identical to before the fix."""
+    _set_quotes({"AAPL": 128.0})
+    _set_quote_currencies({"AAPL": "USD"})
+    # FX raises for everything → if the path touched FX for a USD ticker it'd error.
+    _set_fx({}, raises={"TWD", "EUR", "JPY"})
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_us",
+            ticker="AAPL",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=30,
+        ),
+    )
+    data = client.get("/api/dashboard/hit-rate").json()
+    assert data["overall"]["n_closed"] == 1
+    assert data["overall"]["n_hit"] == 1  # 128 vs target 130 → hit (within band)
+
+
+def test_hit_rate_foreign_fx_unavailable_drops_signal(
+    client: TestClient,
+    store: ArtifactStore,
+) -> None:
+    """FX rate unobtainable for a foreign ticker → that artifact's signal drops
+    (None → excluded), never bucketed on a mixed-currency comparison."""
+    _set_quotes({"2330.TW": 3776.0})
+    _set_quote_currencies({"2330.TW": "TWD"})
+    _set_fx({}, raises={"TWD"})
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_2330_nofx",
+            ticker="2330.TW",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=30,
+        ),
+    )
+    data = client.get("/api/dashboard/hit-rate").json()
+    assert data["overall"]["n_total"] == 0  # signal dropped → not counted
+    assert data["overall"]["hit_rate"] is None
 
 
 def test_hit_rate_scopes_to_group_tickers(
@@ -335,6 +511,37 @@ def test_recent_research_rolls_up_same_ticker_into_one_card(
     assert len(rows) == 3
     assert [r["artifact_id"] for r in rows] == ["art_AAPL_0", "art_AAPL_1", "art_AAPL_2"]
     assert all(r["verdict"] == "BUY" for r in rows)
+
+
+def test_recent_research_foreign_listing_lamp_uses_usd_price(
+    client: TestClient,
+    store: ArtifactStore,
+    tmp_path: Path,
+) -> None:
+    """The strip's signal lamp (_signal_for → compute_signal) must compare a
+    foreign LOCAL listing's quote-currency price against the USD entry/target in
+    USD, not raw. TWD quote 3300, USD entry 100 / target 130, rate 0.03178 →
+    $104.9 USD → 'watching' (+16% of the +30 expected move); raw 3300 ≫ 130 would
+    falsely read 'hit'."""
+    _warm_quote_cache(tmp_path / "quotes.db", {"2330.TW": 3300.0})
+    _set_quote_currencies({"2330.TW": "TWD"})
+    _set_fx({"TWD": 0.03178})
+    _save(
+        store,
+        _make_artifact(
+            artifact_id="art_2330_strip",
+            ticker="2330.TW",
+            entry_price=100.0,
+            target_price=130.0,
+            verdict="BUY",
+            days_ago=30,
+        ),
+    )
+    data = client.get("/api/dashboard/recent-research?limit=5").json()
+    card = next(c for c in data["items"] if c["ticker"] == "2330.TW")
+    # $104.9 = +4.9 of the +30 expected move (16%) → 'watching', the honest USD
+    # verdict. The raw-TWD 3300 ≫ 130 target would have falsely read 'hit'.
+    assert card["latest_signal"] == "watching"
 
 
 def test_recent_research_caps_runs_per_card_and_reports_overflow(

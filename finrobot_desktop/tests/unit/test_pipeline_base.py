@@ -1070,6 +1070,45 @@ async def test_noncritical_step_failure_continues():
     assert any(f["step"] == "soft_step" for f in result.failed_validations)
 
 
+@pytest.mark.asyncio
+async def test_validation_failure_rolls_back_derived_keys():
+    """Critical-2: a step whose executor writes a DERIVED sibling key (built from
+    its to-be-validated output) must roll that key back too when validation
+    fails. The runner stores output BEFORE validating, so popping only
+    ``step.name`` leaves the rejected numbers alive in the sibling — exactly how
+    a DCFResult rejected by ``validate_dcf_result`` still reached the published
+    target via ``valuation_synthesis``. Input refreshes the executor also writes
+    (``data_collection``) are valid regardless and must survive."""
+
+    def _fail_structured(_obj) -> ValidationResult:
+        return ValidationResult(passed=False, error="rejected (e.g. WACC < 0.03)")
+
+    async def writer_executor(agent, deps, prompt, structured_context, ticker):
+        # Derived from the (about-to-be-rejected) output.
+        structured_context["valuation_synthesis"] = {"target": 999.0}
+        # An input refresh — valid regardless of THIS step's validation.
+        structured_context["data_collection"] = {"usd": True}
+        return StepOutput(text="modeled", structured={"implied_price": -1})
+
+    bad_step = PipelineStep(
+        name="financial_modeling",
+        agent=_make_agent(),
+        validator=StructuredValidator(_fail_structured, validate_is_non_empty),
+        executor=writer_executor,
+        deterministic=True,
+        derived_keys=("valuation_synthesis",),
+    )
+    pipeline = Pipeline(steps=[bad_step, _make_step("thesis")], max_retries=1)
+    result = await _run_pipeline(pipeline)
+
+    assert any(f["step"] == "financial_modeling" for f in result.failed_validations)
+    # rejected output popped AND its derived sibling rolled back together
+    assert "financial_modeling" not in result.structured_data
+    assert "valuation_synthesis" not in result.structured_data
+    # the input refresh (not derived from the rejected output) survives
+    assert result.structured_data.get("data_collection") == {"usd": True}
+
+
 # ---------------------------------------------------------------------------
 # Prompt-size guard: required_data text is bounded so a pathological provider
 # payload (e.g. a full 10-K) can never flood the prompt past the context window.

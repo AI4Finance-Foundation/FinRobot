@@ -62,6 +62,19 @@ class PipelineStep:
     produces the FinancialData every downstream step reads) — continuing past
     them only yields a confusing crash several steps later (e.g. peer_analysis:
     "target FinancialData not available")."""
+    derived_keys: tuple[str, ...] = ()
+    """Extra structured_context keys this step's executor writes that are DERIVED
+    from its (about-to-be-validated) output — NOT its own ``name``, NOT inputs it
+    merely refreshes. The runner stores output BEFORE validating, then on a
+    VALIDATION failure pops ``name`` so the rejected output can't feed
+    downstream. But an executor that ALSO writes a sibling key built from that
+    same output (financial_modeling builds ``valuation_synthesis`` from the
+    DCFResult before it is validated) would leave that sibling behind, so the
+    rejected numbers still reach the published target via the synthesis
+    (Critical-2). List those sibling keys here so they roll back together.
+    Inputs / normalizations the executor refreshes (``data_collection``,
+    ``price_fx_to_usd``) are valid regardless of this step's output and must NOT
+    be listed."""
 
 
 def iter_skill_sections(skill_section: SkillSection | None) -> tuple[str, ...]:

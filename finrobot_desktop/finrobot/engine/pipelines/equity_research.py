@@ -1315,6 +1315,14 @@ def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:
                 executor=_execute_financial_modeling,
                 # Deterministic DCF compute — ignores the re-prompt (BUG-059).
                 deterministic=True,
+                # The executor builds valuation_synthesis FROM the DCFResult
+                # before it is validated; if validate_dcf_result rejects the DCF
+                # (e.g. WACC < 0.03), the synthesis embedding it must roll back
+                # too — else the rejected number reaches the published target
+                # via resolve_canonical_thesis (Critical-2). sotp_breakdown is
+                # built from dcf_INPUTS (not the rejected result), so it is NOT
+                # listed; data_collection / price_fx_to_usd are input refreshes.
+                derived_keys=("valuation_synthesis",),
             ),
             PipelineStep(
                 name="ownership_governance_analysis",

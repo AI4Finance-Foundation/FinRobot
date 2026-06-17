@@ -577,6 +577,15 @@ class Pipeline:
                 # had passed. The degraded step's prose (results[name]) stays:
                 # text is narrative with a visible warning block, not numbers.
                 structured_results.pop(step.name, None)
+                # Roll back sibling keys the executor DERIVED from that same
+                # (now-rejected) output too — popping only ``step.name`` left
+                # e.g. valuation_synthesis (built from the DCFResult before it
+                # was validated) alive, so the rejected number still reached the
+                # published target via the synthesis (Critical-2). Inputs the
+                # executor merely refreshed (data_collection) are NOT listed in
+                # derived_keys, so they correctly survive.
+                for derived_key in step.derived_keys:
+                    structured_results.pop(derived_key, None)
                 failed_validations.append({"step": step.name, "error": validation_error})
                 # A critical step is a hard prerequisite — continuing past its
                 # failure only produces a confusing crash several steps later

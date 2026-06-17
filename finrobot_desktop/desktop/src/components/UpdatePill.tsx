@@ -1,6 +1,7 @@
-// Title-bar update pill (Codex-style). Sits in the TitleBar right cluster and
-// only renders when there is something to show:
-//   • available  → "↑ Update to vX"  — click downloads + installs + relaunches
+// Title-bar update pill. Sits in the TitleBar right cluster and only renders
+// when there is something to show:
+//   • available  → "UPDATE READY"     — click downloads + installs + relaunches
+//                  (version + notes live in the hover tooltip, so the pill stays crisp)
 //   • downloading → "Updating NN%"    — live progress, non-interactive
 //   • installing/ready → "Installing…"
 //   • error (failed install) → "Update failed — retry" — click retries
@@ -22,6 +23,8 @@ export function UpdatePill(): React.ReactElement | null {
   const pct = Math.round(progress * 100)
 
   if (phase === 'available') {
+    // Crisp text-only label; the exact version + release notes stay reachable in
+    // the hover tooltip, so analysts can still trace which build without clutter.
     return (
       <button
         type="button"
@@ -29,16 +32,7 @@ export function UpdatePill(): React.ReactElement | null {
         title={notes ?? t('update.pill.available', { version: version ?? '' })}
         onClick={() => void install()}
       >
-        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
-          <path
-            d="M6 9.5V2.5M3 5l3-3 3 3"
-            stroke="currentColor"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-        {t('update.pill.available', { version: version ?? '' })}
+        {t('update.pill.ready')}
       </button>
     )
   }

@@ -3841,6 +3841,10 @@ msgid "update.pill.installing"
 msgstr "Installing…"
 
 #. js-lingui-explicit-id
+msgid "update.pill.ready"
+msgstr "Update ready"
+
+#. js-lingui-explicit-id
 msgid "update.pill.retry"
 msgstr "Update failed — retry"
 

@@ -3841,6 +3841,10 @@ msgid "update.pill.installing"
 msgstr "安装中…"
 
 #. js-lingui-explicit-id
+msgid "update.pill.ready"
+msgstr "更新就绪"
+
+#. js-lingui-explicit-id
 msgid "update.pill.retry"
 msgstr "更新失败，重试"
 

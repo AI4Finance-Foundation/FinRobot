@@ -822,31 +822,33 @@ body {
   }
 }
 
-/* Title-bar auto-update pill (UpdatePill) — Codex-style "Update to vX" button. */
+/* Title-bar auto-update pill (UpdatePill) — crisp outlined "Update ready" button. */
 .tb-update-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   height: 28px;
-  padding: 0 11px;
-  border-radius: 8px;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
   font-family: var(--font-display);
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
   white-space: nowrap;
   flex-shrink: 0;
   transition: all 0.18s ease;
 }
+/* Crisp at rest (outline only); lights up on hover so the affordance reads. */
 .tb-update-pill.is-available {
   cursor: pointer;
   color: var(--primary);
   border: 1px solid var(--border-glow);
-  background: var(--primary-soft);
-  box-shadow: var(--glow-blue);
+  background: transparent;
 }
 .tb-update-pill.is-available:hover {
-  filter: brightness(1.12);
+  background: var(--primary-soft);
+  box-shadow: var(--glow-blue);
 }
 .tb-update-pill.is-busy {
   color: var(--text-secondary);
@@ -4283,23 +4285,22 @@ select.settings-input {
   width: 19px;
   height: 19px;
   display: block;
-  transition:
-    filter 0.25s ease,
-    transform 0.25s ease;
+  transition: transform 0.25s ease;
 }
-/* radial halo behind the glyph — invisible until active */
+/* crisp highlight box behind the glyph — invisible until hover/active.
+   (Was a radial halo whose color stop misused the --glow-cyan box-shadow
+   token, so it never rendered; the box replaces it with a real surface.) */
 .tb-glyph::before {
   content: '';
   position: absolute;
-  top: 1px;
-  left: 50%;
-  width: 38px;
-  height: 38px;
-  transform: translateX(-50%);
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--glow-cyan), transparent 68%);
+  inset: -1px -10px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-soft);
+  border: 1px solid transparent;
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition:
+    opacity 0.22s ease,
+    border-color 0.22s ease;
   pointer-events: none;
   z-index: -1;
 }
@@ -4320,42 +4321,27 @@ select.settings-input {
   color: var(--primary);
   transform: translateY(-2px);
 }
-.tb-glyph:hover svg {
-  filter: drop-shadow(0 0 6px var(--glow-blue));
-}
 .tb-glyph:hover .tb-kicker {
   opacity: 0.95;
   color: var(--text-secondary);
 }
 .tb-glyph:hover::before {
-  opacity: 0.4;
-  background: radial-gradient(circle, var(--primary-soft), transparent 68%);
+  opacity: 0.6;
+  border-color: var(--border-soft);
 }
 /* active — ignited instrument (static glow, no infinite animation) */
 .tb-glyph.active {
   color: var(--accent-cyan);
 }
-.tb-glyph.active svg {
-  filter: drop-shadow(0 0 8px var(--glow-cyan));
-}
 .tb-glyph.active .tb-kicker {
   opacity: 1;
   color: var(--accent-cyan);
 }
+/* active — crisp boxed instrument: real surface + glow border + static cyan
+   halo (no infinite animation; the underglow tick is folded into the box). */
 .tb-glyph.active::before {
   opacity: 1;
-}
-/* cyan underglow tick anchoring the active instrument to the deck */
-.tb-glyph.active::after {
-  content: '';
-  position: absolute;
-  bottom: -6px;
-  left: 50%;
-  width: 22px;
-  height: 2px;
-  transform: translateX(-50%);
-  border-radius: var(--radius-pill);
-  background: var(--accent-cyan);
+  border-color: var(--border-glow);
   box-shadow: var(--glow-cyan);
 }
 

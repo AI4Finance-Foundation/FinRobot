@@ -642,20 +642,46 @@ def _start_parent_death_watchdog(parent_pid: int) -> threading.Event:
     process lifetime and exits via ``os._exit`` on real parent death.
     """
     import os
+    import sys
 
     stop = threading.Event()
+
+    def _parent_alive() -> bool:
+        # POSIX: signal 0 sends nothing — it just probes existence + our right to
+        # signal (ProcessLookupError = gone; PermissionError = alive, other uid).
+        # Windows: NEVER os.kill here — CPython maps os.kill(pid, sig) for any sig
+        # other than CTRL_C/CTRL_BREAK to TerminateProcess, so os.kill(parent, 0)
+        # would *kill the shell we guard*. Probe via OpenProcess(SYNCHRONIZE) +
+        # WaitForSingleObject: a 0-timeout wait returns WAIT_TIMEOUT (0x102) while
+        # the process runs, WAIT_OBJECT_0 (0) once it exits; OpenProcess failing
+        # means the pid is already gone. [Runtime-verify on real Windows — Phase 2.]
+        if sys.platform == "win32":
+            import ctypes
+
+            synchronize, wait_timeout = 0x00100000, 0x00000102
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.OpenProcess(synchronize, False, parent_pid)
+            if not handle:
+                return False
+            try:
+                return bool(kernel32.WaitForSingleObject(handle, 0) == wait_timeout)
+            finally:
+                kernel32.CloseHandle(handle)
+        try:
+            os.kill(parent_pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            pass  # parent alive but owned by another uid
+        return True
 
     def _watch() -> None:
         # Event.wait doubles as the poll interval *and* an interruptible
         # shutdown signal: returns True the instant stop is set, False on the
         # 2s timeout (the normal poll tick).
         while not stop.wait(2.0):
-            try:
-                os.kill(parent_pid, 0)  # signal 0 = liveness probe, sends nothing
-            except ProcessLookupError:
+            if not _parent_alive():
                 os._exit(0)  # parent gone — exit hard, no clients left to drain
-            except PermissionError:
-                continue  # parent alive but owned by another uid
 
     threading.Thread(target=_watch, name="parent-death-watchdog", daemon=True).start()
     return stop

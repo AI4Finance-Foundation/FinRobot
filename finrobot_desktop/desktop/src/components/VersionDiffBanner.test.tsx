@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 import { VersionDiffBanner } from './VersionDiffBanner'
 import type { ArtifactSummaryV5 } from '../types/v5'
@@ -114,6 +114,8 @@ describe('VersionDiffBanner', () => {
       ],
     })
     expect(screen.getByTestId('version-diff-banner')).toBeInTheDocument()
+    // Card is collapsed by default — open it to reveal the conclusion.
+    fireEvent.click(screen.getByTestId('version-diff-toggle'))
     await waitFor(() => expect(screen.getByText('$180.00')).toBeInTheDocument())
     // pct badge string comes pre-formatted from the backend, rendered verbatim
     expect(screen.getByText(/-7\.7%/)).toBeInTheDocument()
@@ -149,6 +151,7 @@ describe('VersionDiffBanner', () => {
       currentTargetWithheld: true,
     })
 
+    fireEvent.click(screen.getByTestId('version-diff-toggle'))
     await waitFor(() => expect(screen.getByTestId('diff-target-range')).toBeInTheDocument())
     expect(screen.getByText('Target range')).toBeInTheDocument()
     expect(screen.getByText(/\$188\.12.*\$1,414\.52/)).toBeInTheDocument()
@@ -178,6 +181,7 @@ describe('VersionDiffBanner', () => {
       ],
     })
 
+    fireEvent.click(screen.getByTestId('version-diff-toggle'))
     await waitFor(() => expect(screen.getByText(/Peer set changed: MRVL->TSM/)).toBeInTheDocument())
   })
 
@@ -190,6 +194,7 @@ describe('VersionDiffBanner', () => {
         summary('art_parent', '2026-04-01T00:00:00Z'),
       ],
     })
+    fireEvent.click(screen.getByTestId('version-diff-toggle'))
     const select = screen.getByRole('combobox') as HTMLSelectElement
     // Without the parent rule the newest other version would win; parent wins instead.
     expect(select.value).toBe('art_parent')
@@ -212,6 +217,9 @@ describe('VersionDiffBanner', () => {
         />
       </QueryClientProvider>,
     )
+    // Card is collapsed by default — open it once; `open` persists across the
+    // re-render (same component instance) so the select stays visible for B too.
+    fireEvent.click(screen.getByTestId('version-diff-toggle'))
     let select = screen.getByRole('combobox') as HTMLSelectElement
     expect(select.value).toBe('art_a_parent')
 

@@ -7667,6 +7667,41 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
 .version-diff-card__expand:focus-visible {
   color: var(--accent-cyan);
 }
+/* Collapsed-by-default summary bar (outer open/close) — keeps the version-diff
+   card from pushing the report cover down until the analyst opens it. */
+.version-diff-card__summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 16px 24px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+.version-diff-card__summary-base {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.version-diff-card__collapse {
+  margin-left: auto;
+  padding: 0;
+  color: var(--text-muted);
+  background: none;
+  border: 0;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.version-diff-card__summary:hover .version-diff-card__collapse,
+.version-diff-card__collapse:hover,
+.version-diff-card__collapse:focus-visible {
+  color: var(--primary);
+}
 .version-diff-detail {
   margin-top: 18px;
   padding-top: 16px;

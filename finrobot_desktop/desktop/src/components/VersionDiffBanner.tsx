@@ -230,6 +230,9 @@ export function VersionDiffBanner({
 }: VersionDiffBannerProps): React.ReactElement | null {
   const { locale } = useI18n()
   const c = CHROME[locale]
+  // `open` = the whole card (default collapsed to a slim bar so it doesn't push
+  // the report cover down); `expanded` = the inner driver-detail table.
+  const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
   // Same-type prior/other versions, newest first.
@@ -314,6 +317,33 @@ export function VersionDiffBanner({
         )}`
       : null
 
+  // Collapsed by default — a slim bar so the version-diff card doesn't push the
+  // report cover down. Opening it reveals the full conclusion / attribution card.
+  const baseLabel = baseSummary
+    ? `${formatDate(baseSummary.created_at, locale, 'short')}${
+        baseSummary.verdict ? ` · ${baseSummary.verdict}` : ''
+      }`
+    : ''
+  if (!open) {
+    return (
+      <div data-testid="version-diff-banner" className="version-diff-card">
+        <button
+          type="button"
+          data-testid="version-diff-toggle"
+          className="version-diff-card__summary"
+          aria-expanded={false}
+          onClick={() => setOpen(true)}
+        >
+          <span className="version-diff-card__eyebrow">{c.base}</span>
+          {baseLabel && <span className="version-diff-card__summary-base">{baseLabel}</span>}
+          <span className="version-diff-card__collapse" aria-hidden>
+            ▸ {c.expand}
+          </span>
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div data-testid="version-diff-banner" className="version-diff-card">
       {/* Header: heading + base selector */}
@@ -333,6 +363,15 @@ export function VersionDiffBanner({
             </option>
           ))}
         </select>
+        <button
+          type="button"
+          data-testid="version-diff-toggle"
+          className="version-diff-card__collapse"
+          aria-expanded
+          onClick={() => setOpen(false)}
+        >
+          ▾ {c.collapse}
+        </button>
       </div>
 
       <div className="version-diff-card__body">

@@ -2052,6 +2052,47 @@ class TestCanonicalFxNormalization:
         assert DEGRADED_FX_UNAVAILABLE in out.provenance.degraded
 
 
+class TestFxRateToUsd:
+    """Public FX chokepoint for live-price→USD consumers (Coverage signal/upside).
+    The canonical PRICE snapshot is left in its quote currency, so a foreign LOCAL
+    listing's price must be put on the USD basis before it's compared to USD
+    valuations — this is the method that does it."""
+
+    async def test_usd_returns_one(self, cache, monkeypatch):
+        """USD → 1.0. (The wrapper delegates to fetch_fx_rate_to_usd, whose own
+        USD fast-path — no network — is covered in test_fx_provider; here we only
+        assert the wrapper threads the call through and the rate is 1.0.)"""
+
+        async def fake_fx(ccy, *, fmp_api_key=None):
+            return 1.0 if ccy.upper() == "USD" else pytest.fail(f"unexpected {ccy}")
+
+        monkeypatch.setattr("finrobot.engine.data.layer.fetch_fx_rate_to_usd", fake_fx)
+        layer = DataLayer([MockProvider("fmp", ["financials"])], cache)
+        assert await layer.fx_rate_to_usd("USD") == 1.0
+        assert await layer.fx_rate_to_usd("usd") == 1.0
+
+    async def test_foreign_currency_returns_rate(self, cache, monkeypatch):
+        async def fake_fx(ccy, *, fmp_api_key=None):
+            assert ccy.upper() == "TWD"
+            return 0.03125
+
+        monkeypatch.setattr("finrobot.engine.data.layer.fetch_fx_rate_to_usd", fake_fx)
+        layer = DataLayer([MockProvider("fmp", ["financials"])], cache)
+        assert await layer.fx_rate_to_usd("TWD") == pytest.approx(0.03125)
+
+    async def test_unobtainable_rate_raises(self, cache, monkeypatch):
+        """No rate → ProviderError propagates; the caller drops the comparison
+        rather than mixing currencies."""
+
+        async def boom(ccy, *, fmp_api_key=None):
+            raise ProviderError("no spot FX quote for TWD→USD")
+
+        monkeypatch.setattr("finrobot.engine.data.layer.fetch_fx_rate_to_usd", boom)
+        layer = DataLayer([MockProvider("fmp", ["financials"])], cache)
+        with pytest.raises(ProviderError):
+            await layer.fx_rate_to_usd("TWD")
+
+
 # ---------------------------------------------------------------------------
 # Deep-history augmentation (SEC companyfacts → through-cycle DCF window)
 # ---------------------------------------------------------------------------

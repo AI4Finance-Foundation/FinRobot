@@ -603,6 +603,21 @@ class DataLayer:
                 return getattr(provider, "_api_key", None)
         return None
 
+    async def fx_rate_to_usd(self, currency: str) -> float:
+        """Today's spot rate to convert ``currency`` → USD (1.0 for USD).
+
+        Public FX chokepoint for consumers that hold a DataLayer but not the raw
+        ``fetch_fx_rate_to_usd`` symbol (Coverage's per-row signal/upside path):
+        the canonical PRICE snapshot is left in its quote currency (the FX gate is
+        FINANCIALS-only, see ``_apply_canonical_fx``), so a foreign LOCAL listing's
+        live price must be converted to USD before it is compared against
+        USD-normalized entry/target valuations. Threads the configured FMP key as
+        the yfinance-429 fallback, exactly like ``reporting_to_quote_rate``. Raises
+        ``ProviderError`` when no rate is obtainable — the caller drops the derived
+        comparison rather than mixing currencies.
+        """
+        return await fetch_fx_rate_to_usd(currency, fmp_api_key=self._fmp_api_key())
+
     async def reporting_to_quote_rate(self, reporting_ccy: str, quote_ccy: str) -> float:
         """Factor expressing one unit of ``reporting_ccy`` in ``quote_ccy``.
 

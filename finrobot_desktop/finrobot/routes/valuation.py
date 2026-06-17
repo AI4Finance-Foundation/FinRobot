@@ -57,7 +57,7 @@ async def aggregate_for_ticker(ticker: str, request: Request) -> ValuationAggreg
     data_layer = _data_layer(request)
 
     ticker = ticker.upper()
-    current_price = await _current_price(ticker, data_layer)
+    current_price = await _current_price(ticker, data_layer, fmp_api_key=_fmp_api_key(request))
 
     dcf, peer_comps, ddm, lbo = await _gather_latest_results(store, ticker)
     shares = _shares_outstanding(dcf, lbo)
@@ -268,7 +268,19 @@ def _fmp_api_key(request: Request) -> str | None:
     return getattr(settings, "fmp_api_key", None) if settings is not None else None
 
 
-async def _current_price(ticker: str, data_layer: DataLayer | None) -> float | None:
+async def _current_price(
+    ticker: str, data_layer: DataLayer | None, *, fmp_api_key: str | None = None
+) -> float | None:
+    """The live price in USD — the basis the football-field valuation methods sit on.
+
+    The canonical PRICE snapshot is NEVER FX-normalized (the FX gate is
+    FINANCIALS-only — see ``DataLayer._apply_canonical_fx``), so for a foreign LOCAL
+    listing (quote=TWD) ``current_price`` is in the quote currency. The aggregator
+    compares it against USD DCF/comps/DDM/LBO valuations, so it MUST be converted to
+    USD first — the price-side mirror of the forward-EPS fix (``_forward_to_usd``).
+    No-op for USD quotes (US issuers, pure ADRs). On an FX miss the price is dropped
+    (None) rather than fed cross-currency into the field.
+    """
     if data_layer is None:
         return None
     try:
@@ -280,7 +292,24 @@ async def _current_price(ticker: str, data_layer: DataLayer | None) -> float | N
         price = float(result.current_price) if result.current_price is not None else None
     except (TypeError, ValueError):
         return None
-    return price if price and price > 0 else None
+    if not price or price <= 0:
+        return None
+    quote_ccy = getattr(result, "quote_currency", "USD").upper()
+    if quote_ccy == "USD":
+        return price
+    try:
+        rate = await fetch_fx_rate_to_usd(quote_ccy, fmp_api_key=fmp_api_key)
+    except ProviderError as exc:
+        # Can't put the price on the USD valuation basis — drop it rather than
+        # compare a quote-currency price against USD methods.
+        logger.warning(
+            "current_price FX: no %s→USD rate for %s (%s) — dropping current price",
+            quote_ccy,
+            ticker,
+            exc,
+        )
+        return None
+    return price * rate
 
 
 async def _gather_latest_results(

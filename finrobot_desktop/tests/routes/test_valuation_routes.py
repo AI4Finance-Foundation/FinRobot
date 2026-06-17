@@ -53,10 +53,15 @@ class _StubDataLayer:
     in ``routes/valuation._forward_to_usd`` can resolve the issuer's currency."""
 
     def __init__(
-        self, forward_rows: list[dict] | None = None, *, reporting_currency: str = "USD"
+        self,
+        forward_rows: list[dict] | None = None,
+        *,
+        reporting_currency: str = "USD",
+        price_quote_currency: str = "USD",
     ) -> None:
         self._forward_rows = forward_rows
         self._reporting_currency = reporting_currency
+        self._price_quote_currency = price_quote_currency
 
     async def fetch(self, data_type: DataType | str, ticker: str, **_: object) -> DataResult:
         return DataResult(
@@ -80,6 +85,7 @@ class _StubDataLayer:
             return NormalizedPrice(
                 ticker=ticker,
                 current_price=876.42,
+                quote_currency=self._price_quote_currency,
                 bars=[PriceBar(date=NOW.date(), close=876.42)],
                 provenance=Provenance(provider="stub", as_of=NOW, fetched_at=NOW),
             )
@@ -259,6 +265,7 @@ async def _app_with_artifacts(
     *artifacts: Artifact,
     forward_rows: list[dict] | None = None,
     reporting_currency: str = "USD",
+    price_quote_currency: str = "USD",
 ) -> FastAPI:
     store = ArtifactStore(base_dir=tmp_dir)
     for art in artifacts:
@@ -267,7 +274,11 @@ async def _app_with_artifacts(
     app.include_router(router)
     app.state.artifact_store = store
     app.state.deps = _StubDeps(
-        data_layer=_StubDataLayer(forward_rows, reporting_currency=reporting_currency)
+        data_layer=_StubDataLayer(
+            forward_rows,
+            reporting_currency=reporting_currency,
+            price_quote_currency=price_quote_currency,
+        )
     )
     return app
 
@@ -358,6 +369,54 @@ async def test_aggregate_endpoint_converts_reporting_ccy_forward_eps_to_usd(
     assert abs(comps["mid"] - expected) < 0.05
     # The un-converted TWD result would have been ~1,978 — prove we're nowhere near it.
     assert comps["mid"] < 200
+
+
+@pytest.mark.asyncio
+async def test_aggregate_endpoint_converts_foreign_quote_price_to_usd(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The PRICE canonical is NEVER FX-normalized (it stays in the quote currency).
+    For a foreign LOCAL listing (quote=TWD) the football field would compare a TWD
+    live price against USD valuation methods — the aggregate current_price MUST be
+    converted to USD first, mirroring the forward-EPS fix (_forward_to_usd)."""
+    twd_usd = 0.0313
+
+    async def _fake_fx(from_ccy: str, *, fmp_api_key: str | None = None) -> float:
+        assert from_ccy.upper() == "TWD"
+        return twd_usd
+
+    monkeypatch.setattr("finrobot.routes.valuation.fetch_fx_rate_to_usd", _fake_fx)
+
+    app = await _app_with_artifacts(
+        tmp_path, _dcf_artifact(), reporting_currency="TWD", price_quote_currency="TWD"
+    )
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/valuation/aggregate/NVDA")
+    assert r.status_code == 200
+    body = r.json()
+    # 876.42 TWD → 876.42 × 0.0313 ≈ $27.43 USD — NOT the raw 876.42.
+    assert body["current_price"] == pytest.approx(876.42 * twd_usd, abs=0.01)
+
+
+@pytest.mark.asyncio
+async def test_aggregate_endpoint_usd_price_no_fx(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """US / pure-ADR (quote==USD): the FX path is a strict no-op — the live price
+    flows through unchanged and the FX provider is never consulted."""
+
+    async def _boom_fx(*_a: object, **_k: object) -> float:
+        raise AssertionError("USD price must not consult the FX provider")
+
+    monkeypatch.setattr("finrobot.routes.valuation.fetch_fx_rate_to_usd", _boom_fx)
+
+    app = await _app_with_artifacts(tmp_path, _dcf_artifact())  # quote defaults to USD
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/valuation/aggregate/NVDA")
+    assert r.status_code == 200
+    assert r.json()["current_price"] == 876.42
 
 
 @pytest.mark.asyncio

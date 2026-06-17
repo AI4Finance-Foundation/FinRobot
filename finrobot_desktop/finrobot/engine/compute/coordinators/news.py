@@ -166,18 +166,33 @@ class NewsItem(BaseModel):
     summary: str
 
 
-def _parse_datetime(s: str) -> datetime | None:
-    """Parse an ISO-8601 publish date, or None when it is missing/unparseable.
+def _parse_datetime(value: object) -> datetime | None:
+    """Parse a publish date — an ISO-8601 string OR a Unix epoch (seconds) —
+    or None when it is missing/unparseable.
 
     A publish date is a FACT. Earlier code fell back to ``datetime.now()`` on a
     parse failure, which silently fabricated a "just published" timestamp — that
     let undated or stale items punch through the 30-day freshness window and be
     extracted as fresh catalysts. The honest value for an unknown date is None;
     downstream (filter_fresh_news) treats it as not-provably-fresh and drops it.
+
+    This is the single canonical chokepoint converting every provider's raw
+    ``published`` field. yfinance's legacy schema emits ``providerPublishTime``
+    as a Unix epoch int, so a bare int/float must be accepted here — previously
+    ``int.replace`` raised AttributeError → None → real, recent news was
+    silently dropped out of the freshness window.
     """
+    if value is None or value == "":
+        return None
+    # bool is an int subclass — a stray True/False is not a timestamp.
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        try:
+            return datetime.fromtimestamp(value, tz=timezone.utc)
+        except (ValueError, OSError, OverflowError):
+            return None
     try:
-        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
-    except (ValueError, AttributeError):
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (ValueError, AttributeError, TypeError):
         return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)

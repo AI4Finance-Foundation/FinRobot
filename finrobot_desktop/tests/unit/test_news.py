@@ -169,6 +169,23 @@ class TestNewsDateHonesty:
     def test_parse_datetime_empty_returns_none(self):
         assert _parse_datetime("") is None
 
+    def test_parse_datetime_unix_epoch_int(self):
+        """yfinance's legacy schema emits ``providerPublishTime`` as a Unix
+        epoch int. ``_parse_datetime`` is the single canonical chokepoint that
+        converts every provider's raw ``published`` field, so it MUST accept
+        epoch ints — calling ``.replace`` on an int raised AttributeError,
+        silently dropping real, recent news out of the freshness window."""
+        # 2024-01-15T18:30:00Z == 1705343400 (same anchor as _normalize_published)
+        dt = _parse_datetime(1705343400)
+        assert dt == datetime(2024, 1, 15, 18, 30, tzinfo=timezone.utc)
+
+    def test_parse_datetime_unix_epoch_float(self):
+        dt = _parse_datetime(1705343400.0)
+        assert dt == datetime(2024, 1, 15, 18, 30, tzinfo=timezone.utc)
+
+    def test_parse_datetime_out_of_range_epoch_returns_none(self):
+        assert _parse_datetime(10**30) is None
+
     def test_normalize_published_missing_returns_empty(self):
         assert NewsAggregatorProvider._normalize_published(None) == ""
         assert NewsAggregatorProvider._normalize_published("") == ""
@@ -215,6 +232,25 @@ class TestNewsDateHonesty:
         items = parse_raw_news(dr)
         assert len(items) == 1
         assert items[0].published is None
+
+    def test_legacy_epoch_provider_item_parses_to_datetime(self):
+        """End-to-end: a provider item whose ``published`` is a Unix epoch int
+        (yfinance legacy schema served directly via the DataLayer chain) must
+        reach a RawNewsItem with a real datetime — not be silently dropped."""
+        dr = DataResult(
+            data={
+                "news_items": [
+                    {"title": "Legacy", "source": "Y", "published": 1705343400, "url": "u"},
+                ]
+            },
+            provider="yfinance",
+            ticker="AAPL",
+            data_type="news",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+        items = parse_raw_news(dr)
+        assert len(items) == 1
+        assert items[0].published == datetime(2024, 1, 15, 18, 30, tzinfo=timezone.utc)
 
 
 class TestFetchNews:

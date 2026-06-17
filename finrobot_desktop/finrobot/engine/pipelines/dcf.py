@@ -89,6 +89,14 @@ async def _execute_dcf_calc(
     financial_data = await normalize_financials_to_usd(
         financial_data, fmp_api_key=getattr(deps.settings, "fmp_api_key", None)
     )
+    # Write the USD-normalized snapshot BACK so build_dcf_artifact's raw_data
+    # (→ entry_price via summary_extractor) is the SAME currency as the USD DCF
+    # implied_price/target. Without it a foreign issuer's entry stayed native
+    # (NT$1000) while the target was USD (~$31), so the coverage signal lamp /
+    # hit-rate compared a cross-currency entry-vs-target (BUG-073 caliber drift).
+    # equity_research already does this via data_collection; the standalone DCF
+    # pipeline did not. No-op for US issuers (normalize returns the same object).
+    structured_context["historical_data"] = financial_data
     # Stage-1 growth seed: analyst consensus over a backward-looking trailing CAGR,
     # the same authoritative path equity_research uses — the historical_data step
     # already fetched forward_estimates_raw into structured_context (shared dict).

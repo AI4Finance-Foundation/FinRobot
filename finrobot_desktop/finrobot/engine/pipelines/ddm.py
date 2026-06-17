@@ -123,6 +123,12 @@ async def _execute_ddm_seed(
             }
         )
 
+    # Write the USD-normalized snapshot BACK so build_ddm_artifact's raw_data
+    # (→ entry_price) is the SAME currency as the USD equity_value_per_share —
+    # same Critical-1 / BUG-073 caliber drift the DCF pipeline fixes. No-op for
+    # US issuers (financial_data was never reassigned above).
+    structured_context["historical_data"] = financial_data
+
     ddm_inputs = seed_ddm_inputs(financial_data, _fin)
 
     return StepOutput(text=ddm_inputs.model_dump_json(), structured=ddm_inputs)

@@ -1440,6 +1440,152 @@ async def test_foreign_issuer_technical_analysis_consumes_usd_not_native_currenc
 
 
 # ---------------------------------------------------------------------------
+# Critical-1: the STANDALONE dcf / ddm pipelines must write the USD-normalized
+# snapshot back to historical_data (the key the artifact builder reads for
+# entry_price), exactly as equity_research does via data_collection. Without it
+# a foreign issuer's entry_price stays native (NT$1000) while the DCF/DDM target
+# is USD (~$31) → coverage signal / hit-rate compares cross-currency.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_standalone_dcf_writes_usd_snapshot_back_to_historical_data(mock_deps):
+    """A TWD local listing (reporting == quote == TWD) through the REAL
+    _execute_dcf_calc, FX patched to 32 TWD/USD. After the step, historical_data
+    must hold the USD snapshot (current_price ~US$31), not the native NT$1000 —
+    so build_dcf_artifact's entry_price agrees with the USD implied_price."""
+    from finrobot.engine.models.financial import DCFResult, FinancialData, HistoricalMetrics
+    from finrobot.engine.pipelines.dcf import _execute_dcf_calc
+
+    twd_per_usd = 32.0
+
+    async def _fixed_fx(currency, *, fmp_api_key=None):
+        return 1.0 / twd_per_usd if currency.upper() == "TWD" else 1.0
+
+    hm = HistoricalMetrics(
+        years=[], revenue=[], revenue_growth_yoy=[], cogs=[], gross_profit=[],
+        gross_margin=[], sga=[], sga_ratio=[], ebitda=[], ebitda_margin=[],
+        operating_income=[], operating_margin=[], net_income=[], eps=[],
+        pe_ratio=[], cagr_revenue=None, ticker="2330.TW",
+    )
+    mock_deps.settings.fmp_api_key = None
+    ctx: dict[str, object] = {"historical_data": _twd_local_financial_data()}
+
+    with (
+        patch(
+            "finrobot.engine.compute.coordinators.extractor.fetch_fx_rate_to_usd",
+            side_effect=_fixed_fx,
+        ),
+        patch(
+            "finrobot.engine.pipelines.dcf.fetch_historical_metrics",
+            new=AsyncMock(return_value=hm),
+        ),
+    ):
+        out = await _execute_dcf_calc(MagicMock(), mock_deps, "p", ctx, "2330.TW")
+
+    stored = ctx["historical_data"]
+    assert isinstance(stored, FinancialData)
+    assert stored.reporting_currency == "USD"
+    assert stored.quote_currency == "USD"
+    assert stored.market.current_price == pytest.approx(1000.0 / twd_per_usd, rel=1e-6)
+    if isinstance(out.structured, DCFResult):
+        assert out.structured.inputs.currency == "USD"
+
+
+@pytest.mark.asyncio
+async def test_standalone_dcf_us_issuer_historical_data_unchanged(mock_deps):
+    """US issuer (USD == USD): normalize_financials_to_usd is a no-op, so the
+    write-back must not perturb the snapshot."""
+    from finrobot.engine.models.financial import (
+        BalanceSheet,
+        FinancialData,
+        HistoricalMetrics,
+        IncomeStatement,
+        MarketData,
+        ValuationMetrics,
+    )
+    from finrobot.engine.pipelines.dcf import _execute_dcf_calc
+
+    hm = HistoricalMetrics(
+        years=[], revenue=[], revenue_growth_yoy=[], cogs=[], gross_profit=[],
+        gross_margin=[], sga=[], sga_ratio=[], ebitda=[], ebitda_margin=[],
+        operating_income=[], operating_margin=[], net_income=[], eps=[],
+        pe_ratio=[], cagr_revenue=None, ticker="AAPL",
+    )
+    mock_deps.settings.fmp_api_key = None
+    original = FinancialData(
+        ticker="AAPL",
+        company_name="Apple Inc.",
+        timestamp=datetime.now(tz=timezone.utc),
+        reporting_currency="USD",
+        quote_currency="USD",
+        income=IncomeStatement(
+            revenue=4e11, ebitda=1.3e11, net_income=1e11,
+            gross_margin=0.46, operating_margin=0.3, interest_expense=3e9,
+        ),
+        balance=BalanceSheet(total_debt=1e11, total_cash=6e10),
+        market=MarketData(
+            market_cap=3e12, shares_outstanding=1.5e10, current_price=200.0,
+            industry="Consumer Electronics", beta=1.2,
+        ),
+        valuation=ValuationMetrics(),
+    )
+    ctx: dict[str, object] = {"historical_data": original}
+
+    with patch(
+        "finrobot.engine.pipelines.dcf.fetch_historical_metrics",
+        new=AsyncMock(return_value=hm),
+    ):
+        await _execute_dcf_calc(MagicMock(), mock_deps, "p", ctx, "AAPL")
+
+    stored = ctx["historical_data"]
+    assert isinstance(stored, FinancialData)
+    assert stored.quote_currency == "USD"
+    assert stored.market.current_price == pytest.approx(original.market.current_price, rel=1e-9)
+
+
+@pytest.mark.asyncio
+async def test_standalone_ddm_writes_usd_snapshot_back_to_historical_data(mock_deps):
+    """DDM leg of Critical-1: _execute_ddm_params (the seed step) normalizes a
+    foreign dividend payer to USD but must write the USD snapshot back to
+    historical_data, else build_ddm_artifact's entry_price stays native while
+    equity_value_per_share is USD."""
+    from finrobot.engine.data.normalize.contracts import NormalizedFinancials, Provenance
+    from finrobot.engine.models.financial import FinancialData
+    from finrobot.engine.pipelines.ddm import _execute_ddm_seed
+
+    twd_per_usd = 32.0
+
+    async def _fixed_fx(currency, *, fmp_api_key=None):
+        return 1.0 / twd_per_usd if currency.upper() == "TWD" else 1.0
+
+    now = datetime.now(tz=timezone.utc)
+    norm_twd = NormalizedFinancials(
+        ticker="2330.TW", revenue=2_160e9, market_cap=26_000e9, as_of=now,
+        net_income=850e9, shares_outstanding=25.9e9, current_price=1000.0,
+        dividend_per_share=30.0, payout_ratio=0.5, return_on_equity=0.25,
+        book_value_per_share=120.0, beta=1.05, industry="Semiconductors",
+        sector="Technology",
+        provenance=Provenance(provider="yfinance", as_of=now, fetched_at=now),
+    )
+    mock_deps.settings.fmp_api_key = None
+    mock_deps.data_layer.fetch_canonical = AsyncMock(return_value=norm_twd)
+    ctx: dict[str, object] = {"historical_data": _twd_local_financial_data()}
+
+    with patch(
+        "finrobot.engine.pipelines.ddm.fetch_fx_rate_to_usd",
+        side_effect=_fixed_fx,
+    ):
+        await _execute_ddm_seed(MagicMock(), mock_deps, "p", ctx, "2330.TW")
+
+    stored = ctx["historical_data"]
+    assert isinstance(stored, FinancialData)
+    assert stored.reporting_currency == "USD"
+    assert stored.quote_currency == "USD"
+    assert stored.market.current_price == pytest.approx(1000.0 / twd_per_usd, rel=1e-6)
+
+
+# ---------------------------------------------------------------------------
 # BUG-015: recoverable AgentRunError must propagate (not be wrapped into
 # non-recoverable ValueError that defeats base.py's retry-by-type)
 # ---------------------------------------------------------------------------

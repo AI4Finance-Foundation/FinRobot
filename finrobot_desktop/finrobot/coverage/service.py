@@ -216,31 +216,32 @@ async def _assemble_row(
     else:
         await _apply_market_fields(row, ticker, data_layer, now=now, cache_only=False)
 
+    # The live PRICE canonical is NEVER FX-normalized — the FX gate is
+    # FINANCIALS-only ("PRICE is unaffected", layer._apply_canonical_fx) — so for a
+    # foreign LOCAL listing (2330.TW, quote=TWD) ``row.price`` is in TWD, while
+    # everything it's compared against (entry/target, the reverse-DCF inputs) is
+    # canonical USD (the normalize→USD invariant; the equity_research / ic_memo
+    # builders fold data_collection into USD). Convert the live price to USD ONCE
+    # here — both the reverse-DCF nature and signal/upside consume this USD price.
+    # The displayed ``row.price`` stays in the honest quote currency. US issuers /
+    # pure ADRs (currency == USD) are a strict no-op — no FX call. On an FX miss the
+    # USD price is None → every derived comparison degrades (never mixed-currency).
+    usd_price = await _live_price_usd(row, data_layer)
+
     # 2.5 Reverse-DCF nature — what the LIVE price implies, re-solved from the
-    # name's latest stored DCF inputs. Needs the artifact body + a live price, so
-    # it's skipped on the instant cache-only first paint (the network revalidate
-    # fills it). Cheap once here: pure arithmetic over persisted DCFInputs.
-    if not cache_only and row.price is not None and row.price > 0:
-        await _apply_market_implied(row, ticker, summaries, artifact_store, row.price)
+    # name's latest stored DCF inputs (USD). Skipped on the instant cache-only first
+    # paint (the network revalidate fills it). Cheap once here: pure arithmetic over
+    # persisted DCFInputs. Uses the USD-aligned price so a foreign listing's TWD
+    # quote isn't reverse-solved against a USD DCF.
+    if not cache_only and usd_price is not None and usd_price > 0:
+        await _apply_market_implied(row, ticker, summaries, artifact_store, usd_price)
 
     # 3. Live run state (in-flight batch run / failed attempt).
     if latest_run is not None:
         row.run_status = latest_run.status
         row.run_error = latest_run.error
 
-    # 4. Derived — signal + live upside + refresh reasons.
-    #
-    # entry/target are canonical USD (the normalize→USD invariant; the
-    # equity_research / ic_memo builders fold data_collection into USD). The live
-    # PRICE canonical, however, is NEVER FX-normalized — the FX gate is
-    # FINANCIALS-only ("PRICE is unaffected", layer._apply_canonical_fx) — so for a
-    # foreign LOCAL listing (2330.TW, quote=TWD) ``row.price`` is in TWD. Comparing
-    # a TWD live price against a USD target collapsed upside to ~−97% garbage.
-    # Convert the live price to USD HERE (at the consumption point) before signal /
-    # upside; the displayed ``row.price`` stays in the honest quote currency. US
-    # issuers / pure ADRs (currency == USD) are a strict no-op — no FX call. On an
-    # FX miss the derived legs degrade to None (never a mixed-currency fabrication).
-    usd_price = await _live_price_usd(row, data_layer)
+    # 4. Derived — signal + live upside + refresh reasons (all on the USD price).
     row.signal = _safe_signal(row, usd_price, now)
     row.upside_to_target_live = _upside(row.target_price, usd_price)
     if row.upside_to_target_live is not None:

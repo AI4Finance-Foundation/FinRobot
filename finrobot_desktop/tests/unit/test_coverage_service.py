@@ -337,6 +337,61 @@ async def test_overview_populates_market_implied_nature_from_latest_dcf() -> Non
     assert row.sources.market_implied.artifact_id == "art_1"
 
 
+async def test_market_implied_reverse_solves_on_usd_price_for_foreign_listing(
+    monkeypatch,
+) -> None:
+    """The reverse-DCF nature must be solved against the USD-aligned live price, not
+    the raw quote-currency price — the DCF inputs are USD, so a foreign LOCAL listing
+    (2330.TW, quote=TWD) feeding its raw TWD price would reverse-solve garbage."""
+    from types import SimpleNamespace
+
+    import finrobot.coverage.service as svc
+    from finrobot.engine.compute.operators.dcf import calculate_dcf
+    from finrobot.engine.models.financial import DCFInputs
+
+    inputs = DCFInputs(
+        revenue_base=100_000_000_000,
+        revenue_growth_rates=[0.05] * 5,
+        ebitda_margin=0.35,
+        capex_pct_revenue=0.05,
+        nwc_pct_revenue=0.02,
+        tax_rate=0.21,
+        risk_free_rate=0.04,
+        beta=1.2,
+        equity_risk_premium=0.05,
+        cost_of_debt=0.04,
+        debt_ratio=0.1,
+        terminal_growth_rate=0.025,
+        shares_outstanding=1_000_000_000,
+        net_debt=10_000_000_000,
+    )
+    dcf = calculate_dcf(inputs)
+    body = SimpleNamespace(
+        outputs=SimpleNamespace(structured={"financial_modeling": dcf.model_dump()})
+    )
+    store = _StubArtifactStore({"2330.TW": [_summary(ticker="2330.TW")]}, artifacts={"art_1": body})
+
+    seen: dict[str, float] = {}
+    _orig = svc.classify_market_implied_nature
+
+    def _capture(inputs_, current_price, *, horizon_years):
+        seen["price"] = current_price
+        return _orig(inputs_, current_price, horizon_years=horizon_years)
+
+    monkeypatch.setattr(svc, "classify_market_implied_nature", _capture)
+
+    # TWD live 3000, rate 0.03178 → $95.34 USD. The reverse-DCF must see ~95, NOT 3000.
+    await build_overview(
+        _group("2330.TW"),
+        artifact_store=store,  # type: ignore[arg-type]
+        data_layer=_StubDataLayer(
+            current=3000.0, quote_currency="TWD", fx_rates={"TWD": 0.03178}
+        ),  # type: ignore[arg-type]
+        now=NOW,
+    )
+    assert seen["price"] == pytest.approx(3000.0 * 0.03178)  # USD, not the raw 3000 TWD
+
+
 async def test_overview_market_implied_none_without_dcf() -> None:
     """No retrievable DCF artifact → market_implied stays None, never fabricated."""
     store = _StubArtifactStore({"AAPL": [_summary(verdict="BUY")]})  # summary only, no body

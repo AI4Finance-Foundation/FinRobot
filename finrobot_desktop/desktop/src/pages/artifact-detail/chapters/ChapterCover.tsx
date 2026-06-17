@@ -77,12 +77,7 @@ export function ChapterCover({
       id="cover"
       data-testid="chapter-cover"
       style={{
-        margin: '12px 0 28px',
-        padding: '28px 28px 24px',
-        background:
-          'radial-gradient(ellipse 70% 60% at 50% 30%, color-mix(in srgb, var(--secondary) 14%, transparent), transparent 70%), linear-gradient(160deg, color-mix(in srgb, var(--bg-card) 95%, transparent), color-mix(in srgb, var(--bg-deep) 60%, transparent))',
-        border: '1px solid var(--border-soft)',
-        borderRadius: 'var(--radius-lg)',
+        margin: '8px 0 0',
         position: 'relative',
         scrollMarginTop: 84,
       }}
@@ -93,15 +88,14 @@ export function ChapterCover({
           justifyContent: 'space-between',
           alignItems: 'center',
           fontFamily: 'var(--font-mono)',
-          fontSize: 10.5,
+          fontSize: 9.5,
           color: 'var(--text-muted)',
-          letterSpacing: '0.08em',
-          marginBottom: 14,
+          letterSpacing: '0.22em',
+          textTransform: 'uppercase',
+          marginBottom: 24,
         }}
       >
-        <span style={{ fontFamily: 'var(--font-display)', letterSpacing: '0.3em' }}>
-          FINROBOT {t('chapter.cover.equityResearch')}
-        </span>
+        <span>FINROBOT {t('chapter.cover.equityResearch')}</span>
         <span>{createdAt ? formatDate(createdAt, locale, 'datetime') : ''}</span>
       </div>
 
@@ -116,10 +110,10 @@ export function ChapterCover({
         <div
           style={{
             fontFamily: 'var(--font-display)',
-            fontSize: 56,
-            letterSpacing: 5,
+            fontSize: 52,
+            fontWeight: 600,
+            letterSpacing: '-1px',
             color: 'var(--text-primary)',
-            textShadow: '0 0 28px color-mix(in srgb, var(--primary) 40%, transparent)',
             lineHeight: 1,
           }}
         >
@@ -133,14 +127,14 @@ export function ChapterCover({
             data-confidence={tier}
             style={{
               fontFamily: 'var(--font-display)',
-              fontSize: 28,
-              letterSpacing: 4,
-              padding: '4px 18px',
+              fontSize: 16,
+              fontWeight: 600,
+              letterSpacing: '0.18em',
+              padding: '7px 16px',
               background: tone.bg,
               color: tone.fg,
-              border: `1.5px solid ${tone.border}`,
-              borderRadius: 6,
-              boxShadow: `0 0 18px ${tone.bg}`,
+              border: `1px solid ${tone.border}`,
+              borderRadius: 7,
             }}
           >
             {verdictLabel(verdict)}
@@ -176,8 +170,6 @@ export function ChapterCover({
           dcfMethod={dcfMethod}
           currentPrice={currentPrice}
           quoteCurrency={quoteCurrency}
-          targetLow={targetLow}
-          targetHigh={targetHigh}
         />
       )}
 
@@ -255,15 +247,14 @@ export function ChapterCover({
       {thesis?.tagline && (
         <p
           style={{
-            marginTop: 14,
+            marginTop: 18,
             marginBottom: 0,
             fontFamily: 'var(--font-body)',
-            fontSize: 14,
+            fontSize: 14.5,
             fontStyle: 'italic',
-            color: 'var(--accent-cyan)',
-            lineHeight: 1.5,
+            color: 'var(--text-secondary)',
+            lineHeight: 1.6,
             maxWidth: 720,
-            textShadow: '0 0 12px var(--accent-cyan-glow-soft)',
           }}
         >
           "{thesis.tagline}"

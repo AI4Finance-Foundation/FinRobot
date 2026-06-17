@@ -1,5 +1,5 @@
 // Single source of truth for chapter labels (number + title + sub).
-// Both ReportTOC (left rail) and each Chapter component read from here so
+// Both ReportLeftRail (left rail) and each Chapter component read from here so
 // the chapter index never drifts between sidebar and headers.
 //
 // Chapter ids match the <section id="..."> on each chapter and the URL hash
@@ -14,17 +14,22 @@ export interface ChapterLabel {
   sub: string
 }
 
+// Reading order is importance- and dependency-driven (Micron design, 2026-06):
+// the valuation case is built up (overview → financials → valuation), stress-
+// tested immediately (sensitivity right after valuation), then what moves it
+// (catalysts → news), how it compares (competitive), the quant deep-dive
+// (technical), and finally the appendix (data → ownership → disclaimer).
 export const CHAPTER_ORDER = [
   'cover',
   'thesis',
   'overview',
   'financial',
   'valuation',
-  'news',
   'sensitivity',
   'catalysts',
-  'technical',
+  'news',
   'competitive',
+  'technical',
   'data',
   'ownership',
   'disclaimer',
@@ -75,7 +80,7 @@ export function chapterLabel(id: ChapterId, locale: Locale): ChapterLabel {
   return { num: chapterNum(id), ...table[id] }
 }
 
-/** All chapter labels for a given locale — used by ReportTOC. */
+/** All chapter labels for a given locale — used by ReportLeftRail. */
 export function allChapterLabels(locale: Locale): (ChapterLabel & { id: ChapterId })[] {
   return CHAPTER_ORDER.map((id) => ({ id, ...chapterLabel(id, locale) }))
 }

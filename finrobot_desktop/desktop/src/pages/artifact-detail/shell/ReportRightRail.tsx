@@ -4,127 +4,54 @@ import { useI18n, type Locale } from '../../../i18n'
 import { formatDate } from '../../../utils/format'
 import { verdictLabel, verdictTone } from '../../../utils/verdict'
 
-interface ReportRightRailProps {
-  ticker: string
-  currentArtifactId: string
-  timeline: ArtifactSummaryV5[]
-  reportType: string
-}
-
-// Cap (px) on the timeline's scroll viewport — ~5–6 rows show before the body
-// scrolls internally; the full count is always in the panel header.
-const TIMELINE_MAX_HEIGHT = 320
-
 // Distance (px) from a row's top edge to its dot centre — kept in one place so
 // the connecting spine segments line up exactly with the dots.
 const DOT_CENTER = 16
 
-export function ReportRightRail({
+/**
+ * The version-history timeline as a bare scrollable list of rows — no panel
+ * chrome, no sticky aside. Rendered inside the report's left rail under the
+ * VERSIONS tab (ReportLeftRail), which owns the framing + scroll. Newest
+ * (current) version sits at the top; clicking a row routes to that version.
+ */
+export function VersionTimelineList({
   ticker,
   currentArtifactId,
   timeline,
   reportType,
-}: ReportRightRailProps): React.ReactElement {
+}: {
+  ticker: string
+  currentArtifactId: string
+  timeline: ArtifactSummaryV5[]
+  reportType: string
+}): React.ReactElement {
   const navigate = useNavigate()
   const { locale, t } = useI18n()
   const sameType = timeline.filter((a) => a.type === reportType)
 
+  if (sameType.length === 0) {
+    return (
+      <p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+        {t('report.timeline.empty')}
+      </p>
+    )
+  }
   return (
-    <aside
-      data-testid="report-right-rail"
-      style={{
-        position: 'sticky',
-        top: 82,
-        alignSelf: 'start',
-        padding: '16px 0',
-        fontSize: 12,
-      }}
-    >
-      <RailPanel
-        title={t('report.rightRail.timeline')}
-        headerAction={
-          sameType.length > 0 ? (
-            <span style={{ color: 'var(--text-muted)', fontWeight: 400, letterSpacing: '0.04em' }}>
-              {t('report.timeline.versionCount', { count: sameType.length })}
-            </span>
-          ) : undefined
-        }
-      >
-        {sameType.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
-            {t('report.timeline.empty')}
-          </p>
-        ) : (
-          <div
-            // Fixed-height scroll box: newest (current) version sits at the top
-            // and shows without scrolling; older versions stay reachable by
-            // scrolling instead of pushing the panel off-screen.
-            data-testid="timeline-scroll"
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              maxHeight: TIMELINE_MAX_HEIGHT,
-              overflowY: 'auto',
-            }}
-          >
-            {sameType.map((a, i, rows) => (
-              <TimelineRow
-                key={a.id}
-                artifact={a}
-                // Version number counts from the FULL same-type history
-                // (newest = vN).
-                version={sameType.length - i}
-                current={a.id === currentArtifactId}
-                isFirst={i === 0}
-                isLast={i === rows.length - 1}
-                locale={locale}
-                t={t}
-                onClick={() => navigate(`/stocks/${ticker}/runs/${a.id}`)}
-              />
-            ))}
-          </div>
-        )}
-      </RailPanel>
-    </aside>
-  )
-}
-
-function RailPanel({
-  title,
-  children,
-  headerAction,
-}: {
-  title: string
-  children: React.ReactNode
-  headerAction?: React.ReactNode
-}): React.ReactElement {
-  return (
-    <div
-      style={{
-        background: 'var(--bg-card)',
-        border: '1px solid var(--border-soft)',
-        borderRadius: 'var(--radius-md)',
-        padding: 14,
-        marginBottom: 14,
-      }}
-    >
-      <div
-        style={{
-          fontFamily: 'var(--font-mono)',
-          fontSize: 10.5,
-          color: 'var(--secondary)',
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          marginBottom: 10,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}
-      >
-        <span>{title}</span>
-        {headerAction}
-      </div>
-      {children}
+    <div data-testid="timeline-scroll" style={{ display: 'flex', flexDirection: 'column' }}>
+      {sameType.map((a, i, rows) => (
+        <TimelineRow
+          key={a.id}
+          artifact={a}
+          // Version number counts from the FULL same-type history (newest = vN).
+          version={sameType.length - i}
+          current={a.id === currentArtifactId}
+          isFirst={i === 0}
+          isLast={i === rows.length - 1}
+          locale={locale}
+          t={t}
+          onClick={() => navigate(`/stocks/${ticker}/runs/${a.id}`)}
+        />
+      ))}
     </div>
   )
 }

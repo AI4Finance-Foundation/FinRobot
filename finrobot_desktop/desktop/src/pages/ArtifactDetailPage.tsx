@@ -2,11 +2,11 @@
 // `/stocks/:ticker/runs/:artifactId`.
 //
 // Renders the artifact as a 13-chapter investment-bank-grade long-scroll
-// research report in a three-column desktop layout:
+// research report in a two-column desktop layout:
 //   - sticky top toolbar  (price overlay · version switcher · diff · re-run)
-//   - left sticky TOC     (13 chapters with scroll-spy active highlight)
+//   - left sticky rail    (identity card + CONTENTS | VERSIONS tabs — scroll-spy
+//                          TOC and Version Timeline merged into one flank)
 //   - center scroll area  (chapters 01–13, each a structured Section)
-//   - right sticky rail   (Version Timeline)
 //
 // The 13 chapters are split into per-file components under
 // pages/artifact-detail/chapters/. They consume artifact.outputs.structured
@@ -28,8 +28,7 @@ import { reportFileStem } from '../lib/exportReport'
 import { missingExportBlocksMessage } from '../export/reportExportQueries'
 
 import { ReportToolbar } from './artifact-detail/shell/ReportToolbar'
-import { ReportTOC } from './artifact-detail/shell/ReportTOC'
-import { ReportRightRail } from './artifact-detail/shell/ReportRightRail'
+import { ReportLeftRail } from './artifact-detail/shell/ReportLeftRail'
 import { ReportChapters } from './artifact-detail/ReportChapters'
 import { CompactArtifactViewer } from './artifact-detail/CompactArtifactViewer'
 import { deriveReportData } from './artifact-detail/reportData'
@@ -162,7 +161,14 @@ export function ArtifactDetailPage(): React.ReactElement {
     snapshotPrice,
     snapshotAsOf,
     quoteCurrency,
+    inputs,
   } = deriveReportData(data, timeline ?? [], locale)
+
+  // Company name for the left-rail identity card. raw_data is loosely typed
+  // (provider payload), so guard the field rather than asserting a shape.
+  const rawDataRecord = (inputs?.raw_data ?? null) as Record<string, unknown> | null
+  const companyName =
+    typeof rawDataRecord?.company_name === 'string' ? rawDataRecord.company_name : null
 
   const parentArtifactId =
     (data as unknown as { meta?: { parent_artifact_id?: string | null } }).meta
@@ -231,7 +237,7 @@ export function ArtifactDetailPage(): React.ReactElement {
   }
 
   // ── Non-research artifacts: compact single-column viewer ──────────────────
-  // No 13-chapter TOC, no Version Timeline right rail, no
+  // No 13-chapter TOC, no Version Timeline rail, no
   // chapter scroll-spy status bar. Just the toolbar (type-aware) + the focused
   // compact body that shows the artifact's real inputs / result / audit trail.
   if (!isResearch) {
@@ -268,22 +274,24 @@ export function ArtifactDetailPage(): React.ReactElement {
   }
 
   return (
-    <div data-testid="artifact-detail-page" style={{ position: 'relative', minHeight: '100vh' }}>
+    <div
+      data-testid="artifact-detail-page"
+      className="report-doc"
+      style={{ position: 'relative', minHeight: '100vh' }}
+    >
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: '184px 1fr 268px',
-          maxWidth: 1640,
+          gridTemplateColumns: '248px minmax(0, 1fr)',
+          maxWidth: 1300,
           margin: '0 auto',
-          gap: 18,
+          gap: 36,
           padding: '0 24px 80px',
           alignItems: 'start',
         }}
       >
-        {/* Sticky must live HERE, not on ReportToolbar's root: a sticky element
-            only travels within its parent's box, and the toolbar's own root is
-            this grid item whose parent is the (tall) report grid. Putting it on
-            an inner wrapper that hugs the toolbar gives it zero travel room. */}
+        {/* Full-width sticky top bar. Sticky lives on this grid-item wrapper (not
+            the toolbar root) so its travel box is the tall report grid. */}
         <div
           style={{
             gridColumn: '1 / -1',
@@ -307,10 +315,23 @@ export function ArtifactDetailPage(): React.ReactElement {
           />
         </div>
 
-        <ReportTOC
+        {/* Single left navigation flank — identity card + CONTENTS | VERSIONS
+            tabs (table of contents + version timeline merged). Replaces the old
+            left-TOC + right-timeline split that squeezed the reading column. */}
+        <ReportLeftRail
+          ticker={symbol}
+          companyName={companyName}
+          verdict={thesis?.recommendation ?? null}
+          snapshotPrice={snapshotPrice}
+          confidence={valuationSynthesis?.confidence ?? null}
+          quoteCurrency={quoteCurrency}
           entries={allChapterLabels(locale).map((c) => ({ id: c.id, num: c.num, title: c.title }))}
+          currentArtifactId={artifactId}
+          timeline={timeline ?? []}
+          reportType={data.type}
         />
 
+        {/* Report body — reclaims the full width to the right. */}
         <div style={{ minWidth: 0, paddingTop: 12 }}>
           {/* Inline "what changed vs a prior version" banner — workstation
               affordance, NOT part of the export (which is just the research). */}
@@ -329,13 +350,6 @@ export function ArtifactDetailPage(): React.ReactElement {
           />
           <ReportChapters artifact={data} timeline={timeline ?? []} />
         </div>
-
-        <ReportRightRail
-          ticker={symbol}
-          currentArtifactId={artifactId}
-          timeline={timeline ?? []}
-          reportType={data.type}
-        />
       </div>
     </div>
   )

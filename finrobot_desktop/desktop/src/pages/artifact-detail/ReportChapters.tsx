@@ -154,9 +154,10 @@ export function ReportChapters({
         // football field's per-multiple provenance rail (frozen, no live refetch).
         historicalBand={d.technical?.historical_bands ?? null}
       />
-      <ChapterNews thesis={d.thesis} catalysts={d.catalysts} />
       <ChapterSensitivity dcf={d.dcf} quoteCurrency={d.quoteCurrency} />
       <ChapterCatalysts catalysts={d.catalysts} thesis={d.thesis} />
+      <ChapterNews thesis={d.thesis} catalysts={d.catalysts} />
+      <ChapterCompetitive peers={d.peers} thesis={d.thesis} />
       <ChapterTechnical
         technical={d.technical}
         quoteCurrency={d.quoteCurrency}
@@ -165,7 +166,6 @@ export function ReportChapters({
         snapshot52wHigh={d.snapshot52wHigh}
         snapshot52wLow={d.snapshot52wLow}
       />
-      <ChapterCompetitive peers={d.peers} thesis={d.thesis} />
       <ChapterFinancialData
         rawData={d.inputs.raw_data ?? null}
         dataSource={d.inputs.data_source ?? null}

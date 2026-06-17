@@ -44,50 +44,58 @@ export function Chapter({
       id={id}
       data-testid={`chapter-${id}`}
       style={{
-        margin: '40px 0 64px',
+        margin: '48px 0 0',
         scrollMarginTop: 84,
       }}
     >
+      {/* Editorial section header: accent (cosmic --secondary) mono number + tight-set display title
+          on the left, dim mono tag-row on the right, single hairline divider.
+          Flat — no glow (the document's restraint is the design). */}
       <header
         style={{
           display: 'flex',
-          alignItems: 'baseline',
-          gap: 18,
+          alignItems: 'flex-end',
+          justifyContent: 'space-between',
+          gap: 16,
           marginBottom: 22,
-          paddingBottom: 12,
+          paddingBottom: 13,
           borderBottom: '1px solid var(--border-soft)',
         }}
       >
-        <span
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 13,
-            color: 'var(--secondary)',
-            letterSpacing: '2px',
-            textShadow: '0 0 12px color-mix(in srgb, var(--secondary) 50%, transparent)',
-          }}
-        >
-          {num}
-        </span>
-        <span
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 22,
-            letterSpacing: '2px',
-            color: 'var(--text-primary)',
-          }}
-        >
-          {title}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 13, minWidth: 0 }}>
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 13,
+              color: 'var(--secondary)',
+              letterSpacing: '0.02em',
+            }}
+          >
+            {num}
+          </span>
+          <span
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 23,
+              fontWeight: 600,
+              letterSpacing: '-0.3px',
+              color: 'var(--text-primary)',
+            }}
+          >
+            {title}
+          </span>
+        </div>
         {sub && (
           <span
             style={{
-              marginLeft: 'auto',
               fontFamily: 'var(--font-mono)',
-              fontSize: 10.5,
-              color: 'var(--text-muted)',
-              letterSpacing: '0.06em',
+              fontSize: 9,
+              color: 'var(--text-dim)',
+              letterSpacing: '0.12em',
               textTransform: 'uppercase',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+              paddingBottom: 2,
             }}
           >
             {sub}
@@ -100,33 +108,31 @@ export function Chapter({
 }
 
 export function Narrative({ children }: { children: ReactNode }): React.ReactElement {
+  // Restrained editorial prose: a dim "+ AI NARRATIVE" provenance kicker (the
+  // deterministic-vs-LLM boundary, CLAUDE.md 核心契约①) over plain body copy,
+  // marked by a thin accent (cosmic --secondary) rule. No heavy fill — the document stays calm.
   return (
     <div
       style={{
-        background:
-          'linear-gradient(160deg, color-mix(in srgb, var(--accent-cyan) 6%, transparent), transparent)',
-        borderLeft: '2px solid var(--accent-cyan)',
-        padding: '14px 18px',
-        margin: '12px 0 22px',
-        fontSize: 13.5,
-        lineHeight: 1.7,
-        color: 'var(--text-secondary)',
-        borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
+        paddingLeft: 15,
+        margin: '14px 0 24px',
+        borderLeft: '2px solid color-mix(in srgb, var(--secondary) 55%, transparent)',
       }}
     >
       <div
         style={{
           fontFamily: 'var(--font-mono)',
-          fontSize: 9.5,
-          color: 'var(--accent-cyan)',
-          letterSpacing: '0.16em',
-          marginBottom: 6,
-          opacity: 0.85,
+          fontSize: 9,
+          color: 'var(--text-muted)',
+          letterSpacing: '0.14em',
+          marginBottom: 9,
         }}
       >
-        🤖 AI NARRATIVE
+        + AI NARRATIVE
       </div>
-      {children}
+      <div style={{ fontSize: 14.5, lineHeight: 1.75, color: 'var(--text-secondary)' }}>
+        {children}
+      </div>
     </div>
   )
 }
@@ -179,14 +185,15 @@ export function KvGrid({
       }}
     >
       {cells.map((c, i) => (
-        <div key={i} style={{ background: 'var(--bg-card)', padding: '14px 16px' }}>
+        <div key={i} style={{ background: 'var(--bg-card)', padding: '15px 17px' }}>
           <div
             style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: 10.5,
+              fontSize: 9,
+              fontWeight: 600,
               color: 'var(--text-muted)',
-              letterSpacing: '0.04em',
-              marginBottom: 4,
+              letterSpacing: '0.1em',
+              marginBottom: 9,
               textTransform: 'uppercase',
             }}
           >
@@ -194,8 +201,10 @@ export function KvGrid({
           </div>
           <div
             style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 18,
+              fontFamily: 'var(--font-display)',
+              fontSize: 22,
+              fontWeight: 600,
+              letterSpacing: '-0.3px',
               color:
                 c.tone === 'up'
                   ? 'var(--success)'
@@ -211,9 +220,9 @@ export function KvGrid({
             <div
               style={{
                 fontFamily: 'var(--font-mono)',
-                fontSize: 11,
+                fontSize: 10.5,
                 color: 'var(--text-muted)',
-                marginTop: 2,
+                marginTop: 5,
               }}
             >
               {c.delta}
@@ -236,10 +245,10 @@ export const tableStyle: CSSProperties = {
   overflow: 'hidden',
 }
 
-/** Horizontal-scroll wrapper for `tableStyle` tables. The report's middle
- * column is narrow (between a 184px TOC and a 268px right rail); a wide table
- * — DCF forecast with many year columns, peer comps — otherwise overflows its
- * column and slides under the right-rail cards (they paint later in DOM order).
+/** Horizontal-scroll wrapper for `tableStyle` tables. The report's content
+ * column is bounded by the two-column grid (a 248px left rail takes the
+ * remaining width); a wide table — DCF forecast with many year columns, peer
+ * comps — otherwise overflows its column.
  * Scrolling within the column keeps every cell reachable instead of hidden.
  * `minWidth: 0` lets the wrapper shrink inside the grid so it actually clips
  * and scrolls rather than forcing the column wider. */

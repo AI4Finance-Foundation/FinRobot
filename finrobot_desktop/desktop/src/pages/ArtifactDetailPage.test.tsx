@@ -57,11 +57,8 @@ vi.mock('../components/VersionDiffBanner', () => ({ VersionDiffBanner: () => nul
 vi.mock('./artifact-detail/shell/ReportToolbar', () => ({
   ReportToolbar: () => <div data-testid="mock-toolbar" />,
 }))
-vi.mock('./artifact-detail/shell/ReportTOC', () => ({
-  ReportTOC: () => <div data-testid="mock-toc" />,
-}))
-vi.mock('./artifact-detail/shell/ReportRightRail', () => ({
-  ReportRightRail: () => <div data-testid="mock-right-rail" />,
+vi.mock('./artifact-detail/shell/ReportLeftRail', () => ({
+  ReportLeftRail: () => <div data-testid="mock-left-rail" />,
 }))
 vi.mock('./artifact-detail/ReportChapters', () => ({
   ReportChapters: () => <div data-testid="mock-report-chapters" />,
@@ -184,8 +181,7 @@ describe('ArtifactDetailPage type branch (BUG-039)', () => {
     renderPage()
 
     expect(screen.getByTestId('mock-report-chapters')).toBeTruthy()
-    expect(screen.getByTestId('mock-toc')).toBeTruthy()
-    expect(screen.getByTestId('mock-right-rail')).toBeTruthy()
+    expect(screen.getByTestId('mock-left-rail')).toBeTruthy()
     expect(screen.queryByTestId('compact-artifact-viewer')).toBeNull()
   })
 })

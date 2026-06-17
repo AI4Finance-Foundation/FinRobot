@@ -422,6 +422,21 @@
   --r-pill: var(--radius-pill);
 }
 
+/* ───────────────────────────────────────────────────────────────────────
+   Report document scope (`.report-doc` on the equity_research container).
+   The EDITORIAL LAYOUT is adopted from the Micron design — cover composition,
+   section-header pattern, metric-card rows, left-rail CONTENTS|VERSIONS tabs,
+   chapter order, restraint/whitespace. COLOURS stay the app's cosmic palette
+   per the user: charts, stat tables, icons and accents keep our existing
+   blue/violet/cyan/green/red — NOT the design's amber. So this scope holds NO
+   colour overrides; the rewritten report primitives use the global cosmic
+   tokens directly. Kept as a hook for any future layout-only scoping.
+   (2026-06-17 — see UI 风格规范 §3 + 变更日志.)
+   ─────────────────────────────────────────────────────────────────────── */
+.report-doc {
+  /* layout-only marker — colours inherit the global cosmic tokens */
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

@@ -44,6 +44,7 @@ import logging
 import sqlite3
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 import aiosqlite
@@ -51,6 +52,24 @@ import aiosqlite
 from finrobot import paths as _paths
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class Quote:
+    """A live quote carrying BOTH its price and the currency that price is in.
+
+    The price alone is ambiguous: a foreign LOCAL listing (2330.TW) quotes in TWD,
+    a US issuer / ADR in USD, and a downstream signal compares the live price
+    against canonical-USD entry/target. Carrying ``currency`` with the price (its
+    own source — yfinance ``fast_info.currency`` / FMP ``/profile.currency``) lets
+    the consumer convert to USD or correctly abstain, instead of having to guess
+    the currency from a second, independently-cached source (the strip's old
+    quote-batch-warm + canonical-cold mis-lit-lamp bug). ``currency`` is None when
+    the source could not resolve it (then the consumer abstains, never assumes USD).
+    """
+
+    price: float | None
+    currency: str | None = None
 
 
 class QuoteFetchRateLimited(RuntimeError):
@@ -64,16 +83,25 @@ class QuoteFetchRateLimited(RuntimeError):
     """
 
 
-_CREATE_TABLE = """
-CREATE TABLE IF NOT EXISTS quotes_cache (
+# Schema v2 (2026-06-17): the cached value gained a ``currency`` column so a
+# foreign-listing quote carries its currency with the price (the strip mis-lit-lamp
+# root fix). The value SHAPE changed, so the table is versioned — the old v1
+# ``quotes_cache`` (price-only) rows are simply never read by this code, so a stale
+# v1 row can't deserialize-crash or be mistaken for a USD quote. v1 is dropped on
+# first connect to reclaim its space; a fresh v2 fill repopulates within one TTL.
+_QUOTES_TABLE = "quotes_cache_v2"
+_CREATE_TABLE = f"""
+CREATE TABLE IF NOT EXISTS {_QUOTES_TABLE} (
     ticker     TEXT PRIMARY KEY,
     last_price REAL,
+    currency   TEXT,
     fetched_at REAL NOT NULL
 )
 """
+_DROP_LEGACY_TABLE = "DROP TABLE IF EXISTS quotes_cache"
 
 
-FetcherType = Callable[[list[str]], Awaitable[dict[str, float | None]]]
+FetcherType = Callable[[list[str]], Awaitable[dict[str, "Quote | None"]]]
 
 
 class QuoteCache:
@@ -94,7 +122,7 @@ class QuoteCache:
         # monotonic deadline; while time.monotonic() < this, the upstream is
         # considered throttled and get_batch serves stale rows without fetching.
         self._rate_limit_until = 0.0
-        self._l1: dict[str, tuple[float | None, float]] = {}
+        self._l1: dict[str, tuple[Quote | None, float]] = {}
         self._l1_lock = asyncio.Lock()
         self._conn: aiosqlite.Connection | None = None
         self._conn_lock = asyncio.Lock()
@@ -109,6 +137,8 @@ class QuoteCache:
                 try:
                     await _paths.configure_connection(conn)
                     await conn.execute(_CREATE_TABLE)
+                    # Reclaim the v1 price-only table (schema bump); never read again.
+                    await conn.execute(_DROP_LEGACY_TABLE)
                     await conn.commit()
                 except BaseException:
                     await conn.close()
@@ -135,7 +165,7 @@ class QuoteCache:
             except (sqlite3.Error, OSError, RuntimeError):
                 logger.exception("QuoteCache stale-conn close failed (non-fatal)")
 
-    async def _fill_from_stale(self, missing: list[str], result: dict[str, float | None]) -> None:
+    async def _fill_from_stale(self, missing: list[str], result: dict[str, Quote | None]) -> None:
         """Populate ``result`` from L2 rows ignoring TTL.
 
         Used when the upstream is rate-limited or in cooldown: we serve the
@@ -150,12 +180,13 @@ class QuoteCache:
             conn = await self._conn_ready()
             placeholders = ",".join("?" * len(missing))
             async with conn.execute(
-                f"SELECT ticker, last_price FROM quotes_cache WHERE ticker IN ({placeholders})",
+                f"SELECT ticker, last_price, currency FROM {_QUOTES_TABLE} "
+                f"WHERE ticker IN ({placeholders})",
                 missing,
             ) as cur:
                 stale_rows = await cur.fetchall()
-            for ticker, last_price in stale_rows:
-                result[ticker] = last_price
+            for ticker, last_price, currency in stale_rows:
+                result[ticker] = Quote(price=last_price, currency=currency)
         except sqlite3.Error:
             logger.exception("QuoteCache stale read failed for %s — dropping conn", missing)
             await self._drop_conn()
@@ -166,13 +197,13 @@ class QuoteCache:
         self,
         tickers: list[str],
         fetcher: FetcherType,
-    ) -> dict[str, float | None]:
+    ) -> dict[str, Quote | None]:
         syms = [t.strip().upper() for t in tickers if t and t.strip()]
         if not syms:
             return {}
 
         now = time.time()
-        result: dict[str, float | None] = {}
+        result: dict[str, Quote | None] = {}
         missing: list[str] = []
 
         # L1
@@ -189,20 +220,20 @@ class QuoteCache:
         # origin fetcher as if L2 were cold. The whole landing page
         # depends on this cache; a dead conn must not become a 30-hour
         # 500 spree.
-        l2_fresh: dict[str, float | None] = {}
+        l2_fresh: dict[str, Quote | None] = {}
         if missing:
             try:
                 conn = await self._conn_ready()
                 placeholders = ",".join("?" * len(missing))
                 async with conn.execute(
-                    f"SELECT ticker, last_price, fetched_at FROM quotes_cache "
+                    f"SELECT ticker, last_price, currency, fetched_at FROM {_QUOTES_TABLE} "
                     f"WHERE ticker IN ({placeholders})",
                     missing,
                 ) as cur:
                     rows = await cur.fetchall()
-                for ticker, last_price, fetched_at in rows:
+                for ticker, last_price, currency, fetched_at in rows:
                     if now - float(fetched_at) < self._ttl:
-                        l2_fresh[ticker] = last_price
+                        l2_fresh[ticker] = Quote(price=last_price, currency=currency)
             except sqlite3.Error:
                 logger.exception("QuoteCache L2 read failed for %s — dropping conn", missing)
                 await self._drop_conn()
@@ -260,15 +291,17 @@ class QuoteCache:
             try:
                 conn = await self._conn_ready()
                 for sym in missing:
+                    q = fetched.get(sym)
                     await conn.execute(
-                        """
-                        INSERT INTO quotes_cache (ticker, last_price, fetched_at)
-                        VALUES (?, ?, ?)
+                        f"""
+                        INSERT INTO {_QUOTES_TABLE} (ticker, last_price, currency, fetched_at)
+                        VALUES (?, ?, ?, ?)
                         ON CONFLICT(ticker) DO UPDATE SET
                             last_price = excluded.last_price,
+                            currency = excluded.currency,
                             fetched_at = excluded.fetched_at
                         """,
-                        (sym, fetched.get(sym), now),
+                        (sym, q.price if q else None, q.currency if q else None, now),
                     )
                 await conn.commit()
             except sqlite3.Error:
@@ -276,13 +309,13 @@ class QuoteCache:
                 await self._drop_conn()
             async with self._l1_lock:
                 for sym in missing:
-                    price = fetched.get(sym)
-                    self._l1[sym] = (price, now)
-                    result[sym] = price
+                    q = fetched.get(sym)
+                    self._l1[sym] = (q, now)
+                    result[sym] = q
 
         return result
 
-    async def peek_batch(self, tickers: list[str]) -> dict[str, float | None]:
+    async def peek_batch(self, tickers: list[str]) -> dict[str, Quote | None]:
         """Read-only batch lookup — serves only *fresh* L1/L2 rows, never writes.
 
         Unlike :meth:`get_batch` this NEVER invokes a fetcher and NEVER writes
@@ -302,7 +335,7 @@ class QuoteCache:
             return {}
 
         now = time.time()
-        result: dict[str, float | None] = {}
+        result: dict[str, Quote | None] = {}
         missing: list[str] = []
 
         # L1 (fresh only) — read, never write.
@@ -321,14 +354,14 @@ class QuoteCache:
                 conn = await self._conn_ready()
                 placeholders = ",".join("?" * len(missing))
                 async with conn.execute(
-                    f"SELECT ticker, last_price, fetched_at FROM quotes_cache "
+                    f"SELECT ticker, last_price, currency, fetched_at FROM {_QUOTES_TABLE} "
                     f"WHERE ticker IN ({placeholders})",
                     missing,
                 ) as cur:
                     rows = await cur.fetchall()
-                for ticker, last_price, fetched_at in rows:
+                for ticker, last_price, currency, fetched_at in rows:
                     if now - float(fetched_at) < self._ttl:
-                        result[ticker] = last_price
+                        result[ticker] = Quote(price=last_price, currency=currency)
             except sqlite3.Error:
                 logger.exception("QuoteCache peek L2 read failed for %s — dropping conn", missing)
                 await self._drop_conn()

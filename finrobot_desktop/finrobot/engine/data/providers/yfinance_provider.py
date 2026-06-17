@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import math
+import os
+import tempfile
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from typing import Any, cast
@@ -21,7 +23,9 @@ logger = logging.getLogger(__name__)
 
 # Reduce "Too Many Requests" errors from Yahoo Finance
 try:
-    yf.set_tz_cache_dir("/tmp/yf_cache")
+    # Cross-platform temp dir (Windows has no /tmp). Non-critical tz cache that
+    # just trims Yahoo rate-limit hits; the guard below swallows any failure.
+    yf.set_tz_cache_dir(os.path.join(tempfile.gettempdir(), "yf_cache"))
 except (AttributeError, OSError, TypeError):
     pass  # non-critical, ignore if not supported by this yfinance version
 

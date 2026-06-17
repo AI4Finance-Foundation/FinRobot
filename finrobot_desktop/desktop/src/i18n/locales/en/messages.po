@@ -869,6 +869,10 @@ msgid "chapter.valuation.bridge.ev"
 msgstr "Enterprise Value"
 
 #. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.netCash"
+msgstr "Net Cash"
+
+#. js-lingui-explicit-id
 msgid "chapter.valuation.bridge.netDebt"
 msgstr "Less: Net Debt"
 
@@ -894,7 +898,7 @@ msgstr "The DCF anchors on four pivots:"
 
 #. js-lingui-explicit-id
 msgid "chapter.sensitivity.assumptions.revenueCagr"
-msgstr "revenue CAGR"
+msgstr "avg revenue growth"
 
 #. js-lingui-explicit-id
 msgid "chapter.sensitivity.assumptions.ebitdaMargin"

@@ -869,6 +869,10 @@ msgid "chapter.valuation.bridge.ev"
 msgstr "企业价值"
 
 #. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.netCash"
+msgstr "净现金"
+
+#. js-lingui-explicit-id
 msgid "chapter.valuation.bridge.netDebt"
 msgstr "减：净债务"
 
@@ -894,7 +898,7 @@ msgstr "DCF 锚定四个支点："
 
 #. js-lingui-explicit-id
 msgid "chapter.sensitivity.assumptions.revenueCagr"
-msgstr "营收 CAGR"
+msgstr "营收年均增速"
 
 #. js-lingui-explicit-id
 msgid "chapter.sensitivity.assumptions.ebitdaMargin"

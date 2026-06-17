@@ -114,7 +114,17 @@ export function ChapterValuation({
           { label: t('chapter.valuation.bridge.pvFcf'), value: pvFcf, is_total: false },
           { label: t('chapter.valuation.bridge.pvTerminal'), value: pvTerminal, is_total: false },
           { label: t('chapter.valuation.bridge.ev'), value: ev, is_total: true },
-          { label: t('chapter.valuation.bridge.netDebt'), value: -(ev - eq), is_total: false },
+          {
+            // Net debt = EV − equity. Net-cash names (eq > EV) produce a positive
+            // (adding) bar, so the label must flip to "Net Cash" — "Less: Net Debt"
+            // on an additive bar reads as a contradiction.
+            label:
+              ev - eq >= 0
+                ? t('chapter.valuation.bridge.netDebt')
+                : t('chapter.valuation.bridge.netCash'),
+            value: -(ev - eq),
+            is_total: false,
+          },
           { label: t('chapter.valuation.bridge.equity'), value: eq, is_total: true },
         ]
       : []

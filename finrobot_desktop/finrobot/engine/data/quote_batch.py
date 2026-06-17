@@ -26,12 +26,13 @@ from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
 from finrobot.engine.data.interface import ProviderError, is_rate_limit_error
-from finrobot.engine.data.quote_cache import QuoteCache, QuoteFetchRateLimited
+from finrobot.engine.data.quote_cache import Quote, QuoteCache, QuoteFetchRateLimited
 
 if TYPE_CHECKING:
     from finrobot.engine.data.layer import DataLayer
 
 __all__ = [
+    "Quote",  # re-exported: the carried (price, currency) value
     "QuoteFetchRateLimited",  # re-exported so callers can still import from here
     "close_quote_cache_singleton",
     "fetch_quotes_batch_cached",
@@ -85,11 +86,32 @@ def _coerce_price(value: object) -> float | None:
         return None
 
 
+def _quote_from_result(data: object) -> Quote:
+    """Build a :class:`Quote` from a QUOTE DataResult's ``data`` dict.
+
+    Carries both the price and the ``quote_currency`` the QUOTE provider stamped
+    (yfinance ``fast_info.currency`` / FMP ``/profile.currency``) — so a foreign
+    listing's price travels WITH its currency through the cache, and the signal
+    consumer never has to recover the currency from a second, independently-cached
+    source. ``currency`` normalised to upper-case, or None when absent."""
+    d = data if isinstance(data, dict) else {}
+    ccy = d.get("quote_currency")
+    return Quote(
+        price=_coerce_price(d.get("price")),
+        currency=ccy.upper() if isinstance(ccy, str) and ccy else None,
+    )
+
+
 async def fetch_quotes_batch_cached(
     tickers: Iterable[str],
     data_layer: DataLayer,
-) -> dict[str, float | None]:
+) -> dict[str, Quote | None]:
     """Async, two-layer cached batch quotes via the DataLayer QUOTE path.
+
+    Returns one :class:`Quote` (price + the currency that price is in) per ticker,
+    or None for a cold/failed miss. The currency travels with the price (its own
+    source: the QUOTE provider's currency stamp) so the signal consumer converts to
+    USD or abstains without a second currency lookup.
 
     L1 hit ⇒ pure dict lookup, sub-millisecond.
     L2 hit ⇒ single SELECT against indexed PK, ~1ms.
@@ -107,8 +129,8 @@ async def fetch_quotes_batch_cached(
         return {}
     cache = _get_singleton()
 
-    async def fetcher(missing: list[str]) -> dict[str, float | None]:
-        async def one(sym: str) -> float | None:
+    async def fetcher(missing: list[str]) -> dict[str, Quote | None]:
+        async def one(sym: str) -> Quote | None:
             try:
                 result = await data_layer.fetch_quote(sym)
             except ProviderError as exc:
@@ -117,8 +139,7 @@ async def fetch_quotes_batch_cached(
                     raise QuoteFetchRateLimited(f"DataLayer QUOTE rate-limited for {sym}") from exc
                 logger.info("Quote fetch failed for %s: %s", sym, exc)
                 return None
-            data = result.data if isinstance(result.data, dict) else {}
-            return _coerce_price(data.get("price"))
+            return _quote_from_result(result.data)
 
         results = await asyncio.gather(*(one(sym) for sym in missing))
         return dict(zip(missing, results, strict=True))
@@ -126,11 +147,12 @@ async def fetch_quotes_batch_cached(
     return await cache.get_batch(syms, fetcher=fetcher)
 
 
-async def fetch_quotes_cache_only(tickers: Iterable[str]) -> dict[str, float | None]:
+async def fetch_quotes_cache_only(tickers: Iterable[str]) -> dict[str, Quote | None]:
     """Cache-only batch quotes — NEVER touches the provider chain.
 
-    L1/L2 *fresh* hits return their price; every miss (cold or stale) comes
-    back ``None`` because the fetcher is a no-op. Returns in sub-millisecond
+    L1/L2 *fresh* hits return their :class:`Quote` (price + currency); every miss
+    (cold or stale) comes back ``None`` because the fetcher is a no-op. Returns
+    sub-millisecond
     to ~1ms regardless of cache state — no FMP/yfinance round-trip, no 8s
     warmup tail.
 

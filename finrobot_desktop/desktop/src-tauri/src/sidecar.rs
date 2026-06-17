@@ -65,9 +65,18 @@ pub fn spawn_and_wait_for_ready(
     // named `sidecar`, NOT `finrobot-server`: the legacy externalBin config
     // left a FILE called finrobot-server in old cargo target dirs, and the
     // resource copier dies with "Not a directory" on the name collision.
+    // PyInstaller names the one-dir launcher after the spec's COLLECT `name`;
+    // Windows appends `.exe`, macOS/Linux leave it bare. The bundled resource
+    // DIR is `sidecar/` on every platform (tauri.conf.json `resources`); only
+    // the launcher file inside it differs by OS.
+    #[cfg(windows)]
+    const SIDECAR_REL: &str = "sidecar/finrobot-server.exe";
+    #[cfg(not(windows))]
+    const SIDECAR_REL: &str = "sidecar/finrobot-server";
+
     let exe_path = app
         .path()
-        .resolve("sidecar/finrobot-server", BaseDirectory::Resource)
+        .resolve(SIDECAR_REL, BaseDirectory::Resource)
         .map_err(|e| format!("sidecar resource not found: {e}"))?;
     if !exe_path.is_file() {
         return Err(format!(

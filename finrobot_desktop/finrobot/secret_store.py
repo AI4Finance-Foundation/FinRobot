@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import stat
+import sys
 import tempfile
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -141,10 +142,15 @@ class KeychainSecretStore(SecretStore):
 
 
 class FileSecretStore(SecretStore):
-    """Development fallback secret store.
+    """Local-file secret store — permission-locked JSON at ~/.finrobot/.secrets.
 
-    This is intentionally local-only and permission-locked. Production desktop
-    builds should use KeychainSecretStore whenever the OS backend is available.
+    Used whenever no prompt-free OS credential store is available: macOS without
+    a stable code signature (an unsigned/ad-hoc app re-prompts on every keychain
+    item, so we avoid the keychain there — see :func:`create_secret_store`),
+    Linux with no Secret Service backend, and explicit dev mode. Secrets are
+    stored in PLAINTEXT, protected by 0600 file perms (+ full-disk encryption
+    like FileVault if the user has it on). Callers surface this honestly as
+    ``secret_storage_mode="plaintext"``.
     """
 
     def __init__(self, path: str | Path | None = None) -> None:
@@ -190,14 +196,22 @@ class FileSecretStore(SecretStore):
         await asyncio.to_thread(self._atomic_write, payload)
 
     def _atomic_write(self, payload: str) -> None:
-        """Write to a temp file then atomically replace to prevent data loss."""
+        """Write to a temp file then atomically replace, fsync'ing both the file
+        and the parent directory.
+
+        Without the fsyncs, a crash right after the rename can leave a truncated
+        or missing secrets file — and the Tauri shell SIGKILLs the sidecar on
+        every app quit, so that crash window is hit routinely, not rarely.
+        """
         fd, tmp = tempfile.mkstemp(dir=str(self._path.parent), suffix=".tmp")
         try:
             os.write(fd, payload.encode())
+            os.fsync(fd)  # flush contents to disk before the rename
             os.close(fd)
             fd = -1  # mark as closed
             os.chmod(tmp, stat.S_IRUSR | stat.S_IWUSR)
             os.replace(tmp, self._path)
+            self._fsync_parent_dir()  # make the rename itself durable
         except BaseException:
             if fd >= 0:
                 os.close(fd)
@@ -205,17 +219,39 @@ class FileSecretStore(SecretStore):
                 os.unlink(tmp)
             raise
 
+    def _fsync_parent_dir(self) -> None:
+        try:
+            dir_fd = os.open(str(self._path.parent), os.O_RDONLY)
+        except OSError:
+            return
+        try:
+            os.fsync(dir_fd)
+        except OSError:
+            # Some filesystems (and Windows) don't support directory fsync.
+            pass
+        finally:
+            os.close(dir_fd)
+
     def _ensure_file(self) -> None:
-        self._path.parent.mkdir(parents=True, exist_ok=True)
+        parent = self._path.parent
+        parent.mkdir(parents=True, exist_ok=True)
+        # mkdir honours the process umask (often 0755 → world-readable). Secrets
+        # live here, so tighten the directory to 0700 — other local users must
+        # not be able to list it or plant a symlink for us to follow.
+        try:
+            if stat.S_IMODE(parent.stat().st_mode) != 0o700:
+                os.chmod(parent, 0o700)
+        except OSError:
+            pass
         if not self._path.exists():
-            # Use O_CREAT|O_WRONLY|O_EXCL with mode 0o600 to create the file
-            # atomically: the permission bits are set by the kernel on the same
-            # syscall that creates the inode, eliminating the write-then-chmod
-            # race window that existed with write_text() + chmod().
+            # Use O_CREAT|O_WRONLY|O_EXCL|O_NOFOLLOW with mode 0o600 to create the
+            # file atomically: the permission bits are set by the kernel on the
+            # same syscall that creates the inode (no write-then-chmod race), and
+            # O_NOFOLLOW refuses to follow a pre-planted symlink at the path.
             try:
                 fd = os.open(
                     str(self._path),
-                    os.O_CREAT | os.O_WRONLY | os.O_EXCL,
+                    os.O_CREAT | os.O_WRONLY | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0),
                     0o600,
                 )
                 try:
@@ -246,13 +282,28 @@ class FileSecretStore(SecretStore):
 def create_secret_store(
     dev_mode: bool | None = None,
 ) -> tuple[SecretStore, SecretStorageMode]:
-    """Create the best available secret store for this runtime.
+    """Create the best prompt-free secret store for this runtime.
 
-    Returns a ``(store, mode)`` pair so callers can surface the storage mode
-    to the user without probing the store again.  ``mode`` is:
-    - ``"keychain"``  — secrets stored in the OS credential manager
-    - ``"plaintext"`` — secrets stored in a permission-locked JSON file at
-                         ``~/.finrobot/.secrets``; the caller must warn the user
+    Returns a ``(store, mode)`` pair so callers can surface the storage mode to
+    the user without probing the store again.  ``mode`` is:
+    - ``"keychain"``  — secrets held in the OS credential store (Windows
+                        Credential Manager / Linux Secret Service); encrypted at
+                        rest by the OS, no password prompt.
+    - ``"plaintext"`` — secrets in a permission-locked JSON file at
+                        ``~/.finrobot/.secrets``; the caller must warn the user.
+
+    Platform policy:
+    - **macOS**: default to the file. The keychain binds each item's access ACL
+      to the calling app's code-signing Designated Requirement; an unsigned or
+      ad-hoc-signed app (every dev rebuild, every unsigned release) fails to
+      match, so macOS re-prompts *per keychain item, every launch* — even after
+      "Always Allow". Until the app ships a stable Developer ID signature there
+      is no prompt-free keychain, so we don't use it. A signed build opts back
+      in with ``FINROBOT_USE_KEYCHAIN=1``.
+    - **Windows / Linux**: use the OS credential store (Credential Manager via
+      DPAPI / Secret Service). These are silent and need no code-signing
+      certificate; fall back to the file if the backend is unavailable.
+    - **dev mode** (``FINROBOT_DEV_MODE=1``): always the file, every platform.
     """
     use_dev = dev_mode
     if use_dev is None:
@@ -260,13 +311,21 @@ def create_secret_store(
     if use_dev:
         logger.info("Using FileSecretStore (dev mode)")
         return FileSecretStore(), "plaintext"
+    if sys.platform == "darwin" and os.environ.get("FINROBOT_USE_KEYCHAIN") != "1":
+        logger.info(
+            "Using FileSecretStore (macOS without a stable code signature — "
+            "avoids the per-item keychain prompt storm). Set "
+            "FINROBOT_USE_KEYCHAIN=1 on a Developer ID-signed build to use the "
+            "keychain instead."
+        )
+        return FileSecretStore(), "plaintext"
     try:
         store = KeychainSecretStore()
-        logger.info("Using KeychainSecretStore (OS keychain)")
+        logger.info("Using KeychainSecretStore (OS credential store)")
         return store, "keychain"
     except RuntimeError as exc:
         logger.warning(
-            "Keychain unavailable (%s), falling back to FileSecretStore. "
+            "OS credential store unavailable (%s), falling back to FileSecretStore. "
             "Secrets will be stored as a permission-locked local file.",
             exc,
         )

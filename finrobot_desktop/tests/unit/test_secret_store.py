@@ -2,13 +2,20 @@ from __future__ import annotations
 
 import logging
 import stat
+import sys
 from pathlib import Path
 from typing import Any
 
 import keyring.errors
 import pytest
 
-from finrobot.secret_store import FileSecretStore, KeychainSecretStore, SecretStoreError
+import finrobot.secret_store as secret_store_module
+from finrobot.secret_store import (
+    FileSecretStore,
+    KeychainSecretStore,
+    SecretStoreError,
+    create_secret_store,
+)
 
 
 @pytest.mark.asyncio
@@ -148,3 +155,88 @@ async def test_keychain_delete_denied_raises_secret_store_error() -> None:
     store = _refusing_store(keyring.errors.KeyringLocked("keychain locked"))
     with pytest.raises(SecretStoreError):
         await store.delete("fmp_api_key")
+
+
+# ---------------------------------------------------------------------------
+# create_secret_store — platform-aware, prompt-free backend selection.
+# macOS has no prompt-free keychain without a stable code signature, so it
+# defaults to the file; Windows/Linux use the silent OS credential store.
+# ---------------------------------------------------------------------------
+
+
+def _forbid_keychain(monkeypatch: Any) -> None:
+    """Fail loudly if KeychainSecretStore is constructed — proves the macOS and
+    dev paths never touch the OS keychain (the whole point of the fix)."""
+
+    def _boom(*_a: Any, **_k: Any) -> None:
+        raise AssertionError("KeychainSecretStore must not be constructed here")
+
+    monkeypatch.setattr(secret_store_module, "KeychainSecretStore", _boom)
+
+
+def test_create_store_dev_mode_uses_file(monkeypatch: Any) -> None:
+    monkeypatch.delenv("FINROBOT_DEV_MODE", raising=False)
+    _forbid_keychain(monkeypatch)
+    store, mode = create_secret_store(dev_mode=True)
+    assert isinstance(store, FileSecretStore)
+    assert mode == "plaintext"
+
+
+def test_create_store_dev_mode_via_env(monkeypatch: Any) -> None:
+    monkeypatch.setenv("FINROBOT_DEV_MODE", "1")
+    _forbid_keychain(monkeypatch)
+    _, mode = create_secret_store()
+    assert mode == "plaintext"
+
+
+def test_create_store_macos_defaults_to_file(monkeypatch: Any) -> None:
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.delenv("FINROBOT_DEV_MODE", raising=False)
+    monkeypatch.delenv("FINROBOT_USE_KEYCHAIN", raising=False)
+    _forbid_keychain(monkeypatch)  # macOS must skip the keychain entirely
+    store, mode = create_secret_store()
+    assert isinstance(store, FileSecretStore)
+    assert mode == "plaintext"
+
+
+def test_create_store_macos_opt_in_keychain(monkeypatch: Any) -> None:
+    monkeypatch.setattr(sys, "platform", "darwin")
+    monkeypatch.delenv("FINROBOT_DEV_MODE", raising=False)
+    monkeypatch.setenv("FINROBOT_USE_KEYCHAIN", "1")
+    sentinel = object()
+    monkeypatch.setattr(secret_store_module, "KeychainSecretStore", lambda *_a, **_k: sentinel)
+    store, mode = create_secret_store()
+    assert store is sentinel
+    assert mode == "keychain"
+
+
+def test_create_store_windows_uses_keychain(monkeypatch: Any) -> None:
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.delenv("FINROBOT_DEV_MODE", raising=False)
+    sentinel = object()
+    monkeypatch.setattr(secret_store_module, "KeychainSecretStore", lambda *_a, **_k: sentinel)
+    store, mode = create_secret_store()
+    assert store is sentinel
+    assert mode == "keychain"
+
+
+def test_create_store_keychain_unavailable_falls_back_to_file(monkeypatch: Any) -> None:
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.delenv("FINROBOT_DEV_MODE", raising=False)
+
+    def _boom(*_a: Any, **_k: Any) -> None:
+        raise RuntimeError("no functional backend")
+
+    monkeypatch.setattr(secret_store_module, "KeychainSecretStore", _boom)
+    store, mode = create_secret_store()
+    assert isinstance(store, FileSecretStore)
+    assert mode == "plaintext"
+
+
+@pytest.mark.asyncio
+async def test_secret_dir_tightened_to_0700(tmp_path: Path) -> None:
+    sub = tmp_path / "nested"
+    sub.mkdir(mode=0o755)
+    store = FileSecretStore(sub / ".secrets")
+    await store.set("k", "v")
+    assert stat.S_IMODE(sub.stat().st_mode) == 0o700

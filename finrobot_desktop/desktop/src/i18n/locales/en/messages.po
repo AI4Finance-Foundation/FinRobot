@@ -3641,6 +3641,10 @@ msgid "settings.provider.customTag"
 msgstr "Custom"
 
 #. js-lingui-explicit-id
+msgid "settings.provider.placeholder"
+msgstr "Select a provider"
+
+#. js-lingui-explicit-id
 msgid "settings.model.idPlaceholder"
 msgstr "Model id (e.g. deepseek-chat)"
 

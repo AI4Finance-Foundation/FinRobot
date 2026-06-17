@@ -93,16 +93,27 @@ export function useSettingsSave() {
     settingsMutationRef.current.mutate(payload as never)
   }, [])
 
-  /** Flush an in-flight debounced edit merged with `field` immediately (used
-   * before a data-source connectivity test, so the backend probes the key the
-   * user is looking at). No-op when the value trims to empty. */
-  const flushFieldNow = useCallback(async (field: string, value: string) => {
-    const trimmed = value.trim()
-    if (!trimmed) return
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    const merged = { ...(lastPayloadRef.current ?? {}), [field]: trimmed }
+  /** Immediately persist any queued debounced edit and resolve once it is
+   * stored server-side. No-op when nothing is queued — the last edit already
+   * saved, so the caller probes the stored value.
+   *
+   * Both "Test connection" buttons (LLM + data-source) await this BEFORE the
+   * probe. Without it, a Test click that lands inside the 500ms auto-save window
+   * tests the value the PUT hasn't written yet → the backend reports the key as
+   * missing, the user assumes it failed and re-enters it. That race was the
+   * root cause of "every key had to be configured two or three times before the
+   * test passed". The queued payload already carries whatever field changed —
+   * every edit funnels through `scheduleStandardSave` — so one flush covers any
+   * field without the caller naming it. */
+  const flushPending = useCallback(async () => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+      debounceRef.current = null
+    }
+    const payload = lastPayloadRef.current
+    if (!payload) return
     lastPayloadRef.current = null
-    await settingsMutationRef.current.mutateAsync(merged as never)
+    await settingsMutationRef.current.mutateAsync(payload as never)
   }, [])
 
   useEffect(() => {
@@ -112,5 +123,5 @@ export function useSettingsSave() {
     }
   }, [])
 
-  return { saveState, scheduleStandardSave, retrySave, flushFieldNow, initializedRef }
+  return { saveState, scheduleStandardSave, retrySave, flushPending, initializedRef }
 }

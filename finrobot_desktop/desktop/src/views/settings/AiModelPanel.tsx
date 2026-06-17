@@ -47,6 +47,9 @@ interface AiModelPanelProps {
   testState: LlmTestState
   setTestState: (v: LlmTestState) => void
   scheduleStandardSave: (payload: Record<string, unknown>, onSaved?: () => void) => void
+  /** Persists any in-flight debounced edit before the "Test connection" probe,
+   * so a fast click tests the key the user just typed (see useSettingsSave). */
+  flushPending: () => Promise<void>
   onClearSecret: (field: string) => void
 }
 
@@ -65,6 +68,7 @@ export function AiModelPanel({
   testState,
   setTestState,
   scheduleStandardSave,
+  flushPending,
   onClearSecret,
 }: AiModelPanelProps): React.ReactElement {
   const { t } = useI18n()
@@ -142,7 +146,14 @@ export function AiModelPanel({
     const autoTest = mid ? () => void testConnection(pid, mid) : undefined
     scheduleStandardSave({ provider_keys: { [pid]: v.trim() } }, autoTest)
   }
-  const handleTestConnection = () => void testConnection(currentProviderId, currentModelId || null)
+  // Persist the on-screen key BEFORE probing. Without this, a click inside the
+  // 500ms auto-save window tests a key the backend hasn't stored yet and falsely
+  // reports "no key" — the bug where every key seemed to need 2-3 attempts. The
+  // data-source Test path already does this; this brings the LLM path to parity.
+  const handleTestConnection = async () => {
+    await flushPending()
+    void testConnection(currentProviderId, currentModelId || null)
+  }
 
   // ── Custom provider add / edit / delete (full-list replace) ───────────────
   // A custom provider's name doubles as its id (the "<id>:<model>" prefix), so
@@ -237,6 +248,7 @@ export function AiModelPanel({
             value={currentProviderId}
             onSelect={handleProviderChange}
             onAddCustom={() => setAddingCustom(true)}
+            placeholder={t('settings.provider.placeholder')}
           />
         </div>
 
@@ -328,7 +340,9 @@ export function AiModelPanel({
                 list="model-id-suggestions"
                 value={currentModelId}
                 onChange={(e) => handleModelIdChange(e.target.value)}
-                placeholder={t('settings.model.idPlaceholder')}
+                /* Hint with the selected provider's own first model (e.g. gpt-4o)
+                   rather than a generic 'deepseek-chat' that names no built-in. */
+                placeholder={currentProviderInfo?.models?.[0] ?? t('settings.model.idPlaceholder')}
                 autoComplete="off"
                 spellCheck={false}
               />
@@ -403,7 +417,7 @@ export function AiModelPanel({
                 <button
                   type="button"
                   className="settings-btn"
-                  onClick={handleTestConnection}
+                  onClick={() => void handleTestConnection()}
                   disabled={testState.status === 'testing'}
                 >
                   {testState.status === 'testing'

@@ -46,6 +46,7 @@ function renderPanel(over: Partial<React.ComponentProps<typeof AiModelPanel>> = 
     testState: { status: 'idle' } as LlmTestState,
     setTestState: vi.fn(),
     scheduleStandardSave: saveSpy,
+    flushPending: vi.fn().mockResolvedValue(undefined),
     onClearSecret: vi.fn(),
     ...over,
   }
@@ -85,6 +86,26 @@ describe('AiModelPanel auto-test on save', () => {
     // Key still saved, but onSaved is undefined → no probe.
     expect(saveSpy).toHaveBeenCalledWith({ provider_keys: { anthropic: 'sk-x' } }, undefined)
     expect(api.POST).not.toHaveBeenCalled()
+  })
+
+  it('flushes the pending save BEFORE the manual Test probe (no test-before-save race)', async () => {
+    // Regression for "every key had to be configured 2-3 times": clicking Test
+    // inside the 500ms auto-save window must persist the on-screen key FIRST,
+    // else the backend probes a key it hasn't stored yet and reports "no key".
+    const flushPending = vi.fn().mockResolvedValue(undefined)
+    renderPanel({ flushPending })
+    fireEvent.click(screen.getByRole('button', { name: 'settings.test.button' }))
+
+    await vi.waitFor(() =>
+      expect(api.POST).toHaveBeenCalledWith('/api/settings/test-provider', {
+        body: { provider_id: 'anthropic', model_id: 'claude-sonnet-4-6' },
+      }),
+    )
+    expect(flushPending).toHaveBeenCalled()
+    // Ordering is the whole point: flush must complete before the probe fires.
+    expect(flushPending.mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(api.POST).mock.invocationCallOrder[0],
+    )
   })
 
   it('surfaces the failure verdict (✗ auth) without rolling back the save', async () => {

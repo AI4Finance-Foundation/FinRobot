@@ -159,9 +159,10 @@ interface DataSourcesPanelProps {
   dataTestState: DataTestState
   setDataTestState: React.Dispatch<React.SetStateAction<DataTestState>>
   scheduleStandardSave: (payload: Record<string, unknown>) => void
-  /** Flushes any unsaved edit first so the backend tests the key the user is
-   * looking at (see useSettingsSave.flushFieldNow). */
-  flushFieldNow: (field: string, value: string) => Promise<void>
+  /** Persists any in-flight debounced edit before the connectivity probe, so the
+   * backend tests the key the user just typed — not the value the 500ms auto-save
+   * hasn't written yet (see useSettingsSave.flushPending). */
+  flushPending: () => Promise<void>
   onClearSecret: (field: string) => void
   secUserAgent: string
   setSecUserAgent: (v: string) => void
@@ -188,7 +189,7 @@ export function DataSourcesPanel({
   dataTestState,
   setDataTestState,
   scheduleStandardSave,
-  flushFieldNow,
+  flushPending,
   onClearSecret,
   secUserAgent,
   setSecUserAgent,
@@ -244,10 +245,10 @@ export function DataSourcesPanel({
   }
   // Live connectivity test for a data-source key. Flushes any unsaved edit first
   // so the backend tests the key the user is looking at, then probes it.
-  const handleTestDataProvider = async (provider: string, field: string, key: string) => {
+  const handleTestDataProvider = async (provider: string) => {
     setDataTestState((s) => ({ ...s, [provider]: { status: 'testing' } }))
     try {
-      await flushFieldNow(field, key)
+      await flushPending()
       const { data, error } = await api.POST('/api/settings/test-data-provider', {
         body: { provider },
       })
@@ -282,7 +283,6 @@ export function DataSourcesPanel({
     onChange: (v: string) => void
     clearField: string
     testProvider: string
-    testField: string
   }): React.ReactElement => {
     const st = dataTestState[cfg.testProvider] ?? { status: 'idle' as const }
     return (
@@ -296,7 +296,7 @@ export function DataSourcesPanel({
         <button
           type="button"
           className="settings-btn"
-          onClick={() => handleTestDataProvider(cfg.testProvider, cfg.testField, cfg.value)}
+          onClick={() => handleTestDataProvider(cfg.testProvider)}
           disabled={st.status === 'testing'}
         >
           {st.status === 'testing' ? t('settings.test.testing') : t('settings.test.button')}
@@ -387,7 +387,6 @@ export function DataSourcesPanel({
             onChange: handleFmpKeyChange,
             clearField: 'fmp_api_key',
             testProvider: 'fmp',
-            testField: 'fmp_api_key',
           })}
           result={renderTestResult('fmp')}
           hint={
@@ -410,7 +409,6 @@ export function DataSourcesPanel({
             onChange: handleFinnhubKeyChange,
             clearField: 'finnhub_api_key',
             testProvider: 'finnhub',
-            testField: 'finnhub_api_key',
           })}
           result={renderTestResult('finnhub')}
           hint={
@@ -433,7 +431,6 @@ export function DataSourcesPanel({
             onChange: handleAdanosKeyChange,
             clearField: 'adanos_api_key',
             testProvider: 'adanos',
-            testField: 'adanos_api_key',
           })}
           result={renderTestResult('adanos')}
           hint={
@@ -458,7 +455,6 @@ export function DataSourcesPanel({
             onChange: handleAlphaVantageKeyChange,
             clearField: 'alpha_vantage_api_key',
             testProvider: 'alpha_vantage',
-            testField: 'alpha_vantage_api_key',
           })}
           result={renderTestResult('alpha_vantage')}
           hint={

@@ -103,7 +103,7 @@ export default function SettingsView() {
   const [pendingClearSecret, setPendingClearSecret] = useState<string | null>(null)
 
   // ── Debounced auto-save machinery (PUT /api/settings) ────────────────────
-  const { saveState, scheduleStandardSave, retrySave, flushFieldNow, initializedRef } =
+  const { saveState, scheduleStandardSave, retrySave, flushPending, initializedRef } =
     useSettingsSave()
 
   // ── Active panel (tabbed nav — only the selected panel renders) ──────────
@@ -377,6 +377,7 @@ export default function SettingsView() {
                 testState={testState}
                 setTestState={setTestState}
                 scheduleStandardSave={scheduleStandardSave}
+                flushPending={flushPending}
                 onClearSecret={handleClearSecret}
               />
             )}
@@ -401,7 +402,7 @@ export default function SettingsView() {
                   dataTestState={dataTestState}
                   setDataTestState={setDataTestState}
                   scheduleStandardSave={scheduleStandardSave}
-                  flushFieldNow={flushFieldNow}
+                  flushPending={flushPending}
                   onClearSecret={handleClearSecret}
                   secUserAgent={secUserAgent}
                   setSecUserAgent={setSecUserAgent}

@@ -14,11 +14,15 @@ export function ProviderDropdown({
   value,
   onSelect,
   onAddCustom,
+  placeholder,
 }: {
   options: ProviderOption[]
   value: string
   onSelect: (id: string) => void
   onAddCustom: () => void
+  /** Shown (muted) in the trigger when nothing is selected yet — a fresh install
+   * has no provider chosen, so the bare trigger would otherwise read as blank. */
+  placeholder?: string
 }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
@@ -41,7 +45,9 @@ export function ProviderDropdown({
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
-        <span>{selected?.label ?? value}</span>
+        <span style={selected ? undefined : { color: 'var(--text-muted)' }}>
+          {selected?.label ?? (value || placeholder)}
+        </span>
         <svg
           className={`settings-dd-caret${open ? ' is-open' : ''}`}
           width="12"

@@ -1853,10 +1853,6 @@ msgid "report.toolbar.exportHtmlFailed"
 msgstr "HTML export failed"
 
 #. js-lingui-explicit-id
-msgid "report.rightRail.timeline"
-msgstr "Version Timeline"
-
-#. js-lingui-explicit-id
 msgid "chapter.financial.subheading.eps"
 msgstr "Earnings per Share (EPS) Trend"
 

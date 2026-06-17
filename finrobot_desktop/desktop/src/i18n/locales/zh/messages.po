@@ -1853,10 +1853,6 @@ msgid "report.toolbar.exportHtmlFailed"
 msgstr "导出 HTML 失败"
 
 #. js-lingui-explicit-id
-msgid "report.rightRail.timeline"
-msgstr "版本时间线"
-
-#. js-lingui-explicit-id
 msgid "chapter.financial.subheading.eps"
 msgstr "每股收益（EPS）趋势"
 

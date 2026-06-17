@@ -117,3 +117,103 @@ describe('ChapterCover — withheld-target self-explanation', () => {
     expect(badge).not.toHaveTextContent('REVIEW')
   })
 })
+
+// The withheld-target cover's reverse-DCF "fair-value band" MUST be the DCF
+// method's own low/high (a real cash-flow range), NOT valuation_synthesis
+// target_low/high. On a method-divergent name (MU) the synthesis target_high is
+// a non-cash-flow method (comps P/B), so routing it into the band would both
+// mislabel a price/book figure as "cash-flow" and pin the mid marker to the
+// band's left edge. This block is the regression lock for that caliber fix.
+describe('ChapterCover — reverse-DCF cash-flow band caliber', () => {
+  const DCF_METHOD = {
+    name: 'dcf',
+    low: 157.97,
+    mid: 197.46,
+    high: 236.96,
+    confidence: 0.5,
+    source: 'dcf',
+  }
+  const REACHABLE = {
+    horizon_years: 10,
+    implied_growth: 0.349,
+    growth_unreachable: false,
+  } as NonNullable<DcfShape['market_implied']>
+
+  function renderWithheldCover(
+    extra: Partial<React.ComponentProps<typeof ChapterCover>> = {},
+  ): void {
+    render(
+      <ChapterCover
+        {...BASE}
+        thesis={thesis({ recommendation: 'HOLD' })}
+        withheldReason={null}
+        currentPrice={995.87}
+        marketImplied={REACHABLE}
+        dcfMethod={DCF_METHOD}
+        {...extra}
+      />,
+    )
+  }
+
+  it('draws the band from the DCF method low/high, ignoring a divergent synthesis target band', () => {
+    // The synthesis ships a method-divergent target band (a comps P/B high of
+    // 1414, like MU) ALONGSIDE the dcf method. The band must follow the dcf
+    // method (157.97–236.96), never the target band. This test FAILS under the
+    // pre-fix behavior (`fvLow = targetLow ?? dcfMethod.low`), which routed the
+    // synthesis target_low/high into the band and showed 900–1414 here.
+    renderWithheldCover({ targetLow: 900, targetHigh: 1414 })
+    const band = screen.getByTestId('reverse-dcf-band')
+    expect(band).toHaveAttribute('data-band-low', '157.97')
+    expect(band).toHaveAttribute('data-band-high', '236.96')
+    // The human-readable band range restates the same dcf figures (it appears in
+    // both the metric card and the value-bar caption), not the target band —
+    // guards against a range wired to a different source. The divergent target
+    // high (1,414) must NOT surface anywhere.
+    expect(screen.getAllByText(/\$157\.97.*\$236\.96/).length).toBeGreaterThan(0)
+    expect(screen.queryByText(/1,414/)).toBeNull()
+  })
+
+  it('places the DCF mid marker strictly inside the band, not pinned to an edge', () => {
+    // The old bug pinned mid to the band's left edge because the band spanned the
+    // (wider) target range while mid stayed at the dcf mid. With band == dcf
+    // low/high, mid (197.46) sits between low (157.97) and high (236.96). The bar
+    // scale (and thus pct) is strictly monotonic in value, so value-interiority
+    // ⇒ pixel-interiority; we assert both for an unambiguous lock.
+    renderWithheldCover()
+    const band = screen.getByTestId('reverse-dcf-band')
+    const mid = screen.getByTestId('reverse-dcf-mid')
+    const low = Number(band.getAttribute('data-band-low'))
+    const high = Number(band.getAttribute('data-band-high'))
+    expect(low).toBeLessThan(DCF_METHOD.mid)
+    expect(DCF_METHOD.mid).toBeLessThan(high)
+    // The marker's own left-% must not collapse onto the band's left edge (the
+    // old visual symptom). low=157.97 maps to ~3.8% under the component's scale;
+    // mid sits clearly to its right.
+    const midPct = Number(mid.getAttribute('data-mid-pct'))
+    expect(midPct).toBeGreaterThan(5)
+    expect(midPct).toBeLessThan(95)
+  })
+
+  it('suppresses the band entirely in the unreachable (option-value) regime', () => {
+    // growth_unreachable ⇒ the ceiling is a different solve (ceiling_price) the
+    // dcf-method band could sit above, so showFvBand is false and no bar renders.
+    renderWithheldCover({
+      marketImplied: {
+        horizon_years: 10,
+        implied_growth: null,
+        growth_unreachable: true,
+        growth_ceiling: 0.5,
+        ceiling_price: 302.57,
+      } as NonNullable<DcfShape['market_implied']>,
+    })
+    // The headline still renders (the ceiling lede), but the band/markers do not.
+    expect(screen.getByTestId('reverse-dcf-headline')).toBeInTheDocument()
+    expect(screen.queryByTestId('reverse-dcf-band')).toBeNull()
+    expect(screen.queryByTestId('reverse-dcf-mid')).toBeNull()
+  })
+
+  it('renders the band when the DCF method has a valid low<high range', () => {
+    renderWithheldCover()
+    expect(screen.getByTestId('reverse-dcf-band')).toBeInTheDocument()
+  })
+})

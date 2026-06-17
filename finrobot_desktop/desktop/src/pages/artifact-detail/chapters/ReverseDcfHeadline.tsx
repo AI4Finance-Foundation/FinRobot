@@ -242,6 +242,9 @@ function ValueBar({
       >
         {/* defensible band */}
         <span
+          data-testid="reverse-dcf-band"
+          data-band-low={low}
+          data-band-high={high}
           style={{
             position: 'absolute',
             top: 0,
@@ -255,6 +258,8 @@ function ValueBar({
         {/* dcf mid marker */}
         {mid != null && (
           <span
+            data-testid="reverse-dcf-mid"
+            data-mid-pct={pct(mid)}
             style={{
               position: 'absolute',
               top: '50%',

@@ -184,19 +184,11 @@ export function ReportToolbar({
           report. Only renders when the artifact carries a snapshot price. */}
       {typeof snapshotPrice === 'number' && (
         <div style={quoteStripStyle} data-testid="report-snapshot-quote">
-          <span style={quotePriceStyle}>${snapshotPrice.toFixed(2)}</span>
-          {snapshotAsOf && (
-            <span
-              style={{
-                ...quoteChipStyle,
-                color: 'var(--text-muted)',
-                background: 'var(--wash-white-04)',
-                border: '1px solid var(--border-faint)',
-              }}
-            >
-              {t('sourced.asOf')} {formatDate(snapshotAsOf, locale, 'short')}
-            </span>
-          )}
+          {/* Snapshot price in the report's quote currency — never a hardcoded
+              `$` (a non-USD ADR would otherwise be mislabelled). */}
+          <span style={quotePriceStyle}>
+            {formatCurrency(snapshotPrice, quoteCurrency, locale, 2)}
+          </span>
           {distancePct !== null && (
             <span
               style={{
@@ -238,6 +230,24 @@ export function ReportToolbar({
       )}
 
       <span style={{ flex: 1, minWidth: 8 }} />
+
+      {/* "As of" provenance grouped with the actions on the right (ticker/price ·
+          value range on the left | as-of · export · re-run on the right) — the
+          snapshot date governs what an export/re-run is taken against. */}
+      {snapshotAsOf && (
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            color: 'var(--text-muted)',
+            letterSpacing: '0.04em',
+            whiteSpace: 'nowrap',
+          }}
+          data-testid="report-asof"
+        >
+          {t('sourced.asOf')} {formatDate(snapshotAsOf, locale, 'short')}
+        </span>
+      )}
 
       {/* Export HTML — page-faithful mirror (see handleExportHtml): same DOM,
           theme, charts, continuous scroll. The single export path. */}

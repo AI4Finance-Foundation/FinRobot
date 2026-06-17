@@ -333,16 +333,24 @@ class YFinanceProvider(DataProvider):
         only the legacy fallback.
         """
 
-        def _blocking() -> float | None:
+        def _blocking() -> tuple[float | None, str | None]:
             t = _make_ticker(ticker)
             info = t.fast_info
             price = getattr(info, "last_price", None)
             if price is None:
                 price = getattr(info, "lastPrice", None)
-            return float(price) if price is not None else None
+            # fast_info also exposes the quote currency (USD for AAPL/TSM-ADR, TWD
+            # for 2330.TW) on the SAME cheap call — no .info round-trip. Carry it so
+            # a foreign listing's price travels with its currency (the signal
+            # consumer converts to USD instead of guessing). None when absent.
+            currency = getattr(info, "currency", None)
+            return (
+                float(price) if price is not None else None,
+                str(currency) if currency else None,
+            )
 
         try:
-            price = await asyncio.to_thread(_blocking)
+            price, currency = await asyncio.to_thread(_blocking)
         except YFRateLimitError as e:
             raise RateLimitedProviderError(f"Failed to fetch quote for '{ticker}': {e}") from e
         except (
@@ -358,7 +366,7 @@ class YFinanceProvider(DataProvider):
         if price is None:
             raise ProviderError(f"yfinance returned no quote for '{ticker}'")
         return DataResult(
-            data={"price": price},
+            data={"price": price, "quote_currency": currency},
             provider=self.name,
             ticker=ticker,
             data_type=DataType.QUOTE,

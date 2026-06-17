@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import math
 import time
 from collections.abc import Iterator
@@ -25,6 +26,8 @@ from finrobot.engine.data.interface import (
     RateLimitedProviderError,
 )
 from finrobot.engine.data.types import DataType
+
+logger = logging.getLogger(__name__)
 
 # FMP closed the whole /api/v3 (and /api/v4) endpoint family to accounts
 # registered after 2025-08-31: every legacy call answers 403 "Legacy Endpoint"
@@ -201,6 +204,13 @@ class FMPProvider(DataProvider):
         # Reuse one AsyncClient across requests so TCP/TLS handshakes amortise
         # across the entire FMP session instead of paying ~100 ms per call.
         self._client = httpx.AsyncClient(timeout=_TIMEOUT)
+        # Process-local ticker→quote-currency cache. FMP stable /quote dropped the
+        # currency field (only /profile carries it), but a ticker's quote currency
+        # is near-static — so the FIRST quote for a name pays one extra /profile
+        # call to learn it, and every subsequent quote in this process reuses it.
+        # Keeps the dashboard QUOTE fan-out cheap (no per-quote /profile) while the
+        # carried currency stays authoritative. None caches a genuine "unknown".
+        self._quote_ccy_cache: dict[str, str | None] = {}
 
     @property
     def name(self) -> str:
@@ -920,7 +930,11 @@ class FMPProvider(DataProvider):
         """Lightweight current price via /quote?symbol= — no OHLC history pull.
 
         The full ``_fetch_price`` also fetches a year of historical bars; QUOTE
-        skips that so high-fan-out dashboard quotes stay one cheap call.
+        skips that so high-fan-out dashboard quotes stay one cheap call. The quote
+        currency (which stable /quote does NOT carry — only /profile does) is
+        resolved once per ticker via :meth:`_quote_currency` and process-cached, so
+        a foreign listing's price travels with its currency without making /profile
+        a per-quote cost.
         """
         with self._wrap_errors(ticker, "quote fetch"):
             resp = (await self._get("/quote", params={"symbol": ticker})).json()
@@ -929,13 +943,39 @@ class FMPProvider(DataProvider):
         price = resp[0].get("price")
         if price is None:
             raise ProviderError(f"FMP /quote/{ticker} returned no price field")
+        currency = await self._quote_currency(ticker)
         return DataResult(
-            data={"price": float(price)},
+            data={"price": float(price), "quote_currency": currency},
             provider=self.name,
             ticker=ticker,
             data_type=DataType.QUOTE,
             timestamp=datetime.now(tz=timezone.utc),
         )
+
+    async def _quote_currency(self, ticker: str) -> str | None:
+        """The ticker's quote currency from /profile (stable /quote dropped it).
+
+        Process-cached per ticker (currency is near-static), so only the first quote
+        for a name pays the /profile call. Best-effort: any failure (rate-limit,
+        plan gate, missing field) returns None and is NOT cached, so a transient
+        miss re-tries next time — the consumer abstains on None, never assumes USD."""
+        key = ticker.upper()
+        if key in self._quote_ccy_cache:
+            return self._quote_ccy_cache[key]
+        try:
+            resp = (await self._get("/profile", params={"symbol": ticker})).json()
+        except ProviderError as exc:
+            logger.info("FMP quote-currency /profile lookup failed for %s: %s", ticker, exc)
+            return None
+        if not isinstance(resp, list) or not resp or not isinstance(resp[0], dict):
+            return None
+        raw = resp[0].get("currency")
+        currency = raw.upper() if isinstance(raw, str) and raw else None
+        # Only cache a resolved currency; leave a None (transient/plan miss) uncached
+        # so a later call can recover it.
+        if currency is not None:
+            self._quote_ccy_cache[key] = currency
+        return currency
 
     async def _fetch_news(self, ticker: str) -> DataResult:
         """Fetch recent news articles for a ticker from stable /news/stock.

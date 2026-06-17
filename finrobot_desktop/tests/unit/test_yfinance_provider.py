@@ -142,8 +142,9 @@ class TestFetchQuote:
     """门一 Step 3: lightweight QUOTE path via fast_info.last_price (no .info)."""
 
     class _FastInfo:
-        def __init__(self, price: float | None) -> None:
+        def __init__(self, price: float | None, currency: str | None = "USD") -> None:
             self.last_price = price
+            self.currency = currency
 
     def test_quote_in_capabilities(self):
         assert "quote" in YFinanceProvider().capabilities()
@@ -157,8 +158,37 @@ class TestFetchQuote:
             "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
         ):
             result = await provider.fetch("AAPL", "quote")
-        assert result.data == {"price": 187.5}
+        # The QUOTE payload now carries the quote currency from fast_info.currency
+        # (same cheap call, no .info round-trip) so a foreign listing's price
+        # travels with its currency.
+        assert result.data == {"price": 187.5, "quote_currency": "USD"}
         assert result.data_type == "quote"
+
+    @pytest.mark.asyncio
+    async def test_quote_carries_foreign_currency_from_fast_info(self):
+        """A foreign LOCAL listing (2330.TW) quotes in TWD — fast_info.currency
+        surfaces it, and it must ride on the QUOTE payload."""
+        provider = YFinanceProvider()
+        mock_ticker = MagicMock()
+        mock_ticker.fast_info = self._FastInfo(640.0, currency="TWD")
+        with patch(
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
+            result = await provider.fetch("2330.TW", "quote")
+        assert result.data == {"price": 640.0, "quote_currency": "TWD"}
+
+    @pytest.mark.asyncio
+    async def test_quote_currency_none_when_fast_info_lacks_it(self):
+        """fast_info without a currency → quote_currency None (consumer abstains,
+        never assumes USD)."""
+        provider = YFinanceProvider()
+        mock_ticker = MagicMock()
+        mock_ticker.fast_info = self._FastInfo(187.5, currency=None)
+        with patch(
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
+            result = await provider.fetch("AAPL", "quote")
+        assert result.data == {"price": 187.5, "quote_currency": None}
 
     @pytest.mark.asyncio
     async def test_quote_none_price_raises_provider_error(self):

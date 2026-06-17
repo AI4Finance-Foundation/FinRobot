@@ -929,13 +929,76 @@ class TestFMPQuote:
     def test_quote_in_capabilities(self, provider):
         assert "quote" in provider.capabilities()
 
+    @staticmethod
+    def _quote_profile_get(quote_rows, profile_rows):
+        """A ``_get`` side effect that serves /quote vs /profile distinctly.
+
+        ``_fetch_quote`` now makes a second /profile call to resolve the quote
+        currency (stable /quote dropped the currency field), so the mock must
+        answer both endpoints."""
+
+        async def _get(path, params=None):  # noqa: ANN001
+            if path == "/profile":
+                return _mock_response(profile_rows)
+            return _mock_response(quote_rows)
+
+        return _get
+
     @pytest.mark.asyncio
-    async def test_quote_returns_price(self, provider):
-        resp = _mock_response([{"symbol": "AAPL", "price": 187.5, "exchange": "NASDAQ"}])
-        with patch.object(provider, "_get", AsyncMock(return_value=resp)):
+    async def test_quote_returns_price_and_currency(self, provider):
+        get = self._quote_profile_get(
+            [{"symbol": "AAPL", "price": 187.5, "exchange": "NASDAQ"}],
+            [{"symbol": "AAPL", "currency": "USD"}],
+        )
+        with patch.object(provider, "_get", AsyncMock(side_effect=get)):
             result = await provider.fetch("AAPL", "quote")
-        assert result.data == {"price": 187.5}
+        # /quote has no currency field (stable dropped it) → resolved from /profile.
+        assert result.data == {"price": 187.5, "quote_currency": "USD"}
         assert result.data_type == "quote"
+
+    @pytest.mark.asyncio
+    async def test_quote_carries_foreign_currency_from_profile(self, provider):
+        """A foreign LOCAL listing (2330.TW) → /profile.currency = TWD rides on the
+        QUOTE payload so the price travels with its currency."""
+        get = self._quote_profile_get(
+            [{"symbol": "2330.TW", "price": 640.0, "exchange": "TAI"}],
+            [{"symbol": "2330.TW", "currency": "TWD"}],
+        )
+        with patch.object(provider, "_get", AsyncMock(side_effect=get)):
+            result = await provider.fetch("2330.TW", "quote")
+        assert result.data == {"price": 640.0, "quote_currency": "TWD"}
+
+    @pytest.mark.asyncio
+    async def test_quote_currency_cached_per_ticker(self, provider):
+        """Currency is process-cached per ticker — a second quote does NOT re-hit
+        /profile (keeps the dashboard QUOTE fan-out cheap)."""
+        calls: list[str] = []
+
+        async def _get(path, params=None):  # noqa: ANN001
+            calls.append(path)
+            if path == "/profile":
+                return _mock_response([{"symbol": "AAPL", "currency": "USD"}])
+            return _mock_response([{"symbol": "AAPL", "price": 187.5}])
+
+        with patch.object(provider, "_get", AsyncMock(side_effect=_get)):
+            await provider.fetch("AAPL", "quote")
+            await provider.fetch("AAPL", "quote")
+        assert calls.count("/profile") == 1  # second quote reused the cached currency
+        assert calls.count("/quote") == 2
+
+    @pytest.mark.asyncio
+    async def test_quote_currency_none_when_profile_unavailable(self, provider):
+        """If /profile fails, quote_currency is None (consumer abstains, never
+        assumes USD) — and the quote price still flows."""
+
+        async def _get(path, params=None):  # noqa: ANN001
+            if path == "/profile":
+                raise ProviderError("profile down")
+            return _mock_response([{"symbol": "AAPL", "price": 187.5}])
+
+        with patch.object(provider, "_get", AsyncMock(side_effect=_get)):
+            result = await provider.fetch("AAPL", "quote")
+        assert result.data == {"price": 187.5, "quote_currency": None}
 
     @pytest.mark.asyncio
     async def test_quote_empty_response_raises(self, provider):

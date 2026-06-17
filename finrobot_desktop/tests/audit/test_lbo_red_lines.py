@@ -366,5 +366,37 @@ def test_lbo_loss_maker_profitability_fallback_is_disclosed():
     assert "non-positive" in inputs.assumption_provenance["ebitda_margin"]
 
 
+def test_all_standalone_valuation_seeders_fx_normalize_before_seeding():
+    """Mechanical gate — flywheel escalation for the BUG-073 sibling-escape that
+    recurred a 3rd time (equity_research fixed the leak via data_collection;
+    standalone dcf / ddm / lbo were each found unfixed: Critical-1 / #3).
+
+    Every standalone valuation pipeline executor that seeds a model from the
+    fetched snapshot MUST FX-normalize a foreign issuer to USD *before* seeding —
+    otherwise revenue/EBITDA/debt (reporting ccy) mix with the USD quote and the
+    entry/target/exit land in different currencies on one axis. A NEW valuation
+    pipeline that forgets this fails here instead of shipping a cross-currency
+    target. (equity_research's _execute_financial_modeling is covered by its own
+    BUG-073 currency tests.)
+    """
+    import inspect
+
+    from finrobot.engine.pipelines import dcf, ddm, ic_memo, lbo
+
+    cases = [
+        (dcf._execute_dcf_calc, "normalize_financials_to_usd"),
+        (ddm._execute_ddm_seed, "normalize_financialdata_to_usd"),
+        (lbo._execute_lbo_params, "normalize_financials_to_usd"),
+        (ic_memo._execute_ic_financials, "normalize_financials_to_usd"),
+    ]
+    for fn, token in cases:
+        body = inspect.getsource(fn)
+        assert token in body, (
+            f"{fn.__module__}.{fn.__name__} must FX-normalize the snapshot before "
+            f"seeding (missing '{token}') — a foreign issuer would otherwise mix "
+            f"reporting-currency model inputs with a USD quote (BUG-073 family)."
+        )
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

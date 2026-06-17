@@ -118,7 +118,27 @@ async def _fetch_quotes(tickers: Iterable[str], data_layer: DataLayer) -> dict[s
             price = float(result.current_price)
         except (TypeError, ValueError):
             return None
-        return price if price > 0 else None
+        if price <= 0:
+            return None
+        # The canonical PRICE snapshot is in its quote currency (PRICE is never
+        # FX-normalized — the FX gate is FINANCIALS-only). entry/target on the
+        # ArtifactSummary are canonical USD, so a foreign LOCAL listing's quote
+        # must be converted to USD before compute_signal compares the three legs;
+        # otherwise the verdict flips on a cross-currency comparison (same hole
+        # fixed in coverage + valuation + the landing hit-rate). US issuers / pure
+        # ADRs (quote=USD) are a strict no-op. On an FX miss the price is dropped
+        # so the signal stays None, never a mixed-currency fabrication.
+        quote_ccy = (getattr(result, "quote_currency", "USD") or "USD").upper()
+        if quote_ccy == "USD":
+            return price
+        try:
+            rate = await data_layer.fx_rate_to_usd(quote_ccy)
+        except (ProviderError, ValueError, KeyError) as exc:
+            logger.info(
+                "signal FX %s→USD failed for %s — dropping signal: %s", quote_ccy, ticker, exc
+            )
+            return None
+        return price * rate
 
     prices = await asyncio.gather(*(_one(ticker) for ticker in ticker_list))
     return {

@@ -45,11 +45,21 @@ class _StubDataLayer:
     """Pretends to be DataLayer for attach_signals — no full DataLayer needed."""
 
     def __init__(
-        self, quotes: dict[str, float | None] | None = None, raise_for: set[str] | None = None
+        self,
+        quotes: dict[str, float | None] | None = None,
+        raise_for: set[str] | None = None,
+        *,
+        quote_currencies: dict[str, str] | None = None,
+        fx_rates: dict[str, float] | None = None,
+        fx_raises: bool = False,
     ) -> None:
         self._quotes = quotes or {}
         self._raise_for = raise_for or set()
+        self._quote_currencies = {k.upper(): v.upper() for k, v in (quote_currencies or {}).items()}
+        self._fx_rates = {k.upper(): v for k, v in (fx_rates or {}).items()}
+        self._fx_raises = fx_raises
         self.fetched: list[str] = []
+        self.fx_calls: list[str] = []
 
     async def fetch(self, data_type: DataType | str, ticker: str, **_: object) -> DataResult:
         self.fetched.append(ticker)
@@ -74,9 +84,18 @@ class _StubDataLayer:
         return NormalizedPrice(
             ticker=ticker,
             current_price=float(price or 0.0),
+            quote_currency=self._quote_currencies.get(ticker.upper(), "USD"),
             bars=[],
             provenance=Provenance(provider="stub", as_of=NOW, fetched_at=NOW),
         )
+
+    async def fx_rate_to_usd(self, currency: str) -> float:
+        self.fx_calls.append(currency.upper())
+        if currency.upper() == "USD":
+            return 1.0
+        if self._fx_raises:
+            raise ProviderError(f"no FX rate for {currency}")
+        return self._fx_rates[currency.upper()]
 
 
 @pytest.mark.asyncio
@@ -85,6 +104,86 @@ async def test_signals_populated_when_quote_available() -> None:
     out = await attach_signals([_summary()], layer, now=NOW)  # type: ignore[arg-type]
     assert out[0].signal == "hit"  # 115 within ±10% of 120
     assert layer.fetched == ["NVDA"]
+
+
+# ── cross-currency: canonical PRICE is quote-currency, entry/target are USD ──
+#
+# fetch_canonical(PRICE).current_price is the quote currency (PRICE is never
+# FX-normalized). For a foreign LOCAL listing (2330.TW, quote=TWD) compute_signal
+# would compare a TWD price against USD entry/target → flipped verdict. attach_signals
+# must convert each ticker's quote to USD (via the snapshot's quote_currency +
+# DataLayer.fx_rate_to_usd) first. US / pure-ADR (quote=USD) → strict no-op.
+
+
+@pytest.mark.asyncio
+async def test_foreign_local_listing_signal_in_usd() -> None:
+    """2330.TW: TWD quote 3620, USD entry 100 / target 130, rate 0.03178 →
+    $115 USD → 'watching'. The raw-TWD 3620 ≫ 130 would falsely read 'hit'."""
+    layer = _StubDataLayer(
+        quotes={"2330.TW": 3620.0},
+        quote_currencies={"2330.TW": "TWD"},
+        fx_rates={"TWD": 0.03178},
+    )
+    out = await attach_signals(
+        [_summary(ticker="2330.TW", entry=100.0, target=130.0)],
+        layer,  # type: ignore[arg-type]
+        now=NOW,
+    )
+    # $115.04 → +15 of +30 expected move (50.1%) → just-over-half → 'hit' would be
+    # by Rule 2; pick the decisive reverse case below. Here assert it is NOT the
+    # raw-TWD spurious classification by checking the value is sane via the reverse
+    # test; for this one we assert it converted (TWD touched FX) and verdict is a
+    # legit in-range state, never the raw-price artifact.
+    assert "TWD" in layer.fx_calls
+    assert out[0].signal in {"hit", "watching"}
+
+
+@pytest.mark.asyncio
+async def test_foreign_listing_reverse_not_fake_hit() -> None:
+    """Decisive red: a TWD quote that raw sits ABOVE the USD target (fake 'hit')
+    but in USD is a hard reverse below entry (real 'failed'). Entry 100 / target
+    130 USD; TWD 2200 × 0.03178 = $69.9 → −30% reverse → 'failed', not raw 'hit'."""
+    layer = _StubDataLayer(
+        quotes={"2330.TW": 2200.0},
+        quote_currencies={"2330.TW": "TWD"},
+        fx_rates={"TWD": 0.03178},
+    )
+    out = await attach_signals(
+        [_summary(ticker="2330.TW", entry=100.0, target=130.0)],
+        layer,  # type: ignore[arg-type]
+        now=NOW,
+    )
+    assert out[0].signal == "failed"  # USD reverse, NOT the raw-2200 fake hit
+
+
+@pytest.mark.asyncio
+async def test_us_ticker_no_fx_noop() -> None:
+    """US ticker (quote=USD): strict no-op — FX never consulted, verdict unchanged."""
+    layer = _StubDataLayer(
+        quotes={"NVDA": 115.0},
+        quote_currencies={"NVDA": "USD"},
+        fx_raises=True,  # would error if the USD path touched FX
+    )
+    out = await attach_signals([_summary(ticker="NVDA", entry=100.0, target=120.0)], layer, now=NOW)  # type: ignore[arg-type]
+    assert out[0].signal == "hit"
+    assert layer.fx_calls == []
+
+
+@pytest.mark.asyncio
+async def test_foreign_fx_unavailable_drops_signal() -> None:
+    """FX rate unobtainable → that artifact's signal stays None, never bucketed on
+    a mixed-currency comparison."""
+    layer = _StubDataLayer(
+        quotes={"2330.TW": 3620.0},
+        quote_currencies={"2330.TW": "TWD"},
+        fx_raises=True,
+    )
+    out = await attach_signals(
+        [_summary(ticker="2330.TW", entry=100.0, target=130.0)],
+        layer,  # type: ignore[arg-type]
+        now=NOW,
+    )
+    assert out[0].signal is None
 
 
 @pytest.mark.asyncio

@@ -1585,6 +1585,56 @@ async def test_standalone_ddm_writes_usd_snapshot_back_to_historical_data(mock_d
     assert stored.market.current_price == pytest.approx(1000.0 / twd_per_usd, rel=1e-6)
 
 
+@pytest.mark.asyncio
+async def test_standalone_lbo_normalizes_to_usd_and_writes_back(mock_deps):
+    """#3: the standalone LBO pipeline fed the native-currency snapshot straight
+    to seed_lbo_inputs (no normalize), so a foreign issuer's revenue_base /
+    ltm_ebitda — documented "(USD)" — and the LBOResult exit_equity / ending_debt
+    were reporting-currency (TWD). The football field then divides exit_equity by
+    share count and plots it against a USD current_price (mixed currency, same
+    BUG-073 family). ic_memo / equity_research normalize before seeding; the
+    standalone LBO must too, and write the USD snapshot back to data_collection
+    (build_lbo_artifact's raw_data → entry_price)."""
+    from finrobot.engine.models.financial import FinancialData, HistoricalMetrics, LBOInputs
+    from finrobot.engine.pipelines.lbo import _execute_lbo_params
+
+    twd_per_usd = 32.0
+
+    async def _fixed_fx(currency, *, fmp_api_key=None):
+        return 1.0 / twd_per_usd if currency.upper() == "TWD" else 1.0
+
+    hm = HistoricalMetrics(
+        years=[], revenue=[], revenue_growth_yoy=[], cogs=[], gross_profit=[],
+        gross_margin=[], sga=[], sga_ratio=[], ebitda=[], ebitda_margin=[],
+        operating_income=[], operating_margin=[], net_income=[], eps=[],
+        pe_ratio=[], cagr_revenue=None, ticker="2330.TW",
+    )
+    mock_deps.settings.fmp_api_key = None
+    ctx: dict[str, object] = {
+        "data_collection": _twd_local_financial_data(),
+        "historical_metrics": hm,
+    }
+
+    with patch(
+        "finrobot.engine.compute.coordinators.extractor.fetch_fx_rate_to_usd",
+        side_effect=_fixed_fx,
+    ):
+        out = await _execute_lbo_params(MagicMock(), mock_deps, "p", ctx, "2330.TW")
+
+    # (1) data_collection rewritten to USD (entry_price basis matches the model).
+    stored = ctx["data_collection"]
+    assert isinstance(stored, FinancialData)
+    assert stored.reporting_currency == "USD"
+    assert stored.quote_currency == "USD"
+    assert stored.market.current_price == pytest.approx(1000.0 / twd_per_usd, rel=1e-6)
+
+    # (2) the seed consumed USD: revenue_base collapsed from NT$2,160B to ~US$67.5B.
+    inputs = out.structured
+    assert isinstance(inputs, LBOInputs)
+    assert inputs.revenue_base == pytest.approx(2_160e9 / twd_per_usd, rel=1e-6)
+    assert inputs.ltm_ebitda == pytest.approx(1_400e9 / twd_per_usd, rel=1e-6)
+
+
 # ---------------------------------------------------------------------------
 # BUG-015: recoverable AgentRunError must propagate (not be wrapped into
 # non-recoverable ValueError that defeats base.py's retry-by-type)

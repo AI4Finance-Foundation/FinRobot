@@ -17,6 +17,7 @@ from typing import Any
 
 from pydantic_ai import Agent
 
+from finrobot.engine.compute.coordinators.extractor import normalize_financials_to_usd
 from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
 from finrobot.engine.compute.operators.lbo import calculate_lbo
 from finrobot.engine.compute.operators.lbo_seed import seed_lbo_inputs
@@ -105,6 +106,18 @@ async def _execute_lbo_params(
                 cagr_revenue=None,
                 ticker=ticker,
             )
+
+    # FX-normalize a foreign issuer's financials to canonical USD BEFORE seeding
+    # so revenue_base / ltm_ebitda (and thus LBOResult.exit_equity / ending_debt)
+    # are USD — never the native reporting currency. Without it the football
+    # field divides a TWD exit_equity by share count and plots it against a USD
+    # current_price (BUG-073 family). ic_memo / equity_research already do this;
+    # the standalone LBO pipeline did not. No-op for US issuers. Write back to
+    # data_collection so build_lbo_artifact's raw_data (→ entry_price) is USD too.
+    financial_data = await normalize_financials_to_usd(
+        financial_data, fmp_api_key=getattr(deps.settings, "fmp_api_key", None)
+    )
+    structured_context["data_collection"] = financial_data
 
     inputs: LBOInputs = seed_lbo_inputs(financial_data, historical)
     return StepOutput(text=inputs.model_dump_json(), structured=inputs)

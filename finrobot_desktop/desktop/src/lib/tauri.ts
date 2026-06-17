@@ -8,6 +8,7 @@ import { open as openShell } from '@tauri-apps/plugin-shell'
 import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog'
 import { writeTextFile as fsWriteTextFile } from '@tauri-apps/plugin-fs'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { platform } from '@tauri-apps/plugin-os'
 
 /** Returns true when running inside a Tauri webview. */
 export function isTauri(): boolean {
@@ -15,6 +16,25 @@ export function isTauri(): boolean {
   // Tauri v2 attaches __TAURI_INTERNALS__; v1 used __TAURI__.
   const w = window as unknown as Record<string, unknown>
   return Boolean(w.__TAURI_INTERNALS__ ?? w.__TAURI__)
+}
+
+/**
+ * True when running inside a Tauri webview ON Windows. Drives the few places
+ * the shell must diverge from its macOS-native chrome — e.g. the titlebar
+ * reserves 72px for macOS traffic lights that Windows doesn't have (Windows
+ * gets a native window frame with top-right controls instead).
+ *
+ * `platform()` from plugin-os is synchronous in Tauri v2 (resolved from an
+ * init snapshot). In a plain browser (dev) there is no native platform, so we
+ * report false and render the macOS layout we develop against.
+ */
+export function isWindows(): boolean {
+  if (!isTauri()) return false
+  try {
+    return platform() === 'windows'
+  } catch {
+    return false
+  }
 }
 
 // ─── Window dragging ──────────────────────────────────────────────

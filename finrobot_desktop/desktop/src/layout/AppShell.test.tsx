@@ -8,6 +8,8 @@ import { AppShell } from './AppShell'
 vi.mock('../lib/tauri', () => ({
   pickDirectory: vi.fn().mockResolvedValue(null),
   isTauri: vi.fn().mockReturnValue(false),
+  isWindows: vi.fn().mockReturnValue(false),
+  startWindowDrag: vi.fn(),
   openExternal: vi.fn().mockResolvedValue(undefined),
   DEFAULT_WORKSPACE_PATH: '~/finrobot',
 }))

@@ -17,7 +17,7 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useUiStore } from '../stores/uiStore'
 import { useI18n } from '../i18n'
-import { startWindowDrag } from '../lib/tauri'
+import { startWindowDrag, isWindows } from '../lib/tauri'
 import { UpdatePill } from '../components/UpdatePill'
 import { AI_CHAT_ENABLED } from '../config/features'
 import { BrandAbout } from '../components/BrandAbout'
@@ -120,8 +120,9 @@ export function TitleBar(): React.ReactElement {
 
   return (
     <div className="titlebar" onMouseDown={onTitleBarMouseDown} data-testid="titlebar">
-      {/* macOS traffic lights overlay reservation */}
-      <div className="tb-traffic-reserve" aria-hidden />
+      {/* macOS reserves 72px for the native traffic-lights overlay; Windows
+          gets a native frame with top-right controls instead, so skip it. */}
+      {!isWindows() && <div className="tb-traffic-reserve" aria-hidden />}
 
       {/* Brandmark — FinRobot wordmark, now the affordance for the About
           popover (version · license · foundation links · copyright). */}

@@ -270,14 +270,35 @@ function renderWorkspace() {
 describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
   it('Step 1: cold start renders TickerHero + dual zones (market data + AI)', async () => {
     renderWorkspace()
-    // Hero with cosmic ticker glyph + the primary run trigger.
+    // Hero with cosmic ticker glyph.
     expect(screen.getByTestId('ticker-hero')).toBeInTheDocument()
-    expect(screen.getByTestId('run-analysis-trigger')).toBeInTheDocument()
+    // On cold start the AI zone shows a NEUTRAL loading state while it checks
+    // the local report DB — never the "No report · Run now" terminal (that
+    // would lie before the history query returns and arm a redundant run). The
+    // run trigger only appears once we KNOW there are zero reports.
+    expect(screen.getByTestId('ai-zone-loading')).toBeInTheDocument()
+    expect(screen.queryByTestId('run-analysis-trigger')).not.toBeInTheDocument()
     // Dual-zone dashboard: market data (left, always live) + AI zone (right).
     expect(screen.getByTestId('market-data-zone')).toBeInTheDocument()
     expect(screen.getByTestId('ai-zone')).toBeInTheDocument()
     // AnchorNav is retired in favour of ⌘K.
     expect(screen.queryByTestId('anchor-nav')).not.toBeInTheDocument()
+  })
+
+  it('Step 1c: empty history → LoadingState first, then ColdState + trigger (no premature trigger)', async () => {
+    // Locks the actual bug: ColdState/run-trigger must NOT appear before the
+    // history query resolves. Empty history → neutral loading first, then flip
+    // to the cold CTA once we KNOW there are zero reports.
+    mockTimeline([])
+    renderWorkspace()
+    // BEFORE resolution: neutral loading, NO run trigger, NO cold terminal.
+    expect(screen.getByTestId('ai-zone-loading')).toBeInTheDocument()
+    expect(screen.queryByTestId('run-analysis-trigger')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('ai-zone-cold')).not.toBeInTheDocument()
+    // AFTER it resolves to zero reports: ColdState + trigger appear, loading gone.
+    expect(await screen.findByTestId('ai-zone-cold')).toBeInTheDocument()
+    expect(screen.getByTestId('run-analysis-trigger')).toBeInTheDocument()
+    expect(screen.queryByTestId('ai-zone-loading')).not.toBeInTheDocument()
   })
 
   it('Step 1b: retail sentiment card consumes /api/sentiment (BUG-044)', async () => {
@@ -294,10 +315,14 @@ describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
   })
 
   it('Step 2: 运行完整分析 fires research; no alt-pipeline UI surface exists', async () => {
+    // Empty history → resolves to ColdState with the run trigger (the default
+    // mock has a report → HotState, which has no cold trigger). The trigger
+    // only appears AFTER the history query confirms zero reports.
+    mockTimeline([])
     renderWorkspace()
     // 1 ticker = 1 run = 1 equity_research artifact carrying the full
     // 13-chapter payload.
-    fireEvent.click(screen.getByTestId('run-analysis-trigger'))
+    fireEvent.click(await screen.findByTestId('run-analysis-trigger'))
     expect(startRunMock).toHaveBeenCalledWith('research', 'NVDA')
     // No chevron / dropdown / alt-pipeline menu — single canonical entry.
     for (const id of [
@@ -316,9 +341,11 @@ describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
   })
 
   it('Step 2b: run start failure surfaces a toast instead of leaving the CTA hanging', async () => {
+    // Empty history → ColdState with an enabled run trigger (see Step 2).
+    mockTimeline([])
     startRunMock.mockRejectedValueOnce(new Error('网络连接失败，请检查网络'))
     renderWorkspace()
-    fireEvent.click(screen.getByTestId('run-analysis-trigger'))
+    fireEvent.click(await screen.findByTestId('run-analysis-trigger'))
     await waitFor(() =>
       expect(addToastMock).toHaveBeenCalledWith(
         expect.objectContaining({

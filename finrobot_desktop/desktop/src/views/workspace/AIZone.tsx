@@ -113,6 +113,14 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
   // health lands. Only a RESOLVED bad health blocks.
   const { data: healthData, isPlaceholderData: healthPlaceholder } = useHealth()
   const health = healthPlaceholder ? null : healthData
+  // "Still plausibly booting" = the very first health probe is in flight (health
+  // null) OR the probe explicitly reports the sidecar as starting (within the
+  // boot grace). ONLY during this window do we suppress the red error state for a
+  // failed query and fall to the neutral loading state. A backend that is
+  // CONFIRMED offline (post-grace / crashed mid-session) is NOT booting — its
+  // errored query must still surface the red error + Retry affordance, never a
+  // perpetual "checking…" skeleton with no way out.
+  const backendBooting = health == null || health.level === 'starting'
   // Live quote for the verdict card's TargetGauge "now" tick. NOT a new fetch:
   // StockWorkspace / TickerHero / MarketDataZone already run this exact query
   // (key ['ticker-price', ticker]); React Query dedupes us onto their cached
@@ -221,11 +229,16 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
     !!runState.artifactId &&
     runState.artifactType !== 'equity_research'
 
-  // Show error state only when both queries failed AND the run is not active
-  // (a running pipeline masks stale query errors — user knows data is being
-  // fetched). Loading while !latest falls naturally into ColdState below so
-  // run-analysis-trigger remains visible immediately on first render.
-  const isError = (artifactError || timelineError) && !isRunning
+  // Show the error state when both queries failed, the run is not active (a
+  // running pipeline masks stale query errors), AND the sidecar is not still
+  // booting. A failed fetch during the boot window (health null / level
+  // 'starting') is "not up yet" → neutral loading, no red flash. But a query
+  // error once the backend is CONFIRMED offline (post-grace / crashed) must
+  // surface the red error + Retry — never a perpetual "checking…" skeleton.
+  // Loading while !latest no longer falls into ColdState (that lied "No report
+  // generated" + armed a redundant run before the local DB answered) — it
+  // renders LoadingState until the history query returns.
+  const isError = (artifactError || timelineError) && !isRunning && !backendBooting
 
   function handleRetry(): void {
     void artifactRefetch()
@@ -276,17 +289,24 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
     }
   }
 
-  // Four states for the AI column:
-  //   error    → backend 5xx / network down — show actionable error + retry
+  // Five states for the AI column:
+  //   error    → reachable backend returned 5xx — actionable error + retry
   //   running  → progress panel only (cold/hot would be misleading)
   //   has artifact → hot card stack
-  //   neither (including initial loading) → cold CTA
-  //     loading: query still in-flight → ColdState with subtle indicator
-  //     cold: genuinely no artifact yet → full ColdState with run trigger
+  //   loading  → history query still in flight / sidecar still booting →
+  //              neutral LoadingState (NO "no report" claim, NO run trigger)
+  //   cold     → query RESOLVED and genuinely zero artifacts → ColdState + CTA
   // After the run completes, PipelineProgressPanel keeps showing its
   // "完成 · 总耗时 Xs" header (→ 打开研报 / ✕ dismiss) until dismissed.
   const showProgress = !!runState && !runState.dismissed
-  const isQuerying = (artifactLoading || timelineLoading) && !isRunning
+  // The history query has actually come back (settled, no error). ONLY then do
+  // we know whether reports exist — and only then may we show the affirmative
+  // "No report · Run now" terminal. Before this we render LoadingState: showing
+  // ColdState during the cold-start window both lied ("No report generated")
+  // and armed a redundant ~60s generation the user could fire before the local
+  // SQLite read (single-digit ms once the sidecar is up) had even returned.
+  const reportHistoryResolved =
+    !artifactLoading && !timelineLoading && !artifactError && !timelineError
 
   if (isError) {
     return (
@@ -347,7 +367,11 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
 
   return (
     <section data-testid="ai-zone">
-      <ZoneHeader hasArtifact={!!latest} versionsCount={sameTypeTimeline.length} />
+      <ZoneHeader
+        hasArtifact={!!latest}
+        versionsCount={sameTypeTimeline.length}
+        loading={!latest && !reportHistoryResolved}
+      />
       <p style={zoneDesc}>{t('workspace.ai.zoneDesc')}</p>
 
       {showProgress && <PipelineProgressPanel ticker={ticker} />}
@@ -376,16 +400,21 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
           isRunning={isRunning}
           onLaunch={launchResearch}
         />
+      ) : !isRunning && !latest && !nonResearchResult && !reportHistoryResolved ? (
+        // History query still in flight (or the sidecar is still booting). We do
+        // NOT yet know whether reports exist — show a neutral, non-actionable
+        // loading state. Never the "No report · Run now" terminal here: that
+        // lied before the local DB answered and armed a redundant generation.
+        <LoadingState />
       ) : !isRunning && !latest && !nonResearchResult ? (
-        // Don't drop a just-finished non-research run (DCF/LBO/comps/earnings)
-        // into ColdState's "run research" prompt — that buries the result the
-        // user just produced. The PipelineProgressPanel above stays visible
-        // with its "open" CTA pointing at run.artifactId, so the result is
-        // reachable. Only show ColdState when there's genuinely nothing.
+        // Query RESOLVED and genuinely empty. Don't drop a just-finished
+        // non-research run (DCF/LBO/comps/earnings) into ColdState's "run
+        // research" prompt — that buries the result the user just produced; the
+        // PipelineProgressPanel above keeps its "open" CTA. Only show ColdState
+        // when there's genuinely nothing.
         <ColdState
           ticker={ticker}
           isRunning={isRunning}
-          isQuerying={isQuerying}
           preflightBlocked={preflightBlocked}
           preflightReason={preflightReason}
           onLaunch={launchResearch}
@@ -574,9 +603,11 @@ function OtherArtifacts({
 function ZoneHeader({
   hasArtifact,
   versionsCount,
+  loading,
 }: {
   hasArtifact: boolean
   versionsCount: number
+  loading?: boolean
 }): React.ReactElement {
   const { t } = useI18n()
   return (
@@ -610,9 +641,11 @@ function ZoneHeader({
           letterSpacing: '0.08em',
         }}
       >
-        {hasArtifact
-          ? t('workspace.ai.reportCount', { n: versionsCount })
-          : t('workspace.ai.neverRun')}
+        {loading
+          ? '···'
+          : hasArtifact
+            ? t('workspace.ai.reportCount', { n: versionsCount })
+            : t('workspace.ai.neverRun')}
       </span>
     </div>
   )
@@ -626,17 +659,66 @@ const zoneDesc: React.CSSProperties = {
   lineHeight: 1.55,
 }
 
+// Shown while the report-history query is still in flight (or the sidecar is
+// still booting). Deliberately NON-actionable — no "No report" headline, no run
+// trigger: claiming "no report" before the local SQLite read has answered both
+// lies and invites a redundant ~60s generation. Once the query resolves this
+// flips to HotState (reports exist) or ColdState (genuinely none). Static
+// skeleton only — no animation (persistent-state UI rule).
+function LoadingState(): React.ReactElement {
+  const { t } = useI18n()
+  return (
+    <div
+      data-testid="ai-zone-loading"
+      style={{
+        background: 'var(--bg-card-faint)',
+        border: '1px dashed var(--border-soft)',
+        borderRadius: 'var(--radius-md)',
+        padding: '36px 24px',
+        textAlign: 'center',
+      }}
+    >
+      <div style={{ fontSize: 40, opacity: 0.3, marginBottom: 14 }}>🤖</div>
+      <div
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11.5,
+          color: 'var(--text-muted)',
+          letterSpacing: '0.06em',
+          marginBottom: 18,
+        }}
+      >
+        {t('workspace.ai.cold.checking')}
+      </div>
+      <div
+        style={{ display: 'flex', flexDirection: 'column', gap: 9, maxWidth: 300, margin: '0 auto' }}
+      >
+        {[1, 0.7, 0.45].map((w, i) => (
+          <div
+            key={i}
+            style={{
+              height: 9,
+              width: `${w * 100}%`,
+              borderRadius: 4,
+              background: 'var(--border-soft)',
+              opacity: 0.5 - i * 0.12,
+            }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function ColdState({
   ticker,
   isRunning,
-  isQuerying,
   preflightBlocked,
   preflightReason,
   onLaunch,
 }: {
   ticker: string
   isRunning: boolean
-  isQuerying: boolean
   preflightBlocked: boolean
   preflightReason: PreflightReason
   onLaunch: () => void
@@ -654,20 +736,6 @@ function ColdState({
       }}
     >
       <div style={{ fontSize: 40, opacity: 0.5, marginBottom: 12 }}>🤖</div>
-      {isQuerying && (
-        <div
-          data-testid="ai-zone-loading"
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 10.5,
-            color: 'var(--text-dim)',
-            marginBottom: 10,
-            letterSpacing: '0.04em',
-          }}
-        >
-          {t('workspace.ai.cold.checking')}
-        </div>
-      )}
       <div
         style={{
           fontFamily: 'var(--font-display)',

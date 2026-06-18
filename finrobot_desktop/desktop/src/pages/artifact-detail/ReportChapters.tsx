@@ -112,18 +112,10 @@ export function ReportChapters({
         targetHigh={d.valuationSynthesis?.target_high ?? null}
         anchorMethod={d.valuationSynthesis?.anchor_method ?? null}
       />
-      <ChapterThesis
-        thesis={d.thesis}
-        // Same valuation-synthesis provenance the cover restates — the thesis
-        // header is a sell-side restatement of the rating, so the target gets a
-        // confidence-scaled band + drill-down, not a bare false-precise number.
-        confidence={d.valuationSynthesis?.confidence ?? null}
-        targetLow={d.valuationSynthesis?.target_low ?? null}
-        targetHigh={d.valuationSynthesis?.target_high ?? null}
-        anchorMethod={d.valuationSynthesis?.anchor_method ?? null}
-        currentPrice={d.valuationSynthesis?.current_price ?? null}
-        quoteCurrency={d.quoteCurrency}
-      />
+      {/* Rating / target / conviction / provenance live ONCE on the cover above —
+          the thesis section is the argument (narrative + takeaways), no rating
+          header restatement (that was a same-screen duplicate of the cover hero). */}
+      <ChapterThesis thesis={d.thesis} />
       <ChapterCompanyOverview
         thesis={d.thesis}
         rawData={d.inputs.raw_data ?? null}

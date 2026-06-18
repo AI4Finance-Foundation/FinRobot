@@ -4,9 +4,11 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator, model_validator
 from starlette.requests import Request
+
+from finrobot.routes._ready import ensure_engine_ready
 
 from finrobot.engine.compute.operators.dcf import (
     ReverseSolveReason,
@@ -236,7 +238,7 @@ async def compute_wacc(request: WaccRequest) -> WaccResponse:
     return WaccResponse(cost_of_equity=cost_of_equity, wacc=wacc)
 
 
-@router.post("/dcf", response_model=DCFResult)
+@router.post("/dcf", response_model=DCFResult, dependencies=[Depends(ensure_engine_ready)])
 async def compute_dcf(inputs: DCFInputs) -> DCFResult:
     try:
         return calculate_dcf(inputs)
@@ -263,7 +265,9 @@ async def _seed_dcf_inputs_for_ticker(
     )
 
 
-@router.post("/dcf-seed", response_model=DcfSeedResponse)
+@router.post(
+    "/dcf-seed", response_model=DcfSeedResponse, dependencies=[Depends(ensure_engine_ready)]
+)
 async def compute_dcf_seed(body: DcfSeedRequest, request: Request) -> DcfSeedResponse:
     """One-shot DCF for a ticker — the front-end's single authoritative path.
 
@@ -442,7 +446,11 @@ def build_equivalence_line(
     return (fixed_wacc if fixed_wacc is not None else 0.0), terminal_growth, points
 
 
-@router.post("/dcf-equivalence-line", response_model=DcfEquivalenceLineResponse)
+@router.post(
+    "/dcf-equivalence-line",
+    response_model=DcfEquivalenceLineResponse,
+    dependencies=[Depends(ensure_engine_ready)],
+)
 async def compute_dcf_equivalence_line(
     body: DcfEquivalenceLineRequest, request: Request
 ) -> DcfEquivalenceLineResponse:
@@ -503,7 +511,9 @@ async def compute_lbo(inputs: LBOInputs) -> LBOResult:
         raise _compute_http_error(exc, context=inputs.ticker) from exc
 
 
-@router.post("/lbo-seed", response_model=LboSeedResponse)
+@router.post(
+    "/lbo-seed", response_model=LboSeedResponse, dependencies=[Depends(ensure_engine_ready)]
+)
 async def compute_lbo_seed(body: LboSeedRequest, request: Request) -> LboSeedResponse:
     """One-shot LBO for a ticker — the front-end's single authoritative path.
 

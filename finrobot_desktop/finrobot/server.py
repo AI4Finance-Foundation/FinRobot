@@ -22,7 +22,9 @@ from finrobot.config import DATA_PROVIDER_SECRET_FIELDS, get_capability_token, g
 from finrobot.llm_probe import LlmProbeGate
 from finrobot.obs import bind_session, setup_logging
 from finrobot.obs.middleware import RequestTraceMiddleware
-from finrobot.engine.data.factory import build_data_layer
+from finrobot.engine.data.cache import DataCache
+from finrobot.engine.data.factory import build_provider_chain
+from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.skills.registry import SkillRegistry
 from finrobot.artifact.migrate import migrate_filesystem_to_sqlite
@@ -217,7 +219,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     skills_path = Path(settings.skills_dir)
     registry = SkillRegistry(skills_path) if skills_path.exists() else None
 
-    data_layer = build_data_layer(settings)
+    # Data layer: SEEDED EMPTY here, WIRED in a post-yield background task
+    # (_build_data_layer_background). build_provider_chain imports the provider
+    # modules (yfinance_provider ~0.27s + edgar_provider ~0.23s) — that import cost
+    # would otherwise run during lifespan *startup* and block the port, since uvicorn
+    # serves /health only after startup returns. The placeholder is a REAL DataLayer
+    # over a REAL DataCache (so the cache, run reconcile, and every local-SQLite
+    # route work immediately); add_providers fills the chain on the SAME object and
+    # app.state.engine_ready flips once it's live. Routes needing live provider data
+    # gate on engine_ready (require_ready_data_layer); local-SQLite routes never
+    # touch the chain and serve at once — the whole point of the split.
+    data_layer = DataLayer(providers=[], cache=DataCache(settings.cache_db_path))
 
     # Artifact store: SQLite-backed (since 2026-05-23). The ``ArtifactStore``
     # name is a shim that delegates to ``SqliteArtifactStore`` — the old
@@ -279,6 +291,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # (False → 503 retry) from "started" (True → either serve or 503 "configure a
     # model"). See chat() and routes/runs.py.
     app.state.agents_ready = False
+    # Flips True once _build_data_layer_background wires the provider chain onto the
+    # placeholder DataLayer. Live-data routes 503 "starting" until then
+    # (require_ready_data_layer); /health + local-SQLite routes never wait on it.
+    app.state.engine_ready = False
     app.state.deps = deps
     app.state.secret_store = secret_store
     app.state.secret_storage_mode = secret_storage_mode
@@ -391,6 +407,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.quotes_warmed = False
     app.state.quotes_warmed_ticker_count = 0
 
+    # Set by _build_data_layer_background once the provider chain is wired onto the
+    # placeholder DataLayer; the quote warmup waits on it because the placeholder
+    # has no providers to fetch from until then (cold-start split).
+    engine_ready_event = asyncio.Event()
+
     async def _migrate_then_warm_background() -> None:
         await _migrate_legacy_artifacts_background()
         # Sequenced AFTER the migration so freshly-migrated legacy rows are
@@ -398,6 +419,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # warmup (module-level warm_quote_cache, H3) sees the migrated
         # tickers instead of an empty SQLite on first post-upgrade boot.
         await _rebuild_summaries_background()
+        # AND after the provider chain is live — data_layer is the same object the
+        # warmup task fills, but it holds no providers until then.
+        await engine_ready_event.wait()
         await warm_quote_cache(app, artifact_store, data_layer)
 
     # Background task: evict long-stale rows from the data cache (BUG-049).
@@ -442,6 +466,26 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         await start_refresh(app, settings, force=False)
 
+    async def _build_data_layer_background() -> None:
+        # Wire the provider chain (the ~0.5s of yfinance_provider + edgar_provider
+        # imports) onto the placeholder DataLayer, off the boot critical path. It is
+        # the SAME object deps already carries — add_providers extends it in place,
+        # so there is no swap and shutdown/eviction keep their one handle. Routes
+        # flip from 503-warming to live the instant engine_ready is set, which
+        # happens right after the synchronous extend (no await between, so no caller
+        # observes a half-populated chain). engine_ready flips True in ``finally``
+        # REGARDLESS: a provider-build failure must not strand live-data routes on a
+        # "still starting" 503 forever — with an empty chain they degrade to the
+        # tested "data unavailable" path instead (never fabricated numbers).
+        try:
+            data_layer.add_providers(build_provider_chain(settings))
+            logger.info("Data layer provider chain wired (background warmup)")
+        except (OSError, ValueError, TypeError, RuntimeError, ImportError, KeyError):
+            logger.exception("Data layer warmup failed — live-data routes will degrade")
+        finally:
+            app.state.engine_ready = True
+            engine_ready_event.set()
+
     async def _build_agents_background() -> None:
         # Construct the LLM agents off the boot critical path (the ~0.45s
         # pydantic_ai import + the provider client). is_model_configured (not just
@@ -484,6 +528,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         asyncio.create_task(_migrate_then_warm_background()),
         asyncio.create_task(_refresh_sec_holdings_background()),
         asyncio.create_task(_warm_symbol_index_background()),
+        asyncio.create_task(_build_data_layer_background()),
         asyncio.create_task(_build_agents_background()),
     ]
 

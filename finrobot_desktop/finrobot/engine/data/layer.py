@@ -80,6 +80,18 @@ class DataLayer:
         # stampede the canonical registry above doesn't cover.
         self._inflight_raw: dict[tuple[DataType, str], asyncio.Future[DataResult]] = {}
 
+    def add_providers(self, providers: list[DataProvider]) -> None:
+        """Append warmed providers to the chain after construction (sidecar boot).
+
+        The cold-start path seeds this DataLayer with an EMPTY provider list so the
+        ~0.5s of provider-module imports (yfinance / edgartools) stays off the boot
+        critical path, then calls this from the post-yield warmup task once the
+        chain is built. Routes that need live data gate on ``app.state.engine_ready``
+        (flipped right after this returns), so no caller observes a half-populated
+        chain — the extend is synchronous with no await before the flag flips.
+        """
+        self._providers.extend(providers)
+
     def _record_provider_failure(self, provider_name: str, exc: ProviderError) -> None:
         """Charge the circuit breaker for a provider failure — with one carve-out.
 

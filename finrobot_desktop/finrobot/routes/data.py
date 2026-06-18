@@ -7,9 +7,11 @@ import math
 from datetime import date, datetime
 from typing import Any, Literal, cast
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import ValidationError
 from starlette.requests import Request
+
+from finrobot.routes._ready import ensure_engine_ready
 
 from finrobot.engine.compute.operators.catalyst import (
     extract_catalysts_from_news,
@@ -117,7 +119,11 @@ def _with_fmp_degradation_note(request: Request, payload: dict[str, Any]) -> dic
     return payload
 
 
-@router.get("/{ticker}/catalysts", response_model=list[CatalystEvent])
+@router.get(
+    "/{ticker}/catalysts",
+    response_model=list[CatalystEvent],
+    dependencies=[Depends(ensure_engine_ready)],
+)
 async def get_catalysts(
     ticker: str,
     request: Request,
@@ -190,7 +196,11 @@ async def get_catalysts(
     return [CatalystEvent.model_validate(item) for item in raw_list]
 
 
-@router.get("/{ticker}/financials", response_model=FinancialData)
+@router.get(
+    "/{ticker}/financials",
+    response_model=FinancialData,
+    dependencies=[Depends(ensure_engine_ready)],
+)
 async def get_financials(ticker: str, request: Request) -> FinancialData:
     enforce_live_data_limit(request)
     data_layer: DataLayer = request.app.state.deps.data_layer
@@ -218,7 +228,7 @@ async def get_financials(ticker: str, request: Request) -> FinancialData:
 PricePeriod = Literal["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"]
 
 
-@router.get("/{ticker}/price")
+@router.get("/{ticker}/price", dependencies=[Depends(ensure_engine_ready)])
 async def get_price(ticker: str, request: Request, period: PricePeriod = "1y") -> dict[str, Any]:
     """Price data with configurable time period.
 
@@ -288,7 +298,11 @@ async def get_price(ticker: str, request: Request, period: PricePeriod = "1y") -
         raise _data_http_error(e, ticker_upper) from e
 
 
-@router.get("/{ticker}/historical", response_model=HistoricalMetrics)
+@router.get(
+    "/{ticker}/historical",
+    response_model=HistoricalMetrics,
+    dependencies=[Depends(ensure_engine_ready)],
+)
 async def get_historical(ticker: str, request: Request) -> HistoricalMetrics:
     """Multi-year historical financial metrics including cash flows.
 
@@ -314,7 +328,11 @@ async def get_historical(ticker: str, request: Request) -> HistoricalMetrics:
     return HistoricalMetrics.model_validate(_with_fmp_degradation_note(request, payload))
 
 
-@router.get("/{ticker}/earnings-calls", response_model=EarningsCallList)
+@router.get(
+    "/{ticker}/earnings-calls",
+    response_model=EarningsCallList,
+    dependencies=[Depends(ensure_engine_ready)],
+)
 async def get_earnings_calls(
     ticker: str,
     request: Request,

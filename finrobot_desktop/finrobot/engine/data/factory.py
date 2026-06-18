@@ -17,8 +17,8 @@ from finrobot.engine.data.layer import DataLayer
 logger = logging.getLogger(__name__)
 
 
-def build_data_layer(settings: Any) -> DataLayer:
-    """Build provider chain from runtime settings.
+def build_provider_chain(settings: Any) -> list[Any]:
+    """Build the ordered provider chain from runtime settings.
 
     Provider priority (highest first):
       1. FMP (optional — financials, earnings, news, transcripts; appended only when key set)
@@ -88,5 +88,16 @@ def build_data_layer(settings: Any) -> DataLayer:
     av_key = getattr(settings, "alpha_vantage_api_key", "")
     providers.append(NewsAggregatorProvider(alpha_vantage_api_key=av_key))
 
+    return providers
+
+
+def build_data_layer(settings: Any) -> DataLayer:
+    """Assemble the full provider chain + a fresh cache into a DataLayer.
+
+    Used by the CLI / SDK / Settings-rebuild paths. The sidecar boot path instead
+    seeds a placeholder DataLayer and calls ``add_providers(build_provider_chain(
+    settings))`` on it in a warmup task (see server.lifespan), keeping the ~0.5s of
+    provider-module imports off the cold-start critical path.
+    """
     cache = DataCache(settings.cache_db_path)
-    return DataLayer(providers=providers, cache=cache)
+    return DataLayer(providers=build_provider_chain(settings), cache=cache)

@@ -13,14 +13,6 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. js-lingui-explicit-id
-msgid "app.name"
-msgstr "FinRobot"
-
-#. js-lingui-explicit-id
-msgid "app.tagline"
-msgstr "AI-powered equity research workstation"
-
-#. js-lingui-explicit-id
 msgid "chat.collapse"
 msgstr "Collapse"
 
@@ -31,26 +23,6 @@ msgstr "I have access to live prices, financials, news and can run valuations."
 #. js-lingui-explicit-id
 msgid "chat.empty.example.1"
 msgstr "Why is {ticker} down today?"
-
-#. js-lingui-explicit-id
-msgid "chat.empty.example.2"
-msgstr "Summarize {ticker}'s last quarter"
-
-#. js-lingui-explicit-id
-msgid "chat.empty.example.3"
-msgstr "Compare {ticker} to its peers"
-
-#. js-lingui-explicit-id
-msgid "chat.empty.example.generic.1"
-msgstr "Explain DCF in 30 seconds"
-
-#. js-lingui-explicit-id
-msgid "chat.empty.example.generic.2"
-msgstr "What's the difference between LBO and DCF?"
-
-#. js-lingui-explicit-id
-msgid "chat.empty.example.generic.3"
-msgstr "How do you read a 10-K?"
 
 #. js-lingui-explicit-id
 msgid "chat.empty.heading"
@@ -75,10 +47,6 @@ msgstr "Open chat"
 #. js-lingui-explicit-id
 msgid "chat.input.placeholder"
 msgstr "Message FinRobot… (Enter to send, Shift+Enter for newline)"
-
-#. js-lingui-explicit-id
-msgid "chat.model.tooltip"
-msgstr "Model"
 
 #. js-lingui-explicit-id
 msgid "chat.newSession"
@@ -125,108 +93,16 @@ msgid "chat.status.stalled"
 msgstr "still waiting…"
 
 #. js-lingui-explicit-id
-msgid "chat.ticker.switched"
-msgstr "Switched to {ticker} — previous chat saved to Library"
-
-#. js-lingui-explicit-id
 msgid "chat.title.explore"
 msgstr "Explore"
-
-#. js-lingui-explicit-id
-msgid "chat.title.new"
-msgstr "New chat"
-
-#. js-lingui-explicit-id
-msgid "chat.tool.share"
-msgstr "Share to chat"
-
-#. js-lingui-explicit-id
-msgid "common.cancel"
-msgstr "Cancel"
-
-#. js-lingui-explicit-id
-msgid "common.close"
-msgstr "Close"
-
-#. js-lingui-explicit-id
-msgid "common.delete"
-msgstr "Delete"
-
-#. js-lingui-explicit-id
-msgid "common.error"
-msgstr "Error"
 
 #. js-lingui-explicit-id
 msgid "common.loading"
 msgstr "Loading…"
 
 #. js-lingui-explicit-id
-msgid "common.notAvailable"
-msgstr "N/A"
-
-#. js-lingui-explicit-id
-msgid "common.open"
-msgstr "Open"
-
-#. js-lingui-explicit-id
 msgid "common.retry"
 msgstr "Retry"
-
-#. js-lingui-explicit-id
-msgid "library.delete"
-msgstr "Delete"
-
-#. js-lingui-explicit-id
-msgid "library.empty"
-msgstr "No saved analyses yet. Run any tool to start filling your library."
-
-#. js-lingui-explicit-id
-msgid "library.export"
-msgstr "Export"
-
-#. js-lingui-explicit-id
-msgid "library.filter.all"
-msgstr "All"
-
-#. js-lingui-explicit-id
-msgid "library.filter.comps"
-msgstr "Comps"
-
-#. js-lingui-explicit-id
-msgid "library.filter.dcf"
-msgstr "DCF"
-
-#. js-lingui-explicit-id
-msgid "library.filter.icmemo"
-msgstr "IC memo"
-
-#. js-lingui-explicit-id
-msgid "library.filter.lbo"
-msgstr "LBO"
-
-#. js-lingui-explicit-id
-msgid "library.filter.research"
-msgstr "Research"
-
-#. js-lingui-explicit-id
-msgid "library.open"
-msgstr "Open"
-
-#. js-lingui-explicit-id
-msgid "library.title"
-msgstr "Library"
-
-#. js-lingui-explicit-id
-msgid "nav.library"
-msgstr "Library"
-
-#. js-lingui-explicit-id
-msgid "nav.recent"
-msgstr "Recent"
-
-#. js-lingui-explicit-id
-msgid "nav.recent.empty"
-msgstr "Tickers you visit appear here"
 
 #. js-lingui-explicit-id
 msgid "nav.settings"
@@ -245,74 +121,6 @@ msgid "nav.back"
 msgstr "Back"
 
 #. js-lingui-explicit-id
-msgid "peers.cta"
-msgstr "Compare peers now"
-
-#. js-lingui-explicit-id
-msgid "peers.empty"
-msgstr "No peer comparison yet. Click \"Compare peers\" to analyze."
-
-#. js-lingui-explicit-id
-msgid "research.ask"
-msgstr "Ask"
-
-#. js-lingui-explicit-id
-msgid "research.citations"
-msgstr "Citations"
-
-#. js-lingui-explicit-id
-msgid "research.empty"
-msgstr "Ask a question about the SEC 10-K filing to get started."
-
-#. js-lingui-explicit-id
-msgid "research.error"
-msgstr "Unable to get an answer right now. Please try again later."
-
-#. js-lingui-explicit-id
-msgid "research.heading"
-msgstr "10-K Q&A"
-
-#. js-lingui-explicit-id
-msgid "research.placeholder"
-msgstr "Ask about this company's 10-K filing…"
-
-#. js-lingui-explicit-id
-msgid "research.relevance"
-msgstr "relevance"
-
-#. js-lingui-explicit-id
-msgid "research.source"
-msgstr "Source: SEC 10-K Filing"
-
-#. js-lingui-explicit-id
-msgid "settings.apikey.anthropic"
-msgstr "Anthropic API key"
-
-#. js-lingui-explicit-id
-msgid "settings.apikey.deepseek"
-msgstr "DeepSeek API key"
-
-#. js-lingui-explicit-id
-msgid "settings.apikey.notset"
-msgstr "Not configured"
-
-#. js-lingui-explicit-id
-msgid "settings.apikey.openai"
-msgstr "OpenAI API key"
-
-#. js-lingui-explicit-id
-msgid "settings.apikey.placeholder"
-msgstr "sk-…"
-
-#. js-lingui-explicit-id
-msgid "settings.apikey.set"
-msgstr "✓ Set"
-
-#. js-lingui-explicit-id
-msgid "settings.model.default"
-msgstr "Default model"
-
-#. js-lingui-explicit-id
 msgid "settings.save"
 msgstr "Save"
 
@@ -325,128 +133,12 @@ msgid "settings.saved"
 msgstr "Saved."
 
 #. js-lingui-explicit-id
-msgid "settings.section.about"
-msgstr "About"
-
-#. js-lingui-explicit-id
-msgid "settings.section.appearance"
-msgstr "Appearance"
-
-#. js-lingui-explicit-id
 msgid "settings.section.data"
 msgstr "Data sources"
 
 #. js-lingui-explicit-id
-msgid "settings.section.models"
-msgstr "Models & API keys"
-
-#. js-lingui-explicit-id
 msgid "settings.title"
 msgstr "Settings"
-
-#. js-lingui-explicit-id
-msgid "stock.error.retry"
-msgstr "Retry"
-
-#. js-lingui-explicit-id
-msgid "stock.error.title"
-msgstr "Could not load price data"
-
-#. js-lingui-explicit-id
-msgid "stock.loading"
-msgstr "Loading market data…"
-
-#. js-lingui-explicit-id
-msgid "stock.marketcap"
-msgstr "Mkt cap"
-
-#. js-lingui-explicit-id
-msgid "stocks.empty.analyze"
-msgstr "Analyze"
-
-#. js-lingui-explicit-id
-msgid "stocks.empty.invalid"
-msgstr "Letters, digits, . and - only (max 12 chars)"
-
-#. js-lingui-explicit-id
-msgid "stocks.empty.placeholder"
-msgstr "AAPL"
-
-#. js-lingui-explicit-id
-msgid "stocks.empty.quick"
-msgstr "Quick access"
-
-#. js-lingui-explicit-id
-msgid "stocks.empty.recent"
-msgstr "Recent"
-
-#. js-lingui-explicit-id
-msgid "stocks.empty.title"
-msgstr "Type a ticker or pick one below"
-
-#. js-lingui-explicit-id
-msgid "tab.comps"
-msgstr "Comps"
-
-#. js-lingui-explicit-id
-msgid "tab.financials"
-msgstr "Financials"
-
-#. js-lingui-explicit-id
-msgid "tab.history"
-msgstr "History"
-
-#. js-lingui-explicit-id
-msgid "tab.news"
-msgstr "News"
-
-#. js-lingui-explicit-id
-msgid "tab.overview"
-msgstr "Overview"
-
-#. js-lingui-explicit-id
-msgid "tab.performance"
-msgstr "Performance"
-
-#. js-lingui-explicit-id
-msgid "tab.research"
-msgstr "10-K"
-
-#. js-lingui-explicit-id
-msgid "tab.valuation"
-msgstr "Valuation"
-
-#. js-lingui-explicit-id
-msgid "tool.error.cancelled"
-msgstr "Request cancelled"
-
-#. js-lingui-explicit-id
-msgid "tool.error.generic"
-msgstr "{tool} failed. Please try again."
-
-#. js-lingui-explicit-id
-msgid "tool.error.invalid"
-msgstr "Invalid inputs for {tool}"
-
-#. js-lingui-explicit-id
-msgid "tool.error.unavailable"
-msgstr "Service temporarily unavailable. Please try again later."
-
-#. js-lingui-explicit-id
-msgid "tool.error.unknown"
-msgstr "Unknown error"
-
-#. js-lingui-explicit-id
-msgid "tool.error.unsupported"
-msgstr "{tool} is not yet supported"
-
-#. js-lingui-explicit-id
-msgid "tool.toast.failure"
-msgstr "{tool} failed"
-
-#. js-lingui-explicit-id
-msgid "tool.toast.success"
-msgstr "{tool} complete — saved to Library"
 
 #. js-lingui-explicit-id
 msgid "toolcard.failed"
@@ -459,118 +151,6 @@ msgstr "📁 Open report"
 #. js-lingui-explicit-id
 msgid "toolcard.retry"
 msgstr "Retry"
-
-#. js-lingui-explicit-id
-msgid "topbar.account.tooltip"
-msgstr "Account"
-
-#. js-lingui-explicit-id
-msgid "topbar.language.tooltip"
-msgstr "Language"
-
-#. js-lingui-explicit-id
-msgid "topbar.search.placeholder"
-msgstr "Search ticker or ask anything (⌘K)"
-
-#. js-lingui-explicit-id
-msgid "topbar.settings.tooltip"
-msgstr "Settings"
-
-#. js-lingui-explicit-id
-msgid "valuation.comp.title"
-msgstr "Comprehensive Valuation"
-
-#. js-lingui-explicit-id
-msgid "valuation.dcf.cta"
-msgstr "Run DCF now"
-
-#. js-lingui-explicit-id
-msgid "valuation.dcf.empty"
-msgstr "No DCF run yet. Click \"Run DCF\" above to value this company."
-
-#. js-lingui-explicit-id
-msgid "valuation.dcf.title"
-msgstr "DCF Workspace"
-
-#. js-lingui-explicit-id
-msgid "valuation.lbo.title"
-msgstr "LBO Analysis"
-
-#. js-lingui-explicit-id
-msgid "valuation.source.research"
-msgstr "Valuation from Research analysis. Run standalone DCF for fresh assumptions."
-
-#. js-lingui-explicit-id
-msgid "valuation.source.standalone"
-msgstr "Standalone DCF analysis."
-
-#. js-lingui-explicit-id
-msgid "verb.ask-ai"
-msgstr "Ask AI"
-
-#. js-lingui-explicit-id
-msgid "verb.ask-ai.tooltip"
-msgstr "Open the chat panel and ask anything about this stock"
-
-#. js-lingui-explicit-id
-msgid "verb.catalysts"
-msgstr "Find catalysts"
-
-#. js-lingui-explicit-id
-msgid "verb.catalysts.tooltip"
-msgstr "Extract upcoming catalysts from recent news and filings"
-
-#. js-lingui-explicit-id
-msgid "verb.comps"
-msgstr "Compare peers"
-
-#. js-lingui-explicit-id
-msgid "verb.comps.tooltip"
-msgstr "Run comparable company analysis — fetch peer multiples"
-
-#. js-lingui-explicit-id
-msgid "verb.dcf"
-msgstr "Run DCF"
-
-#. js-lingui-explicit-id
-msgid "verb.dcf.tooltip"
-msgstr "Run discounted cash flow valuation with default assumptions + live financials"
-
-#. js-lingui-explicit-id
-msgid "verb.ddm"
-msgstr "Run DDM"
-
-#. js-lingui-explicit-id
-msgid "verb.ddm.tooltip"
-msgstr "Dividend discount model — best for banks and dividend-paying stocks"
-
-#. js-lingui-explicit-id
-msgid "verb.earnings"
-msgstr "Earnings"
-
-#. js-lingui-explicit-id
-msgid "verb.earnings.tooltip"
-msgstr "Earnings analysis — beat/miss classification + trend across quarters"
-
-#. js-lingui-explicit-id
-msgid "verb.ic-memo"
-msgstr "IC memo"
-
-#. js-lingui-explicit-id
-msgid "verb.ic-memo.tooltip"
-msgstr "Generate an Investment Committee memo: situation, thesis, risks, recommendation"
-
-#. js-lingui-explicit-id
-msgid "verb.lbo"
-msgstr "Run LBO"
-
-#. js-lingui-explicit-id
-msgid "verb.lbo.tooltip"
-msgstr "Run leveraged buyout model: IRR, MOIC, debt schedule, sensitivity grid"
-
-#. js-lingui-explicit-id
-msgid "verb.more"
-msgstr "More"
 
 #. js-lingui-explicit-id
 msgid "verdict.buy"
@@ -657,10 +237,6 @@ msgid "errors.unknown"
 msgstr "Failed to load. Please try again later."
 
 #. js-lingui-explicit-id
-msgid "errors.dataLoad.historical"
-msgstr "Failed to load multi-year financials"
-
-#. js-lingui-explicit-id
 msgid "report.timeline.archived"
 msgstr "archived"
 
@@ -687,18 +263,6 @@ msgstr "WATCHING"
 #. js-lingui-explicit-id
 msgid "signal.failed"
 msgstr "FAILED"
-
-#. js-lingui-explicit-id
-msgid "landing.recentResearch.error"
-msgstr "Could not load research history. Check your connection and retry."
-
-#. js-lingui-explicit-id
-msgid "landing.recentResearch.empty"
-msgstr "No research yet. Search a ticker above to start analysis."
-
-#. js-lingui-explicit-id
-msgid "landing.warmup.label"
-msgstr "Warming live quote cache ·"
 
 #. js-lingui-explicit-id
 msgid "report.toc.heading"
@@ -1389,26 +953,6 @@ msgid "chapter.ownership.provenance.tooltip"
 msgstr "{form} · accession {accession} · {date}"
 
 #. js-lingui-explicit-id
-msgid "landing.secBanner.title"
-msgstr "SEC EDGAR identity unconfigured — bank-grade depth limited"
-
-#. js-lingui-explicit-id
-msgid "landing.secBanner.body"
-msgstr "Without a SEC EDGAR identity, 10-K sections, XBRL financial facts, and Ownership & Governance all run in degraded mode. SEC EDGAR requires an identifiable User-Agent on every data request."
-
-#. js-lingui-explicit-id
-msgid "landing.secBanner.cta"
-msgstr "Open Settings"
-
-#. js-lingui-explicit-id
-msgid "landing.secBanner.dismissTooltip"
-msgstr "Dismiss for now (re-shown after 30 days)"
-
-#. js-lingui-explicit-id
-msgid "landing.secBanner.dismissAria"
-msgstr "Dismiss notification"
-
-#. js-lingui-explicit-id
 msgid "marketdata.age.justNow"
 msgstr "just now"
 
@@ -1473,24 +1017,8 @@ msgid "chapter.cover.equityResearch"
 msgstr "EQUITY RESEARCH"
 
 #. js-lingui-explicit-id
-msgid "chapter.cover.twelveMonthTarget"
-msgstr "12-MONTH TARGET"
-
-#. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.scaleTitle"
 msgstr "The Gap"
-
-#. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.scaleUnit"
-msgstr "log $ / share"
-
-#. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.bridgeNote"
-msgstr "implied growth to bridge the gap"
-
-#. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.modelCeiling"
-msgstr "CASH-FLOW MODEL CEILING"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.marketLive"
@@ -1509,18 +1037,6 @@ msgid "chapter.cover.reverseDcf.modelTopsOut"
 msgstr "Cash-flow model tops out"
 
 #. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.dcfMidRange"
-msgstr "DCF mid · {range}"
-
-#. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.marketSitsAt"
-msgstr "Market sits at"
-
-#. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.short"
-msgstr "short"
-
-#. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.withheldTitle"
 msgstr "Priced for growth"
 
@@ -1531,14 +1047,6 @@ msgstr "the price sits {multiple} above the cash-flow floor; that premium is a b
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.fairValueBand"
 msgstr "Cash-flow fair value"
-
-#. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.bandWidensNote"
-msgstr "range widens as confidence falls"
-
-#. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.dcfMid"
-msgstr "DCF mid"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.ledeB.pre"
@@ -1557,18 +1065,6 @@ msgid "chapter.cover.reverseDcf.ledeB.marketAt"
 msgstr "— the market is at"
 
 #. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.maxDcfReach"
-msgstr "Max DCF can reach"
-
-#. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.atCeiling"
-msgstr "at {ceiling}/yr growth ceiling"
-
-#. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.ceilingCap"
-msgstr "DCF CAN ONLY CLIMB THIS FAR"
-
-#. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.optionalityTitle"
 msgstr "Priced on optionality no cash-flow model can capture."
 
@@ -1583,18 +1079,6 @@ msgstr "Market-implied"
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.anchor.ceiling"
 msgstr "Cash-flow ceiling"
-
-#. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.badge.stretch"
-msgstr "stretch"
-
-#. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.badge.unreachable"
-msgstr "unreachable"
-
-#. js-lingui-explicit-id
-msgid "chapter.cover.reverseDcf.badge.defensible"
-msgstr "defensible"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.typeLabel"
@@ -1845,10 +1329,6 @@ msgid "report.toolbar.exportHtmlDone"
 msgstr "HTML report exported"
 
 #. js-lingui-explicit-id
-msgid "report.toolbar.exportHtmlEmpty"
-msgstr "No report content found to export"
-
-#. js-lingui-explicit-id
 msgid "report.toolbar.exportHtmlFailed"
 msgstr "HTML export failed"
 
@@ -1875,10 +1355,6 @@ msgstr "Failed to load settings"
 #. js-lingui-explicit-id
 msgid "settings.loading"
 msgstr "Loading settings…"
-
-#. js-lingui-explicit-id
-msgid "settings.saveFailedShort"
-msgstr "✗ Save failed"
 
 #. js-lingui-explicit-id
 msgid "settings.saveFailedRetry"
@@ -2125,14 +1601,6 @@ msgid "shell.footer.copyright"
 msgstr "Copyright © AI4Finance Foundation"
 
 #. js-lingui-explicit-id
-msgid "shell.sidebar.ic"
-msgstr "IC"
-
-#. js-lingui-explicit-id
-msgid "shell.sidebar.runningCount"
-msgstr "{count} analysis running"
-
-#. js-lingui-explicit-id
 msgid "shell.titlebar.aiAssistant"
 msgstr "AI Assistant (⌘L)"
 
@@ -2147,22 +1615,6 @@ msgstr "+{count} more"
 #. js-lingui-explicit-id
 msgid "shell.error.renderFailed"
 msgstr "Page render error"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.tagline1"
-msgstr "DETERMINISTIC COMPUTE · LLM NARRATIVE"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.tagline2"
-msgstr "NUMBER FIRST · NARRATIVE SECOND"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.tagline3"
-msgstr "AI ANALYST · ALWAYS WORKING"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.tagline4"
-msgstr "EVERY NUMBER · TRACEABLE TO A FUNCTION CALL"
 
 #. js-lingui-explicit-id
 msgid "landing.hero.invalidTicker"
@@ -2181,176 +1633,8 @@ msgid "landing.hero.cockpitLabel"
 msgstr "AI research cockpit"
 
 #. js-lingui-explicit-id
-msgid "landing.hero.traceRail"
-msgstr "Function trace"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.chapterMatrix"
-msgstr "Chapter matrix"
-
-#. js-lingui-explicit-id
 msgid "landing.hero.tickerAria"
 msgstr "Ticker symbol"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.stage.data"
-msgstr "Data"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.stage.catalyst"
-msgstr "Catalysts"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.stage.peers"
-msgstr "Peers"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.stage.model"
-msgstr "Modeling"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.stage.ownership"
-msgstr "Ownership"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.stage.technical"
-msgstr "Technical"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.stage.thesis"
-msgstr "Thesis"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.stage.report"
-msgstr "IB report"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.deckCaption"
-msgstr "What runs when you hit Analyze"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.reportNode"
-msgstr "13-chapter IB-grade report"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.traceableLabel"
-msgstr "Every number traceable"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.sourcedNote"
-msgstr "open for source / basis / formula"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.bull"
-msgstr "BULL"
-
-#. js-lingui-explicit-id
-msgid "landing.hero.bear"
-msgstr "BEAR"
-
-#. js-lingui-explicit-id
-msgid "landing.hitRate.window30d"
-msgstr "30D"
-
-#. js-lingui-explicit-id
-msgid "landing.hitRate.window90d"
-msgstr "90D"
-
-#. js-lingui-explicit-id
-msgid "landing.hitRate.windowAll"
-msgstr "All"
-
-#. js-lingui-explicit-id
-msgid "landing.hitRate.title"
-msgstr "Track Record · Hit Rate"
-
-#. js-lingui-explicit-id
-msgid "landing.hitRate.error"
-msgstr "Failed to load data. Please refresh the page."
-
-#. js-lingui-explicit-id
-msgid "landing.hitRate.overallMeta"
-msgstr "Overall · settled {closed} / total {total}"
-
-#. js-lingui-explicit-id
-msgid "landing.hitRate.insufficient"
-msgstr "Insufficient track record · need ≥1 settled position to compute hit rate"
-
-#. js-lingui-explicit-id
-msgid "landing.hitRate.hitSummary"
-msgstr "{hit} of {closed} settled positions hit target"
-
-#. js-lingui-explicit-id
-msgid "landing.hitRate.sampleCount"
-msgstr "n={n}"
-
-#. js-lingui-explicit-id
-msgid "landing.hitRate.hitsShort"
-msgstr "{hit}/{closed} hits"
-
-#. js-lingui-explicit-id
-msgid "landing.recentResearch.typeResearch"
-msgstr "Report"
-
-#. js-lingui-explicit-id
-msgid "landing.recentResearch.typeIcMemo"
-msgstr "IC Memo"
-
-#. js-lingui-explicit-id
-msgid "landing.recentResearch.typeEarnings"
-msgstr "Earnings"
-
-#. js-lingui-explicit-id
-msgid "landing.recentResearch.typeDcf"
-msgstr "DCF"
-
-#. js-lingui-explicit-id
-msgid "landing.recentResearch.typeLbo"
-msgstr "LBO"
-
-#. js-lingui-explicit-id
-msgid "landing.recentResearch.typeDdm"
-msgstr "DDM"
-
-#. js-lingui-explicit-id
-msgid "landing.recentResearch.typeComps"
-msgstr "Comps"
-
-#. js-lingui-explicit-id
-msgid "landing.recentResearch.typeAdHoc"
-msgstr "Ad hoc"
-
-#. js-lingui-explicit-id
-msgid "landing.recentResearch.title"
-msgstr "Studied Tickers · Research History"
-
-#. js-lingui-explicit-id
-msgid "landing.recentResearch.openReport"
-msgstr "Open {type} report detail"
-
-#. js-lingui-explicit-id
-msgid "landing.recentResearch.openWorkspace"
-msgstr "Open {ticker} workspace"
-
-#. js-lingui-explicit-id
-msgid "landing.recentResearch.runCount"
-msgstr "{count} runs ›"
-
-#. js-lingui-explicit-id
-msgid "landing.recentResearch.overflow"
-msgstr "+ {count} more · view all →"
-
-#. js-lingui-explicit-id
-msgid "landing.recentResearch.quoteLoading"
-msgstr "Loading quotes"
-
-#. js-lingui-explicit-id
-msgid "landing.hot.recent"
-msgstr "Recent"
-
-#. js-lingui-explicit-id
-msgid "landing.hot.popular"
-msgstr "Popular"
 
 #. js-lingui-explicit-id
 msgid "workspace.pipeline.statusGenerating"
@@ -2681,10 +1965,6 @@ msgid "workspace.market.sentimentDesc"
 msgstr "Retail bull/bear lean and buzz across Reddit / X.com / Polymarket (Adanos). Headline split is an unweighted average across covered platforms."
 
 #. js-lingui-explicit-id
-msgid "workspace.market.eventsZoneHeader"
-msgstr "Market Events & Sentiment · Non-AI"
-
-#. js-lingui-explicit-id
 msgid "workspace.market.sentimentUnconfigured"
 msgstr "Adanos not configured"
 
@@ -2901,204 +2181,8 @@ msgid "chatpanel.expand.open"
 msgstr "Open chat"
 
 #. js-lingui-explicit-id
-msgid "chatpanel.assistant"
-msgstr "AI Assistant"
-
-#. js-lingui-explicit-id
 msgid "chatpanel.context.label"
 msgstr "Context"
-
-#. js-lingui-explicit-id
-msgid "chatpanel.chip.report.dcf"
-msgstr "Explain this report's DCF assumptions"
-
-#. js-lingui-explicit-id
-msgid "chatpanel.chip.report.peers"
-msgstr "Compare valuation against peers"
-
-#. js-lingui-explicit-id
-msgid "chatpanel.chip.report.catalysts"
-msgstr "Which catalysts are most worth tracking"
-
-#. js-lingui-explicit-id
-msgid "chatpanel.chip.ticker.dcf"
-msgstr "Explain DCF assumptions"
-
-#. js-lingui-explicit-id
-msgid "chatpanel.chip.ticker.peers"
-msgstr "Compare with peers"
-
-#. js-lingui-explicit-id
-msgid "chatpanel.chip.ticker.montecarlo"
-msgstr "Monte Carlo simulation"
-
-#. js-lingui-explicit-id
-msgid "chatpanel.chip.ticker.tenk"
-msgstr "10-K Q&A"
-
-#. js-lingui-explicit-id
-msgid "chatpanel.chip.landing.search"
-msgstr "Search a new stock"
-
-#. js-lingui-explicit-id
-msgid "chatpanel.chip.landing.methods"
-msgstr "Explain DCF / LBO / Comps"
-
-#. js-lingui-explicit-id
-msgid "chatpanel.chip.landing.howto"
-msgstr "How to use FinRobot"
-
-#. js-lingui-explicit-id
-msgid "chatpanel.chip.settings.apiStatus"
-msgstr "Check API status"
-
-#. js-lingui-explicit-id
-msgid "chatpanel.chip.settings.coverage"
-msgstr "Data coverage"
-
-#. js-lingui-explicit-id
-msgid "term.dcf.short"
-msgstr "Discounted cash flow valuation: the present value of future cash flows"
-
-#. js-lingui-explicit-id
-msgid "term.dcf.ask"
-msgstr "Explain DCF (discounted cash flow valuation) in one paragraph for a finance beginner. Cover the core idea, the 3 key inputs, and its biggest limitation."
-
-#. js-lingui-explicit-id
-msgid "term.wacc.short"
-msgstr "Weighted Average Cost of Capital — the discount rate used in a DCF"
-
-#. js-lingui-explicit-id
-msgid "term.wacc.ask"
-msgstr "What is WACC (Weighted Average Cost of Capital)? How is it calculated, and why is it the most sensitive input in a DCF model? Explain in one paragraph for a finance beginner."
-
-#. js-lingui-explicit-id
-msgid "term.pe.short"
-msgstr "P/E ratio = price / earnings per share — how many years to earn back the price"
-
-#. js-lingui-explicit-id
-msgid "term.pe.ask"
-msgstr "How do you use the P/E ratio? Does a high P/E always mean expensive? Explain the correct usage in one paragraph."
-
-#. js-lingui-explicit-id
-msgid "term.ebitda.short"
-msgstr "Earnings Before Interest, Taxes, Depreciation & Amortization — operating profit stripped of financing and accounting effects"
-
-#. js-lingui-explicit-id
-msgid "term.ebitda.ask"
-msgstr "What is EBITDA? Why do valuations often use EV/EBITDA instead of P/E? Explain in one paragraph for a finance beginner."
-
-#. js-lingui-explicit-id
-msgid "term.fcf.short"
-msgstr "Free Cash Flow = operating cash flow − capital expenditure — the cash actually available to shareholders"
-
-#. js-lingui-explicit-id
-msgid "term.fcf.ask"
-msgstr "How does Free Cash Flow (FCF) differ from net income? Why do valuations favor FCF? Explain in one paragraph for a finance beginner."
-
-#. js-lingui-explicit-id
-msgid "term.ev.short"
-msgstr "Enterprise Value = market cap + net debt — the total cost to acquire the company"
-
-#. js-lingui-explicit-id
-msgid "term.ev.ask"
-msgstr "What is Enterprise Value (EV)? Why not just use market cap? Explain in one paragraph for a finance beginner."
-
-#. js-lingui-explicit-id
-msgid "term.irr.short"
-msgstr "Internal Rate of Return — the discount rate that makes NPV = 0, commonly used in LBOs"
-
-#. js-lingui-explicit-id
-msgid "term.irr.ask"
-msgstr "What does IRR (Internal Rate of Return) mean? In an LBO, is an 18% IRR high or low? Explain in one paragraph for a finance beginner."
-
-#. js-lingui-explicit-id
-msgid "term.lbo.short"
-msgstr "Leveraged Buyout — buy a company with heavy debt, pay it down, then sell at a profit"
-
-#. js-lingui-explicit-id
-msgid "term.lbo.ask"
-msgstr "What does an LBO (Leveraged Buyout) model do? How does it differ from a DCF? Explain in one paragraph for a finance beginner."
-
-#. js-lingui-explicit-id
-msgid "term.ddm.short"
-msgstr "Dividend Discount Model — discounts future dividends into equity value"
-
-#. js-lingui-explicit-id
-msgid "term.ddm.ask"
-msgstr "What kind of companies suit the DDM (Dividend Discount Model)? Why is it rarely used for tech stocks? Explain in one paragraph for a finance beginner."
-
-#. js-lingui-explicit-id
-msgid "term.beta.short"
-msgstr "A stock's volatility relative to the market; beta = 1 moves in line with the market"
-
-#. js-lingui-explicit-id
-msgid "term.beta.ask"
-msgstr "What role does Beta play in CAPM? What does a beta of 0.8 vs 1.5 mean? Explain in one paragraph for a finance beginner."
-
-#. js-lingui-explicit-id
-msgid "term.roe.short"
-msgstr "Return on Equity = net income / shareholders' equity — how efficiently shareholder capital earns returns"
-
-#. js-lingui-explicit-id
-msgid "term.roe.ask"
-msgstr "What ROE (Return on Equity) counts as excellent? How does it differ from ROA and ROIC? Explain in one paragraph for a finance beginner."
-
-#. js-lingui-explicit-id
-msgid "term.terminalValue.short"
-msgstr "Terminal Value — the present value of all cash flows beyond the forecast period, typically 60–80% of total DCF value"
-
-#. js-lingui-explicit-id
-msgid "term.terminalValue.ask"
-msgstr "How is Terminal Value calculated in a DCF? Why does it have such a large impact on the result? Explain in one paragraph for a finance beginner."
-
-#. js-lingui-explicit-id
-msgid "term.pvOfFcf.short"
-msgstr "The sum of the present values of free cash flows over the forecast period (discounted to today)"
-
-#. js-lingui-explicit-id
-msgid "term.pvOfFcf.ask"
-msgstr "What is PV of FCF (present value of free cash flow)? Why does a DCF discount future money back to today? Explain in one paragraph for a finance beginner."
-
-#. js-lingui-explicit-id
-msgid "term.enterpriseValue.short"
-msgstr "Enterprise Value = equity + net debt — the cost to buy the entire company"
-
-#. js-lingui-explicit-id
-msgid "term.enterpriseValue.ask"
-msgstr "How does Enterprise Value differ from market cap? Why do valuations often use EV instead of market cap? Explain in one paragraph for a finance beginner."
-
-#. js-lingui-explicit-id
-msgid "term.equityValue.short"
-msgstr "Equity Value = Enterprise Value − net debt — the portion belonging to shareholders"
-
-#. js-lingui-explicit-id
-msgid "term.equityValue.ask"
-msgstr "How do you convert between Equity Value and Enterprise Value? Which is more useful for an individual investor? Explain in one paragraph for a finance beginner."
-
-#. js-lingui-explicit-id
-msgid "term.evEbitda.short"
-msgstr "Enterprise Value / operating profit — how many years of operating profit to earn back the value"
-
-#. js-lingui-explicit-id
-msgid "term.evEbitda.ask"
-msgstr "How do you use the EV/EBITDA multiple? What counts as cheap? How does it differ from P/E? Explain in one paragraph for a finance beginner."
-
-#. js-lingui-explicit-id
-msgid "term.beat.short"
-msgstr "Beat — actual EPS above the analyst consensus estimate"
-
-#. js-lingui-explicit-id
-msgid "term.beat.ask"
-msgstr "Does an earnings beat always mean the stock will rise? Which details should you look at? Explain in one paragraph for a finance beginner."
-
-#. js-lingui-explicit-id
-msgid "term.miss.short"
-msgstr "Miss — actual EPS below the analyst consensus estimate"
-
-#. js-lingui-explicit-id
-msgid "term.miss.ask"
-msgstr "After an earnings miss, should you sell into the drop or buy the dip? Which details should you look at? Explain in one paragraph for a finance beginner."
 
 #. js-lingui-explicit-id
 msgid "term.ariaLabel"
@@ -3293,14 +2377,6 @@ msgid "chart.footballField.target"
 msgstr "Target"
 
 #. js-lingui-explicit-id
-msgid "coverage.col.ticker"
-msgstr "Ticker"
-
-#. js-lingui-explicit-id
-msgid "coverage.col.price"
-msgstr "Price"
-
-#. js-lingui-explicit-id
 msgid "coverage.col.mcap"
 msgstr "Mkt Cap"
 
@@ -3353,88 +2429,8 @@ msgid "coverage.error.dismiss"
 msgstr "Dismiss"
 
 #. js-lingui-explicit-id
-msgid "compare.back"
-msgstr "Coverage"
-
-#. js-lingui-explicit-id
-msgid "compare.title"
-msgstr "DCF Comparison"
-
-#. js-lingui-explicit-id
-msgid "compare.needTwo"
-msgstr "Select at least 2 tickers."
-
-#. js-lingui-explicit-id
-msgid "compare.loading"
-msgstr "Comparing…"
-
-#. js-lingui-explicit-id
-msgid "compare.error"
-msgstr "Comparison failed."
-
-#. js-lingui-explicit-id
-msgid "compare.implied"
-msgstr "Implied"
-
-#. js-lingui-explicit-id
-msgid "compare.dcfDate"
-msgstr "DCF Date"
-
-#. js-lingui-explicit-id
-msgid "compare.live"
-msgstr "live"
-
-#. js-lingui-explicit-id
-msgid "compare.stale"
-msgstr "stale"
-
-#. js-lingui-explicit-id
-msgid "compare.staleTitle"
-msgstr "This DCF was generated {days} days ago — its implied price and WACC may be out of date. Re-run the DCF before relying on this row."
-
-#. js-lingui-explicit-id
-msgid "compare.vintageWarn"
-msgstr "These DCFs were run {days} days apart — they were not computed at the same time, so the upside columns are not apples-to-apples. Re-run the stale tickers before comparing."
-
-#. js-lingui-explicit-id
 msgid "coverage.filterEmpty"
 msgstr "Nothing matches this view · switch to All for the full list"
-
-#. js-lingui-explicit-id
-msgid "coverage.filter.all"
-msgstr "All"
-
-#. js-lingui-explicit-id
-msgid "coverage.filter.needsAction"
-msgstr "Needs Action"
-
-#. js-lingui-explicit-id
-msgid "coverage.filter.running"
-msgstr "Running"
-
-#. js-lingui-explicit-id
-msgid "coverage.sort.label"
-msgstr "Sort"
-
-#. js-lingui-explicit-id
-msgid "coverage.sort.needsAction"
-msgstr "Needs Action"
-
-#. js-lingui-explicit-id
-msgid "coverage.sort.ticker"
-msgstr "Ticker"
-
-#. js-lingui-explicit-id
-msgid "coverage.sort.latestReport"
-msgstr "Latest Report"
-
-#. js-lingui-explicit-id
-msgid "coverage.sort.upside"
-msgstr "Live Upside"
-
-#. js-lingui-explicit-id
-msgid "coverage.sort.toggleDir"
-msgstr "Toggle sort direction"
 
 #. js-lingui-explicit-id
 msgid "coverage.card.fresh"
@@ -3513,42 +2509,6 @@ msgid "coverage.card.open"
 msgstr "Open {ticker}"
 
 #. js-lingui-explicit-id
-msgid "compare.addEntry"
-msgstr "Compare…"
-
-#. js-lingui-explicit-id
-msgid "compare.addEntryTitle"
-msgstr "Compare {ticker} against another ticker"
-
-#. js-lingui-explicit-id
-msgid "compare.pickTitle"
-msgstr "Compare {ticker} with…"
-
-#. js-lingui-explicit-id
-msgid "compare.pickPlaceholder"
-msgstr "Type a ticker (e.g. AMD)"
-
-#. js-lingui-explicit-id
-msgid "compare.pickSearching"
-msgstr "Searching…"
-
-#. js-lingui-explicit-id
-msgid "compare.pickError"
-msgstr "Search failed — type a ticker and press Enter"
-
-#. js-lingui-explicit-id
-msgid "compare.pickUseTyped"
-msgstr "Compare with this ticker"
-
-#. js-lingui-explicit-id
-msgid "compare.pickNoMatch"
-msgstr "No match — type a full ticker to compare"
-
-#. js-lingui-explicit-id
-msgid "compare.pickSameTicker"
-msgstr "That's the current ticker"
-
-#. js-lingui-explicit-id
 msgid "coverage.emptyArchive.title"
 msgstr "No coverage records yet"
 
@@ -3563,10 +2523,6 @@ msgstr "Open Research"
 #. js-lingui-explicit-id
 msgid "hotState.targetWithheld"
 msgstr "Target withheld · valuation methods diverged on cross-validation — open the report for the reconciliation detail →"
-
-#. js-lingui-explicit-id
-msgid "coverage.starter.quickPick"
-msgstr "Quick start"
 
 #. js-lingui-explicit-id
 msgid "coverage.starter.researchTicker"

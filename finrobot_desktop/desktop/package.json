@@ -9,7 +9,7 @@
     "build:viewer": "vite build --config vite.viewer.config.ts",
     "lingui:compile": "lingui compile",
     "lingui:extract": "lingui extract",
-    "i18n:check": "node scripts/check-lingui-catalogs.mjs",
+    "i18n:check": "node scripts/check-lingui-catalogs.mjs && node scripts/check-i18n-orphans.mjs",
     "preview": "vite preview",
     "lint": "eslint src/ --ext .ts,.tsx",
     "format": "prettier --write 'src/**/*.{ts,tsx}'",

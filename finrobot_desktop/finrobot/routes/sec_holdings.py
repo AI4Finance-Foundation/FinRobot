@@ -17,7 +17,6 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from starlette.requests import Request
 
-from finrobot.engine.data.providers.edgar_provider import _is_valid_identity
 from finrobot.engine.data.sec_holdings_cache import cache_status
 from finrobot.engine.data.sec_holdings_sync import get_state, start_refresh
 
@@ -64,6 +63,12 @@ async def sec_holdings_status(request: Request) -> SecHoldingsStatus:
     # wrong regardless of what the user actually saved. See the rest of the app:
     # every settings-aware route reads request.app.state.deps.settings.
     settings = request.app.state.deps.settings
+    # Lazy: _is_valid_identity lives in edgar_provider (whose module pulls
+    # edgartools ~0.46s); imported here, not at module top, to keep it off the
+    # sidecar cold-start import path (tests/unit/test_cold_import.py). The helper
+    # itself needs no edgar lib.
+    from finrobot.engine.data.providers.edgar_provider import _is_valid_identity
+
     cache = await cache_status()
     return SecHoldingsStatus(
         populated=bool(cache["populated"]),

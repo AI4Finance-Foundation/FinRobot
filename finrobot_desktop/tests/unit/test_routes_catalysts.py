@@ -68,7 +68,7 @@ async def test_catalysts_returns_ranked_events_filtering_sub_threshold(app_with_
     app = app_with_deps
     with (
         patch("finrobot.routes.data.fetch_news", new=AsyncMock(return_value=_raw())),
-        patch("finrobot.routes.data.classify_news", new=AsyncMock(return_value=_classified())),
+        patch("finrobot.engine.analysis.news_classifier.classify_news", new=AsyncMock(return_value=_classified())),
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -88,7 +88,7 @@ async def test_catalysts_cache_hit_skips_llm(app_with_deps):
     classify = AsyncMock(return_value=_classified())
     with (
         patch("finrobot.routes.data.fetch_news", new=AsyncMock(return_value=_raw())),
-        patch("finrobot.routes.data.classify_news", new=classify),
+        patch("finrobot.engine.analysis.news_classifier.classify_news", new=classify),
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -107,7 +107,7 @@ async def test_catalysts_min_importance_keys_cache(app_with_deps):
     classify = AsyncMock(return_value=_classified())
     with (
         patch("finrobot.routes.data.fetch_news", new=AsyncMock(return_value=_raw())),
-        patch("finrobot.routes.data.classify_news", new=classify),
+        patch("finrobot.engine.analysis.news_classifier.classify_news", new=classify),
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -128,7 +128,7 @@ async def test_catalysts_min_importance_bounded_at_edge(app_with_deps):
     classify = AsyncMock(return_value=_classified())
     with (
         patch("finrobot.routes.data.fetch_news", new=AsyncMock(return_value=_raw())),
-        patch("finrobot.routes.data.classify_news", new=classify),
+        patch("finrobot.engine.analysis.news_classifier.classify_news", new=classify),
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -145,7 +145,7 @@ async def test_catalysts_empty_news_returns_empty_without_classify(app_with_deps
     classify = AsyncMock(return_value=_classified())
     with (
         patch("finrobot.routes.data.fetch_news", new=AsyncMock(return_value=[])),
-        patch("finrobot.routes.data.classify_news", new=classify),
+        patch("finrobot.engine.analysis.news_classifier.classify_news", new=classify),
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -163,7 +163,7 @@ async def test_catalysts_classification_failure_500_not_cached(app_with_deps):
     classify = AsyncMock(side_effect=RuntimeError("LLM provider 503"))
     with (
         patch("finrobot.routes.data.fetch_news", new=AsyncMock(return_value=_raw())),
-        patch("finrobot.routes.data.classify_news", new=classify),
+        patch("finrobot.engine.analysis.news_classifier.classify_news", new=classify),
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:

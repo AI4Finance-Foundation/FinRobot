@@ -17,8 +17,6 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response, StreamingResponse
 
-from pydantic_ai.ui.vercel_ai import VercelAIAdapter
-
 from finrobot.auth import CapabilityAuthMiddleware
 from finrobot.config import DATA_PROVIDER_SECRET_FIELDS, get_capability_token, get_settings
 from finrobot.llm_probe import LlmProbeGate
@@ -26,7 +24,6 @@ from finrobot.obs import bind_session, setup_logging
 from finrobot.obs.middleware import RequestTraceMiddleware
 from finrobot.engine.data.factory import build_data_layer
 from finrobot.engine.deps import FinRobotDeps
-from finrobot.engine.orchestrator import create_lead_agent
 from finrobot.engine.skills.registry import SkillRegistry
 from finrobot.artifact.migrate import migrate_filesystem_to_sqlite
 from finrobot.artifact.store import ArtifactStore
@@ -235,6 +232,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Build once and inject both ways — without this they were constructed
     # twice, creating duplicate model connections every boot.
     from finrobot.engine.agents.factory import create_sub_agents
+
+    # Lazy: create_lead_agent pulls the orchestrator's whole AI subtree
+    # (pydantic_ai + backtrader/matplotlib + monte_carlo/numpy + ddgs). Kept off
+    # the module-import path so `import finrobot.server` stays light for the
+    # sidecar cold start (tests/unit/test_cold_import.py); the construction below
+    # still pays it — moving that to a post-yield warmup task is the next slice.
+    from finrobot.engine.orchestrator import create_lead_agent
 
     # Build the LLM agents only when the config validates. With no API key the
     # provider constructor (DeepSeekProvider/OpenAIProvider/...) raises on the
@@ -1115,6 +1119,10 @@ async def _chat_impl(
     # Build the adapter manually so we can intercept the native event stream.
     # Starlette caches request._body after the first read, so calling
     # from_request here (which calls request.body() again) is safe.
+    # Lazy import: VercelAIAdapter drags in the pydantic_ai stack (~0.45s); kept
+    # off the sidecar cold-start import path (tests/unit/test_cold_import.py).
+    from pydantic_ai.ui.vercel_ai import VercelAIAdapter
+
     try:
         adapter = await VercelAIAdapter.from_request(
             request,

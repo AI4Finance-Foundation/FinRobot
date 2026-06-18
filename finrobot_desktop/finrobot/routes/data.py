@@ -18,7 +18,6 @@ from finrobot.engine.compute.operators.catalyst import (
 from finrobot.engine.compute.coordinators.extractor import extract_financial_data
 from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
 from finrobot.engine.compute.coordinators.market import technical_payload
-from finrobot.engine.analysis.news_classifier import classify_news
 from finrobot.engine.compute.coordinators.news import fetch_news
 from finrobot.engine.data.cache import cached_fetch
 from finrobot.engine.data.interface import ProviderError
@@ -150,6 +149,10 @@ async def get_catalysts(
     ticker_upper = _normalize_ticker_param(ticker)
 
     async def _fetch_catalysts() -> dict[str, Any]:
+        # Lazy: news_classifier pulls the pydantic_ai stack (it runs an LLM); kept
+        # off the sidecar cold-start import path (tests/unit/test_cold_import.py).
+        from finrobot.engine.analysis.news_classifier import classify_news
+
         raw_news = await fetch_news(data_layer, ticker_upper)
         if not raw_news:
             return {"catalysts": []}

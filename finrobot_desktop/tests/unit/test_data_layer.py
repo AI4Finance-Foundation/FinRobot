@@ -1987,7 +1987,7 @@ class TestCanonicalFxNormalization:
         async def fake_fx(ccy, *, fmp_api_key=None):
             return 0.03176 if ccy.upper() == "TWD" else 1.0
 
-        monkeypatch.setattr("finrobot.engine.data.layer.fetch_fx_rate_to_usd", fake_fx)
+        monkeypatch.setattr("finrobot.engine.data.providers.fx.fetch_fx_rate_to_usd", fake_fx)
         layer = DataLayer(
             [MockProvider("fmp", ["financials"], result=_adr_financials_result())], cache
         )
@@ -2014,7 +2014,7 @@ class TestCanonicalFxNormalization:
             called = True
             return 1.0
 
-        monkeypatch.setattr("finrobot.engine.data.layer.fetch_fx_rate_to_usd", fake_fx)
+        monkeypatch.setattr("finrobot.engine.data.providers.fx.fetch_fx_rate_to_usd", fake_fx)
         result = DataResult(
             data={"revenue": 1_000, "financial_currency": "USD"},
             provider="fmp",
@@ -2038,7 +2038,7 @@ class TestCanonicalFxNormalization:
         async def boom(ccy, *, fmp_api_key=None):
             raise ProviderError("no spot FX quote for TWD→USD")
 
-        monkeypatch.setattr("finrobot.engine.data.layer.fetch_fx_rate_to_usd", boom)
+        monkeypatch.setattr("finrobot.engine.data.providers.fx.fetch_fx_rate_to_usd", boom)
         layer = DataLayer(
             [MockProvider("fmp", ["financials"], result=_adr_financials_result())], cache
         )
@@ -2066,7 +2066,7 @@ class TestFxRateToUsd:
         async def fake_fx(ccy, *, fmp_api_key=None):
             return 1.0 if ccy.upper() == "USD" else pytest.fail(f"unexpected {ccy}")
 
-        monkeypatch.setattr("finrobot.engine.data.layer.fetch_fx_rate_to_usd", fake_fx)
+        monkeypatch.setattr("finrobot.engine.data.providers.fx.fetch_fx_rate_to_usd", fake_fx)
         layer = DataLayer([MockProvider("fmp", ["financials"])], cache)
         assert await layer.fx_rate_to_usd("USD") == 1.0
         assert await layer.fx_rate_to_usd("usd") == 1.0
@@ -2076,7 +2076,7 @@ class TestFxRateToUsd:
             assert ccy.upper() == "TWD"
             return 0.03125
 
-        monkeypatch.setattr("finrobot.engine.data.layer.fetch_fx_rate_to_usd", fake_fx)
+        monkeypatch.setattr("finrobot.engine.data.providers.fx.fetch_fx_rate_to_usd", fake_fx)
         layer = DataLayer([MockProvider("fmp", ["financials"])], cache)
         assert await layer.fx_rate_to_usd("TWD") == pytest.approx(0.03125)
 
@@ -2087,7 +2087,7 @@ class TestFxRateToUsd:
         async def boom(ccy, *, fmp_api_key=None):
             raise ProviderError("no spot FX quote for TWD→USD")
 
-        monkeypatch.setattr("finrobot.engine.data.layer.fetch_fx_rate_to_usd", boom)
+        monkeypatch.setattr("finrobot.engine.data.providers.fx.fetch_fx_rate_to_usd", boom)
         layer = DataLayer([MockProvider("fmp", ["financials"])], cache)
         with pytest.raises(ProviderError):
             await layer.fx_rate_to_usd("TWD")

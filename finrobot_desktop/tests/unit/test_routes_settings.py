@@ -995,11 +995,11 @@ async def test_replace_runtime_settings_skips_agents_when_config_invalid(
 
     called = {"lead": 0, "sub": 0}
     monkeypatch.setattr(
-        "finrobot.routes.settings.create_lead_agent",
+        "finrobot.engine.orchestrator.create_lead_agent",
         lambda *a, **k: called.__setitem__("lead", called["lead"] + 1),
     )
     monkeypatch.setattr(
-        "finrobot.routes.settings.create_sub_agents",
+        "finrobot.engine.agents.factory.create_sub_agents",
         lambda *a, **k: called.__setitem__("sub", called["sub"] + 1),
     )
     monkeypatch.setattr("finrobot.routes.settings.build_data_layer", lambda _s: MagicMock())

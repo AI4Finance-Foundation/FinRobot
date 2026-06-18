@@ -353,8 +353,9 @@ async def test_aggregate_endpoint_converts_reporting_ccy_forward_eps_to_usd(
         assert from_ccy.upper() == "TWD"
         return twd_usd
 
-    # Patch where routes/valuation imported the symbol.
-    monkeypatch.setattr("finrobot.routes.valuation.fetch_fx_rate_to_usd", _fake_fx)
+    # Patch the FX source: routes/valuation lazy-imports fetch_fx_rate_to_usd
+    # locally (sidecar cold-start fix), so the canonical source is the patch point.
+    monkeypatch.setattr("finrobot.engine.data.providers.fx.fetch_fx_rate_to_usd", _fake_fx)
 
     forward_rows = [{"date": "2030-09-30", "epsAvg": 98.89}]  # TWD per share
     app = await _app_with_artifacts(
@@ -386,7 +387,7 @@ async def test_aggregate_endpoint_converts_foreign_quote_price_to_usd(
         assert from_ccy.upper() == "TWD"
         return twd_usd
 
-    monkeypatch.setattr("finrobot.routes.valuation.fetch_fx_rate_to_usd", _fake_fx)
+    monkeypatch.setattr("finrobot.engine.data.providers.fx.fetch_fx_rate_to_usd", _fake_fx)
 
     app = await _app_with_artifacts(
         tmp_path, _dcf_artifact(), reporting_currency="TWD", price_quote_currency="TWD"
@@ -410,7 +411,7 @@ async def test_aggregate_endpoint_usd_price_no_fx(
     async def _boom_fx(*_a: object, **_k: object) -> float:
         raise AssertionError("USD price must not consult the FX provider")
 
-    monkeypatch.setattr("finrobot.routes.valuation.fetch_fx_rate_to_usd", _boom_fx)
+    monkeypatch.setattr("finrobot.engine.data.providers.fx.fetch_fx_rate_to_usd", _boom_fx)
 
     app = await _app_with_artifacts(tmp_path, _dcf_artifact())  # quote defaults to USD
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:

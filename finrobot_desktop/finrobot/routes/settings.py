@@ -26,8 +26,6 @@ from finrobot.config import (
 from finrobot.llm_probe import LlmProbeGate, probe_model
 from finrobot.secret_store import SecretStorageMode, SecretStoreError
 from finrobot.engine.data.factory import build_data_layer
-from finrobot.engine.agents.factory import create_sub_agents
-from finrobot.engine.orchestrator import create_lead_agent
 
 logger = logging.getLogger(__name__)
 
@@ -740,6 +738,11 @@ async def _replace_runtime_settings(request: Request, settings: FinRobotSettings
     # (onboarding), unknown provider, AND missing key — all three would crash
     # create_model. Mirrors the boot path (server.lifespan).
     if settings.is_model_configured:
+        # Lazy: agent constructors pull the orchestrator's pydantic_ai stack; kept
+        # off the sidecar cold-start import path (tests/unit/test_cold_import.py).
+        from finrobot.engine.agents.factory import create_sub_agents
+        from finrobot.engine.orchestrator import create_lead_agent
+
         request.app.state.agent = create_lead_agent(
             settings, skill_registry=request.app.state.deps.skill_runtime
         )

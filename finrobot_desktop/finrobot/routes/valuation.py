@@ -30,7 +30,6 @@ from finrobot.engine.data.historical_loaders import (
 )
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
-from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import (
     DCFResult,
@@ -214,6 +213,9 @@ async def _forward_to_usd(
     if reporting_ccy == "USD":
         return forward
 
+    # Lazy: fx pulls yfinance; kept off the cold-start import path (test_cold_import).
+    from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
+
     try:
         rate = await fetch_fx_rate_to_usd(reporting_ccy, fmp_api_key=fmp_api_key)
     except ProviderError as exc:
@@ -297,6 +299,9 @@ async def _current_price(
     quote_ccy = getattr(result, "quote_currency", "USD").upper()
     if quote_ccy == "USD":
         return price
+    # Lazy: fx pulls yfinance; kept off the cold-start import path (test_cold_import).
+    from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
+
     try:
         rate = await fetch_fx_rate_to_usd(quote_ccy, fmp_api_key=fmp_api_key)
     except ProviderError as exc:

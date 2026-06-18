@@ -3,12 +3,19 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
 from pydantic import BaseModel, Field, PrivateAttr, field_validator
-from pydantic_ai.models import Model
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource
+
+if TYPE_CHECKING:
+    # Annotation-only (create_model's return type). Importing pydantic_ai.models
+    # at runtime pulls the pydantic_ai stack onto the cold-start path, and config
+    # is imported by nearly everything (auth → server, every route) — so this one
+    # edge gated the whole sidecar boot. create_model() imports the concrete
+    # Model subclass lazily at call time. See tests/unit/test_cold_import.py.
+    from pydantic_ai.models import Model
 
 
 logger = logging.getLogger(__name__)

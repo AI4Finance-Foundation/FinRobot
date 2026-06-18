@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 
 import pytest
 
-from finrobot.engine.compute.coordinators import extractor as extractor_mod
 from finrobot.engine.compute.operators.xbrl_aligned_comps import (
     build_xbrl_aligned_company,
     override_company_with_xbrl,
@@ -116,7 +115,7 @@ async def test_build_xbrl_aligned_company_normalizes_foreign_target(monkeypatch)
         assert ccy == "TWD"
         return 1.0 / 32.0
 
-    monkeypatch.setattr(extractor_mod, "fetch_fx_rate_to_usd", _fake_fx)
+    monkeypatch.setattr("finrobot.engine.data.providers.fx.fetch_fx_rate_to_usd", _fake_fx)
 
     fd = _financial_data()
     fd.reporting_currency = "TWD"
@@ -151,7 +150,7 @@ async def test_build_xbrl_aligned_company_usd_target_no_fx_call(monkeypatch) -> 
     async def _boom(ccy: str, *, fmp_api_key: str | None = None) -> float:
         raise AssertionError("US target must not trigger an FX lookup")
 
-    monkeypatch.setattr(extractor_mod, "fetch_fx_rate_to_usd", _boom)
+    monkeypatch.setattr("finrobot.engine.data.providers.fx.fetch_fx_rate_to_usd", _boom)
 
     company = await build_xbrl_aligned_company(
         ticker="NVDA",

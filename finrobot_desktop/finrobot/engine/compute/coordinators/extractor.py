@@ -30,7 +30,6 @@ from finrobot.engine.compute.operators.fx_normalize import (
     normalize_financialdata_to_usd,
 )
 from finrobot.engine.compute.operators.multiples import calculate_ev
-from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.primitives.ebitda import (
     calculate_ebitda_operating,
     calculate_ebitda_reported,
@@ -418,6 +417,9 @@ async def normalize_peer_to_usd(
     """
     if company.reporting_currency == "USD" and company.quote_currency == "USD":
         return company
+    # Lazy: fx pulls yfinance; kept off the cold-start import path (test_cold_import).
+    from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
+
     reporting_rate = (
         1.0
         if company.reporting_currency == "USD"
@@ -452,6 +454,9 @@ async def normalize_financials_to_usd(
     """
     if financials.reporting_currency == "USD" and financials.quote_currency == "USD":
         return financials
+    # Lazy: fx pulls yfinance; kept off the cold-start import path (test_cold_import).
+    from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
+
     reporting_rate = (
         1.0
         if financials.reporting_currency == "USD"

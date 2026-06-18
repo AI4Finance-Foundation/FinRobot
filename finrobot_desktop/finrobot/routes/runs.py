@@ -7,20 +7,21 @@ import sqlite3
 import time
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ValidationError
-from pydantic_ai import UnexpectedModelBehavior
-from pydantic_ai.exceptions import AgentRunError
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
 
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.ticker import validate_ticker
 from finrobot.llm_probe import LlmProbeGate
-from finrobot.engine.pipelines.base import Pipeline, PipelineResult
+# registry is import-cheap by design (lazy per-pipeline factory via importlib —
+# see its module docstring), so this does NOT pull the pydantic_ai stack onto the
+# cold-start path; only pipelines.base (Pipeline/PipelineResult, below) does, and
+# that is annotation-only here → TYPE_CHECKING.
 from finrobot.engine.pipelines.registry import get_pipeline_factories
 from finrobot.events import (
     ArtifactReady,
@@ -35,6 +36,11 @@ from finrobot.events import (
 )
 from finrobot.obs import bind_run
 from finrobot.run_store import TERMINAL_RUN_STATUSES, RunRecord, RunStore
+
+if TYPE_CHECKING:
+    # Annotation-only: pipelines.base pulls the pydantic_ai stack. Kept out of the
+    # runtime import path for the sidecar cold start (tests/unit/test_cold_import.py).
+    from finrobot.engine.pipelines.base import Pipeline, PipelineResult
 
 logger = logging.getLogger(__name__)
 
@@ -608,6 +614,12 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
     record = await store.get_run(run_id)
     if record is None:
         return
+
+    # Lazy: these pydantic_ai exception classes are named in the except tuple
+    # below; importing here (not at module top) keeps the pydantic_ai stack off
+    # the sidecar cold-start import path (tests/unit/test_cold_import.py).
+    from pydantic_ai import UnexpectedModelBehavior
+    from pydantic_ai.exceptions import AgentRunError
 
     started = time.monotonic()
     try:

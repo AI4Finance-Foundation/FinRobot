@@ -212,7 +212,7 @@ class TestPeerTableFxNormalization:
         async def _fake_fx(ccy: str, *, fmp_api_key: object = None) -> float:
             return 1.0 / 32.0  # TWD → USD
 
-        with patch("finrobot.engine.compute.coordinators.extractor.fetch_fx_rate_to_usd", _fake_fx):
+        with patch("finrobot.engine.data.providers.fx.fetch_fx_rate_to_usd", _fake_fx):
             table = await _fetch_peer_table(_FakeDataLayer(), settings, "AAPL")
 
         # net_income 1000B TWD × (1/32) = 31.25B USD; market_cap 900B USD →

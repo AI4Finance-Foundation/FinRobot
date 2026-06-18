@@ -34,8 +34,6 @@ from finrobot.engine.data.normalize.contracts import (
     degraded_price_divergence,
     degraded_provider_divergence,
 )
-from finrobot.engine.data.providers.edgar_provider import EdgarToolsProvider
-from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.validator import (
     cross_validate,
     cross_validate_price,
@@ -616,6 +614,8 @@ class DataLayer:
         ``ProviderError`` when no rate is obtainable — the caller drops the derived
         comparison rather than mixing currencies.
         """
+        from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
+
         return await fetch_fx_rate_to_usd(currency, fmp_api_key=self._fmp_api_key())
 
     async def reporting_to_quote_rate(self, reporting_ccy: str, quote_ccy: str) -> float:
@@ -630,6 +630,8 @@ class DataLayer:
         yearly EBITDA / net-debt in the quote currency before mixing them with the
         USD ADR price.
         """
+        from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
+
         fmp_key = self._fmp_api_key()
         reporting_to_usd = await fetch_fx_rate_to_usd(reporting_ccy, fmp_api_key=fmp_key)
         if quote_ccy.upper() == "USD":
@@ -823,6 +825,8 @@ class DataLayer:
         as ``fetch_historical`` but under a distinct ``:sec`` suffix so it never
         collides with the chain result.
         """
+        from finrobot.engine.data.providers.edgar_provider import EdgarToolsProvider
+
         provider = next((p for p in self._providers if isinstance(p, EdgarToolsProvider)), None)
         if provider is None:
             return None
@@ -858,6 +862,8 @@ class DataLayer:
         discipline — no parameterization, cold-miss single-flight, cache success
         only).
         """
+        from finrobot.engine.data.providers.edgar_provider import EdgarToolsProvider
+
         provider = next((p for p in self._providers if isinstance(p, EdgarToolsProvider)), None)
         if provider is None:
             return None

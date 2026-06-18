@@ -1388,7 +1388,7 @@ async def test_foreign_issuer_technical_analysis_consumes_usd_not_native_currenc
 
     with (
         patch(
-            "finrobot.engine.compute.coordinators.extractor.fetch_fx_rate_to_usd",
+            "finrobot.engine.data.providers.fx.fetch_fx_rate_to_usd",
             side_effect=_fixed_fx,
         ),
         patch(
@@ -1473,7 +1473,7 @@ async def test_standalone_dcf_writes_usd_snapshot_back_to_historical_data(mock_d
 
     with (
         patch(
-            "finrobot.engine.compute.coordinators.extractor.fetch_fx_rate_to_usd",
+            "finrobot.engine.data.providers.fx.fetch_fx_rate_to_usd",
             side_effect=_fixed_fx,
         ),
         patch(
@@ -1616,7 +1616,7 @@ async def test_standalone_lbo_normalizes_to_usd_and_writes_back(mock_deps):
     }
 
     with patch(
-        "finrobot.engine.compute.coordinators.extractor.fetch_fx_rate_to_usd",
+        "finrobot.engine.data.providers.fx.fetch_fx_rate_to_usd",
         side_effect=_fixed_fx,
     ):
         out = await _execute_lbo_params(MagicMock(), mock_deps, "p", ctx, "2330.TW")

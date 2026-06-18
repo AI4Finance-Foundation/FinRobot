@@ -128,6 +128,34 @@ describe('MarketDataZone — catalyst skeleton progress hint', () => {
   })
 })
 
+// Cold-start: live-data routes 503 "starting" for the ~2s warmup window after the
+// sidecar shows the WebView. The card must read as a CALM "engine starting" state
+// (self-healing, the hooks fast-refetch on 503) — never the red "data unavailable"
+// outage, which on every cold open would look like the app is broken.
+describe('MarketDataZone — cold-start warming (503)', () => {
+  function coldStart503(): AnyQuery {
+    return { data: undefined, isError: true, error: { status: 503 }, isPending: false, refetch: vi.fn() }
+  }
+
+  it('a 503 renders the calm starting state, not the red outage error', () => {
+    vi.mocked(useTickerPrice).mockReturnValue(coldStart503() as never)
+    vi.mocked(useTickerFinancials).mockReturnValue(coldStart503() as never)
+    renderZone()
+    expect(screen.getAllByTestId('market-card-starting').length).toBeGreaterThan(0)
+    expect(screen.queryByTestId('market-card-error')).not.toBeInTheDocument()
+    expect(screen.getAllByText(/Data engine is starting/i).length).toBeGreaterThan(0)
+  })
+
+  it('a non-503 error still shows the red outage error (not mistaken for warming)', () => {
+    vi.mocked(useTickerPrice).mockReturnValue(
+      { data: undefined, isError: true, error: { status: 502 }, isPending: false, refetch: vi.fn() } as never,
+    )
+    renderZone()
+    expect(screen.getByTestId('market-card-error')).toBeInTheDocument()
+    expect(screen.queryByTestId('market-card-starting')).not.toBeInTheDocument()
+  })
+})
+
 describe('MarketDataZone — retail sentiment honest states', () => {
   it('loading → skeleton, never the unconfigured CTA', () => {
     vi.mocked(useTickerSentiment).mockReturnValue(pending() as never)

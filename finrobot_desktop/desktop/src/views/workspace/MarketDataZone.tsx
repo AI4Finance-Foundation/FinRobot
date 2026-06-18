@@ -1077,6 +1077,45 @@ function CardError({
   onRetry: () => void
 }): React.ReactElement {
   const { t } = useI18n()
+  // Cold-start 503 ("data engine starting"): the post-yield warmup is still wiring
+  // the provider chain (~2s after boot). Transient + self-healing — the live-data
+  // queries fast-refetch on 503 — so show a CALM starting state (muted, pulse dot),
+  // NOT the --danger red outage, so a cold app open doesn't flash "data unavailable".
+  if (status === 503) {
+    return (
+      <div
+        data-testid="market-card-starting"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: 6,
+          padding: '12px 4px',
+          fontFamily: 'var(--font-mono)',
+        }}
+      >
+        <span
+          style={{
+            fontSize: 11.5,
+            color: 'var(--text-secondary)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <span
+            aria-hidden="true"
+            className="cosmic-pulse-dot"
+            style={{ width: 6, height: 6, background: 'var(--primary)', boxShadow: '0 0 10px var(--primary-soft)' }}
+          />
+          {t('workspace.market.engineStarting')}
+        </span>
+        <span style={{ fontSize: 10, color: 'var(--text-dim)', lineHeight: 1.55 }}>
+          {t('workspace.market.engineStartingHint')}
+        </span>
+      </div>
+    )
+  }
   return (
     <div
       data-testid="market-card-error"

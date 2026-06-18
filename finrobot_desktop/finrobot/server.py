@@ -1389,7 +1389,7 @@ async def chat(request: Request) -> Response:
 
 
 @app.get("/health")
-async def health() -> dict[str, str]:
+async def health(request: Request) -> dict[str, Any]:
     """Readiness probe for the Tauri shell's sidecar poll.
 
     Stays auth-exempt (see ``finrobot.auth._EXEMPT_PATHS``) because the shell
@@ -1402,8 +1402,22 @@ async def health() -> dict[str, str]:
     When no token is configured (browser dev loop, live-backend posture,
     tests) the ``token`` field is omitted, keeping the response backward
     compatible with callers that only read ``status``.
+
+    ``status`` is ``starting`` until the post-yield warmup wires the data layer
+    (``engine_ready``) — but the response is ALWAYS HTTP 200, so sidecar.rs (which
+    checks 200 + token, never the status string) shows the WebView immediately and
+    the frontend polls ``engine_ready`` / ``agents_ready`` to gate live-data and AI
+    UI. Both default True when unset (test harnesses without a lifespan), matching
+    routes/_ready.py, so the legacy ``status: ready`` contract holds for them.
     """
-    body = {"status": "ready"}
+    state = request.app.state
+    engine_ready = bool(getattr(state, "engine_ready", True))
+    agents_ready = bool(getattr(state, "agents_ready", True))
+    body: dict[str, Any] = {
+        "status": "ready" if engine_ready else "starting",
+        "engine_ready": engine_ready,
+        "agents_ready": agents_ready,
+    }
     token = get_capability_token()
     if token:
         body["token"] = token

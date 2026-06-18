@@ -31,7 +31,12 @@ def test_warmed_defaults_false_when_state_unset(client: TestClient) -> None:
     resp = client.get("/api/health/quotes-warmed")
     assert resp.status_code == 200
     body = resp.json()
-    assert body == {"warmed": False, "studied_ticker_count": 0}
+    assert body == {
+        "warmed": False,
+        "studied_ticker_count": 0,
+        "engine_ready": True,
+        "agents_ready": True,
+    }
 
 
 def test_warmed_reflects_app_state(app: FastAPI, client: TestClient) -> None:
@@ -40,7 +45,12 @@ def test_warmed_reflects_app_state(app: FastAPI, client: TestClient) -> None:
     app.state.quotes_warmed_ticker_count = 7
     resp = client.get("/api/health/quotes-warmed")
     assert resp.status_code == 200
-    assert resp.json() == {"warmed": True, "studied_ticker_count": 7}
+    assert resp.json() == {
+        "warmed": True,
+        "studied_ticker_count": 7,
+        "engine_ready": True,
+        "agents_ready": True,
+    }
 
 
 def test_warmed_after_empty_studied_set(app: FastAPI, client: TestClient) -> None:
@@ -49,4 +59,21 @@ def test_warmed_after_empty_studied_set(app: FastAPI, client: TestClient) -> Non
     app.state.quotes_warmed = True
     app.state.quotes_warmed_ticker_count = 0
     resp = client.get("/api/health/quotes-warmed")
-    assert resp.json() == {"warmed": True, "studied_ticker_count": 0}
+    assert resp.json() == {
+        "warmed": True,
+        "studied_ticker_count": 0,
+        "engine_ready": True,
+        "agents_ready": True,
+    }
+
+
+def test_readiness_flags_reflect_warming_state(app: FastAPI, client: TestClient) -> None:
+    """Cold-start window: engine/agents flags read False so the frontend shows
+    'starting engine' and treats live-data 503s as pending, not errors."""
+    app.state.quotes_warmed = False
+    app.state.quotes_warmed_ticker_count = 0
+    app.state.engine_ready = False
+    app.state.agents_ready = False
+    body = client.get("/api/health/quotes-warmed").json()
+    assert body["engine_ready"] is False
+    assert body["agents_ready"] is False

@@ -37,11 +37,22 @@ export interface HealthState {
    *  Drives the first-run onboarding overlay + the AI-CTA preflight. Defaults
    *  to `true` while unknown/offline so we never nag before the real answer. */
   modelConfigured: boolean
+  /** Data-provider chain wired by the post-yield warmup. False for the brief
+   *  cold-start window only — live-data panels show "starting engine" and the
+   *  live-data 503s are pending (retry), not errors. False while offline. */
+  engineReady: boolean
+  /** LLM agents built. False during cold start — AI surfaces show "starting"
+   *  rather than nagging "configure a model". False while offline. */
+  agentsReady: boolean
 }
 
 interface QuotesWarmedShape {
   warmed: boolean
   studied_ticker_count: number
+  // Cold-start readiness (added with the sidecar warmup split). Optional so a
+  // pre-split backend (no field) reads as ready — `!== false` below.
+  engine_ready?: boolean
+  agents_ready?: boolean
 }
 
 interface SettingsHealthShape {
@@ -76,6 +87,9 @@ function unreachableState(): HealthState {
     // Optimistic default: never show onboarding/preflight nags until the
     // backend actually says the model is unconfigured.
     modelConfigured: true,
+    // Offline/booting → the engine is by definition not serving yet.
+    engineReady: false,
+    agentsReady: false,
   }
 }
 
@@ -126,13 +140,22 @@ export function useHealth() {
         availableProviders: providers,
         startupError,
         modelConfigured,
+        // `!== false`: a pre-split backend omits these → treated as ready.
+        engineReady: warmed.engine_ready !== false,
+        agentsReady: warmed.agents_ready !== false,
       }
     },
     // Poll fast while the backend hasn't answered yet (sidecar booting — the
-    // BootGate splash clears the moment this flips), then settle into a calm
-    // 15 s heartbeat.
+    // BootGate splash clears the moment this flips) AND through the cold-start
+    // warmup window (engine/agents wiring in the background), so live-data UI
+    // flips from "starting engine" to real the instant the warmup finishes.
+    // Once fully ready, settle into a calm 15 s heartbeat.
     staleTime: 15_000,
-    refetchInterval: (query) => (query.state.data?.backendReachable ? 15_000 : 1_500),
+    refetchInterval: (query) => {
+      const d = query.state.data
+      const fullyReady = d?.backendReachable && d?.engineReady && d?.agentsReady
+      return fullyReady ? 15_000 : 1_500
+    },
     retry: false,
     placeholderData: unreachableState,
   })

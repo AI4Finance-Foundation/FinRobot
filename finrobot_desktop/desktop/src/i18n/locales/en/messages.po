@@ -1869,6 +1869,14 @@ msgid "workspace.market.dataUnavailableHintNoStatus"
 msgstr "Source temporarily unavailable · click to retry"
 
 #. js-lingui-explicit-id
+msgid "workspace.market.engineStarting"
+msgstr "Data engine is starting…"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.engineStartingHint"
+msgstr "Live data loads in a moment — retrying automatically"
+
+#. js-lingui-explicit-id
 msgid "workspace.market.sentimentRateLimited"
 msgstr "Retail sentiment source is rate-limited"
 

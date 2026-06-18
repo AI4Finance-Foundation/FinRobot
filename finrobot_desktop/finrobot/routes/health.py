@@ -35,6 +35,14 @@ class QuotesWarmedStatus(BaseModel):
     """How many distinct studied tickers the warmup task targeted. 0
     means there were no artifacts to derive tickers from, in which case
     the dashboard has no quote dependency anyway."""
+    engine_ready: bool = True
+    """Data-provider chain wired (post-yield warmup done). False during the cold-
+    start window — live-data routes 503 'starting' until it flips, so the frontend
+    shows 'starting engine' rather than erroring. Defaults True for back-compat /
+    test harnesses without a lifespan (mirrors routes/_ready.py)."""
+    agents_ready: bool = True
+    """LLM agents built (or decided unbuildable). False during cold start — chat /
+    runs 503 'starting' until it flips."""
 
 
 @router.get("/quotes-warmed", response_model=QuotesWarmedStatus)
@@ -48,4 +56,6 @@ async def quotes_warmed(request: Request) -> QuotesWarmedStatus:
     return QuotesWarmedStatus(
         warmed=bool(getattr(app_state, "quotes_warmed", False)),
         studied_ticker_count=int(getattr(app_state, "quotes_warmed_ticker_count", 0)),
+        engine_ready=bool(getattr(app_state, "engine_ready", True)),
+        agents_ready=bool(getattr(app_state, "agents_ready", True)),
     )

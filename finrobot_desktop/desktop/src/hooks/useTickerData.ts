@@ -180,6 +180,13 @@ export async function fetchJsonOrThrowHttp<T>(
   return resp.json() as Promise<T>
 }
 
+// A cold-start 503 ("Data engine is still starting") means the post-yield warmup
+// hasn't wired the provider chain yet (~2s after boot, see server.lifespan +
+// routes/_ready.py). A live-data query that raced it must retry on THAT timescale,
+// not sit in the slow self-heal cadence — otherwise a workspace opened mid-warmup
+// shows an error for up to a minute instead of filling in seconds.
+const COLD_START_503_RETRY_MS = 2_000
+
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
 /** Fetch price + change for a ticker. */
@@ -190,7 +197,10 @@ export function useTickerPrice(ticker: string) {
       fetchJsonOrThrowHttp<PriceData>(`${BASE_URL}/api/data/${ticker}/price`, signal),
     enabled: !!ticker,
     staleTime: 60_000, // 1 min — price data is volatile
-    refetchInterval: 60_000,
+    // 60s normal cadence, but recover in ~2s from a cold-start 503 so a workspace
+    // opened during the sidecar warmup window doesn't sit blank for a minute.
+    refetchInterval: (query) =>
+      query.state.error?.status === 503 ? COLD_START_503_RETRY_MS : 60_000,
     // No automatic react-query retries. For 422 (invalid ticker) retrying has
     // zero value, and for provider outages the workspace should render with
     // local degraded states instead of a hidden background retry loop.
@@ -221,8 +231,13 @@ export function useTickerCatalysts(ticker: string) {
     // Self-heal after a backend outage like the price card does (its 60s
     // refetchInterval keeps firing in error state). Polling this LLM-heavy
     // endpoint while HEALTHY would be wasteful, so the interval only runs
-    // while the query sits in error.
-    refetchInterval: (query) => (query.state.status === 'error' ? 60_000 : false),
+    // while the query sits in error — fast for a cold-start 503, slow otherwise.
+    refetchInterval: (query) =>
+      query.state.error?.status === 503
+        ? COLD_START_503_RETRY_MS
+        : query.state.status === 'error'
+          ? 60_000
+          : false,
   })
 }
 
@@ -260,6 +275,11 @@ export function useTickerHistoricalBands(ticker: string) {
     staleTime: 30 * 60_000,
     refetchOnMount: false,
     retry: false,
+    // Recover from a cold-start 503 (engine warming); bands are otherwise static
+    // enough to not poll. Without this a workspace opened mid-warmup left the
+    // "vs own history" card stuck in error until a manual remount.
+    refetchInterval: (query) =>
+      query.state.error?.status === 503 ? COLD_START_503_RETRY_MS : false,
   })
 }
 
@@ -275,7 +295,12 @@ export function useTickerFinancials(ticker: string) {
     // Delegate retry policy to QueryClient defaults (production: 1 retry).
     // Error-only self-heal interval — see useTickerCatalysts above. Without it
     // a backend blip froze this card on the error state forever while the
-    // price card (60s interval) recovered by itself.
-    refetchInterval: (query) => (query.state.status === 'error' ? 60_000 : false),
+    // price card (60s interval) recovered by itself. Fast on a cold-start 503.
+    refetchInterval: (query) =>
+      query.state.error?.status === 503
+        ? COLD_START_503_RETRY_MS
+        : query.state.status === 'error'
+          ? 60_000
+          : false,
   })
 }

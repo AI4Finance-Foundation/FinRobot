@@ -1869,6 +1869,14 @@ msgid "workspace.market.dataUnavailableHintNoStatus"
 msgstr "数据源暂时不可用 · 点击重试"
 
 #. js-lingui-explicit-id
+msgid "workspace.market.engineStarting"
+msgstr "数据引擎启动中…"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.engineStartingHint"
+msgstr "实时数据稍候自动加载"
+
+#. js-lingui-explicit-id
 msgid "workspace.market.sentimentRateLimited"
 msgstr "散户情绪源被限流"
 

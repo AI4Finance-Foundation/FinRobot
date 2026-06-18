@@ -102,7 +102,13 @@ async def test_health_echoes_token_when_configured(monkeypatch):
     async with _client() as c:
         resp = await c.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ready", "token": _TOKEN}
+    # engine_ready/agents_ready default True without a lifespan (cold-start split).
+    assert resp.json() == {
+        "status": "ready",
+        "engine_ready": True,
+        "agents_ready": True,
+        "token": _TOKEN,
+    }
 
 
 @pytest.mark.asyncio
@@ -113,7 +119,7 @@ async def test_health_omits_token_when_unconfigured(monkeypatch):
     async with _client() as c:
         resp = await c.get("/health")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ready"}
+    assert resp.json() == {"status": "ready", "engine_ready": True, "agents_ready": True}
     assert "token" not in resp.json()
 
 

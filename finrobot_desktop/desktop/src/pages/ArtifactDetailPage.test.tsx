@@ -187,3 +187,58 @@ describe('ArtifactDetailPage type branch (BUG-039)', () => {
     expect(screen.queryByTestId('compact-artifact-viewer')).toBeNull()
   })
 })
+
+// Switching versions in the left-rail VERSIONS tab changes the URL artifactId;
+// the next version is usually not cached. useArtifactDetail uses
+// placeholderData:keepPreviousData so `data` keeps serving the PREVIOUS artifact
+// while the new one loads — and the page must therefore keep the full report
+// shell mounted, NOT tear it down to the bare full-screen loader. Tearing it
+// down unmounts ReportLeftRail, resetting its local tab+scroll-spy state, which
+// bounced the reader from the VERSIONS tab back to CONTENTS/chapter-1 on every
+// switch (the "切版本把左侧版本和目录都切回去了" regression introduced by the
+// f77ecd16 TOC↔timeline rail merge). The full-screen loader is reserved for the
+// genuine cold load where there is no data at all.
+describe('ArtifactDetailPage version switch — report shell survives an in-flight fetch', () => {
+  beforeEach(() => {
+    navigateSpy.mockClear()
+    params.ticker = 'AAPL'
+    params.artifactId = 'art-aapl-eq'
+    detail.data = undefined
+    detail.isLoading = false
+    detail.isError = false
+  })
+
+  it('keeps the left rail + chapters mounted (no full-screen loader) while fetching the next version but retaining previous data', () => {
+    detail.data = {
+      id: 'art-aapl-eq',
+      ticker: 'AAPL',
+      type: 'equity_research',
+      created_at: '2026-06-01T00:00:00Z',
+      outputs: {},
+      inputs: {},
+      assumptions: {},
+      meta: {},
+    }
+    // A version switch is in flight (RQ reports loading) but keepPreviousData
+    // keeps the previous artifact in `data`.
+    detail.isLoading = true
+
+    renderPage()
+
+    // Shell stays up so the rail keeps its VERSIONS tab + scroll position.
+    expect(screen.getByTestId('mock-left-rail')).toBeTruthy()
+    expect(screen.getByTestId('mock-report-chapters')).toBeTruthy()
+    // The bare loader (which would unmount the rail) must NOT take over.
+    expect(screen.queryByText('report.load.loading')).toBeNull()
+  })
+
+  it('still shows the full-screen loader on a genuine cold load (no data yet)', () => {
+    detail.data = undefined
+    detail.isLoading = true
+
+    renderPage()
+
+    expect(screen.getByText('report.load.loading')).toBeTruthy()
+    expect(screen.queryByTestId('mock-left-rail')).toBeNull()
+  })
+})

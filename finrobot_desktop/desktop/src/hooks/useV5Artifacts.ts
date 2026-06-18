@@ -2,7 +2,7 @@
 // new section components don't have to depend on the legacy ArtifactSummary
 // type in useTickerData.ts.
 
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
 import { extractErrorDetail } from '../api/errors'
 import { fetchWithTimeout, HEAVY_API_TIMEOUT_MS } from '../api/fetch'
@@ -84,6 +84,14 @@ export function useArtifactDetail(artifactId: string | null | undefined) {
     enabled: !!artifactId,
     staleTime: Infinity, // artifacts are immutable once written
     refetchOnMount: false,
+    // Switching versions in the report's left-rail VERSIONS tab changes the
+    // artifactId (this query key). Without keepPreviousData the next version's
+    // fetch flips the hook to pending/undefined, the detail page falls back to
+    // its full-screen loader, and ReportLeftRail unmounts — throwing the reader
+    // off the VERSIONS tab back to CONTENTS/chapter-1. Keeping the previous
+    // artifact rendered until the new one resolves makes a switch a pure
+    // content swap with the navigation flank untouched.
+    placeholderData: keepPreviousData,
     retry: 1,
   })
 }

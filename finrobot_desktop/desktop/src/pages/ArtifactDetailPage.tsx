@@ -129,7 +129,13 @@ export function ArtifactDetailPage(): React.ReactElement {
     )
   }
 
-  if (isLoading) {
+  // Full-screen loader ONLY on a genuine cold load (nothing to show yet). During
+  // a version switch useArtifactDetail keeps serving the previous artifact via
+  // placeholderData:keepPreviousData, so `data` stays populated and we keep the
+  // report shell mounted — tearing it down here would unmount ReportLeftRail and
+  // reset its tab/scroll-spy, bouncing the reader off the VERSIONS tab back to
+  // CONTENTS on every switch (the f77ecd16 rail-merge regression).
+  if (isLoading && !data) {
     return (
       <div style={{ padding: 48, color: 'var(--text-muted)' }}>
         <p style={{ fontFamily: 'var(--font-mono)' }}>{t('report.load.loading')}</p>

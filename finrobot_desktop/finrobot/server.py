@@ -231,37 +231,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # closures) and the REST-side (runs.py reaches into app.state.sub_agents).
     # Build once and inject both ways — without this they were constructed
     # twice, creating duplicate model connections every boot.
-    from finrobot.engine.agents.factory import create_sub_agents
-
-    # Lazy: create_lead_agent pulls the orchestrator's whole AI subtree
-    # (pydantic_ai + backtrader/matplotlib + monte_carlo/numpy + ddgs). Kept off
-    # the module-import path so `import finrobot.server` stays light for the
-    # sidecar cold start (tests/unit/test_cold_import.py); the construction below
-    # still pays it — moving that to a post-yield warmup task is the next slice.
-    from finrobot.engine.orchestrator import create_lead_agent
-
-    # Build the LLM agents only when the config validates. With no API key the
-    # provider constructor (DeepSeekProvider/OpenAIProvider/...) raises on the
-    # spot, so eagerly building here would crash the very boot we took pains
-    # NOT to crash (lines above) — a brand-new user with no key would never
-    # reach the SettingsView to paste one. Every LLM-touching route already
-    # 503s on startup_error before it would dereference these, and a later
-    # valid PUT rebuilds both via _replace_runtime_settings. So leave them
-    # empty until the config is fixed.
+    # LLM agents are built in a POST-YIELD background task (_build_agents_background
+    # below), NOT inline here. create_sub_agents / create_lead_agent pull the whole
+    # pydantic_ai stack (~0.45s of *import*, which slice A pushed off module load),
+    # plus the provider constructor. Doing that during lifespan *startup* would
+    # block the port: uvicorn only begins serving — /health included — after
+    # startup returns. So leave them empty now; AI routes 503 "engine starting"
+    # until app.state.agents_ready flips (chat/runs guards). The same deferral that
+    # _replace_runtime_settings (Settings PUT) does NOT need — that path is already
+    # off the boot critical path.
     agent: Any = None
     sub_agents: dict[str, Any] = {}
-    # is_model_configured (not just `startup_error is None`): a first-run install
-    # has no startup_error (empty model is not an error) yet no usable model, so
-    # constructing agents would crash in create_model(""). Build only when a
-    # model is genuinely usable; AI routes 503 with an onboarding message until.
-    if startup_error is None and settings.is_model_configured:
-        sub_agents = create_sub_agents(settings, skill_registry=registry)
-        agent = create_lead_agent(settings, skill_registry=registry, sub_agents=sub_agents)
-    else:
-        logger.warning(
-            "Skipping LLM agent construction — runtime config invalid. The "
-            "server stays up so Settings can collect a valid API key.",
-        )
 
     # Cap concurrent pipelines app-wide (Coverage Phase 2/M4c): batch coverage
     # runs spawn one task per ticker, but only this many execute at once — the
@@ -294,6 +274,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
 
     app.state.agent = agent
+    # Flips True once _build_agents_background finishes (whether or not a usable
+    # model was configured). AI routes use it to tell "engine still starting"
+    # (False → 503 retry) from "started" (True → either serve or 503 "configure a
+    # model"). See chat() and routes/runs.py.
+    app.state.agents_ready = False
     app.state.deps = deps
     app.state.secret_store = secret_store
     app.state.secret_storage_mode = secret_storage_mode
@@ -457,12 +442,49 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
         await start_refresh(app, settings, force=False)
 
+    async def _build_agents_background() -> None:
+        # Construct the LLM agents off the boot critical path (the ~0.45s
+        # pydantic_ai import + the provider client). is_model_configured (not just
+        # `startup_error is None`): a first-run install has no startup_error (an
+        # empty model is the expected onboarding state, not an error) yet has no
+        # usable model, so constructing would crash in create_model(""). Build only
+        # when a model is genuinely usable; AI routes 503 with an onboarding message
+        # until. ``agents_ready`` flips True in ``finally`` REGARDLESS — so a
+        # provider-key failure (or no model) can never leave AI routes stuck on a
+        # "still starting" 503 forever; they then fall through to the precise 503
+        # (config error / no model) the request guards already emit.
+        try:
+            if startup_error is None and settings.is_model_configured:
+                from finrobot.engine.agents.factory import create_sub_agents
+                from finrobot.engine.orchestrator import create_lead_agent
+
+                sub = create_sub_agents(settings, skill_registry=registry)
+                app.state.sub_agents = sub
+                app.state.agent = create_lead_agent(
+                    settings, skill_registry=registry, sub_agents=sub
+                )
+                logger.info("LLM agents constructed (background warmup)")
+            else:
+                logger.warning(
+                    "Skipping LLM agent construction — no usable model. The server "
+                    "stays up so Settings can collect a valid API key."
+                )
+        except (ValueError, TypeError, RuntimeError, OSError, ImportError, KeyError):
+            # A configured-but-broken model (bad key / unknown provider) raises in
+            # the provider constructor. Swallow + log: the box stays up, AI routes
+            # 503 (agent is still None), and a later valid Settings PUT rebuilds via
+            # _replace_runtime_settings. Enumerated (no bare except) per project rule.
+            logger.exception("Background agent construction failed — AI routes will 503")
+        finally:
+            app.state.agents_ready = True
+
     app.state.background_tasks = [
         asyncio.create_task(_archive_stale_background()),
         asyncio.create_task(_evict_data_cache_background()),
         asyncio.create_task(_migrate_then_warm_background()),
         asyncio.create_task(_refresh_sec_holdings_background()),
         asyncio.create_task(_warm_symbol_index_background()),
+        asyncio.create_task(_build_agents_background()),
     ]
 
     yield
@@ -1243,6 +1265,22 @@ async def chat(request: Request) -> Response:
     if not request.app.state.deps.settings.is_model_configured:
         return JSONResponse(
             content={"detail": "No AI model configured. Choose one in Settings → AI Model."},
+            status_code=503,
+        )
+    # Cold-start warming guard: agents are built in a post-yield background task
+    # (lifespan _build_agents_background), so a configured model can still have
+    # app.state.agent is None for a beat after boot. Distinguish "still starting"
+    # (retry) from "started but construction failed" (actionable) — either way we
+    # must NOT let _chat_impl dereference a None agent. agents_ready defaults True
+    # for test harnesses that set app.state.agent directly without a lifespan.
+    if request.app.state.agent is None:
+        if not getattr(request.app.state, "agents_ready", True):
+            return JSONResponse(
+                content={"detail": "AI engine is still starting — retry in a moment."},
+                status_code=503,
+            )
+        return JSONResponse(
+            content={"detail": "AI engine unavailable — re-check your model / API key in Settings."},
             status_code=503,
         )
 

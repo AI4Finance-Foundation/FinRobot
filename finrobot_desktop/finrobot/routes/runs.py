@@ -191,6 +191,17 @@ async def spawn_run(
             status_code=503,
             detail="No AI model configured. Choose one in Settings → AI Model.",
         )
+    # Cold-start warming guard: sub_agents are built in a post-yield background
+    # task (server lifespan), so a configured model can momentarily be un-built
+    # right after boot — a run dispatched now would hand empty sub_agents to the
+    # pipeline factory. agents_ready defaults True for test harnesses that wire
+    # app.state without a lifespan, and a bad key is still caught by the probe gate
+    # below; this only fires during the brief real cold-start window.
+    if not getattr(request.app.state, "agents_ready", True):
+        raise HTTPException(
+            status_code=503,
+            detail="AI engine is still starting — retry in a moment.",
+        )
     # Key-validity gate: is_model_configured only proves a key EXISTS. A key
     # that cannot authenticate used to be accepted here, burn minutes of data
     # collection, then die inside the first agent LLM step — exactly the "假成功

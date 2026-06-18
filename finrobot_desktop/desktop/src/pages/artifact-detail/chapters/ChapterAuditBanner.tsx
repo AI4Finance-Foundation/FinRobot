@@ -1,13 +1,15 @@
-// Numeric-audit banner — renders at the very top of the report body when the
-// gate flagged the artifact (artifact_status !== "publishable"). Zero-footprint
-// on a clean report: returns null when publishable / no audit block / no findings.
+// Data-caveat banner — surfaces analyst-facing data-quality caveats at the top of
+// the report body. CONTENT-GATED: it appears only when there is something to show
+// (a flagged finding, a surfaced output-contract row, or a withheld valuation),
+// never as an empty alarm box. The label is analyst-facing ("Data Caveats" /
+// "Core Data Unresolved"), not the internal gate status — the analyst reads the
+// caveats, not our QA machinery.
 //
-// It reads as RUN-METADATA, not a verdict: a `caveated` artifact ships the
-// directional rating (and often a target) with a muted data-quality caveat;
-// only `unpublishable` (core data unresolvable) goes red. It lists every finding
-// by its flagged field_key + the evidence string (the actual numbers the backend
-// computed). When a specific field's number was withheld, the copy says so for
-// that field — the rating still stands (artifact/builders.py preserves it).
+// It lists every finding by its flagged field_key + the evidence string (the
+// actual numbers the backend computed). When a specific field's number was
+// withheld, the copy says so for that field — the directional rating still stands
+// (artifact/builders.py preserves it). Only `unpublishable` (core data
+// unresolvable) goes red and always surfaces, since the whole report is suspect.
 
 import { useI18n } from '../../../i18n'
 import type { NumericAuditFinding, NumericAuditSeverity, NumericAuditShape } from './types'
@@ -41,10 +43,6 @@ export function ChapterAuditBanner({
 }): React.ReactElement | null {
   const { t } = useI18n()
   const status = audit?.artifact_status ?? 'publishable'
-  // Zero-footprint on a clean report — but a contract withhold can fire even when
-  // the numeric snapshot is clean (publishable / no audit block), so the contract
-  // findings alone are enough to raise the banner.
-  if ((!audit || status === 'publishable') && contractFindings.length === 0) return null
 
   // Output-contract findings render as first-class rows beside the numeric-audit
   // ones — same Finding shape, distinguished by the OUTPUT-CONTRACT/ field-key.
@@ -57,13 +55,20 @@ export function ChapterAuditBanner({
       evidence: c.evidence,
     })),
   ]
-  // An internal-only scrub (contract C7's no-resurrection) can flip the status to
-  // `caveated` without leaving any analyst-facing row: no numeric finding, no
-  // surfaced contract finding, and no withhold note. An empty "Data Caveat" banner
-  // there is noise — the legitimately-withheld target is already explained on the
-  // cover (four cards + the priced-for-growth note). `unpublishable` is severe and
-  // always surfaces (the status itself is the message), so this only guards `caveated`.
-  if (status === 'caveated' && findings.length === 0 && !audit?.withhold_valuation) return null
+
+  // CONTENT-GATE, not status-enum gate. Render only when there is something
+  // actionable to show — a finding, a surfaced contract row, or a withheld
+  // valuation. An empty banner is pure noise: it raises alarm with zero info, and
+  // any withheld target is already explained on the cover (four cards + the
+  // priced-for-growth note). Gating on CONTENT (not on which status string is set)
+  // is robust to legacy / unknown statuses: a pre-2026-06-15 `review_only` artifact
+  // with no findings used to slip past the old `caveated`-only guard and render an
+  // empty "Data Caveat" box (the TSLA/MU regression). The only status-driven
+  // exception is `unpublishable` — core data is unresolvable, so the whole report
+  // is suspect and the analyst must be told even with no itemised row.
+  const isUnpublishable = status === 'unpublishable'
+  const hasContent = findings.length > 0 || audit?.withhold_valuation === true
+  if (!isUnpublishable && !hasContent) return null
   const accent = statusAccent(status)
 
   const statusLabel =
@@ -112,6 +117,22 @@ export function ChapterAuditBanner({
           }}
         >
           {t('report.audit.withheldNote')}
+        </p>
+      )}
+
+      {/* Unpublishable with no itemised row: the status itself is the message, so
+          give the analyst a plain-language reason rather than an empty red box. */}
+      {isUnpublishable && findings.length === 0 && !audit?.withhold_valuation && (
+        <p
+          style={{
+            margin: '6px 0 0',
+            fontFamily: 'var(--font-body)',
+            fontSize: 13,
+            lineHeight: 1.6,
+            color: 'var(--text-secondary)',
+          }}
+        >
+          {t('report.audit.unpublishableNote')}
         </p>
       )}
 

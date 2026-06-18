@@ -274,15 +274,19 @@ msgstr "COMPUTE WARNINGS"
 
 #. js-lingui-explicit-id
 msgid "report.audit.status.caveated"
-msgstr "Numeric Audit · Data Caveat"
+msgstr "Data Caveats"
 
 #. js-lingui-explicit-id
 msgid "report.audit.status.unpublishable"
-msgstr "Numeric Audit · Unpublishable"
+msgstr "Core Data Unresolved"
 
 #. js-lingui-explicit-id
 msgid "report.audit.withheldNote"
-msgstr "Some core numbers failed the audit, so the point target for the affected fields is withheld (target set to N/A). The directional rating still stands on the broader read. Reconcile the fields below before relying on those numbers."
+msgstr "Some core numbers could not be verified, so the point target for the affected fields is withheld (target set to N/A). The directional rating still stands on the broader read. Reconcile the fields below before relying on those numbers."
+
+#. js-lingui-explicit-id
+msgid "report.audit.unpublishableNote"
+msgstr "Core data for this name (price, identity, or basic financials) could not be resolved from any source, so the figures below may be unreliable. Re-run later for a fresh fetch."
 
 #. js-lingui-explicit-id
 msgid "report.audit.severity.blocked"

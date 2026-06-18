@@ -274,15 +274,19 @@ msgstr "计算警告"
 
 #. js-lingui-explicit-id
 msgid "report.audit.status.caveated"
-msgstr "数字审计 · 数据存疑"
+msgstr "数据口径提示"
 
 #. js-lingui-explicit-id
 msgid "report.audit.status.unpublishable"
-msgstr "数字审计 · 不可发布"
+msgstr "核心数据不可用"
 
 #. js-lingui-explicit-id
 msgid "report.audit.withheldNote"
-msgstr "部分核心数字未通过审计，受影响字段的点位目标价已隐藏（目标价置为 N/A）。方向性评级仍然成立；核对下列字段后再依赖这些数字。"
+msgstr "部分核心数字无法核验，受影响字段的点位目标价已隐藏（目标价置为 N/A）。方向性评级仍然成立；核对下列字段后再依赖这些数字。"
+
+#. js-lingui-explicit-id
+msgid "report.audit.unpublishableNote"
+msgstr "本标的的核心数据（价格、标识或基础财务）未能从任何数据源解析，下方数字可能不可靠。稍后重试以重新取数。"
 
 #. js-lingui-explicit-id
 msgid "report.audit.severity.blocked"

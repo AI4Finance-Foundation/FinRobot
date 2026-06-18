@@ -128,6 +128,42 @@ describe('ChapterAuditBanner', () => {
     expect(container.firstChild).toBeNull()
   })
 
+  it('stays zero-footprint for a legacy review_only artifact with no findings', () => {
+    // Pre-2026-06-15 artifacts carry the retired `review_only` status. It is not
+    // in NumericAuditStatus, so the old `status === "caveated"` guard never matched
+    // it and an EMPTY "Data Caveat" box rendered (TSLA 06-12 regression). The
+    // content-gate hides it: no finding, no withhold → nothing to show.
+    const legacy = {
+      artifact_status: 'review_only',
+      withhold_valuation: false,
+      findings: [],
+    } as unknown as NumericAuditShape
+    const { container } = render(<ChapterAuditBanner audit={legacy} contractFindings={[]} />)
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('still renders a legacy review_only artifact that DOES carry findings', () => {
+    const legacy = {
+      artifact_status: 'review_only',
+      withhold_valuation: false,
+      findings: CAVEATED_AUDIT.findings,
+    } as unknown as NumericAuditShape
+    render(<ChapterAuditBanner audit={legacy} />)
+    expect(screen.getByTestId('report-audit-banner')).toBeInTheDocument()
+    expect(screen.getAllByTestId('report-audit-finding')).toHaveLength(2)
+  })
+
+  it('gives unpublishable a plain-language reason instead of an empty red box', () => {
+    render(
+      <ChapterAuditBanner
+        audit={{ artifact_status: 'unpublishable', withhold_valuation: false, findings: [] }}
+      />,
+    )
+    expect(screen.getByTestId('report-audit-banner')).toBeInTheDocument()
+    // zh or en copy — both explain core data could not be resolved.
+    expect(screen.getByText(/未能从任何数据源解析|could not be resolved/i)).toBeInTheDocument()
+  })
+
   it('stays zero-footprint when an internal scrub left caveated status but no analyst row', () => {
     // C7's no-resurrection scrub flips the status to `caveated` without producing any
     // analyst-facing finding (its evidence is the non-surfacing /internal tag) and with

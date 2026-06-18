@@ -28,6 +28,7 @@ def _price_raw(
     history: list[dict[str, Any]] | None = None,
     exchange: str | None = "NasdaqGS",
     provider: str = "yfinance",
+    quote_currency: str = "USD",
 ) -> DataResult:
     if history is None:
         history = [
@@ -39,6 +40,7 @@ def _price_raw(
             "current_price": current_price,
             "price_history": history,
             "exchange": exchange,
+            "quote_currency": quote_currency,
         },
         provider=provider,
         ticker="AAPL",
@@ -79,6 +81,19 @@ class TestFetchPriceHistorySuccess:
         # market_cap / company_name are filled by the route, not here.
         assert result["market_cap"] is None
         assert result["company_name"] is None
+
+    @pytest.mark.asyncio
+    async def test_carries_quote_currency_for_cross_currency_consumers(self):
+        """The payload must carry the live price's native quote currency. The
+        canonical PRICE is NEVER FX-normalized, so a foreign LOCAL listing's price
+        is in the exchange currency — consumers comparing it against a USD artifact
+        target (the verdict gauge) need the tag to abstain rather than mix."""
+        # US issuer → USD.
+        usd = await _fetch(_FakeLayer(result=_price_raw()))
+        assert usd["quote_currency"] == "USD"
+        # Foreign LOCAL listing → native exchange currency, NOT USD.
+        twd = await _fetch(_FakeLayer(result=_price_raw(quote_currency="TWD")))
+        assert twd["quote_currency"] == "TWD"
 
     @pytest.mark.asyncio
     async def test_change_computed_from_history(self):

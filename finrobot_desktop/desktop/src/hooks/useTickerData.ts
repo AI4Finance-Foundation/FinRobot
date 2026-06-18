@@ -42,6 +42,13 @@ export interface PriceData {
   // current_price comes from provider; can be null when the upstream feed
   // hasn't returned a recent quote (extended hours, halted, fresh listing).
   current_price: number | null
+  /** Native quote currency of current_price. The canonical PRICE snapshot is
+   *  NEVER FX-normalized, so for a foreign LOCAL listing (2330.TW) this is the
+   *  exchange currency (TWD), NOT USD. Consumers comparing the live price against
+   *  a USD-based artifact target (the verdict gauge) MUST check this and abstain
+   *  on a non-USD tag — the client cannot run FX. Absent (legacy/stale cache) ⇒
+   *  treat as USD (the US-majority no-op). */
+  quote_currency?: string | null
   change: number | null
   change_pct: number | null
   market_cap: number | null

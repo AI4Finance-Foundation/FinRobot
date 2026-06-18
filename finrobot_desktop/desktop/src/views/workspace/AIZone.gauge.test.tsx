@@ -46,7 +46,7 @@ vi.mock('../../hooks/useHealth', () => ({
   }),
 }))
 
-let priceData: { current_price: number | null } | undefined
+let priceData: { current_price: number | null; quote_currency?: string | null } | undefined
 vi.mock('../../hooks/useTickerData', () => ({
   useTickerPrice: () => ({ data: priceData }),
 }))
@@ -111,5 +111,38 @@ describe('AIZone verdict-card TargetGauge', () => {
     priceData = { current_price: null }
     const { container } = render(<AIZone ticker="AAPL" />)
     expect(container.querySelector('[data-testid="ai-zone-target-gauge"]')).toBeNull()
+  })
+
+  // ── cross-currency: the live quote is the canonical PRICE (NEVER FX-normalized),
+  // so a foreign LOCAL listing's quote (2330.TW → TWD) must NOT be compared against
+  // the artifact's USD target. The client can't run FX → drop the live quote and
+  // degrade to the USD entry_price anchor (abstain, never mix). This is the in-
+  // browser twin of the backend coverage/dashboard/valuation cross-currency fix.
+  it('drops a foreign-currency live quote and degrades to the USD entry anchor', () => {
+    latest = artifact({ entry_price: 180 }) // USD entry, USD target 250
+    // TWD live quote 7000: if used raw, 250/7000−1 ≈ −0.96 → RED, marker far left.
+    priceData = { current_price: 7000, quote_currency: 'TWD' }
+    const { container } = render(<AIZone ticker="2330.TW" />)
+    const gauge = container.querySelector('[data-testid="ai-zone-target-gauge"]')
+    expect(gauge).not.toBeNull()
+    // Computed on USD entry 180 vs target 250 → ABOVE → green, marker right of
+    // centre. The raw-TWD path would have been red/left — proving the TWD price
+    // was dropped, not mixed into the USD gap.
+    const value = gauge!.querySelector('.target-gauge__value') as HTMLElement
+    expect(value.style.color).toBe('var(--success)')
+    const mark = gauge!.querySelector('.target-gauge__mark') as HTMLElement
+    expect(parseFloat(mark.style.left)).toBeGreaterThan(50)
+    // …and the note names the cross-currency reason, not "unavailable".
+    expect(gauge!.textContent).toContain('foreign currency')
+  })
+
+  it('uses an explicit-USD live quote normally (US universe no regression)', () => {
+    latest = artifact()
+    priceData = { current_price: 210, quote_currency: 'USD' }
+    const { container } = render(<AIZone ticker="AAPL" />)
+    const gauge = container.querySelector('[data-testid="ai-zone-target-gauge"]')
+    expect(gauge).not.toBeNull()
+    // Live 210 drives the tick (not entry) → no degraded-anchor note.
+    expect(gauge!.textContent).not.toContain('vs price at creation')
   })
 })

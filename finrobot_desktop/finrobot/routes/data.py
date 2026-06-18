@@ -449,6 +449,10 @@ async def _provider_price_cache_payload(
     payload = {
         "ticker": ticker,
         "current_price": raw.get("current_price"),
+        # Native quote currency of the live price (see fetch_price_history) —
+        # carried through the provider-cache fast path so every /price shape is
+        # identical regardless of which path served it.
+        "quote_currency": raw.get("quote_currency"),
         "change": change,
         "change_pct": change_pct,
         "market_cap": raw.get("market_cap"),
@@ -490,6 +494,10 @@ async def _enrich_price_payload_from_financial_cache(
     """
     payload["ticker"] = payload.get("ticker") or ticker
     payload.setdefault("quote_timestamp", None)
+    # Pin the quote-currency contract for every /price path (the fetcher sets it
+    # from the canonical PRICE; legacy/stale cached payloads predating the field
+    # leave it None → the client treats absent as USD, the US-majority no-op).
+    payload.setdefault("quote_currency", None)
     _stamp_as_of(payload)
     payload["session_state"] = compute_session_state(
         payload.get("as_of"),

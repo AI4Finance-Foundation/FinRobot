@@ -120,7 +120,19 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
   // so this is the only honest CURRENT price in scope. Degrades to entry_price
   // when the live quote is absent (cold / provider outage).
   const { data: priceData } = useTickerPrice(ticker)
-  const livePrice = priceData?.current_price ?? null
+  // The gauge compares this price against the artifact's USD target/entry (the
+  // normalize→USD invariant). The /price live quote is the canonical PRICE, which
+  // is NEVER FX-normalized — for a foreign LOCAL listing (2330.TW) it is in the
+  // exchange currency (TWD), so feeding it to a USD gauge would compute a garbage
+  // cross-currency gap (the bug fixed backend-side in coverage/dashboard/valuation;
+  // here the gap is computed in-browser). The client can't run FX, so on a non-USD
+  // quote we drop the live price and let the gauge degrade to the USD entry_price
+  // anchor — abstain, never mix. Absent tag ⇒ USD (the US-majority no-op).
+  const liveQuoteCurrency = (priceData?.quote_currency ?? 'USD').toUpperCase()
+  const livePrice = liveQuoteCurrency === 'USD' ? (priceData?.current_price ?? null) : null
+  // True only when the live quote was genuinely absent (cold / outage), distinct
+  // from dropped-as-cross-currency (foreign listing) — the note copy differs.
+  const liveQuoteForeign = liveQuoteCurrency !== 'USD' && priceData?.current_price != null
 
   const sameTypeTimeline = (timeline ?? []).filter((a) => a.type === 'equity_research')
   // BUG-040: all NON-equity_research artifacts (dcf / lbo / comps / earnings /
@@ -347,6 +359,7 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
           timeline={sameTypeTimeline}
           isRunning={isRunning}
           livePrice={livePrice}
+          liveQuoteForeign={liveQuoteForeign}
           onRerun={launchResearch}
           onOpen={(id) => navigate(`/stocks/${ticker}/runs/${id}`)}
         />
@@ -789,6 +802,7 @@ function HotState({
   timeline,
   isRunning,
   livePrice,
+  liveQuoteForeign,
   onRerun,
   onOpen,
 }: {
@@ -797,6 +811,7 @@ function HotState({
   timeline: ReturnType<typeof useV5ArtifactTimeline>['data']
   isRunning: boolean
   livePrice: number | null
+  liveQuoteForeign: boolean
   onRerun: () => void
   onOpen: (id: string) => void
 }): React.ReactElement {
@@ -954,9 +969,13 @@ function HotState({
                   marginTop: 4,
                 }}
               >
-                {locale === 'zh'
-                  ? '对比建仓时价格(实时报价不可用)'
-                  : 'vs price at creation (live quote unavailable)'}
+                {liveQuoteForeign
+                  ? locale === 'zh'
+                    ? '对比建仓时价格(实时报价为外币,无法对齐美元目标)'
+                    : 'vs price at creation (live quote is in a foreign currency)'
+                  : locale === 'zh'
+                    ? '对比建仓时价格(实时报价不可用)'
+                    : 'vs price at creation (live quote unavailable)'}
               </p>
             )}
           </div>

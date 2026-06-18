@@ -94,6 +94,14 @@ async def fetch_price_history(data_layer: DataLayer, ticker: str) -> dict[str, A
     fetched_at = price.provenance.fetched_at.isoformat()
     return {
         "current_price": price.current_price,
+        # The currency ``current_price`` is quoted in. The canonical PRICE snapshot
+        # is NEVER FX-normalized (the FX gate is FINANCIALS-only — see
+        # ``DataLayer._apply_canonical_fx``), so for a foreign LOCAL listing
+        # (2330.TW → TWD) this is the native exchange currency, NOT USD. Consumers
+        # that compare this live price against a USD-based artifact target (the
+        # workspace verdict gauge) need the tag to know it is cross-currency and
+        # abstain rather than mix — they cannot, and must not, run FX themselves.
+        "quote_currency": price.quote_currency,
         "change": change,
         "change_pct": change_pct,
         # Observation time from the canonical provenance (quote timestamp →

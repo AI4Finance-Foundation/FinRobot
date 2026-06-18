@@ -77,6 +77,12 @@ class ContractClause:
     id: str
     severity: ClauseSeverity  # H → violation withholds the TARGET (verdict kept); S → note only.
     check: Callable[["Artifact"], Finding | None]
+    # surface=False → an INTERNAL invariant (C7's no-resurrection scrub): it still
+    # withholds + scrubs, but its evidence is engineering plumbing ("nulling so it
+    # cannot resurrect downstream"), so it is emitted under a non-surfacing
+    # "[CONTRACT/<id>/internal]" tag the report UI skips. The analyst-facing clauses
+    # (C1–C4) keep the default and drive the audit banner / cover withhold reason.
+    surface: bool = True
 
 
 # ── C1: headline upside band ─────────────────────────────────────────────────
@@ -422,7 +428,13 @@ def _clause_c7_no_resurrection(artifact: "Artifact") -> Finding | None:
     extract_target_price, which already early-returns on a thesis) — the TSLA bug
     was financial_modeling.implied_price = 20.35 riding naked on a thesis whose own
     price_target was withheld. Any positive number found → fire (the _withhold
-    scrub then nulls every slot)."""
+    scrub then nulls every slot).
+
+    INTERNAL clause (``surface=False``): the finding is recorded as a non-surfacing
+    ``[CONTRACT/C7/internal]`` warning for the audit trail but never reaches the
+    analyst UI — its evidence is plumbing ("nulling so it cannot resurrect
+    downstream"), not a withhold REASON. The real reason rides the analyst-facing
+    clauses (C1–C4) or the method-spread warnings."""
     if not _is_withheld(artifact):
         return None
     structured = artifact.outputs.structured
@@ -456,7 +468,7 @@ CONTRACT_CLAUSES: list[ContractClause] = [
     ContractClause(id="C3", severity="H", check=_clause_c3_basis_matches_headline),
     ContractClause(id="C4", severity="H", check=_clause_c4_currency_caliber),
     ContractClause(id="C6", severity="S", check=_clause_c6_single_method_disclosure),
-    ContractClause(id="C7", severity="H", check=_clause_c7_no_resurrection),
+    ContractClause(id="C7", severity="H", check=_clause_c7_no_resurrection, surface=False),
 ]
 
 
@@ -537,7 +549,11 @@ def _withhold(artifact: "Artifact", violations: list[tuple[ContractClause, Findi
         numeric_audit["artifact_status"] = "caveated"
 
     for clause, finding in violations:
-        _append_warning(artifact, f"[CONTRACT/{clause.id}] {finding.evidence}")
+        # Internal-invariant clauses (C7's no-resurrection scrub) record evidence for
+        # the audit trail but must NOT reach the analyst UI — the "/internal" sub-tag
+        # makes the report parser skip them, exactly like "/note" and "/withheld".
+        tag = clause.id if clause.surface else f"{clause.id}/internal"
+        _append_warning(artifact, f"[CONTRACT/{tag}] {finding.evidence}")
     _append_warning(artifact, f"[CONTRACT/withheld] {_WITHHELD_NARRATIVE_STAMP}")
 
 

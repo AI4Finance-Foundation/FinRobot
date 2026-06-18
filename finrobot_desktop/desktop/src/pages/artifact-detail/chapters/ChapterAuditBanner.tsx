@@ -57,6 +57,13 @@ export function ChapterAuditBanner({
       evidence: c.evidence,
     })),
   ]
+  // An internal-only scrub (contract C7's no-resurrection) can flip the status to
+  // `caveated` without leaving any analyst-facing row: no numeric finding, no
+  // surfaced contract finding, and no withhold note. An empty "Data Caveat" banner
+  // there is noise — the legitimately-withheld target is already explained on the
+  // cover (four cards + the priced-for-growth note). `unpublishable` is severe and
+  // always surfaces (the status itself is the message), so this only guards `caveated`.
+  if (status === 'caveated' && findings.length === 0 && !audit?.withhold_valuation) return null
   const accent = statusAccent(status)
 
   const statusLabel =

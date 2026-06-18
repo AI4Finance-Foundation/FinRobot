@@ -10,7 +10,7 @@
 import type { ArtifactDetail } from '../../hooks/useV5Artifacts'
 import type { ArtifactSummaryV5 } from '../../types/v5'
 import { useI18n } from '../../i18n'
-import { deriveReportData } from './reportData'
+import { deriveReportData, parseSurfacedContractFindings } from './reportData'
 import {
   ChapterAuditBanner,
   ChapterCover,
@@ -50,13 +50,11 @@ export function ReportChapters({
   const computeWarnings = allWarnings.filter(
     (w) => !w.startsWith('[NUMERIC-AUDIT/') && !w.startsWith('[CONTRACT/'),
   )
-  // Parse the hard-clause contract evidence ("[CONTRACT/C1] …"). The "/note" (soft
-  // clause) and "/withheld" (provenance stamp) variants carry a slash after the
-  // tag and are deliberately excluded — only per-clause evidence drives the UI.
-  const contractFindings = allWarnings
-    .map((w) => /^\[CONTRACT\/(C\d+)\]\s(.+)$/.exec(w))
-    .filter((m): m is RegExpExecArray => m !== null)
-    .map((m) => ({ clause: m[1], evidence: m[2] }))
+  // Analyst-facing hard-clause contract evidence ("[CONTRACT/C1] …"). Internal
+  // invariants (C7's no-resurrection scrub) and the "/note" / "/withheld" variants
+  // are excluded — only per-clause analyst-facing evidence drives the cover withhold
+  // reason + audit banner. (See parseSurfacedContractFindings.)
+  const contractFindings = parseSurfacedContractFindings(allWarnings)
   // The cover one-liner = the first clause's evidence (the point target is
   // withheld; the directional verdict still stands).
   const withheldReason = contractFindings[0]?.evidence ?? null

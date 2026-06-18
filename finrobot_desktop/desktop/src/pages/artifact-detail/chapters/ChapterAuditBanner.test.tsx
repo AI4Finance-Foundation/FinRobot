@@ -1,7 +1,9 @@
-// Guards the numeric-audit gate's front-end surface: the banner renders ONLY
-// when the artifact isn't publishable, lists every finding by field_key +
-// evidence, and explains the withheld valuation. A publishable / absent audit
-// must be zero-footprint (no banner) so clean reports are untouched.
+// Guards the numeric-audit gate's front-end surface: the banner renders ONLY when
+// the artifact isn't publishable AND has something to show (a finding or a withhold
+// note), lists every finding by field_key + evidence, and explains the withheld
+// valuation. A publishable / absent audit — or a caveated status that an
+// internal-only scrub (contract C7) left with no analyst row — must be
+// zero-footprint (no banner) so clean reports are untouched.
 
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -120,6 +122,20 @@ describe('ChapterAuditBanner', () => {
     const { container } = render(
       <ChapterAuditBanner
         audit={{ artifact_status: 'publishable', findings: [] }}
+        contractFindings={[]}
+      />,
+    )
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('stays zero-footprint when an internal scrub left caveated status but no analyst row', () => {
+    // C7's no-resurrection scrub flips the status to `caveated` without producing any
+    // analyst-facing finding (its evidence is the non-surfacing /internal tag) and with
+    // withhold_valuation false. An empty "Data Caveat" banner there is noise — the
+    // legitimately-withheld target is already explained on the cover. (MU regression.)
+    const { container } = render(
+      <ChapterAuditBanner
+        audit={{ artifact_status: 'caveated', withhold_valuation: false, findings: [] }}
         contractFindings={[]}
       />,
     )

@@ -107,6 +107,33 @@ export interface DerivedReportData {
   reportingCurrency: string
 }
 
+/** A surfaced output-contract finding parsed from `outputs.warnings`
+ * (`[CONTRACT/Cn] <evidence>`) — drives the cover withhold reason + audit banner. */
+export interface SurfacedContractFinding {
+  clause: string
+  evidence: string
+}
+
+// INTERNAL invariant clauses whose evidence is engineering plumbing, NOT an analyst
+// withhold reason — never surfaced. C7 (no-resurrection scrub) is the one: new
+// artifacts tag it `[CONTRACT/C7/internal]` (the regex below won't match the
+// sub-tagged form), but older stored artifacts emitted a bare `[CONTRACT/C7]`
+// ("…nulling so it cannot resurrect downstream" + a raw float) that WOULD match —
+// so it is dropped by clause id here too.
+const INTERNAL_CONTRACT_CLAUSES = new Set(['C7'])
+
+/** Parse the analyst-facing hard-clause contract evidence from an artifact's
+ * warnings. The `/note` (soft), `/withheld` (provenance) and `/internal` variants
+ * carry a slash after the tag and never match the regex; internal clauses (C7) that
+ * slipped through as a bare tag on an older artifact are dropped by id. */
+export function parseSurfacedContractFindings(warnings: string[]): SurfacedContractFinding[] {
+  return warnings
+    .map((w) => /^\[CONTRACT\/(C\d+)\]\s(.+)$/.exec(w))
+    .filter((m): m is RegExpExecArray => m !== null)
+    .map((m) => ({ clause: m[1], evidence: m[2] }))
+    .filter((c) => !INTERNAL_CONTRACT_CLAUSES.has(c.clause))
+}
+
 export function deriveReportData(
   artifact: ArtifactDetail,
   timeline: ArtifactSummaryV5[],

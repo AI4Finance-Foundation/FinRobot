@@ -407,7 +407,29 @@ def test_c7_nulls_resurrected_financial_modeling_implied_price_on_withheld_targe
     assert out.outputs.structured["withheld_reason"] == "contract_C7"
     # The directional verdict is preserved un-scrubbed.
     assert out.outputs.structured["thesis"]["recommendation"] == "SELL"
-    assert any(w.startswith("[CONTRACT/C7]") for w in _warnings(out))
+    assert any(w.startswith("[CONTRACT/C7/internal]") for w in _warnings(out))
+
+
+def test_c7_evidence_is_internal_tag_not_surfaced_to_analyst() -> None:
+    """C7 is an INTERNAL scrub invariant — its evidence is engineering plumbing
+    ("nulling so it cannot resurrect downstream" + a raw float), not a withhold
+    REASON. It must NOT surface to the analyst UI: the report parser renders only
+    `[CONTRACT/Cn] …` (tag immediately closed), so C7 emits the non-surfacing
+    `[CONTRACT/C7/internal] …`. Regression lock for the MU leak where C7's plumbing
+    showed as the cover withhold reason + the top audit banner."""
+    art = _artifact(
+        raw_data={"market": {"current_price": 18.0}},
+        structured={
+            "thesis": {"price_target": None, "recommendation": "HOLD"},
+            "financial_modeling": {"implied_price": 188.12},
+        },
+    )
+    warnings = _warnings(enforce_artifact_contract(art))
+    # Recorded for the audit trail under the non-surfacing /internal sub-tag …
+    assert any(w.startswith("[CONTRACT/C7/internal] ") for w in warnings)
+    # … and NEVER under the analyst-facing surfaced format the report UI parses
+    # (`[CONTRACT/C7] …` with the tag closed immediately after the clause id).
+    assert not any(w.startswith("[CONTRACT/C7] ") for w in warnings)
 
 
 def test_c7_judges_withheld_via_directional_verdict_with_null_target() -> None:
@@ -424,7 +446,7 @@ def test_c7_judges_withheld_via_directional_verdict_with_null_target() -> None:
     out = enforce_artifact_contract(art)
     assert out.outputs.structured["dcf_result"]["implied_price"] is None
     assert out.outputs.structured["thesis"]["recommendation"] == "HOLD"
-    assert any(w.startswith("[CONTRACT/C7]") for w in _warnings(out))
+    assert any(w.startswith("[CONTRACT/C7/internal]") for w in _warnings(out))
 
 
 def test_c7_still_judges_legacy_review_recommendation() -> None:
@@ -440,7 +462,7 @@ def test_c7_still_judges_legacy_review_recommendation() -> None:
     )
     out = enforce_artifact_contract(art)
     assert out.outputs.structured["financial_modeling"]["implied_price"] is None
-    assert any(w.startswith("[CONTRACT/C7]") for w in _warnings(out))
+    assert any(w.startswith("[CONTRACT/C7/internal]") for w in _warnings(out))
 
 
 def test_c7_noop_when_withheld_and_all_slots_already_null() -> None:

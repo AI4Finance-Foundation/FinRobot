@@ -27,9 +27,14 @@ from finrobot.engine.models.financial import DCFInputs
 UTC = timezone.utc
 
 
-def _inputs(beta: float = 1.1, tax_rate: float = 0.21, currency: str = "USD") -> DCFInputs:
+def _inputs(
+    beta: float = 1.1,
+    tax_rate: float = 0.21,
+    currency: str = "USD",
+    revenue_base: float = 394_000_000_000,
+) -> DCFInputs:
     return DCFInputs(
-        revenue_base=394_000_000_000,
+        revenue_base=revenue_base,
         revenue_growth_rates=[0.06, 0.05, 0.04, 0.03, 0.02],
         ebitda_margin=0.32,
         capex_pct_revenue=0.03,
@@ -56,6 +61,7 @@ def _equity_artifact(
     current_price: float,
     peer_tickers: list[str] | None = None,
     comps_pe_mid: float | None = None,
+    method_mids: dict[str, float] | None = None,
     formula_id: str = "equity_research_dcf_standard_with_da_v2",
     data_source: str = "yfinance",
     fetched_at: datetime | None = None,
@@ -80,17 +86,21 @@ def _equity_artifact(
     }
     if peer_tickers is not None:
         structured["peer_analysis"] = {"peers": [{"ticker": t} for t in peer_tickers]}
+    mids: dict[str, float] = dict(method_mids or {})
     if comps_pe_mid is not None:
+        mids.setdefault("comps_pe", comps_pe_mid)
+    if mids:
         structured["valuation_synthesis"] = {
             "methods": [
                 {
-                    "name": "comps_pe",
-                    "low": comps_pe_mid * 0.9,
-                    "mid": comps_pe_mid,
-                    "high": comps_pe_mid * 1.1,
+                    "name": name,
+                    "low": mid * 0.9,
+                    "mid": mid,
+                    "high": mid * 1.1,
                     "confidence": 0.55,
                     "source": "test comps",
                 }
+                for name, mid in mids.items()
             ],
             "weighted_price": dcf.implied_price,
             "current_price": current_price,
@@ -499,3 +509,93 @@ class TestIdentical:
         b = _equity_artifact("art_v2", _inputs(), recommendation="BUY", current_price=170.0)
         delta = build_semantic_delta(a, b)
         assert delta.identical is True
+
+
+class TestResidualDominatedAttribution:
+    """A move dominated by data re-basing must NOT be framed as 'driven by' a
+    minor driver. (AAPL 06-11→06-16: WACC -$0.01 of a -$0.49 move = 2%, yet the
+    old summary led with '主因 WACC'.)"""
+
+    def test_residual_dominated_move_does_not_lead_with_minor_driver(self) -> None:
+        # Big revenue re-basing (not re-priceable → residual) + a small WACC move.
+        a = _equity_artifact(
+            "art_v1", _inputs(beta=1.10, revenue_base=394e9), recommendation="BUY", current_price=170.0
+        )
+        b = _equity_artifact(
+            "art_v2", _inputs(beta=1.16, revenue_base=520e9), recommendation="BUY", current_price=170.0
+        )
+        attr = build_semantic_delta(a, b).attribution
+        assert attr.available is True
+        # The named drivers explain a small minority of the total → reframe fires.
+        attributed = sum(it.contribution for it in attr.items)
+        assert abs(attributed) < abs(attr.total_change) * 0.5
+        # Honest framing: leads with data re-basing, never "driven by X".
+        assert "mostly interaction terms and data re-basing" in attr.summary_en
+        assert "driven by" not in attr.summary_en
+        assert "主要来自交互项与数据重估" in attr.summary_zh
+        assert "主因" not in attr.summary_zh
+
+    def test_genuine_single_driver_still_leads_with_it(self) -> None:
+        # Only beta (→ WACC) moves → WACC explains ~all of it → keep "driven by".
+        a = _equity_artifact("art_v1", _inputs(beta=1.10), recommendation="BUY", current_price=170.0)
+        b = _equity_artifact("art_v2", _inputs(beta=1.50), recommendation="BUY", current_price=170.0)
+        attr = build_semantic_delta(a, b).attribution
+        assert "driven by" in attr.summary_en
+        assert "主因" in attr.summary_zh
+
+
+class TestMethodSetChange:
+    """A valuation method entering/leaving the blend moves the target with no DCF
+    assumption changing — the DCF-anchored attribution is blind to it, so a
+    method_set comparability flag must explain it. (AAPL: ev_ebitda entered →
+    target +11% while every DCF driver stayed flat.)"""
+
+    def test_added_method_flagged(self) -> None:
+        a = _equity_artifact(
+            "art_v1", _inputs(), recommendation="SELL", current_price=296.0,
+            method_mids={"dcf": 190.0, "comps_pe": 200.0},
+        )
+        b = _equity_artifact(
+            "art_v2", _inputs(), recommendation="SELL", current_price=296.0,
+            method_mids={"dcf": 190.0, "comps_pe": 202.0, "ev_ebitda": 265.0},
+        )
+        delta = build_semantic_delta(a, b)
+        flags = [f for f in delta.comparability if f.kind == "method_set"]
+        assert len(flags) == 1
+        assert "EV/EBITDA" in flags[0].message_en
+        assert "added" in flags[0].message_en
+        assert delta.material_change is True
+
+    def test_same_method_set_no_flag(self) -> None:
+        a = _equity_artifact(
+            "art_v1", _inputs(), recommendation="SELL", current_price=296.0,
+            method_mids={"dcf": 190.0, "comps_pe": 200.0},
+        )
+        b = _equity_artifact(
+            "art_v2", _inputs(), recommendation="SELL", current_price=296.0,
+            method_mids={"dcf": 190.0, "comps_pe": 200.0},
+        )
+        delta = build_semantic_delta(a, b)
+        assert not any(f.kind == "method_set" for f in delta.comparability)
+
+
+class TestMaterialChange:
+    """material_change collapses a re-run that only re-based live data."""
+
+    def test_drift_only_is_not_material(self) -> None:
+        # Sub-3% target drift (1% revenue re-basing) + a live current_price tick.
+        a = _equity_artifact(
+            "art_v1", _inputs(revenue_base=394e9), recommendation="SELL", current_price=170.00
+        )
+        b = _equity_artifact(
+            "art_v2", _inputs(revenue_base=398e9), recommendation="SELL", current_price=170.55
+        )
+        delta = build_semantic_delta(a, b)
+        tgt = next(it for it in delta.conclusion if it.key == "target_price")
+        assert tgt.pct_change is not None and abs(tgt.pct_change) < 0.03
+        assert delta.material_change is False
+
+    def test_rating_flip_is_material(self) -> None:
+        a = _equity_artifact("art_v1", _inputs(beta=1.1), recommendation="BUY", current_price=170.0)
+        b = _equity_artifact("art_v2", _inputs(beta=1.1), recommendation="SELL", current_price=170.0)
+        assert build_semantic_delta(a, b).material_change is True

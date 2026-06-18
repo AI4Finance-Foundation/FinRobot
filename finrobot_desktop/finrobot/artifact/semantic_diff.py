@@ -43,6 +43,21 @@ _EPS = 1e-9
 # moved) is misleading. Such near-zero contributions stay in the named residual.
 _NEGLIGIBLE_CONTRIBUTION = 0.005
 
+# When the named drivers together explain less than this fraction of the total
+# fair-value move, the residual (interaction terms + data re-basing) is the real
+# story — leading with "主因 X" then misrepresents a minor contributor as the
+# cause. Below this share the summary leads with the re-basing and demotes the
+# drivers. (AAPL 06-11→06-16: WACC -$0.01 of a -$0.49 move = 2%, 98% residual —
+# calling that "driven by WACC" is misleading.)
+_MATERIAL_DRIVER_FRACTION = 0.5
+
+# A conclusion metric whose magnitude moved less than this is drift, not a thesis
+# change. Used to mark a diff "no material change" so a re-run that only re-based
+# live data (price tick, fresh fetch) collapses to "结论实质未变" instead of a loud
+# chip diff. current_price is excluded entirely — it drifts every tick and is
+# never a report change on its own.
+_MATERIALITY_PCT = 0.03
+
 
 # ── Contract ─────────────────────────────────────────────────────────────────
 
@@ -97,7 +112,7 @@ class Attribution(BaseModel):
 
 
 class ComparabilityFlag(BaseModel):
-    kind: Literal["formula", "data_source", "period", "peer_set"]
+    kind: Literal["formula", "data_source", "period", "peer_set", "method_set"]
     message_zh: str
     message_en: str
     blocks_attribution: bool = False
@@ -123,6 +138,10 @@ class SemanticDelta(BaseModel):
     attribution: Attribution
     drivers: list[DeltaItem] = Field(default_factory=list)
     comparability: list[ComparabilityFlag] = Field(default_factory=list)
+    # False when every conclusion move is sub-materiality drift and no driver /
+    # method / peer set changed — the re-run re-based data but the thesis stands.
+    # The frontend uses this to collapse a noisy-looking diff to "结论实质未变".
+    material_change: bool = True
     data_footnote: DataFootnote
 
 
@@ -469,6 +488,21 @@ def _attribution_summary(
     top = ranked[:2]
     parts_zh = "、".join(f"{it.label_zh}（{it.formatted_contribution}）" for it in top)
     parts_en = ", ".join(f"{it.label_en} ({it.formatted_contribution})" for it in top)
+    fmt_total = format_caliber_value(fair, total, currency=currency)
+
+    # Residual-dominated move: the named drivers together explain only a sliver of
+    # the total, so leading with "主因 X" would misrepresent a minor contributor as
+    # the cause. Lead with the data re-basing and demote the drivers (their own
+    # small contributions are still shown in parts_*).
+    attributed = sum(it.contribution for it in items)
+    if abs(total) > _EPS and abs(attributed) < abs(total) * _MATERIAL_DRIVER_FRACTION:
+        return (
+            f"公允价值变化 {fmt_total}，主要来自交互项与数据重估；"
+            f"模型假设变化甚微：{parts_zh}。",
+            f"Fair value moved {fmt_total}, mostly interaction terms and data "
+            f"re-basing; model assumptions barely moved ({parts_en}).",
+        )
+
     resid_zh = (
         f"；其余 {format_caliber_value(fair, residual, currency=currency)} 来自交互项与数据重估"
         if abs(residual) > _EPS
@@ -481,8 +515,8 @@ def _attribution_summary(
         else ""
     )
     return (
-        f"公允价值变化 {format_caliber_value(fair, total, currency=currency)}，主因 {parts_zh}{resid_zh}。",
-        f"Fair value moved {format_caliber_value(fair, total, currency=currency)}, "
+        f"公允价值变化 {fmt_total}，主因 {parts_zh}{resid_zh}。",
+        f"Fair value moved {fmt_total}, "
         f"driven by {parts_en}{resid_en}.",
     )
 
@@ -543,6 +577,84 @@ def _valuation_method_mid(art: Artifact, method_name: str) -> float | None:
         if name == method_name:
             return _num(method.get("mid"))
     return None
+
+
+# Friendly labels for the method-set comparability flag; unknown keys fall back
+# to the raw method name.
+_METHOD_LABELS: dict[str, tuple[str, str]] = {
+    "dcf": ("DCF", "DCF"),
+    "comps_pe": ("可比 P/E", "Comps P/E"),
+    "comps_pb": ("可比 P/B", "Comps P/B"),
+    "ev_ebitda": ("EV/EBITDA", "EV/EBITDA"),
+    "ddm": ("股利贴现", "DDM"),
+    "sotp": ("分部加总", "SOTP"),
+    "lbo": ("LBO", "LBO"),
+}
+
+
+def _method_names(art: Artifact) -> set[str]:
+    """The valuation methods that carry a numeric mid — the legs that actually fed
+    the headline blend. A method entering/leaving between versions moves the
+    blended target with NO model assumption changing, which the DCF-anchored
+    attribution is structurally blind to (AAPL 06-11→06-16: ev_ebitda entered →
+    target +11% while every DCF driver stayed flat)."""
+    s = art.outputs.structured
+    if not isinstance(s, dict):
+        return set()
+    synth = s.get("valuation_synthesis")
+    if not isinstance(synth, dict):
+        return set()
+    methods = synth.get("methods")
+    if not isinstance(methods, list):
+        return set()
+    out: set[str] = set()
+    for method in methods:
+        if not isinstance(method, dict):
+            continue
+        name = method.get("name") or method.get("method")
+        if isinstance(name, str) and _num(method.get("mid")) is not None:
+            out.add(name)
+    return out
+
+
+def _method_set_flag(a: Artifact, b: Artifact) -> ComparabilityFlag | None:
+    """Flag when the set of blended valuation methods changed between versions so
+    the analyst reads a target move as partly method-set, not model assumptions."""
+    old = _method_names(a)
+    new = _method_names(b)
+    if not old or not new or old == new:
+        return None
+    # Order added/removed deterministically (sorted) — set iteration is unstable.
+    added = sorted(m for m in new if m not in old)
+    removed = sorted(m for m in old if m not in new)
+    if not added and not removed:
+        return None
+
+    def _lbl(keys: list[str], zh: bool) -> str:
+        return "、".join(_METHOD_LABELS.get(k, (k, k))[0 if zh else 1] for k in keys)
+
+    parts_zh: list[str] = []
+    parts_en: list[str] = []
+    if added:
+        parts_zh.append(f"新增 {_lbl(added, True)}")
+        parts_en.append(f"added {_lbl(added, False)}")
+    if removed:
+        parts_zh.append(f"移除 {_lbl(removed, True)}")
+        parts_en.append(f"removed {_lbl(removed, False)}")
+    note_zh = "、".join(parts_zh)
+    note_en = ", ".join(parts_en)
+    return ComparabilityFlag(
+        kind="method_set",
+        message_zh=(
+            f"估值方法集变更（{note_zh}）：目标价是多方法加权混合，方法进出会移动目标价，"
+            "这部分变化源于方法集本身，而非 DCF 模型假设。"
+        ),
+        message_en=(
+            f"Valuation method set changed ({note_en}): the target is a multi-method "
+            "weighted blend, so a method entering or leaving moves the target on its "
+            "own — that part of the move is the method set, not the DCF assumptions."
+        ),
+    )
 
 
 def _market_implied_item(
@@ -753,6 +865,10 @@ def build_semantic_delta(a: Artifact, b: Artifact) -> SemanticDelta:
     if peer_flag is not None:
         flags.append(peer_flag)
 
+    method_flag = _method_set_flag(a, b)
+    if method_flag is not None:
+        flags.append(method_flag)
+
     a_dcf = _dcf_result(a)
     b_dcf = _dcf_result(b)
     a_inp = _dcf_inputs_dump(a)
@@ -835,6 +951,29 @@ def build_semantic_delta(a: Artifact, b: Artifact) -> SemanticDelta:
         and peer_item is None
     )
 
+    # Materiality: a re-run that only re-based live data (price tick, fresh fetch)
+    # should not read as a thesis change. A move is material if the rating flipped,
+    # any headline metric moved ≥ _MATERIALITY_PCT (current_price excluded — it
+    # drifts every tick), an assumption driver moved, the analyst overrode an input,
+    # or the peer / method set changed.
+    def _material_conclusion(it: DeltaItem) -> bool:
+        # current_price drifts every tick; upside is leveraged off target − price
+        # (a 1% target move can read as a 9% upside move near the money), so its
+        # materiality is already captured by target_price. Judge neither on its own.
+        if it.key in ("current_price", "upside"):
+            return False
+        if it.pct_change is None:
+            return it.direction in ("up", "down")
+        return abs(it.pct_change) >= _MATERIALITY_PCT
+
+    material_change = (
+        any(_material_conclusion(it) for it in conclusion)
+        or any(d.key in _ASSUMPTION_KEYS and d.direction in ("up", "down") for d in drivers)
+        or any(d.is_user_override for d in drivers)
+        or peer_item is not None
+        or method_flag is not None
+    )
+
     return SemanticDelta(
         a_id=a.id,
         b_id=b.id,
@@ -846,6 +985,7 @@ def build_semantic_delta(a: Artifact, b: Artifact) -> SemanticDelta:
         attribution=attribution,
         drivers=drivers,
         comparability=flags,
+        material_change=material_change,
         data_footnote=DataFootnote(
             a_source=a.inputs.data_source,
             b_source=b.inputs.data_source,

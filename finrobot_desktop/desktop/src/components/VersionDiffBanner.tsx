@@ -69,7 +69,7 @@ interface Attribution {
 }
 
 interface ComparabilityFlag {
-  kind: 'formula' | 'data_source' | 'period' | 'peer_set'
+  kind: 'formula' | 'data_source' | 'period' | 'peer_set' | 'method_set'
   message_zh: string
   message_en: string
   blocks_attribution: boolean
@@ -91,6 +91,10 @@ interface SemanticDelta {
   b_label: string
   report_type: string
   identical: boolean
+  // False when the only moves are sub-materiality drift (live price tick, fresh
+  // data) — the thesis stands. Drives the "结论实质未变" note so a re-run of the
+  // same name doesn't read as a change.
+  material_change: boolean
   conclusion: DeltaItem[]
   attribution: Attribution
   drivers: DeltaItem[]
@@ -115,6 +119,7 @@ const CHROME = {
     override: '手改',
     loading: '加载对比…',
     loadError: '加载对比失败',
+    immaterial: '结论实质未变 · 仅数据微调',
     archived: '已归档',
     targetRange: '目标区间',
     pointTargetWithheld: '点目标价已隐藏',
@@ -138,6 +143,7 @@ const CHROME = {
     override: 'override',
     loading: 'Loading comparison…',
     loadError: 'Failed to load comparison',
+    immaterial: 'No material change · live data re-based',
     archived: 'archived',
     targetRange: 'Target range',
     pointTargetWithheld: 'Point target withheld',
@@ -383,6 +389,18 @@ export function VersionDiffBanner({
         {data && data.identical && (
           <div className="version-diff-card__state version-diff-tone--positive">
             ✓ {c.identical}
+          </div>
+        )}
+
+        {/* Not bit-identical, but every move is sub-materiality drift — say so up
+            front so a same-name re-run doesn't read as a thesis change. The chips
+            below still show the small moves for the analyst who wants them. */}
+        {data && !data.identical && !data.material_change && (
+          <div
+            className="version-diff-card__state version-diff-tone--muted"
+            data-testid="version-diff-immaterial"
+          >
+            ≈ {c.immaterial}
           </div>
         )}
 

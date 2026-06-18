@@ -27,6 +27,7 @@ const DELTA = {
   b_label: 'v2',
   report_type: 'equity_research',
   identical: false,
+  material_change: true,
   conclusion: [
     {
       key: 'target_price',
@@ -183,6 +184,65 @@ describe('VersionDiffBanner', () => {
 
     fireEvent.click(screen.getByTestId('version-diff-toggle'))
     await waitFor(() => expect(screen.getByText(/Peer set changed: MRVL->TSM/)).toBeInTheDocument())
+  })
+
+  it('renders method-set comparability flags (the real driver of a blended-target move)', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        ...DELTA,
+        comparability: [
+          {
+            kind: 'method_set',
+            message_zh: '估值方法集变更（新增 EV/EBITDA）：目标价是多方法加权混合……',
+            message_en:
+              'Valuation method set changed (added EV/EBITDA): the target is a multi-method weighted blend …',
+            blocks_attribution: false,
+          },
+        ],
+      }),
+    })
+    renderBanner({
+      timeline: [
+        summary('art_cur', '2026-05-10T00:00:00Z'),
+        summary('art_old', '2026-05-01T00:00:00Z', 'HOLD'),
+      ],
+    })
+
+    fireEvent.click(screen.getByTestId('version-diff-toggle'))
+    await waitFor(() =>
+      expect(screen.getByText(/method set changed \(added EV\/EBITDA\)/i)).toBeInTheDocument(),
+    )
+  })
+
+  it('shows the "no material change" note for a drift-only re-run', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ ...DELTA, identical: false, material_change: false }),
+    })
+    renderBanner({
+      timeline: [
+        summary('art_cur', '2026-05-10T00:00:00Z'),
+        summary('art_old', '2026-05-01T00:00:00Z', 'HOLD'),
+      ],
+    })
+
+    fireEvent.click(screen.getByTestId('version-diff-toggle'))
+    await waitFor(() => expect(screen.getByTestId('version-diff-immaterial')).toBeInTheDocument())
+    expect(screen.getByText(/No material change/i)).toBeInTheDocument()
+  })
+
+  it('hides the "no material change" note when the change is material', async () => {
+    // DELTA carries material_change: true (a -7.7% target move).
+    renderBanner({
+      timeline: [
+        summary('art_cur', '2026-05-10T00:00:00Z'),
+        summary('art_old', '2026-05-01T00:00:00Z', 'HOLD'),
+      ],
+    })
+    fireEvent.click(screen.getByTestId('version-diff-toggle'))
+    await waitFor(() => expect(screen.getByText('$180.00')).toBeInTheDocument())
+    expect(screen.queryByTestId('version-diff-immaterial')).not.toBeInTheDocument()
   })
 
   it('defaults the base to parent_artifact_id when it is among candidates', () => {

@@ -7,7 +7,7 @@ from dataclasses import replace
 from datetime import date, datetime, timezone
 from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from starlette.requests import Request
 
@@ -38,13 +38,18 @@ from finrobot.engine.models.financial import (
     PeerComps,
     ValuationAggregate,
 )
+from finrobot.routes._ready import ensure_engine_ready
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/valuation", tags=["valuation"])
 
 
-@router.get("/aggregate/{ticker}", response_model=ValuationAggregate)
+@router.get(
+    "/aggregate/{ticker}",
+    response_model=ValuationAggregate,
+    dependencies=[Depends(ensure_engine_ready)],
+)
 async def aggregate_for_ticker(ticker: str, request: Request) -> ValuationAggregate:
     """Build the Football Field payload for a ticker (v5 §6.4).
 
@@ -512,7 +517,11 @@ class HistoricalBandResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
-@router.get("/historical-bands/{ticker}", response_model=HistoricalBandResponse)
+@router.get(
+    "/historical-bands/{ticker}",
+    response_model=HistoricalBandResponse,
+    dependencies=[Depends(ensure_engine_ready)],
+)
 async def historical_bands(
     ticker: str,
     request: Request,

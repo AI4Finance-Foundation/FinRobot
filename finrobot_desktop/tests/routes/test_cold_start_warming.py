@@ -65,6 +65,14 @@ def warming_app():
         "/api/data/AAPL/financials",
         "/api/data/AAPL/historical",
         "/api/data/AAPL/earnings-calls",
+        # Valuation live-data routes: both deref the (empty during warming)
+        # provider chain. Ungated they don't 503 — `aggregate` returns a 200 with
+        # an empty/stale football field, and `historical-bands` returns a 200 empty
+        # band that `cached_fetch` then writes to the 12h HISTORICAL_BANDS slot,
+        # so the warming-window blank persists for half a day after the engine is
+        # ready. They must 503 "starting" like every other live-data route.
+        "/api/valuation/aggregate/AAPL",
+        "/api/valuation/historical-bands/AAPL",
     ],
 )
 async def test_live_data_routes_503_starting_during_warming(warming_app, path: str) -> None:

@@ -128,6 +128,7 @@ def aggregate_valuation(
     historical_ev_ebitda_sample_n: int | None = None,
     historical_p_fcf_band: tuple[float, float] | None = None,
     cyclical: bool = False,
+    financial_sector: bool = False,
     as_of: datetime | None = None,
 ) -> ValuationAggregate:
     """Build the Football Field payload for one ticker.
@@ -141,11 +142,30 @@ def aggregate_valuation(
     oil&gas cyclical — book equity is cycle-stable, unlike trough/peak EPS. The
     through-cycle / forward P/E row still ships alongside it (football field shows
     both; synthesis weights the through-cycle anchor).
+
+    ``financial_sector`` (``is_bank`` result, threaded by the caller) SUPPRESSES the
+    cash-flow methods — DCF, EV/EBITDA, P/FCF — for a bank/insurer. They are category
+    errors there: "free cash flow", "EBITDA" and the net-debt bridge are ill-defined
+    when debt is the raw material, not financing (``is_bank`` itself documents "use
+    DDM, not FCF-DCF"; numeric_audit independently blocks EV as
+    ``financial_sector_ev_meaningless``). The football field instead leads with P/B
+    (book equity / tangible book is the bank anchor) + P/E + DDM. Without this the
+    report plotted a JPM DCF ~$719 against a ~$325 price — a meaningless 2.2x row that
+    dragged the blend and the divergence gate.
     """
     methods: list[ValuationMethodRange] = []
     warnings: list[str] = []
 
-    if (m := _dcf_method(dcf)) is not None:
+    if financial_sector:
+        # Cash-flow DCF withheld for a financial issuer (category error — see
+        # docstring). Surfaced with the method-withheld marker so the synthesis
+        # forwards the reason to the headline, never a silent drop.
+        warnings.append(
+            "dcf: financial-sector issuer — FCF-DCF does not apply (free cash flow and the "
+            "net-debt bridge are ill-defined for banks; P/B · P/E · DDM are the bank methods) "
+            "— method withheld"
+        )
+    elif (m := _dcf_method(dcf)) is not None:
         methods.append(m)
     elif dcf is None:
         warnings.append("dcf: no DCF artifact — this row appears after running the full AI report")
@@ -160,10 +180,12 @@ def aggregate_valuation(
             "method withheld"
         )
 
-    # Cyclical → P/B is the primary relative multiple (book equity is cycle-stable).
-    # Listed BEFORE comps_pe so the football field leads with it; the through-cycle/
-    # forward P/E row still ships when available. Non-cyclicals skip P/B entirely.
-    if cyclical and (m := _comps_pb_method(peer_comps, warnings)) is not None:
+    # P/B is the PRIMARY relative multiple for two regimes: a commodity-cyclical
+    # (book equity is cycle-stable, unlike trough/peak EPS) AND a bank/insurer (book /
+    # tangible book is THE financial anchor, since the suppressed DCF/EV can't price
+    # it). Listed BEFORE comps_pe so the football field leads with it; the P/E row
+    # still ships when available. Everyone else skips P/B entirely.
+    if (cyclical or financial_sector) and (m := _comps_pb_method(peer_comps, warnings)) is not None:
         methods.append(m)
 
     if (
@@ -229,7 +251,16 @@ def aggregate_valuation(
         and shares_outstanding is not None
         and shares_outstanding > 0
     )
-    if (
+    if financial_sector:
+        # Enterprise value is a category error for a bank/insurer (debt is the raw
+        # material, not financing) — the same reason numeric_audit blocks it as
+        # ``financial_sector_ev_meaningless``. Suppress the row here too so it never
+        # reaches the football field, not just the headline.
+        warnings.append(
+            "ev_ebitda: financial-sector issuer — enterprise value is a category error for "
+            "banks (debt is raw material, not financing) — method withheld"
+        )
+    elif (
         m := _ev_ebitda_method(
             forward_ebitda,
             historical_ev_ebitda_band,
@@ -258,7 +289,13 @@ def aggregate_valuation(
     # band / negative implied equity) — _ev_ebitda_method already recorded the precise
     # reason (with the marker) into `warnings`, so we add no (mis-)diagnostic here.
 
-    if (m := _p_fcf_method(forward_fcf, historical_p_fcf_band, shares_outstanding)) is not None:
+    if financial_sector:
+        # Free cash flow is ill-defined for a bank/insurer (no operating/financing
+        # split on cash flows) — P/FCF is suppressed for the same reason as DCF.
+        warnings.append(
+            "p_fcf: financial-sector issuer — free cash flow ill-defined for banks — method withheld"
+        )
+    elif (m := _p_fcf_method(forward_fcf, historical_p_fcf_band, shares_outstanding)) is not None:
         methods.append(m)
     else:
         warnings.append(

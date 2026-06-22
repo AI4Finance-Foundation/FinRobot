@@ -240,6 +240,47 @@ class TestAggregatorContract:
                 "multiple",
             ), f"row {row.method} missing method_type — spec §6.4 requires it for UI rendering"
 
+    def test_financial_sector_suppresses_cashflow_methods_keeps_multiples(self) -> None:
+        """Bank / insurer: DCF, EV/EBITDA and P/FCF are category errors (free cash
+        flow, EBITDA and the net-debt bridge are ill-defined when debt is the raw
+        material, not financing). The aggregator drops those rows — with surfaced
+        'method withheld' reasons — and leads with the relative multiples instead,
+        never plotting a meaningless DCF (the report showed JPM DCF ~$719 vs a ~$325
+        price before this gate). The bank must still get a method, never punt."""
+        agg = aggregate_valuation(
+            ticker="JPM",
+            current_price=325.0,
+            dcf=_dcf(implied_price=719.0),
+            peer_comps=_peer_comps(median_pe=12.0),
+            shares_outstanding=2.9e9,
+            forward_eps=15.0,
+            forward_ebitda=120e9,
+            historical_ev_ebitda_band=(8.0, 12.0),
+            historical_ev_ebitda_sample_n=8,
+            financial_sector=True,
+        )
+        names = {m.method for m in agg.methods}
+        assert "dcf" not in names
+        assert "ev_ebitda" not in names
+        assert "p_fcf" not in names
+        assert agg.methods, "bank must still ship a relative-multiple method (P/E), never punt"
+        assert any("financial-sector" in w and w.startswith("dcf:") for w in agg.warnings)
+        assert any("financial-sector" in w and w.startswith("ev_ebitda:") for w in agg.warnings)
+
+    def test_non_financial_keeps_dcf_row_unchanged(self) -> None:
+        """The financial-sector gate must not touch a non-bank: identical inputs,
+        DCF row still ships (no over-suppression / regression)."""
+        agg = aggregate_valuation(
+            ticker="AAPL",
+            current_price=325.0,
+            dcf=_dcf(implied_price=719.0),
+            peer_comps=_peer_comps(median_pe=12.0),
+            shares_outstanding=2.9e9,
+            forward_eps=15.0,
+            financial_sector=False,
+        )
+        assert "dcf" in {m.method for m in agg.methods}
+
     def test_lbo_band_built_from_sensitivity_grid_not_recompute(self) -> None:
         lbo = _lbo_with_grid()
         agg = aggregate_valuation(

@@ -10,7 +10,7 @@ from typing import Any
 from pydantic_ai import Agent
 
 from finrobot.engine.compute.operators.cyclical_peers import screen_peers_with_cyclical
-from finrobot.engine.primitives.industry import is_commodity_cyclical
+from finrobot.engine.primitives.industry import is_bank, is_commodity_cyclical
 from finrobot.engine.compute.coordinators.extractor import (
     extract_company_financials,
     extract_financial_data,
@@ -763,6 +763,16 @@ def build_valuation_synthesis(
         sector=financial_data.market.sector if isinstance(financial_data, FinancialData) else None,
         ticker=ticker,
     )
+    # Bank / insurer → suppress the cash-flow methods (DCF / EV-EBITDA / P/FCF) in
+    # the football field; they are category errors there (is_bank itself documents
+    # "use DDM, not FCF-DCF"). P/B + P/E + DDM lead instead. Without this a JPM full
+    # report plotted a meaningless DCF ~$719 vs a ~$325 price.
+    financial_sector = is_bank(
+        industry=financial_data.market.industry
+        if isinstance(financial_data, FinancialData)
+        else None,
+        sector=financial_data.market.sector if isinstance(financial_data, FinancialData) else None,
+    )
     agg = aggregate_valuation(
         ticker=ticker,
         current_price=current_price,
@@ -777,6 +787,7 @@ def build_valuation_synthesis(
         historical_ev_ebitda_band=historical_ev_ebitda_band,
         historical_ev_ebitda_sample_n=historical_ev_ebitda_sample_n,
         cyclical=cyclical,
+        financial_sector=financial_sector,
     )
 
     if not agg.methods:

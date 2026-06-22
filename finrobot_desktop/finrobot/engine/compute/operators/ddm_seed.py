@@ -37,6 +37,7 @@ from finrobot.engine.compute.operators.dcf_seed import (
     _decay_growth_schedule,
     _pick_with_provenance,
 )
+from finrobot.engine.compute.operators.wacc import adjust_beta_blume
 from finrobot.engine.data.industry_defaults import IndustryDefault, get_industry_default
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials
 from finrobot.engine.models.financial import DDMInputs, FinancialData
@@ -176,9 +177,9 @@ def seed_ddm_inputs(
         )
 
     # ----- beta (CAPM) -------------------------------------------------------
-    beta_chosen, beta_source = _pick_with_provenance(
+    raw_beta, beta_source = _pick_with_provenance(
         ticker_value=financials.market.beta,
-        ticker_label="provider-reported 5y adjusted beta",
+        ticker_label="provider-reported 5y beta",
         industry_value=industry.levered_beta,
         industry_label=f"{industry.industry} industry levered beta",
         floor=_BETA_BAND_FLOOR,
@@ -186,13 +187,39 @@ def seed_ddm_inputs(
         rejected_ticker_reason=_BETA_OUT_OF_BAND_REASON,
         reject_value_fmt="{:.2f}",
     )
+    # Blume asymmetric adjustment, IDENTICAL to dcf_seed — cost of equity is a
+    # property of the equity, not the valuation method, so DDM must discount a
+    # stock at the SAME beta the DCF uses (lead-adjudicated 2026-06-22; see
+    # dcf-recall). adjust_beta_blume is a no-op for β ≤ 1.0, so structurally
+    # low-beta defensive payers (utilities/staples — the DDM's bread and butter)
+    # are untouched; only a noisy high-β (> 1.0) estimate mean-reverts toward 1.0.
+    beta_blumed = adjust_beta_blume(raw_beta)
     # Pre-existing DDM clamp — load-bearing for crash safety: DDMInputs.beta is
-    # Field(ge=0, le=3), tighter than DCF's le=5, so a high in-band raw beta whose
-    # Blume value would exceed 3 (e.g. raw 4.8 → 3.53) MUST be capped here or the
-    # construction raises. Left exactly as found; the negative-beta fix only changes
-    # the _pick_with_provenance call above (out-of-band → industry proxy).
-    beta_final = max(_BETA_FLOOR, min(_BETA_CAP, beta_chosen))
-    prov["beta"] = f"{beta_final:.2f} ({beta_source})"
+    # Field(ge=0, le=3), tighter than DCF's le=5, so a Blume value that still
+    # exceeds the cap (e.g. raw 4.8 → 3.53) MUST be capped here or construction
+    # raises.
+    beta_final = max(_BETA_FLOOR, min(_BETA_CAP, beta_blumed))
+    # Provenance discloses the value that actually enters CAPM and which branch
+    # produced it — never a false "Blume-adjusted" trail for a β ≤ 1.0 name kept
+    # raw (core contract: every number traces to what produced it). Mirrors
+    # dcf_seed; out-of-band → industry proxy is already a levered industry beta
+    # (no Blume note), and beta_source carries the substitution + rejected raw.
+    in_band_ticker = (
+        financials.market.beta is not None
+        and _BETA_BAND_FLOOR < financials.market.beta <= _BETA_BAND_CEILING
+    )
+    if not in_band_ticker:
+        prov["beta"] = f"{beta_final:.2f} ({beta_source})"
+    elif raw_beta > 1.0:
+        prov["beta"] = (
+            f"{beta_final:.2f} ({beta_source} {raw_beta:.2f}, "
+            "Blume-adjusted 2/3·β+1/3·1.0 toward 1.0 — high-β estimate mean-reverts)"
+        )
+    else:
+        prov["beta"] = (
+            f"{beta_final:.2f} ({beta_source} {raw_beta:.2f}, "
+            "raw regression β — structural low-β defensive, not inflated)"
+        )
 
     prov["risk_free_rate"] = f"{risk_free_rate:.1%} (current 10Y US Treasury yield)"
     prov["equity_risk_premium"] = f"{equity_risk_premium:.1%} (Damodaran implied ERP)"

@@ -130,8 +130,17 @@ class TestSeedHappyPath:
         assert inputs.terminal_payout_ratio == pytest.approx(expected, abs=1e-6)
 
     def test_beta_from_provider(self) -> None:
+        # Beta now gets the SAME asymmetric Blume adjustment dcf_seed applies — cost
+        # of equity is a property of the equity, not the valuation method, so DDM
+        # and DCF must discount one stock at one beta (lead-adjudicated 2026-06-22).
+        # JPM_BETA 1.023 > 1.0, so it mean-reverts toward 1.0. Expected value is the
+        # Blume formula computed independently (not via the impl) to avoid a
+        # same-source mock that would stay green if adjust_beta_blume regressed.
+        expected_blume = 2.0 / 3.0 * JPM_BETA + 1.0 / 3.0
         inputs = seed_ddm_inputs(_financials(), _normalized())
-        assert inputs.beta == pytest.approx(JPM_BETA)
+        assert inputs.beta == pytest.approx(expected_blume)
+        assert inputs.beta < JPM_BETA  # a high-β estimate was pulled toward 1.0
+        assert "Blume-adjusted" in inputs.assumption_provenance["beta"]
 
     def test_macro_defaults(self) -> None:
         inputs = seed_ddm_inputs(_financials(), _normalized())

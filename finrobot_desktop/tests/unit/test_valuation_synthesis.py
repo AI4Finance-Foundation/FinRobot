@@ -246,10 +246,17 @@ class TestSynthesizeValuations:
         assert result.anchor_method == "dcf"  # cyclical → DCF anchor regardless of comps corroboration
 
     def test_upside_downside_equals_canonical_upside_every_regime(self):
-        """Mechanical gate: the stored upside_downside is the EXACT number
-        resolve_canonical_thesis reads as the directional gap, in every regime —
-        blended, anchored, and withheld-range-spans-market. Pins the two paths so a
-        change to one can't silently desync them (the −8.5%-vs-−32.6% KO bug)."""
+        """Mechanical gate covering EVERY regime so the stored upside_downside can't
+        silently desync from the number resolve_canonical_thesis reads as the
+        directional gap (the −8.5%-vs-−32.6% KO bug):
+
+          • multi-method (blended, anchored, withheld-range-spans-market): the stored
+            field EQUALS resolve's upside, asserted exactly below.
+          • single-method: the documented carve-out — the stored field is None (a lone
+            method has no cross-checked blend, per the weighted_price=None contract)
+            while resolve STILL derives a directional upside from the lone method's mid
+            (the verdict must ship). Asserted so this boundary can't drift unnoticed.
+        """
         blended = synthesize_valuations(
             [
                 ValuationMethod(name="dcf", low=180, mid=200, high=220, confidence=0.5, source="d"),
@@ -287,6 +294,20 @@ class TestSynthesizeValuations:
         # the withheld-range-spans case reads a neutral 0% gap, not the anchor gap
         assert spans.valuation_withheld is True
         assert spans.upside_downside == pytest.approx(0.0, abs=1e-9)
+
+        # single-method carve-out: the stored field is None (no cross-checked blend),
+        # yet resolve still ships a directional upside off the lone method's mid so the
+        # verdict isn't lost — the two are intentionally asymmetric ONLY here.
+        single = synthesize_valuations(
+            [
+                ValuationMethod(
+                    name="comps_pb", low=3.46, mid=4.61, high=5.76, confidence=0.6, source="PB"
+                )
+            ],
+            current_price=16.52,
+        )
+        assert single.upside_downside is None
+        assert resolve_canonical_thesis(single, "RIVN").upside is not None
 
     def test_target_near_market_keeps_point_high_confidence(self):
         """A blended target inside the [0.25x, 4x] band of the market is NOT

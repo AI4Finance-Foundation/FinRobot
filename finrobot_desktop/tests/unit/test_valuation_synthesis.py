@@ -190,6 +190,71 @@ class TestSynthesizeValuations:
         assert canonical.target is None  # the published POINT is withheld
         assert canonical.verdict in ("BUY", "HOLD", "SELL")
 
+    def test_upside_downside_matches_anchor_not_blend_ko_2026_06_22(self):
+        """upside_downside must track the PUBLISHED anchor, not the raw blend. KO
+        2026-06-22: dcf $76.32 / comps_pe $53.51 / ev_ebitda $89.67 span 1.68x →
+        anchors comps_pe ($53.51 is the published target), NOT the $72.68 blend. The
+        stored gap must be the −32.6% anchor gap, never the blend's −8.5% (which
+        would contradict the report's own headline target)."""
+        methods = [
+            ValuationMethod(name="dcf", low=61.1, mid=76.32, high=91.6, confidence=0.85, source="D"),
+            ValuationMethod(
+                name="comps_pe", low=48.2, mid=53.51, high=58.9, confidence=0.80, source="PE"
+            ),
+            ValuationMethod(
+                name="ev_ebitda", low=82.3, mid=89.67, high=97.1, confidence=0.72, source="EV"
+            ),
+        ]
+        result = synthesize_valuations(methods, current_price=79.39)
+        assert result.anchor_method == "comps_pe"
+        assert result.weighted_price == pytest.approx(72.68, abs=0.2)  # the blend (audit trail)
+        # the stored upside is the anchor gap, NOT the blend gap
+        assert result.upside_downside == pytest.approx((53.51 - 79.39) / 79.39, abs=1e-6)
+        assert result.upside_downside != pytest.approx((72.68 - 79.39) / 79.39, abs=0.01)
+
+    def test_upside_downside_equals_canonical_upside_every_regime(self):
+        """Mechanical gate: the stored upside_downside is the EXACT number
+        resolve_canonical_thesis reads as the directional gap, in every regime —
+        blended, anchored, and withheld-range-spans-market. Pins the two paths so a
+        change to one can't silently desync them (the −8.5%-vs-−32.6% KO bug)."""
+        blended = synthesize_valuations(
+            [
+                ValuationMethod(name="dcf", low=180, mid=200, high=220, confidence=0.5, source="d"),
+                ValuationMethod(name="comps", low=210, mid=230, high=250, confidence=0.5, source="c"),
+            ],
+            current_price=300.0,
+        )
+        anchored = synthesize_valuations(
+            [
+                ValuationMethod(name="dcf", low=61.1, mid=76.32, high=91.6, confidence=0.85, source="D"),
+                ValuationMethod(
+                    name="comps_pe", low=48.2, mid=53.51, high=58.9, confidence=0.80, source="PE"
+                ),
+                ValuationMethod(
+                    name="ev_ebitda", low=82.3, mid=89.67, high=97.1, confidence=0.72, source="EV"
+                ),
+            ],
+            current_price=79.39,
+        )
+        spans = synthesize_valuations(
+            [
+                ValuationMethod(
+                    name="dcf", low=151.72, mid=189.65, high=227.58, confidence=0.85, source="d"
+                ),
+                ValuationMethod(
+                    name="comps_pe", low=438.58, mid=487.31, high=536.04, confidence=0.55, source="c"
+                ),
+            ],
+            current_price=425.0,
+        )
+        for vs, tkr in ((blended, "X"), (anchored, "KO"), (spans, "MSFT")):
+            assert vs.upside_downside == pytest.approx(
+                resolve_canonical_thesis(vs, tkr).upside, abs=1e-9
+            )
+        # the withheld-range-spans case reads a neutral 0% gap, not the anchor gap
+        assert spans.valuation_withheld is True
+        assert spans.upside_downside == pytest.approx(0.0, abs=1e-9)
+
     def test_target_near_market_keeps_point_high_confidence(self):
         """A blended target inside the [0.25x, 4x] band of the market is NOT
         capped by the out-of-calibration rule. $245.50 vs $230 market = 1.07x →

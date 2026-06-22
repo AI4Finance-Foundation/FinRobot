@@ -240,7 +240,6 @@ def synthesize_valuations(
         )
 
     weighted_price = sum(m.mid * m.confidence for m in methods) / total_confidence
-    upside_downside = (weighted_price - current_price) / current_price
 
     # --- Cross-method spread check (soft disclosure only) ---
     # Flags any method whose mid sits > 30% from the cross-method median so the
@@ -271,6 +270,31 @@ def synthesize_valuations(
                 )
 
     conf, anchor, t_lo, t_hi, withheld, note = _confidence_dial(methods, current_price, cyclical)
+
+    # upside_downside must equal the canonical upside the verdict/target read off,
+    # NOT the raw blend. When methods diverge the dial anchors the headline to ONE
+    # method (`anchor`) — resolve_canonical_thesis then reads its mid as the
+    # directional point, not the blend. A blend-based upside contradicts the
+    # report's own headline (KO: weighted blend $72.68 → −8.5% vs the published
+    # comps_pe anchor $53.51 → −32.6%). This mirrors _anchor_point + the
+    # range-spans-market neutralisation in resolve_canonical_thesis exactly (pinned
+    # by test_upside_downside_matches_canonical_*), so the two never drift.
+    reference_price = (
+        next((m.mid for m in methods if m.name == anchor), weighted_price)
+        if anchor
+        else weighted_price
+    )
+    # Mirror resolve_canonical_thesis: a withheld point whose disclosed range spans
+    # the market reads as a neutral 0% gap (the band brackets price → no one-sided
+    # directional distance), else the gap to the reference point.
+    range_spans_market = (
+        withheld
+        and t_lo is not None
+        and t_hi is not None
+        and min(t_lo, t_hi) <= current_price <= max(t_lo, t_hi)
+    )
+    verdict_point = current_price if range_spans_market else reference_price
+    upside_downside = (verdict_point - current_price) / current_price
     return ValuationSynthesis(
         methods=methods,
         weighted_price=weighted_price,

@@ -136,6 +136,20 @@ def _resolve_total_debt(bal: dict[str, Any]) -> float | None:
     return float(td) if td is not None else None
 
 
+def _unavailable_detail(exc: Exception) -> str:
+    """Compact, key-safe reason for a best-effort endpoint miss.
+
+    Never embeds the raw httpx exception string — it carries the request URL with
+    ``?apikey=<live key>``, and this detail flows into ``DataResult.warnings`` →
+    shareable artifacts (same invariant as ``_wrap_errors``).
+    """
+    if isinstance(exc, httpx.HTTPStatusError):
+        return f"HTTP {exc.response.status_code}"
+    if isinstance(exc, ProviderError):
+        return str(exc)
+    return type(exc).__name__
+
+
 def _book_value_per_share(bal: dict[str, Any], shares: int | float | None) -> float | None:
     """Book value per COMMON share = (stockholders' equity − preferred) / shares.
 
@@ -273,6 +287,13 @@ class FMPProvider(DataProvider):
         years: int | None = kwargs.get("years")
         warnings: list[str] = []
         cashflow: list[dict[str, Any]] = []
+        # TTM dividend / payout / ROE — current-snapshot only, so fetched in the
+        # quarterly (else) branch and consumed by _build_ttm_data. The multi-year
+        # branch produces nested yearly_data whose top-level dict carries no
+        # dividend keys (and stamping a current TTM ratio onto past years would be
+        # BUG-028), so they stay empty there.
+        ratios_ttm: dict[str, Any] = {}
+        key_metrics_ttm: dict[str, Any] = {}
         with self._wrap_errors(ticker, "fetch"):
             if years and years > 1:
                 income = self._expect_rows(
@@ -396,6 +417,35 @@ class FMPProvider(DataProvider):
                         f"FMP returned only {len(income)} quarterly income rows for {ticker}; "
                         "TTM metrics use the available rows."
                     )
+                # Dividend / payout / ROE for the DDM seed. Stable's statement
+                # endpoints don't carry them; /ratios-ttm has dividendPerShareTTM /
+                # dividendPayoutRatioTTM / dividendYieldTTM and /key-metrics-ttm has
+                # returnOnEquityTTM. Without these the canonical FINANCIALS lands
+                # dividend/payout/ROE=None for every FMP-primary ticker, starving
+                # seed_ddm_inputs → DDM raises "no dividend" for banks and dividend
+                # payers (verified KO/JPM 2026-06-22). Best-effort like /shares-float:
+                # a 402/403/429 must degrade (DDM falls back / abstains), never sink
+                # the whole financials fetch. Single-provider by design — pairing
+                # FMP's own DPS with FMP's own payout keeps one caliber (the v6
+                # caliber-isolation decision); never mix in yfinance's figures here.
+                try:
+                    ratios_rows = (await self._get("/ratios-ttm", params={"symbol": ticker})).json()
+                    if isinstance(ratios_rows, list) and ratios_rows:
+                        ratios_ttm = ratios_rows[0]
+                except (httpx.HTTPError, ProviderError) as exc:
+                    warnings.append(
+                        f"FMP /ratios-ttm for {ticker} unavailable ({_unavailable_detail(exc)}); "
+                        "dividend_per_share / payout_ratio / dividend_yield omitted"
+                    )
+                try:
+                    km_rows = (await self._get("/key-metrics-ttm", params={"symbol": ticker})).json()
+                    if isinstance(km_rows, list) and km_rows:
+                        key_metrics_ttm = km_rows[0]
+                except (httpx.HTTPError, ProviderError) as exc:
+                    warnings.append(
+                        f"FMP /key-metrics-ttm for {ticker} unavailable ({_unavailable_detail(exc)}); "
+                        "return_on_equity omitted"
+                    )
             profile = self._expect_rows(
                 (await self._get("/profile", params={"symbol": ticker})).json(),
                 ticker,
@@ -412,17 +462,8 @@ class FMPProvider(DataProvider):
                 shares_rows = (await self._get("/shares-float", params={"symbol": ticker})).json()
             except (httpx.HTTPError, ProviderError) as exc:
                 shares_rows = []
-                # Same invariant as _wrap_errors: a raw httpx exception embeds
-                # the request URL with ?apikey=<live key>, and this warning
-                # flows into DataResult.warnings → shareable artifacts.
-                if isinstance(exc, httpx.HTTPStatusError):
-                    detail = f"HTTP {exc.response.status_code}"
-                elif isinstance(exc, ProviderError):
-                    detail = str(exc)
-                else:
-                    detail = type(exc).__name__
                 warnings.append(
-                    f"FMP /shares-float for {ticker} unavailable ({detail}); "
+                    f"FMP /shares-float for {ticker} unavailable ({_unavailable_detail(exc)}); "
                     "shares_outstanding falls back to marketCap/price"
                 )
 
@@ -473,7 +514,9 @@ class FMPProvider(DataProvider):
                 ],
             }
         else:
-            data = self._build_ttm_data(income, bal, prof, cashflow, quote_shares)
+            data = self._build_ttm_data(
+                income, bal, prof, cashflow, quote_shares, ratios_ttm, key_metrics_ttm
+            )
 
         return DataResult(
             data=data,
@@ -671,6 +714,8 @@ class FMPProvider(DataProvider):
         prof: dict[str, Any],
         cashflow_rows: list[dict[str, Any]] | None = None,
         quote_shares: int | None = None,
+        ratios_ttm: dict[str, Any] | None = None,
+        key_metrics_ttm: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Build a current snapshot from the latest four quarterly rows."""
         if not income_rows:
@@ -782,6 +827,15 @@ class FMPProvider(DataProvider):
             # Book value per common share (cyclical comps_pb anchor). None ≠ 0:
             # withheld when equity or shares is missing; raw reporting-ccy.
             "book_value_per_share": _book_value_per_share(bal, shares),
+            # Dividend / payout / ROE for the DDM seed (current TTM snapshot, from
+            # /ratios-ttm + /key-metrics-ttm). None when that best-effort pull
+            # missed → seed_ddm_inputs degrades (payout fallback) or abstains.
+            # dividend_per_share is raw reporting-ccy (FX-normalized downstream
+            # alongside book_value_per_share); never mixed with yfinance's caliber.
+            "dividend_per_share": (ratios_ttm or {}).get("dividendPerShareTTM"),
+            "dividend_yield": (ratios_ttm or {}).get("dividendYieldTTM"),
+            "payout_ratio": (ratios_ttm or {}).get("dividendPayoutRatioTTM"),
+            "return_on_equity": (key_metrics_ttm or {}).get("returnOnEquityTTM"),
             "pe_ratio": pe_ratio,
             "beta": prof.get("beta"),
             "current_price": price,

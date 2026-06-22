@@ -59,6 +59,31 @@ def _fmp_quarterly_cashflow_response(ticker: str = "AAPL", da: int = 3_000_000_0
     ]
 
 
+def _fmp_ratios_ttm_response(ticker: str = "AAPL") -> list[dict]:
+    """Mock FMP /ratios-ttm — dividend/payout/yield for the DDM seed. Field names
+    are the live stable shape (verified against KO 2026-06-22): dividendPerShareTTM,
+    dividendPayoutRatioTTM, dividendYieldTTM."""
+    return [
+        {
+            "symbol": ticker,
+            "dividendPerShareTTM": 1.00,
+            "dividendPayoutRatioTTM": 0.15,
+            "dividendYieldTTM": 0.0057,
+        }
+    ]
+
+
+def _fmp_key_metrics_ttm_response(ticker: str = "AAPL") -> list[dict]:
+    """Mock FMP /key-metrics-ttm — return_on_equity for the DDM seed. Live stable
+    field name (verified against KO 2026-06-22): returnOnEquityTTM."""
+    return [
+        {
+            "symbol": ticker,
+            "returnOnEquityTTM": 1.50,
+        }
+    ]
+
+
 def _fmp_balance_response(ticker: str = "AAPL") -> list[dict]:
     return [
         {
@@ -201,6 +226,8 @@ class TestFMPFetch:
             _mock_response(_fmp_quarterly_income_response()),
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_ratios_ttm_response()),
+            _mock_response(_fmp_key_metrics_ttm_response()),
             _mock_response(_fmp_profile_response()),
             _mock_response(_fmp_shares_float_response()),
         ]
@@ -233,6 +260,55 @@ class TestFMPFetch:
         assert result.data["financial_currency"] == "USD"
         assert result.data["quote_currency"] == "USD"
         assert result.data["country"] == "US"
+
+    @pytest.mark.asyncio
+    async def test_ttm_carries_dividend_payout_roe_for_ddm_seed(self, provider):
+        """The DDM seed reads dividend_per_share / payout_ratio / return_on_equity
+        off the canonical FINANCIALS. FMP serves them from /ratios-ttm
+        (dividendPerShareTTM, dividendPayoutRatioTTM, dividendYieldTTM) +
+        /key-metrics-ttm (returnOnEquityTTM). Before this they landed None on every
+        FMP-primary ticker, so seed_ddm_inputs raised 'no dividend' for banks and
+        dividend payers (verified KO/JPM 2026-06-22)."""
+        responses = [
+            _mock_response(_fmp_quarterly_income_response()),
+            _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_ratios_ttm_response()),
+            _mock_response(_fmp_key_metrics_ttm_response()),
+            _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_shares_float_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials")
+        assert result.data["dividend_per_share"] == 1.00
+        assert result.data["payout_ratio"] == 0.15
+        assert result.data["dividend_yield"] == 0.0057
+        assert result.data["return_on_equity"] == 1.50
+
+    @pytest.mark.asyncio
+    async def test_ratios_ttm_failure_degrades_without_sinking_fetch(self, provider):
+        """Dividend/payout/ROE are best-effort (like /shares-float): a plan-gated
+        402 on /ratios-ttm must degrade just those fields to None and warn — never
+        sink the whole fetch (the DDM seed then falls back to payout×NI or abstains).
+        /key-metrics-ttm answered independently, so ROE survives."""
+        responses = [
+            _mock_response(_fmp_quarterly_income_response()),
+            _mock_response(_fmp_balance_response()),
+            _mock_response(_fmp_quarterly_cashflow_response()),
+            ProviderError("plan-gated 402 on /ratios-ttm"),  # best-effort miss
+            _mock_response(_fmp_key_metrics_ttm_response()),
+            _mock_response(_fmp_profile_response()),
+            _mock_response(_fmp_shares_float_response()),
+        ]
+        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+            result = await provider.fetch("AAPL", "financials")
+        # Core fundamentals still flow — the fetch did NOT fail.
+        assert result.data["revenue"] == 400_000_000_000
+        # ratios-ttm fields omitted; the independent key-metrics ROE survives.
+        assert result.data["dividend_per_share"] is None
+        assert result.data["payout_ratio"] is None
+        assert result.data["return_on_equity"] == 1.50
+        assert any("ratios-ttm" in w for w in result.warnings)
 
     @pytest.mark.asyncio
     async def test_empty_income_raises_instead_of_all_none_success(self, provider):
@@ -283,6 +359,8 @@ class TestFMPFetch:
             _mock_response(_fmp_quarterly_income_response()),
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_ratios_ttm_response()),
+            _mock_response(_fmp_key_metrics_ttm_response()),
             _mock_response(_fmp_profile_response()),
             shares_error,
         ]
@@ -311,6 +389,8 @@ class TestFMPFetch:
             _mock_response(_fmp_quarterly_income_response()),
             _mock_response(balance_without_debt),
             _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_ratios_ttm_response()),
+            _mock_response(_fmp_key_metrics_ttm_response()),
             _mock_response(_fmp_profile_response()),
             _mock_response(_fmp_shares_float_response()),
         ]
@@ -345,6 +425,8 @@ class TestFMPFetch:
             _mock_response(_fmp_quarterly_income_response()),
             _mock_response(balance_with_preferred),
             _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_ratios_ttm_response()),
+            _mock_response(_fmp_key_metrics_ttm_response()),
             _mock_response(_fmp_profile_response()),
             _mock_response(_fmp_shares_float_response(outstanding_shares=10_000_000_000)),
         ]
@@ -391,6 +473,8 @@ class TestFMPFetch:
             _mock_response(quarter_stub),
             _mock_response(annual_with_debt),
             _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_ratios_ttm_response()),
+            _mock_response(_fmp_key_metrics_ttm_response()),
             _mock_response(_fmp_profile_response()),
             _mock_response(_fmp_shares_float_response()),
         ]
@@ -419,6 +503,8 @@ class TestFMPFetch:
             _mock_response(_fmp_quarterly_income_response()),
             _mock_response(balance),
             _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_ratios_ttm_response()),
+            _mock_response(_fmp_key_metrics_ttm_response()),
             _mock_response(_fmp_profile_response()),
             _mock_response(_fmp_shares_float_response()),
         ]
@@ -430,12 +516,15 @@ class TestFMPFetch:
     @pytest.mark.asyncio
     async def test_full_quarter_with_debt_does_not_fetch_annual(self, provider):
         """A normal quarter (debt present) must NOT trigger the annual backfill —
-        only 5 provider calls, no extra balance fetch."""
+        7 provider calls (income, balance, cash-flow, ratios-ttm, key-metrics-ttm,
+        profile, shares-float), no extra balance fetch."""
         get_mock = AsyncMock(
             side_effect=[
                 _mock_response(_fmp_quarterly_income_response()),
                 _mock_response(_fmp_balance_response()),  # totalDebt populated
                 _mock_response(_fmp_quarterly_cashflow_response()),
+                _mock_response(_fmp_ratios_ttm_response()),
+                _mock_response(_fmp_key_metrics_ttm_response()),
                 _mock_response(_fmp_profile_response()),
                 _mock_response(_fmp_shares_float_response()),
             ]
@@ -443,7 +532,7 @@ class TestFMPFetch:
         with patch.object(provider, "_get", get_mock):
             result = await provider.fetch("AAPL", "financials")
         assert result.data["total_debt"] == 111_088_000_000
-        assert get_mock.await_count == 5  # no annual backfill call
+        assert get_mock.await_count == 7  # no annual backfill call (3 statements + ratios + km + profile + shares)
 
     def test_resolve_total_debt_sums_components_when_total_missing(self) -> None:
         """_resolve_total_debt defends the None≠0 contract: present total wins,
@@ -467,6 +556,8 @@ class TestFMPFetch:
             _mock_response(_fmp_quarterly_income_response()),
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_ratios_ttm_response()),
+            _mock_response(_fmp_key_metrics_ttm_response()),
             _mock_response(_fmp_profile_response()),
             _mock_response(_fmp_shares_float_response(outstanding_shares=15_500_000_000)),
         ]
@@ -486,6 +577,8 @@ class TestFMPFetch:
             _mock_response(_fmp_quarterly_income_response()),
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_ratios_ttm_response()),
+            _mock_response(_fmp_key_metrics_ttm_response()),
             _mock_response(_fmp_profile_response()),
             _mock_response(float_without_shares),
         ]
@@ -506,6 +599,8 @@ class TestFMPFetch:
             _mock_response(_fmp_quarterly_income_response("TSM", reported_currency="TWD")),
             _mock_response(_fmp_balance_response("TSM")),
             _mock_response(_fmp_quarterly_cashflow_response("TSM")),
+            _mock_response(_fmp_ratios_ttm_response("TSM")),
+            _mock_response(_fmp_key_metrics_ttm_response("TSM")),
             _mock_response(_fmp_profile_response("TSM", currency="USD", country="TW")),
             _mock_response(_fmp_shares_float_response("TSM")),
         ]
@@ -804,6 +899,8 @@ class TestFMPFetchHistorical:
             _mock_response(_fmp_quarterly_income_response()),
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_ratios_ttm_response()),
+            _mock_response(_fmp_key_metrics_ttm_response()),
             _mock_response(_fmp_profile_response()),
             _mock_response(_fmp_shares_float_response()),
         ]
@@ -827,6 +924,8 @@ class TestFMPFetchHistorical:
             _mock_response(income),
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response(da=3_000_000_000)),
+            _mock_response(_fmp_ratios_ttm_response()),
+            _mock_response(_fmp_key_metrics_ttm_response()),
             _mock_response(_fmp_profile_response()),
             _mock_response(_fmp_shares_float_response()),
         ]
@@ -846,6 +945,8 @@ class TestFMPFetchHistorical:
             _mock_response(_fmp_quarterly_income_response()),
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_ratios_ttm_response()),
+            _mock_response(_fmp_key_metrics_ttm_response()),
             _mock_response(_fmp_profile_response()),
             _mock_response(_fmp_shares_float_response()),
         ]
@@ -903,6 +1004,8 @@ class TestFMPFetchHistorical:
             _mock_response(income),
             _mock_response(_fmp_balance_response("TSLA")),
             _mock_response(cashflow),
+            _mock_response(_fmp_ratios_ttm_response("TSLA")),
+            _mock_response(_fmp_key_metrics_ttm_response("TSLA")),
             _mock_response(_fmp_profile_response("TSLA")),
             _mock_response(_fmp_shares_float_response("TSLA")),
         ]
@@ -1988,6 +2091,8 @@ class TestFMPBankCaliber:
             _mock_response(income),
             _mock_response(_fmp_balance_response("JPM")),
             _mock_response(_fmp_quarterly_cashflow_response("JPM")),
+            _mock_response(_fmp_ratios_ttm_response("JPM")),
+            _mock_response(_fmp_key_metrics_ttm_response("JPM")),
             _mock_response(_fmp_bank_profile_response()),
             _mock_response(_fmp_quote_response("JPM")),
         ]
@@ -2009,6 +2114,8 @@ class TestFMPBankCaliber:
             _mock_response(_fmp_jpm_quarterly_income()),
             _mock_response(_fmp_balance_response("JPM")),
             _mock_response(_fmp_quarterly_cashflow_response("JPM")),
+            _mock_response(_fmp_ratios_ttm_response("JPM")),
+            _mock_response(_fmp_key_metrics_ttm_response("JPM")),
             _mock_response(_fmp_bank_profile_response()),
             _mock_response(_fmp_quote_response("JPM")),
         ]
@@ -2023,6 +2130,8 @@ class TestFMPBankCaliber:
             _mock_response(_fmp_jpm_quarterly_income()),
             _mock_response(_fmp_balance_response("JPM")),
             _mock_response(_fmp_quarterly_cashflow_response("JPM")),
+            _mock_response(_fmp_ratios_ttm_response("JPM")),
+            _mock_response(_fmp_key_metrics_ttm_response("JPM")),
             _mock_response(_fmp_bank_profile_response()),
             _mock_response(_fmp_quote_response("JPM")),
         ]
@@ -2088,6 +2197,8 @@ class TestFMPBankCaliber:
             _mock_response(_fmp_quarterly_income_response()),
             _mock_response(_fmp_balance_response()),
             _mock_response(_fmp_quarterly_cashflow_response()),
+            _mock_response(_fmp_ratios_ttm_response()),
+            _mock_response(_fmp_key_metrics_ttm_response()),
             _mock_response(_fmp_profile_response()),
             _mock_response(_fmp_shares_float_response()),
         ]
@@ -2117,6 +2228,8 @@ class TestFMPBankCaliber:
             _mock_response(income),
             _mock_response(_fmp_balance_response("JPM")),
             _mock_response(_fmp_quarterly_cashflow_response("JPM")),
+            _mock_response(_fmp_ratios_ttm_response("JPM")),
+            _mock_response(_fmp_key_metrics_ttm_response("JPM")),
             _mock_response(_fmp_bank_profile_response()),
             _mock_response(_fmp_quote_response("JPM")),
         ]
@@ -2149,6 +2262,8 @@ class TestFMPBankCaliber:
             _mock_response(income),
             _mock_response(_fmp_balance_response("JPM")),
             _mock_response(_fmp_quarterly_cashflow_response("JPM")),
+            _mock_response(_fmp_ratios_ttm_response("JPM")),
+            _mock_response(_fmp_key_metrics_ttm_response("JPM")),
             _mock_response(_fmp_bank_profile_response()),
             _mock_response(_fmp_quote_response("JPM")),
         ]

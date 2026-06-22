@@ -373,9 +373,11 @@ class TestRawSlotVersion:
 
         assert raw_slot_key(DataType.PROXY_STATEMENT) == "proxy_statement:v2"
         assert raw_slot_key(DataType.PEER_CANDIDATES) == "peer_candidates:v2"
-        # FINANCIALS bumped to v2 (2026-06-14): FMP now emits book_value_per_share,
-        # so pre-bump rows (without it) must miss and refetch.
-        assert raw_slot_key(DataType.FINANCIALS) == "financials:v2"
+        # FINANCIALS bumped to v3 (2026-06-22): FMP now emits dividend_per_share /
+        # payout_ratio / return_on_equity (DDM seed inputs); pre-bump rows lack them,
+        # so an FMP-primary dividend payer could never seed a dividend. (v2,
+        # 2026-06-14, added book_value_per_share.) Pre-bump rows must miss + refetch.
+        assert raw_slot_key(DataType.FINANCIALS) == "financials:v3"
         # INSIDER_TRADES has no shape change → bare slot (the "others bare" case).
         assert raw_slot_key(DataType.INSIDER_TRADES) == "insider_trades"
 

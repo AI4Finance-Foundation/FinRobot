@@ -68,7 +68,16 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 # snapshot would keep comps_pb dead until expiry. Pairs with the FINANCIALS
 # raw-slot bump (cache._RAW_SLOT_VERSION) so the rebuild refetches a payload that
 # actually carries the field rather than re-normalizing a stale raw row.
-CANONICAL_CONTRACT_VERSION = 7
+# v8 — 2026-06-22: the FMP FINANCIALS payload now emits dividend_per_share /
+# payout_ratio / dividend_yield (/ratios-ttm) and return_on_equity
+# (/key-metrics-ttm). These were None on the FMP path — only yfinance filled them,
+# but the canonical is single-winning-provider (v6 caliber-isolation decision), so
+# any FMP-primary ticker landed dividend/payout/ROE=None → seed_ddm_inputs raised
+# "no dividend" for banks and dividend payers (verified KO/JPM 2026-06-22). Old v7
+# canonical snapshots carry these as None; the canonical slot is read before the
+# raw slot and has a 24h TTL, so without this bump a fresh-but-pre-fix snapshot
+# would keep DDM dead until expiry. Pairs with the FINANCIALS raw-slot bump.
+CANONICAL_CONTRACT_VERSION = 8
 
 # Degradation markers carried in ``Provenance.degraded``. Surfaced to the UI so
 # a fallback is visible rather than silent.

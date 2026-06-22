@@ -100,13 +100,18 @@ def canonical_key(data_type: str | DataType, provider: str | None = None) -> str
 #   revive from a cached row — old rows must miss + refetch. Pairs with the
 #   CANONICAL_CONTRACT_VERSION v7 bump, which invalidates the normalized slot that
 #   is read ahead of this raw slot.
+#   financials v3 — 2026-06-22: the FMP financials payload now carries
+#   dividend_per_share / payout_ratio / dividend_yield (/ratios-ttm) and
+#   return_on_equity (/key-metrics-ttm). Legacy rows omit them, so the DDM seed
+#   can never recover a dividend on an FMP-primary ticker (raises "no dividend").
+#   Pairs with the CANONICAL_CONTRACT_VERSION v8 bump.
 _RAW_SLOT_VERSION: dict[str, int] = {
     DataType.PRICE.value: 2,
     DataType.PROXY_STATEMENT.value: 2,
     DataType.PEER_CANDIDATES.value: 2,
     DataType.SENTIMENT.value: 2,
     DataType.FORWARD_ESTIMATES.value: 2,
-    DataType.FINANCIALS.value: 2,
+    DataType.FINANCIALS.value: 3,
 }
 
 

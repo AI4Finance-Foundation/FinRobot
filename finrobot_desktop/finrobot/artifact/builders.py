@@ -720,6 +720,23 @@ def build_equity_research_artifact(
         rich_withhold=_withhold_equity_research,
     )
 
+    # Top-level ``valuation_withheld`` is the single "point target withheld" signal,
+    # and it must be cause-INDEPENDENT. _attach_numeric_audit sets it for the
+    # data-corruption path (JPM: blocked EV field), but the synthesis dial withholds
+    # the point on its OWN terms too — single-method out-of-calibration / method
+    # divergence (RIVN) — which nulls thesis.price_target via resolve_canonical_thesis
+    # yet left the top-level flag at None. Same withheld state, two values depending
+    # on cause. Mirror the synthesis flag so every withhold path agrees (the contract
+    # judge _is_withheld and _summary_text both read this).
+    vs_struct = structured_out.get("valuation_synthesis")
+    if (
+        isinstance(vs_struct, dict)
+        and vs_struct.get("valuation_withheld") is True
+        and structured_out.get("valuation_withheld") is not True
+    ):
+        structured_out["valuation_withheld"] = True
+        structured_out.setdefault("withheld_reason", "valuation_synthesis_dial")
+
     # data_collection is ALSO an LLM free-text narrative (the data agent's
     # prose summary) and format_summary() puts it FIRST — the artifact's
     # summary_text opened with the one narrative the drift scan skipped.

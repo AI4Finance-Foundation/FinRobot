@@ -143,6 +143,32 @@ def test_bank_ev_blocks_field_and_withholds_valuation():
     assert "Valuation withheld" in art.outputs.summary_text
 
 
+def test_synthesis_dial_withhold_sets_top_level_flag_like_numeric_audit():
+    """The synthesis dial withholds the POINT on its own terms (single-method
+    out-of-calibration / method divergence — RIVN's path), independent of the
+    numeric-audit gate. That withheld state must set the SAME top-level
+    valuation_withheld=True as the numeric-audit path (JPM): the flag is the
+    cause-independent 'point withheld' signal _is_withheld / _summary_text read.
+    Before the fix it stayed None on the dial path while True on the audit path —
+    identical withheld states reading differently downstream."""
+    from finrobot.engine.compute.operators.valuation_synthesis import synthesize_valuations
+    from finrobot.engine.models.financial import ValuationMethod
+
+    # lone comps_pb 0.28x of market → outside the [0.5x, 2x] single-method band →
+    # the dial withholds the point (the verdict still ships directionally).
+    vs = synthesize_valuations(
+        [ValuationMethod(name="comps_pb", low=3.92, mid=4.61, high=5.30, confidence=0.6, source="PB")],
+        current_price=16.52,
+    )
+    assert vs.valuation_withheld is True  # precondition: the dial withheld
+    # clean financials → numeric audit does NOT block (isolates the dial path)
+    result = _result(_fd(ticker="RIVN", industry="Software"), price_target=None)
+    result.structured_data["valuation_synthesis"] = vs
+    art = _build(result, "RIVN")
+    assert art.outputs.structured["numeric_audit"]["withhold_valuation"] is False
+    assert art.outputs.structured["valuation_withheld"] is True
+
+
 def test_loss_maker_caveated_keeps_target():
     # review (not blocked) → caveated banner but the DCF target survives.
     art = _build(_result(_fd(industry="Software", net_income=-1e9)))

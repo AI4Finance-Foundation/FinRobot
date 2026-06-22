@@ -134,15 +134,41 @@ def _confidence_dial(
         note = None
     else:
         anchor = _select_anchor(methods, cyclical)
+        # Lone-outlier re-anchor (non-cyclical, ≥3 methods): _select_anchor anchors a
+        # peer-rich name to comps, but when that comps anchor is a cross-method EXTREME
+        # and the OTHER methods corroborate (≤ _DIAL_CORROBORATE_SPAN) WITHOUT it, ≥2
+        # independent methods agree AWAY from comps → comps is the suspect one and must
+        # not stamp the headline. KO 2026-06-22: comps_pe $53 (peer-median P/E ignores
+        # KO's quality premium — verified vs external analyst target $85 / KO fwd P/E
+        # 24.7 / our DCF $76) while DCF $76 + EV/EBITDA $90 agree and match truth. Re-
+        # anchor to the corroborated DCF cash-flow value so the headline isn't a −33%
+        # outlier. Cyclicals are EXEMPT — their DCF/PB anchor is intentional even as an
+        # outlier (peak-EPS comps are the unreliable side there).
+        reanchored_from: ValuationMethod | None = None
+        if not cyclical and anchor is not None and anchor.name.startswith("comps") and len(methods) >= 3:
+            dcf = next((m for m in methods if m.name == "dcf"), None)
+            rest = [m.mid for m in methods if m is not anchor]
+            rest_span = (max(rest) / min(rest)) if rest and min(rest) > 0 else float("inf")
+            if dcf is not None and anchor.mid in (lo, hi) and rest_span <= _DIAL_CORROBORATE_SPAN:
+                reanchored_from = anchor
+                anchor = dcf
         anchor_name = anchor.name if anchor else None
         point = anchor.mid if anchor else statistics.median(mids)
         tier = "medium" if span <= _DIAL_MILD_SPAN else "low"
-        note = (
-            f"method divergence {span:.2g}x — anchored to {anchor_name} ${point:.0f} "
-            f"(comparability: {'cyclical cash flow / book value' if cyclical else 'peer multiples'}); the remaining methods set the range bounds."
-            if anchor_name
-            else f"method divergence {span:.2g}x; taking the median."
-        )
+        if reanchored_from is not None:
+            note = (
+                f"method divergence {span:.2g}x — {reanchored_from.name} ${reanchored_from.mid:.0f} is a "
+                f"lone outlier (the other methods corroborate ≤{_DIAL_CORROBORATE_SPAN:g}x without it), so the "
+                f"target anchors to the corroborated DCF cash-flow value ${point:.0f}; the full method range "
+                "still bounds the band."
+            )
+        elif anchor_name:
+            note = (
+                f"method divergence {span:.2g}x — anchored to {anchor_name} ${point:.0f} "
+                f"(comparability: {'cyclical cash flow / book value' if cyclical else 'peer multiples'}); the remaining methods set the range bounds."
+            )
+        else:
+            note = f"method divergence {span:.2g}x; taking the median."
         if span > METHOD_CORROBORATION_SPAN_K:
             point_withheld = True
             note += (

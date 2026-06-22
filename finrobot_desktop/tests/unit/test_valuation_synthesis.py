@@ -190,12 +190,15 @@ class TestSynthesizeValuations:
         assert canonical.target is None  # the published POINT is withheld
         assert canonical.verdict in ("BUY", "HOLD", "SELL")
 
-    def test_upside_downside_matches_anchor_not_blend_ko_2026_06_22(self):
-        """upside_downside must track the PUBLISHED anchor, not the raw blend. KO
-        2026-06-22: dcf $76.32 / comps_pe $53.51 / ev_ebitda $89.67 span 1.68x →
-        anchors comps_pe ($53.51 is the published target), NOT the $72.68 blend. The
-        stored gap must be the −32.6% anchor gap, never the blend's −8.5% (which
-        would contradict the report's own headline target)."""
+    def test_lone_comps_outlier_reanchors_to_dcf_ko_2026_06_22(self):
+        """When the comps anchor is a LONE cross-method outlier — the other methods
+        corroborate without it — the dial re-anchors to the corroborated DCF, never the
+        outlier, so the headline isn't a biased −33%. KO 2026-06-22: comps_pe $53.51
+        (peer-median P/E ignores KO's quality premium — verified low vs external analyst
+        target $85 / KO fwd P/E 24.7 / our DCF $76) is the lone low end; DCF $76.32 +
+        EV/EBITDA $89.67 corroborate (1.17x), so the target anchors DCF $76.32 (−3.9%),
+        not comps_pe $53.51 (−32.6%). upside_downside tracks the published DCF anchor,
+        never the blend ($72.68 / −8.5%) or the outlier; the full range still bounds the band."""
         methods = [
             ValuationMethod(name="dcf", low=61.1, mid=76.32, high=91.6, confidence=0.85, source="D"),
             ValuationMethod(
@@ -206,11 +209,41 @@ class TestSynthesizeValuations:
             ),
         ]
         result = synthesize_valuations(methods, current_price=79.39)
+        assert result.anchor_method == "dcf"  # re-anchored away from the lone comps_pe outlier
+        # the FULL method range still bounds the band (the outlier stays visible)
+        assert result.target_low == pytest.approx(53.51, abs=0.01)
+        assert result.target_high == pytest.approx(89.67, abs=0.01)
+        # upside tracks the DCF anchor (−3.9%), NOT the comps_pe outlier (−32.6%) or blend (−8.5%)
+        assert result.upside_downside == pytest.approx((76.32 - 79.39) / 79.39, abs=1e-6)
+        canonical = resolve_canonical_thesis(result, "KO")
+        assert canonical.target == pytest.approx(76.32, abs=0.01)
+        assert canonical.verdict == "HOLD"
+
+    def test_comps_anchor_kept_when_not_lone_outlier(self):
+        """The re-anchor fires ONLY when comps is the LONE extreme. When comps sits with
+        the pack (not the min/max), it stays the comparability anchor — the peer-rich
+        convention is unchanged for the normal divergent case (here DCF is the low
+        outlier, comps_pe is mid → comps_pe kept)."""
+        methods = [
+            ValuationMethod(name="dcf", low=40, mid=50.0, high=60, confidence=0.85, source="D"),
+            ValuationMethod(name="comps_pe", low=70, mid=80.0, high=90, confidence=0.80, source="PE"),
+            ValuationMethod(name="ev_ebitda", low=75, mid=85.0, high=95, confidence=0.72, source="EV"),
+        ]
+        result = synthesize_valuations(methods, current_price=80.0)
         assert result.anchor_method == "comps_pe"
-        assert result.weighted_price == pytest.approx(72.68, abs=0.2)  # the blend (audit trail)
-        # the stored upside is the anchor gap, NOT the blend gap
-        assert result.upside_downside == pytest.approx((53.51 - 79.39) / 79.39, abs=1e-6)
-        assert result.upside_downside != pytest.approx((72.68 - 79.39) / 79.39, abs=0.01)
+
+    def test_cyclical_keeps_dcf_anchor_even_if_comps_corroborate(self):
+        """Cyclicals are EXEMPT from the lone-outlier re-anchor: the DCF/PB anchor is
+        intentional even as an outlier (peak-EPS comps are the unreliable side). A
+        cyclical whose comps corroborate away from DCF must still anchor by its cyclical
+        rule, not flip to comps."""
+        methods = [
+            ValuationMethod(name="dcf", low=15, mid=18.9, high=23, confidence=0.85, source="D"),
+            ValuationMethod(name="comps_pb", low=40, mid=47.0, high=54, confidence=0.6, source="PB"),
+            ValuationMethod(name="ev_ebitda", low=41, mid=48.0, high=55, confidence=0.72, source="EV"),
+        ]
+        result = synthesize_valuations(methods, current_price=50.0, cyclical=True)
+        assert result.anchor_method == "dcf"  # cyclical → DCF anchor regardless of comps corroboration
 
     def test_upside_downside_equals_canonical_upside_every_regime(self):
         """Mechanical gate: the stored upside_downside is the EXACT number

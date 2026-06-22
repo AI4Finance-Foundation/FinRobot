@@ -82,7 +82,11 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
               currentPrice={price?.current_price}
               sessionState={price?.session_state}
             />
-            <TechnicalsStrip tech={price?.technicals} />
+            <TechnicalsStrip
+              tech={price?.technicals}
+              canon52wLow={fin?.market?.price_52w_low}
+              canon52wHigh={fin?.market?.price_52w_high}
+            />
             <WarningLines warnings={price?.warnings} />
           </>
         )}
@@ -1229,7 +1233,21 @@ const TREND_META: Record<string, { labelKey: string; color: string }> = {
   sideways: { labelKey: 'workspace.market.trend.sideways', color: 'var(--text-muted)' },
 }
 
-export function TechnicalsStrip({ tech }: { tech?: Technicals }): React.ReactElement | null {
+export function TechnicalsStrip({
+  tech,
+  canon52wLow,
+  canon52wHigh,
+}: {
+  tech?: Technicals
+  /** Canonical 52w low/high from the financials snapshot (`fin.market.price_52w_*`)
+   *  — the SAME value the snapshot tile shows. The strip's range bar defers to it so
+   *  the workspace's two 52w surfaces never disagree: the /price technicals compute
+   *  their own 52w from a different price-bar window + count-cap, which can diverge
+   *  ~1% from the /financials NormalizedPrice (JPM: 264.57 strip vs 262.69 tile).
+   *  Falls back to the technicals' own value when financials haven't loaded. */
+  canon52wLow?: number | null
+  canon52wHigh?: number | null
+}): React.ReactElement | null {
   const { t } = useI18n()
   if (!tech) return null
   if (!tech.available) {
@@ -1249,10 +1267,21 @@ export function TechnicalsStrip({ tech }: { tech?: Technicals }): React.ReactEle
     )
   }
   const meta = TREND_META[tech.trend ?? 'sideways'] ?? TREND_META.sideways
-  // Clamp the marker into [0,1] so a current price poking past the rolling
-  // window's extreme can't push the dot outside the track.
+  // 52w band defers to the canonical financials value (snapshot-tile source) so the
+  // two surfaces agree; fall back to the technicals' own window when absent.
+  const low52w = typeof canon52wLow === 'number' ? canon52wLow : tech.low_52w
+  const high52w = typeof canon52wHigh === 'number' ? canon52wHigh : tech.high_52w
+  // Re-price the marker against whichever band is printed so it can never contradict
+  // the shown low/high; clamp into [0,1] so a price past the band edge stays on rail.
   const pos =
-    typeof tech.range_position === 'number' ? Math.max(0, Math.min(1, tech.range_position)) : null
+    typeof low52w === 'number' &&
+    typeof high52w === 'number' &&
+    high52w > low52w &&
+    typeof tech.current_price === 'number'
+      ? Math.max(0, Math.min(1, (tech.current_price - low52w) / (high52w - low52w)))
+      : typeof tech.range_position === 'number'
+        ? Math.max(0, Math.min(1, tech.range_position))
+        : null
 
   return (
     <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1322,11 +1351,11 @@ export function TechnicalsStrip({ tech }: { tech?: Technicals }): React.ReactEle
               color: 'var(--text-muted)',
             }}
           >
-            <span>{t('workspace.market.low52w', { v: fmtPrice(tech.low_52w) })}</span>
+            <span>{t('workspace.market.low52w', { v: fmtPrice(low52w) })}</span>
             <span style={{ color: 'var(--accent-cyan)' }}>
               {t('workspace.market.range', { pct: (pos * 100).toFixed(0) })}
             </span>
-            <span>{t('workspace.market.high52w', { v: fmtPrice(tech.high_52w) })}</span>
+            <span>{t('workspace.market.high52w', { v: fmtPrice(high52w) })}</span>
           </div>
         </div>
       )}

@@ -167,7 +167,7 @@ function buildIncomeCells(
     sub: tr('底线 · GAAP', 'BOTTOM LINE · GAAP', locale),
   })
   push('gross_margin', tr('毛利率', 'Gross Margin', locale), 'percent', { bar: true })
-  push('operating_margin', tr('经营利润率', 'Op Margin', locale), 'percent', { bar: true })
+  push('operating_margin', tr('营业利润率', 'Operating Margin', locale), 'percent', { bar: true })
   push('depreciation_amortization', tr('折旧摊销', 'D&A', locale), 'currency', {
     sub: tr('非现金支出', 'NON-CASH CHARGE', locale),
   })

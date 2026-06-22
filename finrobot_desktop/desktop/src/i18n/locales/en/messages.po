@@ -1098,7 +1098,7 @@ msgstr "v{version} of {total}"
 
 #. js-lingui-explicit-id
 msgid "chapter.companyOverview.empty"
-msgstr "This report has no company-overview field. Re-run a full report to see investment-bank-style coverage of the business, segments, geographies, and moat here."
+msgstr "This report has no company-overview narrative. Re-run a full report to add an investment-bank-style write-up of the company's business and positioning here."
 
 #. js-lingui-explicit-id
 msgid "chapter.catalysts.positiveHeading"

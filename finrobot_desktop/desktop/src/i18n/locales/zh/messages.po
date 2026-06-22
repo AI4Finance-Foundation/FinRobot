@@ -1098,7 +1098,7 @@ msgstr "第 v{version} 版 · 共 {total} 份"
 
 #. js-lingui-explicit-id
 msgid "chapter.companyOverview.empty"
-msgstr "该研报未包含公司概览字段，请重新生成完整研报即可在本章看到投行口吻的业务、分部、地区与护城河描述。"
+msgstr "该研报未包含公司概览叙述，请重新生成完整研报即可在本章看到投行口吻的公司业务与定位描述。"
 
 #. js-lingui-explicit-id
 msgid "chapter.catalysts.positiveHeading"

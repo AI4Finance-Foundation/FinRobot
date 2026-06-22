@@ -194,7 +194,7 @@ describe('ChapterCompanyOverview — sourced snapshot strip', () => {
     expect(screen.getByText('Sector')).toBeInTheDocument()
     expect(screen.getByText('$4.35T')).toBeInTheDocument()
     // Empty-state fallback is unchanged (the prose really is missing).
-    expect(screen.getByText(/This report has no company-overview field/)).toBeInTheDocument()
+    expect(screen.getByText(/This report has no company-overview narrative/)).toBeInTheDocument()
   })
 
   it('renders the empty-state when there is no narrative AND no rawData', () => {
@@ -208,6 +208,6 @@ describe('ChapterCompanyOverview — sourced snapshot strip', () => {
         fetchedAt={null}
       />,
     )
-    expect(screen.getByText(/This report has no company-overview field/)).toBeInTheDocument()
+    expect(screen.getByText(/This report has no company-overview narrative/)).toBeInTheDocument()
   })
 })

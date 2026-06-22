@@ -1149,14 +1149,6 @@ msgid "chapter.thesis.empty"
 msgstr "该研报缺少投资论点字段，请重新生成完整研报。"
 
 #. js-lingui-explicit-id
-msgid "chapter.thesis.target"
-msgstr "目标 ${value}"
-
-#. js-lingui-explicit-id
-msgid "chapter.thesis.targetWithheld"
-msgstr "点位目标价已隐藏 · 方向判断仍然成立"
-
-#. js-lingui-explicit-id
 msgid "chapter.thesis.keyTakeaways"
 msgstr "核心要点"
 

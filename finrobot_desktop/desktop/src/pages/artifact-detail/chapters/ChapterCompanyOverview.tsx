@@ -18,7 +18,8 @@
 
 import type { NumberSource } from '../../../components/SourcedNumber'
 import type { HistoricalMetrics } from '../../../types/finance'
-import { Chapter, KvGrid, Narrative, type KvCell } from './ChapterBase'
+import { Chapter, Narrative } from './ChapterBase'
+import { CompanySnapshot, type SnapshotIdentity, type SnapshotMetric } from './CompanySnapshot'
 import type { ThesisShape } from './types'
 import { formatCurrencyCompact, formatNumber, formatPercent } from '../../../utils/format'
 import { useI18n, type Locale } from '../../../i18n'
@@ -35,6 +36,7 @@ interface MarketShape {
 
 interface IncomeShape {
   gross_margin?: number | null
+  operating_margin?: number | null
 }
 
 interface ProvenanceShape {
@@ -45,62 +47,85 @@ function tr(zh: string, en: string, locale: Locale): string {
   return locale === 'en' ? en : zh
 }
 
-/** Build the identity+scale snapshot cells. Identity strings render plain;
- *  numeric cells carry the provider/fetched_at provenance (SourcedNumber).
- *  A cell is pushed ONLY when its value is present — never a blank/NaN cell. */
-function buildSnapshotCells(
+/** Build the identity + scale snapshot. Identity strings render plain (no
+ *  provenance); numeric metrics carry the provider/fetched_at provenance via
+ *  SourcedNumber and a raw value for the gauge encoding. A field is included
+ *  ONLY when present — an absent field produces no chip/tile (never blank/NaN).
+ *  Metric order = market cap → gross margin → operating margin → CAGR → beta
+ *  (telemetry layout; the two margins sit adjacent as the profitability pair). */
+function buildSnapshot(
   market: MarketShape,
   income: IncomeShape | undefined,
   historicalMetrics: HistoricalMetrics | null,
   quoteCurrency: string,
   locale: Locale,
   source?: NumberSource,
-): KvCell[] {
-  const cells: KvCell[] = []
-
+): { identity: SnapshotIdentity; metrics: SnapshotMetric[] } {
   // ── Identity (plain strings, no provenance popover) ───────────────────────
-  if (typeof market.sector === 'string' && market.sector) {
-    cells.push({ label: tr('板块', 'Sector', locale), value: market.sector })
-  }
-  if (typeof market.industry === 'string' && market.industry) {
-    cells.push({ label: tr('行业', 'Industry', locale), value: market.industry })
-  }
-  if (typeof market.country === 'string' && market.country) {
-    cells.push({ label: tr('国家/地区', 'Country', locale), value: market.country })
-  }
+  const identity: SnapshotIdentity = {}
+  if (typeof market.sector === 'string' && market.sector) identity.sector = market.sector
+  if (typeof market.industry === 'string' && market.industry) identity.industry = market.industry
+  if (typeof market.country === 'string' && market.country) identity.country = market.country
 
-  // ── Scale (numeric, sourced) ──────────────────────────────────────────────
+  // ── Scale (numeric, sourced; raw drives the gauge) ────────────────────────
+  const metrics: SnapshotMetric[] = []
   if (typeof market.market_cap === 'number' && Number.isFinite(market.market_cap)) {
-    cells.push({
+    metrics.push({
+      kind: 'market_cap',
       label: tr('市值', 'Market Cap', locale),
       // Market cap is a quote-currency figure (mirrors ChapterFinancialData).
       value: formatCurrencyCompact(market.market_cap, quoteCurrency, locale),
-      source,
-    })
-  }
-  const cagr = historicalMetrics?.cagr_revenue
-  if (typeof cagr === 'number' && Number.isFinite(cagr)) {
-    cells.push({
-      // cagr_revenue is a RATIO (0.0328 = 3.3%).
-      label: tr('营收复合增速', 'Revenue CAGR', locale),
-      value: formatPercent(cagr, locale),
+      raw: market.market_cap,
       source,
     })
   }
   const grossMargin = income?.gross_margin
   if (typeof grossMargin === 'number' && Number.isFinite(grossMargin)) {
-    cells.push({
-      // gross_margin is a RATIO (0.479 = 47.9%).
+    metrics.push({
+      kind: 'gross_margin',
+      // gross_margin is a RATIO (0.479 = 47.9%) → the arc fills 47.9% of sweep.
       label: tr('毛利率', 'Gross Margin', locale),
       value: formatPercent(grossMargin, locale),
+      raw: grossMargin,
+      source,
+    })
+  }
+  // Operating margin (EBIT/revenue) — the profitability companion to gross margin.
+  // Can be negative for loss-makers (backend IncomeStatement.operating_margin
+  // allows ge=-5); RadialArc clamps a negative raw to an empty sweep. Sits
+  // adjacent to gross margin so the two read as the profitability pair.
+  const operatingMargin = income?.operating_margin
+  if (typeof operatingMargin === 'number' && Number.isFinite(operatingMargin)) {
+    metrics.push({
+      kind: 'operating_margin',
+      label: tr('营业利润率', 'Operating Margin', locale),
+      value: formatPercent(operatingMargin, locale),
+      raw: operatingMargin,
+      source,
+    })
+  }
+  const cagr = historicalMetrics?.cagr_revenue
+  if (typeof cagr === 'number' && Number.isFinite(cagr)) {
+    metrics.push({
+      kind: 'cagr',
+      // cagr_revenue is a RATIO (0.0328 = 3.3%); sign drives the trend glyph.
+      label: tr('营收复合增速', 'Revenue CAGR', locale),
+      value: formatPercent(cagr, locale),
+      raw: cagr,
       source,
     })
   }
   if (typeof market.beta === 'number' && Number.isFinite(market.beta)) {
-    cells.push({ label: 'Beta', value: formatNumber(market.beta, locale, 2), source })
+    metrics.push({
+      kind: 'beta',
+      label: 'Beta',
+      value: formatNumber(market.beta, locale, 2),
+      raw: market.beta,
+      source,
+    })
   }
 
-  return cells
+  return { identity, metrics }
 }
 
 export function ChapterCompanyOverview({
@@ -135,7 +160,7 @@ export function ChapterCompanyOverview({
       ? { provider: sourceProvider, fetched_at: fetchedAt ?? undefined }
       : undefined
 
-  const snapshotCells = buildSnapshotCells(
+  const { identity, metrics } = buildSnapshot(
     market,
     income,
     historicalMetrics,
@@ -146,7 +171,17 @@ export function ChapterCompanyOverview({
 
   return (
     <Chapter id="overview">
-      {snapshotCells.length > 0 && <KvGrid cells={snapshotCells} columns={4} />}
+      <CompanySnapshot
+        identity={identity}
+        metrics={metrics}
+        quoteCurrency={quoteCurrency}
+        fetchedAt={fetchedAt}
+        labels={{
+          sector: tr('板块', 'Sector', locale),
+          industry: tr('行业', 'Industry', locale),
+          country: tr('国家/地区', 'Country', locale),
+        }}
+      />
 
       {overview ? (
         <Narrative>

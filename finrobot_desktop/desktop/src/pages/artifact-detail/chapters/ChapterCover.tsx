@@ -173,6 +173,39 @@ export function ChapterCover({
         />
       )}
 
+      {/* Price-target basis — how the target was built (e.g. "dcf $189 · comps_pe
+          $193 · ev_ebitda $265, weighted"). Promoted from the 10px mono metadata
+          footer (where it sat beside the version string) to a labelled line right
+          under the target hero — the provenance of the headline number is a
+          first-class citizen, not a footnote. */}
+      {thesis?.price_target_basis && (
+        <div style={{ marginTop: 16, maxWidth: 760 }}>
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9.5,
+              letterSpacing: '0.18em',
+              textTransform: 'uppercase',
+              color: 'var(--text-muted)',
+              marginBottom: 5,
+            }}
+          >
+            {locale === 'en' ? 'Price Target Basis' : '目标定价依据'}
+          </div>
+          <p
+            style={{
+              margin: 0,
+              fontFamily: 'var(--font-body)',
+              fontSize: 12.5,
+              lineHeight: 1.6,
+              color: 'var(--text-secondary)',
+            }}
+          >
+            {thesis.price_target_basis}
+          </p>
+        </div>
+      )}
+
       {targetWithheld && withheldReason && (
         <a
           href="#report-audit-banner"
@@ -241,7 +274,6 @@ export function ChapterCover({
           </>
         )}
         {computeVersion && <> · {computeVersion}</>}
-        {thesis?.price_target_basis && <> · {thesis.price_target_basis}</>}
       </div>
 
       {thesis?.tagline && (

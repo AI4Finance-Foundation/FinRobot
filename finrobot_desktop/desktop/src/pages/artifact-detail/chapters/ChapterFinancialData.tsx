@@ -6,7 +6,8 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { NumberSource } from '../../../components/SourcedNumber'
-import { Chapter, KvGrid, SubChapter } from './ChapterBase'
+import { Chapter, SubChapter } from './ChapterBase'
+import { MetricModule, type MetricCell, type RangePositioner } from './MetricModule'
 import {
   formatDate,
   formatCompactNumber,
@@ -80,13 +81,10 @@ interface ValuationShape {
   ev_revenue?: number | null
 }
 
-type Cell = {
-  label: string
-  value: string
-  delta?: string
-  tone?: 'up' | 'down'
-  source?: NumberSource
-}
+// Visual cell = a MetricCell with a string label (this chapter's labels are all
+// plain strings). `ratio`/`sub`/`addr` are pure presentation added by the
+// builders — they never change the value, source, or caliber of a number.
+type Cell = MetricCell & { label: string }
 
 interface ProvenanceShape {
   provider?: string | null
@@ -127,28 +125,61 @@ function buildIncomeCells(
 ): Cell[] {
   if (!income) return []
   const cells: Cell[] = []
-  const push = (key: keyof IncomeShape, label: string, mode: 'currency' | 'percent') => {
+  let n = 0
+  // `mode='percent'` cells that are MARGINS carry an inline proportion bar (the
+  // value is a 0–1 ratio → fill). Other fields get no bar (no natural 0–100%).
+  const push = (
+    key: keyof IncomeShape,
+    label: string,
+    mode: 'currency' | 'percent',
+    opts?: { sub?: string; bar?: boolean },
+  ) => {
     const v = income[key]
     if (v === null || v === undefined) return
+    n += 1
+    const addr = `IS·${String(n).padStart(2, '0')}`
     if (mode === 'currency') {
       cells.push({
         label,
         value: formatCurrencyCompact(v as number, reportingCurrency, locale),
         source,
+        addr,
+        sub: opts?.sub,
       })
     } else {
-      cells.push({ label, value: formatPercent(v as number, locale), source })
+      cells.push({
+        label,
+        value: formatPercent(v as number, locale),
+        source,
+        addr,
+        // Margin proportion bar — fill = the ratio itself (clamped in the bar).
+        ratio: opts?.bar ? (v as number) : undefined,
+      })
     }
   }
-  push('revenue', tr('营收', 'Revenue', locale), 'currency')
-  push('ebitda', 'EBITDA', 'currency')
-  push('net_income', tr('净利润', 'Net Income', locale), 'currency')
-  push('gross_margin', tr('毛利率', 'Gross Margin', locale), 'percent')
-  push('operating_margin', tr('经营利润率', 'Op Margin', locale), 'percent')
-  push('depreciation_amortization', tr('折旧摊销', 'D&A', locale), 'currency')
-  push('rd_expense', tr('研发费用', 'R&D', locale), 'currency')
-  push('sga_expense', tr('销售管理费用', 'SG&A', locale), 'currency')
-  push('interest_expense', tr('利息费用', 'Interest', locale), 'currency')
+  push('revenue', tr('营收', 'Revenue', locale), 'currency', {
+    sub: tr('顶线 · 净销售额', 'TOP LINE · NET SALES', locale),
+  })
+  push('ebitda', 'EBITDA', 'currency', {
+    sub: tr('经营性现金利润', 'OPERATING CASH PROFIT', locale),
+  })
+  push('net_income', tr('净利润', 'Net Income', locale), 'currency', {
+    sub: tr('底线 · GAAP', 'BOTTOM LINE · GAAP', locale),
+  })
+  push('gross_margin', tr('毛利率', 'Gross Margin', locale), 'percent', { bar: true })
+  push('operating_margin', tr('经营利润率', 'Op Margin', locale), 'percent', { bar: true })
+  push('depreciation_amortization', tr('折旧摊销', 'D&A', locale), 'currency', {
+    sub: tr('非现金支出', 'NON-CASH CHARGE', locale),
+  })
+  push('rd_expense', tr('研发费用', 'R&D', locale), 'currency', {
+    sub: tr('创新投入', 'INNOVATION SPEND', locale),
+  })
+  push('sga_expense', tr('销售管理费用', 'SG&A', locale), 'currency', {
+    sub: tr('管理费用', 'OVERHEAD', locale),
+  })
+  push('interest_expense', tr('利息费用', 'Interest', locale), 'currency', {
+    sub: tr('融资成本', 'FINANCING COST', locale),
+  })
   return cells
 }
 
@@ -161,12 +192,15 @@ function buildBalanceCells(
   source?: NumberSource,
 ): Cell[] {
   const cells: Cell[] = []
+  const addr = (): string => `BS·${String(cells.length + 1).padStart(2, '0')}`
   if (balance?.total_debt !== undefined && balance.total_debt !== null) {
     cells.push({
       label: tr('总负债', 'Total Debt', locale),
       // Balance-sheet absolute → reporting currency.
       value: formatCurrencyCompact(balance.total_debt, reportingCurrency, locale),
       source,
+      addr: addr(),
+      sub: tr('总杠杆', 'GROSS LEVERAGE', locale),
     })
   }
   if (balance?.total_cash !== undefined && balance.total_cash !== null) {
@@ -174,6 +208,8 @@ function buildBalanceCells(
       label: tr('现金', 'Total Cash', locale),
       value: formatCurrencyCompact(balance.total_cash, reportingCurrency, locale),
       source,
+      addr: addr(),
+      sub: tr('流动性', 'LIQUIDITY', locale),
     })
   }
   if (market.market_cap !== undefined && market.market_cap !== null) {
@@ -182,6 +218,8 @@ function buildBalanceCells(
       // Market cap is a quote-currency figure.
       value: formatCurrencyCompact(market.market_cap, quoteCurrency, locale),
       source,
+      addr: addr(),
+      sub: tr('股权价值', 'EQUITY VALUE', locale),
     })
   }
   if (market.shares_outstanding !== undefined && market.shares_outstanding !== null) {
@@ -189,6 +227,8 @@ function buildBalanceCells(
       label: tr('总股本', 'Shares Out', locale),
       value: formatCompactNumber(market.shares_outstanding, locale),
       source,
+      addr: addr(),
+      sub: tr('稀释后', 'DILUTED', locale),
     })
   }
   return cells
@@ -201,14 +241,21 @@ function buildValuationCells(
   quoteCurrency: string,
   reportingCurrency: string,
   source?: NumberSource,
+  // When the 52-week positioner renders (price+high+low all present), the 52w
+  // high/low live there instead of as standalone cells, so each datum appears
+  // once. When it can't render, we fall back to showing whatever 52w cells exist.
+  includeRange52Cells = true,
 ): Cell[] {
   const cells: Cell[] = []
+  const addr = (): string => `VL·${String(cells.length + 1).padStart(2, '0')}`
   if (market.current_price !== undefined && market.current_price !== null) {
     cells.push({
       label: tr('现价', 'Price', locale),
       // Per-share quote → quote currency.
       value: formatCurrency(market.current_price, quoteCurrency, locale, 2),
       source,
+      addr: addr(),
+      sub: tr('最新 · 收盘', 'LAST · CLOSE', locale),
     })
   }
   if (market.pe_ratio !== undefined && market.pe_ratio !== null) {
@@ -216,6 +263,8 @@ function buildValuationCells(
       label: 'P/E',
       value: `${formatNumber(market.pe_ratio, locale, 1)}x`,
       source,
+      addr: addr(),
+      sub: tr('盈利倍数', 'EARNINGS MULTIPLE', locale),
     })
   }
   if (valuation?.enterprise_value !== undefined && valuation.enterprise_value !== null) {
@@ -224,6 +273,8 @@ function buildValuationCells(
       // EV is an absolute reporting-currency figure.
       value: formatCurrencyCompact(valuation.enterprise_value, reportingCurrency, locale),
       source,
+      addr: addr(),
+      sub: tr('企业价值', 'TOTAL CAPITAL', locale),
     })
   }
   if (valuation?.ev_ebitda !== undefined && valuation.ev_ebitda !== null) {
@@ -231,6 +282,8 @@ function buildValuationCells(
       label: 'EV/EBITDA',
       value: `${formatNumber(valuation.ev_ebitda, locale, 1)}x`,
       source,
+      addr: addr(),
+      sub: tr('资本倍数', 'CAPITAL MULTIPLE', locale),
     })
   }
   if (valuation?.ev_revenue !== undefined && valuation.ev_revenue !== null) {
@@ -238,20 +291,8 @@ function buildValuationCells(
       label: 'EV/Revenue',
       value: `${formatNumber(valuation.ev_revenue, locale, 1)}x`,
       source,
-    })
-  }
-  if (market.price_52w_high !== undefined && market.price_52w_high !== null) {
-    cells.push({
-      label: tr('52 周高', '52W High', locale),
-      value: formatCurrency(market.price_52w_high, quoteCurrency, locale, 2),
-      source,
-    })
-  }
-  if (market.price_52w_low !== undefined && market.price_52w_low !== null) {
-    cells.push({
-      label: tr('52 周低', '52W Low', locale),
-      value: formatCurrency(market.price_52w_low, quoteCurrency, locale, 2),
-      source,
+      addr: addr(),
+      sub: tr('销售倍数', 'SALES MULTIPLE', locale),
     })
   }
   if (market.beta !== undefined && market.beta !== null) {
@@ -259,9 +300,140 @@ function buildValuationCells(
       label: 'Beta',
       value: formatNumber(market.beta, locale, 2),
       source,
+      addr: addr(),
+      sub: tr('系统性风险', 'SYSTEMATIC RISK', locale),
     })
   }
+  if (includeRange52Cells) {
+    if (market.price_52w_high !== undefined && market.price_52w_high !== null) {
+      cells.push({
+        label: tr('52 周高', '52W High', locale),
+        value: formatCurrency(market.price_52w_high, quoteCurrency, locale, 2),
+        source,
+        addr: addr(),
+      })
+    }
+    if (market.price_52w_low !== undefined && market.price_52w_low !== null) {
+      cells.push({
+        label: tr('52 周低', '52W Low', locale),
+        value: formatCurrency(market.price_52w_low, quoteCurrency, locale, 2),
+        source,
+        addr: addr(),
+      })
+    }
+  }
   return cells
+}
+
+/** Build the 52-week-range positioner ONLY when price + high + low are all
+ *  present and high > low. Returns null otherwise (the caller then keeps the 52w
+ *  high/low as plain cells so no datum is dropped). Position = (price − low) /
+ *  (high − low); the component clamps it to [0,1]. This is a pure visual
+ *  re-presentation of three numbers we already display — it computes a bar
+ *  POSITION, never a new financial value. */
+function buildRange52(
+  market: MarketShape,
+  locale: Locale,
+  quoteCurrency: string,
+  source: NumberSource | undefined,
+): RangePositioner | null {
+  const price = market.current_price
+  const high = market.price_52w_high
+  const low = market.price_52w_low
+  if (
+    price === undefined ||
+    price === null ||
+    high === undefined ||
+    high === null ||
+    low === undefined ||
+    low === null ||
+    !(high > low)
+  ) {
+    return null
+  }
+  const position = (price - low) / (high - low)
+  const pctOfBand = Math.round(Math.max(0, Math.min(1, position)) * 100)
+  const near =
+    position >= 0.8
+      ? tr('· 接近高位', '· NEAR HIGH', locale)
+      : position <= 0.2
+        ? tr('· 接近低位', '· NEAR LOW', locale)
+        : ''
+  return {
+    label: tr('52 周区间定位', '52-WEEK RANGE POSITION', locale),
+    position,
+    current: formatCurrency(price, quoteCurrency, locale, 2),
+    currentSource: source,
+    currentCap: tr('现价', 'CURRENT', locale),
+    low: formatCurrency(low, quoteCurrency, locale, 2),
+    lowSource: source,
+    lowCap: tr('52 周低', '52W LOW', locale),
+    high: formatCurrency(high, quoteCurrency, locale, 2),
+    highSource: source,
+    highCap: tr('52 周高', '52W HIGH', locale),
+    caption: `${pctOfBand}%${tr(' 区间', ' OF BAND', locale)} ${near}`.trim(),
+  }
+}
+
+// ── Group glyphs (terminal chips for the module title bars; inline SVG, tokens
+//    only — `currentColor` inherits the chip's accent so one glyph fits any rail).
+/** Sets the SVG colour context so a `currentColor` glyph paints in the rail hue. */
+function GlyphChip({
+  color,
+  glyph,
+}: {
+  color: string
+  glyph: React.ReactNode
+}): React.ReactElement {
+  return <span style={{ color, display: 'grid', placeItems: 'center' }}>{glyph}</span>
+}
+function CompanyGlyph(): React.ReactElement {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <rect x="2" y="3.4" width="6" height="8" rx="0.8" stroke="currentColor" strokeWidth="1.1" />
+      <path d="M8 6.2h4v5.2H8" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+      <path
+        d="M3.6 5.4h2.8 M3.6 7.3h2.8 M3.6 9.2h2.8 M9.4 8h1.2 M9.4 9.6h1.2"
+        stroke="currentColor"
+        strokeWidth="1"
+        strokeOpacity={0.7}
+        strokeLinecap="round"
+      />
+    </svg>
+  )
+}
+function IncomeGlyph(): React.ReactElement {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <line x1="2" y1="12" x2="12" y2="12" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="2.4" y="6.5" width="2.4" height="4" fill="currentColor" fillOpacity={0.45} />
+      <rect x="5.8" y="4" width="2.4" height="6.5" fill="currentColor" fillOpacity={0.7} />
+      <rect x="9.2" y="1.8" width="2.4" height="8.7" fill="currentColor" />
+    </svg>
+  )
+}
+function BalanceGlyph(): React.ReactElement {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path
+        d="M7 1.5 L12 4 L12 4.6 L2 4.6 L2 4 Z"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinejoin="round"
+      />
+      <path d="M3.6 5.2v4.8 M7 5.2v4.8 M10.4 5.2v4.8" stroke="currentColor" strokeWidth="1.1" />
+      <line x1="2" y1="11.4" x2="12" y2="11.4" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
+  )
+}
+function ValuationGlyph(): React.ReactElement {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+      <path d="M2 12 L12 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      <circle cx="4" cy="4" r="1.7" stroke="currentColor" strokeWidth="1.1" />
+      <circle cx="10" cy="10" r="1.7" stroke="currentColor" strokeWidth="1.1" />
+    </svg>
+  )
 }
 
 export function ChapterFinancialData({
@@ -301,6 +473,10 @@ export function ChapterFinancialData({
     reportingCurrency,
     numberSource,
   )
+  // The 52-week positioner renders when price+high+low are all present (high>low);
+  // when it does, the 52w high/low move into it (each datum shown once), so the
+  // standalone 52w cells are suppressed. When it can't render, they stay as cells.
+  const range52 = buildRange52(market, locale, quoteCurrency, numberSource)
   const valuationCells = buildValuationCells(
     market,
     valuation,
@@ -308,6 +484,7 @@ export function ChapterFinancialData({
     quoteCurrency,
     reportingCurrency,
     numberSource,
+    range52 === null,
   )
 
   return (
@@ -341,27 +518,47 @@ export function ChapterFinancialData({
       </div>
 
       {companyCells.length > 0 && (
-        <SubChapter heading={tr('公司信息', 'Company', locale)}>
-          <KvGrid cells={companyCells} columns={4} />
-        </SubChapter>
+        <MetricModule
+          title={tr('公司信息', 'Company', locale)}
+          accent="success"
+          glyph={<GlyphChip color="var(--success)" glyph={<CompanyGlyph />} />}
+          cells={companyCells}
+          columns={2}
+        />
       )}
 
       {incomeCells.length > 0 && (
-        <SubChapter heading={tr('损益表', 'Income Statement', locale)}>
-          <KvGrid cells={incomeCells} columns={4} />
-        </SubChapter>
+        <MetricModule
+          title={tr('损益表', 'Income Statement', locale)}
+          accent="primary"
+          glyph={<GlyphChip color="var(--primary)" glyph={<IncomeGlyph />} />}
+          meta={tr('TTM · 报告币种', 'TTM · REPORTING', locale)}
+          cells={incomeCells}
+          columns={3}
+        />
       )}
 
       {balanceCells.length > 0 && (
-        <SubChapter heading={tr('资产负债', 'Balance Sheet', locale)}>
-          <KvGrid cells={balanceCells} columns={4} />
-        </SubChapter>
+        <MetricModule
+          title={tr('资产负债', 'Balance Sheet', locale)}
+          accent="cyan"
+          glyph={<GlyphChip color="var(--accent-cyan)" glyph={<BalanceGlyph />} />}
+          meta={tr('最新季度', 'LATEST QTR', locale)}
+          cells={balanceCells}
+          columns={2}
+        />
       )}
 
-      {valuationCells.length > 0 && (
-        <SubChapter heading={tr('估值倍数', 'Valuation Multiples', locale)}>
-          <KvGrid cells={valuationCells} columns={4} />
-        </SubChapter>
+      {(valuationCells.length > 0 || range52 !== null) && (
+        <MetricModule
+          title={tr('估值倍数', 'Valuation Multiples', locale)}
+          accent="violet"
+          glyph={<GlyphChip color="var(--secondary)" glyph={<ValuationGlyph />} />}
+          meta={tr('实时 · ×', 'LIVE · ×', locale)}
+          cells={valuationCells}
+          columns={3}
+          range={range52 ?? undefined}
+        />
       )}
 
       <SubChapter heading={tr('财报电话会逐字稿', 'Earnings Call Transcripts', locale)}>
@@ -371,7 +568,8 @@ export function ChapterFinancialData({
       {companyCells.length === 0 &&
         incomeCells.length === 0 &&
         balanceCells.length === 0 &&
-        valuationCells.length === 0 && (
+        valuationCells.length === 0 &&
+        range52 === null && (
           <p
             style={{
               fontFamily: 'var(--font-body)',

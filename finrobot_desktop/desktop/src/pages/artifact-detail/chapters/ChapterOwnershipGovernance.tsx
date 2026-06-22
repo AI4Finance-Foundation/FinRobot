@@ -16,7 +16,8 @@
 import type { CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
 
-import { Chapter, KvGrid, SubChapter, TableScroll, tableStyle } from './ChapterBase'
+import { Chapter, SubChapter, TableScroll, tableStyle } from './ChapterBase'
+import { MetricModule, type MetricCell } from './MetricModule'
 import type {
   FilingProvenanceShape,
   InsiderTransactionShape,
@@ -548,12 +549,7 @@ function CompensationGrid({
   t: Translator
   reportingCurrency: string
 }): React.ReactElement {
-  const cells: {
-    label: React.ReactNode
-    value: string
-    delta?: string
-    tone?: 'up' | 'down'
-  }[] = [
+  const cells: MetricCell[] = [
     {
       label: t('chapter.ownership.kv.ceoName'),
       value: comp.ceo_name ?? '—',
@@ -564,7 +560,7 @@ function CompensationGrid({
         comp.ceo_total_compensation !== null && comp.ceo_total_compensation !== undefined
           ? formatCurrencyCompact(comp.ceo_total_compensation, reportingCurrency, locale)
           : '—',
-      delta:
+      sub:
         comp.ceo_yoy_change_pct !== null && comp.ceo_yoy_change_pct !== undefined
           ? `${comp.ceo_yoy_change_pct > 0 ? '+' : ''}${formatPercent(comp.ceo_yoy_change_pct, locale, 1, true)} YoY`
           : undefined,
@@ -585,7 +581,12 @@ function CompensationGrid({
   ]
   return (
     <>
-      <KvGrid cells={cells} columns={3} />
+      <MetricModule
+        title={locale === 'en' ? 'CEO Pay (DEF 14A)' : 'CEO 薪酬（DEF 14A）'}
+        accent="violet"
+        cells={cells}
+        columns={3}
+      />
       <p style={kvFooter}>
         <ProvenanceLink prov={makeProvenance(comp)} locale={locale} t={t}>
           {t('chapter.ownership.source.def14a', { date: formatDate(comp.filing_date, locale) })}

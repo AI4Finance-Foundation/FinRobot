@@ -22,9 +22,10 @@ interface ChartProps {
   targetBand?: { low?: number | null; high?: number | null; point?: number | null } | null
 }
 
-const METHOD_LABEL: Record<string, string> = {
+export const METHOD_LABEL: Record<string, string> = {
   dcf: 'DCF',
   comps_pe: 'Comps (P/E)',
+  comps_pb: 'Comps (P/B)',
   comps_ev_ebitda: 'Comps (EV/EBITDA)',
   ev_ebitda: 'EV/EBITDA',
   p_fcf: 'P/FCF',
@@ -55,7 +56,7 @@ function formatFiscalPeriod(period: string): string {
  * analyst unable to tell which median produced the target. We read the backend
  * `source` string to label the caliber explicitly.
  */
-function compsPeLabel(
+export function compsPeLabel(
   source: string | null | undefined,
   forwardFiscalPeriod?: string | null,
 ): { label: string; sublabel: string | null } {

@@ -3,7 +3,8 @@ import WaterfallChart from '../../../components/charts/WaterfallChart'
 import { useI18n } from '../../../i18n'
 import { TermTip } from '../../../components/TermTip'
 import { formatCurrency, formatCurrencyCompact } from '../../../utils/format'
-import { Chapter, KvGrid, Narrative, SubChapter } from './ChapterBase'
+import { Chapter, Narrative, SubChapter } from './ChapterBase'
+import { MetricModule, type MetricCell } from './MetricModule'
 import { FieldCaveat, findingsFor } from './FieldCaveat'
 import type {
   DcfShape,
@@ -129,12 +130,9 @@ export function ChapterValuation({
         ]
       : []
 
-  type Cell = {
-    label: React.ReactNode
-    value: string
-    delta?: React.ReactNode
-    tone?: 'up' | 'down'
-  }
+  // Visual cell = MetricCell (the `sub` line carries what was the KvGrid `delta`).
+  // Labels stay ReactNode (TermTip / FieldCaveat wrappers); values/tone unchanged.
+  type Cell = MetricCell
   const cells: Cell[] = [
     wacc !== null &&
       ({
@@ -143,7 +141,7 @@ export function ChapterValuation({
         // (hover gloss + "ask FinRobot" deep dive). One wrap per term per chapter.
         label: <TermTip term="WACC" />,
         value: `${(wacc * 100).toFixed(2)}%`,
-        delta: beta !== null ? <TermTip term="β">{`β ${beta.toFixed(2)}`}</TermTip> : undefined,
+        sub: beta !== null ? <TermTip term="β">{`β ${beta.toFixed(2)}`}</TermTip> : undefined,
       } as Cell),
     terminalGrowth !== null &&
       ({
@@ -175,13 +173,13 @@ export function ChapterValuation({
           !mi.growth_unreachable && mi.implied_growth != null
             ? `${(mi.implied_growth * 100).toFixed(1)}%`
             : t('chapter.valuation.marketImplied.na'),
-        delta: t('chapter.valuation.marketImplied.horizon', { n: mi.horizon_years }),
+        sub: t('chapter.valuation.marketImplied.horizon', { n: mi.horizon_years }),
         tone: (mi.growth_unreachable ? 'down' : undefined) as 'down' | undefined,
       } as Cell),
     // Companion reverse-DCF lever: the discount rate that would equate the DCF to
     // the CURRENT price (solved independently of the implied-growth path). Shown
     // beside implied growth so the reality check carries BOTH levers, with a
-    // descriptive delta vs our own DCF WACC (no verdict — that's the analyst's).
+    // descriptive sub-line vs our own DCF WACC (no verdict — that's the analyst's).
     // Was computed (market_implied.implied_wacc) but never rendered before.
     mi !== null &&
       !mi.growth_unreachable &&
@@ -190,7 +188,7 @@ export function ChapterValuation({
       ({
         label: t('chapter.valuation.kv.marketImpliedWacc'),
         value: `${(mi.implied_wacc * 100).toFixed(1)}%`,
-        delta: t('chapter.valuation.marketImplied.vsDcf', {
+        sub: t('chapter.valuation.marketImplied.vsDcf', {
           wacc: `${(wacc * 100).toFixed(1)}%`,
         }),
       } as Cell),
@@ -334,7 +332,12 @@ export function ChapterValuation({
       )}
 
       {cells.length > 0 ? (
-        <KvGrid cells={cells} columns={3} />
+        <MetricModule
+          title={locale === 'en' ? 'DCF Inputs & Implied Value' : 'DCF 输入与隐含价值'}
+          accent="violet"
+          cells={cells}
+          columns={3}
+        />
       ) : (
         <p
           style={{
@@ -547,7 +550,10 @@ function SOTPBreakdownPanel({
       </div>
 
       {/* Headline scalars */}
-      <KvGrid
+      <MetricModule
+        title={locale === 'en' ? 'Floor & Implied Option' : '现金流底 & 隐含期权'}
+        accent="violet"
+        columns={3}
         cells={[
           {
             label: t('chapter.valuation.sotp.priceFloor'),

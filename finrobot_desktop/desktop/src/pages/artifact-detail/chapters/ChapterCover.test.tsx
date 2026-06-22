@@ -101,6 +101,29 @@ describe('ChapterCover — withheld-target self-explanation', () => {
     expect(range).toHaveAttribute('data-withheld', 'false')
   })
 
+  it('renders the price-target basis as a labelled line under the hero (promoted from the metadata footer)', () => {
+    render(
+      <ChapterCover
+        {...BASE}
+        thesis={thesis({
+          recommendation: 'BUY',
+          price_target: 130,
+          price_target_basis: 'method-weighted blend: dcf=$189, comps_pe=$193, ev_ebitda=$265',
+        })}
+        withheldReason={null}
+        confidence="high"
+        targetLow={120}
+        targetHigh={140}
+        currentPrice={110}
+        anchorMethod="dcf"
+      />,
+    )
+    // Promoted to a first-class labelled line — no longer a 10px mono footer suffix
+    // jammed beside the compute version.
+    expect(screen.getByText('Price Target Basis')).toBeInTheDocument()
+    expect(screen.getByText(/method-weighted blend: dcf=\$189/)).toBeInTheDocument()
+  })
+
   it('maps a legacy REVIEW recommendation to a neutral WITHHELD badge, never the word REVIEW', () => {
     render(
       <ChapterCover

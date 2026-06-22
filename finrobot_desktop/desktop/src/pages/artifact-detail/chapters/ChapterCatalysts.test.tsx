@@ -31,7 +31,7 @@ describe('ChapterCatalysts meta line', () => {
     const cat = catalysts({
       top_positive: [ev({ headline: 'New chip launch', impact_score: 4 })],
     })
-    render(<ChapterCatalysts catalysts={cat} thesis={null} />)
+    render(<ChapterCatalysts catalysts={cat} />)
     // The meter is present and reflects the impact score…
     const meter = screen.getByTestId('impact-meter')
     expect(meter.getAttribute('data-filled')).toBe('4')
@@ -43,7 +43,7 @@ describe('ChapterCatalysts meta line', () => {
     const cat = catalysts({
       top_positive: [ev({ category: 'product_launch', probability: 0.7 })],
     })
-    render(<ChapterCatalysts catalysts={cat} thesis={null} />)
+    render(<ChapterCatalysts catalysts={cat} />)
     expect(screen.getByText(/product_launch/)).toBeInTheDocument()
     expect(screen.getByText(/70%/)).toBeInTheDocument()
     // IMPACT label still labels the meter.
@@ -57,7 +57,7 @@ describe('ChapterCatalysts meta line', () => {
         ev({ headline: 'B', impact_score: 2 }),
       ],
     })
-    render(<ChapterCatalysts catalysts={cat} thesis={null} />)
+    render(<ChapterCatalysts catalysts={cat} />)
     const meters = screen.getAllByTestId('impact-meter')
     expect(meters).toHaveLength(2)
     expect(meters[0].getAttribute('data-filled')).toBe('5')
@@ -70,8 +70,17 @@ describe('ChapterCatalysts meta line', () => {
       overall_sentiment: 'bullish',
       net_sentiment: 0.42,
     })
-    render(<ChapterCatalysts catalysts={cat} thesis={null} />)
+    render(<ChapterCatalysts catalysts={cat} />)
     expect(screen.getByText('BULLISH')).toBeInTheDocument()
     expect(screen.getByText(/\+0\.42/)).toBeInTheDocument()
+  })
+
+  it('shows the empty-risks note (no thesis fallback) when there are no structured negative events', () => {
+    // thesis.risks no longer back-fills the risk bucket here — it lives in the
+    // Investment Thesis bull/bear case. With no top_negative, the bucket shows the
+    // empty note, NOT a thesis-risk fallback (so risks render in exactly one place).
+    const cat = catalysts({ top_positive: [ev({ headline: 'Up' })] })
+    render(<ChapterCatalysts catalysts={cat} />)
+    expect(screen.getByText('No major risk factors identified')).toBeInTheDocument()
   })
 })

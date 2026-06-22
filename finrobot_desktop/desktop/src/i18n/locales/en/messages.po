@@ -1149,14 +1149,6 @@ msgid "chapter.thesis.empty"
 msgstr "This report is missing the investment-thesis field. Please regenerate the full report."
 
 #. js-lingui-explicit-id
-msgid "chapter.thesis.target"
-msgstr "Target ${value}"
-
-#. js-lingui-explicit-id
-msgid "chapter.thesis.targetWithheld"
-msgstr "Point target withheld · rating stands on direction"
-
-#. js-lingui-explicit-id
 msgid "chapter.thesis.keyTakeaways"
 msgstr "Key Takeaways"
 

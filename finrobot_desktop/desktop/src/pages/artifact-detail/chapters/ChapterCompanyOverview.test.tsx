@@ -83,6 +83,41 @@ describe('ChapterCompanyOverview — sourced snapshot strip', () => {
     expect(screen.getByText('AAPL designs and sells consumer electronics.')).toBeInTheDocument()
   })
 
+  it('renders operating margin as a % metric (profitability companion to gross margin) when present', () => {
+    render(
+      <ChapterCompanyOverview
+        thesis={thesis({ company_overview: 'x' })}
+        rawData={{ ...RAW_DATA, income: { gross_margin: 0.4786, operating_margin: 0.315 } }}
+        historicalMetrics={HISTORICAL}
+        quoteCurrency="USD"
+        dataSource="fmp"
+        fetchedAt="2026-06-11T18:24:24.154643Z"
+      />,
+    )
+    // operating_margin is a real backend field (IncomeStatement.operating_margin),
+    // rendered as a % beside gross margin — the profitability pair.
+    expect(screen.getByText('Operating Margin')).toBeInTheDocument()
+    expect(screen.getByText('31.5%')).toBeInTheDocument()
+    expect(screen.getByText('Gross Margin')).toBeInTheDocument()
+  })
+
+  it('renders a negative operating margin (loss-maker, backend allows ge=-5) without crashing', () => {
+    render(
+      <ChapterCompanyOverview
+        thesis={thesis({ company_overview: 'x' })}
+        rawData={{ ...RAW_DATA, income: { gross_margin: 0.2, operating_margin: -0.35 } }}
+        historicalMetrics={HISTORICAL}
+        quoteCurrency="USD"
+        dataSource="fmp"
+        fetchedAt={null}
+      />,
+    )
+    expect(screen.getByText('Operating Margin')).toBeInTheDocument()
+    // Negative is shown verbatim (the radial arc clamps to an empty sweep) — no NaN/crash.
+    expect(screen.getByText('-35.0%')).toBeInTheDocument()
+    expect(screen.queryByText(/NaN|undefined/)).not.toBeInTheDocument()
+  })
+
   it('wraps numeric cells in SourcedNumber (provenance popover reachable) while identity strings stay plain', () => {
     render(
       <ChapterCompanyOverview
@@ -120,6 +155,7 @@ describe('ChapterCompanyOverview — sourced snapshot strip', () => {
     expect(screen.queryByText('Industry')).not.toBeInTheDocument()
     expect(screen.queryByText('Country')).not.toBeInTheDocument()
     expect(screen.queryByText('Gross Margin')).not.toBeInTheDocument()
+    expect(screen.queryByText('Operating Margin')).not.toBeInTheDocument()
     expect(screen.queryByText('Revenue CAGR')).not.toBeInTheDocument()
     expect(screen.queryByText('Beta')).not.toBeInTheDocument()
     // No degenerate rendering anywhere.

@@ -3,34 +3,34 @@
 // events from the catalyst_analysis pipeline step.
 
 import { Chapter, SubChapter } from './ChapterBase'
-import type { CatalystAnalysisShape, CatalystEventShape, ThesisShape } from './types'
+import type { CatalystAnalysisShape, CatalystEventShape } from './types'
 import { useI18n } from '../../../i18n'
 import { ImpactMeter } from '../../../components/ImpactMeter'
 
 interface ChapterCatalystsProps {
   catalysts: CatalystAnalysisShape | null
-  thesis: ThesisShape | null
 }
 
-export function ChapterCatalysts({ catalysts, thesis }: ChapterCatalystsProps): React.ReactElement {
+export function ChapterCatalysts({ catalysts }: ChapterCatalystsProps): React.ReactElement {
   const { t } = useI18n()
   const top_positive = catalysts?.top_positive ?? []
   const top_negative = catalysts?.top_negative ?? []
-  const thesisCatalysts = thesis?.catalysts ?? []
-  const thesisRisks = thesis?.risks ?? []
 
   // Events to monitor: union of high-impact future events without strong sentiment skew
   const monitor = (catalysts?.events ?? []).filter(
     (e) => e.sentiment === 'neutral' && e.impact_score >= 3,
   )
 
+  // This chapter renders STRUCTURED catalyst events only (CatalystEventShape with
+  // impact/probability meters). The thesis-level qualitative catalysts/risks
+  // (string[]) now live ONCE in the Investment Thesis bull/bear case — no thesis
+  // fallback here, so thesis.catalysts/risks render in exactly one place and the
+  // structured-vs-qualitative calibers never double-book.
   return (
     <Chapter id="catalysts">
       <SubChapter heading={`↑ ${t('chapter.catalysts.positiveHeading')}`}>
         {top_positive.length > 0 ? (
           <CatalystList items={top_positive} tone="positive" />
-        ) : thesisCatalysts.length > 0 ? (
-          <BulletList items={thesisCatalysts} tone="positive" />
         ) : (
           <p style={mutedNote}>{t('chapter.catalysts.emptyPositive')}</p>
         )}
@@ -39,8 +39,6 @@ export function ChapterCatalysts({ catalysts, thesis }: ChapterCatalystsProps): 
       <SubChapter heading={`↓ ${t('chapter.catalysts.riskHeading')}`}>
         {top_negative.length > 0 ? (
           <CatalystList items={top_negative} tone="negative" />
-        ) : thesisRisks.length > 0 ? (
-          <BulletList items={thesisRisks} tone="negative" />
         ) : (
           <p style={mutedNote}>{t('chapter.catalysts.emptyRisks')}</p>
         )}
@@ -142,41 +140,6 @@ function CatalystList({
               {t('chapter.catalysts.metaProbability')} {(e.probability * 100).toFixed(0)}%
             </span>
           </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function BulletList({
-  items,
-  tone,
-}: {
-  items: string[]
-  tone: 'positive' | 'negative' | 'neutral'
-}): React.ReactElement {
-  const border =
-    tone === 'positive'
-      ? 'var(--success)'
-      : tone === 'negative'
-        ? 'var(--danger)'
-        : 'var(--warning)'
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {items.map((t, i) => (
-        <div
-          key={`${tone}-${i}-${t.slice(0, 24)}`}
-          style={{
-            padding: '10px 14px',
-            background: 'var(--bg-card-50)',
-            borderLeft: `2px solid ${border}`,
-            borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
-            fontSize: 12.5,
-            color: 'var(--text-secondary)',
-            lineHeight: 1.55,
-          }}
-        >
-          {t}
         </div>
       ))}
     </div>

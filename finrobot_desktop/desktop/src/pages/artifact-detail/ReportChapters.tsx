@@ -112,10 +112,16 @@ export function ReportChapters({
         targetHigh={d.valuationSynthesis?.target_high ?? null}
         anchorMethod={d.valuationSynthesis?.anchor_method ?? null}
       />
-      {/* Rating / target / conviction / provenance live ONCE on the cover above —
-          the thesis section is the argument (narrative + takeaways), no rating
-          header restatement (that was a same-screen duplicate of the cover hero). */}
-      <ChapterThesis thesis={d.thesis} />
+      {/* Rating / target / conviction / band live ONCE on the cover above — the
+          thesis chapter is the full ARGUMENT: narrative + takeaways → bull/bear
+          case → valuation bridge (summary) → market-implied. Every number reads
+          from the same derived synthesis the cover / Valuation chapter use. */}
+      <ChapterThesis
+        thesis={d.thesis}
+        valuationSynthesis={d.valuationSynthesis}
+        dcf={d.dcf}
+        quoteCurrency={d.quoteCurrency}
+      />
       <ChapterCompanyOverview
         thesis={d.thesis}
         rawData={d.inputs.raw_data ?? null}
@@ -125,6 +131,9 @@ export function ReportChapters({
         dataSource={d.inputs.data_source ?? null}
         fetchedAt={d.inputs.data_fetched_at ?? null}
       />
+      {/* Competitive landscape precedes the financial build-up: the moat / peer
+          context frames how to read the numbers (analyst reading order). */}
+      <ChapterCompetitive peers={d.peers} thesis={d.thesis} />
       <ChapterFinancialAnalysis
         dcf={d.dcf}
         rawData={d.inputs.raw_data ?? null}
@@ -145,9 +154,9 @@ export function ReportChapters({
         historicalBand={d.technical?.historical_bands ?? null}
       />
       <ChapterSensitivity dcf={d.dcf} quoteCurrency={d.quoteCurrency} />
-      <ChapterCatalysts catalysts={d.catalysts} thesis={d.thesis} />
+      {/* Timeline: what has happened (news) → what's ahead (catalysts). */}
       <ChapterNews thesis={d.thesis} catalysts={d.catalysts} />
-      <ChapterCompetitive peers={d.peers} thesis={d.thesis} />
+      <ChapterCatalysts catalysts={d.catalysts} />
       <ChapterTechnical
         technical={d.technical}
         quoteCurrency={d.quoteCurrency}

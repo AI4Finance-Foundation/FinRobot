@@ -1,4 +1,4 @@
-// Vitest coverage for chapter 09 (Technical & Advanced Analysis).
+// Vitest coverage for chapter 10 (Technical Analysis).
 // The chapter reads its 3 quant overlays AND its price/52w/beta from the frozen
 // artifact snapshot (props), not live hooks — a report is a point-in-time
 // artifact, so nothing here refetches a live quote.

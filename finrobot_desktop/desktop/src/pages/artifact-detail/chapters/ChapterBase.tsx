@@ -4,19 +4,6 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { useI18n } from '../../../i18n'
 import { chapterLabel, type ChapterId } from './labels'
-import { SourcedNumber, type NumberSource } from '../../../components/SourcedNumber'
-
-/** A single KV cell. `value` is pre-formatted (currency/percent/raw) by the
- * chapter. When `source` is present, the value gets a hover provenance popover
- * (provider + fetched_at) so every provider-sourced number is traceable —
- * the headline "数字可溯源" contract (CLAUDE.md 数据正确性). */
-export interface KvCell {
-  label: ReactNode
-  value: string
-  delta?: ReactNode
-  tone?: 'up' | 'down'
-  source?: NumberSource
-}
 
 interface ChapterProps {
   id: ChapterId
@@ -160,76 +147,6 @@ export function SubChapter({
         {heading}
       </h4>
       {children}
-    </div>
-  )
-}
-
-export function KvGrid({
-  cells,
-  columns = 4,
-}: {
-  cells: KvCell[]
-  columns?: number
-}): React.ReactElement {
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: `repeat(${columns}, 1fr)`,
-        gap: 1,
-        background: 'var(--border-grid)',
-        border: '1px solid var(--border-grid)',
-        borderRadius: 'var(--radius-sm)',
-        overflow: 'hidden',
-        margin: '16px 0',
-      }}
-    >
-      {cells.map((c, i) => (
-        <div key={i} style={{ background: 'var(--bg-card)', padding: '15px 17px' }}>
-          <div
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9,
-              fontWeight: 600,
-              color: 'var(--text-muted)',
-              letterSpacing: '0.1em',
-              marginBottom: 9,
-              textTransform: 'uppercase',
-            }}
-          >
-            {c.label}
-          </div>
-          <div
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 22,
-              fontWeight: 600,
-              letterSpacing: '-0.3px',
-              color:
-                c.tone === 'up'
-                  ? 'var(--success)'
-                  : c.tone === 'down'
-                    ? 'var(--danger)'
-                    : 'var(--text-primary)',
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {c.source ? <SourcedNumber value={c.value} source={c.source} /> : c.value}
-          </div>
-          {c.delta && (
-            <div
-              style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 10.5,
-                color: 'var(--text-muted)',
-                marginTop: 5,
-              }}
-            >
-              {c.delta}
-            </div>
-          )}
-        </div>
-      ))}
     </div>
   )
 }

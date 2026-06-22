@@ -14,21 +14,26 @@ export interface ChapterLabel {
   sub: string
 }
 
-// Reading order is importance- and dependency-driven (Micron design, 2026-06):
-// the valuation case is built up (overview → financials → valuation), stress-
-// tested immediately (sensitivity right after valuation), then what moves it
-// (catalysts → news), how it compares (competitive), the quant deep-dive
-// (technical), and finally the appendix (data → ownership → disclaimer).
+// Reading order is importance- and dependency-driven (2026-06): the thesis leads
+// (conclusion-first), then the company (overview) and WHERE it competes
+// (competitive) frame how to read the numbers — so the valuation case is built up
+// (financial → valuation) and stress-tested immediately (sensitivity), then the
+// timeline of what has happened and what's ahead (news → catalysts), the quant
+// deep-dive (technical), and finally the appendix (data → ownership → disclaimer).
+//
+// ⚠ This array drives ONLY the numbering (chapterNum) + left-rail nav order. The
+// actual VISUAL render order is the hardcoded JSX sequence in ReportChapters.tsx —
+// reorder BOTH in lockstep, or the chapter numbers/nav will disagree with the page.
 export const CHAPTER_ORDER = [
   'cover',
   'thesis',
   'overview',
+  'competitive',
   'financial',
   'valuation',
   'sensitivity',
-  'catalysts',
   'news',
-  'competitive',
+  'catalysts',
   'technical',
   'data',
   'ownership',
@@ -39,14 +44,14 @@ export type ChapterId = (typeof CHAPTER_ORDER)[number]
 
 const ZH: Record<ChapterId, Omit<ChapterLabel, 'num'>> = {
   cover: { title: '封面', sub: '研报基本信息' },
-  thesis: { title: '投资论点', sub: '评级 · 摘要 · 核心结论' },
-  overview: { title: '公司概览', sub: '业务 · 板块 · 地区 · 护城河' },
+  thesis: { title: '投资论点', sub: '多空论证 · 估值依据 · 市场隐含' },
+  overview: { title: '公司概览', sub: '板块 · 行业 · 规模 · 盈利质量' },
   financial: { title: '财务分析', sub: '历史回顾与三年预测' },
   valuation: { title: '估值分析', sub: 'Football Field · DCF · Comps · DDM' },
   news: { title: '近期新闻与事件', sub: '事件 · 情绪' },
   sensitivity: { title: '敏感性分析', sub: '关键假设变动' },
   catalysts: { title: '关键催化剂', sub: '正向 · 风险 · 待观察' },
-  technical: { title: '技术与高阶分析', sub: '蒙特卡洛 · 狙击位 · 价格走势' },
+  technical: { title: '技术分析', sub: '蒙特卡洛 · 狙击位 · 价格走势' },
   competitive: { title: '竞争格局', sub: '同业三视图' },
   data: { title: '财务数据', sub: '原始数据 · 来源 · 审计轨迹' },
   ownership: { title: '股权与治理', sub: '内部人交易 · 机构持仓 · 高管薪酬' },
@@ -55,14 +60,14 @@ const ZH: Record<ChapterId, Omit<ChapterLabel, 'num'>> = {
 
 const EN: Record<ChapterId, Omit<ChapterLabel, 'num'>> = {
   cover: { title: 'Cover', sub: 'Report meta' },
-  thesis: { title: 'Investment Thesis', sub: 'Recommendation · Tagline · Key Takeaways' },
-  overview: { title: 'Company Overview', sub: 'Business · Segments · Geography · Moat' },
+  thesis: { title: 'Investment Thesis', sub: 'Bull / Bear · Valuation Bridge · Market-Implied' },
+  overview: { title: 'Company Overview', sub: 'Sector · Industry · Scale · Profitability' },
   financial: { title: 'Financial Analysis', sub: 'Historical · 3-Year Forecast' },
   valuation: { title: 'Valuation Analysis', sub: 'Football Field · DCF · Comps · DDM' },
   news: { title: 'Recent News & Events', sub: 'Events · Sentiment' },
   sensitivity: { title: 'Sensitivity Analysis', sub: 'Key Assumption Shifts' },
   catalysts: { title: 'Key Catalysts', sub: 'Positive · Risks · Watch' },
-  technical: { title: 'Technical & Advanced', sub: 'Monte Carlo · Sniper · Price' },
+  technical: { title: 'Technical Analysis', sub: 'Monte Carlo · Sniper · Price' },
   competitive: { title: 'Competitive Landscape', sub: 'Peers — 3 views' },
   data: { title: 'Financial Data', sub: 'Raw · Source · Audit Trail' },
   ownership: { title: 'Ownership & Governance', sub: 'Insiders · Institutions · Compensation' },

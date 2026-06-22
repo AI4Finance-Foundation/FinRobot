@@ -1,4 +1,4 @@
-// Chapter 09 — Technical & Advanced Analysis. Snapshot price chip plus three
+// Chapter 10 — Technical Analysis. Snapshot price chip plus three
 // quant overlays baked into the equity_research artifact:
 //   - Monte Carlo distribution (inline SVG histogram + percentile markers)
 //   - Sniper levels (KvGrid of buy/stop/target + R/R)
@@ -9,7 +9,8 @@
 // artifact, so its "current price" is the one the analysis was written against.
 // Live market data lives in the workspace dashboard, not the report.
 
-import { Chapter, KvGrid, SubChapter } from './ChapterBase'
+import { Chapter, SubChapter } from './ChapterBase'
+import { MetricModule, type MetricCell } from './MetricModule'
 import { useI18n } from '../../../i18n'
 import { formatCurrency } from '../../../utils/format'
 import type {
@@ -53,7 +54,7 @@ export function ChapterTechnical({
       ? ((current - low52) / (high52 - low52)) * 100
       : null
 
-  const cells = [
+  const rawCells: Array<MetricCell | false> = [
     current !== null && {
       // Frozen snapshot price — no intraday change% (that's a live-quote field);
       // the report's "as of" stamp lives in the toolbar.
@@ -65,7 +66,9 @@ export function ChapterTechnical({
     range52Position !== null && {
       label: t('chapter.technical.kv.position52w'),
       value: `${range52Position.toFixed(0)}%`,
-      delta:
+      // Natural micro-encoding: where the price sits in its own 52-week band.
+      ratio: range52Position / 100,
+      sub:
         range52Position >= 80
           ? t('chapter.technical.position.nearHigh')
           : range52Position <= 20
@@ -75,11 +78,10 @@ export function ChapterTechnical({
     beta !== null && {
       label: t('chapter.technical.kv.beta5y'),
       value: beta.toFixed(2),
-      delta: t('chapter.technical.kv.vsSpx'),
+      sub: t('chapter.technical.kv.vsSpx'),
     },
-  ].filter(
-    (c): c is { label: string; value: string; delta?: string; tone?: 'up' | 'down' } => c !== false,
-  )
+  ]
+  const cells: MetricCell[] = rawCells.filter((c): c is MetricCell => c !== false)
 
   const mc = technical?.monte_carlo ?? null
   const sniper = technical?.sniper ?? null
@@ -89,7 +91,12 @@ export function ChapterTechnical({
   return (
     <Chapter id="technical">
       {cells.length > 0 ? (
-        <KvGrid cells={cells} columns={4} />
+        <MetricModule
+          title={locale === 'en' ? 'Price & Range Snapshot' : '价格与区间快照'}
+          accent="cyan"
+          cells={cells}
+          columns={2}
+        />
       ) : (
         <p style={mutedNote}>{t('chapter.technical.empty.price')}</p>
       )}
@@ -106,11 +113,7 @@ export function ChapterTechnical({
         </SubChapter>
       )}
 
-      {sniper !== null && (
-        <SubChapter heading={t('chapter.technical.subheading.sniper')}>
-          <SniperPanel sniper={sniper} t={t} fmtPx={fmtPx} />
-        </SubChapter>
-      )}
+      {sniper !== null && <SniperPanel sniper={sniper} t={t} fmtPx={fmtPx} />}
 
       {bands !== null && (
         <SubChapter heading={t('chapter.technical.subheading.historicalBands')}>
@@ -301,7 +304,7 @@ function SniperPanel({
   t: (key: string, params?: Record<string, string | number>) => string
   fmtPx: (v: number) => string
 }): React.ReactElement {
-  type Cell = { label: string; value: string; delta?: string; tone?: 'up' | 'down' }
+  type Cell = MetricCell
   const cells: Cell[] = []
 
   // NEUTRAL (levels-only): the valuation synthesis flagged itself unreliable, so
@@ -321,7 +324,7 @@ function SniperPanel({
         : t('chapter.technical.sniper.idealBuy'),
       value: fmtPx(sniper.ideal_buy),
       tone: isShort ? undefined : 'up',
-      delta:
+      sub:
         !isShort && sniper.safety_margin != null
           ? t('chapter.technical.sniper.safetyMargin', {
               pct: (sniper.safety_margin * 100).toFixed(0),
@@ -335,7 +338,7 @@ function SniperPanel({
         ? t('chapter.technical.sniper.secondaryShort')
         : t('chapter.technical.sniper.secondaryBuy'),
       value: fmtPx(sniper.secondary_buy),
-      delta: isShort
+      sub: isShort
         ? t('chapter.technical.sniper.atResistance')
         : t('chapter.technical.sniper.atSupport'),
     })
@@ -354,7 +357,7 @@ function SniperPanel({
         : t('chapter.technical.sniper.takeProfit'),
       value: fmtPx(sniper.take_profit),
       tone: 'up',
-      delta: isShort
+      sub: isShort
         ? t('chapter.technical.sniper.dcfCover')
         : t('chapter.technical.sniper.dcfTarget'),
     })
@@ -383,18 +386,25 @@ function SniperPanel({
     cells.push({
       label: t('chapter.technical.sniper.suggestedSize'),
       value: `${sniper.position_size_pct.toFixed(1)}%`,
-      delta: t('chapter.technical.sniper.ofPortfolio'),
+      sub: t('chapter.technical.sniper.ofPortfolio'),
     })
   }
 
   return (
-    <div>
+    <div style={{ margin: '22px 0' }}>
       {isNeutral && (
         <p style={mutedNote} data-testid="sniper-neutral-note">
           {t('chapter.technical.sniper.withheldUnreliable')}
         </p>
       )}
-      <KvGrid cells={cells} columns={4} />
+      {/* The section heading is integrated into the module's accent title bar
+          (replacing the former SubChapter h4) — terminal-readout framing. */}
+      <MetricModule
+        title={t('chapter.technical.subheading.sniper')}
+        accent="primary"
+        cells={cells}
+        columns={2}
+      />
     </div>
   )
 }

@@ -14,7 +14,8 @@ import type { DCFResult, HistoricalMetrics } from '../../../types/finance'
 import { useI18n } from '../../../i18n'
 import { TermTip } from '../../../components/TermTip'
 import { formatCurrencyCompact } from '../../../utils/format'
-import { Chapter, KvGrid, SubChapter, TableScroll, tableStyle, type KvCell } from './ChapterBase'
+import { Chapter, SubChapter, TableScroll, tableStyle } from './ChapterBase'
+import { ProfitWaterfall, type WaterfallRow } from './ProfitWaterfall'
 import type { NumberSource } from '../../../components/SourcedNumber'
 import type { DcfShape } from './types'
 
@@ -93,33 +94,45 @@ export function ChapterFinancialAnalysis({
     (r) => r.eps != null,
   )
 
-  const candidateCells: (KvCell | false)[] = [
-    baseRev !== null && {
+  // Base-year profit cascade: revenue is the 100% reference; EBITDA / net income
+  // render as nested proportional bars whose widths ARE their margins. Each row
+  // appears only when present (mirrors the old per-cell omission), and a loss
+  // (negative step) turns the bar red. Revenue carries the fiscal-year tag.
+  const waterfallRows: WaterfallRow[] = []
+  if (baseRev !== null) {
+    waterfallRows.push({
+      tone: 'rev',
       label: t('chapter.financial.kv.revenueBase'),
       value: fmtMoney(baseRev),
-      delta: rawData?.fiscal_period_end
+      raw: baseRev,
+      source: numberSource,
+      fy: rawData?.fiscal_period_end
         ? `FY${String(rawData.fiscal_period_end).slice(0, 4)}`
         : undefined,
-      source: numberSource,
-    },
-    baseEbitda !== null && {
-      // EBITDA itself isn't in the glossary, but FCF (below, in the forecast
-      // table) is the headline cash term — wrap the first FCF occurrence there.
+    })
+  }
+  if (baseEbitda !== null) {
+    waterfallRows.push({
+      tone: 'ebitda',
       label: 'EBITDA',
       value: fmtMoney(baseEbitda),
+      raw: baseEbitda,
       source: numberSource,
-    },
-    baseNet !== null && {
+    })
+  }
+  if (baseNet !== null) {
+    waterfallRows.push({
+      tone: 'net',
       label: t('chapter.financial.kv.netIncome'),
       value: fmtMoney(baseNet),
+      raw: baseNet,
       source: numberSource,
-    },
-  ]
-  const cells = candidateCells.filter((c): c is KvCell => c !== false)
+    })
+  }
 
   return (
     <Chapter id="financial">
-      {cells.length > 0 && <KvGrid cells={cells} columns={4} />}
+      <ProfitWaterfall rows={waterfallRows} />
 
       {revenueChartData.length > 0 && (
         <SubChapter heading={t('chapter.financial.subheading.revenueEbitda')}>
@@ -223,7 +236,7 @@ export function ChapterFinancialAnalysis({
         </SubChapter>
       )}
 
-      {cells.length === 0 && !dcf?.projected_revenue && (
+      {waterfallRows.length === 0 && !dcf?.projected_revenue && (
         <p style={emptyMsg}>{t('chapter.financial.empty')}</p>
       )}
     </Chapter>

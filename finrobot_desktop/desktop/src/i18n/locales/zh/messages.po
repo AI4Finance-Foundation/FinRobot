@@ -1085,6 +1085,10 @@ msgid "chapter.cover.reverseDcf.anchor.ceiling"
 msgstr "现金流上限"
 
 #. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.anchor.value"
+msgstr "现金流估值"
+
+#. js-lingui-explicit-id
 msgid "chapter.cover.typeLabel"
 msgstr "类型"
 

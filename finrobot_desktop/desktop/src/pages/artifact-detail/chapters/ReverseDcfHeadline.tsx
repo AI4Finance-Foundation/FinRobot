@@ -108,7 +108,16 @@ export function ReverseDcfHeadline({
           color="var(--accent-cyan)"
         />
         <CoverMetric
-          label={t('chapter.cover.reverseDcf.anchor.ceiling')}
+          label={
+            // Reachable regime: ceilingValue is the DCF *mid* (central cash-flow
+            // value), NOT a ceiling — the fair-value band brackets it above and the
+            // reframe below calls it the cash-flow "floor". Labelling the same number
+            // "ceiling" here contradicted that. Only the unreachable (option-value)
+            // regime has a true ceiling (ceiling_price = the most the model reaches).
+            unreachable
+              ? t('chapter.cover.reverseDcf.anchor.ceiling')
+              : t('chapter.cover.reverseDcf.anchor.value')
+          }
           value={cur(ceilingValue)}
           color="var(--secondary)"
         />

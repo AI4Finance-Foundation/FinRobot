@@ -286,11 +286,21 @@ class TestDdmBetaBand:
         assert "industry levered beta" in prov
         assert "industry levered-beta proxy" in prov
 
-    def test_in_band_low_beta_kept_raw(self) -> None:
-        # A genuine low-β defensive (0.354) is kept, clamped only by the 0.3 floor
-        # (0.354 > 0.3 → untouched), and provenance shows the provider source.
-        inputs = seed_ddm_inputs(_financials(beta=0.354), _normalized())
-        assert inputs.beta == pytest.approx(0.354)
+    def test_in_band_normal_bank_beta_kept_raw(self) -> None:
+        # A normal in-band bank beta (0.95) is kept verbatim — Blume is a no-op at ≤1.0,
+        # and 0.95 is not implausibly low vs the bank industry, so the relative check does
+        # not fire. Provenance shows the provider source.
+        inputs = seed_ddm_inputs(_financials(beta=0.95), _normalized())
+        assert inputs.beta == pytest.approx(0.95)
         prov = inputs.assumption_provenance["beta"]
         assert "provider-reported" in prov
         assert "industry levered-beta proxy" not in prov
+
+    def test_implausibly_low_bank_beta_uses_industry_proxy(self) -> None:
+        # A bank beta 0.354 is NOT a real defensive reading (banks are never low-beta
+        # defensives) — it sits far below the bank industry levered beta, so it is treated
+        # as a short-window vendor artifact and routes to the industry proxy (MTB-style).
+        inputs = seed_ddm_inputs(_financials(beta=0.354), _normalized())
+        assert inputs.beta > 0.354
+        prov = inputs.assumption_provenance["beta"]
+        assert "implausibly low" in prov

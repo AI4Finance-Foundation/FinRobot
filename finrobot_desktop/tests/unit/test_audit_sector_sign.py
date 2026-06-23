@@ -3,7 +3,10 @@ snapshot model carrying market.industry + valuation.ev + income.net_income).
 
 External benchmarks (probe 2026-06-06, FMP industry strings):
   banks/insurers/investment banks → EV is a category error (deposits/float/funding
-  are operating, no clean EBITDA) → blocked_field; payment networks (Visa) and
+  are operating, no clean EBITDA) → ``review`` caveat (the bank's published target never
+  consumes EV — cash-flow methods suppressed, headline anchors on DDM/P-B — so a
+  meaningless EV must not withhold an unrelated target; real dimensional corruption still
+  emits blocked_field from currency_caliber/ttm_period); payment networks (Visa) and
   asset managers (BlackRock) are asset-light → EV IS meaningful → no finding.
   Non-positive earnings → P/E not meaningful by economics → review.
 """
@@ -45,17 +48,22 @@ def _checks(findings) -> set[str]:
 
 
 class TestFinancialSectorEvSuppression:
-    def test_bank_ev_ebitda_blocked(self):
+    def test_bank_ev_ebitda_review_caveat(self):
+        # A bank's EV is a category error, flagged at ``review`` (a caveated banner), NOT
+        # ``blocked_field`` — the bank's published valuation never consumes EV (cash-flow
+        # methods suppressed, headline anchors on DDM/P-B), so a meaningless EV that
+        # nothing builds on must not withhold an unrelated target. Mirrors the sibling
+        # non_positive_earnings_pe_nm (also review).
         f = audit_sector_sign(_fd(ticker="JPM", industry="Banks - Diversified", ev_ebitda=8.0))
         assert "financial_sector_ev_meaningless" in _checks(f)
         evf = next(x for x in f if x.field_key == "ev_ebitda")
-        assert evf.severity == "blocked_field"
+        assert evf.severity == "review"
 
-    def test_insurer_enterprise_value_blocked(self):
+    def test_insurer_enterprise_value_review_caveat(self):
         f = audit_sector_sign(
             _fd(ticker="MET", industry="Insurance - Life", enterprise_value=1.2e11)
         )
-        assert any(x.field_key == "enterprise_value" and x.severity == "blocked_field" for x in f)
+        assert any(x.field_key == "enterprise_value" and x.severity == "review" for x in f)
 
     def test_capital_markets_kept_mixed_bucket(self):
         # FMP lumps balance-sheet-heavy investment banks (GS/MS) AND asset-light

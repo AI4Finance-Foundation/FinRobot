@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import statistics
 from dataclasses import dataclass
-from typing import Literal
+from typing import Final, Literal
 
 from finrobot.engine.models.financial import ValuationMethod, ValuationSynthesis
 from finrobot.engine.models.valuation_thresholds import (
@@ -79,12 +79,19 @@ def _select_anchor(methods: list[ValuationMethod], cyclical: bool) -> ValuationM
 
 
 def _confidence_dial(
-    methods: list[ValuationMethod], current_price: float, cyclical: bool
+    methods: list[ValuationMethod],
+    current_price: float,
+    cyclical: bool,
+    financial_sector: bool,
 ) -> tuple[ConfidenceTier, str | None, float | None, float | None, bool, str | None]:
     """Return (confidence, anchor_method, target_low, target_high, withheld, note).
 
     Pure. Encodes the graded-call rules; the verdict/target themselves are resolved
     downstream from these fields (resolve_canonical_thesis). ``methods`` is non-empty.
+
+    ``financial_sector`` (``is_bank``) makes a CORROBORATED bank/insurer anchor on its
+    DDM row (the income-based intrinsic value) rather than blend — see the corroborated
+    branch for the rationale and the corroboration-gate safety.
     """
     mids = [m.mid for m in methods]
     lo, hi = min(mids), max(mids)
@@ -127,9 +134,57 @@ def _confidence_dial(
     span = hi / lo if lo > 0 else float("inf")
     tier: ConfidenceTier
     point_withheld = False
-    if span <= _DIAL_CORROBORATE_SPAN:
-        point = sum(m.mid * m.confidence for m in methods) / sum(m.confidence for m in methods)
+
+    # Bank intrinsic anchor = residual income (justified P/B): ROE-coherent and
+    # buyback-invariant, so it anchors whether the comps corroborate OR diverge. A
+    # bank's comps_pb and comps_pe disagree precisely because they price book and
+    # earnings separately and the peer median grants no quality premium — RI
+    # integrates book, earnings and ROE into one value (PNC 2026-06-23: comps_pb
+    # $303 vs comps_pe $193 anchored the low $193 → RI $275, in the sell-side range).
+    # When ROE < CoE the value sits below book — the correct bearish read for a
+    # chronic underperformer (Citi), not papered over to consensus. A mid-merger bank
+    # whose ROE is poisoned is caught upstream by the mna_transition gate and never
+    # reaches here, and the out-of-calibration cap below still withholds if RI is
+    # wildly off market. Supersedes the dividend-only DDM anchor — buyback-invariant
+    # where the DDM was not (BAC). The RI beta is the SAME Blume-adjusted cost of
+    # equity the DCF/DDM use.
+    ri_method = next((m for m in methods if m.name == "residual_income"), None)
+    if financial_sector and ri_method is not None:
+        anchor_name = "residual_income"
+        # The target band IS the RI value band [RI at trailing ROE → RI at forward
+        # consensus ROE] (set in _ri_method, ±15%-floored), NOT the comps mid-spread. A
+        # cyclical bank's metric at one point in the cycle is not its perpetuity value, so
+        # we refuse to extrapolate a single ROE — the band brackets trough→normalized and
+        # resolve_canonical_thesis rates price-vs-band. In-band → HOLD, point withheld (the
+        # band IS that refusal); outside → directional from the nearest edge. ``point`` =
+        # the trailing RI is kept only for the out-of-calibration cap below. tier still
+        # grades from the comps agreement (span).
+        lo, hi = min(ri_method.low, ri_method.high), max(ri_method.low, ri_method.high)
+        point = ri_method.mid
+        point_withheld = lo <= current_price <= hi
+        tier = (
+            "high"
+            if span <= _DIAL_CORROBORATE_SPAN
+            else "medium"
+            if span <= _DIAL_MILD_SPAN
+            else "low"
+        )
+        loc = "within" if point_withheld else ("above" if current_price > hi else "below")
+        note = (
+            f"financial-sector issuer — residual-income value band ${lo:.0f}–${hi:.0f} "
+            f"(RI at trailing ROE → at FY1 consensus ROE), the bank's ROE-coherent, "
+            f"buyback-invariant intrinsic. Price ${current_price:.0f} is {loc} the band → "
+            + (
+                "verdict HOLD, point withheld (we do not claim a single cycle-point value)."
+                if point_withheld
+                else "directional verdict from the nearest edge."
+            )
+        )
+    elif span <= _DIAL_CORROBORATE_SPAN:
+        # Corroborated method set → blend (confidence-weighted central tendency; the
+        # agreement IS the signal).
         tier = "high"
+        point = sum(m.mid * m.confidence for m in methods) / sum(m.confidence for m in methods)
         anchor_name = None
         note = None
     else:
@@ -206,8 +261,72 @@ def _confidence_dial(
     return tier, anchor_name, lo, hi, point_withheld, (note or None)
 
 
+def _apply_mna_transition(
+    withheld: bool, note: str | None, mna_transition: bool
+) -> tuple[bool, str | None]:
+    """When the name just closed a stock-funded acquisition / large secondary, its
+    TTM per-share metrics are not yet representative of the combined entity (post-
+    deal share count over mostly-pre-deal earnings), so every method reads
+    spuriously bearish. Force the POINT withheld and disclose why; the neutral HOLD
+    verdict is applied in resolve_canonical_thesis off the mna_transition flag. A
+    data-lineage degradation, not a calibration call."""
+    if not mna_transition:
+        return withheld, note
+    mna_note = (
+        "recent acquisition / large secondary — current share count exceeds the "
+        "pre-deal weighted-average baseline, so the TTM per-share metrics (DDM "
+        "growth, comps EPS, ROE) are not yet representative of the combined entity; "
+        "the point target is withheld and the verdict held neutral pending the "
+        "combined entity's normalized results"
+    )
+    return True, (f"{note} {mna_note}".strip() if note else mna_note)
+
+
+# A small HOLD buffer just past the band edge — knife-edge protection so a name sitting
+# AT the band boundary doesn't flip BUY/SELL on a price micro-move. NOT a calibration of
+# the call's magnitude: the band itself ([realized ROE → forward consensus ROE]) carries
+# the margin of safety, already widening for low-agreement names, so re-applying the wide
+# confidence-tier thresholds here would double-count that uncertainty and suppress a real
+# out-of-band signal to HOLD. Past this buffer the call is directional; the upside MAGNITUDE
+# (shown to the analyst) conveys mild vs strong.
+_RI_BAND_EDGE_BUFFER: Final[float] = 0.03
+
+
+def _ri_band_verdict(
+    band_low: float, band_high: float, current_price: float
+) -> tuple[float | None, str, float | None, bool]:
+    """Rate a bank's residual-income value band against price → (target, verdict, upside,
+    withheld).
+
+    The band is [RI at trailing ROE → RI at forward consensus ROE] — the trough→normalized
+    range. A cyclical metric at one point in the cycle is not the perpetuity value, so we
+    refuse to extrapolate a single ROE to a point:
+      • price WITHIN the band (or within the ±edge-buffer of it) → HOLD, point withheld
+        (the band IS that refusal; the range still discloses the realized-low /
+        consensus-high bounds — 撤点 ≠ 撤区间);
+      • price OUTSIDE → directional from the NEAREST edge. Price above the forward
+        (consensus-recovery) end means the market pays more than even the bank's own best
+        case justifies — an independent SELL a consensus-parroting engine structurally
+        cannot produce (the forward end is our ceiling, never our anchor). Price below the
+        realized-ROE floor → BUY.
+    """
+    lo, hi = sorted((band_low, band_high))
+    if current_price <= 0 or lo <= current_price <= hi:
+        return None, "HOLD", None, True
+    edge = hi if current_price > hi else lo
+    upside = (edge - current_price) / current_price
+    if abs(upside) <= _RI_BAND_EDGE_BUFFER:
+        return None, "HOLD", None, True  # at the band boundary → HOLD (no knife-edge)
+    return round(edge, 2), ("SELL" if current_price > hi else "BUY"), upside, False
+
+
 def synthesize_valuations(
-    methods: list[ValuationMethod], current_price: float, *, cyclical: bool = False
+    methods: list[ValuationMethod],
+    current_price: float,
+    *,
+    cyclical: bool = False,
+    financial_sector: bool = False,
+    mna_transition: bool = False,
 ) -> ValuationSynthesis:
     """Synthesize multiple valuation methods into a single confidence-weighted estimate.
 
@@ -250,8 +369,9 @@ def synthesize_valuations(
             methods[0].name,
         )
         conf, anchor, t_lo, t_hi, withheld, note = _confidence_dial(
-            methods, current_price, cyclical
+            methods, current_price, cyclical, financial_sector
         )
+        withheld, note = _apply_mna_transition(withheld, note, mna_transition)
         return ValuationSynthesis(
             methods=methods,
             weighted_price=None,
@@ -263,6 +383,7 @@ def synthesize_valuations(
             target_high=t_hi,
             valuation_withheld=withheld,
             degradation_note=note,
+            mna_transition=mna_transition,
         )
 
     weighted_price = sum(m.mid * m.confidence for m in methods) / total_confidence
@@ -295,7 +416,10 @@ def synthesize_valuations(
                     median_mid,
                 )
 
-    conf, anchor, t_lo, t_hi, withheld, note = _confidence_dial(methods, current_price, cyclical)
+    conf, anchor, t_lo, t_hi, withheld, note = _confidence_dial(
+        methods, current_price, cyclical, financial_sector
+    )
+    withheld, note = _apply_mna_transition(withheld, note, mna_transition)
 
     # upside_downside must equal the canonical upside the verdict/target read off,
     # NOT the raw blend. When methods diverge the dial anchors the headline to ONE
@@ -320,7 +444,16 @@ def synthesize_valuations(
         and min(t_lo, t_hi) <= current_price <= max(t_lo, t_hi)
     )
     verdict_point = current_price if range_spans_market else reference_price
-    upside_downside = (verdict_point - current_price) / current_price
+    # upside_downside must mirror the canonical verdict exactly (pinned invariant), so it
+    # follows the SAME branch resolve_canonical_thesis takes: an M&A-transition name has no
+    # usable direction (None); a bank with an RI value band reads price-vs-band; everything
+    # else takes the anchor/range read.
+    if mna_transition:
+        upside_downside = None
+    elif anchor == "residual_income" and t_lo is not None and t_hi is not None:
+        _, _, upside_downside, _ = _ri_band_verdict(t_lo, t_hi, current_price)
+    else:
+        upside_downside = (verdict_point - current_price) / current_price
     return ValuationSynthesis(
         methods=methods,
         weighted_price=weighted_price,
@@ -334,6 +467,7 @@ def synthesize_valuations(
         target_high=t_hi,
         valuation_withheld=withheld,
         degradation_note=note,
+        mna_transition=mna_transition,
     )
 
 
@@ -484,6 +618,83 @@ def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
             ).strip(),
             upside=None,
             valuation_withheld=vs.valuation_withheld,
+            confidence=vs.confidence,
+        )
+
+    if vs.mna_transition:
+        # Just-closed stock-funded acquisition / large secondary: every method is
+        # built on a TTM snapshot that mixes a post-deal share count with mostly
+        # pre-deal earnings, so they read spuriously bearish while the market prices
+        # the pro-forma entity. Withhold the poisoned point and hold the verdict
+        # neutral — a data-lineage degradation, NOT a directional call. The methods
+        # stay visible (range/football field) for transparency.
+        method_breakdown = ", ".join(f"{m.name}=${m.mid:.2f}" for m in vs.methods)
+        return CanonicalThesis(
+            target=None,
+            verdict="HOLD",
+            basis=(
+                "POINT TARGET WITHHELD — post-acquisition transition: "
+                + (vs.degradation_note or "the share count jumped on a recent deal")
+                + ". Verdict held neutral. Methods (shown for transparency): "
+                + f"{method_breakdown}."
+            ).strip(),
+            upside=None,
+            valuation_withheld=True,
+            confidence=vs.confidence,
+        )
+
+    # Bank residual-income value band → rate price-vs-band, never a single perpetuity-ROE
+    # point. The band [RI at trailing ROE → RI at forward consensus ROE] brackets the
+    # trough→normalized uncertainty; the band IS our refusal to claim one cycle-point value.
+    if (
+        vs.anchor_method == "residual_income"
+        and vs.target_low is not None
+        and vs.target_high is not None
+    ):
+        lo, hi = sorted((vs.target_low, vs.target_high))
+        target, verdict, upside, in_band = _ri_band_verdict(lo, hi, vs.current_price)
+        # Respect the dial's out-of-calibration cap: when it already withheld the point (RI
+        # band extreme vs market) keep the target withheld but still ship the directional
+        # verdict from the market-implied read.
+        cap_withheld = vs.valuation_withheld and not in_band
+        withheld = in_band or vs.valuation_withheld
+        if withheld:
+            target = None
+        method_breakdown = ", ".join(f"{m.name}=${m.mid:.2f}" for m in vs.methods)
+        if in_band:
+            basis = (
+                f"POINT TARGET WITHHELD: price ${vs.current_price:.2f} sits WITHIN the "
+                f"residual-income value band [${lo:.2f}, ${hi:.2f}] (RI at trailing ROE → at "
+                f"FY1 consensus ROE). A cyclical bank's value is a trough→normalized range, "
+                f"not a single perpetuity ROE — verdict HOLD, the band published instead of a "
+                f"fabricated point. Methods: {method_breakdown}."
+            )
+        elif cap_withheld:
+            basis = (
+                f"POINT TARGET WITHHELD: the residual-income band [${lo:.2f}, ${hi:.2f}] is "
+                f"out of calibration vs price ${vs.current_price:.2f} — the {verdict} verdict "
+                f"ships from the market-implied read, not a fabricated point. "
+                f"Methods: {method_breakdown}."
+            )
+        else:
+            side = "above" if vs.current_price > hi else "below"
+            extra = (
+                " — the market pays more than even the bank's own forward-consensus recovery "
+                "justifies (the consensus end is our ceiling, not our anchor)"
+                if side == "above"
+                else " — the market is below even our realized-ROE floor"
+            )
+            basis = (
+                f"Price ${vs.current_price:.2f} is {side} the residual-income value band "
+                f"[${lo:.2f}, ${hi:.2f}]{extra}; target = nearest edge ${target:.2f} "
+                f"({verdict}). Methods: {method_breakdown}."
+            )
+        return CanonicalThesis(
+            target=target,
+            verdict=verdict,
+            basis=basis,
+            upside=upside,
+            valuation_withheld=withheld,
             confidence=vs.confidence,
         )
 

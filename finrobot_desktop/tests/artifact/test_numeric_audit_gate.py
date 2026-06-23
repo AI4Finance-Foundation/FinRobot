@@ -8,7 +8,7 @@ report renders byte-identically.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -45,6 +45,7 @@ def _fd(
     ev_ebitda: float | None = None,
     reporting_currency: str = "USD",
     quote_currency: str = "USD",
+    ttm_ends: list[date] | None = None,
 ) -> FinancialData:
     return FinancialData(
         ticker=ticker,
@@ -56,8 +57,17 @@ def _fd(
         valuation=ValuationMetrics(ev_ebitda=ev_ebitda),
         reporting_currency=reporting_currency,
         quote_currency=quote_currency,
+        ttm_quarter_ends=ttm_ends or [],
         data_source="fake",
     )
+
+
+# A genuinely-broken TTM (missing Dec quarter → 182-day gap → every ratio corrupt) is the
+# canonical *real* blocked_field used to exercise the withhold mechanism, replacing the old
+# "bank EV" shortcut: a bank EV is now only a ``review`` caveat (the cash-flow methods and
+# DDM/P-B headline never consume it), whereas ttm_period (like currency_caliber) still emits
+# ``blocked_field``, so the withhold mechanism is unchanged for real dimensional corruption.
+_BROKEN_TTM = [date(2026, 3, 31), date(2025, 9, 30), date(2025, 6, 30), date(2025, 3, 31)]
 
 
 def _result(fd: FinancialData, *, recommendation: str = "BUY", price_target: float | None = 100.0):
@@ -125,22 +135,27 @@ def test_clean_report_publishable_unchanged():
     assert art.outputs.llm_narrative["recommendation"] == "BUY"
 
 
-def test_bank_ev_blocks_field_and_withholds_valuation():
+def test_bank_ev_caveats_but_target_ships():
+    # A bank's EV is a category error, but flagged ``review`` (caveat), NOT
+    # ``blocked_field`` — the bank's published valuation never consumes EV (cash-flow
+    # methods suppressed upstream, headline anchors on DDM/P-B), so the EV finding banners
+    # the report (transparency) but the price target SHIPS. This is exactly what lets a
+    # clean bank's DDM target publish instead of being nulled by the EV gate (slice-3 of
+    # the bank-DDM change; previously this case withheld the target).
     art = _build(_result(_fd(ticker="JPM", industry="Banks - Diversified", ev_ebitda=8.0)), "JPM")
     audit = art.outputs.structured["numeric_audit"]
     assert audit["artifact_status"] == "caveated"
-    assert audit["withhold_valuation"] is True
-    assert any(f["check"] == "financial_sector_ev_meaningless" for f in audit["findings"])
-    # Banner: the finding surfaces in warnings.
+    assert audit["withhold_valuation"] is False
+    ev = next(f for f in audit["findings"] if f["check"] == "financial_sector_ev_meaningless")
+    assert ev["severity"] == "review"
+    # Banner still surfaces (the EV-is-meaningless-for-a-bank disclosure is informative).
     assert any("financial_sector_ev_meaningless" in w for w in art.outputs.warnings)
-    # Behavior A: TARGET withheld, but the directional verdict is PRESERVED (never
-    # REVIEW) in both copies — corrupt data withholds the value, not the judgment.
+    # Target + verdict both ship — nothing withheld.
     assert art.outputs.structured["thesis"]["recommendation"] == "BUY"
-    assert art.outputs.structured["thesis"]["price_target"] is None
+    assert art.outputs.structured["thesis"]["price_target"] == 100.0
     assert art.outputs.llm_narrative["recommendation"] == "BUY"
-    assert art.outputs.structured["valuation_withheld"] is True
-    assert "$100" not in art.outputs.summary_text
-    assert "Valuation withheld" in art.outputs.summary_text
+    assert not art.outputs.structured.get("valuation_withheld")
+    assert "Valuation withheld" not in art.outputs.summary_text
 
 
 def test_synthesis_dial_withhold_sets_top_level_flag_like_numeric_audit():
@@ -220,14 +235,17 @@ def test_missing_fmp_key_marks_valuation_artifact_caveated():
 
 
 def test_standalone_dcf_blocks_direct_target_when_audit_withholds():
+    # A genuinely-corrupt TTM (missing quarter) is a blocked_field → the DCF target built
+    # on it is withheld. (Was a bank EV; that is now only a review caveat — see
+    # test_bank_ev_caveats_but_target_ships — so use real corruption to exercise the gate.)
     result = PipelineResult(
         steps={"historical_data": "ok", "dcf_calc": "DCF implies $120 per share"},
         structured_data={
-            "historical_data": _fd(ticker="JPM", industry="Banks - Diversified", ev_ebitda=8.0),
+            "historical_data": _fd(industry="Software", ev_ebitda=18.0, ttm_ends=_BROKEN_TTM),
             "dcf_calc": _dcf_result(),
         },
     )
-    art = build_dcf_artifact(result, "JPM", cast(Any, None))
+    art = build_dcf_artifact(result, "X", cast(Any, None))
 
     assert art.outputs.structured["numeric_audit"]["artifact_status"] == "caveated"
     assert art.outputs.structured["numeric_audit"]["withhold_valuation"] is True
@@ -235,7 +253,7 @@ def test_standalone_dcf_blocks_direct_target_when_audit_withholds():
     assert art.outputs.structured["implied_price"] is None
     assert "$120" not in art.outputs.summary_text
     assert "Valuation withheld" in art.outputs.summary_text
-    assert any("financial_sector_ev_meaningless" in w for w in art.outputs.warnings)
+    assert any("ttm_quarter_gap" in w for w in art.outputs.warnings)
 
 
 # ---------------------------------------------------------------------------
@@ -318,9 +336,10 @@ def test_standalone_lbo_clean_publishes_returns():
 
 
 def test_standalone_lbo_withholds_returns_when_audit_blocks():
+    # Real corruption (broken TTM) blocks the target the LBO returns build on.
     art = build_lbo_artifact(
-        _lbo_pipeline_result(_fd(ticker="JPM", industry="Banks - Diversified", ev_ebitda=8.0)),
-        "JPM",
+        _lbo_pipeline_result(_fd(industry="Software", ev_ebitda=18.0, ttm_ends=_BROKEN_TTM)),
+        "X",
         cast(Any, None),
     )
     assert art.outputs.structured["numeric_audit"]["withhold_valuation"] is True
@@ -331,7 +350,7 @@ def test_standalone_lbo_withholds_returns_when_audit_blocks():
     assert art.outputs.structured["moic"] is None
     assert art.outputs.structured["entry_ev"] == 300
     assert "Valuation withheld" in art.outputs.summary_text
-    assert any("financial_sector_ev_meaningless" in w for w in art.outputs.warnings)
+    assert any("ttm_quarter_gap" in w for w in art.outputs.warnings)
 
 
 def test_standalone_comps_flags_but_does_not_claim_withheld():
@@ -339,8 +358,8 @@ def test_standalone_comps_flags_but_does_not_claim_withheld():
     # withhold_keys, so nothing is nulled. The summary must NOT lie about a withhold,
     # and the peer medians (not invalidated by a target-only blocked_field) ship.
     art = build_comps_artifact(
-        _comps_pipeline_result(_fd(ticker="JPM", industry="Banks - Diversified", ev_ebitda=8.0)),
-        "JPM",
+        _comps_pipeline_result(_fd(industry="Software", ev_ebitda=18.0, ttm_ends=_BROKEN_TTM)),
+        "X",
         cast(Any, None),
     )
     audit = art.outputs.structured["numeric_audit"]
@@ -349,7 +368,7 @@ def test_standalone_comps_flags_but_does_not_claim_withheld():
     assert "valuation_withheld" not in art.outputs.structured  # nothing was withheld
     assert art.outputs.structured["median_pe"] == 20.0  # medians still published
     assert "Valuation withheld" not in art.outputs.summary_text  # summary stays honest
-    assert any("financial_sector_ev_meaningless" in w for w in art.outputs.warnings)
+    assert any("ttm_quarter_gap" in w for w in art.outputs.warnings)
 
 
 # ---------------------------------------------------------------------------
@@ -381,19 +400,19 @@ def test_ic_memo_carries_numeric_audit_when_clean():
 
 
 def test_ic_memo_audits_nested_snapshot_and_records_block():
-    # The gate now runs on ICFinancials.financial_data (nested). A bank EV is a
-    # blocked_field — the block + finding surface (banner + contract C4 read them),
-    # but ic_memo has no single headline target, so nothing auto-withholds.
+    # The gate runs on ICFinancials.financial_data (nested). A genuinely-broken TTM is a
+    # blocked_field — the block + finding surface (banner + contract C4 read them), but
+    # ic_memo has no single headline target, so nothing auto-withholds.
     art = build_ic_memo_artifact(
-        _ic_memo_result(_fd(ticker="JPM", industry="Banks - Diversified", ev_ebitda=8.0)),
-        "JPM",
+        _ic_memo_result(_fd(industry="Software", ev_ebitda=18.0, ttm_ends=_BROKEN_TTM)),
+        "X",
         cast(Any, None),
     )
     audit = art.outputs.structured["numeric_audit"]
     assert audit["artifact_status"] == "caveated"
     assert audit["withhold_valuation"] is True  # the audit records the block
-    assert any(f["check"] == "financial_sector_ev_meaningless" for f in audit["findings"])
-    assert any("financial_sector_ev_meaningless" in w for w in art.outputs.warnings)
+    assert any(f["check"] == "ttm_quarter_gap" for f in audit["findings"])
+    assert any("ttm_quarter_gap" in w for w in art.outputs.warnings)
     # No single per-share headline → nothing auto-withheld; the DCF / LBO ship.
     assert "valuation_withheld" not in art.outputs.structured
     assert "dcf_result" in art.outputs.structured

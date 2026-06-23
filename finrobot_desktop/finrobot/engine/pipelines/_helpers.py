@@ -10,6 +10,7 @@ from typing import Any
 from pydantic_ai import Agent
 
 from finrobot.engine.compute.operators.cyclical_peers import screen_peers_with_cyclical
+from finrobot.engine.primitives.corporate_actions import detect_mna_transition
 from finrobot.engine.primitives.industry import is_bank, is_commodity_cyclical
 from finrobot.engine.compute.coordinators.extractor import (
     extract_company_financials,
@@ -44,6 +45,7 @@ from finrobot.engine.models.financial import (
     LBOResult,
     PeerComps,
     PeerSelection,
+    RIResult,
     StepOutput,
     ValuationMethod,
     ValuationSynthesis,
@@ -693,6 +695,7 @@ def build_valuation_synthesis(
     dcf = structured_context.get("financial_modeling")
     peers = structured_context.get("peer_analysis")
     ddm = structured_context.get("ddm_calc")
+    ri = structured_context.get("ri_calc")
     lbo = structured_context.get("lbo_calculation") or structured_context.get("lbo_result")
 
     financial_data = structured_context.get("data_collection")
@@ -773,12 +776,28 @@ def build_valuation_synthesis(
         else None,
         sector=financial_data.market.sector if isinstance(financial_data, FinancialData) else None,
     )
+    # Recent stock-funded acquisition / large secondary → the TTM snapshot mixes a
+    # post-deal share count with mostly-pre-deal earnings, so every per-share method
+    # (DDM g, comps EPS, ROE) reads spuriously bearish while the market prices the
+    # pro-forma entity (FITB/Comerica: ddm/comps all −30% vs a Buy sell-side).
+    # Detect via the share-count break against the pre-deal weighted-avg baseline
+    # (HistoricalMetrics net_income/eps) and degrade gracefully downstream — withhold
+    # the poisoned point, hold the verdict neutral. A data-lineage call, not calibration.
+    historical = structured_context.get("historical_metrics")
+    mna_transition = isinstance(historical, HistoricalMetrics) and detect_mna_transition(
+        shares, historical.net_income, historical.eps
+    )
     agg = aggregate_valuation(
         ticker=ticker,
         current_price=current_price,
         dcf=dcf if isinstance(dcf, DCFResult) else None,
         peer_comps=peers if isinstance(peers, PeerComps) else None,
-        ddm=ddm if isinstance(ddm, DDMResult) else None,
+        # Residual income (justified P/B) supersedes the dividend-only DDM as the bank
+        # intrinsic method when available — ROE-coherent + buyback-invariant. When RI
+        # is present the DDM row is suppressed so the football field shows one
+        # intrinsic value, not the buyback-blind DDM beside it.
+        ddm=ddm if (isinstance(ddm, DDMResult) and not isinstance(ri, RIResult)) else None,
+        residual_income=ri if isinstance(ri, RIResult) else None,
         lbo=lbo if isinstance(lbo, LBOResult) else None,
         shares_outstanding=shares,
         current_net_debt=current_net_debt,
@@ -811,7 +830,13 @@ def build_valuation_synthesis(
     ]
 
     try:
-        vs = synthesize_valuations(vm_list, current_price, cyclical=cyclical)
+        vs = synthesize_valuations(
+            vm_list,
+            current_price,
+            cyclical=cyclical,
+            financial_sector=financial_sector,
+            mna_transition=bool(mna_transition),
+        )
     except ValueError as e:
         logger.warning("Failed to build ValuationSynthesis: %s", e)
         return None

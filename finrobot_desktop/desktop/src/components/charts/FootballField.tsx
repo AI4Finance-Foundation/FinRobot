@@ -30,6 +30,7 @@ export const METHOD_LABEL: Record<string, string> = {
   ev_ebitda: 'EV/EBITDA',
   p_fcf: 'P/FCF',
   ddm: 'DDM',
+  residual_income: 'Residual Income',
   lbo: 'LBO',
 }
 

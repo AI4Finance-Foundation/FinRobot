@@ -1397,3 +1397,27 @@ class TestSeedDcfBetaEndToEnd:
             assert "industry levered-beta proxy" not in prov
             assert "modeling floor" not in prov
             assert prov.startswith(f"{raw:.2f}")  # shown value == used raw value
+
+    def test_bank_implausibly_low_beta_uses_industry_proxy(self):
+        # MTB-style: a bank β 0.59 sits far below the Banks-Regional industry levered
+        # beta (~0.91) → vendor short-window artifact → industry proxy. Banks are never
+        # low-beta defensives, so the industry-relative check is gated to is_bank.
+        fin = _aapl_financials()
+        fin.market.industry = "Banks - Regional"
+        fin.market.sector = "Financial Services"
+        fin.market.beta = 0.59
+        inputs = seed_dcf_inputs(fin, _aapl_historical())
+        assert inputs.beta > 0.59  # lifted to the higher industry levered proxy
+        prov = inputs.assumption_provenance["beta"]
+        assert "implausibly low" in prov
+        assert "0.59" in prov  # raw disclosed
+
+    def test_non_bank_same_low_beta_kept_raw(self):
+        # The IDENTICAL 0.59 beta in a NON-bank (Consumer Electronics) is kept verbatim:
+        # the relative check is bank-gated, so a real low-beta defensive is never误伤ed
+        # regardless of how high its industry beta is (dcf-recall red line).
+        fin = _aapl_financials()
+        fin.market.beta = 0.59
+        inputs = seed_dcf_inputs(fin, _aapl_historical())
+        assert inputs.beta == pytest.approx(0.59)
+        assert "implausibly low" not in inputs.assumption_provenance["beta"]

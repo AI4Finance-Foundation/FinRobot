@@ -33,6 +33,7 @@ from finrobot.engine.models.financial import (
     DDMResult,
     LBOResult,
     PeerComps,
+    RIResult,
     ValuationAggregate,
     ValuationMethodRange,
 )
@@ -48,6 +49,7 @@ historically by build_valuation_synthesis. When monte carlo lands the
 """
 
 _DDM_BAND_WIDTH = 0.15
+_RI_BAND_WIDTH = 0.15
 """Tighter band for DDM — dividend streams are less volatile than FCF."""
 
 _COMPS_PE_BAND_WIDTH = 0.10
@@ -115,6 +117,7 @@ def aggregate_valuation(
     dcf: DCFResult | None = None,
     peer_comps: PeerComps | None = None,
     ddm: DDMResult | None = None,
+    residual_income: RIResult | None = None,
     lbo: LBOResult | None = None,
     shares_outstanding: float | None = None,
     current_net_debt: float | None = None,
@@ -236,6 +239,12 @@ def aggregate_valuation(
             f"ddm: equity value per share ≤ 0 (${ddm.equity_value_per_share:,.2f}) — "
             "DDM method does not apply to this name — method withheld"
         )
+
+    # Residual income (justified P/B) — the bank's ROE-coherent intrinsic anchor.
+    # Threaded for banks only; supersedes the dividend-only DDM as the headline
+    # anchor (see _confidence_dial). ROE-coherent and buyback-invariant.
+    if (m := _ri_method(residual_income)) is not None:
+        methods.append(m)
 
     if (m := _lbo_method(lbo, shares_outstanding)) is not None:
         methods.append(m)
@@ -614,6 +623,50 @@ def _ddm_assumptions(ddm: DDMResult) -> str:
     tg = ddm.inputs.terminal_growth_rate
     g0 = rates[0] if rates else tg
     return f"discount rate (cost of equity) {ddm.cost_of_equity:.1%} · dividend growth {g0:.0%}→terminal {tg:.1%}"
+
+
+def _ri_method(ri: RIResult | None) -> ValuationMethodRange | None:
+    if ri is None or ri.equity_value_per_share <= 0:
+        return None
+    trailing = ri.equity_value_per_share
+    forward = ri.forward_value if (ri.forward_value is not None and ri.forward_value > 0) else trailing
+    lo, hi = sorted((trailing, forward))
+    # Band = [RI at trailing ROE (our realized return — the independent low end), RI at
+    # forward consensus ROE (the recovery boundary)], widened to a MINIMUM of the standard
+    # ±15% method width (NOT a new constant). The floor's job is to pin a stable bank
+    # (trailing ≈ forward) to HOLD under price micro-moves — never to manufacture a
+    # BUY/SELL signal; the realized→forward range widens it for a cyclical name. The band
+    # IS the bank's value range; the verdict is price-vs-band (_confidence_dial), refusing
+    # to extrapolate a single point in the cycle to a perpetuity ROE.
+    centre = (lo + hi) / 2
+    band_low = min(lo, centre * (1 - _RI_BAND_WIDTH))
+    band_high = max(hi, centre * (1 + _RI_BAND_WIDTH))
+    return ValuationMethodRange(
+        method="residual_income",
+        method_type="valuation",
+        low=band_low,
+        # The displayed anchor is the TRAILING value — our own realized-return number, an
+        # accounting fact — never a forward-biased centre that would let consensus reclaim
+        # the rating.
+        mid=trailing,
+        high=band_high,
+        confidence=0.6,
+        source="justified P/B (residual income), trailing→forward ROE band",
+        assumptions=_ri_assumptions(ri),
+    )
+
+
+def _ri_assumptions(ri: RIResult) -> str:
+    """RI's load-bearing assumptions: cost of equity, the realized ROE−CoE excess spread,
+    and (when available) the FY1 consensus recovery ROE that sets the band's high end."""
+    base = (
+        f"cost of equity {ri.cost_of_equity:.1%} · trailing ROE {ri.return_on_equity:.1%} "
+        f"(excess {ri.excess_return:+.1%}) · justified P/B {ri.justified_pb:.2f}× book "
+        f"${ri.book_value_per_share:.2f}"
+    )
+    if ri.forward_return_on_equity is not None:
+        base += f" · forward (FY1 consensus) ROE {ri.forward_return_on_equity:.1%} → recovery band"
+    return base
 
 
 def _lbo_method(

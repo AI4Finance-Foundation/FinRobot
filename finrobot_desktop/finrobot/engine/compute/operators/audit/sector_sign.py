@@ -11,6 +11,16 @@ Two definitional defects the accounting-identity checks are blind to:
    leg LAUNDERS a meaningless number. Banks / insurers / investment banks must be
    valued on P/B, P/TBV, ROTCE, DDM.
 
+   Flagged at ``review`` (a caveated banner), NOT ``blocked_field`` (which withholds the
+   price target). The bank's PUBLISHED valuation never consumes EV — aggregate_valuation
+   suppresses the cash-flow methods (DCF / EV-EBITDA / P-FCF) for a financial-sector
+   issuer and the headline anchors on DDM / P-B — so an EV that nothing builds on is an
+   EXPECTED structural fact, exactly like the loss-maker's NM P/E below (also ``review``),
+   not a corrupt number that should withhold an unrelated target. Real dimensional
+   corruption — mixed-currency EV (currency_caliber), TTM-period defects (ttm_period) —
+   still emits ``blocked_field`` from the other verifiers and still withholds, so the
+   withhold mechanism is not dead code.
+
    Classifier (probe 2026-06-06): FMP labels every financial ``sector="Financial
    Services"`` — no discriminating power; the INDUSTRY string drives the call. See
    ``_is_balance_sheet_financial`` for the calibrated boundary — only deposit-taking
@@ -34,9 +44,10 @@ from finrobot.engine.models.numeric_claim import Finding
 def _is_balance_sheet_financial(industry: str | None) -> bool:
     """True only for issuers whose ENTIRE industry bucket is balance-sheet-funded
     (deposits / float / reserves are operating, no clean EBITDA): deposit-taking
-    banks and risk-carrying insurers. Deliberately conservative — a blocked_field
-    is a strong verdict, so a false-positive (withholding a valid EV) is worse than
-    a false-negative.
+    banks and risk-carrying insurers. Deliberately conservative — even though the EV
+    finding is now ``review`` (a caveat, no longer a target-withholding ``blocked_field``),
+    a false-positive still wrongly banners a valid EV as meaningless, so keep the boundary
+    tight (a false-negative — missing a real bank — is the cheaper error).
 
     Probe 2026-06-06 calibrated the boundary:
     - ``"bank"`` → all of "Banks - Diversified/Regional" (incl. foreign ADRs
@@ -77,7 +88,7 @@ def audit_sector_sign(fin: FinancialData) -> list[Finding]:
                     Finding(
                         field_key=field_key,
                         check="financial_sector_ev_meaningless",
-                        severity="blocked_field",
+                        severity="review",
                         evidence=(
                             f"{fin.ticker} industry={industry!r}: deposits/float/funding are "
                             f"operating, not capital structure, and there is no clean above-the-line "

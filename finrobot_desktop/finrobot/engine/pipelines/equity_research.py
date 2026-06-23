@@ -18,12 +18,14 @@ from finrobot.engine.models.financial import (
     CatalystAnalysis,
     CatalystEvent,
     DCFResult,
+    DDMInputs,
     FinancialData,
     HistoricalMetrics,
     ThesisResult,
     StepOutput,
     ValuationSynthesis,
 )
+from finrobot.engine.compute.operators.residual_income import calculate_residual_income
 from finrobot.engine.models.reconcile_tolerances import NARRATIVE_DRIFT_TOLERANCE
 from finrobot.engine.compute.operators.catalyst import (
     extract_catalysts_from_news,
@@ -40,7 +42,10 @@ from finrobot.engine.compute.operators.dcf import (
 )
 from finrobot.engine.compute.coordinators.segment_extractor import build_sotp_breakdown
 from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
-from finrobot.engine.compute.operators.forward_estimates import get_forward_revenue_growth
+from finrobot.engine.compute.operators.forward_estimates import (
+    ForwardFinancials,
+    get_forward_revenue_growth,
+)
 from finrobot.engine.compute.operators.multiples import current_ev_ebitda
 from finrobot.engine.compute.operators.valuation_synthesis import (
     CanonicalThesis,
@@ -73,7 +78,8 @@ from finrobot.engine.pipelines._helpers import (
     execute_peer_analysis,
 )
 from finrobot.engine.pipelines._thesis_prompt import build_thesis_prompt
-from finrobot.engine.primitives.industry import is_commodity_cyclical
+from finrobot.engine.pipelines.ddm import _execute_ddm_calc, _execute_ddm_seed
+from finrobot.engine.primitives.industry import is_bank, is_commodity_cyclical
 from finrobot.engine.pipelines.validators import (
     validate_catalyst_analysis,
     validate_has_fields,
@@ -447,6 +453,37 @@ async def _execute_ownership_governance_analysis(
     return StepOutput(text=narrative, structured=analysis)
 
 
+def _forward_roe(
+    ddm_inputs: DDMInputs,
+    financial_data: FinancialData,
+    fwd: object,
+) -> float | None:
+    """FY1 consensus ROE = trailing ROE × (consensus NI / trailing NI).
+
+    The consensus NI is the FMP analyst FY1 MEAN (``netIncomeAvg``, same caliber as
+    trailing net income). Both operands are USD: ``trail_ni`` is the FX-normalized
+    canonical snapshot (execute_financial_data_step records income.net_income as
+    "currency-clean USD"; forward_estimates likewise calls it the "USD-canonical
+    trailing"), and ``fwd_ni`` is kept only when it passes get_forward_financials'
+    ``_guard_fx_mismatch`` — a native-currency consensus (UMC's TWD) is abstained to
+    None there, never divided against a USD trailing. So the NI-growth RATIO is unitless
+    USD/USD (the FX guard, NOT a native-currency cancellation, is what makes the
+    cross-currency case safe) with no book-caliber drift. The equity base is held at
+    trailing — one year out the retained-book growth would lower the recovery ROE
+    slightly, a mild conservative-toward-HOLD bias we accept and disclose rather than
+    patch. Returns None when no usable forward estimate exists (the band falls back to
+    single-stage trailing ± the method floor).
+    """
+    troe = ddm_inputs.return_on_equity
+    if troe is None or troe <= 0 or not isinstance(fwd, ForwardFinancials):
+        return None
+    fwd_ni = fwd.forward_net_income
+    trail_ni = financial_data.income.net_income
+    if not fwd_ni or fwd_ni <= 0 or not trail_ni or trail_ni <= 0:
+        return None
+    return troe * (fwd_ni / trail_ni)
+
+
 async def _execute_financial_modeling(
     agent: Agent[Any, Any],  # noqa: ARG001 — kept for executor signature; unused
     deps: FinRobotDeps,
@@ -507,6 +544,73 @@ async def _execute_financial_modeling(
                 pe_ratio=[],
                 cagr_revenue=None,
                 ticker=ticker,
+            )
+    # Persist so build_valuation_synthesis (below) sees it even when this step
+    # fetched it as a fallback — it reads structured_context["historical_metrics"]
+    # to detect a post-acquisition share-count break (M&A-transition gate).
+    structured_context["historical_metrics"] = historical
+
+    # Bank → compute DDM, the bank's LEAD valuation method. ``is_bank`` itself
+    # documents "use DDM, not FCF-DCF": DCF / EV / P-FCF are category errors for a
+    # deposit-funded balance sheet, and aggregate_valuation already suppresses those
+    # rows for a financial-sector issuer — so without DDM a bank leads on peer P/B + P/E
+    # alone, which UNDERPRICES a quality leader (peer-median multiples grant no quality
+    # premium; same root cause as the KO comps-underprice re-anchor). Reuse the
+    # standalone DDM pipeline's deterministic seed + calc executors VERBATIM. They
+    # FX-normalize off the snapshot's ORIGINAL reporting/quote currency (a foreign bank's
+    # native-ccy DPS must never mix with a USD quote — BUG-073), so run them HERE, BEFORE
+    # this step normalizes data_collection to USD, feeding the un-normalized snapshot via
+    # the ``historical_data`` key they read (nothing else in this pipeline reads it). The
+    # DDMResult lands in structured_context["ddm_calc"], which build_valuation_synthesis
+    # (below) picks up as the intrinsic bank anchor. Gated to banks: a non-bank never
+    # populates ddm_calc, so its football field is byte-identical (zero regression). DDM
+    # augments the report — a degenerate/failed DDM must never crash it (the bank then
+    # leads on P/B + P/E, the remaining bank methods).
+    if is_bank(industry=financial_data.market.industry, sector=financial_data.market.sector):
+        structured_context["historical_data"] = financial_data
+        try:
+            ddm_seed_out = await _execute_ddm_seed(agent, deps, prompt, structured_context, ticker)
+            structured_context["ddm_params"] = ddm_seed_out.structured
+            ddm_calc_out = await _execute_ddm_calc(agent, deps, prompt, structured_context, ticker)
+            structured_context["ddm_calc"] = ddm_calc_out.structured
+            # Residual income (justified P/B) from the SAME seed inputs — the bank's
+            # ROE-coherent, buyback-invariant intrinsic anchor that supersedes the
+            # dividend-only DDM as the headline (see _confidence_dial). Own try so a
+            # degenerate RI (ROE far below CoE / negative book) just drops without
+            # disturbing the DDM the football field still shows.
+            ddm_inputs = ddm_seed_out.structured
+            if isinstance(ddm_inputs, DDMInputs):
+                # Forward (recovery) ROE = trailing ROE × consensus NI growth — the FY1
+                # analyst MEAN (FMP netIncomeAvg). A unitless NI-growth RATIO: both ends
+                # are USD (trailing = the canonical-USD snapshot; the consensus NI is kept
+                # only past _forward_roe's FX-mismatch guard), so no currency or book-
+                # caliber drift. The [trailing, forward] RI band then brackets a cyclical
+                # bank's trough→normalized uncertainty; the synthesis rates price-vs-band,
+                # never extrapolating a single trough/peak ROE to a point.
+                forward_roe = _forward_roe(
+                    ddm_inputs, financial_data, structured_context.get("forward_financials")
+                )
+                try:
+                    structured_context["ri_calc"] = calculate_residual_income(
+                        ddm_inputs, forward_roe=forward_roe
+                    )
+                except ValueError as ri_err:
+                    logger.info("Residual income not applicable for %s: %s", ticker, ri_err)
+        except (
+            ProviderError,
+            ValidationError,
+            ValueError,
+            ArithmeticError,
+            KeyError,
+            TypeError,
+            AttributeError,
+            RuntimeError,
+            OSError,
+        ) as e:
+            logger.warning(
+                "DDM not applicable for bank %s: %s — bank valuation leads on P/B + P/E",
+                ticker,
+                e,
             )
 
     # FX-normalize a foreign issuer's financials to canonical USD before seeding

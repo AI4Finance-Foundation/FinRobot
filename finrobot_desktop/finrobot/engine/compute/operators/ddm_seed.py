@@ -29,7 +29,10 @@ from typing import Final
 from finrobot.engine.compute.operators.dcf_seed import (
     _BETA_BAND_CEILING,
     _BETA_BAND_FLOOR,
+    _BETA_IMPLAUSIBLY_LOW_REASON,
     _BETA_OUT_OF_BAND_REASON,
+    _BETA_RELATIVE_FLOOR,
+    _BETA_RELATIVE_INDUSTRY_MIN,
     DEFAULT_EQUITY_RISK_PREMIUM,
     DEFAULT_PROJECTION_YEARS,
     DEFAULT_RISK_FREE_RATE,
@@ -39,6 +42,7 @@ from finrobot.engine.compute.operators.dcf_seed import (
 )
 from finrobot.engine.compute.operators.wacc import adjust_beta_blume
 from finrobot.engine.data.industry_defaults import IndustryDefault, get_industry_default
+from finrobot.engine.primitives.industry import is_bank
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials
 from finrobot.engine.models.financial import DDMInputs, FinancialData
 
@@ -186,6 +190,17 @@ def seed_ddm_inputs(
         ceiling=_BETA_BAND_CEILING,
         rejected_ticker_reason=_BETA_OUT_OF_BAND_REASON,
         reject_value_fmt="{:.2f}",
+        # Banks only — see dcf_seed: a bank is never a true low-beta defensive, so a
+        # sub-0.7×-industry bank beta is vendor noise; every other sector's low beta is
+        # real and kept (dcf-recall red line). The DDM/RI is bank-only anyway, but gate
+        # explicitly so the shared helper never误伤s a non-bank caller.
+        relative_floor=(
+            _BETA_RELATIVE_FLOOR
+            if is_bank(industry=financials.market.industry, sector=financials.market.sector)
+            else None
+        ),
+        relative_floor_industry_min=_BETA_RELATIVE_INDUSTRY_MIN,
+        relative_reject_reason=_BETA_IMPLAUSIBLY_LOW_REASON,
     )
     # Blume asymmetric adjustment, IDENTICAL to dcf_seed — cost of equity is a
     # property of the equity, not the valuation method, so DDM must discount a

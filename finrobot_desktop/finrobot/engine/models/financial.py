@@ -999,6 +999,18 @@ class ValuationSynthesis(BaseModel):
             "every degraded call is traceable."
         ),
     )
+    mna_transition: bool = Field(
+        default=False,
+        description=(
+            "True when the name just closed a stock-funded acquisition / large secondary "
+            "(current share count materially above the pre-deal weighted-avg baseline). Its "
+            "TTM per-share metrics (DDM g, comps EPS, ROE) mix a post-deal share count with "
+            "mostly-pre-deal earnings, so every method reads spuriously bearish while the "
+            "market prices the pro-forma entity. resolve_canonical_thesis withholds the "
+            "poisoned point and holds the verdict neutral (HOLD) on this flag — a "
+            "data-lineage degradation, NOT a calibration call. Default False."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -1233,6 +1245,45 @@ class DDMResult(BaseModel):
         return self.equity_value_per_share / self.inputs.current_price - 1
 
 
+class RIResult(BaseModel):
+    """Residual-income (justified-P/B) valuation output. Code-computed, not LLM.
+
+    A bank is worth its book value plus the present value of the excess return it
+    earns over its cost of equity: V = BVPS × [1 + (ROE − CoE)/(CoE − g)]. Unlike
+    the DDM it is ROE-coherent (no P/B-vs-P/E divergence to mis-anchor) and
+    buyback-invariant — it anchors on hard book value, not a projected payout — and
+    it is correctly bearish when ROE < CoE (value below book, the right read for a
+    chronic underperformer). The bank's intrinsic anchor.
+    """
+
+    cost_of_equity: float
+    book_value_per_share: float
+    return_on_equity: float
+    excess_return: float
+    """ROE − CoE: the spread the franchise earns over its cost of equity (the sign
+    of the value premium/discount to book)."""
+    terminal_growth_rate: float
+    justified_pb: float
+    """V / BVPS = 1 + (ROE − CoE)/(CoE − g) — the justified price-to-book."""
+    equity_value_per_share: float
+    """RI at TRAILING ROE — the independent low end of the bank's value band (our own
+    realized return, an accounting fact)."""
+    forward_return_on_equity: float | None = None
+    """FY1 consensus ROE = trailing ROE × (consensus NI / trailing NI). None when no
+    forward estimate is available."""
+    forward_value: float | None = None
+    """RI at FORWARD (consensus) ROE — the recovery high end of the value band. The
+    band [equity_value_per_share, forward_value] brackets the trough→normalized
+    uncertainty; the verdict is price-vs-band, never a single perpetuity-ROE point.
+    None when no forward estimate is available (single-stage fallback)."""
+    inputs: DDMInputs
+
+    # No ``upside`` property (unlike DDMResult): a bank's RI is consumed ONLY as the
+    # [trailing, forward] band via _ri_method → price-vs-band, never as a single point.
+    # A trailing-only upside here would be the −40%-single-trough-ROE figure the band
+    # design exists to refuse — deliberately absent, not forgotten.
+
+
 # ---------------------------------------------------------------------------
 # Football Field aggregation (v5 §6.4)
 # ---------------------------------------------------------------------------
@@ -1249,6 +1300,7 @@ ValuationMethodName = Literal[
     "comps_pb",
     "lbo",
     "ddm",
+    "residual_income",
     "ev_ebitda",
     "p_fcf",
 ]

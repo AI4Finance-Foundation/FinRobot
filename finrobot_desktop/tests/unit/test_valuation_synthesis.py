@@ -295,6 +295,48 @@ class TestSynthesizeValuations:
         assert spans.valuation_withheld is True
         assert spans.upside_downside == pytest.approx(0.0, abs=1e-9)
 
+        # RI-band regime (financial_sector): synthesize and resolve both read price-vs-band
+        # off the SAME _ri_band_verdict, so the stored field must mirror resolve's upside in
+        # every sub-case. Pins the new regime into this gate (the −40%-single-trough-ROE
+        # point the band design refuses must never re-enter via a desynced stored field).
+        ri_above = synthesize_valuations(
+            [
+                ValuationMethod(name="comps_pb", low=200, mid=235, high=270, confidence=0.5, source="pb"),
+                ValuationMethod(name="comps_pe", low=120, mid=134, high=150, confidence=0.5, source="pe"),
+                ValuationMethod(name="residual_income", low=87, mid=87, high=129, confidence=0.6, source="ri"),
+            ],
+            current_price=146.0,
+            financial_sector=True,
+        )
+        ri_below = synthesize_valuations(
+            [
+                ValuationMethod(name="comps_pb", low=260, mid=280, high=300, confidence=0.5, source="pb"),
+                ValuationMethod(name="comps_pe", low=280, mid=300, high=320, confidence=0.5, source="pe"),
+                ValuationMethod(name="residual_income", low=250, mid=250, high=290, confidence=0.6, source="ri"),
+            ],
+            current_price=220.0,
+            financial_sector=True,
+        )
+        for vs, tkr in ((ri_above, "C"), (ri_below, "PNC")):
+            assert vs.anchor_method == "residual_income"
+            assert vs.upside_downside == pytest.approx(
+                resolve_canonical_thesis(vs, tkr).upside, abs=1e-9
+            )
+        # in-band: both the stored field and resolve's upside are None (point withheld, no
+        # directional gap) — the band IS the refusal to claim one cycle-point value.
+        ri_in = synthesize_valuations(
+            [
+                ValuationMethod(name="comps_pb", low=280, mid=300, high=320, confidence=0.5, source="pb"),
+                ValuationMethod(name="comps_pe", low=290, mid=310, high=330, confidence=0.5, source="pe"),
+                ValuationMethod(name="residual_income", low=290, mid=290, high=340, confidence=0.6, source="ri"),
+            ],
+            current_price=331.0,
+            financial_sector=True,
+        )
+        assert ri_in.anchor_method == "residual_income"
+        assert ri_in.upside_downside is None
+        assert resolve_canonical_thesis(ri_in, "JPM").upside is None
+
         # single-method carve-out: the stored field is None (no cross-checked blend),
         # yet resolve still ships a directional upside off the lone method's mid so the
         # verdict isn't lost — the two are intentionally asymmetric ONLY here.
@@ -749,6 +791,89 @@ class TestConfidenceDial:
         assert vs.anchor_method is None
         assert vs.valuation_withheld is False
 
+    @staticmethod
+    def _ri(low: float, high: float) -> ValuationMethod:
+        # A residual_income method carrying an explicit value band [RI at trailing ROE,
+        # RI at forward consensus ROE]; mid = the trailing (independent) end.
+        return ValuationMethod(
+            name="residual_income", low=low, mid=low, high=high, confidence=0.6, source="ri"
+        )
+
+    def test_financial_sector_price_in_band_holds_and_withholds_point(self):
+        # Price WITHIN the realized→forward RI band: a cyclical bank's value is a range, not
+        # a single perpetuity ROE — verdict HOLD, point WITHHELD, the band still published.
+        # The band is our refusal to claim one value; re-stamping a point would retract it.
+        methods = [self._m("comps_pb", 300), self._m("comps_pe", 310), self._ri(290, 340)]
+        vs = synthesize_valuations(methods, 331.0, financial_sector=True)
+        assert vs.anchor_method == "residual_income"
+        thesis = resolve_canonical_thesis(vs, "JPM")
+        assert thesis.verdict == "HOLD"
+        assert thesis.target is None  # 撤点 ≠ 撤区间
+        assert thesis.valuation_withheld is True
+        assert vs.target_low is not None and vs.target_high is not None  # band published
+        # Control: identical methods for a non-bank do NOT take the RI band path.
+        nb = synthesize_valuations(methods, 331.0, financial_sector=False)
+        assert nb.anchor_method != "residual_income"
+
+    def test_financial_sector_price_above_band_directional_from_consensus_ceiling(self):
+        # Citi-shape: price $146 ABOVE the recovery end of the band [$87 realized → $129
+        # forward consensus]. The market pays more than even the bank's OWN best case (full
+        # consensus recovery) justifies → independent bearish read a consensus-parroting
+        # engine cannot produce. Target = the consensus ceiling (nearest edge), upside MILD
+        # (~−12%), NOT the −40% a single-trough-ROE point would have stamped.
+        vs = synthesize_valuations(
+            [self._m("comps_pb", 235), self._m("comps_pe", 134), self._ri(87, 129)],
+            146.0,
+            financial_sector=True,
+        )
+        assert vs.anchor_method == "residual_income"
+        thesis = resolve_canonical_thesis(vs, "C")
+        assert thesis.verdict == "SELL"  # independent: above even the consensus ceiling
+        assert thesis.target == pytest.approx(129, abs=0.5)  # the forward-consensus ceiling
+        assert thesis.upside == pytest.approx(-0.116, abs=0.01)  # mild, not −40%
+        assert thesis.valuation_withheld is False
+        assert vs.upside_downside == pytest.approx(thesis.upside)  # pinned mirror
+
+    def test_financial_sector_price_below_band_directional_from_realized_floor(self):
+        # Price below even the realized-ROE floor of the band → cheap vs fundamentals,
+        # directional from the low (realized) edge.
+        vs = synthesize_valuations(
+            [self._m("comps_pb", 280), self._m("comps_pe", 300), self._ri(250, 290)],
+            220.0,
+            financial_sector=True,
+        )
+        assert vs.anchor_method == "residual_income"
+        thesis = resolve_canonical_thesis(vs, "PNC")
+        assert thesis.verdict == "BUY"  # below even the realized-ROE floor → cheap
+        assert thesis.target == pytest.approx(250, abs=0.5)  # realized-ROE floor (nearest edge)
+        assert thesis.upside == pytest.approx(0.136, abs=0.01)
+        assert thesis.valuation_withheld is False
+
+    def test_financial_sector_extreme_residual_income_still_capped(self):
+        # The out-of-calibration cap still guards RI: an RI in the EXTREME band (< 0.125x =
+        # 1/(2·4x) the market price — the market prices something the fundamental anchor
+        # can't see) withholds the point. RI anchoring banks does NOT bypass the safety net.
+        vs = synthesize_valuations(
+            [
+                self._m("comps_pb", 6),
+                self._m("comps_pe", 5),
+                self._m("residual_income", 5),
+            ],
+            60.0,
+            financial_sector=True,
+        )
+        assert vs.valuation_withheld is True
+
+    def test_financial_sector_without_residual_income_blends_gracefully(self):
+        # A bank whose RI failed to compute (negative book / ROE far below CoE) carries only
+        # comps. With no RI row the special case does not fire — it blends like any other
+        # corroborated set (anchor None), so the bank path degrades gracefully.
+        vs = synthesize_valuations(
+            [self._m("comps_pb", 100), self._m("comps_pe", 110)], 105.0, financial_sector=True
+        )
+        assert vs.anchor_method is None
+        assert vs.confidence == "high"
+
     def test_dial_always_emits_a_band_never_blanks_the_range(self):
         """机械闸门(契约② 单方法→给区间不撤回 + 新规矩 交付物永远 100% 完整字段):
         _confidence_dial 对任何非空方法集都必须给出 target_low/high — 撤的只是 POINT,
@@ -769,3 +894,62 @@ class TestConfidenceDial:
                 vs.target_low is not None and vs.target_high is not None
             ), f"dial blanked the range for {names} @ {price} (withheld={vs.valuation_withheld})"
             assert vs.target_high >= vs.target_low
+
+
+class TestMnaTransitionGate:
+    """A just-closed stock-funded acquisition leaves the TTM snapshot mixing a
+    post-deal share count with mostly-pre-deal earnings → every method reads
+    spuriously bearish (FITB/Comerica: ddm/comps all ~−30% vs a Buy sell-side).
+    On the mna_transition flag the synthesis withholds the poisoned point and the
+    verdict is held neutral (HOLD), NOT a fabricated SELL. Data-lineage degradation,
+    not calibration."""
+
+    @staticmethod
+    def _fitb_methods() -> list[ValuationMethod]:
+        # All three methods corroborated and ~30% below market → would normally
+        # anchor a confident SELL; the transition flag must neutralise that.
+        return [
+            ValuationMethod(name="comps_pb", low=33, mid=37, high=41, confidence=0.4, source="PB"),
+            ValuationMethod(name="comps_pe", low=29, mid=32, high=35, confidence=0.4, source="PE"),
+            ValuationMethod(name="ddm", low=33, mid=36, high=39, confidence=0.5, source="DDM"),
+        ]
+
+    def test_transition_withholds_point_and_holds_verdict_neutral(self):
+        vs = synthesize_valuations(self._fitb_methods(), 53.61, mna_transition=True)
+        assert vs.mna_transition is True
+        assert vs.valuation_withheld is True
+        assert vs.upside_downside is None  # mirrors canonical (no usable direction)
+        assert "acquisition" in (vs.degradation_note or "")
+        thesis = resolve_canonical_thesis(vs, "FITB")
+        assert thesis.verdict == "HOLD"
+        assert thesis.target is None
+        assert thesis.upside is None
+        assert thesis.valuation_withheld is True
+        # methods still surfaced for transparency
+        assert "comps_pe" in (thesis.basis or "") and "ddm" in (thesis.basis or "")
+
+    def test_same_methods_without_flag_ship_the_bearish_call(self):
+        """Variable isolation: the ONLY thing the flag changes is the gate. Without
+        it, the identical corroborated-low methods publish a real SELL with a point."""
+        vs = synthesize_valuations(self._fitb_methods(), 53.61, mna_transition=False)
+        assert vs.mna_transition is False
+        thesis = resolve_canonical_thesis(vs, "FITB")
+        assert thesis.verdict == "SELL"
+        assert thesis.target is not None  # a confident (poisoned, pre-fix) point
+
+    def test_default_off_is_regression_safe(self):
+        """Default (no flag) must be byte-identical to the pre-change behaviour."""
+        methods = self._fitb_methods()
+        with_default = synthesize_valuations(methods, 53.61)
+        explicit_off = synthesize_valuations(methods, 53.61, mna_transition=False)
+        assert with_default.mna_transition is False
+        assert with_default.model_dump() == explicit_off.model_dump()
+
+    def test_single_method_transition_also_gated(self):
+        vs = synthesize_valuations(
+            [ValuationMethod(name="ddm", low=33, mid=36, high=39, confidence=0.5, source="DDM")],
+            53.61,
+            mna_transition=True,
+        )
+        assert vs.mna_transition is True and vs.valuation_withheld is True
+        assert resolve_canonical_thesis(vs, "FITB").verdict == "HOLD"

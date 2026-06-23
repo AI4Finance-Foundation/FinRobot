@@ -25,7 +25,7 @@ import statistics
 from typing import Final
 
 from finrobot.engine.compute.operators.wacc import adjust_beta_blume
-from finrobot.engine.primitives.industry import commodity_cyclical_basis
+from finrobot.engine.primitives.industry import commodity_cyclical_basis, is_bank
 from finrobot.engine.data.industry_defaults import (
     IndustryDefault,
     get_industry_default,
@@ -107,6 +107,17 @@ _BETA_BAND_CEILING: Final[float] = 5.0
 _BETA_OUT_OF_BAND_REASON: Final[str] = (
     "outside the economically possible beta band [0, 5] (vendor short-window glitch); "
     "using the industry levered-beta proxy"
+)
+# Industry-relative beta sanity (NOT an absolute floor — see _pick_with_provenance):
+# a ticker beta below 70% of a normal-magnitude industry levered beta is a vendor
+# short-window regression artifact. Gated on the industry beta itself being ≥ 0.8 so
+# genuinely low-beta sectors (utilities/staples, industry β well below 0.8) are
+# structurally exempt and never误伤ed. Catches MTB (β 0.59 in Banks-Regional β 0.91).
+_BETA_RELATIVE_FLOOR: Final[float] = 0.7
+_BETA_RELATIVE_INDUSTRY_MIN: Final[float] = 0.8
+_BETA_IMPLAUSIBLY_LOW_REASON: Final[str] = (
+    "is implausibly low versus the industry levered beta (a short-window vendor "
+    "regression artifact for a non-defensive sector); using the industry proxy"
 )
 
 # Minimum historical samples required before we trust the ticker's own median.
@@ -741,6 +752,13 @@ def seed_dcf_inputs(
     # discount rate no analyst applies to a mega-cap. For structurally low-beta
     # defensive names (β ≤ 1.0) the low beta is real (cash flows don't co-move with
     # the cycle), not noise, so the raw beta is kept — never inflated toward 1.0.
+    # The industry-relative beta sanity is gated to BANKS only: a bank is structurally
+    # never a low-beta defensive (levered balance sheet, cyclical credit), so a bank beta
+    # far below the bank-industry levered beta is a vendor short-window artifact (MTB β
+    # 0.59). For every other sector the raw low beta is REAL and kept verbatim (KO 0.35,
+    # utilities) — applying the relative check there would误伤 true low-beta defensives,
+    # the dcf-recall red line.
+    _bank = is_bank(industry=financials.market.industry, sector=financials.market.sector)
     raw_beta, beta_source = _pick_with_provenance(
         ticker_value=financials.market.beta,
         ticker_label="provider-reported 5y beta",
@@ -750,6 +768,9 @@ def seed_dcf_inputs(
         ceiling=_BETA_BAND_CEILING,
         rejected_ticker_reason=_BETA_OUT_OF_BAND_REASON,
         reject_value_fmt="{:.2f}",
+        relative_floor=_BETA_RELATIVE_FLOOR if _bank else None,
+        relative_floor_industry_min=_BETA_RELATIVE_INDUSTRY_MIN,
+        relative_reject_reason=_BETA_IMPLAUSIBLY_LOW_REASON,
     )
     beta_chosen = adjust_beta_blume(raw_beta)
     # Provenance must match the branch actually taken (same 1.0 threshold as
@@ -1008,6 +1029,9 @@ def _pick_with_provenance(
     ceiling: float | None = None,
     rejected_ticker_reason: str | None = None,
     reject_value_fmt: str = "{:.1%}",
+    relative_floor: float | None = None,
+    relative_floor_industry_min: float = 0.0,
+    relative_reject_reason: str | None = None,
 ) -> tuple[float, str]:
     """Pick ticker_value when in band, else industry_value. Return (value, source_label).
 
@@ -1021,17 +1045,35 @@ def _pick_with_provenance(
     are percentages (default "{:.1%}"); beta is a plain coefficient, so the beta
     callers pass "{:.2f}" — printing a beta with "%" would assert a false number
     (e.g. SHEL's −0.248 beta shown as "−24.8%").
+
+    ``relative_floor`` (beta only) adds an industry-relative sanity check: a ticker
+    value implausibly far BELOW a normal-magnitude industry proxy is a short-window
+    vendor regression artifact, not a real low reading, and routes to the proxy. It is
+    gated on ``industry_value > relative_floor_industry_min`` — a genuinely low-magnitude
+    sector (utilities, β≈0.5) has a low industry value, so a low ticker reading there
+    MATCHES its industry and is kept. This is NOT an absolute floor (which would误伤 true
+    low-beta defensives — see dcf-recall): it fires only when a name sits far below a
+    NORMAL-beta industry (MTB β 0.59 in Banks-Regional β 0.91 = vendor noise → proxy).
     """
     in_band = ticker_value is not None and ticker_value > floor
     if in_band and ceiling is not None and ticker_value > ceiling:  # type: ignore[operator]
         in_band = False
+    relative_reject = (
+        in_band
+        and relative_floor is not None
+        and ticker_value is not None
+        and industry_value > relative_floor_industry_min
+        and ticker_value < relative_floor * industry_value
+    )
+    if relative_reject:
+        in_band = False
     if in_band:
         return ticker_value, ticker_label  # type: ignore[return-value]
-    if ticker_value is not None and rejected_ticker_reason is not None:
+    reason = relative_reject_reason if relative_reject else rejected_ticker_reason
+    if ticker_value is not None and reason is not None:
         return (
             industry_value,
-            f"{industry_label}; {ticker_label} {reject_value_fmt.format(ticker_value)} "
-            f"{rejected_ticker_reason}",
+            f"{industry_label}; {ticker_label} {reject_value_fmt.format(ticker_value)} {reason}",
         )
     return industry_value, industry_label
 

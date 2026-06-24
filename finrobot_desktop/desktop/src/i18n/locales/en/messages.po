@@ -301,6 +301,18 @@ msgid "report.audit.severity.info"
 msgstr "INFO"
 
 #. js-lingui-explicit-id
+msgid "report.audit.notesTitle"
+msgstr "Valuation Notes"
+
+#. js-lingui-explicit-id
+msgid "report.audit.note.financialSectorEv"
+msgstr "Bank valuation — {fields} aren't meaningful for a deposit-funded institution (deposits are operating raw material, not capital structure, and there's no clean EBITDA). Valued on P/B, P/TBV, ROTCE and DDM instead."
+
+#. js-lingui-explicit-id
+msgid "report.audit.note.lossMakerPe"
+msgstr "P/E is not meaningful here — earnings are negative. Leaning on EV/Revenue, P/B and DCF instead."
+
+#. js-lingui-explicit-id
 msgid "chapter.financial.kv.revenueBase"
 msgstr "Revenue (Base)"
 

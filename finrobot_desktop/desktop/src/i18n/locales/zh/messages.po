@@ -301,6 +301,18 @@ msgid "report.audit.severity.info"
 msgstr "提示"
 
 #. js-lingui-explicit-id
+msgid "report.audit.notesTitle"
+msgstr "估值说明"
+
+#. js-lingui-explicit-id
+msgid "report.audit.note.financialSectorEv"
+msgstr "银行估值 —— {fields} 对存款型机构不适用（存款是经营原料，而非资本结构，也没有干净的 EBITDA）。改用 P/B、P/TBV、ROTCE、DDM 估值。"
+
+#. js-lingui-explicit-id
+msgid "report.audit.note.lossMakerPe"
+msgstr "P/E 在此不适用 —— 盈利为负。改用 EV/Revenue、P/B、DCF。"
+
+#. js-lingui-explicit-id
 msgid "chapter.financial.kv.revenueBase"
 msgstr "营收（基期）"
 

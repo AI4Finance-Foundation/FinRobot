@@ -1,9 +1,14 @@
-// Guards the numeric-audit gate's front-end surface: the banner renders ONLY when
-// the artifact isn't publishable AND has something to show (a finding or a withhold
-// note), lists every finding by field_key + evidence, and explains the withheld
-// valuation. A publishable / absent audit — or a caveated status that an
-// internal-only scrub (contract C7) left with no analyst row — must be
-// zero-footprint (no banner) so clean reports are untouched.
+// Guards the numeric-audit gate's front-end surface. The banner separates TWO kinds
+// of "the number isn't clean":
+//   • DEFECT / data-quality (cross-currency, contract withhold) → prominent warning
+//     rows: humanised field LABEL (not the raw snake_case key) + the evidence string.
+//   • STRUCTURAL / expected-by-economics (EV is a category error for a bank; P/E NM
+//     for a loss-maker) → a calm, demoted "Valuation Notes" line, grouped per rule,
+//     with NO raw value dumped. When a report has ONLY these, the whole banner drops
+//     the warning treatment (role=note, no glow) — a routine sector fact must not
+//     read like broken software (the JPM regression).
+// A publishable / absent audit — or a caveated status an internal-only scrub left
+// with no analyst row — must be zero-footprint.
 
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -11,21 +16,40 @@ import { render, screen } from '@testing-library/react'
 import { ChapterAuditBanner } from './ChapterAuditBanner'
 import type { NumericAuditShape } from './types'
 
-const CAVEATED_AUDIT: NumericAuditShape = {
+// The JPM case: a bank's EV/EV-EBITDA flagged as a category error. Expected
+// structural fact (review severity), NOT a withhold.
+const STRUCTURAL_AUDIT: NumericAuditShape = {
+  artifact_status: 'caveated',
+  withhold_valuation: false,
+  findings: [
+    {
+      field_key: 'enterprise_value',
+      check: 'financial_sector_ev_meaningless',
+      severity: 'review',
+      evidence:
+        "JPM industry='Banks - Diversified': … enterprise_value=284630945210.52 is a category error. Value on P/B, P/TBV, ROTCE, DDM.",
+    },
+    {
+      field_key: 'ev_ebitda',
+      check: 'financial_sector_ev_meaningless',
+      severity: 'review',
+      evidence:
+        'JPM … ev_ebitda=3.395699707835984 is a category error. Value on P/B, P/TBV, ROTCE, DDM.',
+    },
+  ],
+}
+
+// A genuine data DEFECT: mixed-currency EV. blocked_field → withholds the target.
+const DEFECT_AUDIT: NumericAuditShape = {
   artifact_status: 'caveated',
   withhold_valuation: true,
   findings: [
     {
-      field_key: 'ev_ebitda',
-      check: 'financial_sector_ev_meaningless',
+      field_key: 'enterprise_value',
+      check: 'cross_currency_ratio',
       severity: 'blocked_field',
-      evidence: 'JPM industry=banks: ev_ebitda=8.1 is a category error. Value on P/B, ROTCE.',
-    },
-    {
-      field_key: 'pe_ratio',
-      check: 'non_positive_earnings_pe_nm',
-      severity: 'review',
-      evidence: 'JPM net_income=-1.2e9 ≤ 0: P/E is not meaningful by economics.',
+      evidence:
+        'TSM EV mixes a USD market cap with TWD-denominated debt — the bridge is unit-inconsistent.',
     },
   ],
 }
@@ -43,22 +67,73 @@ describe('ChapterAuditBanner', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('renders the banner + every finding (field_key + evidence) for caveated', () => {
-    render(<ChapterAuditBanner audit={CAVEATED_AUDIT} />)
-    expect(screen.getByTestId('report-audit-banner')).toBeInTheDocument()
-    // One row per finding.
-    expect(screen.getAllByTestId('report-audit-finding')).toHaveLength(2)
-    // field_key shown verbatim (it references the static caliber registry).
-    expect(screen.getByText('ev_ebitda')).toBeInTheDocument()
-    expect(screen.getByText('pe_ratio')).toBeInTheDocument()
-    // The evidence string (carrying the actual numbers) is the banner body.
-    expect(screen.getByText(/category error/)).toBeInTheDocument()
-    expect(screen.getByText(/not meaningful by economics/)).toBeInTheDocument()
+  // ── Structural notes (expected-by-economics) — demoted, humanised, no raw value ──
+
+  it('renders a bank EV note as a calm, grouped, humanised note — not an alarm', () => {
+    render(<ChapterAuditBanner audit={STRUCTURAL_AUDIT} />)
+    const banner = screen.getByTestId('report-audit-banner')
+    expect(banner).toBeInTheDocument()
+    // Calm, not alarm: role=note (a warning would be role=alert).
+    expect(banner.getAttribute('role')).toBe('note')
+    // The two EV findings collapse into ONE note (grouped by check), never two rows.
+    expect(screen.getAllByTestId('report-audit-note')).toHaveLength(1)
+    // No prominent DEFECT rows.
+    expect(screen.queryAllByTestId('report-audit-finding')).toHaveLength(0)
+  })
+
+  it('humanises the field labels and never leaks the raw key or raw float', () => {
+    render(<ChapterAuditBanner audit={STRUCTURAL_AUDIT} />)
+    // Humanised metric names (EV/EBITDA stays English per the i18n exemption list).
+    expect(screen.getByText(/Enterprise Value/)).toBeInTheDocument()
+    expect(screen.getByText(/EV\/EBITDA/)).toBeInTheDocument()
+    // The raw snake_case key and the full-precision floats must NOT reach the user.
+    expect(screen.queryByText('enterprise_value')).toBeNull()
+    expect(screen.queryByText(/284630945210/)).toBeNull()
+    expect(screen.queryByText(/3\.395699707835984/)).toBeNull()
+    // The raw audit evidence string is not dumped for a structural note.
+    expect(screen.queryByText(/category error/)).toBeNull()
+  })
+
+  it('renders a loss-maker P/E note for non_positive_earnings_pe_nm', () => {
+    render(
+      <ChapterAuditBanner
+        audit={{
+          artifact_status: 'caveated',
+          withhold_valuation: false,
+          findings: [
+            {
+              field_key: 'pe_ratio',
+              check: 'non_positive_earnings_pe_nm',
+              severity: 'review',
+              evidence: 'RIVN net_income=-1.2e9 ≤ 0: P/E is not meaningful by economics.',
+            },
+          ],
+        }}
+      />,
+    )
+    expect(screen.getAllByTestId('report-audit-note')).toHaveLength(1)
+    expect(screen.getByText(/P\/E is not meaningful/i)).toBeInTheDocument()
+    // raw evidence not dumped
+    expect(screen.queryByText(/net_income/)).toBeNull()
+  })
+
+  // ── Defect rows (genuine data-quality) — prominent, humanised label + evidence ──
+
+  it('renders a genuine defect as a prominent warning row with a humanised label', () => {
+    render(<ChapterAuditBanner audit={DEFECT_AUDIT} />)
+    const banner = screen.getByTestId('report-audit-banner')
+    expect(banner.getAttribute('role')).toBe('alert')
+    expect(screen.getAllByTestId('report-audit-finding')).toHaveLength(1)
+    // Humanised label, NOT the raw key.
+    expect(screen.getByText('Enterprise Value')).toBeInTheDocument()
+    expect(screen.queryByText('enterprise_value')).toBeNull()
+    // The evidence string (the diagnostic detail) IS shown for a real defect.
+    expect(screen.getByText(/unit-inconsistent/)).toBeInTheDocument()
   })
 
   it('explains the withheld valuation when withhold_valuation is set', () => {
-    render(<ChapterAuditBanner audit={CAVEATED_AUDIT} />)
-    // zh or en copy — both mention the withheld point target (rating still stands).
+    render(<ChapterAuditBanner audit={DEFECT_AUDIT} />)
+    // en or zh copy — both mention the withheld point target (rating still stands).
     expect(screen.getByText(/已隐藏|withheld/i)).toBeInTheDocument()
   })
 
@@ -73,17 +148,17 @@ describe('ChapterAuditBanner', () => {
     expect(banner.style.borderLeft).toContain('var(--danger)')
   })
 
-  // ── Output-contract findings (ArtifactContract, step 1b) ───────────────────
-
   it('exposes the #report-audit-banner anchor so the cover can jump to it', () => {
-    render(<ChapterAuditBanner audit={CAVEATED_AUDIT} />)
+    render(<ChapterAuditBanner audit={STRUCTURAL_AUDIT} />)
     expect(screen.getByTestId('report-audit-banner').id).toBe('report-audit-banner')
   })
 
-  it('renders output-contract findings (clause id + evidence) alongside numeric ones', () => {
+  // ── Output-contract findings (ArtifactContract, step 1b) ───────────────────
+
+  it('renders output-contract findings (clause id + evidence) as defect rows', () => {
     render(
       <ChapterAuditBanner
-        audit={CAVEATED_AUDIT}
+        audit={STRUCTURAL_AUDIT}
         contractFindings={[
           {
             clause: 'C1',
@@ -93,8 +168,9 @@ describe('ChapterAuditBanner', () => {
         ]}
       />,
     )
-    // Numeric findings (2) + contract findings (1) all render as rows.
-    expect(screen.getAllByTestId('report-audit-finding')).toHaveLength(3)
+    // The contract finding is a DEFECT row; the two structural EV findings are ONE note.
+    expect(screen.getAllByTestId('report-audit-finding')).toHaveLength(1)
+    expect(screen.getAllByTestId('report-audit-note')).toHaveLength(1)
     expect(screen.getByText('OUTPUT-CONTRACT/C1')).toBeInTheDocument()
     expect(screen.getByText(/single-method corroboration band/)).toBeInTheDocument()
   })
@@ -146,11 +222,12 @@ describe('ChapterAuditBanner', () => {
     const legacy = {
       artifact_status: 'review_only',
       withhold_valuation: false,
-      findings: CAVEATED_AUDIT.findings,
+      findings: STRUCTURAL_AUDIT.findings,
     } as unknown as NumericAuditShape
     render(<ChapterAuditBanner audit={legacy} />)
     expect(screen.getByTestId('report-audit-banner')).toBeInTheDocument()
-    expect(screen.getAllByTestId('report-audit-finding')).toHaveLength(2)
+    // Structural findings → one grouped note, not raw finding rows.
+    expect(screen.getAllByTestId('report-audit-note')).toHaveLength(1)
   })
 
   it('gives unpublishable a plain-language reason instead of an empty red box', () => {

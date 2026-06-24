@@ -1,18 +1,58 @@
 // Data-caveat banner — surfaces analyst-facing data-quality caveats at the top of
 // the report body. CONTENT-GATED: it appears only when there is something to show
 // (a flagged finding, a surfaced output-contract row, or a withheld valuation),
-// never as an empty alarm box. The label is analyst-facing ("Data Caveats" /
-// "Core Data Unresolved"), not the internal gate status — the analyst reads the
-// caveats, not our QA machinery.
+// never as an empty alarm box.
 //
-// It lists every finding by its flagged field_key + the evidence string (the
-// actual numbers the backend computed). When a specific field's number was
-// withheld, the copy says so for that field — the directional rating still stands
-// (artifact/builders.py preserves it). Only `unpublishable` (core data
-// unresolvable) goes red and always surfaces, since the whole report is suspect.
+// TWO KINDS of "the number isn't clean" exist and MUST look different — conflating
+// them was the JPM regression (a bank's EV rendered as a red BLOCKED alarm with a
+// raw 12-digit float, so a routine sector fact read like broken software):
+//
+//   • DEFECT / DATA-QUALITY (cross-currency EV, TTM overlap, unverified bridge,
+//     a contract withhold) → a real warning. Prominent amber/red rows, the raw
+//     evidence string (it carries the diagnostic numbers the analyst must see),
+//     a humanised field label instead of the snake_case key.
+//
+//   • STRUCTURAL / EXPECTED-BY-ECONOMICS (EV is a category error for a bank;
+//     P/E is NM for a loss-maker) → NOT a defect, it's how the sector works. These
+//     are demoted to a calm "Valuation Notes" line: one humanised sentence per
+//     rule (grouped — Enterprise Value + EV/EBITDA collapse into ONE note), no raw
+//     value (the number is audit-trail detail, surfaced inline at the figure +
+//     in outputs.warnings, not dumped here). When a report has ONLY these, the
+//     whole banner drops the warning treatment.
+//
+// The structural set is keyed by `check` (NOT severity — currency/ttm/ev_bridge
+// also emit `review` but ARE genuine data-quality advisories). It mirrors the two
+// "applicability" verifiers in engine/.../audit/sector_sign.py; if that grows,
+// promote this to a backend `Finding` flag rather than extending the list blindly.
 
 import { useI18n } from '../../../i18n'
 import type { NumericAuditFinding, NumericAuditSeverity, NumericAuditShape } from './types'
+
+/** Audit checks that flag an EXPECTED structural fact (a metric that doesn't apply
+ * to this sector by economics), not a data defect. Mirrors sector_sign.py. */
+const STRUCTURAL_CHECKS = new Set([
+  'financial_sector_ev_meaningless',
+  'non_positive_earnings_pe_nm',
+])
+
+/** Static label registry: raw field_key → analyst-facing metric name. Finance
+ * abbreviations stay English (i18n exemption list: EV/EBITDA, P/E, …). Falls back
+ * to a humanised Title-Case of the key for anything unmapped. */
+const FIELD_LABELS: Record<string, string> = {
+  enterprise_value: 'Enterprise Value',
+  ev_ebitda: 'EV/EBITDA',
+  ev_revenue: 'EV/Revenue',
+  pe_ratio: 'P/E',
+  market_cap: 'Market Cap',
+}
+
+function fieldLabel(key: string): string {
+  // Contract clause refs (OUTPUT-CONTRACT/C1) are already meaningful — pass through.
+  if (key.startsWith('OUTPUT-CONTRACT/')) return key
+  const mapped = FIELD_LABELS[key]
+  if (mapped) return mapped
+  return key.replace(/[_-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
 
 /** Accent token per report status. caveated = warning (muted amber);
  * unpublishable = danger (red). Both neutral-of-涨跌 — these are data-health
@@ -46,7 +86,7 @@ export function ChapterAuditBanner({
 
   // Output-contract findings render as first-class rows beside the numeric-audit
   // ones — same Finding shape, distinguished by the OUTPUT-CONTRACT/ field-key.
-  const findings: NumericAuditFinding[] = [
+  const allFindings: NumericAuditFinding[] = [
     ...(audit?.findings ?? []),
     ...contractFindings.map((c) => ({
       field_key: `OUTPUT-CONTRACT/${c.clause}`,
@@ -55,6 +95,10 @@ export function ChapterAuditBanner({
       evidence: c.evidence,
     })),
   ]
+
+  // Split DEFECTS (prominent warning rows) from STRUCTURAL notes (demoted, humanised).
+  const issues = allFindings.filter((f) => !STRUCTURAL_CHECKS.has(f.check))
+  const structural = allFindings.filter((f) => STRUCTURAL_CHECKS.has(f.check))
 
   // CONTENT-GATE, not status-enum gate. Render only when there is something
   // actionable to show — a finding, a surfaced contract row, or a withheld
@@ -67,20 +111,42 @@ export function ChapterAuditBanner({
   // exception is `unpublishable` — core data is unresolvable, so the whole report
   // is suspect and the analyst must be told even with no itemised row.
   const isUnpublishable = status === 'unpublishable'
-  const hasContent = findings.length > 0 || audit?.withhold_valuation === true
-  if (!isUnpublishable && !hasContent) return null
-  const accent = statusAccent(status)
+  const withheld = audit?.withhold_valuation === true
+  // HARD content = a real warning. Structural notes alone are NOT hard content —
+  // they get the calm treatment, never the alarm box.
+  const hasHardContent = issues.length > 0 || withheld || isUnpublishable
+  if (!hasHardContent && structural.length === 0) return null
 
-  const statusLabel =
-    status === 'unpublishable'
-      ? t('report.audit.status.unpublishable')
-      : t('report.audit.status.caveated')
+  // Accent + header: alarm (amber/red) when there's a real warning; calm neutral
+  // when the only content is expected structural notes.
+  const accent = hasHardContent ? statusAccent(status) : 'var(--text-muted)'
+  const headerLabel = isUnpublishable
+    ? t('report.audit.status.unpublishable')
+    : hasHardContent
+      ? t('report.audit.status.caveated')
+      : t('report.audit.notesTitle')
+
+  // Group structural findings by check → one note per rule, listing the affected
+  // field labels (Enterprise Value + EV/EBITDA → one line, not two near-identical ones).
+  const structuralByCheck = new Map<string, string[]>()
+  for (const f of structural) {
+    const labels = structuralByCheck.get(f.check) ?? []
+    const label = fieldLabel(f.field_key)
+    if (!labels.includes(label)) labels.push(label)
+    structuralByCheck.set(f.check, labels)
+  }
+  const structuralNotes = [...structuralByCheck.entries()].map(([check, labels]) => {
+    if (check === 'financial_sector_ev_meaningless')
+      return t('report.audit.note.financialSectorEv', { fields: labels.join(', ') })
+    if (check === 'non_positive_earnings_pe_nm') return t('report.audit.note.lossMakerPe')
+    return labels.join(', ')
+  })
 
   return (
     <section
       id="report-audit-banner"
       data-testid="report-audit-banner"
-      role="alert"
+      role={hasHardContent ? 'alert' : 'note'}
       style={{
         margin: '12px 0 24px',
         scrollMarginTop: 84,
@@ -89,11 +155,14 @@ export function ChapterAuditBanner({
         border: `1px solid color-mix(in srgb, ${accent} 45%, transparent)`,
         borderLeft: `3px solid ${accent}`,
         borderRadius: 'var(--radius-md)',
-        boxShadow: `0 0 24px color-mix(in srgb, ${accent} 14%, transparent)`,
+        // Glow only for real warnings — a calm methodology note shouldn't pulse.
+        boxShadow: hasHardContent
+          ? `0 0 24px color-mix(in srgb, ${accent} 14%, transparent)`
+          : 'none',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-        <WarnIcon color={accent} />
+        {hasHardContent ? <WarnIcon color={accent} /> : <NoteIcon color={accent} />}
         <span
           style={{
             fontFamily: 'var(--font-display)',
@@ -102,11 +171,11 @@ export function ChapterAuditBanner({
             color: accent,
           }}
         >
-          {statusLabel}
+          {headerLabel}
         </span>
       </div>
 
-      {audit?.withhold_valuation && (
+      {withheld && (
         <p
           style={{
             margin: '6px 0 0',
@@ -122,7 +191,7 @@ export function ChapterAuditBanner({
 
       {/* Unpublishable with no itemised row: the status itself is the message, so
           give the analyst a plain-language reason rather than an empty red box. */}
-      {isUnpublishable && findings.length === 0 && !audit?.withhold_valuation && (
+      {isUnpublishable && issues.length === 0 && !withheld && (
         <p
           style={{
             margin: '6px 0 0',
@@ -136,7 +205,9 @@ export function ChapterAuditBanner({
         </p>
       )}
 
-      {findings.length > 0 && (
+      {/* DEFECT rows — prominent. Humanised field label + the raw evidence string
+          (it carries the diagnostic numbers the analyst needs to reconcile). */}
+      {issues.length > 0 && (
         <ul
           style={{
             display: 'flex',
@@ -147,7 +218,7 @@ export function ChapterAuditBanner({
             listStyle: 'none',
           }}
         >
-          {findings.map((f, i) => (
+          {issues.map((f, i) => (
             <li
               key={`${f.field_key}-${f.check}-${i}`}
               data-testid="report-audit-finding"
@@ -162,19 +233,17 @@ export function ChapterAuditBanner({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <code
+                <span
                   style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 11.5,
+                    fontFamily: 'var(--font-display)',
+                    fontSize: 12.5,
+                    fontWeight: 600,
                     color: 'var(--text-primary)',
-                    background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border-soft)',
-                    borderRadius: 4,
-                    padding: '1px 7px',
+                    letterSpacing: '0.02em',
                   }}
                 >
-                  {f.field_key}
-                </code>
+                  {fieldLabel(f.field_key)}
+                </span>
                 <span
                   style={{
                     fontFamily: 'var(--font-mono)',
@@ -212,6 +281,50 @@ export function ChapterAuditBanner({
           ))}
         </ul>
       )}
+
+      {/* STRUCTURAL notes — demoted, humanised, one line per rule. Quiet muted text,
+          no severity chip, no raw number: this is methodology transparency, not an alarm. */}
+      {structuralNotes.length > 0 && (
+        <ul
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 7,
+            margin: hasHardContent ? '14px 0 0' : '8px 0 0',
+            padding: 0,
+            listStyle: 'none',
+          }}
+        >
+          {structuralNotes.map((note, i) => (
+            <li
+              key={i}
+              data-testid="report-audit-note"
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: 9,
+                fontFamily: 'var(--font-body)',
+                fontSize: 12.5,
+                lineHeight: 1.6,
+                color: 'var(--text-muted)',
+              }}
+            >
+              <span
+                aria-hidden
+                style={{
+                  flexShrink: 0,
+                  width: 4,
+                  height: 4,
+                  marginTop: 7,
+                  borderRadius: 999,
+                  background: 'var(--text-dim)',
+                }}
+              />
+              <span>{note}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }
@@ -236,6 +349,29 @@ function WarnIcon({ color }: { color: string }): React.ReactElement {
       <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
       <line x1="12" y1="9" x2="12" y2="13" />
       <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  )
+}
+
+/** Calm marker for the methodology-notes (non-warning) header: a plain info circle,
+ * no drop-shadow glow — it must not read as an alarm. */
+function NoteIcon({ color }: { color: string }): React.ReactElement {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={color}
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      style={{ flexShrink: 0 }}
+    >
+      <circle cx="12" cy="12" r="9" />
+      <line x1="12" y1="11" x2="12" y2="16" />
+      <line x1="12" y1="8" x2="12.01" y2="8" />
     </svg>
   )
 }

@@ -106,42 +106,50 @@ async def main() -> int:
     settings = await hydrate_settings_from_secrets(settings, store)
     dl = build_data_layer(settings)
     deps = FinRobotDeps(data_layer=dl, settings=settings)
-
-    print(
-        f"{'tkr':<6}{'bank':>5}{'price':>9}  {'methods (name=mid)':<46}"
-        f"{'anchor':>9}{'target':>9}{'upside':>8}{'verdict':>9}{'dialW':>6}{'gateW':>6}  ev_findings"
-    )
-    print("-" * 150)
-
-    for t in BASKET:
-        try:
-            vs, gate_withhold, ev_findings, ddm = await _valuation_for(deps, t)
-        except Exception as e:  # noqa: BLE001
-            print(f"{t:<6}  ERROR {str(e)[:80]}")
-            continue
-        if vs is None:
-            print(f"{t:<6}  no valuation_synthesis (single/no method)")
-            continue
-
-        thesis = resolve_canonical_thesis(vs, t)
-        methods_str = " ".join(f"{m.name}={m.mid:.0f}" for m in vs.methods)
-        target = thesis.target
-        upside = thesis.upside
-        # is_bank from the snapshot industry (cache-hot re-fetch).
-        _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, t)
-        snap = extract_financial_data(_fin, await deps.data_layer.fetch_canonical(DataType.PRICE, t))
-        bank = "Y" if is_bank(industry=snap.market.industry, sector=snap.market.sector) else "."
-        ddm_note = f" ddm={ddm.equity_value_per_share:.0f}" if ddm is not None else ""
+    try:
         print(
-            f"{t:<6}{bank:>5}{vs.current_price:>9.2f}  {methods_str:<46}"
-            f"{(vs.anchor_method or '-'):>9}"
-            f"{(f'${target:.0f}' if target is not None else 'WITHHELD'):>9}"
-            f"{(f'{upside:+.1%}' if upside is not None else '-'):>8}"
-            f"{(thesis.verdict or '-'):>9}{('Y' if vs.valuation_withheld else '.'):>6}"
-            f"{('Y' if gate_withhold else '.'):>6}  {','.join(ev_findings) or '-'}{ddm_note}"
+            f"{'tkr':<6}{'bank':>5}{'price':>9}  {'methods (name=mid)':<46}"
+            f"{'anchor':>9}{'target':>9}{'upside':>8}{'verdict':>9}{'dialW':>6}{'gateW':>6}  ev_findings"
         )
+        print("-" * 150)
 
-    return 0
+        for t in BASKET:
+            try:
+                vs, gate_withhold, ev_findings, ddm = await _valuation_for(deps, t)
+            except Exception as e:  # noqa: BLE001
+                print(f"{t:<6}  ERROR {str(e)[:80]}")
+                continue
+            if vs is None:
+                print(f"{t:<6}  no valuation_synthesis (single/no method)")
+                continue
+
+            thesis = resolve_canonical_thesis(vs, t)
+            methods_str = " ".join(f"{m.name}={m.mid:.0f}" for m in vs.methods)
+            target = thesis.target
+            upside = thesis.upside
+            # is_bank from the snapshot industry (cache-hot re-fetch).
+            _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, t)
+            snap = extract_financial_data(
+                _fin, await deps.data_layer.fetch_canonical(DataType.PRICE, t)
+            )
+            bank = "Y" if is_bank(industry=snap.market.industry, sector=snap.market.sector) else "."
+            ddm_note = f" ddm={ddm.equity_value_per_share:.0f}" if ddm is not None else ""
+            print(
+                f"{t:<6}{bank:>5}{vs.current_price:>9.2f}  {methods_str:<46}"
+                f"{(vs.anchor_method or '-'):>9}"
+                f"{(f'${target:.0f}' if target is not None else 'WITHHELD'):>9}"
+                f"{(f'{upside:+.1%}' if upside is not None else '-'):>8}"
+                f"{(thesis.verdict or '-'):>9}{('Y' if vs.valuation_withheld else '.'):>6}"
+                f"{('Y' if gate_withhold else '.'):>6}  {','.join(ev_findings) or '-'}{ddm_note}"
+            )
+
+        return 0
+    finally:
+        # Non-server entrypoint: join aiosqlite workers + checkpoint WAL so the process
+        # exits cleanly instead of hanging on "Event loop is closed" (2026-06-24).
+        from finrobot.engine.data.factory import shutdown_data_layer
+
+        await shutdown_data_layer(dl)
 
 
 if __name__ == "__main__":

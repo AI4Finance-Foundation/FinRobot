@@ -101,3 +101,23 @@ def build_data_layer(settings: Any) -> DataLayer:
     """
     cache = DataCache(settings.cache_db_path)
     return DataLayer(providers=build_provider_chain(settings), cache=cache)
+
+
+async def shutdown_data_layer(data_layer: DataLayer | None = None) -> None:
+    """Graceful teardown for a NON-server entrypoint (scripts / one-off tools / SDK
+    one-shots) that built a DataLayer via ``build_data_layer``. Closes the layer plus the
+    process-level quote-batch and SEC-holdings singletons, so the aiosqlite worker threads
+    join and WAL checkpoints — instead of leaking the threads and racing the loop close
+    into the "Event loop is closed" hang (observed: _regen / validation scripts blocking
+    minutes at exit, 2026-06-24). Mirrors server.py's FastAPI-lifespan teardown for code
+    paths that never run that lifespan. Safe when a singleton was never opened (the close
+    helpers no-op on an unset singleton)."""
+    if data_layer is not None:
+        await data_layer.close()
+    # Lazy imports keep the cold-import path light and avoid a cycle (both modules sit
+    # below factory). Mirror server.py teardown ordering.
+    from finrobot.engine.data.quote_batch import close_quote_cache_singleton
+    from finrobot.engine.data.sec_holdings_cache import close_singleton as close_sec_holdings
+
+    await close_quote_cache_singleton()
+    await close_sec_holdings()

@@ -70,10 +70,18 @@ async def main() -> int:
 
     pipeline = get_pipeline_factories()["research"](sub_agents)
     print(f"Running research pipeline for {TICKER} (lang={LANG}) …", flush=True)
-    result = await pipeline.execute(deps, TICKER, progress=_Progress(), lang=LANG)
-    print("\n" + result.format_summary())
-    print(f"\nartifact_id = {result.artifact_id}")
-    return 0 if result.artifact_id else 1
+    try:
+        result = await pipeline.execute(deps, TICKER, progress=_Progress(), lang=LANG)
+        print("\n" + result.format_summary())
+        print(f"\nartifact_id = {result.artifact_id}")
+        return 0 if result.artifact_id else 1
+    finally:
+        # Non-server entrypoint: join the aiosqlite workers + checkpoint WAL so the
+        # process exits cleanly instead of hanging on "Event loop is closed" (2026-06-24).
+        from finrobot.engine.data.factory import shutdown_data_layer
+
+        await shutdown_data_layer(data_layer)
+        await artifact_store.close()
 
 
 if __name__ == "__main__":

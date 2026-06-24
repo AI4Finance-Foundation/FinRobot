@@ -19,7 +19,7 @@ from finrobot.engine.compute.operators.forward_estimates import (
     get_forward_financials,
 )
 from finrobot.engine.primitives.historical_valuation import HistoricalMetricName
-from finrobot.engine.primitives.industry import is_commodity_cyclical
+from finrobot.engine.primitives.industry import is_balance_sheet_financial, is_commodity_cyclical
 from finrobot.engine.compute.operators.multiples import current_ev_ebitda
 from finrobot.engine.compute.operators.valuation_aggregator import aggregate_valuation
 from finrobot.engine.data.cache import cached_fetch
@@ -67,6 +67,11 @@ async def aggregate_for_ticker(ticker: str, request: Request) -> ValuationAggreg
     shares = _shares_outstanding(dcf, lbo)
     current_net_debt = _current_net_debt(dcf)
     forward = await _forward_financials(ticker, data_layer, fmp_api_key=_fmp_api_key(request))
+    # industry/sector for the financial-sector (cash-flow suppression) + cyclical gates.
+    # Was the path-split bug: this route never passed financial_sector, so a bank/insurer
+    # got its category-error DCF/EV plotted here even though the report path suppressed
+    # them — same ticker, two different football fields (2026-06-24).
+    industry, sector = await _industry_sector(ticker, data_layer)
     as_of = datetime.now(tz=timezone.utc)
 
     # Self historical EV/EBITDA band (P25/P75) → revives the EV/EBITDA reverse row
@@ -95,9 +100,12 @@ async def aggregate_for_ticker(ticker: str, request: Request) -> ValuationAggreg
         historical_ev_ebitda_band=(ev_band.p25, ev_band.p75) if ev_band else None,
         historical_ev_ebitda_sample_n=ev_band.sample_count if ev_band else None,
         historical_p_fcf_band=None,
-        # Memory/storage via the ticker anchor (the route lacks the snapshot's
-        # industry tag); adds the P/B comps row for a cyclical, same as the report path.
-        cyclical=is_commodity_cyclical(ticker=ticker),
+        # Cyclical (P/B comps row) + financial-sector (cash-flow suppression) now use
+        # the snapshot's real industry/sector — converged with the report path, no more
+        # ticker-only cyclical or a missing financial_sector that let bank/insurer DCF
+        # through on this route.
+        cyclical=is_commodity_cyclical(industry=industry, sector=sector, ticker=ticker),
+        financial_sector=is_balance_sheet_financial(industry, sector),
         as_of=as_of,
     )
 
@@ -183,6 +191,25 @@ async def _trailing_usd_anchors(
         float(ni) if isinstance(ni, (int, float)) else None,
         float(rev) if isinstance(rev, (int, float)) else None,
     )
+
+
+async def _industry_sector(
+    ticker: str, data_layer: DataLayer | None
+) -> tuple[str | None, str | None]:
+    """(industry, sector) off the canonical FINANCIALS snapshot, for the
+    financial-sector (cash-flow suppression) + cyclical gates in aggregate_for_ticker.
+    (None, None) on any failure → both gates default off (no suppression), never an
+    error. Cache-hot: the snapshot was already fetched by the forward/anchor helpers."""
+    if data_layer is None:
+        return None, None
+    try:
+        fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+        price = await data_layer.fetch_canonical(DataType.PRICE, ticker)
+        fd = extract_financial_data(fin, price)
+    except (ProviderError, ValueError, KeyError, TypeError) as exc:
+        logger.info("aggregate: industry/sector lookup failed for %s: %s", ticker, exc)
+        return None, None
+    return fd.market.industry, fd.market.sector
 
 
 async def _forward_to_usd(

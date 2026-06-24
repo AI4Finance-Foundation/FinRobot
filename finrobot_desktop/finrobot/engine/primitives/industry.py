@@ -404,6 +404,48 @@ def is_bank(
     return False
 
 
+def is_balance_sheet_financial(
+    industry: str | None = None,
+    sector: str | None = None,  # noqa: ARG001 — accepted for caller symmetry with is_bank; the call is industry-driven (FMP tags every financial sector="Financial Services", so sector has no discriminating power — probe 2026-06-06)
+) -> bool:
+    """True for issuers whose ENTIRE industry bucket is balance-sheet-funded —
+    deposit-taking banks AND risk-carrying (non-broker) insurers — where deposits /
+    float / reserves are operating raw material, not capital structure, and there is
+    no clean above-the-line EBITDA. These must be valued on P/B · P/TBV · ROTCE · DDM,
+    NOT FCF-DCF / EV-EBITDA / P-FCF (those are category errors here).
+
+    This is the SINGLE authority for "suppress the cash-flow valuation methods",
+    shared by the numeric-audit verifier (``audit/sector_sign``) and the football-field
+    aggregator (``valuation_aggregator`` via ``_helpers`` and the API route). ``is_bank``
+    is a STRICTER predicate (banks only) used for DDM routing + bank-specific data
+    corrections (net-revenue, bank-beta floor) that insurers must NOT inherit; THIS one
+    is the WIDER cash-flow-suppression boundary. Keeping the two distinct is deliberate:
+    insurers suppress DCF/EV but do not route to DDM (P/B is their lead).
+
+    Boundary (probe 2026-06-06, FMP industry strings):
+    - ``"bank"`` → all "Banks - Diversified/Regional" (incl. foreign ADRs HSBC/MUFG/
+      ITUB), deposit-takers. Clean token.
+    - ``"insurance"`` BUT NOT ``"broker"`` → "Insurance - Life/Diversified/P&C" carry
+      float/reserves; "Insurance - Brokers" (AON/MMC/AJG/BRO/WTW) are asset-light fee
+      businesses with a MEANINGFUL EV/EBITDA — must not suppress.
+    - "Financial - Capital Markets" is DELIBERATELY NOT suppressed: FMP lumps
+      balance-sheet investment banks (GS/MS) with asset-light advisory boutiques
+      (EVR/LAZ/PJT) into one indistinguishable string, so suppressing it would
+      false-positive the boutiques. A finer split needs a balance-sheet-leverage signal.
+    Excluded by construction (EV meaningful, asset-light): "Financial - Credit
+    Services" (V/MA), "Asset Management" (BLK), "Financial - Data & Stock Exchanges"
+    (ICE/CME/NDAQ), all "REIT - *".
+    """
+    if not industry:
+        return False
+    low = industry.lower()
+    if "bank" in low:
+        return True
+    if "insurance" in low and "broker" not in low:
+        return True
+    return False
+
+
 def bank_net_revenue(
     gross_revenue: float | None,
     interest_expense: float | None,

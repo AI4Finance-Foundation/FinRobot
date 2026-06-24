@@ -13,6 +13,7 @@ from finrobot.engine.primitives.industry import (
     bank_net_revenue,
     bank_operating_income_net_caliber,
     commodity_cyclical_basis,
+    is_balance_sheet_financial,
     is_bank,
     is_commodity_cyclical,
     semiconductor_role,
@@ -40,6 +41,49 @@ class TestIsBank:
         """Financial Services sector but industry without 'bank' -> not a bank."""
         assert is_bank(industry="Insurance", sector="Financial Services") is False
         assert is_bank(industry="Asset Management", sector="Financial Services") is False
+
+
+class TestIsBalanceSheetFinancial:
+    """The WIDER cash-flow-suppression predicate (banks + risk-carrying insurers),
+    deliberately distinct from is_bank (banks only). An insurer is a DCF category
+    error like a bank (is_bank=False but is_balance_sheet_financial=True); an
+    insurance BROKER is asset-light with a meaningful EV (False). Single authority
+    shared by audit/sector_sign + the valuation aggregator (the ALL BUY+460% fix,
+    2026-06-24)."""
+
+    def test_banks_true(self) -> None:
+        assert is_balance_sheet_financial("Banks—Diversified") is True
+        assert is_balance_sheet_financial("Banks - Regional") is True
+
+    def test_risk_carrying_insurers_true(self) -> None:
+        # Load-bearing: insurers carry float/reserves (no clean EBITDA) — a DCF
+        # category error is_bank missed, so a P&C insurer anchored a garbage DCF
+        # (ALL BUY+460%, 2026-06-24). is_balance_sheet_financial catches them...
+        assert is_balance_sheet_financial("Insurance—Property & Casualty") is True
+        assert is_balance_sheet_financial("Insurance - Life") is True
+        assert is_balance_sheet_financial("Insurance—Diversified") is True
+        # ...while is_bank deliberately does NOT (the two predicates differ here).
+        assert (
+            is_bank(industry="Insurance—Property & Casualty", sector="Financial Services") is False
+        )
+
+    def test_insurance_brokers_false(self) -> None:
+        # Asset-light fee businesses (AON/MMC/AJG/BRO/WTW) — meaningful EV, not suppressed.
+        assert is_balance_sheet_financial("Insurance Brokers") is False
+        assert is_balance_sheet_financial("Insurance - Brokers") is False
+
+    def test_asset_light_financials_false(self) -> None:
+        # EV is meaningful for these (V/MA, BLK, ICE/CME, GS/MS lumped with boutiques) —
+        # must NOT suppress the cash-flow methods.
+        assert is_balance_sheet_financial("Asset Management") is False
+        assert is_balance_sheet_financial("Financial - Credit Services") is False
+        assert is_balance_sheet_financial("Financial - Capital Markets") is False
+        assert is_balance_sheet_financial("Financial Data & Stock Exchanges") is False
+
+    def test_non_financial_and_none_false(self) -> None:
+        assert is_balance_sheet_financial("Software") is False
+        assert is_balance_sheet_financial(None) is False
+        assert is_balance_sheet_financial("") is False
 
 
 class TestIsCommodityCyclical:

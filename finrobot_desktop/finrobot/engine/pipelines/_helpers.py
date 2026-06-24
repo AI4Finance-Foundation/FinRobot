@@ -11,7 +11,10 @@ from pydantic_ai import Agent
 
 from finrobot.engine.compute.operators.cyclical_peers import screen_peers_with_cyclical
 from finrobot.engine.primitives.corporate_actions import detect_mna_transition
-from finrobot.engine.primitives.industry import is_bank, is_commodity_cyclical
+from finrobot.engine.primitives.industry import (
+    is_balance_sheet_financial,
+    is_commodity_cyclical,
+)
 from finrobot.engine.compute.coordinators.extractor import (
     extract_company_financials,
     extract_financial_data,
@@ -766,11 +769,17 @@ def build_valuation_synthesis(
         sector=financial_data.market.sector if isinstance(financial_data, FinancialData) else None,
         ticker=ticker,
     )
-    # Bank / insurer → suppress the cash-flow methods (DCF / EV-EBITDA / P/FCF) in
-    # the football field; they are category errors there (is_bank itself documents
-    # "use DDM, not FCF-DCF"). P/B + P/E + DDM lead instead. Without this a JPM full
-    # report plotted a meaningless DCF ~$719 vs a ~$325 price.
-    financial_sector = is_bank(
+    # Bank / insurer → suppress the cash-flow methods (DCF / EV-EBITDA / P/FCF) in the
+    # football field; they are category errors for a balance-sheet-funded financial
+    # (deposits / float / reserves are operating raw material, not financing — no clean
+    # EBITDA or FCF). P/B + P/E (+ DDM for banks) lead instead. Uses the WIDER
+    # is_balance_sheet_financial (banks + risk-carrying insurers), NOT is_bank: an
+    # insurer is a DCF category error just like a bank, but is_bank excluded insurers,
+    # so a P&C insurer's $1297 DCF anchored a BUY +460% (ALL, 2026-06-24). is_bank stays
+    # the bank-only predicate for DDM routing + bank data corrections insurers must not
+    # inherit; numeric_audit's sector_sign already used this wider boundary, so this
+    # converges both consumers onto one authority.
+    financial_sector = is_balance_sheet_financial(
         industry=financial_data.market.industry
         if isinstance(financial_data, FinancialData)
         else None,

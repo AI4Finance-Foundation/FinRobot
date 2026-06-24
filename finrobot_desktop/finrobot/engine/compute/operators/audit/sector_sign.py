@@ -23,7 +23,8 @@ Two definitional defects the accounting-identity checks are blind to:
 
    Classifier (probe 2026-06-06): FMP labels every financial ``sector="Financial
    Services"`` — no discriminating power; the INDUSTRY string drives the call. See
-   ``_is_balance_sheet_financial`` for the calibrated boundary — only deposit-taking
+   ``is_balance_sheet_financial`` (now shared in primitives/industry, the single
+   authority also used by the valuation aggregator) for the calibrated boundary — only deposit-taking
    banks and risk-carrying (non-broker) insurers are suppressed; payment networks,
    asset managers, exchanges, advisory boutiques and insurance brokers keep EV.
 
@@ -39,46 +40,14 @@ from __future__ import annotations
 
 from finrobot.engine.models.financial import FinancialData
 from finrobot.engine.models.numeric_claim import Finding
-
-
-def _is_balance_sheet_financial(industry: str | None) -> bool:
-    """True only for issuers whose ENTIRE industry bucket is balance-sheet-funded
-    (deposits / float / reserves are operating, no clean EBITDA): deposit-taking
-    banks and risk-carrying insurers. Deliberately conservative — even though the EV
-    finding is now ``review`` (a caveat, no longer a target-withholding ``blocked_field``),
-    a false-positive still wrongly banners a valid EV as meaningless, so keep the boundary
-    tight (a false-negative — missing a real bank — is the cheaper error).
-
-    Probe 2026-06-06 calibrated the boundary:
-    - ``"bank"`` → all of "Banks - Diversified/Regional" (incl. foreign ADRs
-      HSBC/MUFG/ITUB) are deposit-takers. Clean token.
-    - ``"insurance"`` BUT NOT ``"broker"`` → "Insurance - Life/Diversified/P&C"
-      carry float/reserves; "Insurance - Brokers" (AON/MMC/AJG/BRO/WTW) are
-      asset-light fee businesses with a MEANINGFUL EV/EBITDA — must not suppress.
-    - "Financial - Capital Markets" is DELIBERATELY NOT suppressed: FMP lumps
-      balance-sheet investment banks (GS/MS) with asset-light advisory boutiques
-      (EVR/LAZ/PJT/MC/HLI) into one indistinguishable string, so suppressing it
-      would false-positive the boutiques. Keep EV for the whole bucket; a finer
-      split (needs a balance-sheet-leverage signal) is deferred to Plan 2.
-    Excluded by construction (EV meaningful, asset-light): "Financial - Credit
-    Services" (Visa/MA), "Asset Management" (BlackRock), "Financial - Data & Stock
-    Exchanges" (ICE/CME/NDAQ), all "REIT - *".
-    """
-    if not industry:
-        return False
-    low = industry.lower()
-    if "bank" in low:
-        return True
-    if "insurance" in low and "broker" not in low:
-        return True
-    return False
+from finrobot.engine.primitives.industry import is_balance_sheet_financial
 
 
 def audit_sector_sign(fin: FinancialData) -> list[Finding]:
     findings: list[Finding] = []
 
     industry = fin.market.industry
-    if _is_balance_sheet_financial(industry):
+    if is_balance_sheet_financial(industry):
         for field_key, value in (
             ("enterprise_value", fin.valuation.enterprise_value),
             ("ev_ebitda", fin.valuation.ev_ebitda),

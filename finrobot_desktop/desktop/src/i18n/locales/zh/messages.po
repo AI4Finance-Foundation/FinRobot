@@ -193,6 +193,14 @@ msgid "targetRange.withheld"
 msgstr "点位目标价已隐藏 — 方向判断仍然成立"
 
 #. js-lingui-explicit-id
+msgid "targetRange.fairValueLabel"
+msgstr "合理价值"
+
+#. js-lingui-explicit-id
+msgid "targetRange.withinFairValue"
+msgstr "现价在合理价值区间内 — 估值合理"
+
+#. js-lingui-explicit-id
 msgid "targetRange.anchoredOn"
 msgstr "锚定 {method}"
 

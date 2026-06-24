@@ -768,6 +768,9 @@ class TestConfidenceDial:
         assert canonical.upside == pytest.approx(0.0)
         assert canonical.basis is not None
         assert "range spans the current market price" in canonical.basis
+        # In-band → fairly-valued framing, not the "withheld" mechanic (2026-06-24).
+        assert "FAIRLY VALUED" in canonical.basis
+        assert "WITHHELD" not in canonical.basis
         assert vs.target_low == pytest.approx(188.12)
         assert vs.target_high == pytest.approx(1414.52)
 
@@ -841,6 +844,9 @@ class TestConfidenceDial:
         assert thesis.target is None  # 撤点 ≠ 撤区间
         assert thesis.valuation_withheld is True
         assert vs.target_low is not None and vs.target_high is not None  # band published
+        # Fairly-valued framing: lead with the conclusion, never "WITHHELD" (2026-06-24).
+        assert thesis.basis is not None and "FAIRLY VALUED" in thesis.basis
+        assert "WITHHELD" not in thesis.basis
         # Control: identical methods for a non-bank do NOT take the RI band path.
         nb = synthesize_valuations(methods, 331.0, financial_sector=False)
         assert nb.anchor_method != "residual_income"

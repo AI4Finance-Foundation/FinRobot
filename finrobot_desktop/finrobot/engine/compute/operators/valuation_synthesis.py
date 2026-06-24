@@ -672,12 +672,17 @@ def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
             target = None
         method_breakdown = ", ".join(f"{m.name}=${m.mid:.2f}" for m in vs.methods)
         if in_band:
+            # Price inside the fair-value band → FAIRLY VALUED. Lead with the conclusion
+            # (the analyst's read), not the mechanic (point withheld): there is no margin
+            # of safety either way, hence HOLD. We still don't fabricate a single
+            # perpetuity-ROE point inside the band — the band IS that refusal.
             basis = (
-                f"POINT TARGET WITHHELD: price ${vs.current_price:.2f} sits WITHIN the "
-                f"residual-income value band [${lo:.2f}, ${hi:.2f}] (RI at trailing ROE → at "
-                f"FY1 consensus ROE). A cyclical bank's value is a trough→normalized range, "
-                f"not a single perpetuity ROE — verdict HOLD, the band published instead of a "
-                f"fabricated point. Methods: {method_breakdown}."
+                f"FAIRLY VALUED: price ${vs.current_price:.2f} sits within the residual-income "
+                f"fair-value band [${lo:.2f}, ${hi:.2f}] (RI at trailing ROE → at FY1 consensus "
+                f"ROE), so there is no margin of safety either way — verdict HOLD. A cyclical "
+                f"bank's value is a trough→normalized range, not a single perpetuity ROE, so we "
+                f"publish the band rather than fabricate a point inside it. Methods: "
+                f"{method_breakdown}."
             )
         elif cap_withheld:
             basis = (
@@ -735,13 +740,25 @@ def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
         if vs.target_low is not None and vs.target_high is not None
         else ""
     )
-    if vs.valuation_withheld:
+    if vs.valuation_withheld and range_spans_market:
+        # Fairly valued: the published range brackets the market on BOTH sides, so the
+        # methods give no one-sided call → HOLD. Lead with the conclusion (fairly valued),
+        # not the mechanic (point withheld); we still don't fabricate a single interior
+        # point — the range is the honest answer. (Keep the "range spans the current
+        # market price" clause: contract test_run_5ae06f55 pins it.)
+        basis = (
+            f"FAIRLY VALUED (confidence={vs.confidence}): the published valuation range "
+            f"spans the current market price, so the methods do not support a one-sided "
+            f"call — verdict HOLD. We publish the range rather than fabricate a single "
+            f"point inside it. Methods: {method_breakdown}.{range_txt} "
+            f"{vs.degradation_note or ''}"
+        ).strip()
+    elif vs.valuation_withheld:
+        # Withheld + range entirely on one side of the market: a genuine "we can't pin a
+        # defensible number" — keep the honest WITHHELD framing, direction off the nearest edge.
         anchor_txt = f"anchor {vs.anchor_method}" if vs.anchor_method else "the surviving method"
         verdict_basis = (
-            "The HOLD verdict stands because the published valuation range spans the "
-            "current market price, so the methods do not support a one-sided call."
-            if range_spans_market
-            else f"The {verdict} verdict reads off the nearest published range bound "
+            f"The {verdict} verdict reads off the nearest published range bound "
             f"(${verdict_point:.2f}), not the withheld interior point — the market sits "
             f"{'below' if vs.current_price < verdict_point else 'above'} the whole range."
         )

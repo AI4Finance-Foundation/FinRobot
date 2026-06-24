@@ -73,6 +73,20 @@ export function ReportToolbar({
       : null
   const targetRangeCopy = locale === 'zh' ? '目标区间' : 'Target range'
   const withheldCopy = locale === 'zh' ? '点目标价已隐藏' : 'Point target withheld'
+  const fairValueCopy = locale === 'zh' ? '合理价值' : 'Fair value'
+  const withinRangeCopy = locale === 'zh' ? '现价在区间内' : 'within range'
+  // In-band = the point is withheld because the snapshot price sits INSIDE the published
+  // band → fairly valued (mirrors backend `_range_spans_market`; strict containment
+  // matches the band the analyst sees). Lead with "fair value", drop the amber "withheld"
+  // alarm — a fairly-valued HOLD is a conclusion, not a data caveat.
+  const inFairValueBand =
+    valuationWithheld &&
+    isFiniteNumber(targetLow) &&
+    isFiniteNumber(targetHigh) &&
+    typeof snapshotPrice === 'number' &&
+    snapshotPrice > 0 &&
+    Math.min(targetLow, targetHigh) <= snapshotPrice &&
+    snapshotPrice <= Math.max(targetLow, targetHigh)
 
   // Distance to target is measured from the SNAPSHOT price (the price the target
   // was set against), so it reconciles with the cover's upside — not a live gap.
@@ -207,12 +221,16 @@ export function ReportToolbar({
               <span
                 style={{
                   ...quoteChipStyle,
-                  color: 'var(--accent-amber)',
-                  background: 'var(--warning-soft)',
-                  border: '1px solid color-mix(in srgb, var(--warning) 45%, transparent)',
+                  // Fairly valued → neutral secondary (the band colour), not the amber
+                  // warning a genuine withhold uses.
+                  color: inFairValueBand ? 'var(--secondary)' : 'var(--accent-amber)',
+                  background: inFairValueBand ? 'var(--secondary-soft)' : 'var(--warning-soft)',
+                  border: inFairValueBand
+                    ? '1px solid var(--secondary)'
+                    : '1px solid color-mix(in srgb, var(--warning) 45%, transparent)',
                 }}
               >
-                {targetRangeCopy} {rangeLabel}
+                {inFairValueBand ? fairValueCopy : targetRangeCopy} {rangeLabel}
               </span>
               <span
                 style={{
@@ -222,7 +240,7 @@ export function ReportToolbar({
                   border: '1px solid var(--border-faint)',
                 }}
               >
-                {withheldCopy}
+                {inFairValueBand ? withinRangeCopy : withheldCopy}
               </span>
             </>
           )}

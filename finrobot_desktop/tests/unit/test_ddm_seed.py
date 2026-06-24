@@ -232,12 +232,35 @@ class TestSeedClamps:
     def test_terminal_payout_floored_at_trailing(self) -> None:
         """Terminal payout never drops below the trailing payout."""
         # ROE low enough that 1 − tg/ROE < trailing payout ⇒ floor at trailing.
+        # net_income set so EPS = DPS / 0.80 → the self-derived payout equals the
+        # provider's 0.80 (else the DPS/EPS-disagreement guard would substitute the
+        # derived ratio and this would no longer test the terminal floor at 0.80).
         inputs = seed_ddm_inputs(
-            _financials(),
+            _financials(net_income=(6.0 / 0.80) * JPM_SHARES),
             _normalized(return_on_equity=0.05, payout_ratio=0.80),
         )
         assert inputs.terminal_payout_ratio is not None
         assert inputs.terminal_payout_ratio >= 0.80
+
+    def test_payout_disagreement_prefers_self_derived(self) -> None:
+        """Bug-2 (2026-06-24): a provider payout disagreeing with the issuer's own
+        DPS/EPS by >10pp is replaced by the self-derived ratio (KO: provider 80.1% vs
+        DPS $2.08 / EPS $3.18 = 65.3%). An inflated payout understates the sustainable
+        g = ROE×(1−payout) for low-β dividend payers."""
+        eps = 6.0 / 0.65  # DPS $6 / EPS → self-derived payout 0.65 vs an inflated 0.80
+        inputs = seed_ddm_inputs(
+            _financials(net_income=eps * JPM_SHARES),
+            _normalized(return_on_equity=0.12, payout_ratio=0.80),
+        )
+        prov = inputs.assumption_provenance["payout_ratio"]
+        assert "self-derived" in prov and "disagrees" in prov
+        assert "65.0%" in prov  # the derived ratio, not the provider's 80.0%
+
+    def test_payout_agreement_keeps_provider(self) -> None:
+        """Provider payout within tolerance of DPS/EPS → keep the provider value (the
+        JPM baseline DPS $6 / EPS ~$21.5 = 27.9% ≈ provider 28.2%, a 0.3pp gap)."""
+        inputs = seed_ddm_inputs(_financials(), _normalized())
+        assert "provider-reported" in inputs.assumption_provenance["payout_ratio"]
 
 
 class TestSeedProvenance:

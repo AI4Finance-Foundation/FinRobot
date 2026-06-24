@@ -52,6 +52,14 @@ from finrobot.engine.models.financial import DDMInputs, FinancialData
 # dcf_seed's 1% ΔNWC fallback.
 _DEFAULT_PAYOUT_RATIO: Final[float] = 0.5
 
+# When the provider reports a payout ratio AND the issuer's own DPS/EPS imply one,
+# a gap beyond this tolerance means the provider used a different denominator (KO
+# 2026-06-24: provider dividendPayoutRatioTTM 80.1% vs DPS $2.08 / EPS $3.18 = 65.3%,
+# a 14.8pp gap that understates g = ROE×(1−payout) for low-β payers). Past this we
+# trust the self-derived ratio (consistent with the report's own DPS/EPS); banks /
+# normal payers agree within it (JPM 1.3pp, PG 0.7pp) and keep the provider value.
+_PAYOUT_DISAGREE_TOL: Final[float] = 0.10
+
 # Sustainable dividend growth is clamped to this ceiling before decay — beyond
 # it the Gordon multi-stage convergence stops being meaningful.
 _MAX_SUSTAINABLE_GROWTH: Final[float] = 0.40
@@ -125,19 +133,40 @@ def seed_ddm_inputs(
             )
 
     # ----- payout_ratio ------------------------------------------------------
-    payout = normalized.payout_ratio
-    if payout is not None and 0 < payout <= 1:
+    # Prefer the issuer's OWN DPS/EPS-derived payout when it materially disagrees with
+    # the provider's reported ratio (FMP's dividendPayoutRatioTTM uses a different
+    # denominator — KO 80.1% vs self-derived 65.3%, a 14.8pp gap, verified live
+    # 2026-06-24). An inflated payout understates g = ROE×(1−payout) for low-β dividend
+    # payers. The self-derived ratio is the one consistent with the DPS/EPS the same
+    # report shows; banks / normal payers agree within tolerance and keep the provider
+    # value. Bug-2, 2026-06-24.
+    eps = net_income / shares if (net_income is not None and shares > 0) else 0.0
+    derived_payout = dps / eps if eps > 0 else None
+    provider_payout = normalized.payout_ratio
+    if (
+        derived_payout is not None
+        and provider_payout is not None
+        and 0 < provider_payout <= 1
+        and abs(provider_payout - derived_payout) > _PAYOUT_DISAGREE_TOL
+    ):
+        payout = derived_payout
+        prov["payout_ratio"] = (
+            f"{payout:.1%} (self-derived DPS ${dps:.2f} ÷ EPS ${eps:.2f}; provider "
+            f"reported {provider_payout:.1%} but disagrees by "
+            f"{abs(provider_payout - derived_payout) * 100:.0f}pp — using the ratio "
+            f"self-consistent with this report's DPS/EPS)"
+        )
+    elif provider_payout is not None and 0 < provider_payout <= 1:
+        payout = provider_payout
         prov["payout_ratio"] = f"{payout:.1%} (provider-reported payout ratio)"
+    elif derived_payout is not None:
+        payout = derived_payout
+        prov["payout_ratio"] = f"{payout:.1%} (DPS ÷ EPS; provider did not report payout ratio)"
     else:
-        eps = net_income / shares if (net_income is not None and shares > 0) else 0.0
-        if eps > 0:
-            payout = dps / eps
-            prov["payout_ratio"] = f"{payout:.1%} (DPS ÷ EPS; provider did not report payout ratio)"
-        else:
-            payout = _DEFAULT_PAYOUT_RATIO
-            prov["payout_ratio"] = (
-                f"{payout:.1%} (generic benchmark; neither payout ratio nor EPS available)"
-            )
+        payout = _DEFAULT_PAYOUT_RATIO
+        prov["payout_ratio"] = (
+            f"{payout:.1%} (generic benchmark; neither payout ratio nor EPS available)"
+        )
     payout = max(0.0, min(1.0, payout))
 
     # ----- dividend_growth_rates --------------------------------------------

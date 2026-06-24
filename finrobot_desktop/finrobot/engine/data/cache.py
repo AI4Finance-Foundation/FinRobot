@@ -595,6 +595,7 @@ async def cached_fetch(
     ticker: str,
     fetcher: Callable[[], Awaitable[dict[str, Any]]],
     cache_key_suffix: str = "",
+    should_cache: Callable[[dict[str, Any]], bool] | None = None,
 ) -> dict[str, Any]:
     """Generic cache wrapper for raw-dict endpoints not backed by a Provider.
 
@@ -629,13 +630,19 @@ async def cached_fetch(
 
         data = await fetcher()
 
-        envelope = DataResult(
-            data=data,
-            provider="route-direct",
-            ticker=cache_key,
-            data_type=data_type,
-            timestamp=datetime.now(tz=timezone.utc),
-            warnings=list(data.get("warnings", [])) if isinstance(data, dict) else [],
-        )
-        await cache.set(data_type, cache_key, envelope)
+        # A transient degraded result (e.g. a historical band with all-None percentiles
+        # from a steady-state provider outage) must NOT land in the long-TTL cache, or the
+        # outage persists for the full TTL after recovery (non-self-healing). ``should_cache``
+        # lets a caller veto caching such results; default None caches everything — unchanged
+        # for the /price /historical /quarterly callers. Bug-4, 2026-06-24.
+        if should_cache is None or should_cache(data):
+            envelope = DataResult(
+                data=data,
+                provider="route-direct",
+                ticker=cache_key,
+                data_type=data_type,
+                timestamp=datetime.now(tz=timezone.utc),
+                warnings=list(data.get("warnings", [])) if isinstance(data, dict) else [],
+            )
+            await cache.set(data_type, cache_key, envelope)
         return data

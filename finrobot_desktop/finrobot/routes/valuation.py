@@ -593,5 +593,12 @@ async def historical_bands(
         ticker,
         _build,
         cache_key_suffix=f":{metric}:{years}",
+        # Don't cache a transient empty band (steady-state provider outage → all-None
+        # percentiles, sample_count 0): caching it would serve the empty result for the
+        # full 12h TTL after the outage clears (non-self-healing). Only a band with real
+        # samples earns the long TTL; an empty one is re-fetched next request → self-heals.
+        # _build never raises (returns the empty band), so the route stays 200, not 500.
+        # Bug-4, 2026-06-24.
+        should_cache=lambda r: isinstance(r, dict) and r.get("sample_count", 0) > 0,
     )
     return HistoricalBandResponse.model_validate(raw)

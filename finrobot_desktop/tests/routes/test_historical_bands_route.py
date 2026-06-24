@@ -148,6 +148,43 @@ async def test_historical_bands_endpoint_cached_so_second_call_skips_fetch(tmp_p
     assert len(layer.fetch_price_range_calls) == first_price
 
 
+class _EmptyBandDataLayer(_StubDataLayer):
+    """Steady-state provider outage: the loaders return empty → an empty band
+    (sample_count 0, all-None percentiles), but the route still returns 200."""
+
+    async def fetch_price_range(self, ticker: str, start: str, end: str) -> list[PriceBar]:
+        self.fetch_price_range_calls.append((ticker, start, end))
+        return []
+
+    async def fetch_historical(
+        self, data_type: DataType | str, ticker: str, years: int = 5, **_: object
+    ) -> list[DataResult]:
+        self.fetch_historical_calls.append((str(data_type), ticker, years))
+        return []
+
+
+@pytest.mark.asyncio
+async def test_historical_bands_empty_band_not_cached_self_heals(tmp_path: Path) -> None:
+    """Bug-4 (2026-06-24): a transient empty band (steady-state provider outage →
+    sample_count 0) must NOT be written to the 12h cache, so a second request after the
+    outage clears re-fetches and self-heals instead of serving the empty band for 12h.
+    The empty band is still a 200 (not a 500) — _build returns it, never raises."""
+    layer = _EmptyBandDataLayer(cache_db=str(tmp_path / "cache.db"))
+    app = FastAPI()
+    app.include_router(router)
+    app.state.deps = _StubDeps(data_layer=layer)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r1 = await client.get("/api/valuation/historical-bands/NVDA?metric=ev_ebitda&years=3")
+        assert r1.status_code == 200, r1.text
+        assert r1.json()["sample_count"] == 0
+        first_history = len(layer.fetch_historical_calls)
+        r2 = await client.get("/api/valuation/historical-bands/NVDA?metric=ev_ebitda&years=3")
+    # Empty band was NOT cached → the second call re-fetches (self-heals after outage).
+    assert len(layer.fetch_historical_calls) > first_history
+    assert r2.status_code == 200
+    assert r2.json()["sample_count"] == 0
+
+
 @pytest.mark.asyncio
 async def test_historical_bands_endpoint_503_when_data_layer_missing(tmp_path: Path) -> None:
     app = FastAPI()

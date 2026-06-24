@@ -187,6 +187,51 @@ class TestDcfPipelineExecution:
         }
 
 
+async def test_dcf_calc_degrades_for_financial_sector_issuer():
+    """A bank / insurer cannot be valued with an FCF-DCF — free cash flow and the
+    net-debt bridge are ill-defined when deposits / float ARE the business. The
+    standalone DCF must degrade to a text-only 'not applicable' step pointing at the
+    methods that DO apply (DDM / P-B), mirroring the full report's cash-flow-method
+    suppression, instead of emitting a structurally meaningless implied price. The
+    gate fires BEFORE any data-layer fetch, so deps is never touched here."""
+    from unittest.mock import MagicMock
+
+    from finrobot.engine.models.financial import (
+        BalanceSheet,
+        FinancialData,
+        IncomeStatement,
+        MarketData,
+        ValuationMetrics,
+    )
+    from finrobot.engine.pipelines.dcf import _execute_dcf_calc
+
+    bank_fd = FinancialData(
+        ticker="JPM",
+        income=IncomeStatement(revenue=1.5e11, ebitda=8e10, net_income=5e10),
+        balance=BalanceSheet(total_debt=4e11, total_cash=5e11),
+        market=MarketData(
+            current_price=200.0,
+            shares_outstanding=2.8e9,
+            market_cap=5.6e11,
+            industry="Banks - Diversified",
+            sector="Financial Services",
+        ),
+        valuation=ValuationMetrics(),
+        data_source="test",
+        timestamp=datetime.now(tz=timezone.utc),
+    )
+
+    out = await _execute_dcf_calc(
+        MagicMock(), MagicMock(), "", {"historical_data": bank_fd}, "JPM"
+    )
+
+    # No DCFResult — the meaningless implied price is never produced…
+    assert out.structured is None
+    # …and the analyst is routed to the methods that DO apply for a financial issuer.
+    assert "not applicable" in out.text.lower()
+    assert "ddm" in out.text.lower()
+
+
 # ---------------------------------------------------------------------------
 # P1.5: execute_fn / validate_structured hook tests
 # ---------------------------------------------------------------------------

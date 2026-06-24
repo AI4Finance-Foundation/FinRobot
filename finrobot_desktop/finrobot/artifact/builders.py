@@ -466,6 +466,7 @@ def build_comps_artifact(
 ) -> "Artifact":
     """Build an Artifact from a completed comps pipeline result."""
     from finrobot.engine.models.financial import PeerComps
+    from finrobot.engine.primitives.industry import is_balance_sheet_financial
 
     data_source, fetched_at, raw_data = _extract_financial_data_dump(result, "target_data")
     peer_comps = result.structured_data.get("statistical_bench")
@@ -475,6 +476,19 @@ def build_comps_artifact(
     if isinstance(peer_comps, PeerComps):
         cross_tickers = [p.ticker for p in peer_comps.peers]
     structured_out = _safe_dump(peer_comps)
+    # Financial-sector issuers (banks / insurers) have no clean above-the-line
+    # EBITDA, so a peer EV/EBITDA median is a category error — the full report
+    # suppresses it (is_balance_sheet_financial is the single authority; P/B is the
+    # bank/insurer lead multiple). FMP still reports a mechanical positive EBITDA for
+    # banks, so the median is non-None and would otherwise headline a meaningless
+    # multiple on the standalone comps page. Null it here to mirror the report; the
+    # P/E and P/B medians (the relative methods that DO apply) stay visible.
+    target_fin = _extract_financial_data(result, "target_data")
+    if target_fin is not None and is_balance_sheet_financial(
+        industry=target_fin.market.industry, sector=target_fin.market.sector
+    ):
+        structured_out["median_ev_ebitda"] = None
+        structured_out["mean_ev_ebitda"] = None
     audit_warnings = _attach_numeric_audit(structured_out, result, deps, "target_data")
     audit_warnings += _report_drift_flag(structured_out, raw_data, result, "output_gen")
 

@@ -35,7 +35,10 @@ from finrobot.engine.compute.coordinators.historical_extractor import (
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import FinancialData, StepOutput
-from finrobot.engine.primitives.industry import is_commodity_cyclical
+from finrobot.engine.primitives.industry import (
+    is_balance_sheet_financial,
+    is_commodity_cyclical,
+)
 from finrobot.engine.pipelines._helpers import (
     build_sensitivity_ranges,
     execute_financial_data_step,
@@ -78,6 +81,31 @@ async def _execute_dcf_calc(
         raise ValueError(
             "dcf_calc requires FinancialData from the historical_data step "
             "but received: " + type(financial_data).__name__
+        )
+
+    # Financial-sector issuers (banks / risk-carrying insurers) cannot be valued
+    # with an FCF-DCF: free cash flow and the net-debt bridge are ill-defined when
+    # deposits / float / reserves ARE the operating raw material, not capital
+    # structure. is_balance_sheet_financial is the SINGLE authority the full report
+    # uses to suppress the cash-flow methods (it leads with P/B · DDM there, see
+    # valuation_aggregator). Degrade to a text-only step BEFORE seeding — never emit
+    # a structurally meaningless implied price — mirroring the Gordon-undefined skip
+    # below and keeping the bank/insurer pointed at the methods that DO apply. Done
+    # here (not just at synthesis) because the standalone DCF artifact IS the DCF:
+    # there is no football field to suppress the row in.
+    if is_balance_sheet_financial(
+        industry=financial_data.market.industry, sector=financial_data.market.sector
+    ):
+        logger.info("DCF not applicable for %s: balance-sheet financial issuer", ticker)
+        return StepOutput(
+            text=(
+                f"DCF not applicable: {ticker} is a financial-sector issuer (bank / insurer). "
+                f"Free cash flow and the net-debt bridge are ill-defined for balance-sheet "
+                f"financials — deposits / float / reserves are operating raw material, not "
+                f"capital structure. Use a dividend-discount model (DDM) or relative valuation "
+                f"(P/B · P/E) instead."
+            ),
+            structured=None,
         )
 
     # Multi-year history powers the 3y-median assumption derivation.

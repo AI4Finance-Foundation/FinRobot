@@ -355,3 +355,90 @@ class TestPeerAnalysisDegradesInsteadOfCrashing:
         assert isinstance(out.structured, PeerComps)
         assert len(out.structured.peers) == 2
         assert any("Thin comp set" in w for w in out.structured.warnings)
+
+
+def _financial_sector_target_data():
+    """A bank target FinancialData (industry triggers is_balance_sheet_financial)."""
+    from datetime import datetime, timezone
+
+    from finrobot.engine.models.financial import (
+        BalanceSheet,
+        FinancialData,
+        IncomeStatement,
+        MarketData,
+        ValuationMetrics,
+    )
+
+    return FinancialData(
+        ticker="JPM",
+        income=IncomeStatement(revenue=150.0, ebitda=80.0, net_income=50.0),
+        balance=BalanceSheet(total_debt=400.0, total_cash=500.0),
+        market=MarketData(
+            current_price=200.0,
+            shares_outstanding=2.8,
+            market_cap=560.0,
+            industry="Banks - Diversified",
+            sector="Financial Services",
+        ),
+        valuation=ValuationMetrics(),
+        data_source="test",
+        timestamp=datetime.now(tz=timezone.utc),
+    )
+
+
+def _peer_comps_with_all_medians(target_ticker: str):
+    from finrobot.engine.models.financial import PeerComps
+
+    return PeerComps(
+        target=_canned_company(target_ticker),
+        peers=[_canned_company("P1"), _canned_company("P2"), _canned_company("P3")],
+        median_pe=11.0,
+        median_pb=1.3,
+        median_ev_ebitda=9.0,
+        mean_ev_ebitda=9.2,
+    )
+
+
+def test_comps_suppresses_ev_ebitda_for_financial_sector_target():
+    """Banks / insurers have no clean above-the-line EBITDA, so a peer EV/EBITDA
+    median is a category error the full report suppresses (P/B is the bank lead).
+    FMP still reports a mechanical positive EBITDA for banks → a non-None median, so
+    the standalone comps artifact must null it (and its mean) to mirror the report;
+    P/E and P/B — the relative methods that DO apply — stay."""
+    from typing import Any, cast
+
+    from finrobot.artifact.builders import build_comps_artifact
+    from finrobot.engine.pipelines.base import PipelineResult
+
+    result = PipelineResult(
+        steps={"target_data": "ok", "statistical_bench": "ok"},
+        structured_data={
+            "target_data": _financial_sector_target_data(),
+            "statistical_bench": _peer_comps_with_all_medians("JPM"),
+        },
+    )
+    s = build_comps_artifact(result, "JPM", cast(Any, None)).outputs.structured
+    assert s["median_ev_ebitda"] is None
+    assert s["mean_ev_ebitda"] is None
+    assert s["median_pe"] == 11.0
+    assert s["median_pb"] == 1.3
+
+
+def test_comps_keeps_ev_ebitda_for_non_financial_target():
+    """A non-financial issuer keeps its EV/EBITDA median — the suppression is gated
+    strictly on is_balance_sheet_financial, never a blanket null (regression-safe)."""
+    from typing import Any, cast
+
+    from finrobot.artifact.builders import build_comps_artifact
+    from finrobot.engine.pipelines.base import PipelineResult
+
+    result = PipelineResult(
+        steps={"target_data": "ok", "statistical_bench": "ok"},
+        structured_data={
+            "target_data": _target_financial_data(),  # AAPL — no financial industry
+            "statistical_bench": _peer_comps_with_all_medians("AAPL"),
+        },
+    )
+    s = build_comps_artifact(result, "AAPL", cast(Any, None)).outputs.structured
+    assert s["median_ev_ebitda"] == 9.0
+    assert s["mean_ev_ebitda"] == 9.2

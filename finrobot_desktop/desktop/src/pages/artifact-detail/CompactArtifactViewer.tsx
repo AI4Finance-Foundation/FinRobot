@@ -177,6 +177,16 @@ function deriveHeadline(
           label: T(locale, '同业中位 P/E', 'Peer Median P/E'),
           value: `${pe.toFixed(1)}×`,
         })
+      // P/B is the lead relative multiple for cyclicals & financials (book equity is
+      // cycle-stable / the bank-and-insurer anchor), so surface it whenever present —
+      // the full report leads with it for those regimes. EV/EBITDA is nulled for
+      // financial issuers upstream (build_comps_artifact), so a bank shows P/E + P/B.
+      const pb = num('median_pb')
+      if (pb !== undefined)
+        stats.push({
+          label: T(locale, '同业中位 P/B', 'Peer Median P/B'),
+          value: `${pb.toFixed(1)}×`,
+        })
       const evEbitda = num('median_ev_ebitda')
       if (evEbitda !== undefined)
         stats.push({

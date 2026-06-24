@@ -275,7 +275,13 @@ def _data_capability_warnings(deps: Any) -> list[str]:
     ]
 
 
-def _summary_text(result: "PipelineResult", structured_out: dict[str, Any], deps: Any) -> str:
+def _summary_text(
+    result: "PipelineResult",
+    structured_out: dict[str, Any],
+    deps: Any,
+    *,
+    summary_steps: tuple[str, ...] = (),
+) -> str:
     # Single source of truth: only claim "withheld" when a target number was
     # ACTUALLY nulled (``valuation_withheld`` set by _attach_numeric_audit or the
     # equity_research block). A blocked-field audit verdict alone is NOT enough —
@@ -286,6 +292,23 @@ def _summary_text(result: "PipelineResult", structured_out: dict[str, Any], deps
         if lang == "zh":
             return "估值已被数字审计闸门隐藏；请查看 numeric_audit 与 warnings。"
         return "Valuation withheld by numeric audit; see numeric_audit and warnings."
+    # A single-method artifact's summary must be ABOUT that method and stay a
+    # SUMMARY: surface the pipeline's deterministic calc-step narrative (e.g.
+    # "DDM implies $X per share … cost of equity Y% …") — every number traced to
+    # the compute layer, zero drift. ``summary_steps`` is a PRIORITY list (first
+    # non-empty wins), NOT a concatenation: we deliberately do NOT normally fall
+    # through to the LLM ``*_narrative`` step — it balloons into a full report that
+    # RESTATES financial figures (a contract-① drift surface) and editorialises a
+    # single-method recommendation. The narrative is only a fallback if the
+    # deterministic calc step is somehow empty; ``format_summary`` (the generic
+    # "# FinRobot Analysis Report" that concatenates EVERY step — for these
+    # pipelines it led with the historical_data table and pushed the model result
+    # past the 2k truncation) is the last resort, kept for pipelines that declare
+    # no summary_steps (e.g. equity_research).
+    for step in summary_steps:
+        text = (result.steps.get(step) or "").strip()
+        if text:
+            return text[:4000]
     return result.format_summary()[:2000]
 
 
@@ -359,7 +382,9 @@ def build_dcf_artifact(
         compute_version=_make_base_compute_version(formula_id, formula_warnings),
         outputs=ArtifactOutputs(
             structured=structured_out,
-            summary_text=_summary_text(result, structured_out, deps),
+            summary_text=_summary_text(
+                result, structured_out, deps, summary_steps=("dcf_calc", "output_gen")
+            ),
             warnings=_collect_warnings(result) + audit_warnings,
         ),
         meta=ArtifactMeta(
@@ -417,7 +442,9 @@ def build_lbo_artifact(
         compute_version=_make_base_compute_version("lbo_v1", formula_warnings),
         outputs=ArtifactOutputs(
             structured=structured_out,
-            summary_text=_summary_text(result, structured_out, deps),
+            summary_text=_summary_text(
+                result, structured_out, deps, summary_steps=("lbo_calculation", "lbo_narrative")
+            ),
             warnings=_collect_warnings(result) + audit_warnings,
         ),
         meta=ArtifactMeta(
@@ -465,7 +492,9 @@ def build_comps_artifact(
         compute_version=_make_base_compute_version("comps_multiples_v1"),
         outputs=ArtifactOutputs(
             structured=structured_out,
-            summary_text=_summary_text(result, structured_out, deps),
+            summary_text=_summary_text(
+                result, structured_out, deps, summary_steps=("statistical_bench", "output_gen")
+            ),
             warnings=_collect_warnings(result) + audit_warnings,
         ),
         meta=ArtifactMeta(
@@ -516,7 +545,9 @@ def build_ddm_artifact(
         compute_version=_make_base_compute_version("ddm_gordon_growth_v1"),
         outputs=ArtifactOutputs(
             structured=structured_out,
-            summary_text=_summary_text(result, structured_out, deps),
+            summary_text=_summary_text(
+                result, structured_out, deps, summary_steps=("ddm_calc", "ddm_narrative")
+            ),
             warnings=_collect_warnings(result) + audit_warnings,
         ),
         meta=ArtifactMeta(

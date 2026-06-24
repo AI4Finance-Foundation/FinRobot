@@ -20,6 +20,7 @@
 import type { ArtifactDetail } from '../../hooks/useV5Artifacts'
 import { useI18n, type Locale } from '../../i18n'
 import { formatCurrency, formatPercent, formatDate, formatCompactNumber } from '../../utils/format'
+import { MarkdownLite } from '../../components/MarkdownLite'
 
 interface CompactInputs {
   data_source?: string
@@ -328,17 +329,10 @@ export function CompactArtifactViewer({
 
       {summaryText && (
         <Section title={T(locale, '摘要', 'Summary')}>
-          <p
-            style={{
-              fontSize: 13.5,
-              lineHeight: 1.7,
-              color: 'var(--text-secondary)',
-              margin: 0,
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {summaryText}
-          </p>
+          <MarkdownLite
+            text={summaryText}
+            style={{ fontSize: 13.5, lineHeight: 1.7, color: 'var(--text-secondary)' }}
+          />
         </Section>
       )}
 

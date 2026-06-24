@@ -660,6 +660,36 @@ class TestResolveCanonicalThesis:
         assert canonical.confidence == "very_low"
         assert canonical.basis is not None and "WITHHELD" in canonical.basis
 
+    def test_withheld_multimethod_reads_nearest_edge_not_extreme_anchor(self):
+        """Bug-1c (2026-06-24): point withheld + published range ENTIRELY above the
+        market → upside/verdict must read off the NEAREST band EDGE, never the withheld
+        extreme anchor. An insurer DCF reanchor printed ALL a +460% BUY off a $1297
+        anchor at 5.6x price; the honest read is the gap to the nearest edge (~+40%),
+        still a directional BUY. Mirrors the RI-band path and pins
+        synthesize_valuations.upside_downside == the canonical upside."""
+        methods = [
+            ValuationMethod(name="dcf", low=1038, mid=1297, high=1557, confidence=0.85, source="DCF"),
+            ValuationMethod(
+                name="ev_ebitda", low=1086, mid=1358, high=1630, confidence=0.72, source="EV"
+            ),
+            ValuationMethod(
+                name="comps_pe", low=260, mid=325, high=390, confidence=0.80, source="PE"
+            ),
+        ]
+        vs = synthesize_valuations(methods, current_price=232.0)
+        canonical = resolve_canonical_thesis(vs, "TESTCO")
+        assert canonical.valuation_withheld is True
+        assert canonical.target is None
+        assert canonical.verdict == "BUY"  # price below the whole range → directional BUY
+        # The de-anchored bug read (1297-232)/232 = +459%; the edge read is far smaller.
+        assert canonical.upside is not None and canonical.upside < 1.0, (
+            f"upside {canonical.upside} still anchored to the withheld extreme point"
+        )
+        # Direction reads off the nearest edge (target_low, price below the band).
+        assert canonical.upside == pytest.approx((vs.target_low - 232.0) / 232.0, abs=1e-6)
+        # synthesize's stored upside_downside mirrors the canonical exactly (pinned).
+        assert vs.upside_downside == pytest.approx(canonical.upside, abs=1e-9)
+
     def test_single_method_just_under_2x_still_publishes(self):
         """A lone method at 1.8x the market (under the 2x single-method band) is a
         real call — it publishes its mid. medium tier; upside +80% ≥ medium-tier

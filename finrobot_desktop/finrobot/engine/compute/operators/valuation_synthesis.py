@@ -443,7 +443,17 @@ def synthesize_valuations(
         and t_hi is not None
         and min(t_lo, t_hi) <= current_price <= max(t_lo, t_hi)
     )
-    verdict_point = current_price if range_spans_market else reference_price
+    # Withheld + range entirely on one side: read direction from the NEAREST published
+    # EDGE, never the withheld interior anchor — an out-of-cal anchor (e.g. a 5.6x-price
+    # DCF) otherwise prints a de-anchored upside (ALL +460% pre-slice-1). Mirrors the
+    # RI-band edge logic + resolve_canonical_thesis (Bug-1c, 2026-06-24).
+    if range_spans_market:
+        verdict_point = current_price
+    elif withheld and t_lo is not None and t_hi is not None:
+        lo, hi = sorted((t_lo, t_hi))
+        verdict_point = lo if current_price < lo else hi
+    else:
+        verdict_point = reference_price
     # upside_downside must mirror the canonical verdict exactly (pinned invariant), so it
     # follows the SAME branch resolve_canonical_thesis takes: an M&A-transition name has no
     # usable direction (None); a bank with an RI value band reads price-vs-band; everything
@@ -698,8 +708,20 @@ def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
             confidence=vs.confidence,
         )
 
+    # Withheld + range entirely on one side: read direction from the NEAREST published
+    # EDGE, never the withheld interior point — an out-of-cal anchor (e.g. a 5.6x-price
+    # DCF) otherwise prints a de-anchored upside (ALL +460% pre-slice-1). The edge gives
+    # an honest direction without republishing a fabricated magnitude; generalizes to any
+    # future extreme-withhold, financial or not. Mirrors the RI-band path + the
+    # upside_downside calc in synthesize_valuations (Bug-1c, 2026-06-24).
     range_spans_market = vs.valuation_withheld and _range_spans_market(vs)
-    verdict_point = vs.current_price if range_spans_market else point
+    if range_spans_market:
+        verdict_point = vs.current_price
+    elif vs.valuation_withheld and vs.target_low is not None and vs.target_high is not None:
+        lo, hi = sorted((vs.target_low, vs.target_high))
+        verdict_point = lo if vs.current_price < lo else hi
+    else:
+        verdict_point = point
     upside = (verdict_point - vs.current_price) / vs.current_price
     verdict = verdict_from_upside(upside, vs.confidence)
     target = None if vs.valuation_withheld else round(point, 2)
@@ -719,8 +741,9 @@ def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
             "The HOLD verdict stands because the published valuation range spans the "
             "current market price, so the methods do not support a one-sided call."
             if range_spans_market
-            else f"The {verdict} verdict stands on the directional read of the "
-            "market-implied valuation, not a point estimate."
+            else f"The {verdict} verdict reads off the nearest published range bound "
+            f"(${verdict_point:.2f}), not the withheld interior point — the market sits "
+            f"{'below' if vs.current_price < verdict_point else 'above'} the whole range."
         )
         basis = (
             f"POINT TARGET WITHHELD (confidence={vs.confidence}): the only number "

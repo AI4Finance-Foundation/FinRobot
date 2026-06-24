@@ -60,6 +60,17 @@ _DEFAULT_PAYOUT_RATIO: Final[float] = 0.5
 # normal payers agree within it (JPM 1.3pp, PG 0.7pp) and keep the provider value.
 _PAYOUT_DISAGREE_TOL: Final[float] = 0.10
 
+# A provider per-share DPS whose implied yield (DPS / price) disagrees with the
+# provider's OWN dividend_yield beyond this is a per-ordinary-share vs per-ADR-price
+# mismatch (LYG: DPS/price 0.64% vs dividend_yield 3.35%, ~5x — the 1:N ADR ratio the
+# per-share field misses but the dimensionless yield carries). Past this, trust the
+# caliber-consistent yield × price. Detected on the yield disagreement, NOT a currency
+# flag, because by DDM time the snapshot is USD-normalized (reporting == quote == USD).
+# Absolute 0.5pp OR 25% relative, whichever larger, so normal payers (yield ≈ DPS/price)
+# are unaffected. Bug-3, 2026-06-24.
+_ADR_YIELD_DISAGREE_ABS: Final[float] = 0.005
+_ADR_YIELD_DISAGREE_REL: Final[float] = 0.25
+
 # Sustainable dividend growth is clamped to this ceiling before decay — beyond
 # it the Gordon multi-stage convergence stops being meaningful.
 _MAX_SUSTAINABLE_GROWTH: Final[float] = 0.40
@@ -110,8 +121,33 @@ def seed_ddm_inputs(
     current_price = financials.market.current_price
 
     # ----- dividend_per_share -----------------------------------------------
+    # Foreign-ADR guard: the provider's per-share DPS is per-ORDINARY-share while
+    # current_price is per-ADR (a 1:N ADR ratio the per-share field misses but the
+    # dimensionless dividend_yield carries) — LYG's DPS/price implies 0.64% vs the
+    # provider's own dividend_yield 3.35%. When the two disagree beyond tolerance, trust
+    # the caliber-consistent yield × price (no double-FX: yield is dimensionless, price
+    # is the quote-currency per-ADR price). Bug-3, 2026-06-24.
     dps = normalized.dividend_per_share
-    if dps is not None and dps > 0:
+    div_yield = normalized.dividend_yield
+    implied_yield = (
+        dps / current_price if (dps is not None and dps > 0 and current_price > 0) else None
+    )
+    adr_div_mismatch = (
+        div_yield is not None
+        and 0 < div_yield < 1
+        and implied_yield is not None
+        and current_price > 0
+        and abs(implied_yield - div_yield)
+        > max(_ADR_YIELD_DISAGREE_ABS, _ADR_YIELD_DISAGREE_REL * div_yield)
+    )
+    if adr_div_mismatch and div_yield is not None:
+        dps = div_yield * current_price
+        prov["dividend_per_share"] = (
+            f"${dps:.2f} (per-ADR DPS = provider dividend_yield {div_yield:.2%} × price "
+            f"${current_price:.2f}; the per-share DPS implied a {implied_yield:.2%} yield "
+            f"— per-ordinary-share vs per-ADR-price mismatch)"
+        )
+    elif dps is not None and dps > 0:
         prov["dividend_per_share"] = f"${dps:.2f} (provider-reported annualized DPS)"
     else:
         payout_raw = normalized.payout_ratio

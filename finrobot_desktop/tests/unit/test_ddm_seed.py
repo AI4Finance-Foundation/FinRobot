@@ -78,6 +78,7 @@ def _financials(
 def _normalized(
     *,
     dividend_per_share: float | None = JPM_DPS,
+    dividend_yield: float | None = None,
     payout_ratio: float | None = JPM_PAYOUT,
     return_on_equity: float | None = JPM_ROE,
     book_value_per_share: float | None = JPM_BVPS,
@@ -93,6 +94,7 @@ def _normalized(
         shares_outstanding=JPM_SHARES,
         current_price=JPM_PRICE,
         dividend_per_share=dividend_per_share,
+        dividend_yield=dividend_yield,
         payout_ratio=payout_ratio,
         return_on_equity=return_on_equity,
         book_value_per_share=book_value_per_share,
@@ -261,6 +263,32 @@ class TestSeedClamps:
         JPM baseline DPS $6 / EPS ~$21.5 = 27.9% ≈ provider 28.2%, a 0.3pp gap)."""
         inputs = seed_ddm_inputs(_financials(), _normalized())
         assert "provider-reported" in inputs.assumption_provenance["payout_ratio"]
+
+    def test_adr_dividend_uses_yield_when_per_share_mismatches(self) -> None:
+        """Bug-3 (2026-06-24): a foreign ADR's per-share DPS is per-ordinary-share but
+        price is per-ADR (LYG: DPS/price 0.64% vs the provider's own dividend_yield
+        3.35%, ~5x). When the implied yield disagrees with the reported yield, seed the
+        per-ADR DPS as yield × price, not the mismatched per-ordinary DPS."""
+        inputs = seed_ddm_inputs(
+            _financials(price=5.73),
+            _normalized(dividend_per_share=0.0365, dividend_yield=0.0335),
+        )
+        # per-ADR DPS = 0.0335 × 5.73 = 0.192, NOT the per-ordinary 0.0365.
+        assert inputs.dividend_per_share == pytest.approx(0.0335 * 5.73, abs=1e-4)
+        assert "per-ADR" in inputs.assumption_provenance["dividend_per_share"]
+
+    def test_us_payer_keeps_provider_dps_when_yield_agrees(self) -> None:
+        """A US payer (dividend_yield ≈ DPS/price) keeps the provider per-share DPS —
+        the ADR guard fires only on a genuine per-ordinary vs per-ADR mismatch."""
+        inputs = seed_ddm_inputs(
+            _financials(price=62.0),
+            _normalized(dividend_per_share=2.08, dividend_yield=2.08 / 62.0),
+        )
+        assert inputs.dividend_per_share == pytest.approx(2.08, abs=1e-4)
+        assert (
+            "provider-reported annualized DPS"
+            in inputs.assumption_provenance["dividend_per_share"]
+        )
 
 
 class TestSeedProvenance:

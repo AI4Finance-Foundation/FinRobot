@@ -25,7 +25,8 @@ import { markArtifactViewed } from '../api/client'
 import { queryClient } from '../api/queryClient'
 import { saveTextFile } from '../lib/tauri'
 import { reportFileStem } from '../lib/exportReport'
-import { missingExportBlocksMessage } from '../export/reportExportQueries'
+import { isEquityResearch } from '../lib/artifactKind'
+import { missingExportBlocksMessage, type ReportExportBlockId } from '../export/reportExportQueries'
 
 import { ReportToolbar } from './artifact-detail/shell/ReportToolbar'
 import { ReportLeftRail } from './artifact-detail/shell/ReportLeftRail'
@@ -33,15 +34,6 @@ import { ReportChapters } from './artifact-detail/ReportChapters'
 import { CompactArtifactViewer } from './artifact-detail/CompactArtifactViewer'
 import { deriveReportData } from './artifact-detail/reportData'
 import { allChapterLabels } from './artifact-detail/chapters/labels'
-
-// Only equity_research is a 13-chapter long-scroll report. Every other artifact
-// type (dcf / lbo / ddm / comps / earnings / ic_memo / peer_research / ad_hoc)
-// is a single deterministic computation and renders through the compact viewer
-// — forcing them into the 13-chapter shell produced empty chapters + an
-// irrelevant TOC / Ownership rail (BUG-20260602-039).
-function isEquityResearch(type: string): boolean {
-  return type === 'equity_research'
-}
 
 export function ArtifactDetailPage(): React.ReactElement {
   const { ticker, artifactId } = useParams<{ ticker: string; artifactId: string }>()
@@ -192,23 +184,29 @@ export function ArtifactDetailPage(): React.ReactElement {
   // we warn precisely which section will be missing (BUG-20260602-028).
   async function handleExportHtml(): Promise<void> {
     if (!data) return
-    // Transient "preparing" toast — the prefetch + dehydrate can take a beat on
-    // a cold cache, so the click gives immediate feedback instead of a silent
-    // hang. Auto-dismisses; the result toast lands after.
-    addToast({
-      type: 'info',
-      title: locale === 'zh' ? '正在准备研报数据…' : 'Preparing report data…',
-      description:
-        locale === 'zh'
-          ? '正在准备图表 / 电话会 / 估值数据'
-          : 'Fetching charts / earnings call / valuation data',
-    })
     try {
       const { buildInteractiveReportHtml, prepareReportExport } = await import('../export/bundle')
 
-      // Seed the cache with the chapters' read models, then dehydrate a complete
-      // snapshot. `missing` = blocks the backend couldn't serve right now.
-      const missing = await prepareReportExport(queryClient, symbol)
+      // Only the 13-chapter report pulls slow reference data (earnings calls)
+      // that must be prefetched into the offline cache for a deterministic file.
+      // A compact artifact (dcf / ddm / lbo / comps / …) renders purely from its
+      // own persisted fields — no prefetch, and no "fetching charts / earnings"
+      // toast (which would be a lie for a single-method export).
+      let missing: ReportExportBlockId[] = []
+      if (isResearch) {
+        // Transient "preparing" toast — the prefetch + dehydrate can take a beat
+        // on a cold cache, so the click gives immediate feedback instead of a
+        // silent hang. Auto-dismisses; the result toast lands after.
+        addToast({
+          type: 'info',
+          title: locale === 'zh' ? '正在准备研报数据…' : 'Preparing report data…',
+          description:
+            locale === 'zh'
+              ? '正在准备图表 / 电话会 / 估值数据'
+              : 'Fetching charts / earnings call / valuation data',
+        })
+        missing = await prepareReportExport(queryClient, symbol)
+      }
 
       const html = buildInteractiveReportHtml({
         artifact: data,
@@ -217,7 +215,12 @@ export function ArtifactDetailPage(): React.ReactElement {
         locale,
         title: `${symbol} · ${versionLabel}`,
       })
-      const saved = await saveTextFile(`${reportFileStem(symbol, versionLabel)}.html`, html, [
+      // Non-research exports prefix the stem with the artifact type so a DCF file
+      // isn't named identically to the ticker's full report (same ticker + date).
+      const stem = isResearch
+        ? reportFileStem(symbol, versionLabel)
+        : reportFileStem(symbol, `${data.type}_${versionLabel}`)
+      const saved = await saveTextFile(`${stem}.html`, html, [
         { name: 'HTML', extensions: ['html'] },
       ])
       if (!saved) return

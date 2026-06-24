@@ -5,8 +5,9 @@
 // window.__FINROBOT_REPORT__ (artifact + version timeline + a dehydrated
 // react-query cache + locale), rehydrates the query cache so the chapters' data
 // hooks resolve from inlined data WITHOUT any network, and renders the exact
-// same <ReportChapters> the app uses — Recharts tooltips, heatmap and football
-// field all live, fully offline.
+// same body the app uses (ReportExportBody → the 13-chapter ReportChapters for
+// equity_research, the CompactArtifactViewer for dcf / ddm / lbo / comps / …) —
+// Recharts tooltips, heatmap and football field all live, fully offline.
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -38,7 +39,7 @@ import '../styles/tabs.css'
 import './viewer.css'
 
 import { useUiPrefs } from '../i18n'
-import { ReportChapters } from '../pages/artifact-detail/ReportChapters'
+import { ReportExportBody } from './ReportExportBody'
 import type { ArtifactDetail } from '../hooks/useV5Artifacts'
 import type { ArtifactSummaryV5 } from '../types/v5'
 
@@ -85,7 +86,11 @@ function mount(): void {
             become harmless in-memory no-ops in the standalone file. */}
         <MemoryRouter>
           <div className="report-export-shell">
-            <ReportChapters artifact={payload.artifact} timeline={payload.timeline} />
+            {/* Mirrors the in-app page's type branch: the 13-chapter report for
+                equity_research, the compact single-computation viewer for
+                dcf / ddm / lbo / comps / earnings / … (so a standalone export
+                isn't an empty equity shell — BUG-20260602-039). */}
+            <ReportExportBody artifact={payload.artifact} timeline={payload.timeline} />
           </div>
         </MemoryRouter>
       </QueryClientProvider>

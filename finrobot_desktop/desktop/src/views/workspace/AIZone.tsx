@@ -245,7 +245,16 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
     void timelineRefetch()
   }
 
-  async function launchResearch(): Promise<void> {
+  // Shared launch path for every pipeline — the full 13-chapter report AND the
+  // standalone single-method valuations. Guards: a per-ticker run already active
+  // → info toast (startRun locks one run per ticker); a known-bad precondition
+  // (BUG-027) → route to Settings instead of POSTing a doomed 503/500 run. The
+  // caller supplies its own success copy.
+  async function launchPipeline(
+    pipelineType: string,
+    successTitle: string,
+    successDesc: string,
+  ): Promise<void> {
     // Fresh store read, not the render-scope `isRunning`: a double-click's
     // second event can fire before React re-renders the disabled button. The
     // first click's occupation is written synchronously by startRun (before
@@ -260,26 +269,18 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
       })
       return
     }
-    // Preflight guard (BUG-027): never POST /api/runs when a precondition is
-    // known-bad — the run would 503/500 and we'd leak a raw HTTP toast. Route
-    // the user to Settings instead. (The CTA is also disabled, so this is a
-    // belt-and-braces guard for any non-button caller like onRerun.)
     if (preflightBlocked) {
       addToast({
         type: 'error',
-        title: locale === 'zh' ? '无法启动研报' : 'Can’t start the report',
+        title: locale === 'zh' ? '无法启动' : 'Can’t start',
         description: preflightDescription(preflightReason, locale),
       })
       navigate('/settings')
       return
     }
     try {
-      await startRun('research', ticker)
-      addToast({
-        type: 'success',
-        title: t('workspace.ai.toast.launched', { ticker }),
-        description: t('workspace.ai.toast.launchedDesc'),
-      })
+      await startRun(pipelineType, ticker)
+      addToast({ type: 'success', title: successTitle, description: successDesc })
     } catch (err) {
       addToast({
         type: 'error',
@@ -287,6 +288,27 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
         description: mapErrorToUserMessage(err),
       })
     }
+  }
+
+  async function launchResearch(): Promise<void> {
+    await launchPipeline(
+      'research',
+      t('workspace.ai.toast.launched', { ticker }),
+      t('workspace.ai.toast.launchedDesc'),
+    )
+  }
+
+  // Standalone single-method valuation (dcf / ddm / lbo / comps): a focused tool
+  // run that lands its own artifact + detail page, no 13-chapter report needed.
+  // The artifact type == pipeline type for these four, so artifactTypeLabel()
+  // names the toast identically to the timeline row it will produce.
+  async function launchMethod(pipelineType: string): Promise<void> {
+    const label = artifactTypeLabel(pipelineType, locale)
+    await launchPipeline(
+      pipelineType,
+      locale === 'zh' ? `${label} · 已启动` : `${label} · started`,
+      locale === 'zh' ? `正在为 ${ticker} 运行 ${label}` : `Running ${label} for ${ticker}`,
+    )
   }
 
   // Five states for the AI column:
@@ -420,6 +442,21 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
           onLaunch={launchResearch}
         />
       ) : null}
+
+      {/* Second run entry: launch a standalone single-method valuation directly
+          (resolves "the workspace only has the 13-chapter report switch"). Shown
+          once the history query settles and no run is active — incl. the cold
+          state, so a fresh ticker can run one method without first producing an
+          artifact. Hidden mid-run (the progress panel takes over). */}
+      {!isRunning && reportHistoryResolved && (
+        <StandaloneValuationLauncher
+          isRunning={isRunning}
+          preflightBlocked={preflightBlocked}
+          preflightReason={preflightReason}
+          locale={locale}
+          onLaunch={launchMethod}
+        />
+      )}
 
       {/* BUG-040: full model-artifact timeline (non-equity_research). Always
           rendered when present — whether or not a full report exists — so DCF /
@@ -600,6 +637,237 @@ function OtherArtifacts({
   )
 }
 
+// Distinct geometric glyphs per method (inline SVG per the project's icon
+// convention — Recharts is reserved for real charts). stroke=currentColor so
+// each picks up the button's accent colour.
+const ICON_DCF = (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 20 20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.6"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M3 3v14h14" />
+    <path d="M6 13l3-3 3 1.5 4-6" />
+  </svg>
+)
+const ICON_DDM = (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 20 20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.6"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <circle cx="10" cy="10" r="6.5" />
+    <path d="M10 6v8" />
+    <path d="M12 8c-.4-.7-1.1-1.1-2-1.1-1.1 0-1.9.6-1.9 1.5 0 2 3.9 1 3.9 3 0 .9-.8 1.6-2 1.6-.9 0-1.7-.4-2.1-1.1" />
+  </svg>
+)
+const ICON_LBO = (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 20 20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.6"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect x="3.5" y="4.5" width="13" height="3.5" rx="1" />
+    <rect x="3.5" y="11.5" width="13" height="3.5" rx="1" />
+    <path d="M10 8v3.5" />
+  </svg>
+)
+const ICON_COMPS = (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 20 20"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.6"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect x="3.5" y="3.5" width="5.5" height="5.5" rx="1" />
+    <rect x="11" y="3.5" width="5.5" height="5.5" rx="1" />
+    <rect x="3.5" y="11" width="5.5" height="5.5" rx="1" />
+    <rect x="11" y="11" width="5.5" height="5.5" rx="1" />
+  </svg>
+)
+
+const STANDALONE_METHODS: {
+  type: string
+  glyph: React.ReactNode
+  hint: { zh: string; en: string }
+}[] = [
+  { type: 'dcf', glyph: ICON_DCF, hint: { zh: '现金流折现内在价值', en: 'Intrinsic value · DCF' } },
+  {
+    type: 'ddm',
+    glyph: ICON_DDM,
+    hint: { zh: '股利贴现 · 银行/分红股', en: 'Dividend discount · payers' },
+  },
+  {
+    type: 'lbo',
+    glyph: ICON_LBO,
+    hint: { zh: '杠杆收购回报 IRR/MOIC', en: 'Buyout returns · IRR/MOIC' },
+  },
+  {
+    type: 'comps',
+    glyph: ICON_COMPS,
+    hint: { zh: '同业倍数相对估值', en: 'Relative value · peers' },
+  },
+]
+
+// The workspace's SECOND run entry, beside the full-report CTA: launch a single
+// valuation method directly (no 13-chapter report, no pre-existing artifact
+// required). Each card POSTs its own pipeline via startRun → its own artifact +
+// detail page. Mirrors RunCta's preflight handling — a known-bad precondition
+// collapses the grid into one "fix config" button so we never fire a doomed run.
+function StandaloneValuationLauncher({
+  isRunning,
+  preflightBlocked,
+  preflightReason,
+  locale,
+  onLaunch,
+}: {
+  isRunning: boolean
+  preflightBlocked: boolean
+  preflightReason: PreflightReason
+  locale: Locale
+  onLaunch: (pipelineType: string) => void
+}): React.ReactElement {
+  const navigate = useNavigate()
+  const zh = locale === 'zh'
+  return (
+    <div
+      data-testid="ai-zone-standalone-launcher"
+      style={{
+        background: 'var(--gradient-card-cosmic)',
+        border: '1px solid var(--secondary-strong)',
+        borderRadius: 'var(--radius-md)',
+        padding: '14px 16px',
+        marginTop: 14,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <span
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+            color: 'var(--secondary)',
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+          }}
+        >
+          {zh ? '单方法估值' : 'Standalone Valuation'}
+        </span>
+        <span
+          style={{
+            marginLeft: 'auto',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            color: 'var(--text-muted)',
+          }}
+        >
+          {zh ? '无需完整研报' : 'no full report needed'}
+        </span>
+      </div>
+
+      {preflightBlocked ? (
+        <button
+          type="button"
+          data-testid="standalone-launcher-blocked"
+          onClick={() => navigate('/settings')}
+          style={{
+            width: '100%',
+            padding: '11px 14px',
+            background: 'var(--warning-soft)',
+            border: '1px solid var(--warning)',
+            borderRadius: 8,
+            color: 'var(--warning)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11.5,
+            fontWeight: 600,
+            cursor: 'pointer',
+          }}
+        >
+          {preflightReason === 'offline'
+            ? zh
+              ? '⚠ 后端未连接 · 去重试数据源'
+              : '⚠ Backend offline · retry data source'
+            : zh
+              ? '⚠ 去设置补全配置'
+              : '⚠ Fix config in Settings'}
+        </button>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {STANDALONE_METHODS.map((m) => (
+            <button
+              key={m.type}
+              type="button"
+              data-testid={`launch-method-${m.type}`}
+              onClick={() => onLaunch(m.type)}
+              disabled={isRunning}
+              title={zh ? m.hint.zh : m.hint.en}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '10px 12px',
+                background: 'var(--bg-card-translucent)',
+                border: '1px solid var(--border-soft)',
+                borderRadius: 8,
+                cursor: isRunning ? 'not-allowed' : 'pointer',
+                opacity: isRunning ? 0.45 : 1,
+                textAlign: 'left',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <span style={{ color: 'var(--secondary)', display: 'flex', flexShrink: 0 }}>
+                {m.glyph}
+              </span>
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                <span
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: 'var(--secondary)',
+                  }}
+                >
+                  {artifactTypeLabel(m.type, locale)}
+                </span>
+                <span
+                  style={{
+                    fontSize: 10.5,
+                    color: 'var(--text-muted)',
+                    lineHeight: 1.4,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {zh ? m.hint.zh : m.hint.en}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ZoneHeader({
   hasArtifact,
   versionsCount,
@@ -691,7 +959,13 @@ function LoadingState(): React.ReactElement {
         {t('workspace.ai.cold.checking')}
       </div>
       <div
-        style={{ display: 'flex', flexDirection: 'column', gap: 9, maxWidth: 300, margin: '0 auto' }}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 9,
+          maxWidth: 300,
+          margin: '0 auto',
+        }}
       >
         {[1, 0.7, 0.45].map((w, i) => (
           <div

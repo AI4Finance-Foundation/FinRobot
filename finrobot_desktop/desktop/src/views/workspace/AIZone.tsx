@@ -13,36 +13,28 @@ import { useLatestArtifact, useV5ArtifactTimeline } from '../../hooks/useV5Artif
 import { useTickerPrice } from '../../hooks/useTickerData'
 import { useRunStreamStore, selectRunByTicker } from '../../stores/runStreamStore'
 import { useToastStore } from '../../stores/toastStore'
-import { useHealth } from '../../hooks/useHealth'
+import { useHealth, type HealthState } from '../../hooks/useHealth'
 import { PipelineProgressPanel } from '../PipelineProgressPanel'
 import { verdictLabel, verdictTone } from '../../utils/verdict'
 import { formatDate } from '../../utils/format'
 import { mapErrorToUserMessage } from '../../utils/errorMessage'
 import { useI18n, tSync, type Locale } from '../../i18n'
-import { allChapterLabels } from '../../pages/artifact-detail/chapters/labels'
 import type { ArtifactSummaryV5 } from '../../types/v5'
 import { ArchivedPill } from '../../components/ArchivedPill'
-import { TargetGauge } from '../../components/TargetGauge'
+import { ValuationInstruments, VALUATION_TYPES } from './ValuationInstruments'
+import { artifactTypeLabel } from './artifactLabels'
 
 // Display label per non-research artifact type (dcf / lbo / comps / …). Kept
 // inline (not in .po) per the VersionDiffBanner precedent — these are short,
 // stable model names. Mirror of CompactArtifactViewer's TYPE_LABEL so the
 // workspace and the detail page name the same artifact identically.
-const ARTIFACT_TYPE_LABEL: Record<string, { zh: string; en: string }> = {
-  dcf: { zh: 'DCF 估值', en: 'DCF Valuation' },
-  lbo: { zh: 'LBO 模型', en: 'LBO Model' },
-  ddm: { zh: 'DDM 股利贴现', en: 'DDM Valuation' },
-  comps: { zh: '可比公司', en: 'Comparable Companies' },
-  earnings: { zh: '财报质量', en: 'Earnings Quality' },
-  ic_memo: { zh: '投委会备忘录', en: 'IC Memo' },
-  peer_research: { zh: '同业研究', en: 'Peer Research' },
-  ad_hoc: { zh: '即席分析', en: 'Ad-hoc Analysis' },
-}
-
-function artifactTypeLabel(type: string, locale: Locale): string {
-  const m = ARTIFACT_TYPE_LABEL[type]
-  if (m) return locale === 'zh' ? m.zh : m.en
-  return type
+// One-word stance shown under the big verdict glyph (design prototype's
+// "裁决 · 中性持有"). Inline EN per the ARTIFACT_TYPE_LABEL precedent.
+const VERDICT_DESC: Record<string, string> = {
+  BUY: 'Bullish',
+  HOLD: 'Neutral',
+  SELL: 'Bearish',
+  WITHHELD: 'Withheld',
 }
 
 // Friendly, actionable copy for each preflight failure (BUG-027) — what's
@@ -150,7 +142,17 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
   // own labelled section, newest first.
   const otherArtifacts = (timeline ?? []).filter((a) => a.type !== 'equity_research')
   const hasOtherArtifacts = otherArtifacts.length > 0
+  // The four standalone valuations now render as reading cards in
+  // ValuationInstruments (each with its own version chain); keep only the OTHER
+  // model artifacts (earnings / ic_memo / peer_research / ad_hoc) in the side
+  // list so a valuation run is never shown twice.
+  const sideArtifacts = otherArtifacts.filter(
+    (a) => !(VALUATION_TYPES as readonly string[]).includes(a.type),
+  )
   const isRunning = runState?.status === 'running'
+  // Only a research run takes over the whole column (top panel + hero). An
+  // instrument run renders in place, so the tools-row must survive it.
+  const researchRunning = isRunning && runState?.pipelineType === 'research'
 
   // ── Auto-advance into the report on a watched completion (UX-002) ─────────
   // The first wow is "search → read a 13-chapter report"; making the user hunt
@@ -320,7 +322,10 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
   //   cold     → query RESOLVED and genuinely zero artifacts → ColdState + CTA
   // After the run completes, PipelineProgressPanel keeps showing its
   // "完成 · 总耗时 Xs" header (→ 打开研报 / ✕ dismiss) until dismissed.
-  const showProgress = !!runState && !runState.dismissed
+  // Only a RESEARCH run owns the top progress panel. An instrument run
+  // (dcf/ddm/lbo/comps) shows its progress INSIDE its ValuationInstruments card,
+  // never up here — so a focused valuation never hijacks the flagship column.
+  const showProgress = !!runState && !runState.dismissed && runState.pipelineType === 'research'
   // The history query has actually come back (settled, no error). ONLY then do
   // we know whether reports exist — and only then may we show the affirmative
   // "No report · Run now" terminal. Before this we render LoadingState: showing
@@ -398,9 +403,12 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
 
       {showProgress && <PipelineProgressPanel ticker={ticker} />}
 
-      {latest && !isRunning ? (
+      {latest ? (
+        // Render the verdict/report card whenever a latest artifact exists —
+        // INCLUDING mid-run, so a re-run shows the progress panel (above) over
+        // the still-readable prior report (the design's running state). The
+        // rerun button self-disables while running.
         <HotState
-          ticker={ticker}
           latest={latest}
           timeline={sameTypeTimeline}
           isRunning={isRunning}
@@ -439,35 +447,59 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
           isRunning={isRunning}
           preflightBlocked={preflightBlocked}
           preflightReason={preflightReason}
+          health={health ?? null}
           onLaunch={launchResearch}
         />
       ) : null}
 
-      {/* Second run entry: launch a standalone single-method valuation directly
-          (resolves "the workspace only has the 13-chapter report switch"). Shown
-          once the history query settles and no run is active — incl. the cold
-          state, so a fresh ticker can run one method without first producing an
-          artifact. Hidden mid-run (the progress panel takes over). */}
-      {!isRunning && reportHistoryResolved && (
-        <StandaloneValuationLauncher
-          isRunning={isRunning}
-          preflightBlocked={preflightBlocked}
-          preflightReason={preflightReason}
-          locale={locale}
-          onLaunch={launchMethod}
-        />
-      )}
+      {/* Standalone valuation launcher + model-artifact list — paired SIDE BY
+          SIDE per the design (left = run a single method, right = artifacts this
+          ticker already has). When only the launcher shows (cold ticker, no
+          artifacts) it spans full width. Both hide mid-run (the progress panel
+          takes over the column). */}
+      {!researchRunning && (reportHistoryResolved || sideArtifacts.length > 0) && (
+        <div
+          data-testid="ai-zone-tools-row"
+          style={{
+            display: 'grid',
+            gridTemplateColumns:
+              reportHistoryResolved && sideArtifacts.length > 0 ? '1fr 1fr' : '1fr',
+            gap: 12,
+            alignItems: 'start',
+            marginTop: 14,
+          }}
+        >
+          {/* Second run entry: the four single-method valuations as live
+              instruments — each shows its latest reading + version, and runs IN
+              PLACE (inline progress in its own card), so a focused valuation
+              never hijacks the flagship's top progress panel. Shown once the
+              history query settles — incl. the cold state, so a fresh ticker can
+              run one method without first producing an artifact. */}
+          {reportHistoryResolved && (
+            <ValuationInstruments
+              timeline={timeline ?? []}
+              runState={runState ?? null}
+              preflightBlocked={preflightBlocked}
+              preflightReason={preflightReason}
+              locale={locale}
+              livePrice={livePrice}
+              onLaunch={launchMethod}
+              onOpen={(id) => navigate(`/stocks/${ticker}/runs/${id}`)}
+            />
+          )}
 
-      {/* BUG-040: full model-artifact timeline (non-equity_research). Always
-          rendered when present — whether or not a full report exists — so DCF /
-          LBO / comps / earnings runs the landing strip counts are reachable
-          from the workspace. Each row routes to the detail page's type router. */}
-      {!isRunning && otherArtifacts.length > 0 && (
-        <OtherArtifacts
-          artifacts={otherArtifacts}
-          locale={locale}
-          onOpen={(id) => navigate(`/stocks/${ticker}/runs/${id}`)}
-        />
+          {/* BUG-040: remaining non-valuation model artifacts (earnings /
+              ic_memo / peer_research / ad_hoc). The four valuations are excluded
+              (they render as instrument cards on the left); these still surface
+              so their landing-strip counts stay reachable. */}
+          {sideArtifacts.length > 0 && (
+            <OtherArtifacts
+              artifacts={sideArtifacts}
+              locale={locale}
+              onOpen={(id) => navigate(`/stocks/${ticker}/runs/${id}`)}
+            />
+          )}
+        </div>
       )}
     </section>
   )
@@ -557,20 +589,22 @@ function OtherArtifacts({
     <div
       data-testid="ai-zone-other-artifacts"
       style={{
-        background: 'var(--gradient-card-cosmic)',
-        border: '1px solid var(--secondary-strong)',
-        borderRadius: 'var(--radius-md)',
-        padding: '14px 16px',
-        marginTop: 14,
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-soft)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '16px',
+        // Top spacing is owned by the side-by-side tools-row wrapper.
+        height: '100%',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <span
           style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            color: 'var(--secondary)',
-            letterSpacing: '0.08em',
+            fontFamily: 'var(--font-display)',
+            fontSize: 12,
+            fontWeight: 600,
+            color: 'var(--text-muted)',
+            letterSpacing: '0.12em',
             textTransform: 'uppercase',
           }}
         >
@@ -613,7 +647,7 @@ function OtherArtifacts({
                 color: 'var(--text-primary)',
               }}
             >
-              <span style={{ color: 'var(--secondary)', fontWeight: 600 }}>
+              <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
                 {artifactTypeLabel(a.type, locale)}
               </span>
               {v ? <VerdictPill verdict={v} /> : <span />}
@@ -626,244 +660,23 @@ function OtherArtifacts({
                 {formatDate(a.created_at, locale, 'short')} · {ageLabel(a.created_at)}
                 {a.primary_provider ? ` · ${a.primary_provider}` : ''}
               </span>
-              <span style={{ color: 'var(--secondary)', textDecoration: 'underline' }}>
-                {zh ? '打开 →' : 'Open →'}
+              <span
+                style={{ color: 'var(--text-dim)', display: 'inline-flex', alignItems: 'center' }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
+                  <path
+                    d="M9 6 L15 12 L9 18"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
               </span>
             </button>
           )
         })}
       </div>
-    </div>
-  )
-}
-
-// Distinct geometric glyphs per method (inline SVG per the project's icon
-// convention — Recharts is reserved for real charts). stroke=currentColor so
-// each picks up the button's accent colour.
-const ICON_DCF = (
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 20 20"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.6"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M3 3v14h14" />
-    <path d="M6 13l3-3 3 1.5 4-6" />
-  </svg>
-)
-const ICON_DDM = (
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 20 20"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.6"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <circle cx="10" cy="10" r="6.5" />
-    <path d="M10 6v8" />
-    <path d="M12 8c-.4-.7-1.1-1.1-2-1.1-1.1 0-1.9.6-1.9 1.5 0 2 3.9 1 3.9 3 0 .9-.8 1.6-2 1.6-.9 0-1.7-.4-2.1-1.1" />
-  </svg>
-)
-const ICON_LBO = (
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 20 20"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.6"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <rect x="3.5" y="4.5" width="13" height="3.5" rx="1" />
-    <rect x="3.5" y="11.5" width="13" height="3.5" rx="1" />
-    <path d="M10 8v3.5" />
-  </svg>
-)
-const ICON_COMPS = (
-  <svg
-    width="18"
-    height="18"
-    viewBox="0 0 20 20"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.6"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <rect x="3.5" y="3.5" width="5.5" height="5.5" rx="1" />
-    <rect x="11" y="3.5" width="5.5" height="5.5" rx="1" />
-    <rect x="3.5" y="11" width="5.5" height="5.5" rx="1" />
-    <rect x="11" y="11" width="5.5" height="5.5" rx="1" />
-  </svg>
-)
-
-const STANDALONE_METHODS: {
-  type: string
-  glyph: React.ReactNode
-  hint: { zh: string; en: string }
-}[] = [
-  { type: 'dcf', glyph: ICON_DCF, hint: { zh: '现金流折现内在价值', en: 'Intrinsic value · DCF' } },
-  {
-    type: 'ddm',
-    glyph: ICON_DDM,
-    hint: { zh: '股利贴现 · 银行/分红股', en: 'Dividend discount · payers' },
-  },
-  {
-    type: 'lbo',
-    glyph: ICON_LBO,
-    hint: { zh: '杠杆收购回报 IRR/MOIC', en: 'Buyout returns · IRR/MOIC' },
-  },
-  {
-    type: 'comps',
-    glyph: ICON_COMPS,
-    hint: { zh: '同业倍数相对估值', en: 'Relative value · peers' },
-  },
-]
-
-// The workspace's SECOND run entry, beside the full-report CTA: launch a single
-// valuation method directly (no 13-chapter report, no pre-existing artifact
-// required). Each card POSTs its own pipeline via startRun → its own artifact +
-// detail page. Mirrors RunCta's preflight handling — a known-bad precondition
-// collapses the grid into one "fix config" button so we never fire a doomed run.
-function StandaloneValuationLauncher({
-  isRunning,
-  preflightBlocked,
-  preflightReason,
-  locale,
-  onLaunch,
-}: {
-  isRunning: boolean
-  preflightBlocked: boolean
-  preflightReason: PreflightReason
-  locale: Locale
-  onLaunch: (pipelineType: string) => void
-}): React.ReactElement {
-  const navigate = useNavigate()
-  const zh = locale === 'zh'
-  return (
-    <div
-      data-testid="ai-zone-standalone-launcher"
-      style={{
-        background: 'var(--gradient-card-cosmic)',
-        border: '1px solid var(--secondary-strong)',
-        borderRadius: 'var(--radius-md)',
-        padding: '14px 16px',
-        marginTop: 14,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <span
-          style={{
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11,
-            color: 'var(--secondary)',
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-          }}
-        >
-          {zh ? '单方法估值' : 'Standalone Valuation'}
-        </span>
-        <span
-          style={{
-            marginLeft: 'auto',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 10,
-            color: 'var(--text-muted)',
-          }}
-        >
-          {zh ? '无需完整研报' : 'no full report needed'}
-        </span>
-      </div>
-
-      {preflightBlocked ? (
-        <button
-          type="button"
-          data-testid="standalone-launcher-blocked"
-          onClick={() => navigate('/settings')}
-          style={{
-            width: '100%',
-            padding: '11px 14px',
-            background: 'var(--warning-soft)',
-            border: '1px solid var(--warning)',
-            borderRadius: 8,
-            color: 'var(--warning)',
-            fontFamily: 'var(--font-mono)',
-            fontSize: 11.5,
-            fontWeight: 600,
-            cursor: 'pointer',
-          }}
-        >
-          {preflightReason === 'offline'
-            ? zh
-              ? '⚠ 后端未连接 · 去重试数据源'
-              : '⚠ Backend offline · retry data source'
-            : zh
-              ? '⚠ 去设置补全配置'
-              : '⚠ Fix config in Settings'}
-        </button>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {STANDALONE_METHODS.map((m) => (
-            <button
-              key={m.type}
-              type="button"
-              data-testid={`launch-method-${m.type}`}
-              onClick={() => onLaunch(m.type)}
-              disabled={isRunning}
-              title={zh ? m.hint.zh : m.hint.en}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '10px 12px',
-                background: 'var(--bg-card-translucent)',
-                border: '1px solid var(--border-soft)',
-                borderRadius: 8,
-                cursor: isRunning ? 'not-allowed' : 'pointer',
-                opacity: isRunning ? 0.45 : 1,
-                textAlign: 'left',
-                color: 'var(--text-primary)',
-              }}
-            >
-              <span style={{ color: 'var(--secondary)', display: 'flex', flexShrink: 0 }}>
-                {m.glyph}
-              </span>
-              <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-                <span
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: 'var(--secondary)',
-                  }}
-                >
-                  {artifactTypeLabel(m.type, locale)}
-                </span>
-                <span
-                  style={{
-                    fontSize: 10.5,
-                    color: 'var(--text-muted)',
-                    lineHeight: 1.4,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {zh ? m.hint.zh : m.hint.en}
-                </span>
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   )
 }
@@ -882,20 +695,29 @@ function ZoneHeader({
     <div
       style={{
         display: 'flex',
-        alignItems: 'baseline',
-        gap: 12,
+        alignItems: 'center',
+        gap: 11,
         marginBottom: 14,
-        paddingBottom: 8,
-        borderBottom: '1px solid var(--secondary-edge)',
+        paddingBottom: 10,
+        borderBottom: '1px solid var(--border-faint)',
       }}
     >
       <span
         style={{
+          width: 3,
+          height: 15,
+          borderRadius: 2,
+          background: 'var(--primary)',
+          boxShadow: '0 0 8px color-mix(in srgb, var(--primary) 60%, transparent)',
+        }}
+      />
+      <span
+        style={{
           fontFamily: 'var(--font-display)',
           fontSize: 16,
-          letterSpacing: '2px',
-          color: 'var(--secondary)',
-          textShadow: '0 0 12px var(--secondary-glow)',
+          fontWeight: 600,
+          letterSpacing: '1.5px',
+          color: 'var(--text-primary)',
         }}
       >
         {t('workspace.ai.zoneTitle')}
@@ -925,6 +747,36 @@ const zoneDesc: React.CSSProperties = {
   color: 'var(--text-muted)',
   marginBottom: 14,
   lineHeight: 1.55,
+}
+
+// Readout-tile styles for the hero instrument's Now / Target / Implied-Return
+// trio. `edge` tints the hairline in the directional hue (target + implied).
+function readoutTile(edge?: string): React.CSSProperties {
+  return {
+    background: 'var(--bg-elevated)',
+    border: `1px solid ${edge ? `color-mix(in srgb, ${edge} 26%, transparent)` : 'var(--border-faint)'}`,
+    borderRadius: 'var(--radius-md)',
+    padding: '13px 15px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 7,
+  }
+}
+const readoutKey: React.CSSProperties = {
+  fontFamily: 'var(--font-body)',
+  fontSize: 10,
+  fontWeight: 500,
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  color: 'var(--text-muted)',
+}
+const readoutVal: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 22,
+  fontWeight: 600,
+  color: 'var(--text-primary)',
+  fontVariantNumeric: 'tabular-nums',
+  lineHeight: 1,
 }
 
 // Shown while the report-history query is still in flight (or the sidecar is
@@ -989,12 +841,16 @@ function ColdState({
   isRunning,
   preflightBlocked,
   preflightReason,
+  health,
   onLaunch,
 }: {
   ticker: string
   isRunning: boolean
   preflightBlocked: boolean
   preflightReason: PreflightReason
+  /** Resolved backend health (null while the first probe is in flight). Drives
+   *  the real preflight checklist — never a hardcoded model name or source count. */
+  health: HealthState | null
   onLaunch: () => void
 }): React.ReactElement {
   const { t } = useI18n()
@@ -1042,6 +898,7 @@ function ColdState({
           onLaunch={onLaunch}
         />
       </div>
+      <PreflightChecklist health={health} preflightBlocked={preflightBlocked} />
       <p
         style={{
           fontFamily: 'var(--font-mono)',
@@ -1052,6 +909,84 @@ function ColdState({
       >
         {t('workspace.ai.cold.immutableNote')}
       </p>
+    </div>
+  )
+}
+
+// Real preflight indicator under the cold-state CTA, fed entirely by useHealth —
+// NEVER a hardcoded "GPT" / "5 sources". Three honest signals:
+//   • Preflight passed       — green check, only when nothing is blocking a run.
+//   • AI model configured    — green when health.modelConfigured; otherwise a
+//                              NEUTRAL muted hint ("No AI model yet · Settings"),
+//                              never a red error (an unconfigured model is a
+//                              normal not-yet-done state, not a failure).
+//   • N data sources online  — N = health.availableProviders.length (real count).
+// While health is still loading (null) the checklist renders nothing rather than
+// flashing a guess.
+function PreflightChecklist({
+  health,
+  preflightBlocked,
+}: {
+  health: HealthState | null
+  preflightBlocked: boolean
+}): React.ReactElement | null {
+  const { t } = useI18n()
+  if (!health) return null
+  const modelOk = health.modelConfigured
+  const providerCount = health.availableProviders.length
+
+  return (
+    <div
+      data-testid="ai-zone-preflight"
+      style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 14,
+        marginTop: 16,
+        fontFamily: 'var(--font-mono)',
+        fontSize: 10.5,
+        letterSpacing: '0.04em',
+      }}
+    >
+      {/* Preflight passed — only when a run is genuinely unblocked. */}
+      {!preflightBlocked && (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ color: 'var(--success)' }}>✓</span>
+          <span style={{ color: 'var(--text-secondary)' }}>
+            {t('workspace.ai.cold.preflight.passed')}
+          </span>
+        </span>
+      )}
+      {/* AI model: green check when configured, neutral muted hint otherwise
+          (NOT red — unconfigured is a normal pre-setup state). */}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+        {modelOk ? (
+          <>
+            <span style={{ color: 'var(--success)' }}>✓</span>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              {t('workspace.ai.cold.preflight.modelConfigured')}
+            </span>
+          </>
+        ) : (
+          <>
+            <span style={{ color: 'var(--text-dim)' }}>○</span>
+            <span style={{ color: 'var(--text-muted)' }}>
+              {t('workspace.ai.cold.preflight.modelPending')}
+            </span>
+          </>
+        )}
+      </span>
+      {/* Real data-source count (0 reads as the honest "0 online", not hidden). */}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+        <span style={{ color: providerCount > 0 ? 'var(--success)' : 'var(--text-dim)' }}>
+          {providerCount > 0 ? '✓' : '○'}
+        </span>
+        <span style={{ color: 'var(--text-secondary)' }}>
+          {t('workspace.ai.cold.preflight.dataSources', { n: providerCount })}
+        </span>
+      </span>
     </div>
   )
 }
@@ -1139,7 +1074,6 @@ function RunCta({
 }
 
 function HotState({
-  ticker,
   latest,
   timeline,
   isRunning,
@@ -1148,7 +1082,6 @@ function HotState({
   onRerun,
   onOpen,
 }: {
-  ticker: string
   latest: NonNullable<ReturnType<typeof useLatestArtifact>['latest']>
   timeline: ReturnType<typeof useV5ArtifactTimeline>['data']
   isRunning: boolean
@@ -1157,7 +1090,6 @@ function HotState({
   onRerun: () => void
   onOpen: (id: string) => void
 }): React.ReactElement {
-  const navigate = useNavigate()
   const { locale, t } = useI18n()
   const verdict = readVerdict(latest)
   const target = latest.target_price ?? null
@@ -1165,6 +1097,17 @@ function HotState({
   // WITHHELD token falls through verdictTone to a neutral slate. The badge hue is
   // NEVER modulated by anything other than the directional call.
   const tone = verdictTone(verdict)
+  // Brighter verdict hue for the instrument's signal text/badge (the --card-*-fg
+  // variants read crisper at large sizes than base --success/--warning/--danger).
+  // Neutral slate for WITHHELD. The hue is STILL bound only to the directional call.
+  const signalFg =
+    verdict === 'BUY'
+      ? 'var(--card-buy-fg)'
+      : verdict === 'HOLD'
+        ? 'var(--card-hold-fg)'
+        : verdict === 'SELL'
+          ? 'var(--card-sell-fg)'
+          : 'var(--text-secondary)'
   // Withheld POINT target — gate on target===null (verdict-independent). The
   // directional rating still stands; only the precise number is honestly held.
   const targetWithheld = verdict !== null && target === null
@@ -1177,311 +1120,549 @@ function HotState({
   // report that produced this target.
   const gaugePrice = livePrice ?? latest.entry_price ?? null
   const gaugeUsingEntry = livePrice == null && latest.entry_price != null
+  // vN for the verdict-block header — total versions, latest = newest.
+  const versionNum = timeline?.length || 1
 
   return (
     <>
-      {/* Latest report card */}
+      {/* Latest report card — the design's "hero report card": ONE flex row of an
+          integrated verdict panel (left, full-height, tinted, border-right), a
+          flexible target+gauge middle, and an action panel (right, border-left);
+          a tagline foot sits below a border-top. overflow:hidden clips the side
+          panels to the card's radius so they read as integrated wings, not boxes. */}
       <div
         data-testid="ai-zone-latest"
         style={{
-          background: 'var(--gradient-card-cosmic)',
-          border: '1px solid var(--secondary-strong)',
-          borderRadius: 'var(--radius-md)',
-          padding: '18px 20px',
+          position: 'relative',
+          border: '1px solid var(--border-soft)',
+          borderRadius: 'var(--radius-xl)',
+          background: 'var(--bg-card)',
+          overflow: 'hidden',
+          boxShadow: '0 16px 50px rgba(0, 0, 0, 0.4)',
           marginBottom: 14,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              color: 'var(--secondary)',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-            }}
-          >
-            {t('workspace.ai.hot.latestReport')}
-          </span>
-          <span
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              padding: '2px 7px',
-              borderRadius: 3,
-              background: 'var(--secondary-soft)',
-              color: 'var(--secondary)',
-            }}
-          >
-            current
-          </span>
-          <span
-            style={{
-              marginLeft: 'auto',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10.5,
-              color: 'var(--text-muted)',
-            }}
-          >
-            @ {ageLabel(latest.created_at)}
-          </span>
-        </div>
+        {/* signal rail — a thin gradient in the verdict hue along the top edge. */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 2,
+            background: `linear-gradient(90deg, transparent, ${signalFg} 30%, ${signalFg} 70%, transparent)`,
+            opacity: 0.65,
+          }}
+        />
 
+        {/* identity (eyebrow + tagline) on the left, the verdict SIGNAL badge on
+            the right. The ticker itself lives in the workspace hero above, so the
+            card leads with the report's recency + share-card line, not the symbol. */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 16,
-            marginBottom: 14,
-            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+            gap: 18,
+            padding: '22px 26px 18px',
+            borderBottom: '1px solid var(--border-faint)',
           }}
         >
-          {verdict && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 9, minWidth: 0 }}>
             <span
-              data-testid="ai-zone-verdict"
-              data-verdict={verdict}
               style={{
-                // 18px (was 28px): match the report's restatement size and free
-                // vertical room for the TargetGauge below. The badge is the
-                // directional call, not the page's hero number — the target +
-                // its gauge are.
-                fontFamily: 'var(--font-display)',
-                fontSize: 18,
-                letterSpacing: '3px',
-                padding: '4px 16px',
-                background: tone.bg,
-                color: tone.fg,
-                border: `1.5px solid ${tone.border}`,
-                borderRadius: 8,
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10.5,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: 'var(--text-muted)',
               }}
             >
-              {verdictLabel(verdict)}
+              current · v{versionNum} · {ageLabel(latest.created_at)}
             </span>
-          )}
-          {target !== null && (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 10.5,
-                  color: 'var(--text-muted)',
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                }}
-              >
-                12-Month Target
-              </span>
-              <span
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 30,
-                  fontWeight: 600,
-                  color: 'var(--text-primary)',
-                  fontVariantNumeric: 'tabular-nums',
-                  lineHeight: 1.1,
-                }}
-              >
-                ${target.toFixed(2)}
-              </span>
-            </div>
-          )}
-        </div>
-
-        {/* TargetGauge: where the target sits vs the CURRENT price (centre tick,
-            target left/below → red / right/above → green). NOT TargetRange — the
-            workspace summary carries no confidence tier, so a confidence-scaled
-            band would be fabricated. The gauge shows only target + direction.
-            Rendered only when a target AND a price exist (degrade = omit). */}
-        {target !== null && gaugePrice !== null && (
-          <div data-testid="ai-zone-target-gauge" style={{ marginBottom: 14 }}>
-            <TargetGauge
-              targetPrice={target}
-              currentPrice={gaugePrice}
-              quoteCurrency="USD"
-              ticker={ticker}
-              source={{ artifact_id: latest.id }}
-            />
-            {gaugeUsingEntry && (
+            {latest.tagline ? (
               <p
                 style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 9.5,
-                  color: 'var(--text-dim)',
-                  letterSpacing: '0.04em',
-                  marginTop: 4,
+                  fontSize: 13,
+                  color: 'var(--accent-cyan)',
+                  fontStyle: 'italic',
+                  lineHeight: 1.45,
+                  margin: 0,
+                  maxWidth: 460,
+                  textShadow: '0 0 10px var(--accent-cyan-glow-soft)',
                 }}
               >
-                {liveQuoteForeign
-                  ? locale === 'zh'
-                    ? '对比建仓时价格(实时报价为外币,无法对齐美元目标)'
-                    : 'vs price at creation (live quote is in a foreign currency)'
-                  : locale === 'zh'
-                    ? '对比建仓时价格(实时报价不可用)'
-                    : 'vs price at creation (live quote unavailable)'}
+                "{latest.tagline}"
               </p>
+            ) : latest.headline ? (
+              <p
+                style={{
+                  fontSize: 12.5,
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.5,
+                  margin: 0,
+                  maxWidth: 460,
+                }}
+              >
+                {latest.headline.slice(0, 160)}
+                {latest.headline.length > 160 ? '…' : ''}
+              </p>
+            ) : null}
+          </div>
+
+          {/* verdict SIGNAL block — always present (the test + product both expect
+              a verdict surface on a hot card); the badge itself only renders when a
+              directional call exists, else a neutral "no rating" for a thesis-less
+              artifact. */}
+          <div
+            data-testid="ai-zone-verdict-block"
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-end',
+              gap: 6,
+              flexShrink: 0,
+            }}
+          >
+            {verdict ? (
+              <>
+                <span
+                  style={{
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 10,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: 'var(--text-muted)',
+                  }}
+                >
+                  {t('workspace.ai.hot.verdictLabel')} · {VERDICT_DESC[verdict] ?? ''}
+                </span>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '8px 16px',
+                    borderRadius: 'var(--radius-pill)',
+                    background: tone.bg,
+                    border: `1px solid ${tone.border}`,
+                    boxShadow: `0 0 22px color-mix(in srgb, ${signalFg} 22%, transparent)`,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 9,
+                      height: 9,
+                      borderRadius: 2,
+                      background: signalFg,
+                      boxShadow: `0 0 8px color-mix(in srgb, ${signalFg} 70%, transparent)`,
+                    }}
+                  />
+                  <span
+                    data-testid="ai-zone-verdict"
+                    data-verdict={verdict}
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      fontSize: verdictLabel(verdict).length > 5 ? 14 : 17,
+                      fontWeight: 700,
+                      letterSpacing: '2px',
+                      color: signalFg,
+                    }}
+                  >
+                    {verdictLabel(verdict)}
+                  </span>
+                </span>
+              </>
+            ) : (
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 11,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  color: 'var(--text-dim)',
+                }}
+              >
+                No rating
+              </span>
             )}
           </div>
-        )}
+        </div>
 
-        {/* The POINT target was honestly withheld (target_price null) while the
-            directional rating still stands — gate on target===null, NOT on any
-            verdict value. Voice the withholding instead of leaving a silent gap;
-            this honesty is the product's point, not a defect. Neutral slate, the
-            directional badge above keeps its 涨绿跌红 hue. */}
-        {targetWithheld && (
-          <button
-            type="button"
-            data-testid="ai-zone-target-withheld"
-            onClick={() => onOpen(latest.id)}
-            style={{
-              display: 'block',
-              width: '100%',
-              textAlign: 'left',
-              background: 'var(--neutral-soft)',
-              border: '1px solid var(--neutral-edge)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '10px 12px',
-              marginBottom: 14,
-              cursor: 'pointer',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 12,
-              lineHeight: 1.5,
-              color: 'var(--text-secondary)',
-            }}
-          >
-            {t('hotState.targetWithheld')}
-          </button>
-        )}
+        {/* readout tiles + the machined now→target gauge (the chosen "data
+            instrument" hero), else the honest withheld note. */}
+        <div style={{ padding: '24px 26px 22px' }}>
+          {target !== null && gaugePrice !== null && gaugePrice > 0 ? (
+            (() => {
+              const now = gaugePrice
+              const tgt = target
+              const up = tgt >= now
+              const dir = up ? 'var(--card-buy-fg)' : 'var(--card-sell-fg)'
+              const pctMove = ((tgt - now) / now) * 100
+              // Instrument scale: a nicely-rounded domain that contains [now, tgt]
+              // with ~55% head-room each side, divided into ~7 nice-number ticks.
+              const lo = Math.min(now, tgt)
+              const hi = Math.max(now, tgt)
+              const g = hi - lo || hi * 0.1
+              const raw = (hi + g * 0.55 - (lo - g * 0.55)) / 7 || 1
+              const e = Math.floor(Math.log10(raw))
+              const b = Math.pow(10, e)
+              const f = raw / b
+              const stp = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * b
+              const dMin = Math.max(0, Math.floor((lo - g * 0.55) / stp) * stp)
+              const dMax = Math.ceil((hi + g * 0.55) / stp) * stp
+              const X0 = 70
+              const X1 = 694
+              const xOf = (v: number) => X0 + ((v - dMin) / (dMax - dMin || 1)) * (X1 - X0)
+              const pctOf = (v: number) => ((v - dMin) / (dMax - dMin || 1)) * 100
+              const clamp = (x: number) => Math.max(X0 + 6, Math.min(X1 - 6, x))
+              const ticks: number[] = []
+              for (let v = dMin; v <= dMax + stp * 0.001; v += stp) ticks.push(v)
+              const nowX = xOf(now)
+              const tgtX = xOf(tgt)
+              const fLo = Math.min(nowX, tgtX)
+              const fHi = Math.max(nowX, tgtX)
+              return (
+                <>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr 1fr',
+                      gap: 12,
+                      marginBottom: 18,
+                    }}
+                  >
+                    <div style={readoutTile()}>
+                      <span style={readoutKey}>Now · Spot</span>
+                      <span style={readoutVal}>
+                        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>$</span>
+                        {now.toFixed(2)}
+                      </span>
+                    </div>
+                    <div style={readoutTile(dir)}>
+                      <span style={readoutKey}>{t('workspace.ai.hot.target12mo')}</span>
+                      <span style={{ ...readoutVal, color: dir }}>
+                        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>$</span>
+                        {tgt.toFixed(2)}
+                      </span>
+                    </div>
+                    <div style={readoutTile(dir)}>
+                      <span style={readoutKey}>Implied Return</span>
+                      <span
+                        data-testid="ai-zone-target-upside"
+                        style={{
+                          ...readoutVal,
+                          fontSize: 18,
+                          color: dir,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 5,
+                        }}
+                      >
+                        {up ? '▲ +' : '▼ '}
+                        {Math.abs(pctMove).toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                  {/* the machined instrument: a calibrated scale with NOW + TARGET
+                      markers and a delta read. Self-contained pixel math; values in
+                      scope and honest. Colours are tokens only (fill/stroke opacity
+                      gives the tints — no hardcoded rgba). */}
+                  <div data-testid="ai-zone-target-gauge" style={{ minWidth: 0 }}>
+                    <svg
+                      viewBox="0 0 764 132"
+                      style={{ width: '100%', height: 'auto', display: 'block' }}
+                    >
+                      <rect
+                        x={X0}
+                        y={64}
+                        width={X1 - X0}
+                        height={12}
+                        rx={6}
+                        fill="var(--bg-elevated)"
+                        stroke="var(--border-soft)"
+                        strokeWidth={1}
+                      />
+                      <rect
+                        x={fLo}
+                        y={64}
+                        width={fHi - fLo}
+                        height={12}
+                        rx={6}
+                        fill={dir}
+                        fillOpacity={0.24}
+                      />
+                      {ticks.map((v, i) => (
+                        <g key={i}>
+                          <line
+                            x1={xOf(v)}
+                            y1={50}
+                            x2={xOf(v)}
+                            y2={60}
+                            stroke="var(--text-dim)"
+                            strokeWidth={1.4}
+                            strokeLinecap="round"
+                          />
+                          <text
+                            x={xOf(v)}
+                            y={44}
+                            fill="var(--text-dim)"
+                            textAnchor="middle"
+                            style={{ fontFamily: 'var(--font-mono)', fontSize: 10 }}
+                          >
+                            {v.toFixed(0)}
+                          </text>
+                        </g>
+                      ))}
+                      {/* TARGET marker (the signal) */}
+                      <line
+                        data-testid="ai-zone-gauge-target"
+                        data-pct={pctOf(tgt).toFixed(2)}
+                        x1={tgtX}
+                        y1={62}
+                        x2={tgtX}
+                        y2={106}
+                        stroke={dir}
+                        strokeWidth={2.4}
+                        strokeLinecap="round"
+                      />
+                      <circle
+                        cx={tgtX}
+                        cy={70}
+                        r={6.5}
+                        fill="var(--bg-card)"
+                        stroke={dir}
+                        strokeWidth={2.4}
+                      />
+                      <circle cx={tgtX} cy={70} r={2.4} fill={dir} />
+                      <g transform={`translate(${clamp(tgtX)},108)`}>
+                        <rect
+                          x={-46}
+                          y={0}
+                          width={92}
+                          height={20}
+                          rx={5}
+                          fill={dir}
+                          fillOpacity={0.12}
+                          stroke={dir}
+                          strokeOpacity={0.4}
+                        />
+                        <text
+                          x={0}
+                          y={13.5}
+                          fill={dir}
+                          textAnchor="middle"
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: 10.5,
+                            fontWeight: 600,
+                          }}
+                        >
+                          TGT {tgt.toFixed(2)}
+                        </text>
+                      </g>
+                      {/* NOW marker (neutral) */}
+                      <line
+                        data-testid="ai-zone-gauge-now"
+                        data-pct={pctOf(now).toFixed(2)}
+                        x1={nowX}
+                        y1={24}
+                        x2={nowX}
+                        y2={78}
+                        stroke="var(--text-muted)"
+                        strokeWidth={1.4}
+                        strokeLinecap="round"
+                        strokeDasharray="2.5 3"
+                      />
+                      <path
+                        d={`M${nowX} 56 L${nowX + 6} 64 L${nowX} 72 L${nowX - 6} 64 Z`}
+                        fill="var(--text-secondary)"
+                        stroke="var(--bg-card)"
+                        strokeWidth={1}
+                      />
+                      <g transform={`translate(${clamp(nowX)},16)`}>
+                        <rect
+                          x={-44}
+                          y={-2}
+                          width={88}
+                          height={20}
+                          rx={5}
+                          fill="var(--bg-elevated)"
+                          stroke="var(--border-soft)"
+                        />
+                        <text
+                          x={0}
+                          y={11.5}
+                          fill="var(--text-primary)"
+                          textAnchor="middle"
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: 10.5,
+                            fontWeight: 600,
+                          }}
+                        >
+                          NOW {now.toFixed(2)}
+                        </text>
+                      </g>
+                      {/* delta bracket between the two markers */}
+                      <line x1={fLo} y1={92} x2={fHi} y2={92} stroke={dir} strokeOpacity={0.4} />
+                      <line x1={fLo} y1={89} x2={fLo} y2={95} stroke={dir} strokeOpacity={0.4} />
+                      <line x1={fHi} y1={89} x2={fHi} y2={95} stroke={dir} strokeOpacity={0.4} />
+                      <g transform={`translate(${(fLo + fHi) / 2},92)`}>
+                        <rect x={-46} y={-9} width={92} height={18} rx={4} fill="var(--bg-card)" />
+                        <text
+                          x={0}
+                          y={4}
+                          fill={dir}
+                          textAnchor="middle"
+                          style={{
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: 10.5,
+                            fontWeight: 700,
+                          }}
+                        >
+                          {up ? '+' : '−'}${Math.abs(tgt - now).toFixed(2)}
+                        </text>
+                      </g>
+                    </svg>
+                    {gaugeUsingEntry && (
+                      <p
+                        style={{
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: 9,
+                          color: 'var(--text-dim)',
+                          marginTop: 6,
+                        }}
+                      >
+                        {liveQuoteForeign
+                          ? 'vs price at creation (live quote is in a foreign currency)'
+                          : 'vs price at creation (live quote unavailable)'}
+                      </p>
+                    )}
+                  </div>
+                </>
+              )
+            })()
+          ) : target !== null ? (
+            /* Target exists but no current-price anchor — show the number, omit the
+               gauge honestly (degrade = omit, never fabricate a "now"). */
+            <div style={{ ...readoutTile(), display: 'inline-flex', minWidth: 200 }}>
+              <span style={readoutKey}>{t('workspace.ai.hot.target12mo')}</span>
+              <span style={readoutVal}>
+                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>$</span>
+                {target.toFixed(2)}
+              </span>
+            </div>
+          ) : targetWithheld ? (
+            /* The POINT target was honestly withheld (target_price null) while the
+               directional rating still stands — voice it, never a silent gap. */
+            <button
+              type="button"
+              data-testid="ai-zone-target-withheld"
+              onClick={() => onOpen(latest.id)}
+              style={{
+                display: 'block',
+                width: '100%',
+                textAlign: 'left',
+                background: 'var(--neutral-soft)',
+                border: '1px solid var(--neutral-edge)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 14px',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 12,
+                lineHeight: 1.5,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              {t('hotState.targetWithheld')}
+            </button>
+          ) : null}
+        </div>
 
-        {/* Prefer the real synthesis_agent tagline (≤60 char LLM-written
-            share-card line) over the generic pipeline.format_summary
-            preview that's stored in headline. tagline lands on
-            ArtifactSummaryV5 via summary_extractor.extract_tagline. */}
-        {latest.tagline ? (
-          <p
-            style={{
-              fontSize: 14,
-              color: 'var(--accent-cyan)',
-              fontStyle: 'italic',
-              lineHeight: 1.55,
-              marginBottom: 14,
-              textShadow: '0 0 10px var(--accent-cyan-glow-soft)',
-            }}
-          >
-            "{latest.tagline}"
-          </p>
-        ) : latest.headline ? (
-          <p
-            style={{
-              fontSize: 13,
-              color: 'var(--text-secondary)',
-              lineHeight: 1.6,
-              marginBottom: 14,
-            }}
-          >
-            {latest.headline.slice(0, 200)}
-            {latest.headline.length > 200 ? '…' : ''}
-          </p>
-        ) : null}
-
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {/* actions — a solid blue primary (open report) + a clean ghost (rerun);
+            no gradient pill, no decorative arrows. */}
+        <div style={{ display: 'flex', gap: 12, padding: '0 26px 24px' }}>
           <button
             type="button"
             data-testid="open-latest-report"
             onClick={() => onOpen(latest.id)}
             style={{
-              padding: '11px 18px',
-              background: 'linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%)',
-              border: 'none',
-              borderRadius: 'var(--radius-sm)',
+              flex: 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 9,
+              padding: '13px 20px',
+              background: 'var(--primary)',
+              border: '1px solid transparent',
+              borderRadius: 'var(--radius-md)',
               color: 'var(--text-on-primary)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: 12.5,
+              fontFamily: 'var(--font-body)',
+              fontSize: 13,
               fontWeight: 600,
+              letterSpacing: '0.01em',
               cursor: 'pointer',
-              letterSpacing: '0.04em',
-              boxShadow: '0 0 16px var(--secondary-glow-soft)',
+              boxShadow: '0 6px 18px color-mix(in srgb, var(--primary) 22%, transparent)',
             }}
           >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <rect
+                x="5"
+                y="3"
+                width="14"
+                height="18"
+                rx="2.5"
+                stroke="currentColor"
+                strokeWidth="1.7"
+              />
+              <path
+                d="M9 8 H15 M9 12 H15 M9 16 H13"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+              />
+            </svg>
             {t('workspace.ai.hot.openFull')}
           </button>
-          <button type="button" onClick={onRerun} disabled={isRunning} style={ghostBtn(isRunning)}>
-            {isRunning ? t('workspace.ai.running') : t('workspace.ai.hot.rerun')}
-          </button>
-        </div>
-      </div>
-
-      {/* Chapter mini-grid */}
-      <div
-        data-testid="ai-zone-chapters"
-        style={{
-          background: 'var(--gradient-card-cosmic)',
-          border: '1px solid var(--secondary-strong)',
-          borderRadius: 'var(--radius-md)',
-          padding: '14px 16px',
-          marginBottom: 14,
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <span
+          <button
+            type="button"
+            onClick={onRerun}
+            disabled={isRunning}
             style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 11,
-              color: 'var(--secondary)',
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              padding: '13px 18px',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-soft)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--text-secondary)',
+              fontFamily: 'var(--font-body)',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: isRunning ? 'not-allowed' : 'pointer',
+              opacity: isRunning ? 0.5 : 1,
             }}
           >
-            {t('workspace.ai.hot.chapterJump')}
-          </span>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-          {allChapterLabels(locale).map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => navigate(`/stocks/${ticker}/runs/${latest.id}#${c.id}`)}
-              style={{
-                textAlign: 'left',
-                padding: 10,
-                background: 'var(--bg-card-translucent)',
-                border: '1px solid var(--border-faint)',
-                borderRadius: 6,
-                cursor: 'pointer',
-                transition: 'all 0.18s',
-                color: 'inherit',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--secondary)'
-                e.currentTarget.style.background = 'var(--secondary-hover)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--border-faint)'
-                e.currentTarget.style.background = 'var(--bg-card-translucent)'
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 10,
-                  color: 'var(--text-dim)',
-                  letterSpacing: '0.06em',
-                }}
-              >
-                {c.num}
-              </div>
-              <div
-                style={{
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 11,
-                  color: 'var(--text-primary)',
-                  marginTop: 2,
-                }}
-              >
-                {c.title}
-              </div>
-            </button>
-          ))}
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M20 7 A8 8 0 1 0 21 13"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+              />
+              <path
+                d="M20 3 V7.5 H15.5"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            {isRunning ? t('workspace.ai.running') : t('workspace.ai.hot.rerun')}
+          </button>
         </div>
       </div>
 
@@ -1490,75 +1671,137 @@ function HotState({
         <div
           data-testid="ai-zone-timeline"
           style={{
-            background: 'var(--gradient-card-cosmic)',
-            border: '1px solid var(--secondary-strong)',
-            borderRadius: 'var(--radius-md)',
-            padding: '14px 16px',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-soft)',
+            borderRadius: 'var(--radius-lg)',
+            overflow: 'hidden',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <div
+            style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '15px 18px 11px' }}
+          >
             <span
               style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: 11,
-                color: 'var(--secondary)',
-                letterSpacing: '0.08em',
+                fontFamily: 'var(--font-display)',
+                fontSize: 11.5,
+                fontWeight: 600,
+                color: 'var(--text-muted)',
+                letterSpacing: '0.14em',
                 textTransform: 'uppercase',
               }}
             >
               {t('workspace.ai.hot.history', { n: timeline.length })}
             </span>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {timeline.slice(0, 5).map((a) => {
+          {/* One-line verdict-coloured version rail (slice B, approved D-hybrid
+              mock): collapse the stacked rows into compact chips so the report's
+              version chain reads as a single glance at thesis drift (BUY→HOLD→…)
+              without eating the column. Each chip = verdict-hued dot + vN +
+              (current) "now"; the verdict word + provider + date live in the
+              title tooltip and an sr-only span (a11y + the WITHHELD-stays-neutral
+              contract). Click opens that version. */}
+          <div
+            data-testid="ai-zone-timeline-rail"
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: 6,
+              padding: '2px 16px 16px',
+            }}
+          >
+            {timeline.slice(0, 8).map((a, i) => {
               const current = a.id === latest.id
               const v = readVerdict(a)
+              // Bright verdict hue per version (its directional call); neutral for
+              // a thesis-less / WITHHELD artifact — never borrow the amber HOLD hue.
+              const sig =
+                v === 'BUY'
+                  ? 'var(--card-buy-fg)'
+                  : v === 'HOLD'
+                    ? 'var(--card-hold-fg)'
+                    : v === 'SELL'
+                      ? 'var(--card-sell-fg)'
+                      : 'var(--text-muted)'
+              const vNum = Math.max(1, timeline.length - i)
               return (
                 <button
                   key={a.id}
                   type="button"
                   onClick={() => onOpen(a.id)}
+                  title={`${verdictLabel(v)} · v${vNum} · ${formatDate(a.created_at, locale, 'short')} · ${ageLabel(a.created_at)}${a.primary_provider ? ` · ${a.primary_provider}` : ''}`}
                   style={{
-                    display: 'grid',
-                    gridTemplateColumns: '50px 60px 80px 1fr auto',
-                    gap: 10,
+                    display: 'inline-flex',
                     alignItems: 'center',
-                    padding: '8px 10px',
-                    background: current ? 'var(--secondary-hover)' : 'var(--bg-card-translucent)',
-                    border: 'none',
-                    borderLeft: `2px solid ${current ? 'var(--secondary)' : 'var(--border-soft)'}`,
-                    borderRadius: '0 6px 6px 0',
+                    gap: 6,
+                    padding: '4px 10px',
+                    borderRadius: 999,
+                    border: current
+                      ? `1px solid color-mix(in srgb, ${sig} 45%, transparent)`
+                      : '1px solid var(--border-faint)',
+                    background: current
+                      ? `color-mix(in srgb, ${sig} 12%, transparent)`
+                      : 'var(--bg-elevated)',
+                    boxShadow: current
+                      ? `0 0 10px color-mix(in srgb, ${sig} 28%, transparent)`
+                      : 'none',
                     cursor: 'pointer',
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 11.5,
-                    textAlign: 'left',
                     color: 'var(--text-primary)',
                     // Dim retired (stale-archived) versions (BUG-055).
-                    opacity: a.archived ? 0.6 : 1,
+                    opacity: a.archived ? 0.5 : 1,
                   }}
                 >
-                  <span style={{ fontWeight: 600 }}>{current ? 'current' : ''}</span>
-                  <VerdictPill verdict={v} />
-                  <span style={{ color: 'var(--text-secondary)' }}>
-                    {a.target_price !== null && a.target_price !== undefined
-                      ? `$${a.target_price.toFixed(2)}`
-                      : '—'}
-                  </span>
-                  <span style={{ color: 'var(--text-dim)', fontSize: 10.5 }}>
-                    {formatDate(a.created_at, locale, 'short')} · {ageLabel(a.created_at)}
-                    {a.primary_provider ? ` · ${a.primary_provider}` : ''}
-                  </span>
                   <span
                     style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'flex-end',
+                      width: 6,
+                      height: 6,
+                      borderRadius: 3,
+                      background: sig,
+                      boxShadow: `0 0 6px color-mix(in srgb, ${sig} 55%, transparent)`,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: current ? sig : 'var(--text-secondary)',
                     }}
                   >
-                    {a.archived && <ArchivedPill />}
-                    <span style={{ color: 'var(--secondary)', textDecoration: 'underline' }}>
-                      {t('workspace.ai.hot.openArrow')}
+                    v{vNum}
+                  </span>
+                  {current && (
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: 9,
+                        letterSpacing: '0.06em',
+                        color: 'var(--text-dim)',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      now
                     </span>
+                  )}
+                  {a.archived && <ArchivedPill />}
+                  <span
+                    data-testid="ai-zone-timeline-verdict"
+                    data-verdict={v ?? 'NONE'}
+                    style={{
+                      color: sig,
+                      position: 'absolute',
+                      width: 1,
+                      height: 1,
+                      padding: 0,
+                      margin: -1,
+                      overflow: 'hidden',
+                      clip: 'rect(0 0 0 0)',
+                      whiteSpace: 'nowrap',
+                      border: 0,
+                    }}
+                  >
+                    {verdictLabel(v)}
                   </span>
                 </button>
               )
@@ -1627,18 +1870,4 @@ function ageLabel(iso: string): string {
   if (hours < 24) return tSync('workspace.ai.age.hAgo', { n: hours })
   const days = Math.round(hours / 24)
   return tSync('workspace.ai.age.dAgo', { n: days })
-}
-
-function ghostBtn(disabled: boolean): React.CSSProperties {
-  return {
-    padding: '11px 18px',
-    background: 'var(--bg-card-deep)',
-    border: '1px solid var(--border-soft)',
-    borderRadius: 8,
-    color: 'var(--text-secondary)',
-    fontFamily: 'var(--font-mono)',
-    fontSize: 12,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.45 : 1,
-  }
 }

@@ -304,7 +304,8 @@ describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
   it('Step 1b: retail sentiment card consumes /api/sentiment (BUG-044)', async () => {
     // The mock for /api/sentiment/NVDA returns available:true, 67/33 bull/bear.
     // This proves the section is actually wired (previously the endpoint was
-    // mocked but no UI consumed it).
+    // mocked but no UI consumed it). The market column is a flat vertical stack,
+    // so the sentiment card renders without any tab navigation.
     renderWorkspace()
     const card = await screen.findByTestId('sentiment-available')
     expect(card).toBeInTheDocument()
@@ -374,11 +375,13 @@ describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
     }
   })
 
-  it('Step 4: AI zone shows latest artifact card + chapter mini-grid + version timeline when artifacts exist', async () => {
+  it('Step 4: AI zone shows latest artifact card + verdict block + version timeline when artifacts exist', async () => {
     renderWorkspace()
     // Hot state surfaces (mock timeline returns 3 NVDA artifacts incl 1 equity_research).
     expect(await screen.findByTestId('ai-zone-latest')).toBeInTheDocument()
-    expect(screen.getByTestId('ai-zone-chapters')).toBeInTheDocument()
+    // The redesign's left verdict-emphasis block replaces the old 13-chapter grid
+    // (chapter navigation now lives behind "open full report" → the detail page).
+    expect(screen.getByTestId('ai-zone-verdict-block')).toBeInTheDocument()
     expect(screen.getByTestId('ai-zone-timeline')).toBeInTheDocument()
     // Cold-state CTA is not shown when we have a hot artifact.
     expect(screen.queryByTestId('ai-zone-cold')).not.toBeInTheDocument()
@@ -432,9 +435,11 @@ describe('workspace surfaces all artifact types (BUG-040)', () => {
       },
     ])
     renderWorkspace()
-    // The DCF artifact row is reachable.
-    expect(await screen.findByTestId('ai-zone-other-artifacts')).toBeInTheDocument()
-    expect(screen.getByTestId('other-artifact-dcf')).toBeInTheDocument()
+    // The DCF surfaces as a live valuation instrument card (reading + version),
+    // not buried in a generic artifact list (slice A: valuations ARE instruments).
+    const dcf = await screen.findByTestId('instrument-dcf')
+    expect(dcf).toBeInTheDocument()
+    expect(dcf).toHaveTextContent('$890.00')
     // The "no full report yet" nudge replaces the misleading cold empty state.
     expect(screen.getByTestId('ai-zone-no-report')).toBeInTheDocument()
     // The big cold "还没跑 AI 研报" empty state must NOT show — the ticker has data.
@@ -455,9 +460,14 @@ describe('workspace surfaces all artifact types (BUG-040)', () => {
       },
     ])
     renderWorkspace()
-    const row = await screen.findByTestId('other-artifact-comps')
-    expect(row).toBeInTheDocument()
-    expect(row).toHaveTextContent(/Comparable Companies|可比公司/)
+    // The comps detail query settles async (it carries no single price → the card
+    // resolves to a withheld/value state, swapping the tile node); re-query via
+    // waitFor so we assert on the settled card rather than a detached handle.
+    await waitFor(() =>
+      expect(screen.getByTestId('instrument-comps')).toHaveTextContent(
+        /Comparable Companies|可比公司/,
+      ),
+    )
   })
 
   it('maps a legacy REVIEW summary to a neutral WITHHELD pill, never the word REVIEW or a HOLD hue', async () => {
@@ -482,18 +492,16 @@ describe('workspace surfaces all artifact types (BUG-040)', () => {
 
     expect(await screen.findByTestId('ai-zone-timeline')).toBeInTheDocument()
     const pill = screen
-      .getAllByTestId('workspace-verdict-pill')
+      .getAllByTestId('ai-zone-timeline-verdict')
       .find((el) => el.getAttribute('data-verdict') === 'WITHHELD')
 
     expect(pill).toBeDefined()
     expect(pill).toHaveTextContent('WITHHELD')
     expect(pill).not.toHaveTextContent('REVIEW')
-    expect(pill).toHaveStyle({
-      background: 'var(--neutral-soft)',
-      color: 'var(--text-secondary)',
-    })
-    expect(pill?.getAttribute('style')).toContain('border: 1px solid var(--neutral-edge)')
-    expect(pill).not.toHaveStyle({ background: 'var(--warning-soft)' })
+    // The legacy WITHHELD token renders in a NEUTRAL slate — never the amber HOLD
+    // hue (var(--card-hold-fg)), never the forbidden "REVIEW" string.
+    expect(pill!.style.color).toBe('var(--text-muted)')
+    expect(pill!.style.color).not.toBe('var(--card-hold-fg)')
   })
 })
 

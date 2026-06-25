@@ -2125,28 +2125,40 @@ msgid "workspace.ai.cold.immutableNote"
 msgstr "研报一旦生成即不可变 · 重新生成会追加新版本，不会覆盖旧版"
 
 #. js-lingui-explicit-id
-msgid "workspace.ai.hot.latestReport"
-msgstr "📄 最新研报"
+msgid "workspace.ai.cold.preflight.passed"
+msgstr "预检通过"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.preflight.modelConfigured"
+msgstr "已配置 AI 模型"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.preflight.modelPending"
+msgstr "尚未配置 AI 模型 · 去设置"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.preflight.dataSources"
+msgstr "{n} 个数据源在线"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.verdictLabel"
+msgstr "裁决"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.target12mo"
+msgstr "12 个月目标价"
 
 #. js-lingui-explicit-id
 msgid "workspace.ai.hot.openFull"
-msgstr "→ 打开完整 13 章研报"
+msgstr "打开完整研报"
 
 #. js-lingui-explicit-id
 msgid "workspace.ai.hot.rerun"
-msgstr "↻ 重跑"
-
-#. js-lingui-explicit-id
-msgid "workspace.ai.hot.chapterJump"
-msgstr "📑 13 章节快速跳转"
+msgstr "重跑"
 
 #. js-lingui-explicit-id
 msgid "workspace.ai.hot.history"
 msgstr "⏱ 历史版本 · {n} 份"
-
-#. js-lingui-explicit-id
-msgid "workspace.ai.hot.openArrow"
-msgstr "打开 →"
 
 #. js-lingui-explicit-id
 msgid "workspace.ai.age.justNow"

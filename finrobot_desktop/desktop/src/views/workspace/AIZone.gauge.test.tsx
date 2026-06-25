@@ -33,6 +33,7 @@ vi.mock('../../hooks/useV5Artifacts', () => ({
     refetch: vi.fn(),
   }),
   useV5ArtifactTimeline: () => ({ data: [], isLoading: false, isError: false, refetch: vi.fn() }),
+  useArtifactDetail: () => ({ data: undefined, isLoading: false }),
 }))
 vi.mock('../../hooks/useHealth', () => ({
   useHealth: () => ({
@@ -79,12 +80,13 @@ describe('AIZone verdict-card TargetGauge', () => {
     const { container } = render(<AIZone ticker="AAPL" />)
     const gauge = container.querySelector('[data-testid="ai-zone-target-gauge"]')
     expect(gauge).not.toBeNull()
-    // Above price → green; marker right of centre.
-    const value = gauge!.querySelector('.target-gauge__value') as HTMLElement
-    expect(value.style.color).toBe('var(--success)')
-    const mark = gauge!.querySelector('.target-gauge__mark') as HTMLElement
-    expect(parseFloat(mark.style.left)).toBeGreaterThan(50)
-    expect(gauge!.textContent).toContain('250')
+    // Live 210 drives the NOW marker; target 250 sits above it.
+    expect(gauge!.textContent).toContain('NOW 210')
+    expect(gauge!.textContent).toContain('TGT 250')
+    // Above price → implied-return readout is green ▲.
+    const upside = container.querySelector('[data-testid="ai-zone-target-upside"]') as HTMLElement
+    expect(upside.textContent).toContain('▲')
+    expect(upside.style.color).toBe('var(--card-buy-fg)')
   })
 
   it('does NOT render the gauge when the target is withheld (target_price null)', () => {
@@ -125,13 +127,14 @@ describe('AIZone verdict-card TargetGauge', () => {
     const { container } = render(<AIZone ticker="2330.TW" />)
     const gauge = container.querySelector('[data-testid="ai-zone-target-gauge"]')
     expect(gauge).not.toBeNull()
-    // Computed on USD entry 180 vs target 250 → ABOVE → green, marker right of
-    // centre. The raw-TWD path would have been red/left — proving the TWD price
-    // was dropped, not mixed into the USD gap.
-    const value = gauge!.querySelector('.target-gauge__value') as HTMLElement
-    expect(value.style.color).toBe('var(--success)')
-    const mark = gauge!.querySelector('.target-gauge__mark') as HTMLElement
-    expect(parseFloat(mark.style.left)).toBeGreaterThan(50)
+    // The gauge's "now" is the USD entry 180, NOT the raw TWD 7000 — proving the
+    // foreign quote was dropped, not mixed into the USD gap.
+    expect(gauge!.textContent).toContain('NOW 180')
+    expect(gauge!.textContent).not.toContain('7000')
+    // entry 180 vs target 250 → ABOVE → green ▲ (the raw-TWD path would be red ▼).
+    const upside = container.querySelector('[data-testid="ai-zone-target-upside"]') as HTMLElement
+    expect(upside.textContent).toContain('▲')
+    expect(upside.style.color).toBe('var(--card-buy-fg)')
     // …and the note names the cross-currency reason, not "unavailable".
     expect(gauge!.textContent).toContain('foreign currency')
   })
@@ -144,5 +147,35 @@ describe('AIZone verdict-card TargetGauge', () => {
     expect(gauge).not.toBeNull()
     // Live 210 drives the tick (not entry) → no degraded-anchor note.
     expect(gauge!.textContent).not.toContain('vs price at creation')
+  })
+
+  // Each marker (tick + label) is absolutely positioned at its value's % on the
+  // track, so the label can NEVER mismatch its marker. These guard the value→
+  // position mapping: on a downside call (now > target) the Target tick sits LEFT
+  // of the Now tick (lower value = lower %), and vice-versa on an upside call.
+  function markerPct(container: HTMLElement, which: 'now' | 'target'): number {
+    const el = container.querySelector(`[data-testid="ai-zone-gauge-${which}"]`) as HTMLElement
+    return parseFloat(el.getAttribute('data-pct') ?? 'NaN')
+  }
+
+  it('positions the Target tick LEFT of the Now tick on a downside call', () => {
+    latest = artifact({ target_price: 100 }) // target 100 < live 150 → downside
+    priceData = { current_price: 150 }
+    const { container } = render(<AIZone ticker="AAPL" />)
+    expect(container.querySelector('[data-testid="ai-zone-target-gauge"]')).not.toBeNull()
+    // Lower value (target 100) → smaller % → left of the now (150) tick.
+    expect(markerPct(container, 'target')).toBeLessThan(markerPct(container, 'now'))
+    // Downside → red ▼ implied-return readout (no regression in the directional hue).
+    const upside = container.querySelector('[data-testid="ai-zone-target-upside"]') as HTMLElement
+    expect(upside.textContent).toContain('▼')
+    expect(upside.style.color).toBe('var(--card-sell-fg)')
+  })
+
+  it('positions the Now tick LEFT of the Target tick on an upside call', () => {
+    latest = artifact({ target_price: 250 }) // target 250 > live 210 → upside
+    priceData = { current_price: 210 }
+    const { container } = render(<AIZone ticker="AAPL" />)
+    // Lower value (now 210) → smaller % → left of the target (250) tick.
+    expect(markerPct(container, 'now')).toBeLessThan(markerPct(container, 'target'))
   })
 })

@@ -2125,28 +2125,40 @@ msgid "workspace.ai.cold.immutableNote"
 msgstr "Reports are immutable once generated · regenerating appends a new version, never overwrites the old one"
 
 #. js-lingui-explicit-id
-msgid "workspace.ai.hot.latestReport"
-msgstr "📄 Latest Report"
+msgid "workspace.ai.cold.preflight.passed"
+msgstr "Preflight passed"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.preflight.modelConfigured"
+msgstr "AI model configured"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.preflight.modelPending"
+msgstr "No AI model yet · open Settings"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.preflight.dataSources"
+msgstr "{n} data sources online"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.verdictLabel"
+msgstr "Verdict"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.target12mo"
+msgstr "12-Month Target"
 
 #. js-lingui-explicit-id
 msgid "workspace.ai.hot.openFull"
-msgstr "→ Open full 13-chapter report"
+msgstr "Open full report"
 
 #. js-lingui-explicit-id
 msgid "workspace.ai.hot.rerun"
-msgstr "↻ Rerun"
-
-#. js-lingui-explicit-id
-msgid "workspace.ai.hot.chapterJump"
-msgstr "📑 13-chapter quick jump"
+msgstr "Rerun"
 
 #. js-lingui-explicit-id
 msgid "workspace.ai.hot.history"
 msgstr "⏱ Version history · {n}"
-
-#. js-lingui-explicit-id
-msgid "workspace.ai.hot.openArrow"
-msgstr "Open →"
 
 #. js-lingui-explicit-id
 msgid "workspace.ai.age.justNow"

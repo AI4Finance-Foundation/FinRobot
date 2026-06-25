@@ -1110,7 +1110,12 @@ function CardError({
           <span
             aria-hidden="true"
             className="cosmic-pulse-dot"
-            style={{ width: 6, height: 6, background: 'var(--primary)', boxShadow: '0 0 10px var(--primary-soft)' }}
+            style={{
+              width: 6,
+              height: 6,
+              background: 'var(--primary)',
+              boxShadow: '0 0 10px var(--primary-soft)',
+            }}
           />
           {t('workspace.market.engineStarting')}
         </span>

@@ -39,6 +39,7 @@ vi.mock('../../hooks/useV5Artifacts', () => ({
     isError: tlError,
     refetch: vi.fn(),
   }),
+  useArtifactDetail: () => ({ data: undefined, isLoading: false }),
 }))
 
 // ── controllable health ──────────────────────────────────────────────────────

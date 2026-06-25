@@ -134,7 +134,13 @@ describe('MarketDataZone — catalyst skeleton progress hint', () => {
 // outage, which on every cold open would look like the app is broken.
 describe('MarketDataZone — cold-start warming (503)', () => {
   function coldStart503(): AnyQuery {
-    return { data: undefined, isError: true, error: { status: 503 }, isPending: false, refetch: vi.fn() }
+    return {
+      data: undefined,
+      isError: true,
+      error: { status: 503 },
+      isPending: false,
+      refetch: vi.fn(),
+    }
   }
 
   it('a 503 renders the calm starting state, not the red outage error', () => {
@@ -147,9 +153,13 @@ describe('MarketDataZone — cold-start warming (503)', () => {
   })
 
   it('a non-503 error still shows the red outage error (not mistaken for warming)', () => {
-    vi.mocked(useTickerPrice).mockReturnValue(
-      { data: undefined, isError: true, error: { status: 502 }, isPending: false, refetch: vi.fn() } as never,
-    )
+    vi.mocked(useTickerPrice).mockReturnValue({
+      data: undefined,
+      isError: true,
+      error: { status: 502 },
+      isPending: false,
+      refetch: vi.fn(),
+    } as never)
     renderZone()
     expect(screen.getByTestId('market-card-error')).toBeInTheDocument()
     expect(screen.queryByTestId('market-card-starting')).not.toBeInTheDocument()

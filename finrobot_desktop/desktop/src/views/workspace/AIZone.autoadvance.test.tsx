@@ -35,6 +35,7 @@ vi.mock('../../hooks/useV5Artifacts', () => ({
     isError: false,
     refetch: vi.fn(),
   }),
+  useArtifactDetail: () => ({ data: undefined, isLoading: false }),
 }))
 vi.mock('../../hooks/useHealth', () => ({
   useHealth: () => ({

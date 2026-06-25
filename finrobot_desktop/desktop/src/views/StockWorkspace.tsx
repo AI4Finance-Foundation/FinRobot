@@ -5,11 +5,12 @@
 // reading lives at /stocks/:ticker/runs/:artifactId (ArtifactDetailPage).
 //
 // Layout:
-//   - TickerHero       — name / price / live overlay / actions
-//   - PipelineProgress — in-progress streaming run status (when running)
-//   - 2-column grid    — left MarketDataZone (live, always present),
-//                        right AIZone (cold = big CTA / hot = artifact
-//                        summary + 13-chapter mini-grid + version timeline)
+//   - Fixed header band — WorkspaceBackBar + TickerHero, pinned (never scrolls)
+//   - 2-column scroll region — each column owns its OWN vertical scroll so a long
+//     market rail and a tall hot report don't drag each other (the page itself
+//     never scrolls). Left = MarketDataZone (live, always present), right =
+//     AIZone (cold = big CTA / running = progress + prior report / hot = verdict
+//     card + 13-chapter grid + version timeline + standalone/artifacts panels).
 //
 // Section contents that constituted the actual research (HeroVerdict /
 // FootballField / Sensitivity / Peers / Risks / etc) now live as
@@ -170,49 +171,93 @@ export function StockWorkspace(): React.ReactElement {
   return (
     <div
       data-testid="stock-workspace"
-      style={{ minHeight: '100vh', position: 'relative', zIndex: 1 }}
+      style={{
+        // Fill the shell's content area exactly (TitleBar + global footer are
+        // outside .main-content) and own the overflow ourselves: the PAGE never
+        // scrolls — the two columns below scroll independently. Without this the
+        // outer .main-content would scroll as one, which is the "left slides a
+        // lot, right barely moves" feel the redesign kills.
+        height: 'calc(100vh - var(--titlebar-h) - var(--app-footer-h))',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        position: 'relative',
+        zIndex: 1,
+      }}
     >
-      <WorkspaceBackBar ticker={symbol} />
-      <TickerHero ticker={symbol} />
-      <main
+      {/* Fixed header band — back bar + identity hero stay pinned while the
+          columns scroll under them (flexShrink:0 keeps them out of the scroll). */}
+      <div style={{ flexShrink: 0 }}>
+        <WorkspaceBackBar ticker={symbol} />
+        <TickerHero ticker={symbol} />
+      </div>
+
+      {/* Scroll region — the two columns each own their vertical scroll. */}
+      <div
         style={{
-          // 1320 (not 1480): on ultra-wide windows a 50/50 split at 1480 made
-          // both columns ~700px — wider than the compact data cards need.
-          // 1320 keeps the dashboard at a Bloomberg-terminal density. Must stay
-          // in sync with TickerHero's inner box so the ticker glyph's left edge
-          // aligns with the MarketDataZone card edge.
+          flex: 1,
+          minHeight: 0, // critical: lets the grid children actually scroll
+          overflow: 'hidden',
+          // 1320 (not 1480): on ultra-wide windows a wider split made both
+          // columns too wide for the compact data cards. 1320 keeps the
+          // dashboard at a Bloomberg-terminal density. Stays in sync with
+          // TickerHero's inner box so the glyph aligns with the card edge.
           maxWidth: 1320,
+          width: '100%',
           margin: '0 auto',
-          padding: '24px 32px 96px',
         }}
       >
         <div
           style={{
             display: 'grid',
-            // Right (AI) column weighted wider: its verdict badge + target row
-            // and 3-col chapter grid are width-hungry, while the left data
-            // column's Kv4 cards read fine narrower.
-            gridTemplateColumns: '1fr 1.15fr',
+            // Market = a fixed ~480px reference RAIL, AI research = flexible and
+            // DOMINANT — the design's proportions (AI is the hero column, market a
+            // side rail), NOT a 50/50 split. A near-even split starved the report
+            // card's verdict|target+gauge|actions row on a 1200px window (the
+            // gauge collapsed, the $target overlapped the button); giving AI the
+            // rest of the width is what lets the card render at design density.
+            gridTemplateColumns: 'minmax(420px, 480px) minmax(0, 1fr)',
             gap: 24,
-            alignItems: 'start',
+            height: '100%',
+            minHeight: 0,
+            alignItems: 'stretch',
           }}
         >
           {/* Semantic split: LEFT = every live market surface (chart, multiples,
-              market-implied reverse-DCF, financials, catalysts, sentiment — all
-              Non-AI), RIGHT = the AI report column. The right column is sticky so
-              when the longer market rail scrolls, the report stays in view
-              instead of leaving trailing whitespace (it only pins while shorter
-              than the viewport — the hot multi-chapter state simply scrolls). */}
-          <MarketDataZone ticker={symbol} />
-          {/* PipelineProgressPanel is rendered inside AIZone — it shares
-              the AI column's visual real estate (cold / running / hot are
-              three states of the same surface) instead of stacking on
-              top of MarketDataZone where it stole vertical room. */}
-          <div style={{ position: 'sticky', top: 24 }}>
+              reverse-DCF, financials, catalysts, sentiment — all Non-AI), RIGHT =
+              the AI report column. Each column scrolls on its own (overflow-y),
+              so a long market rail and a tall hot report no longer drag each
+              other — the user's core complaint. The 6px cosmic scrollbar is the
+              global default (App.css). */}
+          <div
+            data-testid="workspace-market-col"
+            style={{
+              minHeight: 0,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              // Padding lives inside each scroll column so the scrollbar sits at
+              // the window edge, not floating over content.
+              padding: '24px 16px 32px 32px',
+            }}
+          >
+            <MarketDataZone ticker={symbol} />
+          </div>
+          {/* PipelineProgressPanel is rendered inside AIZone — cold / running /
+              hot are three states of the same surface. No sticky wrapper now:
+              the column scrolls itself. */}
+          <div
+            data-testid="workspace-ai-col"
+            style={{
+              minHeight: 0,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              padding: '24px 32px 32px 16px',
+            }}
+          >
             <AIZone ticker={symbol} />
           </div>
         </div>
-      </main>
+      </div>
     </div>
   )
 }

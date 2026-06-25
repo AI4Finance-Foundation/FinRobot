@@ -7,7 +7,7 @@
 // affordances live in AIZone (cold-state CTA + hot-state rerun, the canonical
 // data-testid="run-analysis-trigger") — the hero stays a pure identity strip.
 
-import { useTickerPrice } from '../hooks/useTickerData'
+import { useTickerPrice, useTickerFinancials } from '../hooks/useTickerData'
 import { formatAge, freshnessColor, freshnessTier } from '../utils/format'
 import { useI18n, tSync } from '../i18n'
 
@@ -17,7 +17,16 @@ interface Props {
 
 export function TickerHero({ ticker }: Props): React.ReactElement {
   const { data: price } = useTickerPrice(ticker)
+  // Company name + industry for the identity sub-line. React Query dedupes this
+  // onto MarketDataZone's existing useTickerFinancials call (same key) — no
+  // extra request. Both fields are best-effort: the sub-line omits itself when
+  // absent (never an empty placeholder, never an error).
+  const { data: fin } = useTickerFinancials(ticker)
   const { t } = useI18n()
+
+  const companyName = price?.company_name ?? fin?.company_name ?? null
+  // Industry is the more specific label; fall back to the broader sector.
+  const industry = fin?.market?.industry ?? fin?.market?.sector ?? null
 
   const current = price?.current_price
   const changePct = price?.change_pct
@@ -70,17 +79,50 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
             flexWrap: 'wrap',
           }}
         >
+          {/* Identity stack: ticker glyph + (company name · industry) sub-line.
+              The sub-line is muted/secondary and omits itself entirely when both
+              fields are absent — no empty row, no error state. No alignSelf so the
+              stack's first baseline (the ticker) stays on the row baseline, keeping
+              the price aligned to the ticker exactly as before. */}
           <span
             style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 36,
-              letterSpacing: 3,
-              color: 'var(--text-primary)',
-              lineHeight: 1,
-              textShadow: 'var(--glow-blue-soft)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 3,
             }}
           >
-            {ticker}
+            <span
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 36,
+                letterSpacing: 3,
+                color: 'var(--text-primary)',
+                lineHeight: 1,
+                textShadow: 'var(--glow-blue-soft)',
+              }}
+            >
+              {ticker}
+            </span>
+            {(companyName || industry) && (
+              <span
+                data-testid="ticker-hero-identity"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 7,
+                  fontFamily: 'var(--font-body)',
+                  fontSize: 12.5,
+                  color: 'var(--text-muted)',
+                  lineHeight: 1.2,
+                }}
+              >
+                {companyName && (
+                  <span style={{ color: 'var(--text-secondary)' }}>{companyName}</span>
+                )}
+                {companyName && industry && <span style={{ color: 'var(--text-dim)' }}>·</span>}
+                {industry && <span>{industry}</span>}
+              </span>
+            )}
           </span>
           <span
             style={{

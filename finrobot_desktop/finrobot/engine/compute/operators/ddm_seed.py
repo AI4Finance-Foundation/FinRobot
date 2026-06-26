@@ -42,7 +42,7 @@ from finrobot.engine.compute.operators.dcf_seed import (
 )
 from finrobot.engine.compute.operators.wacc import adjust_beta_blume
 from finrobot.engine.data.industry_defaults import IndustryDefault, get_industry_default
-from finrobot.engine.primitives.industry import is_bank
+from finrobot.engine.primitives.industry import is_balance_sheet_financial, is_bank
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials
 from finrobot.engine.models.financial import DDMInputs, FinancialData
 
@@ -233,16 +233,43 @@ def seed_ddm_inputs(
     # 1 − g/ROE (the rest is the retention needed to grow book at g). Floored at
     # the trailing payout — a maturing firm returns more, never less. None when
     # ROE is unknown, leaving calculate_ddm on the constant-payout Gordon path.
-    if roe is not None and roe > terminal_growth_rate:
+    #
+    # GATED to balance-sheet financials. The terminal-payout step-up (calculate_ddm
+    # step 4) was built to correct the naive DDM that "values a 28%-payout, 16% ROE
+    # bank like JPM at a third of price": a bank (Basel capital) / insurer (reserves)
+    # genuinely retains earnings on a LOW trailing payout to build its balance sheet,
+    # then pays out (1 − g/ROE) as DIVIDENDS at maturity — the step-up models that
+    # transition. A NON-financial's low payout is NOT retained-for-future-dividends:
+    # it is reinvestment OR buyback-based capital return (AAPL pays 12.7% in dividends
+    # and returns ~90% via buyback), so stepping its terminal DIVIDEND payout up to
+    # ~98% recaptures buyback cash as future dividends and values AAPL's dividend
+    # stream at $443 > its price. A dividend-discount model must not do that — hold
+    # payout constant (naive Gordon) so the honest read survives: "the dividend stream
+    # alone is worth far less than the price" ($80, not $443). High-payout non-financials
+    # (KO/PG) are barely affected — their step-up was already ≈1. The step-up leaking to
+    # all tickers (not just balance-sheet financials, its design domain) was the bug.
+    # (2026-06-26 basket probe: gating restores JPM/BAC/WFC/C byte-for-byte and fixes
+    # AAPL/MSFT/GOOGL; see calculate_ddm step 4.)
+    balance_sheet_financial = is_balance_sheet_financial(
+        industry=financials.market.industry, sector=financials.market.sector
+    )
+    if balance_sheet_financial and roe is not None and roe > terminal_growth_rate:
         terminal_payout: float | None = max(payout, min(1.0, 1 - terminal_growth_rate / roe))
         prov["terminal_payout_ratio"] = (
             f"{terminal_payout:.1%} (terminal payout ratio = 1 − terminal growth {terminal_growth_rate:.1%} / "
-            f"ROE {roe:.1%})"
+            f"ROE {roe:.1%}; balance-sheet financial — payout matures toward sustainable level)"
+        )
+    elif balance_sheet_financial:
+        terminal_payout = None
+        prov["terminal_payout_ratio"] = (
+            "payout ratio held constant in perpetuity (ROE unavailable; cannot normalize terminal payout)"
         )
     else:
         terminal_payout = None
         prov["terminal_payout_ratio"] = (
-            "payout ratio held constant in perpetuity (ROE unavailable; cannot normalize terminal payout)"
+            "payout ratio held constant in perpetuity (non-financial — capital returned via "
+            "reinvestment/buyback is not future dividends; the terminal-payout step-up is a "
+            "balance-sheet-financial pattern, see calculate_ddm step 4)"
         )
 
     # ----- beta (CAPM) -------------------------------------------------------

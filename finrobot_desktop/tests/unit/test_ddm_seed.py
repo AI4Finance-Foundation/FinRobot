@@ -244,6 +244,28 @@ class TestSeedClamps:
         assert inputs.terminal_payout_ratio is not None
         assert inputs.terminal_payout_ratio >= 0.80
 
+    def test_terminal_payout_gated_to_balance_sheet_financials(self) -> None:
+        """Non-financials get terminal_payout None (naive Gordon) — the step-up is a
+        bank/insurer maturation pattern. A high-ROE, low-payout buyback name (AAPL-like)
+        must NOT have its terminal DIVIDEND payout normalized up to ~98%, which would
+        recapture buyback cash as future dividends and value the dividend stream above
+        price (the 2026-06-26 DDM bug: AAPL DDM $443 > $277). Same inputs as a bank
+        keep the step-up; only the industry differs → clean isolation."""
+        roe_distorted = dict(return_on_equity=1.467, payout_ratio=0.127)
+        # Non-financial (Apple's bucket) → None → naive Gordon.
+        nonfin = seed_ddm_inputs(
+            _financials(industry="Consumer Electronics"),
+            _normalized(**roe_distorted),
+        )
+        assert nonfin.terminal_payout_ratio is None
+        assert "non-financial" in nonfin.assumption_provenance["terminal_payout_ratio"]
+        # A bank with the SAME ROE/payout keeps the normalization (control).
+        bank = seed_ddm_inputs(
+            _financials(industry="Banks - Diversified"),
+            _normalized(**roe_distorted),
+        )
+        assert bank.terminal_payout_ratio is not None and bank.terminal_payout_ratio > 0.5
+
     def test_payout_disagreement_prefers_self_derived(self) -> None:
         """Bug-2 (2026-06-24): a provider payout disagreeing with the issuer's own
         DPS/EPS by >10pp is replaced by the self-derived ratio (KO: provider 80.1% vs

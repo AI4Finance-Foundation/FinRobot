@@ -103,6 +103,11 @@ def calculate_ddm(inputs: DDMInputs) -> DDMResult:
     # naive DDM error of discounting a low trailing payout into perpetuity — the
     # error that values a 28%-payout, 16% ROE bank like JPM at a third of price.
     # When ``terminal_payout_ratio`` is None, the factor is 1.0 (naive Gordon).
+    # seed_ddm_inputs supplies it ONLY for balance-sheet financials (banks/insurers,
+    # whose low trailing payout is genuine capital-building that matures into dividends);
+    # non-financials seed None so their buyback-suppressed payout is NOT recaptured as
+    # future dividends (that valued AAPL's dividend stream at $443 > price). See
+    # ddm_seed.seed_ddm_inputs terminal_payout_ratio gating.
     n = len(projected_dividends)
     if inputs.terminal_payout_ratio is not None and inputs.payout_ratio > 0:
         terminal_payout_stepup = inputs.terminal_payout_ratio / inputs.payout_ratio

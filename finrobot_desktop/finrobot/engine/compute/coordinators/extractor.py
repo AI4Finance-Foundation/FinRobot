@@ -34,7 +34,7 @@ from finrobot.engine.primitives.ebitda import (
     calculate_ebitda_operating,
     calculate_ebitda_reported,
 )
-from finrobot.engine.primitives.industry import is_bank
+from finrobot.engine.primitives.industry import is_balance_sheet_financial, is_bank
 
 # Relative gap above which a reported share count is treated as NOT on the price's
 # basis (multi-class issuer with one class reported, ADR ratio, or stale data), so
@@ -200,6 +200,25 @@ def extract_financial_data(
             "EV and EV-based multiples (EV/EBITDA, EV/Revenue) cannot be computed"
         )
         field_warnings.setdefault("ev_ebitda", []).append(FIELD_WARN_EV_MISSING_NET_DEBT)
+
+    # Balance-sheet financials (banks / insurers): deposits / float / reserves are
+    # operating raw material, not capital structure, and there is no clean above-the-line
+    # EBITDA — so enterprise value and EVERY EV-based multiple are category errors
+    # (``audit.sector_sign`` flags exactly ``enterprise_value`` + ``ev_ebitda`` for these
+    # issuers). Enforce the invariant HERE, at the single canonical FinancialData producer,
+    # so NO consumer surface can leak it: the /financials snapshot tile, the historical-bands
+    # current override, coverage rows, and the report all read this object. This is the
+    # STRUCTURAL gate for the recurring "a new surface forgot to suppress bank EV/EBITDA"
+    # family (the live /financials + /historical-bands endpoints were leak surfaces 5 & 6 on
+    # 2026-06-26; comps/report suppressed per-path since 06-24). sector_sign is now a pure
+    # backstop. Bank-applicable metrics (P/E, P/B, market cap) are untouched — only the
+    # EV-based fields are nulled. is_balance_sheet_financial (NOT is_bank) is the wider
+    # cash-flow-suppression boundary, matching the comps builder + aggregator.
+    if is_balance_sheet_financial(industry=fin.industry, sector=fin.sector):
+        ev = None
+        ev_ebitda = None
+        ev_ebitda_reported = None
+        ev_revenue = None
 
     # 52w high/low from the canonical (windowed to trailing 52 weeks, intraday
     # high/low when present, close fallback otherwise).

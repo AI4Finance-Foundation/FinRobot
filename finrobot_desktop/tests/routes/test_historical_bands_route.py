@@ -256,6 +256,66 @@ async def test_historical_bands_current_uses_canonical_ttm_override(tmp_path: Pa
     assert any("TTM" in w for w in body["warnings"]), body["warnings"]
 
 
+class _BankFinancialsStubDataLayer(_StubDataLayer):
+    """Canonical FINANCIALS tagging the issuer as a deposit-funded bank → its
+    EV/EBITDA band is a category error and must be suppressed by the route."""
+
+    async def fetch_canonical(self, data_type: DataType | str, ticker: str, **kw: object) -> object:
+        if DataType(data_type) == DataType.FINANCIALS:
+            from finrobot.engine.data.normalize.financials import normalize_financials
+
+            raw = DataResult(
+                data={
+                    "revenue": 100e9,
+                    "ebitda": 40e9,
+                    "net_income": 30e9,
+                    "gross_margin": 0.6,
+                    "operating_margin": 0.4,
+                    "market_cap": 2.4e9 * 859.0,
+                    "shares_outstanding": 2.4e9,
+                    "current_price": 859.0,
+                    "total_debt": 11e9,
+                    "total_cash": 8e9,
+                    "industry": "Banks - Diversified",
+                    "sector": "Financial Services",
+                },
+                provider="stub",
+                ticker=ticker,
+                data_type=DataType.FINANCIALS,
+                timestamp=NOW,
+            )
+            return normalize_financials(raw)
+        return await super().fetch_canonical(data_type, ticker, **kw)
+
+
+@pytest.mark.asyncio
+async def test_historical_bands_ev_ebitda_suppressed_for_bank(tmp_path: Path) -> None:
+    """A bank's EV/EBITDA band is a category error (EV nets deposits as if they were
+    capital structure; there is no clean above-the-line EBITDA), so the route must
+    return an empty band — the frontend card then hides instead of classifying the
+    bank 'expensive' on a meaningless 3.3× multiple. Only ev_ebitda is suppressed;
+    a p_fcf band still computes for the same bank. (2026-06-26)"""
+    layer = _BankFinancialsStubDataLayer(cache_db=str(tmp_path / "cache.db"))
+    app = FastAPI()
+    app.include_router(router)
+    app.state.deps = _StubDeps(data_layer=layer)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/valuation/historical-bands/JPM?metric=ev_ebitda&years=3")
+        r_pfcf = await client.get("/api/valuation/historical-bands/JPM?metric=p_fcf&years=2")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["current"] is None
+    assert body["median"] is None
+    assert body["sample_count"] == 0
+    # The EV/EBITDA fan-out must be short-circuited — never reached the loaders.
+    assert layer.fetch_historical_calls == [] or all(
+        "p_fcf" not in str(c) for c in layer.fetch_historical_calls
+    )
+    # p_fcf is NOT an EV-based multiple → still computes for a bank.
+    assert r_pfcf.status_code == 200
+    assert r_pfcf.json()["sample_count"] > 0
+
+
 @pytest.mark.asyncio
 async def test_historical_bands_endpoint_p_fcf_metric(tmp_path: Path) -> None:
     app, _ = _app(tmp_path)

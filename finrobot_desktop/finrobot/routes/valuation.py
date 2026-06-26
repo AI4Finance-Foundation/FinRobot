@@ -516,6 +516,18 @@ async def _current_ev_ebitda_override(
     return current_ev_ebitda(financial_data, float(total_debt) - float(total_cash))
 
 
+async def _is_balance_sheet_financial_ticker(ticker: str, data_layer: DataLayer) -> bool:
+    """True when the issuer is a deposit/float-funded financial (bank / insurer) whose
+    EV-based multiples are category errors. Reads industry off the canonical FINANCIALS
+    snapshot (NormalizedFinancials carries industry/sector). Best-effort: a provider
+    hiccup → False, so a transient outage computes the band rather than hiding it."""
+    try:
+        fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
+    except (ProviderError, ValueError, KeyError):
+        return False
+    return is_balance_sheet_financial(industry=fin.industry, sector=fin.sector)
+
+
 # ---------------------------------------------------------------------------
 # v5 §6.6 historical valuation bands
 # ---------------------------------------------------------------------------
@@ -565,6 +577,28 @@ async def historical_bands(
         raise HTTPException(status_code=503, detail="DataLayer not initialised")
 
     ticker = ticker.upper()
+
+    # Balance-sheet financials (banks / insurers): the EV/EBITDA band is a category
+    # error — EV nets deposits/float as if they were capital structure and there is
+    # no clean above-the-line EBITDA, so classifying JPM "expensive" against a 3.3×
+    # multiple is meaningless. The report + standalone comps already suppress EV/EBITDA
+    # for these issuers (is_balance_sheet_financial, the single authority); this band
+    # endpoint is the matching surface the suppression missed. Return an empty band so
+    # the frontend ValuationBandCard hides itself (it requires a finite current). Only
+    # ev_ebitda is suppressed — a p_fcf band stays valid. (2026-06-26)
+    if metric == "ev_ebitda" and await _is_balance_sheet_financial_ticker(ticker, data_layer):
+        return HistoricalBandResponse(
+            ticker=ticker,
+            metric=metric,
+            current=None,
+            median=None,
+            p25=None,
+            p75=None,
+            p90=None,
+            timeline=[],
+            sample_count=0,
+            classification="unknown",
+        )
 
     async def _build() -> dict[str, Any]:
         override = await _current_ev_ebitda_override(ticker, data_layer, metric)

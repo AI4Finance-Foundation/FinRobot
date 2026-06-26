@@ -205,6 +205,39 @@ class TestAdanosFetch:
         assert len(result.warnings) == 2  # the two 429'd platforms
 
     @pytest.mark.asyncio
+    async def test_partial_failure_warning_is_clean_no_raw_url(self, provider):
+        """The per-platform degradation note is cached and later re-surfaced to the
+        analyst card on a stale fallback — it must carry NO raw upstream URL or
+        httpx repr (frontend-contract red line ⑥), only a clean platform + reason.
+        The 429 here carries a production-style message WITH a URL so this fails on
+        the old `f"{label}: {exc}"` form."""
+        request = httpx.Request(
+            "GET", "https://api.adanos.org/x/stocks/v1/compare?tickers=ZZZZ&days=7"
+        )
+        response = httpx.Response(429, request=request)
+
+        async def mock_get(path, params=None):
+            if "reddit" in path:
+                return _mock_response(
+                    {"stocks": [{"ticker": "ZZZZ", "buzz_score": 0, "mentions": 0}]}
+                )
+            raise httpx.HTTPStatusError(
+                "Client error '429 Too Many Requests' for url "
+                "'https://api.adanos.org/x/stocks/v1/compare?tickers=ZZZZ&days=7'",
+                request=request,
+                response=response,
+            )
+
+        with patch.object(provider, "_get", side_effect=mock_get):
+            result = await provider.fetch("ZZZZ", "sentiment")
+
+        blob = " ".join(result.warnings)
+        assert "http" not in blob
+        assert "api.adanos.org" not in blob
+        assert "for url" not in blob
+        assert all("rate limited" in w for w in result.warnings)
+
+    @pytest.mark.asyncio
     async def test_unsupported_type_raises(self, provider):
         with pytest.raises(ProviderError, match="not supported"):
             await provider.fetch("AAPL", "financials")

@@ -133,7 +133,15 @@ class AdanosProvider(DataProvider):
 
         for spec, result in zip(_PLATFORM_SPECS, results):
             if isinstance(result, BaseException):
-                warnings.append(f"{spec['label']}: {result}")
+                # Emit a CLEAN per-platform note — NEVER the raw exception, whose
+                # repr embeds the internal Adanos URL + httpx boilerplate. This
+                # warning is cached and later re-surfaced verbatim by the stale
+                # cache fallback (layer.py), so it reaches the analyst card; the
+                # raw detail is an audit trail that belongs in logs, not the
+                # contract (frontend-contract red line ⑥: 审计轨道 ≠ 用户文案).
+                logger.debug("adanos %s failed: %r", spec["label"], result)
+                kind = "rate limited" if is_rate_limit_error(result) else "unavailable"
+                warnings.append(f"{spec['label']} {kind}")
                 sources.append(_empty_source(spec))
             else:
                 sources.append(result)

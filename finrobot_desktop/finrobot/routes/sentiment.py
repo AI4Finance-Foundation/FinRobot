@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
@@ -125,7 +126,7 @@ async def get_sentiment(
             days=days,
             available=False,
             reason=reason,
-            warnings=[f"adanos 调用失败 — {exc}"],
+            warnings=_humanize_warnings([f"adanos 调用失败 — {exc}"]),
         )
 
     # DataLayer doesn't re-raise on total provider failure: when every Adanos
@@ -145,10 +146,31 @@ async def get_sentiment(
             days=days,
             available=False,
             reason=_sentiment_failure_reason(data_layer),
-            warnings=list(result.warnings) or [f"adanos 调用失败 — {result.data['error']}"],
+            warnings=_humanize_warnings(
+                list(result.warnings) or [f"adanos 调用失败 — {result.data['error']}"]
+            ),
         )
 
-    return _to_snapshot(ticker, days, result.data, list(result.warnings))
+    # A stale-cache fallback can carry ZERO usable signal: every platform 429'd,
+    # so the DataLayer grafted an old snapshot whose coverage is 0/N with no
+    # source data. That is NOT an "available" snapshot — it is a degraded state
+    # wearing cached scaffolding. Rendering it available=True both contradicts the
+    # 0/N coverage AND trails the cached provider diagnostics into the card. Route
+    # it to the same soft reason states as a hard failure so the UI shows the
+    # clean rate-limited / retry affordance. A FRESH empty result (untracked
+    # ticker, genuine "no buzz") has from_stale_cache=False and flows through
+    # below as a legitimate available 0/N state.
+    if result.from_stale_cache and not _has_usable_sentiment(result.data):
+        logger.info("sentiment stale fallback has no usable signal for %s", ticker)
+        return SentimentSnapshot(
+            ticker=ticker,
+            days=days,
+            available=False,
+            reason=_sentiment_failure_reason(data_layer),
+            warnings=_humanize_warnings(list(result.warnings)),
+        )
+
+    return _to_snapshot(ticker, days, result.data, _humanize_warnings(list(result.warnings)))
 
 
 def _sentiment_failure_reason(
@@ -173,6 +195,47 @@ def _sentiment_failure_reason(
         if name in sentiment_providers and state.last_rate_limited:
             return "rate_limited"
     return "provider_error"
+
+
+# Internal upstream endpoints / httpx "for url '...'" tails are an audit trail,
+# not analyst-facing copy. The sentiment card renders `warnings` verbatim
+# (frontend-contract red line ⑥), so strip URLs here at the contract boundary —
+# defends already-poisoned cache entries written before the provider was cleaned.
+_URL_TAIL_RE = re.compile(r"\s*for url '[^']*'")
+_BARE_URL_RE = re.compile(r"https?://\S+")
+
+
+def _humanize_warnings(warnings: list[str]) -> list[str]:
+    """Strip raw upstream URLs out of provider warnings before they enter the
+    contract. Keeps the human lead text; drops the internal endpoint / stack
+    detail that must never reach the analyst card."""
+    cleaned: list[str] = []
+    for w in warnings:
+        # httpx renders "<msg> for url '<url>'\nFor more information check: <mdn>"
+        # — drop the continuation line (boilerplate) first; a legitimate
+        # degradation note is single-line. Then strip any URL the lead line carries.
+        s = w.split("\n", 1)[0]
+        s = _URL_TAIL_RE.sub("", s)
+        s = _BARE_URL_RE.sub("", s)
+        s = re.sub(r"\s{2,}", " ", s).strip()
+        if s:
+            cleaned.append(s)
+    return cleaned
+
+
+def _has_usable_sentiment(raw: Any) -> bool:
+    """True when a snapshot dict carries an actual sentiment signal — at least one
+    platform with data, or a finite aggregate bullish reading. A stale-cache graft
+    with 0/N coverage and no source data is NOT usable (degraded); a fresh 0/N
+    "no buzz" answer is distinguished by the caller via ``from_stale_cache``."""
+    if not isinstance(raw, dict):
+        return False
+    sources = raw.get("sources")
+    if isinstance(sources, list) and any(
+        isinstance(s, dict) and s.get("has_data") for s in sources
+    ):
+        return True
+    return _coerce_finite_float(raw.get("bullish_avg")) is not None
 
 
 def _data_layer(request: Request) -> DataLayer | None:

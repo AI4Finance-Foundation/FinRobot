@@ -354,6 +354,135 @@ async def test_sentiment_stale_cache_fallback_renders_available_with_warning() -
 
 
 @pytest.mark.asyncio
+async def test_sentiment_stale_fallback_no_usable_signal_degrades_to_soft_state() -> None:
+    # The reported P0: every platform 429'd and the DataLayer grafted a 0/3 stale
+    # snapshot whose cached warnings still carried raw upstream URLs. Such a graft
+    # has NO usable signal — it must NOT render available=True with raw provider
+    # diagnostics trailing the card. Route it to the soft rate-limited state (clean
+    # affordance) and let the breaker classify the reason.
+    stale = DataResult(
+        data={
+            "ticker": "AAPL",
+            "coverage": "0/3",
+            "bullish_avg": None,
+            "average_buzz": None,
+            "source_alignment": "no_data",
+            "sources": [
+                {
+                    "label": "Reddit",
+                    "has_data": False,
+                    "bullish_pct": None,
+                    "activity_label": "Mentions",
+                    "activity_value": 0,
+                },
+            ],
+        },
+        provider="adanos",
+        ticker="AAPL",
+        data_type=DataType.SENTIMENT,
+        timestamp=NOW,
+        warnings=[
+            "All data sources failed; showing cached data from 229h ago (AAPL / sentiment).",
+            # Exact poisoned-cache shape httpx produces: URL tail + a continuation
+            # line. Both must be scrubbed before reaching the contract.
+            "Reddit: Adanos rate limited (HTTP 429) for Reddit: Client error '429 Too Many "
+            "Requests' for url 'https://api.adanos.org/reddit/stocks/v1/compare?tickers=AAPL'"
+            "\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/"
+            "Status/429",
+        ],
+        from_stale_cache=True,
+    )
+    app = _app([_RawResultProvider(stale)], rate_limited=True)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/sentiment/AAPL")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is False
+    assert body["reason"] == "rate_limited"  # breaker recorded the 429
+    # The leak: no internal endpoint / URL / httpx boilerplate may reach the contract.
+    blob = " ".join(body["warnings"])
+    assert "http" not in blob
+    assert "api.adanos.org" not in blob
+    assert "for url" not in blob
+    assert "For more information" not in blob
+
+
+@pytest.mark.asyncio
+async def test_sentiment_available_warnings_strip_internal_urls() -> None:
+    # A partial stale graft still has usable numbers → stays available, but any raw
+    # upstream URL in its cached warnings is stripped at the contract boundary
+    # (frontend-contract red line ⑥) so the analyst card never shows an internal
+    # endpoint — defends cache entries poisoned before the provider was cleaned.
+    stale = DataResult(
+        data={
+            "ticker": "MU",
+            "coverage": "2/3",
+            "bullish_avg": 61.0,
+            "average_buzz": 88.0,
+            "source_alignment": "aligned",
+            "sources": [],
+        },
+        provider="adanos",
+        ticker="MU",
+        data_type=DataType.SENTIMENT,
+        timestamp=NOW,
+        warnings=[
+            "Polymarket rate limited",
+            "Adanos error for url 'https://api.adanos.org/x/stocks/v1/compare?tickers=MU'",
+        ],
+        from_stale_cache=True,
+    )
+    app = _app([_RawResultProvider(stale)])
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/sentiment/MU")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is True  # usable signal present → graceful degrade
+    blob = " ".join(body["warnings"])
+    assert "http" not in blob
+    assert "api.adanos.org" not in blob
+    assert "for url" not in blob
+    assert any("Polymarket" in w for w in body["warnings"])  # clean lead text kept
+
+
+@pytest.mark.asyncio
+async def test_sentiment_fresh_empty_stays_available() -> None:
+    # A genuine "no buzz" answer for an untracked ticker (HTTP 200, zero activity,
+    # NOT a failure) is a legitimate available 0/3 state — it must NOT be demoted to
+    # a soft failure. Distinguished from a stale graft by from_stale_cache=False.
+    fresh = DataResult(
+        data={
+            "ticker": "ZZZZ",
+            "coverage": "0/3",
+            "bullish_avg": None,
+            "average_buzz": None,
+            "source_alignment": "no_data",
+            "sources": [
+                {
+                    "label": "Reddit",
+                    "has_data": False,
+                    "bullish_pct": None,
+                    "activity_label": "Mentions",
+                    "activity_value": 0,
+                },
+            ],
+        },
+        provider="adanos",
+        ticker="ZZZZ",
+        data_type=DataType.SENTIMENT,
+        timestamp=NOW,
+    )
+    app = _app([_RawResultProvider(fresh)])
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        r = await client.get("/api/sentiment/ZZZZ")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["available"] is True
+    assert body["reason"] is None
+    assert body["coverage"] == "0/3"
+
+
+@pytest.mark.asyncio
 async def test_sentiment_503_when_data_layer_absent() -> None:
     app = FastAPI()
     app.include_router(router)

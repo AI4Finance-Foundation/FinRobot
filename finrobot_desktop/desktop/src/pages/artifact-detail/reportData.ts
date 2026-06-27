@@ -93,6 +93,10 @@ export interface DerivedReportData {
   snapshot52wLow: number | null
   /** When the underlying market data was fetched — the report's "as of" stamp. */
   snapshotAsOf: string | null
+  /** True when the point target was withheld BECAUSE the price sits inside the
+   *  fair-value range (range spans market) → a confident HOLD / "Fairly Valued",
+   *  NOT a failed valuation. Distinct from a genuine withhold (M&A / single method). */
+  fairlyValued: boolean
   // Numeric-audit gate verdict. null on legacy artifacts (pre-gate) → no banner.
   numericAudit: NumericAuditShape | null
   createdAt: string | null
@@ -178,6 +182,15 @@ export function deriveReportData(
   const snapshot52wLow = num(market['price_52w_low'])
   const snapshotAsOf = inputs.data_fetched_at ?? null
 
+  // "Fairly valued" = the point target was withheld BECAUSE the price sits inside
+  // the fair-value range (range spans market) → a confident HOLD, not a failure.
+  // The backend leads such a basis with "FAIRLY VALUED" (the canonical framing);
+  // consume that authoritative conclusion rather than re-deriving the band math.
+  // A genuine withhold (M&A / single-method) leads with "WITHHELD" instead.
+  const fairlyValued =
+    (structured as Record<string, unknown>)['valuation_withheld'] === true &&
+    /^\s*fairly valued/i.test(thesis?.price_target_basis ?? '')
+
   const createdAt = meta.created_at ?? null
   const computeVersionStr = compute_version?.version ?? null
   const reportLang: 'en' | 'zh' = meta.language ?? 'zh'
@@ -232,6 +245,7 @@ export function deriveReportData(
     snapshot52wHigh,
     snapshot52wLow,
     snapshotAsOf,
+    fairlyValued,
     createdAt,
     computeVersionStr,
     reportLang,

@@ -158,6 +158,7 @@ export function ArtifactDetailPage(): React.ReactElement {
     versionLabel,
     snapshotPrice,
     snapshotAsOf,
+    fairlyValued,
     quoteCurrency,
     inputs,
   } = deriveReportData(data, timeline ?? [], locale)
@@ -332,6 +333,7 @@ export function ArtifactDetailPage(): React.ReactElement {
           companyName={companyName}
           verdict={thesis?.recommendation ?? null}
           snapshotPrice={snapshotPrice}
+          fairlyValued={fairlyValued}
           confidence={valuationSynthesis?.confidence ?? null}
           quoteCurrency={quoteCurrency}
           entries={allChapterLabels(locale).map((c) => ({ id: c.id, num: c.num, title: c.title }))}

@@ -32,6 +32,9 @@ interface ReportLeftRailProps {
   companyName?: string | null
   verdict?: string | null
   snapshotPrice?: number | null
+  /** Point withheld because price is inside the fair-value band → "Fair Value"
+   *  (confident HOLD), not a generic "WITHHELD". From deriveReportData. */
+  fairlyValued?: boolean
   confidence?: ConfidenceTier | string | null
   quoteCurrency?: string
   entries: LeftRailTOCEntry[]
@@ -45,6 +48,7 @@ export function ReportLeftRail({
   companyName = null,
   verdict = null,
   snapshotPrice = null,
+  fairlyValued = false,
   confidence = null,
   quoteCurrency = 'USD',
   entries,
@@ -177,33 +181,40 @@ export function ReportLeftRail({
             </div>
           </>
         ) : (
-          typeof snapshotPrice === 'number' && (
+          // No point target. Two very different meanings — show the RIGHT one:
+          //   • fairlyValued → price sits inside the fair-value range → "Fair Value"
+          //     (a confident HOLD conclusion, NOT a failure). Same label the chips
+          //     use (targetRange.fairValueLabel).
+          //   • otherwise → genuine withhold (M&A / single-method) → "WITHHELD",
+          //     mirroring the version row.
+          // Spot stays as a small labelled caption: context, never the headline.
+          <>
             <div
               style={{
                 fontFamily: 'var(--font-display)',
-                fontSize: 17,
+                fontSize: 15,
                 fontWeight: 600,
-                color: 'var(--text-primary)',
-                fontVariantNumeric: 'tabular-nums',
-                display: 'flex',
-                alignItems: 'baseline',
-                gap: 6,
+                letterSpacing: '0.04em',
+                color: fairlyValued ? 'var(--text-secondary)' : 'var(--text-muted)',
               }}
             >
-              {formatCurrency(snapshotPrice, quoteCurrency, locale, 2)}
-              {/* No target (withheld) → still LABEL the spot so it's never mistaken
-                  for a target, matching the honesty of the rest of the page. */}
-              <span
+              {fairlyValued ? t('targetRange.fairValueLabel') : verdictLabel('WITHHELD', locale)}
+            </div>
+            {typeof snapshotPrice === 'number' && (
+              <div
                 style={{
                   fontFamily: 'var(--font-mono)',
                   fontSize: 10.5,
                   color: 'var(--text-muted)',
+                  marginTop: 2,
+                  fontVariantNumeric: 'tabular-nums',
                 }}
               >
-                {t('report.leftRail.spotLabel')}
-              </span>
-            </div>
-          )
+                {t('report.leftRail.spotLabel')}{' '}
+                {formatCurrency(snapshotPrice, quoteCurrency, locale, 2)}
+              </div>
+            )}
+          </>
         )}
         {verdictText && (
           <div style={{ marginTop: 10 }}>

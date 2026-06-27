@@ -10,13 +10,14 @@
 import { useTickerPrice, useTickerFinancials } from '../hooks/useTickerData'
 import { formatAge, freshnessColor, freshnessTier } from '../utils/format'
 import { useI18n, tSync } from '../i18n'
+import { WORKSPACE_FRAME_MAX_WIDTH } from './workspace/layout'
 
 interface Props {
   ticker: string
 }
 
 export function TickerHero({ ticker }: Props): React.ReactElement {
-  const { data: price } = useTickerPrice(ticker)
+  const { data: price, isPending: priceLoading } = useTickerPrice(ticker)
   // Company name + industry for the identity sub-line. React Query dedupes this
   // onto MarketDataZone's existing useTickerFinancials call (same key) — no
   // extra request. Both fields are best-effort: the sub-line omits itself when
@@ -50,10 +51,22 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
   // "收盘 · MM-DD" instead of a fetch-time "near-real-time" claim (audit B).
   const asOf = price?.as_of ?? null
   const isClosed = price?.session_state === 'closed'
-  const pillDotColor = isClosed ? 'var(--warning)' : freshnessColor(ageSeconds)
+  // No quote yet — initial load, or the ~2s cold-start window where the
+  // engine-warmup 503 leaves `price` undefined — is a NOT-YET state, not a
+  // stale quote. Render a neutral muted pill, never the red pulsing "stale · —"
+  // the Infinity-age default (no fetched_at) would otherwise produce: cold-start
+  // must never read as an error (and the sibling price card shows the calm
+  // "engine starting" state, so a red hero pill would also be inconsistent).
+  const quotePending = priceLoading || !price
+  const pillDotColor = quotePending
+    ? 'var(--text-dim)'
+    : isClosed
+      ? 'var(--warning)'
+      : freshnessColor(ageSeconds)
   // slice(5, 10) bounds to MM-DD even if as_of ever carries a time component.
-  const pillLabel =
-    isClosed && asOf
+  const pillLabel = quotePending
+    ? '—'
+    : isClosed && asOf
       ? t('workspace.hero.closedAsOf', { date: asOf.slice(5, 10) })
       : `${tierLabel} · ${ageText}`
 
@@ -70,7 +83,14 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
         borderBottom: '1px solid var(--border-faint)',
       }}
     >
-      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 32px', minWidth: 0 }}>
+      <div
+        style={{
+          maxWidth: WORKSPACE_FRAME_MAX_WIDTH,
+          margin: '0 auto',
+          padding: '0 32px',
+          minWidth: 0,
+        }}
+      >
         <div
           style={{
             display: 'flex',
@@ -139,7 +159,7 @@ export function TickerHero({ ticker }: Props): React.ReactElement {
               // Closed market → static dot (the close won't move); only a live
               // session pulses. Avoids a >1s persistent animation over a settled
               // value (cosmic spec) and the "looks live" lie.
-              className={isClosed ? 'cosmic-dot-static' : 'cosmic-pulse-dot'}
+              className={isClosed || quotePending ? 'cosmic-dot-static' : 'cosmic-pulse-dot'}
               style={{ marginRight: 6, background: pillDotColor }}
             />
             {pillLabel} · {formatExchange(price?.exchange)}

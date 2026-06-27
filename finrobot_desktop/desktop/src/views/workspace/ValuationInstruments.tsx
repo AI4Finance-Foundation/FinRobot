@@ -196,10 +196,13 @@ function deriveReading(
     // summary.target_price IS the per-share value (USD-normalised invariant).
     const v = summary.target_price
     if (v == null) return { kind: 'withheld', ...base }
-    // Delta vs the live USD quote, degrading to the artifact's creation-time
-    // USD anchor. Both are USD — livePrice is already dropped to null upstream
-    // for a foreign local listing, so this never mixes currencies.
-    const ref = nowPrice ?? summary.entry_price ?? null
+    // Delta vs the LIVE USD quote ONLY. When there's no live anchor (provider
+    // outage, or a foreign local listing whose live price was dropped upstream),
+    // omit the delta rather than silently anchoring to the stale creation price:
+    // this tiny secondary string has no room to disclose "vs creation", so
+    // degrade = omit (the same honesty rule the AIZone gauge follows when it
+    // drops the gauge for a missing now-anchor). livePrice is already USD.
+    const ref = nowPrice
     const delta = ref != null && ref !== 0 ? (v - ref) / ref : null
     const tone: Tone = delta == null ? 'neutral' : delta > 0 ? 'pos' : delta < 0 ? 'neg' : 'neutral'
     return {

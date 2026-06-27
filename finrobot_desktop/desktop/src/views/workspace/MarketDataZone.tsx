@@ -44,6 +44,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
   } = useTickerPrice(ticker)
   const {
     data: fin,
+    isPending: finPending,
     isError: finError,
     error: finErr,
     refetch: refetchFin,
@@ -97,6 +98,8 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
       <MktCard title={t('workspace.market.snapshot')} liveTag={providerTag(fin?.data_source)}>
         {finError ? (
           <CardError status={finErr?.status} onRetry={() => void refetchFin()} />
+        ) : finPending ? (
+          <KvSkeleton count={6} />
         ) : (
           <>
             <Kv4
@@ -145,6 +148,8 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
       <MktCard title={t('workspace.market.financialsTtm')} liveTag={providerTag(fin?.data_source)}>
         {finError ? (
           <CardError status={finErr?.status} onRetry={() => void refetchFin()} />
+        ) : finPending ? (
+          <KvSkeleton count={4} />
         ) : (
           <>
             <Kv4
@@ -452,13 +457,14 @@ function SentimentCard({
               background: 'var(--bg-card-50)',
             }}
           >
+            {/* Paint ONLY the known shares: green=bullish, red=bearish (when
+                known). When bear is null the remainder is neutral+unknown, NOT
+                bearish — leaving the track background show through avoids
+                overstating bearishness (the numeric label already hides bear). */}
             <span style={{ width: `${bull}%`, background: 'var(--success)' }} />
-            <span
-              style={{
-                width: `${typeof bear === 'number' ? bear : 100 - bull}%`,
-                background: 'var(--danger)',
-              }}
-            />
+            {typeof bear === 'number' && (
+              <span style={{ width: `${bear}%`, background: 'var(--danger)' }} />
+            )}
           </div>
           <div
             style={{
@@ -916,6 +922,36 @@ function Kv4({ cells }: { cells: KvCell[] }): React.ReactElement {
               {c.sub}
             </div>
           )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Loading skeleton for the Kv4 metric grids (snapshot + financials TTM). Without
+// it, an in-flight fin fetch rendered every cell as "—", which reads as "no data
+// for this stock" rather than "loading" — the same confusion the catalyst
+// skeleton fixed. Mirrors Kv4's 2-col grid + cell padding so the card doesn't
+// reflow when the real values land. (Cold-start 503 is handled separately by
+// CardError's calm state; this is the normal-fetch window only.)
+function KvSkeleton({ count }: { count: number }): React.ReactElement {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        gap: 1,
+        background: 'var(--border-faint)',
+        borderRadius: 6,
+        overflow: 'hidden',
+      }}
+    >
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} style={{ background: 'var(--bg-card)', padding: '10px 12px' }}>
+          <SkelBar height={8} width="52%" />
+          <div style={{ marginTop: 7 }}>
+            <SkelBar height={14} width="74%" />
+          </div>
         </div>
       ))}
     </div>

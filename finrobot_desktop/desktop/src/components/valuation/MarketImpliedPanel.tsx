@@ -203,7 +203,14 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
   const [line, setLine] = useState<EquivLine | null>(null)
   const [wacc, setWacc] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Cold-start 503: the compute engine is still warming (~2s post-boot). Show a
+  // CALM state + auto-retry, never a red error — this panel is a manual fetch
+  // (no react-query refetchInterval), so it must drive its own self-heal the way
+  // the live-data cards do. `retry` bumps to re-trigger the lazy-load effect.
+  const [warming, setWarming] = useState(false)
+  const [retry, setRetry] = useState(0)
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchLine = useCallback(
     async (waccOverride: number | null) => {
@@ -240,25 +247,46 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
     setLine(null)
     setWacc(null)
     setError(null)
+    setWarming(false)
+    if (retryTimer.current) clearTimeout(retryTimer.current)
   }, [ticker])
 
   // Fetch when open and not yet seeded. Open defaults true, so this fires on
   // mount; collapsing then re-opening reuses the cached seed.
   useEffect(() => {
     if (!open || seed) return
+    let cancelled = false
+    // Clear any prior error before each attempt so a recovered fetch never
+    // double-renders the stale red message alongside fresh data.
+    setError(null)
     void (async () => {
       try {
         const s = await postJson<SeedReverse>('/api/compute/dcf-seed', {
           ticker,
           include_reverse: true,
         })
+        if (cancelled) return
+        setWarming(false)
         setSeed(s)
         await fetchLine(null)
       } catch (e) {
-        setError(mapErrorToUserMessage(e))
+        if (cancelled) return
+        if (e instanceof FetchHttpError && e.status === 503) {
+          // Engine still warming — calm "starting" state + auto-retry in ~2s,
+          // never red. Self-resolves the moment the provider chain is wired.
+          setWarming(true)
+          retryTimer.current = setTimeout(() => setRetry((n) => n + 1), 2000)
+        } else {
+          setWarming(false)
+          setError(mapErrorToUserMessage(e))
+        }
       }
     })()
-  }, [open, seed, ticker, fetchLine])
+    return () => {
+      cancelled = true
+      if (retryTimer.current) clearTimeout(retryTimer.current)
+    }
+  }, [open, seed, ticker, fetchLine, retry])
 
   const onWacc = useCallback(
     (next: number) => {
@@ -310,12 +338,63 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
 
       {open && (
         <div style={{ padding: '4px 16px 18px' }}>
-          {error && (
-            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--danger)' }}>
-              {error}
-            </p>
+          {/* Cold-start 503 → calm "engine starting" + pulse dot, never red
+              (mirrors the live-data cards' CardError 503 path); auto-retries. */}
+          {warming && !seed && (
+            <span
+              data-testid="market-implied-starting"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontFamily: 'var(--font-mono)',
+                fontSize: 11,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              <span
+                aria-hidden="true"
+                className="cosmic-pulse-dot"
+                style={{
+                  width: 6,
+                  height: 6,
+                  background: 'var(--primary)',
+                  boxShadow: '0 0 10px var(--primary-soft)',
+                }}
+              />
+              {t('workspace.market.engineStarting')}
+            </span>
           )}
-          {!error && !seed && (
+          {error && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span
+                style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--danger)' }}
+              >
+                ⚠ {error}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null)
+                  setRetry((n) => n + 1)
+                }}
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10.5,
+                  color: 'var(--danger)',
+                  background: 'var(--negative-bg)',
+                  border: '1px solid var(--danger)',
+                  borderRadius: 4,
+                  padding: '3px 11px',
+                  cursor: 'pointer',
+                  letterSpacing: '0.04em',
+                }}
+              >
+                {t('workspace.market.retry')}
+              </button>
+            </div>
+          )}
+          {!error && !warming && !seed && (
             <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
               {t('valuation.implied.loading')}
             </p>

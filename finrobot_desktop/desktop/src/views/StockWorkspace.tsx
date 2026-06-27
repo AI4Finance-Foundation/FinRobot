@@ -20,7 +20,7 @@
 import { useEffect, useRef } from 'react'
 import { useLocation, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { useRunStreamStore, selectRunByTicker } from '../stores/runStreamStore'
+import { useRunStreamStore } from '../stores/runStreamStore'
 import { useToastStore } from '../stores/toastStore'
 import { useNavMemoryStore } from '../stores/navMemoryStore'
 import { useTickerPrice } from '../hooks/useTickerData'
@@ -31,6 +31,7 @@ import { WorkspaceBackBar } from './workspace/WorkspaceBackBar'
 import { TickerHero } from './TickerHero'
 import { MarketDataZone } from './workspace/MarketDataZone'
 import { AIZone } from './workspace/AIZone'
+import { WORKSPACE_FRAME_MAX_WIDTH } from './workspace/layout'
 import { useI18n } from '../i18n'
 
 export function StockWorkspace(): React.ReactElement {
@@ -54,25 +55,30 @@ export function StockWorkspace(): React.ReactElement {
   //      AI zone re-fetches and flips out of cold state. Without this,
   //      `useV5ArtifactTimeline` (staleTime: Infinity, immutable artifacts)
   //      keeps serving the pre-run snapshot forever.
-  const runState = useRunStreamStore(selectRunByTicker(symbol))
+  // Subscribe to the run's terminal-state PRIMITIVES, not the whole RunState
+  // object. runStreamStore patches runs[ticker] (a fresh object ref) on every
+  // SSE step / progress event during a run (~16 per run); selecting the whole
+  // object re-rendered this route-level view — and its non-memoized children
+  // (MarketDataZone's Recharts price chart + a 365-pt window derive, TickerHero)
+  // — on each one, mid-run, on data they don't consume. These three primitive
+  // selectors only change on a real status transition (Object.is skips the step
+  // churn), so the completion effect still fires exactly when it must while the
+  // market column stops re-rendering during a run.
+  const runId = useRunStreamStore((s) => s.runs[symbol]?.runId)
+  const runStatus = useRunStreamStore((s) => s.runs[symbol]?.status)
+  const runError = useRunStreamStore((s) => s.runs[symbol]?.error)
   const markTerminalNotified = useRunStreamStore((s) => s.markTerminalNotified)
   const addToast = useToastStore((s) => s.addToast)
   const queryClient = useQueryClient()
   useEffect(() => {
-    const runId = runState?.runId
     if (!runId) return
     // Dedupe at the STORE level, not via a component ref: this view is
     // route-mounted, so a useRef resets on every navigate-away/back and would
     // re-fire the toast + invalidations against the still-resident completed
     // run (BUG-085). markTerminalNotified returns true once per runId, ever.
-    if (
-      runState.status !== 'completed' &&
-      runState.status !== 'failed' &&
-      runState.status !== 'cancelled'
-    )
-      return
+    if (runStatus !== 'completed' && runStatus !== 'failed' && runStatus !== 'cancelled') return
     if (!markTerminalNotified(runId)) return
-    if (runState.status === 'completed') {
+    if (runStatus === 'completed') {
       // Refetch every read model that an equity_research artifact touches.
       // Artifacts are immutable per-id but the *list* of artifacts for a
       // ticker grows on every run, so the timeline query must invalidate too.
@@ -85,36 +91,27 @@ export function StockWorkspace(): React.ReactElement {
         title: t('workspace.toast.reportDone', { ticker: symbol }),
         description: t('workspace.toast.reportDoneDesc'),
       })
-    } else if (runState.status === 'cancelled') {
+    } else if (runStatus === 'cancelled') {
       // User-requested stop: neutral info, not an error — nothing to retry,
       // nothing to diagnose.
       addToast({
         type: 'info',
         title: t('workspace.toast.reportCancelled', { ticker: symbol }),
       })
-    } else if (runState.status === 'failed') {
-      // runState.error is the raw SSE `run.failed` payload (or our SSE-dropout
+    } else if (runStatus === 'failed') {
+      // runError is the raw SSE `run.failed` payload (or our SSE-dropout
       // message) — route it through mapErrorToUserMessage so a leaked "HTTP
       // 500" / dev string becomes friendly copy (BUG-027). Pre-localised
       // messages (Chinese sentences) pass through untouched.
       addToast({
         type: 'error',
         title: t('workspace.toast.reportFailed', { ticker: symbol }),
-        description: runState.error
-          ? mapErrorToUserMessage(new Error(runState.error))
+        description: runError
+          ? mapErrorToUserMessage(new Error(runError))
           : t('workspace.toast.retryLater'),
       })
     }
-  }, [
-    runState?.runId,
-    runState?.status,
-    runState?.error,
-    symbol,
-    addToast,
-    markTerminalNotified,
-    queryClient,
-    t,
-  ])
+  }, [runId, runStatus, runError, symbol, addToast, markTerminalNotified, queryClient, t])
 
   // Gate: validate ticker via useTickerPrice before rendering the workspace
   // shell. Status code is the protocol; UI never matches on Chinese detail.
@@ -198,11 +195,10 @@ export function StockWorkspace(): React.ReactElement {
           flex: 1,
           minHeight: 0, // critical: lets the grid children actually scroll
           overflow: 'hidden',
-          // 1320 (not 1480): on ultra-wide windows a wider split made both
-          // columns too wide for the compact data cards. 1320 keeps the
-          // dashboard at a Bloomberg-terminal density. Stays in sync with
-          // TickerHero's inner box so the glyph aligns with the card edge.
-          maxWidth: 1320,
+          // Shared frame width (back bar + hero + this region align to it). Raised
+          // past the old 1320 so wide monitors aren't mostly empty side margin —
+          // see WORKSPACE_FRAME_MAX_WIDTH for the rationale + the AI-column pairing.
+          maxWidth: WORKSPACE_FRAME_MAX_WIDTH,
           width: '100%',
           margin: '0 auto',
         }}
@@ -210,14 +206,16 @@ export function StockWorkspace(): React.ReactElement {
         <div
           style={{
             display: 'grid',
-            // Market = a fixed ~480px reference RAIL, AI research = flexible and
-            // DOMINANT — the design's proportions (AI is the hero column, market a
-            // side rail), NOT a 50/50 split. A near-even split starved the report
-            // card's verdict|target+gauge|actions row on a 1200px window (the
-            // gauge collapsed, the $target overlapped the button); giving AI the
-            // rest of the width is what lets the card render at design density.
-            gridTemplateColumns: 'minmax(420px, 480px) minmax(0, 1fr)',
-            gap: 24,
+            // LEFT = market/data column, RIGHT = AI research. The data side is the
+            // dense, width-hungry surface (price + reverse-DCF charts, multiples,
+            // financials) so it FLEXES to fill the frame; the AI research card is a
+            // compact verdict + launcher that goes sparse when stretched, so it's
+            // CAPPED. (This reverses the earlier "AI is the hero column" split per
+            // direct user direction — the research column "doesn't show that much"
+            // and read too wide.) The cap holds the vertical report card at a
+            // comfortable ~620–680px, well above where its gauge/tiles would crowd.
+            gridTemplateColumns: 'minmax(440px, 1fr) minmax(620px, 680px)',
+            gap: 16,
             height: '100%',
             minHeight: 0,
             alignItems: 'stretch',
@@ -236,8 +234,9 @@ export function StockWorkspace(): React.ReactElement {
               overflowY: 'auto',
               overflowX: 'hidden',
               // Padding lives inside each scroll column so the scrollbar sits at
-              // the window edge, not floating over content.
-              padding: '24px 16px 32px 32px',
+              // the window edge, not floating over content. The inner (gutter)
+              // side is 12 vs the 32 window edge — a tighter centre seam.
+              padding: '24px 12px 32px 32px',
             }}
           >
             <MarketDataZone ticker={symbol} />
@@ -251,7 +250,7 @@ export function StockWorkspace(): React.ReactElement {
               minHeight: 0,
               overflowY: 'auto',
               overflowX: 'hidden',
-              padding: '24px 32px 32px 16px',
+              padding: '24px 32px 32px 12px',
             }}
           >
             <AIZone ticker={symbol} />

@@ -1333,7 +1333,7 @@ function HotState({
                     }}
                   >
                     <div style={readoutTile()}>
-                      <span style={readoutKey}>Now · Spot</span>
+                      <span style={readoutKey}>{gaugeUsingEntry ? 'At Report' : 'Now · Spot'}</span>
                       <span style={readoutVal}>
                         <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>$</span>
                         {now.toFixed(2)}

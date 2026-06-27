@@ -8,6 +8,7 @@
 
 import { useHistoryBack } from '../../hooks/useHistoryBack'
 import { useI18n } from '../../i18n'
+import { WORKSPACE_FRAME_MAX_WIDTH } from './layout'
 
 interface Props {
   ticker: string
@@ -34,7 +35,7 @@ export function WorkspaceBackBar({ ticker }: Props): React.ReactElement {
     >
       <div
         style={{
-          maxWidth: 1320,
+          maxWidth: WORKSPACE_FRAME_MAX_WIDTH,
           margin: '0 auto',
           padding: '0 32px',
           height: 40,

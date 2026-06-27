@@ -194,7 +194,7 @@ msgstr "点位目标价已隐藏 — 方向判断仍然成立"
 
 #. js-lingui-explicit-id
 msgid "targetRange.fairValueLabel"
-msgstr "合理价值"
+msgstr "合理估值"
 
 #. js-lingui-explicit-id
 msgid "targetRange.withinFairValue"

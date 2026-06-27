@@ -32,7 +32,7 @@ interface ReportLeftRailProps {
   companyName?: string | null
   verdict?: string | null
   snapshotPrice?: number | null
-  /** Point withheld because price is inside the fair-value band → "Fair Value"
+  /** Point withheld because price is inside the fair-value band → "Fairly Valued"
    *  (confident HOLD), not a generic "WITHHELD". From deriveReportData. */
   fairlyValued?: boolean
   confidence?: ConfidenceTier | string | null
@@ -182,7 +182,7 @@ export function ReportLeftRail({
           </>
         ) : (
           // No point target. Two very different meanings — show the RIGHT one:
-          //   • fairlyValued → price sits inside the fair-value range → "Fair Value"
+          //   • fairlyValued → price sits inside the fair-value range → "Fairly Valued"
           //     (a confident HOLD conclusion, NOT a failure). Same label the chips
           //     use (targetRange.fairValueLabel).
           //   • otherwise → genuine withhold (M&A / single-method) → "WITHHELD",

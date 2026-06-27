@@ -20,6 +20,7 @@ Schema (single table ``artifacts``):
     source         TEXT NULL
     headline       TEXT NULL
     tagline        TEXT NULL
+    fairly_valued  INTEGER NULL  (1 = in-band point-target withhold; NULL→False)
     payload        TEXT NOT NULL  (full Artifact JSON)
 
 Why secondary columns: the dashboard hit-rate aggregation and the
@@ -44,6 +45,7 @@ from finrobot.artifact.models import Artifact, ArtifactSummary, ArtifactType
 from finrobot.engine.compute.operators.signal import Signal  # noqa: F401 — used in ArtifactSummary
 from finrobot.artifact.summary_extractor import (
     extract_entry_price,
+    extract_fairly_valued,
     extract_llm_narrative,
     extract_primary_provider,
     extract_tagline,
@@ -72,6 +74,7 @@ CREATE TABLE IF NOT EXISTS artifacts (
     headline       TEXT,
     tagline        TEXT,
     primary_provider TEXT,
+    fairly_valued  INTEGER,
     payload        TEXT NOT NULL
 )
 """
@@ -83,6 +86,7 @@ CREATE TABLE IF NOT EXISTS artifacts (
 # from the stored payloads on next boot.
 _MIGRATED_COLUMNS: tuple[tuple[str, str], ...] = (
     ("primary_provider", "TEXT"),  # 门四溯源半, 2026-06-10
+    ("fairly_valued", "INTEGER"),  # in-band point-target withhold, 2026-06-27
 )
 
 _CREATE_INDEXES = [
@@ -97,7 +101,7 @@ _CREATE_INDEXES = [
 _SUMMARY_COLUMNS = (
     "id, ticker, cross_tickers, type, verdict, created_at, archived, "
     "entry_price, target_price, target_date, source, headline, tagline, "
-    "primary_provider"
+    "primary_provider, fairly_valued"
 )
 
 # Version of the mirror-column projection (the summary_extractor rules behind
@@ -116,7 +120,11 @@ _SUMMARY_COLUMNS = (
 # verdict / target_price projection semantics changed. Bump so legacy rows
 # re-project their mirror columns under the new extractor rules instead of
 # keeping a stale REVIEW verdict / phantom target forever.
-SUMMARY_PROJECTION_VERSION = 3
+# v4 — 2026-06-27: fairly_valued column added to the projection; bump so
+# existing rows backfill the in-band point-target-withhold marker from their
+# stored payload (lets the version-timeline row render "Fairly Valued" rather
+# than a generic "WITHHELD").
+SUMMARY_PROJECTION_VERSION = 4
 
 
 def _now() -> datetime:
@@ -148,6 +156,7 @@ def _row_to_summary(row: tuple[Any, ...]) -> ArtifactSummary:
         headline,
         tagline,
         primary_provider,
+        fairly_valued,
     ) = row
     return ArtifactSummary(
         id=id_,
@@ -165,6 +174,8 @@ def _row_to_summary(row: tuple[Any, ...]) -> ArtifactSummary:
         verdict=verdict,
         tagline=tagline,
         primary_provider=primary_provider,
+        # SQLite stores 0/1/NULL; NULL (legacy / un-backfilled row) → False.
+        fairly_valued=bool(fairly_valued),
     )
 
 
@@ -194,6 +205,7 @@ def summary_from_artifact(artifact: Artifact) -> ArtifactSummary:
         verdict=extract_verdict(artifact),
         tagline=extract_tagline(artifact),
         primary_provider=extract_primary_provider(artifact),
+        fairly_valued=extract_fairly_valued(artifact),
     )
 
 
@@ -219,6 +231,7 @@ def _artifact_to_row(artifact: Artifact) -> tuple[Any, ...]:
         headline,
         extract_tagline(artifact),
         extract_primary_provider(artifact),
+        1 if extract_fairly_valued(artifact) else 0,
         artifact.model_dump_json(),
     )
 
@@ -278,8 +291,9 @@ class SqliteArtifactStore:
             INSERT INTO artifacts (
                 id, ticker, cross_tickers, type, verdict, created_at,
                 last_viewed_at, archived, entry_price, target_price,
-                target_date, source, headline, tagline, primary_provider, payload
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                target_date, source, headline, tagline, primary_provider,
+                fairly_valued, payload
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 ticker = excluded.ticker,
                 cross_tickers = excluded.cross_tickers,
@@ -295,6 +309,7 @@ class SqliteArtifactStore:
                 headline = excluded.headline,
                 tagline = excluded.tagline,
                 primary_provider = excluded.primary_provider,
+                fairly_valued = excluded.fairly_valued,
                 payload = excluded.payload
             """,
             row,
@@ -571,7 +586,8 @@ class SqliteArtifactStore:
                     target_date = ?,
                     tagline = ?,
                     headline = ?,
-                    primary_provider = ?
+                    primary_provider = ?,
+                    fairly_valued = ?
                 WHERE id = ?
                 """,
                 (
@@ -582,6 +598,7 @@ class SqliteArtifactStore:
                     extract_tagline(artifact),
                     headline,
                     extract_primary_provider(artifact),
+                    1 if extract_fairly_valued(artifact) else 0,
                     artifact_id,
                 ),
             )

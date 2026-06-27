@@ -225,3 +225,16 @@ class ArtifactSummary(BaseModel):
             "existed (backfilled by the projection rebuild)."
         ),
     )
+    fairly_valued: bool = Field(
+        default=False,
+        description=(
+            "True when the point target was withheld BECAUSE the live price sits "
+            "inside the cross-method fair-value band (a confident HOLD = 'fairly "
+            "valued'), as opposed to a genuine withhold (M&A / single divergent "
+            "method). Populated by summary_extractor.extract_fairly_valued at "
+            "save time so the version-timeline row can render 'Fairly Valued' "
+            "instead of a generic 'WITHHELD'. Defaults to False so legacy / "
+            "un-backfilled rows (NULL column) deserialise cleanly as 'not fairly "
+            "valued' — backfilled from the payload by the projection rebuild."
+        ),
+    )

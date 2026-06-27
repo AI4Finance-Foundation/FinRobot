@@ -15,6 +15,7 @@ from finrobot.artifact.models import (
 from finrobot.artifact.store import _summary_from_artifact
 from finrobot.artifact.summary_extractor import (
     extract_entry_price,
+    extract_fairly_valued,
     extract_tagline,
     extract_target_date,
     extract_target_price,
@@ -235,3 +236,95 @@ def test_summary_from_artifact_carries_verdict_and_tagline() -> None:
     s = _summary_from_artifact(art)
     assert s.verdict == "BUY"
     assert s.tagline == "AI 算力超级周期受益者 · 估值仍有 30% 空间"
+
+
+# ── fairly_valued (in-band point-target withhold) ────────────────────────────
+
+
+def test_fairly_valued_true_for_in_band_withhold() -> None:
+    """valuation_withheld AND a basis led by "FAIRLY VALUED" (the in-band framing
+    synthesize_valuations writes when the live price sits inside the band) → True.
+    Mirrors the frontend `fairlyValued` derivation in reportData.ts."""
+    art = _artifact(
+        structured={
+            "valuation_withheld": True,
+            "thesis": {
+                "recommendation": "HOLD",
+                "price_target": None,
+                "price_target_basis": (
+                    "FAIRLY VALUED — price sits inside the fair-value band; HOLD on direction."
+                ),
+            },
+        }
+    )
+    assert extract_fairly_valued(art) is True
+
+
+def test_fairly_valued_prefix_is_case_and_leading_whitespace_insensitive() -> None:
+    art = _artifact(
+        structured={
+            "valuation_withheld": True,
+            "thesis": {"price_target_basis": "   fairly valued (within range)"},
+        }
+    )
+    assert extract_fairly_valued(art) is True
+
+
+def test_fairly_valued_false_for_genuine_withhold() -> None:
+    """A real withhold (M&A data poisoning / single divergent method) leads the
+    basis with "WITHHELD", not "FAIRLY VALUED" → not fairly valued (honest
+    uncertainty, not a confident HOLD)."""
+    art = _artifact(
+        structured={
+            "valuation_withheld": True,
+            "thesis": {
+                "recommendation": "HOLD",
+                "price_target": None,
+                "price_target_basis": "WITHHELD — M&A transition poisons the trailing inputs.",
+            },
+        }
+    )
+    assert extract_fairly_valued(art) is False
+
+
+def test_fairly_valued_false_when_point_not_withheld() -> None:
+    """A published point target is never 'fairly valued' — the flag requires the
+    point to have been withheld (valuation_withheld is True) in the first place,
+    even if some stray basis text starts with the phrase."""
+    art = _artifact(
+        structured={
+            "thesis": {
+                "recommendation": "BUY",
+                "price_target": 250.0,
+                "price_target_basis": "FAIRLY VALUED",  # ignored: valuation_withheld absent
+            }
+        }
+    )
+    assert extract_fairly_valued(art) is False
+
+
+def test_fairly_valued_false_without_thesis_or_basis() -> None:
+    assert extract_fairly_valued(_artifact()) is False
+    assert extract_fairly_valued(_artifact(structured={"valuation_withheld": True})) is False
+    assert (
+        extract_fairly_valued(
+            _artifact(structured={"valuation_withheld": True, "thesis": "not a dict"})
+        )
+        is False
+    )
+
+
+def test_summary_from_artifact_carries_fairly_valued() -> None:
+    in_band = _artifact(
+        structured={
+            "valuation_withheld": True,
+            "thesis": {
+                "recommendation": "HOLD",
+                "price_target": None,
+                "price_target_basis": "FAIRLY VALUED — within band.",
+            },
+        }
+    )
+    assert _summary_from_artifact(in_band).fairly_valued is True
+    # Legacy / plain artifact (no withhold) projects False, not None.
+    assert _summary_from_artifact(_artifact()).fairly_valued is False

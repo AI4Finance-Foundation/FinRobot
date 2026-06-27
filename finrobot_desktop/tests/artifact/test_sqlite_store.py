@@ -537,6 +537,98 @@ async def test_summary_carries_primary_provider(store: SqliteArtifactStore) -> N
     assert summaries[0].primary_provider == "yfinance"
 
 
+# ── fairly_valued: in-band point-target withhold mirror column ───────────────
+
+
+@pytest.mark.asyncio
+async def test_summary_carries_fairly_valued_roundtrip(store: SqliteArtifactStore) -> None:
+    """save() projects extract_fairly_valued into the fairly_valued column and
+    list_by_ticker unpacks it back (SQLite 0/1 → bool) in the right tuple slot —
+    so the version-timeline row can render "Fairly Valued" vs generic "WITHHELD"
+    without reloading the payload."""
+    in_band = _make_artifact(id="art_in_band", type="equity_research")
+    in_band.outputs.structured = {
+        "valuation_withheld": True,
+        "thesis": {
+            "recommendation": "HOLD",
+            "price_target": None,
+            "price_target_basis": "FAIRLY VALUED — price sits inside the band; HOLD.",
+        },
+    }
+    genuine = _make_artifact(id="art_withheld", type="equity_research")
+    genuine.outputs.structured = {
+        "valuation_withheld": True,
+        "thesis": {
+            "recommendation": "HOLD",
+            "price_target": None,
+            "price_target_basis": "WITHHELD — M&A transition poisons the inputs.",
+        },
+    }
+    await store.save(in_band)
+    await store.save(genuine)
+    await store.save(_make_artifact(id="art_plain"))  # default DCF, no withhold
+
+    by_id = {s.id: s for s in await store.list_by_ticker(ticker="AAPL")}
+    assert by_id["art_in_band"].fairly_valued is True
+    assert by_id["art_withheld"].fairly_valued is False
+    assert by_id["art_plain"].fairly_valued is False
+
+
+@pytest.mark.asyncio
+async def test_legacy_db_without_fairly_valued_column_self_migrates(tmp_path: Path) -> None:
+    """A pre-fairly_valued artifacts.db (column absent) must ALTER the column in
+    so a legacy row reads back NULL→False without crashing, and the projection
+    rebuild backfills the in-band marker from the stored payload."""
+    db = tmp_path / "legacy.db"
+    conn = sqlite3.connect(db)
+    # Schema as of the primary_provider migration (no fairly_valued column yet).
+    conn.execute(
+        """
+        CREATE TABLE artifacts (
+            id TEXT PRIMARY KEY, ticker TEXT, cross_tickers TEXT NOT NULL DEFAULT '[]',
+            type TEXT NOT NULL, verdict TEXT, created_at TEXT NOT NULL,
+            last_viewed_at TEXT, archived INTEGER NOT NULL DEFAULT 0,
+            entry_price REAL, target_price REAL, target_date TEXT,
+            source TEXT, headline TEXT, tagline TEXT, primary_provider TEXT,
+            payload TEXT NOT NULL
+        )
+        """
+    )
+    legacy = _make_artifact(id="art_legacy_in_band", type="equity_research")
+    legacy.outputs.structured = {
+        "valuation_withheld": True,
+        "thesis": {
+            "recommendation": "HOLD",
+            "price_target": None,
+            "price_target_basis": "FAIRLY VALUED — within band.",
+        },
+    }
+    conn.execute(
+        "INSERT INTO artifacts (id, ticker, type, created_at, payload) VALUES (?, ?, ?, ?, ?)",
+        (
+            legacy.id,
+            legacy.ticker,
+            str(legacy.type),
+            legacy.meta.created_at.isoformat(),
+            legacy.model_dump_json(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    s = SqliteArtifactStore(db_path=db)
+    try:
+        # NULL column on first read (column just ALTER'd in) → False, no crash.
+        summaries = await s.list_by_ticker(ticker="AAPL")
+        assert summaries[0].fairly_valued is False
+        # … and the projection rebuild backfills it from the payload.
+        await s.rebuild_summaries()
+        summaries = await s.list_by_ticker(ticker="AAPL")
+        assert summaries[0].fairly_valued is True
+    finally:
+        await s.close()
+
+
 @pytest.mark.asyncio
 async def test_get_hydrates_legacy_llm_narrative_from_thesis(
     store: SqliteArtifactStore,

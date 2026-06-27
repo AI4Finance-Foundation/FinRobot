@@ -1,5 +1,5 @@
 // TargetRange's withheld state is reason-aware: a point withheld BECAUSE the price
-// sits inside the fair-value band → "Fair Value" + "within range" (fairly valued, a
+// sits inside the fair-value band → "Fairly Valued" + "within range" (fairly valued, a
 // confident HOLD); a point withheld out-of-band (genuine uncertainty) keeps the honest
 // "Point target withheld" framing. Strict band containment mirrors the backend
 // `_range_spans_market` and matches the band visual the analyst sees.
@@ -10,7 +10,7 @@ import { render, screen } from '@testing-library/react'
 import { TargetRange } from './TargetRange'
 
 describe('TargetRange', () => {
-  it('in-band withhold → "Fair Value" + within-range, never "withheld"', () => {
+  it('in-band withhold → "Fairly Valued" + within-range, never "withheld"', () => {
     // JPM-shape: price $334 sits inside the band [$263, $356] → fairly valued.
     render(
       <TargetRange
@@ -22,7 +22,7 @@ describe('TargetRange', () => {
         quoteCurrency="USD"
       />,
     )
-    expect(screen.getByText('Fair Value')).toBeInTheDocument()
+    expect(screen.getByText('Fairly Valued')).toBeInTheDocument()
     expect(screen.getByText(/Within fair-value range/i)).toBeInTheDocument()
     expect(screen.queryByText(/Point target withheld/i)).toBeNull()
   })
@@ -40,7 +40,7 @@ describe('TargetRange', () => {
       />,
     )
     expect(screen.getByText(/Point target withheld/i)).toBeInTheDocument()
-    expect(screen.queryByText('Fair Value')).toBeNull()
+    expect(screen.queryByText('Fairly Valued')).toBeNull()
   })
 
   it('published point → shows the target number, no withheld/fair-value copy', () => {
@@ -56,7 +56,7 @@ describe('TargetRange', () => {
       />,
     )
     expect(screen.getByText('$300.00')).toBeInTheDocument()
-    expect(screen.queryByText('Fair Value')).toBeNull()
+    expect(screen.queryByText('Fairly Valued')).toBeNull()
     expect(screen.queryByText(/withheld/i)).toBeNull()
   })
 })

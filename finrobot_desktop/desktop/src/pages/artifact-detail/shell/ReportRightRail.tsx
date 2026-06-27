@@ -85,7 +85,15 @@ function TimelineRow({
   // Timeline summaries do not yet carry target_low/high, so a null target cannot
   // render the range here. Still, it must not look like a missing calculation:
   // in equity-research history a null point target means the point was withheld.
-  const targetLabel = hasTarget ? `$${target.toFixed(2)}` : verdictLabel('WITHHELD', locale)
+  // Reason-aware (sibling of the chips + left-rail card): an IN-BAND withhold
+  // (price inside the fair-value band, a.fairly_valued) is a confident HOLD →
+  // "Fairly Valued"; a genuine withhold (M&A / single divergent method) keeps
+  // the neutral "WITHHELD" token.
+  const targetLabel = hasTarget
+    ? `$${target.toFixed(2)}`
+    : a.fairly_valued
+      ? t('targetRange.fairValueLabel')
+      : verdictLabel('WITHHELD', locale)
   return (
     <button
       type="button"

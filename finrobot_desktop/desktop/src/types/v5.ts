@@ -61,6 +61,16 @@ export interface ArtifactSummaryV5 {
    * backfills them.
    */
   primary_provider?: string | null
+  /**
+   * True when the point target was withheld BECAUSE the live price sits inside
+   * the cross-method fair-value band (a confident HOLD = "fairly valued"), as
+   * opposed to a genuine withhold (M&A / single divergent method). Lets the
+   * version-timeline row render "Fairly Valued" instead of a generic "WITHHELD".
+   * Populated by summary_extractor.extract_fairly_valued; mirrors the report
+   * body's `fairlyValued` (reportData.ts). undefined/false on legacy rows until
+   * the projection rebuild backfills them → treated as a generic withhold.
+   */
+  fairly_valued?: boolean
 }
 
 /** Mirror of sentiment endpoint (PR4b §6.12). */

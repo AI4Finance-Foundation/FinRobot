@@ -194,7 +194,7 @@ msgstr "Point target withheld — rating stands on direction"
 
 #. js-lingui-explicit-id
 msgid "targetRange.fairValueLabel"
-msgstr "Fair Value"
+msgstr "Fairly Valued"
 
 #. js-lingui-explicit-id
 msgid "targetRange.withinFairValue"

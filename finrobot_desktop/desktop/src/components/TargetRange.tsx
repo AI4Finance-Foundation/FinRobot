@@ -94,7 +94,7 @@ export function TargetRange({
   // In-band = the point is withheld BECAUSE the live price sits INSIDE the fair-value
   // band (range spans market) → fairly valued, a confident HOLD. Strict containment
   // mirrors the backend `_range_spans_market` AND matches the band visual the analyst
-  // sees (the price tick inside the band box). Lead with the conclusion ("Fair Value"),
+  // sees (the price tick inside the band box). Lead with the conclusion ("Fairly Valued"),
   // not the mechanic ("withheld"). Out-of-band withholds (genuine uncertainty — methods
   // one-sided / far from market) keep the honest "point target withheld" framing.
   const inFairValueBand =

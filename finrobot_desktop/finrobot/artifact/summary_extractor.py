@@ -112,6 +112,30 @@ def extract_verdict(artifact: "Artifact") -> str | None:
     return None
 
 
+def extract_fairly_valued(artifact: "Artifact") -> bool:
+    """In-band point-target withhold = "fairly valued" (a confident HOLD).
+
+    True when the valuation point was withheld BECAUSE the live price sits
+    inside the cross-method fair-value band: ``synthesize_valuations`` leads
+    such a ``price_target_basis`` with "FAIRLY VALUED" (the generic
+    ``_range_spans_market`` path and the bank residual-income ``in_band`` path
+    both do). A genuine withhold (M&A data poisoning / a single divergent
+    method) leads with "WITHHELD" instead and returns False.
+
+    Mirrors the frontend ``fairlyValued`` derivation in ``reportData.ts``
+    (``valuation_withheld === true && /^\\s*fairly valued/i.test(basis)``) so
+    the version-timeline column and the report body agree on the same signal.
+    Legacy / un-backfilled rows extract False (no thesis / no flag → not
+    fairly valued), which the UI treats as a generic withhold.
+    """
+    structured = artifact.outputs.structured
+    if structured.get("valuation_withheld") is not True:
+        return False
+    thesis = structured.get("thesis")
+    basis = thesis.get("price_target_basis", "") if isinstance(thesis, dict) else ""
+    return isinstance(basis, str) and basis.lstrip().upper().startswith("FAIRLY VALUED")
+
+
 def extract_tagline(artifact: "Artifact") -> str | None:
     """Pull the narrative `tagline` — a ≤60-char shareable conclusion
     written by the synthesis_agent. Surfaced on the workspace AI zone's

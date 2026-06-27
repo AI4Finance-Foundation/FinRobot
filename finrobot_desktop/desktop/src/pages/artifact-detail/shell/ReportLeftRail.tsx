@@ -2,7 +2,7 @@
 //
 // Replaces the old split of a left TOC + a right Version Timeline rail (which
 // squeezed the reading column between two sidebars). Now one sticky rail holds:
-//   • an identity card (ticker · verdict · company · snapshot price · confidence)
+//   • an identity card (ticker · verdict · company · 12-mo target + spot · confidence)
 //   • a CONTENTS | VERSIONS tab switch
 //       - CONTENTS: the 13-chapter table of contents with scroll-spy highlight
 //       - VERSIONS: the version-history timeline (was the right rail)
@@ -60,6 +60,14 @@ export function ReportLeftRail({
   const verdictText = (verdict ?? '').toUpperCase()
   const tone = verdictText ? verdictTone(verdictText) : null
   const tier = normalizeConfidence(typeof confidence === 'string' ? confidence : null)
+
+  // Identity-card headline = the CURRENT version's 12-mo TARGET, read from the
+  // SAME timeline entry (`target_price`) the version rows render — so the card can
+  // never disagree with its own v-row. Previously this card showed snapshotPrice
+  // (the spot the target was computed against) as a bare, unlabelled number, which
+  // read as contradicting the target shown in the v-rows + the report body. Spot
+  // is kept as a small labelled caption for context.
+  const targetPrice = timeline.find((a) => a.id === currentArtifactId)?.target_price ?? null
 
   // Scroll-spy: highlight the chapter currently under the reader. Root is the
   // real scroll container (#main-scroll), same as the old TOC — the window
@@ -141,18 +149,61 @@ export function ReportLeftRail({
             {companyName}
           </div>
         )}
-        {typeof snapshotPrice === 'number' && (
-          <div
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 17,
-              fontWeight: 600,
-              color: 'var(--text-primary)',
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {formatCurrency(snapshotPrice, quoteCurrency, locale, 2)}
-          </div>
+        {typeof targetPrice === 'number' ? (
+          <>
+            <div
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 17,
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {formatCurrency(targetPrice, quoteCurrency, locale, 2)}
+            </div>
+            <div
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10.5,
+                color: 'var(--text-muted)',
+                marginTop: 2,
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              {t('report.leftRail.targetLabel')}
+              {typeof snapshotPrice === 'number' &&
+                ` · ${t('report.leftRail.spotLabel')} ${formatCurrency(snapshotPrice, quoteCurrency, locale, 2)}`}
+            </div>
+          </>
+        ) : (
+          typeof snapshotPrice === 'number' && (
+            <div
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 17,
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                fontVariantNumeric: 'tabular-nums',
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: 6,
+              }}
+            >
+              {formatCurrency(snapshotPrice, quoteCurrency, locale, 2)}
+              {/* No target (withheld) → still LABEL the spot so it's never mistaken
+                  for a target, matching the honesty of the rest of the page. */}
+              <span
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 10.5,
+                  color: 'var(--text-muted)',
+                }}
+              >
+                {t('report.leftRail.spotLabel')}
+              </span>
+            </div>
+          )
         )}
         {verdictText && (
           <div style={{ marginTop: 10 }}>

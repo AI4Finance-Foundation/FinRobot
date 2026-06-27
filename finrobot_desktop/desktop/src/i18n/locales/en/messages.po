@@ -277,6 +277,14 @@ msgid "report.toc.heading"
 msgstr "REPORT NAV"
 
 #. js-lingui-explicit-id
+msgid "report.leftRail.targetLabel"
+msgstr "Target"
+
+#. js-lingui-explicit-id
+msgid "report.leftRail.spotLabel"
+msgstr "spot"
+
+#. js-lingui-explicit-id
 msgid "report.computeWarnings"
 msgstr "COMPUTE WARNINGS"
 

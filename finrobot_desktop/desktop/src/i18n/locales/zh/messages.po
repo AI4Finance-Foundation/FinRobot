@@ -277,6 +277,14 @@ msgid "report.toc.heading"
 msgstr "研报章节"
 
 #. js-lingui-explicit-id
+msgid "report.leftRail.targetLabel"
+msgstr "目标价"
+
+#. js-lingui-explicit-id
+msgid "report.leftRail.spotLabel"
+msgstr "现价"
+
+#. js-lingui-explicit-id
 msgid "report.computeWarnings"
 msgstr "计算警告"
 

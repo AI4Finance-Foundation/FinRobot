@@ -1169,6 +1169,15 @@ def apply_canonical_override(
     # still ships. Hard-enforce both — same inputs always produce the same numbers;
     # if the LLM drifted, log it for prompt-fidelity evals.
     allowed_mids = [m.mid for m in vs.methods] if isinstance(vs, ValuationSynthesis) else []
+    # The published value-band bounds (target_low/high — e.g. a bank's residual-income
+    # band [RI@trailing, RI@forward]) are legitimate published numbers the deterministic
+    # canonical basis prints, but they are NOT per-method mids. Without whitelisting them
+    # the withheld-path scrubber (canonical_target=None) erases them to "[target withheld]"
+    # and silently reverts 撤点≠撤区间 — washing the very band the basis is meant to show
+    # (JPM "value band [[target withheld], [target withheld]]"). They are published values,
+    # so prose citing them is citation, not a smuggled fabricated point.
+    if isinstance(vs, ValuationSynthesis):
+        allowed_mids += [b for b in (vs.target_low, vs.target_high) if b is not None]
     market_price = vs.current_price if isinstance(vs, ValuationSynthesis) else None
 
     if canonical_target is not None and canonical_basis is not None:

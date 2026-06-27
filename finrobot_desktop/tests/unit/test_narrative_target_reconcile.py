@@ -12,8 +12,16 @@ from __future__ import annotations
 
 import logging
 
-from finrobot.engine.models.financial import ThesisResult
-from finrobot.engine.pipelines.equity_research import _reconcile_narrative_targets
+from finrobot.engine.compute.operators.valuation_synthesis import CanonicalThesis
+from finrobot.engine.models.financial import (
+    ThesisResult,
+    ValuationMethod,
+    ValuationSynthesis,
+)
+from finrobot.engine.pipelines.equity_research import (
+    _reconcile_narrative_targets,
+    apply_canonical_override,
+)
 
 
 def _thesis(**overrides: object) -> ThesisResult:
@@ -236,3 +244,63 @@ def test_drift_scanned_across_all_narrative_fields() -> None:
         assert value is not None
         assert "$280" not in value, f"{field} still contains the injected $280"
         assert "$276.43" in value, f"{field} was not neutralized to canonical"
+
+
+def test_published_value_band_bounds_survive_withheld_path_scrub() -> None:
+    """撤点≠撤区间: the published value-band bounds (target_low/high — e.g. a bank's
+    residual-income band [RI@trailing, RI@forward]) appear in the DETERMINISTIC
+    canonical basis but are NOT per-method mids. On the withheld path the narrative
+    scrubber must NOT erase them to "[target withheld]" — they are published values
+    the basis is meant to show.
+
+    Regression for the JPM bug: a withheld-point bank report shipped
+    ``price_target_basis`` reading "... value band [[target withheld], [target
+    withheld]]" while structured ``valuation_synthesis`` still carried the real
+    [$263.24, $356.15] band, because ``allowed_mids`` was built from method mids
+    only and the scrubber ate the band the basis publishes.
+    """
+    methods = [
+        ValuationMethod(name="comps_pb", low=250, mid=266.96, high=285, confidence=0.6, source="PB"),
+        ValuationMethod(name="comps_pe", low=255, mid=269.79, high=288, confidence=0.8, source="PE"),
+        ValuationMethod(
+            name="residual_income", low=263.24, mid=300.04, high=356.15, confidence=0.7, source="RI"
+        ),
+    ]
+    vs = ValuationSynthesis(
+        methods=methods,
+        weighted_price=None,
+        current_price=334.14,
+        upside_downside=None,
+        confidence="high",
+        target_low=263.24,
+        target_high=356.15,
+        anchor_method="residual_income",
+        valuation_withheld=True,
+    )
+    # The deterministic canonical basis the bank RI-band path emits (the bounds are
+    # NOT method mids: $263.24 is 1.4% off comps_pb $266.96, $356.15 is 18.7% off
+    # the nearest mid $300.04 — both fail the per-mid whitelist before the fix).
+    basis = (
+        "FAIRLY VALUED: price $334.14 sits within the residual-income fair-value band "
+        "[$263.24, $356.15] (RI at trailing ROE → at FY1 consensus ROE), so there is no "
+        "margin of safety either way — verdict HOLD. Methods: comps_pb=$266.96, "
+        "comps_pe=$269.79, residual_income=$300.04."
+    )
+    canonical = CanonicalThesis(
+        target=None,
+        verdict="HOLD",
+        basis=basis,
+        upside=None,
+        valuation_withheld=True,
+        confidence="high",
+    )
+    thesis = _thesis(recommendation="HOLD", price_target=None, price_target_basis="(LLM draft)")
+
+    out = apply_canonical_override(thesis, canonical, vs)
+
+    assert out.price_target_basis is not None
+    assert "[target withheld]" not in out.price_target_basis, (
+        "published value-band bounds were washed to the withheld marker — 撤点≠撤区间 reverted"
+    )
+    assert "$263.24" in out.price_target_basis
+    assert "$356.15" in out.price_target_basis

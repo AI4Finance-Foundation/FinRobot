@@ -409,10 +409,15 @@ def _comps_pe_method(
     # are untouched — the entire path below runs exactly as before.
     if cyclical:
         _warn(
+            # Qualitative only — this reason surfaces verbatim into price_target_basis
+            # prose. NO ticker-specific naked $-figure here (the dev rationale, MU's
+            # $2199/$2974 cycle-peak artifact, lives in the comments above): a naked
+            # $-amount gets washed to "[target withheld]" on the withheld path AND a
+            # hardcoded "MU $X" contaminates every other cyclical's report.
             "comps_pe: cyclical — suppressing the forward P/E × cycle-peak EPS basis "
-            "(growth-stock forward multiple × cycle-peak EPS = MU $2974 spurious value); "
-            "led instead by comps_pb (book value, cycle-stable) + through-cycle P/E (DCF anchor) as fallback"
-            " — method withheld"
+            "(a growth-stock forward multiple applied to a commodity-cyclical's peak-cycle "
+            "EPS overstates fair value); led instead by comps_pb (book value, cycle-stable) "
+            "+ through-cycle P/E (DCF anchor) as fallback — method withheld"
         )
         return None
 

@@ -277,6 +277,21 @@ class TestCyclicalCompsPeSuppression:
         # the suppression is口径-explicit and tagged comps_pe
         assert any("comps_pe" in w and "cyclical" in w and "suppressing" in w for w in warnings)
 
+    def test_cyclical_suppression_reason_has_no_dollar_example_or_foreign_ticker(self):
+        """The comps_pe suppression reason surfaces verbatim into price_target_basis
+        prose. A hardcoded ticker-specific dollar example ("MU $2974") was wrong twice:
+        (a) on the withheld path the narrative scrubber washes the naked $-amount to a
+        "[target withheld]" marker (the MU/RIVN basis read "= MU [target withheld]
+        spurious value"); (b) the MU figure contaminated every OTHER cyclical's report
+        (RIVN cited MU's number). The rationale must stay qualitative — no "$", no
+        foreign ticker baked in. The dev-context figures live in code comments instead.
+        """
+        warnings: list[str] = []
+        _comps_pe_method(self._comps_with_forward_pe(), 58.9, 1.13e9, warnings, cyclical=True)
+        reason = next(w for w in warnings if "comps_pe" in w and "suppressing" in w)
+        assert "$" not in reason, f"naked $-amount surfaces into prose + gets washed: {reason}"
+        assert "MU" not in reason, f"hardcoded MU example contaminates other cyclicals: {reason}"
+
     def test_non_cyclical_forward_comps_pe_unchanged(self):
         # Same inputs, cyclical=False → forward path runs exactly as before:
         # median_forward_pe (36.9x) × forward EPS (58.9) = $2173.41, bit-exact.

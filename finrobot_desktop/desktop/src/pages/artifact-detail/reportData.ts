@@ -138,6 +138,22 @@ export function parseSurfacedContractFindings(warnings: string[]): SurfacedContr
     .filter((c) => !INTERNAL_CONTRACT_CLAUSES.has(c.clause))
 }
 
+// Machine-tagged warnings authored for the report's BUILDER / audit trail, never
+// the reader. They stay in `outputs.warnings` (triage + structured blocks) but must
+// never render in a reader-facing compute-warnings list:
+//   - `[NUMERIC-AUDIT/` / `[CONTRACT/` — surfaced richly (humanised) in the audit banner
+//   - `[REPORT-DRIFT/` — a pre-publish "verify the narrative before publishing" QA flag
+//     (and a known false-positive source, see engine report_drift.py); reader-irrelevant.
+const NON_READER_WARNING_PREFIXES = ['[NUMERIC-AUDIT/', '[CONTRACT/', '[REPORT-DRIFT/']
+
+/** Reduce an artifact's raw `outputs.warnings` to the analyst-facing compute
+ * caveats (drops the machine-tagged audit/QA lines). Single source of truth shared
+ * by the full report (ReportChapters) and the compact viewer so the two never drift
+ * on what counts as reader-facing. */
+export function readerFacingComputeWarnings(warnings: string[]): string[] {
+  return warnings.filter((w) => !NON_READER_WARNING_PREFIXES.some((p) => w.startsWith(p)))
+}
+
 export function deriveReportData(
   artifact: ArtifactDetail,
   timeline: ArtifactSummaryV5[],

@@ -48,7 +48,11 @@ vi.mock('../stores/toastStore', () => ({
 }))
 vi.mock('../api/client', () => ({ markArtifactViewed: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../api/queryClient', () => ({ queryClient: { invalidateQueries: vi.fn() } }))
-vi.mock('./artifact-detail/reportData', () => ({
+// Keep the real module (readerFacingComputeWarnings et al. — CompactArtifactViewer
+// consumes them) and override only deriveReportData, so the mock can't drift from
+// the implementation's export surface.
+vi.mock('./artifact-detail/reportData', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./artifact-detail/reportData')>()),
   deriveReportData: () => ({ thesis: null, dcf: null, createdAt: null, versionLabel: 'v1' }),
 }))
 vi.mock('../components/VersionDiffBanner', () => ({ VersionDiffBanner: () => null }))

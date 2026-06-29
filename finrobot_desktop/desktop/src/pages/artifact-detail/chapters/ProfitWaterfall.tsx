@@ -79,7 +79,7 @@ function Row({ row, denom }: { row: WaterfallRow; denom: number | null }): React
           <span style={{ width: 9, height: 9, borderRadius: 2, background: color, flex: 'none' }} />
           <span>{row.label}</span>
           {row.fy && (
-            <span style={{ fontSize: 9, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
+            <span style={{ fontSize: 10.5, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
               {row.fy}
             </span>
           )}
@@ -174,7 +174,7 @@ export function ProfitWaterfall({ rows }: { rows: WaterfallRow[] }): React.React
           paddingTop: 12,
           borderTop: '1px solid var(--border-grid)',
           fontFamily: 'var(--font-mono)',
-          fontSize: 9,
+          fontSize: 10.5,
           letterSpacing: '0.14em',
           textTransform: 'uppercase',
           color: 'var(--text-dim)',

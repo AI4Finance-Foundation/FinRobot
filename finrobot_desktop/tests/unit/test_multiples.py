@@ -428,7 +428,7 @@ def test_peer_statistics_median_forward_pe_gated():
     comps = calculate_peer_statistics(comps)
     # median of {20, 30} = 25 (None and 500 excluded)
     assert comps.median_forward_pe == 25.0
-    assert any("Forward P/E computed on n=2 of 4" in w for w in comps.warnings)
+    assert any("Forward P/E based on 2 of 4" in w for w in comps.warnings)
 
 
 def test_trailing_median_excludes_nm_high_pe_but_keeps_peer():
@@ -450,7 +450,7 @@ def test_trailing_median_excludes_nm_high_pe_but_keeps_peer():
     comps = calculate_peer_statistics(comps)
     # median of {20, 30} = 25 — AMD-like 156 NM'd out.
     assert comps.median_pe == pytest.approx(25.0)
-    assert any("NM trailing P/E" in w and "n=2 of 3" in w for w in comps.warnings)
+    assert any("NM trailing P/E" in w and "2 of 3" in w for w in comps.warnings)
 
 
 def test_forward_median_nm_cap_keeps_amd_drops_intc_and_arm():
@@ -749,11 +749,11 @@ class TestPeerStatisticsSampleSizeWarnings:
         return PeerComps(target=target, peers=peers)
 
     def test_warning_emitted_when_peer_dropped_from_ev_ebitda(self) -> None:
-        """5 peers, 1 NM EV/EBITDA → warning says 'n=3 of 4'."""
+        """5 peers, 1 NM EV/EBITDA → warning says '3 of 4'."""
         comps = calculate_peer_statistics(self._comps_with_one_nm_evebitda())
         ev_ebitda_warnings = [w for w in comps.warnings if "EV/EBITDA" in w]
         assert ev_ebitda_warnings, f"Expected EV/EBITDA sample-size warning, got: {comps.warnings}"
-        assert "n=3 of 4" in ev_ebitda_warnings[0]
+        assert "3 of 4" in ev_ebitda_warnings[0]
 
     def test_no_warning_when_all_peers_have_valid_ev_ebitda(self) -> None:
         """All peers have valid EV/EBITDA → no sample-size warning."""
@@ -782,4 +782,4 @@ class TestPeerStatisticsSampleSizeWarnings:
         result = calculate_peer_statistics(comps)
         ev_ebitda_warnings = [w for w in result.warnings if "EV/EBITDA" in w]
         assert ev_ebitda_warnings
-        assert "n=4 of 5" in ev_ebitda_warnings[0]
+        assert "4 of 5" in ev_ebitda_warnings[0]

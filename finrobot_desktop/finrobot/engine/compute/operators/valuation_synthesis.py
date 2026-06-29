@@ -20,6 +20,31 @@ from finrobot.engine.models.valuation_thresholds import (
 
 logger = logging.getLogger(__name__)
 
+
+# Human-readable labels for the canonical method ids — the price_target_basis is
+# shown verbatim on the report cover AND fed into the LLM narrative prompt, so a
+# raw snake_case key ("comps_pe=$182.97") reads as developer-ese to an analyst.
+# Mirrors desktop/src/components/charts/FootballField.tsx `METHOD_LABEL` (the
+# football field already renders these labels; the basis line must match, not show
+# two names for the same method on one page). Unknown id → upper-cased fallback,
+# same as the frontend's `?? method.toUpperCase()`.
+_METHOD_LABEL: Final[dict[str, str]] = {
+    "dcf": "DCF",
+    "comps_pe": "Comps (P/E)",
+    "comps_pb": "Comps (P/B)",
+    "comps_ev_ebitda": "Comps (EV/EBITDA)",
+    "ev_ebitda": "EV/EBITDA",
+    "p_fcf": "P/FCF",
+    "ddm": "DDM",
+    "residual_income": "Residual Income",
+    "lbo": "LBO",
+}
+
+
+def _method_label(name: str) -> str:
+    return _METHOD_LABEL.get(name, name.upper())
+
+
 # Any method whose mid deviates from the cross-method median by more than this
 # fraction is flagged in outlier_methods and a soft cross-method spread warning
 # is appended (disclosure only — it never withholds the call; the confidence
@@ -135,6 +160,37 @@ def _confidence_dial(
     tier: ConfidenceTier
     point_withheld = False
 
+    # Lone median-outlier inside an otherwise-corroborated set. ``span`` (max/min) is a
+    # two-POINT measure — blind to a bimodal "2 cluster + 1 outlier" set whose extremes
+    # happen to land ≤ _DIAL_CORROBORATE_SPAN. AAPL: comps_pe $183 + dcf $189 cluster at
+    # ~$185 while ev_ebitda $266 sits +41% off the $189 median, yet 266/183 = 1.45 ≤ 1.5,
+    # so the span read it as corroborated and blended all three into a false-precise
+    # high-confidence $210. GOOGL (span 1.56, comps_pe the high outlier) is the SAME shape
+    # one tick over the 1.5x cliff and already routes divergent — so this is the
+    # consistency fix, not new behaviour. A bimodal set is NOT corroborated: route it to
+    # the divergent branch (anchor the cluster's cash-flow value, never a blend that
+    # absorbs the outlier). The downstream median-deviation gate flags ``outlier_methods``
+    # with the SAME _OUTLIER_THRESHOLD, so the headline and the flagged outlier can no
+    # longer disagree (the old blend named ev_ebitda an outlier while pricing it in).
+    # NON-cyclical only: a cyclical's DCF/PB anchor is intentional even as the lone
+    # outlier (peak-EPS comps are the unreliable side there), so the cyclical exemption
+    # in the divergent branch must keep owning it — never anchor a cyclical to its comps
+    # cluster here.
+    median_mid = statistics.median(mids)
+    cluster = [
+        m
+        for m in methods
+        if median_mid == 0 or abs(m.mid - median_mid) / abs(median_mid) <= _OUTLIER_THRESHOLD
+    ]
+    cluster_mids = [m.mid for m in cluster]
+    bimodal = (
+        not cyclical
+        and len(methods) >= 3
+        and 2 <= len(cluster) < len(methods)  # a tight cluster + ≥1 median-outlier
+        and (max(cluster_mids) / min(cluster_mids) if min(cluster_mids) > 0 else float("inf"))
+        <= _DIAL_CORROBORATE_SPAN
+    )
+
     # Bank intrinsic anchor = residual income (justified P/B): ROE-coherent and
     # buyback-invariant, so it anchors whether the comps corroborate OR diverge. A
     # bank's comps_pb and comps_pe disagree precisely because they price book and
@@ -180,7 +236,7 @@ def _confidence_dial(
                 else "directional verdict from the nearest edge."
             )
         )
-    elif span <= _DIAL_CORROBORATE_SPAN:
+    elif span <= _DIAL_CORROBORATE_SPAN and not bimodal:
         # Corroborated method set → blend (confidence-weighted central tendency; the
         # agreement IS the signal).
         tier = "high"
@@ -188,42 +244,67 @@ def _confidence_dial(
         anchor_name = None
         note = None
     else:
-        anchor = _select_anchor(methods, cyclical)
-        # Lone-outlier re-anchor (non-cyclical, ≥3 methods): _select_anchor anchors a
-        # peer-rich name to comps, but when that comps anchor is a cross-method EXTREME
-        # and the OTHER methods corroborate (≤ _DIAL_CORROBORATE_SPAN) WITHOUT it, ≥2
-        # independent methods agree AWAY from comps → comps is the suspect one and must
-        # not stamp the headline. KO 2026-06-22: comps_pe $53 (peer-median P/E ignores
-        # KO's quality premium — verified vs external analyst target $85 / KO fwd P/E
-        # 24.7 / our DCF $76) while DCF $76 + EV/EBITDA $90 agree and match truth. Re-
-        # anchor to the corroborated DCF cash-flow value so the headline isn't a −33%
-        # outlier. Cyclicals are EXEMPT — their DCF/PB anchor is intentional even as an
-        # outlier (peak-EPS comps are the unreliable side there).
         reanchored_from: ValuationMethod | None = None
-        if not cyclical and anchor is not None and anchor.name.startswith("comps") and len(methods) >= 3:
-            dcf = next((m for m in methods if m.name == "dcf"), None)
-            rest = [m.mid for m in methods if m is not anchor]
-            rest_span = (max(rest) / min(rest)) if rest and min(rest) > 0 else float("inf")
-            if dcf is not None and anchor.mid in (lo, hi) and rest_span <= _DIAL_CORROBORATE_SPAN:
-                reanchored_from = anchor
-                anchor = dcf
-        anchor_name = anchor.name if anchor else None
-        point = anchor.mid if anchor else statistics.median(mids)
-        tier = "medium" if span <= _DIAL_MILD_SPAN else "low"
-        if reanchored_from is not None:
-            note = (
-                f"method divergence {span:.2g}x — {reanchored_from.name} ${reanchored_from.mid:.0f} is a "
-                f"lone outlier (the other methods corroborate ≤{_DIAL_CORROBORATE_SPAN:g}x without it), so the "
-                f"target anchors to the corroborated DCF cash-flow value ${point:.0f}; the full method range "
-                "still bounds the band."
+        anchor: ValuationMethod | None
+        if bimodal:
+            # Bimodal set (tight cluster + lone median-outlier the max/min span missed).
+            # Anchor the cluster's cash-flow value — DCF if it clustered, else the cluster
+            # method nearest the cluster median — NOT a blend that absorbs the outlier into
+            # the headline (AAPL: dcf $189, the cluster centre, not the $210 three-way blend
+            # inflated by ev_ebitda $266). The outlier still bounds the band. The note names
+            # the REAL outlier (the median-deviation one), unlike the re-anchor branch below
+            # which assumes the comps EXTREME is the suspect.
+            cluster_median = statistics.median(cluster_mids)
+            anchor = next((m for m in cluster if m.name == "dcf"), None) or min(
+                cluster, key=lambda m: abs(m.mid - cluster_median)
             )
-        elif anchor_name:
+            anchor_name = anchor.name
+            point = anchor.mid
+            outliers = [m for m in methods if m not in cluster]
+            outlier_txt = ", ".join(f"{_method_label(m.name)} ${m.mid:.0f}" for m in outliers)
             note = (
-                f"method divergence {span:.2g}x — anchored to {anchor_name} ${point:.0f} "
-                f"(comparability: {'cyclical cash flow / book value' if cyclical else 'peer multiples'}); the remaining methods set the range bounds."
+                f"method spread {span:.2g}x reads corroborated on the extremes, but {outlier_txt} "
+                f"sits >{_OUTLIER_THRESHOLD:.0%} off the cross-method median while the remaining methods "
+                f"cluster (≤{_DIAL_CORROBORATE_SPAN:g}x) — a bimodal set. Anchored to the corroborated "
+                f"{_method_label(anchor_name)} ${point:.0f} rather than a blend that would absorb the "
+                f"outlier; the full method range still bounds the band."
             )
         else:
-            note = f"method divergence {span:.2g}x; taking the median."
+            anchor = _select_anchor(methods, cyclical)
+            # Lone-outlier re-anchor (non-cyclical, ≥3 methods): _select_anchor anchors a
+            # peer-rich name to comps, but when that comps anchor is a cross-method EXTREME
+            # and the OTHER methods corroborate (≤ _DIAL_CORROBORATE_SPAN) WITHOUT it, ≥2
+            # independent methods agree AWAY from comps → comps is the suspect one and must
+            # not stamp the headline. KO 2026-06-22: comps_pe $53 (peer-median P/E ignores
+            # KO's quality premium — verified vs external analyst target $85 / KO fwd P/E
+            # 24.7 / our DCF $76) while DCF $76 + EV/EBITDA $90 agree and match truth. Re-
+            # anchor to the corroborated DCF cash-flow value so the headline isn't a −33%
+            # outlier. Cyclicals are EXEMPT — their DCF/PB anchor is intentional even as an
+            # outlier (peak-EPS comps are the unreliable side there).
+            if not cyclical and anchor is not None and anchor.name.startswith("comps") and len(methods) >= 3:
+                dcf = next((m for m in methods if m.name == "dcf"), None)
+                rest = [m.mid for m in methods if m is not anchor]
+                rest_span = (max(rest) / min(rest)) if rest and min(rest) > 0 else float("inf")
+                if dcf is not None and anchor.mid in (lo, hi) and rest_span <= _DIAL_CORROBORATE_SPAN:
+                    reanchored_from = anchor
+                    anchor = dcf
+            anchor_name = anchor.name if anchor else None
+            point = anchor.mid if anchor else statistics.median(mids)
+            if reanchored_from is not None:
+                note = (
+                    f"method divergence {span:.2g}x — {reanchored_from.name} ${reanchored_from.mid:.0f} is a "
+                    f"lone outlier (the other methods corroborate ≤{_DIAL_CORROBORATE_SPAN:g}x without it), so the "
+                    f"target anchors to the corroborated DCF cash-flow value ${point:.0f}; the full method range "
+                    "still bounds the band."
+                )
+            elif anchor_name:
+                note = (
+                    f"method divergence {span:.2g}x — anchored to {anchor_name} ${point:.0f} "
+                    f"(comparability: {'cyclical cash flow / book value' if cyclical else 'peer multiples'}); the remaining methods set the range bounds."
+                )
+            else:
+                note = f"method divergence {span:.2g}x; taking the median."
+        tier = "medium" if span <= _DIAL_MILD_SPAN else "low"
         if span > METHOD_CORROBORATION_SPAN_K:
             point_withheld = True
             note += (
@@ -404,8 +485,9 @@ def synthesize_valuations(
             if deviation > _OUTLIER_THRESHOLD:
                 outlier_methods.append(m.name)
                 synthesis_warnings.append(
-                    f"Method spread warning: {m.name} mid ${m.mid:.2f} deviates "
-                    f"{deviation:.0%} from median ${median_mid:.2f}"
+                    f"{_method_label(m.name)} valuation (${m.mid:,.2f}) diverges "
+                    f"{deviation:.0%} from the cross-method median (${median_mid:,.2f})"
+                    f" — wide method spread; treat the point estimate with caution."
                 )
                 logger.warning(
                     "synthesize_valuations: %s mid $%.2f deviates %.0f%% from "
@@ -638,7 +720,7 @@ def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
         # the pro-forma entity. Withhold the poisoned point and hold the verdict
         # neutral — a data-lineage degradation, NOT a directional call. The methods
         # stay visible (range/football field) for transparency.
-        method_breakdown = ", ".join(f"{m.name}=${m.mid:.2f}" for m in vs.methods)
+        method_breakdown = ", ".join(f"{_method_label(m.name)} ${m.mid:.2f}" for m in vs.methods)
         return CanonicalThesis(
             target=None,
             verdict="HOLD",
@@ -670,7 +752,7 @@ def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
         withheld = in_band or vs.valuation_withheld
         if withheld:
             target = None
-        method_breakdown = ", ".join(f"{m.name}=${m.mid:.2f}" for m in vs.methods)
+        method_breakdown = ", ".join(f"{_method_label(m.name)} ${m.mid:.2f}" for m in vs.methods)
         if in_band:
             # Price inside the fair-value band → FAIRLY VALUED. Lead with the conclusion
             # (the analyst's read), not the mechanic (point withheld): there is no margin
@@ -733,7 +815,7 @@ def resolve_canonical_thesis(vs: object, ticker: str) -> CanonicalThesis:
 
     # Build the basis from the method breakdown + the dial's anchor/range/note.
     method_breakdown = ", ".join(
-        f"{m.name}=${m.mid:.2f}(wt={m.confidence:.2f})" for m in vs.methods
+        f"{_method_label(m.name)} ${m.mid:.2f} (wt {m.confidence:.2f})" for m in vs.methods
     )
     range_txt = (
         f" Range [${vs.target_low:.2f}, ${vs.target_high:.2f}]."

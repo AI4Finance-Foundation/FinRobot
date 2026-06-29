@@ -21,6 +21,7 @@ import type { ArtifactDetail } from '../../hooks/useV5Artifacts'
 import { useI18n, type Locale } from '../../i18n'
 import { formatCurrency, formatPercent, formatDate, formatCompactNumber } from '../../utils/format'
 import { MarkdownLite } from '../../components/MarkdownLite'
+import { readerFacingComputeWarnings } from './reportData'
 
 interface CompactInputs {
   data_source?: string
@@ -273,7 +274,13 @@ export function CompactArtifactViewer({
       : structured
   const resultRows = flatten(resultSource, locale)
 
-  const warnings = [...(outputs.warnings ?? []), ...(cv?.formula_warnings ?? [])]
+  // Same reader-facing filter as the full report — drop machine-tagged audit / QA
+  // lines ([NUMERIC-AUDIT/], [CONTRACT/], [REPORT-DRIFT/]); they live in the
+  // structured payload for triage, not the analyst's caveat list.
+  const warnings = [
+    ...readerFacingComputeWarnings(outputs.warnings ?? []),
+    ...(cv?.formula_warnings ?? []),
+  ]
   const summaryText = (outputs.summary_text ?? '').trim()
 
   return (

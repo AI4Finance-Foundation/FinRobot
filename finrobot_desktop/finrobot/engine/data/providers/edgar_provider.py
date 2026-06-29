@@ -1745,11 +1745,12 @@ class EdgarToolsProvider(DataProvider):
                 continue
             if metric.get("has_calculated_q4"):
                 warnings.append(
-                    f"SEC XBRL TTM {label} ({metric.get('concept')}) includes a "
-                    "calculated Q4 (derived from FY − 9M), not a reported quarter."
+                    f"Trailing-twelve-month {label} includes a calculated Q4 "
+                    "(full year minus the first nine months), not a separately "
+                    "reported quarter."
                 )
             if metric.get("warning"):
-                warnings.append(f"SEC XBRL TTM {label}: {metric['warning']}")
+                warnings.append(f"Trailing-twelve-month {label}: {metric['warning']}")
 
         # P&L "latest" is the latest annual point — TTM is the current-period
         # caliber and lives in ``ttm_*`` above. Each latest_* now carries the

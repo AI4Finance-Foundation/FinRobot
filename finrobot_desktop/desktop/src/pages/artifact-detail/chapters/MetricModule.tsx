@@ -121,17 +121,17 @@ const clamp01 = (n: number): number => (n < 0 ? 0 : n > 1 ? 1 : n)
 
 const cellBase: CSSProperties = {
   background: 'var(--bg-card)',
-  padding: '15px 18px 16px',
+  padding: '16px 18px 17px',
   display: 'flex',
   flexDirection: 'column',
-  gap: 9,
+  gap: 10,
   minWidth: 0,
 }
 const cellKey: CSSProperties = {
   fontFamily: 'var(--font-mono)',
-  fontSize: 9,
+  fontSize: 11,
   fontWeight: 600,
-  letterSpacing: '0.1em',
+  letterSpacing: '0.08em',
   textTransform: 'uppercase',
   color: 'var(--text-muted)',
   display: 'flex',
@@ -140,13 +140,13 @@ const cellKey: CSSProperties = {
 }
 const cellAddr: CSSProperties = {
   color: 'var(--text-dim)',
-  fontSize: 8.5,
+  fontSize: 10,
   letterSpacing: '0.06em',
   fontWeight: 500,
 }
 const cellSub: CSSProperties = {
   fontFamily: 'var(--font-mono)',
-  fontSize: 9,
+  fontSize: 10.5,
   letterSpacing: '0.06em',
   color: 'var(--text-dim)',
 }
@@ -218,14 +218,14 @@ function RangeBlock({ range }: { range: RangePositioner }): React.ReactElement {
   const pct = clamp01(range.position) * 100
   const capStyle: CSSProperties = {
     fontFamily: 'var(--font-mono)',
-    fontSize: 8,
+    fontSize: 9.5,
     letterSpacing: '0.16em',
     textTransform: 'uppercase',
     color: 'var(--text-dim)',
   }
   const boundStyle: CSSProperties = {
     fontFamily: 'var(--font-mono)',
-    fontSize: 11,
+    fontSize: 12.5,
     color: 'var(--text-secondary)',
     fontVariantNumeric: 'tabular-nums',
   }
@@ -243,7 +243,7 @@ function RangeBlock({ range }: { range: RangePositioner }): React.ReactElement {
         <span
           style={{
             fontFamily: 'var(--font-mono)',
-            fontSize: 9,
+            fontSize: 10.5,
             letterSpacing: '0.2em',
             textTransform: 'uppercase',
             color: 'var(--text-muted)',
@@ -311,7 +311,7 @@ function RangeBlock({ range }: { range: RangePositioner }): React.ReactElement {
           <span
             style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: 9,
+              fontSize: 10.5,
               letterSpacing: '0.08em',
               color: 'var(--secondary)',
               alignSelf: 'center',
@@ -413,9 +413,9 @@ export function MetricModule({
           <span
             style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: 12,
+              fontSize: 13,
               fontWeight: 600,
-              letterSpacing: '0.16em',
+              letterSpacing: '0.14em',
               textTransform: 'uppercase',
               color: 'var(--text-primary)',
               whiteSpace: 'nowrap',
@@ -430,8 +430,8 @@ export function MetricModule({
           <span
             style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: 9,
-              letterSpacing: '0.16em',
+              fontSize: 10.5,
+              letterSpacing: '0.14em',
               textTransform: 'uppercase',
               color: 'var(--rail)',
               border: '1px solid var(--rail-border)',

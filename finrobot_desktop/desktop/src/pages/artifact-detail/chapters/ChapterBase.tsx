@@ -53,7 +53,7 @@ export function Chapter({
           <span
             style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: 13,
+              fontSize: 14,
               color: 'var(--secondary)',
               letterSpacing: '0.02em',
             }}
@@ -63,7 +63,7 @@ export function Chapter({
           <span
             style={{
               fontFamily: 'var(--font-display)',
-              fontSize: 23,
+              fontSize: 25,
               fontWeight: 600,
               letterSpacing: '-0.3px',
               color: 'var(--text-primary)',
@@ -76,7 +76,7 @@ export function Chapter({
           <span
             style={{
               fontFamily: 'var(--font-mono)',
-              fontSize: 9,
+              fontSize: 10.5,
               color: 'var(--text-dim)',
               letterSpacing: '0.12em',
               textTransform: 'uppercase',
@@ -109,7 +109,7 @@ export function Narrative({ children }: { children: ReactNode }): React.ReactEle
       <div
         style={{
           fontFamily: 'var(--font-mono)',
-          fontSize: 9,
+          fontSize: 10.5,
           color: 'var(--text-muted)',
           letterSpacing: '0.14em',
           marginBottom: 9,
@@ -117,7 +117,18 @@ export function Narrative({ children }: { children: ReactNode }): React.ReactEle
       >
         + AI NARRATIVE
       </div>
-      <div style={{ fontSize: 14.5, lineHeight: 1.75, color: 'var(--text-secondary)' }}>
+      {/* Reading measure cap: the report's content column runs ~1000px wide, so
+          unbounded prose reaches ~120 chars/line — a wall of text. Cap the running
+          narrative to a comfortable ~80-char measure so paragraphs read as prose,
+          not density. Data modules / charts stay full-width (they're not prose). */}
+      <div
+        style={{
+          fontSize: 15.5,
+          lineHeight: 1.85,
+          color: 'var(--text-secondary)',
+          maxWidth: '68ch',
+        }}
+      >
         {children}
       </div>
     </div>
@@ -136,7 +147,7 @@ export function SubChapter({
       <h4
         style={{
           fontFamily: 'var(--font-mono)',
-          fontSize: 12.5,
+          fontSize: 13.5,
           fontWeight: 600,
           color: 'var(--text-primary)',
           letterSpacing: '0.04em',
@@ -155,6 +166,12 @@ export const tableStyle: CSSProperties = {
   width: '100%',
   borderCollapse: 'collapse',
   fontFamily: 'var(--font-mono)',
+  // Kept at 12: the DCF forecast table packs 10 year-columns + a label column
+  // and is tuned to fit the content width exactly at this size. Bumping it tips
+  // the widest column past the column edge (forces horizontal scroll) and wraps
+  // "Free Cash Flow" onto a 3rd line — the data tables are mono for tabular
+  // alignment, not a primary "too small" offender. Readability gains come from
+  // the prose / label / bullet bumps elsewhere.
   fontSize: 12,
   margin: '12px 0',
   background: 'var(--table-surface)',

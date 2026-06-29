@@ -356,7 +356,7 @@ const tileBase: React.CSSProperties = {
 }
 const tileKey: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
-  fontSize: 9.5,
+  fontSize: 10.5,
   letterSpacing: '0.2em',
   textTransform: 'uppercase',
   color: 'var(--text-muted)',
@@ -374,7 +374,7 @@ const tileFoot: React.CSSProperties = {
   position: 'relative',
   marginTop: 12,
   fontFamily: 'var(--font-mono)',
-  fontSize: 9,
+  fontSize: 10.5,
   letterSpacing: '0.12em',
   textTransform: 'uppercase',
   color: 'var(--text-dim)',
@@ -448,7 +448,7 @@ const ppIco: React.CSSProperties = {
 }
 const ppKey: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
-  fontSize: 9,
+  fontSize: 10.5,
   letterSpacing: '0.22em',
   textTransform: 'uppercase',
   color: 'var(--text-dim)',
@@ -558,7 +558,7 @@ export function CompanySnapshot({
             padding: '11px 22px 10px',
             borderBottom: '1px solid var(--border-grid)',
             fontFamily: 'var(--font-mono)',
-            fontSize: 9,
+            fontSize: 10.5,
             letterSpacing: '0.22em',
             textTransform: 'uppercase',
             color: 'var(--text-dim)',

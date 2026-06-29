@@ -141,3 +141,65 @@ class TestNegativeAmounts:
         # value stays positive-only and matches the positive leaf.
         drift = detect_report_drift("(see $5.00B above for detail)", {5_000_000_000.0})
         assert drift.unmatched_count == 0
+
+
+class TestSpelledOutMagnitudes:
+    """The deterministic ``format_summary`` narrative prints magnitudes as WORDS
+    ("$451.442 Billion USD"), not single-letter suffixes. The detector must scale
+    the word forms exactly like B/M/T, else every spelled-out figure (= nearly
+    every line of a DCF/DDM narrative) is parsed at 1e9-too-small and flagged as
+    drift against the absolute leaf — the systematic false positive that flooded
+    49/50 live artifacts (DDM/DCF up to 80% unmatched) with a real number behind
+    every flag."""
+
+    def test_billion_word_scales_and_matches(self):
+        # The exact AAPL live shape: "$451.442 Billion USD (TTM)" vs leaf 451.442e9.
+        drift = detect_report_drift(
+            "Revenue: $451.442 Billion USD (TTM)", {451_442_000_000.0}
+        )
+        assert drift.total_dollar_amounts == 1
+        assert drift.unmatched_count == 0
+
+    def test_trillion_word_scales_and_matches(self):
+        # Market cap "$4.041 Trillion USD" vs a 1%-near leaf (price×shares).
+        drift = detect_report_drift(
+            "Market Capitalization: $4.041 Trillion USD", {4_057_430_003_400.0}
+        )
+        assert drift.unmatched_count == 0
+
+    def test_million_and_thousand_words_scale(self):
+        drift = detect_report_drift(
+            "D&A of $12.61 Million and a $250 Thousand one-off.",
+            {12_610_000.0, 250_000.0},
+        )
+        assert drift.unmatched_count == 0
+
+    def test_lowercase_word_and_letter_forms(self):
+        # LLM prose freely mixes "$391b", "USD 391 billion", "$96,995 mn".
+        drift = detect_report_drift(
+            "rev $391b, or USD 391 billion; ebitda $96,995 mn.",
+            {391_000_000_000.0, 96_995_000_000.0},
+        )
+        assert drift.unmatched_count == 0
+
+    def test_bn_tn_abbreviations_scale(self):
+        drift = detect_report_drift(
+            "debt $84.711bn, cap $4.04tn.", {84_711_000_000.0, 4_040_000_000_000.0}
+        )
+        assert drift.unmatched_count == 0
+
+    def test_word_magnitude_still_flags_genuine_drift(self):
+        # The fix scales the unit — it must NOT mask a real contradiction: a
+        # fabricated "$500 Billion" with no leaf near 5e11 still flags.
+        drift = detect_report_drift(
+            "We model revenue reaching $500 Billion next year.", {451_442_000_000.0}
+        )
+        assert drift.unmatched_count == 1
+        assert drift.unmatched[0].value == 500_000_000_000.0
+
+    def test_negative_billion_word_round_trips(self):
+        # Sign-aware parsing composes with word suffixes (net-cash net debt).
+        drift = detect_report_drift(
+            "net debt of -$17.93 Billion (net cash).", {-17_930_000_000.0}
+        )
+        assert drift.unmatched_count == 0

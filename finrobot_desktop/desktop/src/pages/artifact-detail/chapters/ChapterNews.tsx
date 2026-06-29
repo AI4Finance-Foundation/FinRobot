@@ -19,6 +19,7 @@ import type { CatalystAnalysisShape, CatalystEventShape, ThesisShape } from './t
 import { useI18n, type Locale } from '../../../i18n'
 import { formatSourceDate } from '../../../utils/format'
 import { ImpactMeter } from '../../../components/ImpactMeter'
+import { MarkdownLite } from '../../../components/MarkdownLite'
 
 interface ChapterNewsProps {
   thesis: ThesisShape | null
@@ -34,7 +35,7 @@ export function ChapterNews({ thesis, catalysts }: ChapterNewsProps): React.Reac
     <Chapter id="news">
       {summary ? (
         <Narrative>
-          <p>{summary}</p>
+          <MarkdownLite text={summary} />
         </Narrative>
       ) : (
         <p style={mutedNote}>{t('chapter.news.empty')}</p>

@@ -871,7 +871,7 @@ async def test_thesis_overrides_llm_target_with_valuation_synthesis(mock_deps):
     vs = ValuationSynthesis(
         methods=[
             ValuationMethod(
-                name="DCF",
+                name="dcf",
                 low=20.0,
                 mid=25.37,
                 high=30.4,
@@ -879,7 +879,7 @@ async def test_thesis_overrides_llm_target_with_valuation_synthesis(mock_deps):
                 source="DCF model",
             ),
             ValuationMethod(
-                name="EV/EBITDA Comps",
+                name="ev_ebitda",
                 low=49.3,
                 mid=57.96,
                 high=66.7,
@@ -914,8 +914,10 @@ async def test_thesis_overrides_llm_target_with_valuation_synthesis(mock_deps):
     )
     # And the basis must cite the synthesis, not the rogue LLM justification.
     assert "weighted" in output.structured.price_target_basis.lower()
+    # Canonical method ids render as human-readable labels (_method_label), the same
+    # labels the football field shows — not the raw snake_case keys.
     assert "DCF" in output.structured.price_target_basis
-    assert "EV/EBITDA Comps" in output.structured.price_target_basis
+    assert "EV/EBITDA" in output.structured.price_target_basis
 
     # And the prompt should have carried the canonical number to the LLM.
     actual_prompt = mock_agent_instance.run.call_args[0][0]

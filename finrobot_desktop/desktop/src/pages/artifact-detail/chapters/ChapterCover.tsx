@@ -8,8 +8,10 @@ import { ReverseDcfHeadline } from './ReverseDcfHeadline'
 import { ConfidenceChip } from '../../../components/ConfidenceChip'
 import { TargetRange } from '../../../components/TargetRange'
 import { verdictLabel, verdictTone, normalizeConfidence } from '../../../utils/verdict'
-import { formatDate } from '../../../utils/format'
+import { formatCurrency, formatDate } from '../../../utils/format'
+import { METHOD_LABEL } from '../../../components/charts/FootballField'
 import { useI18n } from '../../../i18n'
+import type { Locale } from '../../../i18n'
 
 interface ChapterCoverProps {
   ticker: string
@@ -40,6 +42,13 @@ interface ChapterCoverProps {
   targetLow?: number | null
   targetHigh?: number | null
   anchorMethod?: string | null
+  /** Valuation methods (valuation_synthesis.methods) — drives the readable
+   * price-target-basis readout that replaces the raw dev string on the cover.
+   * Empty/legacy → the readout falls back to the verbatim basis string. */
+  methods?: ValuationMethodShape[]
+  /** Method names the engine flagged as cross-method outliers (>30% from the
+   * median). Consumed verbatim — the cover NEVER recomputes dispersion. */
+  outlierMethods?: string[]
 }
 
 export function ChapterCover({
@@ -60,6 +69,8 @@ export function ChapterCover({
   targetLow = null,
   targetHigh = null,
   anchorMethod = null,
+  methods = [],
+  outlierMethods = [],
 }: ChapterCoverProps): React.ReactElement {
   const { locale, t } = useI18n()
   const verdict = (thesis?.recommendation ?? '').toUpperCase()
@@ -88,7 +99,7 @@ export function ChapterCover({
           justifyContent: 'space-between',
           alignItems: 'center',
           fontFamily: 'var(--font-mono)',
-          fontSize: 9.5,
+          fontSize: 10.5,
           color: 'var(--text-muted)',
           letterSpacing: '0.22em',
           textTransform: 'uppercase',
@@ -178,33 +189,51 @@ export function ChapterCover({
           footer (where it sat beside the version string) to a labelled line right
           under the target hero — the provenance of the headline number is a
           first-class citizen, not a footnote. */}
-      {thesis?.price_target_basis && (
-        <div style={{ marginTop: 16, maxWidth: 760 }}>
-          <div
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 9.5,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: 'var(--text-muted)',
-              marginBottom: 5,
-            }}
-          >
-            {locale === 'en' ? 'Price Target Basis' : '目标定价依据'}
+      {thesis?.price_target_basis &&
+        (target !== null && !targetWithheld && methods.length > 0 ? (
+          // Normal case: render a clean, scannable readout from the structured
+          // methods — the raw `price_target_basis` dev string ("dcf=$189(wt=0.85),
+          // …→$210. Range […]") reads as developer-ese on the cover. The verbatim
+          // string still serves the LLM prompt / contract / non-normal fallback.
+          <PriceTargetReadout
+            methods={methods}
+            outlierMethods={outlierMethods}
+            target={target}
+            low={targetLow}
+            high={targetHigh}
+            currentPrice={currentPrice}
+            quoteCurrency={quoteCurrency}
+            locale={locale}
+          />
+        ) : (
+          // Withheld / fairly-valued / legacy: keep the verbatim basis — it carries
+          // the carefully-worded edge-case reasoning the readout can't reconstruct.
+          <div style={{ marginTop: 16, maxWidth: 760 }}>
+            <div
+              style={{
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10.5,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: 'var(--text-muted)',
+                marginBottom: 5,
+              }}
+            >
+              {locale === 'en' ? 'Price Target Basis' : '目标定价依据'}
+            </div>
+            <p
+              style={{
+                margin: 0,
+                fontFamily: 'var(--font-body)',
+                fontSize: 12.5,
+                lineHeight: 1.6,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              {thesis.price_target_basis}
+            </p>
           </div>
-          <p
-            style={{
-              margin: 0,
-              fontFamily: 'var(--font-body)',
-              fontSize: 12.5,
-              lineHeight: 1.6,
-              color: 'var(--text-secondary)',
-            }}
-          >
-            {thesis.price_target_basis}
-          </p>
-        </div>
-      )}
+        ))}
 
       {targetWithheld && withheldReason && (
         <a
@@ -275,23 +304,192 @@ export function ChapterCover({
         )}
         {computeVersion && <> · {computeVersion}</>}
       </div>
+    </section>
+  )
+}
 
-      {thesis?.tagline && (
-        <p
+// Readable replacement for the raw `price_target_basis` dev string on the cover.
+// Renders the SAME provenance an analyst wants — which methods, what each says,
+// the blend, the range, and where the live price sits relative to it — but as a
+// scannable readout instead of "dcf=$189(wt=0.85), …→$210. Range […]". Pure
+// presentation: every number is passed in pre-computed (methods / target / band /
+// outlier flags come straight from valuation_synthesis), nothing is recomputed or
+// fabricated. Full method weights / ranges / football field live in the Valuation
+// chapter (deep-linked), so the cover shows the gist, not the spreadsheet.
+function PriceTargetReadout({
+  methods,
+  outlierMethods,
+  target,
+  low,
+  high,
+  currentPrice,
+  quoteCurrency,
+  locale,
+}: {
+  methods: ValuationMethodShape[]
+  outlierMethods: string[]
+  target: number
+  low: number | null
+  high: number | null
+  currentPrice: number | null
+  quoteCurrency: string
+  locale: Locale
+}): React.ReactElement {
+  const en = locale === 'en'
+  const cur = (n: number): string => formatCurrency(n, quoteCurrency, locale, 0)
+  // Ascending by mid so dispersion reads left→right — a tight cluster then any
+  // high outlier sits visibly at the end.
+  const sorted = [...methods].sort((a, b) => a.mid - b.mid)
+  const outlierSet = new Set(outlierMethods)
+
+  // Honest live-vs-range position — the gap IS the signal. Deterministic from the
+  // numbers (no judgement, no fabrication): above the whole band = no margin of
+  // safety (bearish/red), below = margin of safety (green), inside = neutral.
+  let position: { text: string; tone: string } | null = null
+  if (currentPrice !== null && low !== null && high !== null) {
+    if (currentPrice > high) {
+      position = {
+        text: en
+          ? `Live ${cur(currentPrice)} sits above the entire range — no margin of safety`
+          : `现价 ${cur(currentPrice)} 高于整个区间上沿,无安全边际`,
+        tone: 'var(--danger)',
+      }
+    } else if (currentPrice < low) {
+      position = {
+        text: en
+          ? `Live ${cur(currentPrice)} sits below the entire range — margin of safety`
+          : `现价 ${cur(currentPrice)} 低于整个区间下沿,有安全边际`,
+        tone: 'var(--success)',
+      }
+    } else {
+      position = {
+        text: en
+          ? `Live ${cur(currentPrice)} sits within the range`
+          : `现价 ${cur(currentPrice)} 落在区间内`,
+        tone: 'var(--text-muted)',
+      }
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 16, maxWidth: 760 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'space-between',
+          gap: 12,
+          marginBottom: 8,
+        }}
+      >
+        <span
           style={{
-            marginTop: 18,
-            marginBottom: 0,
-            fontFamily: 'var(--font-body)',
-            fontSize: 14.5,
-            fontStyle: 'italic',
-            color: 'var(--text-secondary)',
-            lineHeight: 1.6,
-            maxWidth: 720,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10.5,
+            letterSpacing: '0.18em',
+            textTransform: 'uppercase',
+            color: 'var(--text-muted)',
           }}
         >
-          "{thesis.tagline}"
-        </p>
+          {en ? 'Price Target Basis' : '目标定价依据'}
+        </span>
+        <a
+          href="#valuation"
+          style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: 10,
+            letterSpacing: '0.08em',
+            color: 'var(--primary)',
+            textDecoration: 'none',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+          }}
+        >
+          {en ? 'Full valuation ↓' : '详见估值章 ↓'}
+        </a>
+      </div>
+
+      {/* method values — mono, dispersion visible; the engine-flagged outlier is
+          dimmed + tagged (read from outlier_methods, never recomputed here) */}
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'baseline',
+          gap: '4px 14px',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 13.5,
+        }}
+      >
+        {sorted.map((m) => {
+          const isOutlier = outlierSet.has(m.name)
+          return (
+            <span key={m.name} style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6 }}>
+              <span style={{ color: 'var(--text-muted)' }}>
+                {METHOD_LABEL[m.name] ?? m.name.toUpperCase()}
+              </span>
+              <span
+                style={{
+                  color: isOutlier ? 'var(--text-dim)' : 'var(--text-primary)',
+                  fontWeight: 500,
+                }}
+              >
+                {cur(m.mid)}
+              </span>
+              {isOutlier && (
+                <span
+                  style={{
+                    fontSize: 9.5,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: 'var(--warning)',
+                  }}
+                >
+                  {en ? 'outlier' : '离群'}
+                </span>
+              )}
+            </span>
+          )
+        })}
+      </div>
+
+      <div
+        style={{
+          marginTop: 8,
+          fontFamily: 'var(--font-mono)',
+          fontSize: 12.5,
+          color: 'var(--text-muted)',
+        }}
+        title={
+          en
+            ? 'Weights = data quality, not prediction accuracy'
+            : '权重 = 各方法数据质量,非预测准确度'
+        }
+      >
+        {en ? 'Data-quality weighted' : '按数据质量加权'}
+        {' → '}
+        <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+          {en ? 'Target' : '目标'} {cur(target)}
+        </span>
+        {low !== null && high !== null && (
+          <span style={{ color: 'var(--text-dim)' }}>
+            {`  ·  ${en ? 'Range' : '区间'} ${cur(low)}–${cur(high)}`}
+          </span>
+        )}
+      </div>
+
+      {position && (
+        <div
+          style={{
+            marginTop: 6,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 12,
+            color: position.tone,
+          }}
+        >
+          {position.text}
+        </div>
       )}
-    </section>
+    </div>
   )
 }

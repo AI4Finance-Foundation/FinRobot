@@ -17,18 +17,18 @@ export function BulletList({ items, tone }: BulletListProps): React.ReactElement
         ? 'var(--danger)'
         : 'var(--warning)'
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {items.map((item, i) => (
         <div
           key={`${tone}-${i}-${item.slice(0, 24)}`}
           style={{
-            padding: '10px 14px',
+            padding: '12px 16px',
             background: 'var(--bg-card-50)',
             borderLeft: `2px solid ${border}`,
             borderRadius: '0 var(--radius-sm) var(--radius-sm) 0',
-            fontSize: 12.5,
+            fontSize: 14,
             color: 'var(--text-secondary)',
-            lineHeight: 1.55,
+            lineHeight: 1.7,
           }}
         >
           {item}

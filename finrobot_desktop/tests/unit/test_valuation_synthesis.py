@@ -88,9 +88,25 @@ class TestSynthesizeValuations:
         assert "Comps" in result.outlier_methods
         # Exactly the two soft per-method spread warnings — no UNRELIABLE banner.
         assert len(result.warnings) == 2
+        # Warnings carry the human method LABEL (_method_label), never a raw id:
+        # "DCF"/"Comps" are not canonical keys → upper-cased fallback.
         assert any("DCF" in w and "$86.00" in w for w in result.warnings)
-        assert any("Comps" in w and "$221.00" in w for w in result.warnings)
+        assert any("COMPS" in w and "$221.00" in w for w in result.warnings)
         assert not any("UNRELIABLE" in w for w in result.warnings)
+
+    def test_spread_warning_uses_method_label_not_snake_case(self):
+        """The reader-facing spread warning must humanise the method id: a
+        canonical key like ``ev_ebitda`` renders "EV/EBITDA", never the raw
+        snake_case token (it surfaces in the report's compute-warnings list)."""
+        methods = [
+            ValuationMethod(name="dcf", low=70, mid=86, high=100, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="ev_ebitda", low=190, mid=221, high=260, confidence=0.5, source="Comps"
+            ),
+        ]
+        result = synthesize_valuations(methods, current_price=180.0)
+        assert any("EV/EBITDA" in w for w in result.warnings)
+        assert not any("ev_ebitda" in w for w in result.warnings)
 
     def test_outlier_flagged_dcf_only(self):
         """When only one method is the outlier, only that one appears in outlier_methods.
@@ -112,7 +128,7 @@ class TestSynthesizeValuations:
         assert result.outlier_methods == ["LBO"]
         # Just the one soft per-method spread warning — no UNRELIABLE banner.
         assert len(result.warnings) == 1
-        assert any("LBO" in w and "deviates" in w for w in result.warnings)
+        assert any("LBO" in w and "diverges" in w for w in result.warnings)
         assert not any("UNRELIABLE" in w for w in result.warnings)
 
     def test_single_method_no_outlier_check(self):
@@ -244,6 +260,68 @@ class TestSynthesizeValuations:
         ]
         result = synthesize_valuations(methods, current_price=50.0, cyclical=True)
         assert result.anchor_method == "dcf"  # cyclical → DCF anchor regardless of comps corroboration
+
+    def test_bimodal_lone_outlier_within_span_not_blended_aapl_2026_06_29(self):
+        """AAPL v9: comps_pe $182.97 + dcf $189.27 cluster at ~$185 while ev_ebitda
+        $266.01 sits +41% off the $189.27 median. max/min span = 266/183 = 1.45 ≤ 1.5,
+        so the two-POINT span wrongly read the set as CORROBORATED and blended all three
+        into a false-precise HIGH-confidence $210.46 — the §2 bug (the median-deviation
+        gate flagged ev_ebitda an outlier while the headline priced it in). The bimodal
+        guard now routes it to divergent: confidence MEDIUM (not high), anchored to the
+        corroborated DCF cash-flow value $189.27 (not the blend), point SHOWN, the full
+        range still bounds the band, ev_ebitda still flagged. Verdict stays HOLD —
+        verdict-INVARIANT (−31.2% vs the medium −35% sell band). GOOGL at span 1.56 (same
+        shape, one tick over the 1.5x cliff) already routes divergent; this makes the two
+        consistent. NON-cyclical only (the cyclical DCF anchor is owned above)."""
+        methods = [
+            ValuationMethod(
+                name="dcf", low=151.42, mid=189.27, high=227.13, confidence=0.85, source="D"
+            ),
+            ValuationMethod(
+                name="comps_pe", low=164.67, mid=182.97, high=201.27, confidence=0.80, source="PE"
+            ),
+            ValuationMethod(
+                name="ev_ebitda", low=239.4, mid=266.01, high=292.6, confidence=0.72, source="EV"
+            ),
+        ]
+        result = synthesize_valuations(methods, current_price=275.15)
+        # The core fix: NOT corroborated-high, NOT a three-way blend.
+        assert result.confidence == "medium"
+        assert result.anchor_method == "dcf"
+        assert result.valuation_withheld is False  # span 1.45 < 2x → point still publishable
+        # Anchored to the cluster's DCF cash-flow value, never the $210 blend.
+        canonical = resolve_canonical_thesis(result, "AAPL")
+        assert canonical.target == pytest.approx(189.27, abs=0.01)
+        assert canonical.verdict == "HOLD"  # verdict-invariant — the boss-signed property
+        # The headline and the flagged outlier no longer disagree: ev_ebitda is the
+        # outlier in BOTH outlier_methods AND the basis note (the bug was the blend
+        # naming ev_ebitda an outlier while pricing it into the headline).
+        assert result.outlier_methods == ["ev_ebitda"]
+        assert "EV/EBITDA" in (result.degradation_note or "")
+        assert "comps_pe" not in (result.degradation_note or "")  # not misnamed as the outlier
+        # The full method range still bounds the band (outlier stays visible).
+        assert result.target_low == pytest.approx(182.97, abs=0.01)
+        assert result.target_high == pytest.approx(266.01, abs=0.01)
+
+    def test_genuinely_corroborated_trio_still_blends_high_msft(self):
+        """Guard the bimodal fix does NOT over-fire: a trio where ALL three sit within
+        30% of the median is genuinely corroborated and must still blend high (no anchor).
+        MSFT-shape: dcf $517 + ev_ebitda $545 + comps_pe $615, median $545, every method
+        ≤ 13% off it → no median-outlier → not bimodal → corroborated-high blend, exactly
+        as before the fix (the fix only fires on a true tight-cluster-plus-lone-outlier)."""
+        methods = [
+            ValuationMethod(name="dcf", low=465, mid=517.0, high=569, confidence=0.85, source="D"),
+            ValuationMethod(
+                name="ev_ebitda", low=490, mid=545.0, high=600, confidence=0.72, source="EV"
+            ),
+            ValuationMethod(
+                name="comps_pe", low=554, mid=615.0, high=677, confidence=0.80, source="PE"
+            ),
+        ]
+        result = synthesize_valuations(methods, current_price=390.0)
+        assert result.confidence == "high"
+        assert result.anchor_method is None  # blended, not anchored
+        assert result.outlier_methods == []  # nothing > 30% off the median
 
     def test_upside_downside_equals_canonical_upside_every_regime(self):
         """Mechanical gate covering EVERY regime so the stored upside_downside can't
@@ -961,8 +1039,9 @@ class TestMnaTransitionGate:
         assert thesis.target is None
         assert thesis.upside is None
         assert thesis.valuation_withheld is True
-        # methods still surfaced for transparency
-        assert "comps_pe" in (thesis.basis or "") and "ddm" in (thesis.basis or "")
+        # methods still surfaced for transparency — as human-readable labels
+        # (_method_label), the same labels the football field shows.
+        assert "Comps (P/E)" in (thesis.basis or "") and "DDM" in (thesis.basis or "")
 
     def test_same_methods_without_flag_ship_the_bearish_call(self):
         """Variable isolation: the ONLY thing the flag changes is the gate. Without

@@ -5,8 +5,13 @@ When constructing a thesis:
 - State a clear investment recommendation. It is ALWAYS directional: BUY, HOLD,
   or SELL — never withhold the judgment. (There is no "REVIEW" / "under review"
   rating; refusing to call is not an option.)
-- Identify 3-5 key catalysts (upside drivers)
-- Identify 3-5 key risks (downside scenarios)
+- Identify 3-5 key catalysts — UPSIDE drivers ONLY (reasons the stock could rise).
+  NEVER place a downside item in catalysts: investigations, lawsuits, antitrust
+  probes, regulatory penalties, margin pressure, demand/backlash concerns and the
+  like are RISKS, not catalysts. They render under a green "Bull Case" heading, so
+  a bearish item there reads as a contradiction. If an item could hurt the stock,
+  it belongs in `risks`.
+- Identify 3-5 key risks — DOWNSIDE scenarios ONLY (reasons the stock could fall).
 - Articulate what the market is missing or mispricing
 - Reference specific data points from earlier analysis (don't hallucinate new ones)
 - Provide a price target with timeframe and methodology basis — UNLESS it must be

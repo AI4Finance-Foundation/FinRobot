@@ -247,7 +247,7 @@ export function ChapterAuditBanner({
                 <span
                   style={{
                     fontFamily: 'var(--font-mono)',
-                    fontSize: 9.5,
+                    fontSize: 10.5,
                     letterSpacing: '0.08em',
                     textTransform: 'uppercase',
                     color: severityTone(f.severity),

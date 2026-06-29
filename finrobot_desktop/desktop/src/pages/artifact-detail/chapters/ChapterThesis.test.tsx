@@ -65,7 +65,8 @@ describe('ChapterThesis — argument only, no cover-duplicating header', () => {
         thesis={thesis({
           recommendation: 'SELL',
           price_target: 214,
-          price_target_basis: 'method-weighted blend: dcf=$189, comps_pe=$193, ev_ebitda=$265',
+          price_target_basis:
+            'method-weighted blend: DCF $189 (wt 0.85), Comps (P/E) $193 (wt 0.80), EV/EBITDA $265 (wt 0.72)',
           narrative: 'Elevated valuation offers limited upside.',
         })}
         valuationSynthesis={null}

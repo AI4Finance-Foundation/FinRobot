@@ -19,6 +19,7 @@
 import type { NumberSource } from '../../../components/SourcedNumber'
 import type { HistoricalMetrics } from '../../../types/finance'
 import { Chapter, Narrative } from './ChapterBase'
+import { MarkdownLite } from '../../../components/MarkdownLite'
 import { CompanySnapshot, type SnapshotIdentity, type SnapshotMetric } from './CompanySnapshot'
 import type { ThesisShape } from './types'
 import { formatCurrencyCompact, formatNumber, formatPercent } from '../../../utils/format'
@@ -185,7 +186,7 @@ export function ChapterCompanyOverview({
 
       {overview ? (
         <Narrative>
-          <p>{overview}</p>
+          <MarkdownLite text={overview} />
         </Narrative>
       ) : (
         // Empty-state is unchanged — the snapshot strip is purely additive above

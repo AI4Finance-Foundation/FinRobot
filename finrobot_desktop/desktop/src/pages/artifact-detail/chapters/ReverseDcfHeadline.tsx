@@ -189,7 +189,7 @@ function CoverMetric({
       <div
         style={{
           fontFamily: 'var(--font-mono)',
-          fontSize: 9,
+          fontSize: 10.5,
           fontWeight: 600,
           letterSpacing: '0.1em',
           textTransform: 'uppercase',
@@ -302,7 +302,7 @@ function ValueBar({
           display: 'flex',
           justifyContent: 'space-between',
           fontFamily: 'var(--font-mono)',
-          fontSize: 9.5,
+          fontSize: 10.5,
           color: 'var(--text-dim)',
           fontVariantNumeric: 'tabular-nums',
         }}

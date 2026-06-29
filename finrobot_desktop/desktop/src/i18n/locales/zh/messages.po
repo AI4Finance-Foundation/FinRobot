@@ -170,19 +170,19 @@ msgstr "卖出"
 
 #. js-lingui-explicit-id
 msgid "confidence.high"
-msgstr "高置信"
+msgstr "数据质量 · 高"
 
 #. js-lingui-explicit-id
 msgid "confidence.medium"
-msgstr "中置信"
+msgstr "数据质量 · 中"
 
 #. js-lingui-explicit-id
 msgid "confidence.low"
-msgstr "低置信"
+msgstr "数据质量 · 低"
 
 #. js-lingui-explicit-id
 msgid "confidence.veryLow"
-msgstr "投机性"
+msgstr "数据质量 · 稀疏"
 
 #. js-lingui-explicit-id
 msgid "targetRange.label"

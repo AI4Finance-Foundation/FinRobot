@@ -108,7 +108,8 @@ describe('ChapterCover — withheld-target self-explanation', () => {
         thesis={thesis({
           recommendation: 'BUY',
           price_target: 130,
-          price_target_basis: 'method-weighted blend: dcf=$189, comps_pe=$193, ev_ebitda=$265',
+          price_target_basis:
+            'method-weighted blend: DCF $189 (wt 0.85), Comps (P/E) $193 (wt 0.80), EV/EBITDA $265 (wt 0.72)',
         })}
         withheldReason={null}
         confidence="high"
@@ -121,7 +122,7 @@ describe('ChapterCover — withheld-target self-explanation', () => {
     // Promoted to a first-class labelled line — no longer a 10px mono footer suffix
     // jammed beside the compute version.
     expect(screen.getByText('Price Target Basis')).toBeInTheDocument()
-    expect(screen.getByText(/method-weighted blend: dcf=\$189/)).toBeInTheDocument()
+    expect(screen.getByText(/method-weighted blend: DCF \$189/)).toBeInTheDocument()
   })
 
   it('maps a legacy REVIEW recommendation to a neutral WITHHELD badge, never the word REVIEW', () => {

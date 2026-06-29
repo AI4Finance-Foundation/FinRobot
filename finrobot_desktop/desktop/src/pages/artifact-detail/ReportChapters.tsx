@@ -10,7 +10,11 @@
 import type { ArtifactDetail } from '../../hooks/useV5Artifacts'
 import type { ArtifactSummaryV5 } from '../../types/v5'
 import { useI18n } from '../../i18n'
-import { deriveReportData, parseSurfacedContractFindings } from './reportData'
+import {
+  deriveReportData,
+  parseSurfacedContractFindings,
+  readerFacingComputeWarnings,
+} from './reportData'
 import {
   ChapterAuditBanner,
   ChapterCover,
@@ -43,13 +47,13 @@ export function ReportChapters({
 
   // The numeric-audit findings are mirrored into outputs.warnings with a
   // "[NUMERIC-AUDIT/…]" prefix (artifact/builders.py); the output contract adds
-  // "[CONTRACT/Cn] …" evidence the same way (artifact/contract.py). Both render
-  // richly in the audit banner, so strip them from the generic compute-warnings
-  // list at the bottom — otherwise every finding shows twice.
+  // "[CONTRACT/Cn] …" evidence the same way (artifact/contract.py); report-drift
+  // adds "[REPORT-DRIFT/review] …" (a pre-publish QA flag). None belong in the
+  // reader-facing compute-warnings list — the first two render richly in the audit
+  // banner, the last is a builder-only signal. Single source of truth in reportData
+  // so the compact viewer agrees (readerFacingComputeWarnings).
   const allWarnings = d.outputs.warnings ?? []
-  const computeWarnings = allWarnings.filter(
-    (w) => !w.startsWith('[NUMERIC-AUDIT/') && !w.startsWith('[CONTRACT/'),
-  )
+  const computeWarnings = readerFacingComputeWarnings(allWarnings)
   // Analyst-facing hard-clause contract evidence ("[CONTRACT/C1] …"). Internal
   // invariants (C7's no-resurrection scrub) and the "/note" / "/withheld" variants
   // are excluded — only per-clause analyst-facing evidence drives the cover withhold
@@ -111,6 +115,10 @@ export function ReportChapters({
         targetLow={d.valuationSynthesis?.target_low ?? null}
         targetHigh={d.valuationSynthesis?.target_high ?? null}
         anchorMethod={d.valuationSynthesis?.anchor_method ?? null}
+        // Structured methods + engine-flagged outliers → the readable
+        // price-target-basis readout (replaces the raw dev string on the cover).
+        methods={d.valuationSynthesis?.methods ?? []}
+        outlierMethods={d.valuationSynthesis?.outlier_methods ?? []}
       />
       {/* Rating / target / conviction / band live ONCE on the cover above — the
           thesis chapter is the full ARGUMENT: narrative + takeaways → bull/bear

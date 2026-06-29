@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest'
 
-import { parseSurfacedContractFindings } from './reportData'
+import { parseSurfacedContractFindings, readerFacingComputeWarnings } from './reportData'
 
 describe('parseSurfacedContractFindings', () => {
   it('parses analyst-facing hard-clause findings (clause id + evidence)', () => {
@@ -57,5 +57,33 @@ describe('parseSurfacedContractFindings', () => {
       '[CONTRACT/C1] headline 2172 outside band',
     ])
     expect(out).toEqual([{ clause: 'C1', evidence: 'headline 2172 outside band' }])
+  })
+})
+
+describe('readerFacingComputeWarnings', () => {
+  it('keeps analyst-facing compute caveats verbatim', () => {
+    const reader = [
+      'Forward P/E based on 4 of 5 peers — 1 without USD-denominated analyst consensus',
+      'EV/EBITDA valuation ($266.01) diverges 41% from the cross-method median ($189.27)',
+      'Trailing-twelve-month revenue includes a calculated Q4 (full year minus the first nine months), not a separately reported quarter.',
+    ]
+    expect(readerFacingComputeWarnings(reader)).toEqual(reader)
+  })
+
+  it('drops every machine-tagged audit / pre-publish QA line', () => {
+    const out = readerFacingComputeWarnings([
+      'Forward P/E based on 4 of 5 peers',
+      '[NUMERIC-AUDIT/ev_ebitda] enterprise_value=284630945210.52',
+      '[CONTRACT/C1] headline 2172 outside band',
+      '[REPORT-DRIFT/review] 6/36 narrative $-amounts match no computed value ($4.04) — verify the narrative before publishing',
+    ])
+    expect(out).toEqual(['Forward P/E based on 4 of 5 peers'])
+  })
+
+  it('never leaks "verify the narrative before publishing" to the reader', () => {
+    const out = readerFacingComputeWarnings([
+      '[REPORT-DRIFT/review] 2/27 narrative $-amounts match no computed value — verify the narrative before publishing',
+    ])
+    expect(out).toEqual([])
   })
 })

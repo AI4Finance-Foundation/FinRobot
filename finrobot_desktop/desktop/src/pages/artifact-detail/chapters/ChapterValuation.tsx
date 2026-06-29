@@ -2,6 +2,7 @@ import FootballField from '../../../components/charts/FootballField'
 import WaterfallChart from '../../../components/charts/WaterfallChart'
 import { useI18n } from '../../../i18n'
 import { TermTip } from '../../../components/TermTip'
+import { MarkdownLite } from '../../../components/MarkdownLite'
 import { formatCurrency, formatCurrencyCompact } from '../../../utils/format'
 import { Chapter, Narrative, SubChapter } from './ChapterBase'
 import { MetricModule, type MetricCell } from './MetricModule'
@@ -327,7 +328,7 @@ export function ChapterValuation({
 
       {overview && (
         <Narrative>
-          <p>{overview}</p>
+          <MarkdownLite text={overview} />
         </Narrative>
       )}
 
@@ -619,7 +620,7 @@ function SOTPBreakdownPanel({
               <tr key={s.name} style={{ borderTop: '1px solid var(--border-grid)' }}>
                 <td style={{ padding: '4px 8px', color: 'var(--text-primary)' }}>
                   {s.name}
-                  <span style={{ display: 'block', color: 'var(--text-dim)', fontSize: 9.5 }}>
+                  <span style={{ display: 'block', color: 'var(--text-dim)', fontSize: 10.5 }}>
                     {s.multiple_source}
                   </span>
                 </td>

@@ -11,6 +11,7 @@
 // never a second fetch — so the summary here can't disagree with the full chart.
 
 import { Chapter, Narrative } from './ChapterBase'
+import { MarkdownLite } from '../../../components/MarkdownLite'
 import { BulletList } from './BulletList'
 import { ReverseDcfHeadline } from './ReverseDcfHeadline'
 import { METHOD_LABEL, compsPeLabel } from '../../../components/charts/FootballField'
@@ -69,17 +70,17 @@ export function ChapterThesis({
 
   return (
     <Chapter id="thesis">
+      {/* The opening summary is LLM prose: it sometimes ships markdown (**bold**,
+          section labels) and \n\n paragraph breaks. A bare <p> literalises the
+          markers (raw "**" leaks) and collapses the breaks into one dense wall —
+          so render through MarkdownLite (parses emphasis, keeps paragraphs) inside
+          the same editorial Narrative frame every other chapter's prose uses
+          (14.5px + "+ AI NARRATIVE" provenance kicker, the LLM-vs-deterministic
+          boundary). */}
       {narrative && (
-        <p
-          style={{
-            fontSize: 13.5,
-            lineHeight: 1.75,
-            color: 'var(--text-secondary)',
-            marginBottom: 14,
-          }}
-        >
-          {narrative}
-        </p>
+        <Narrative>
+          <MarkdownLite text={narrative} />
+        </Narrative>
       )}
 
       {takeaways.length > 0 && (
@@ -101,7 +102,7 @@ export function ChapterThesis({
                 style={{
                   position: 'relative',
                   paddingLeft: 28,
-                  fontSize: 13.5,
+                  fontSize: 14,
                   color: 'var(--text-secondary)',
                   lineHeight: 1.65,
                 }}
@@ -292,7 +293,7 @@ function bridgeRow(isAnchor: boolean): React.CSSProperties {
 
 const anchorBadge: React.CSSProperties = {
   fontFamily: 'var(--font-mono)',
-  fontSize: 8.5,
+  fontSize: 10,
   letterSpacing: '0.12em',
   textTransform: 'uppercase',
   color: 'var(--primary)',

@@ -589,8 +589,10 @@ export function ChapterFinancialData({
           </p>
         )}
 
-      {/* Developer-only raw JSON, collapsed by default */}
-      {Object.keys(data).length > 0 && (
+      {/* Developer-only raw JSON snapshot — gated to dev builds (import.meta.env.DEV)
+          so it never reaches analysts or the exported PDF (prod build → DEV false).
+          The snapshot is a debug aid, not analyst-grade source traceability. */}
+      {import.meta.env.DEV && Object.keys(data).length > 0 && (
         <div style={{ marginTop: 22 }}>
           <button
             type="button"

@@ -48,11 +48,34 @@ _AMOUNT_RE = re.compile(
     rf"(?:\$\s?|(?:{_CURRENCY_CODES})\s)"
     r"(?P<neg_post>[-−])?"
     r"(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
-    r"\s?(?P<suffix>[KMBT])?\b"
+    # Magnitude as a single letter (K/M/B/T) OR a spelled-out word — the
+    # deterministic ``format_summary`` narrative prints WORDS ("$451.442 Billion
+    # USD", "$4.041 Trillion"), and LLM prose mixes "$391b" / "USD 391 billion" /
+    # "$96,995 mn". Without the word forms, "$451.442 Billion" parsed as a bare
+    # 451.442 and matched nothing vs the absolute 451.442e9 leaf → every
+    # spelled-out figure false-flagged (the 49/50-artifact flood, DDM/DCF ~80%).
+    # Words listed before single letters so the longest alternative wins; the
+    # group is case-insensitive in isolation (no IGNORECASE on the currency codes).
+    r"\s?(?P<suffix>(?i:trillion|billion|million|thousand|bn|mn|tn|[kmbt]))?\b"
     r"(?P<close>\))?"
 )
 
-_SUFFIX_SCALE = {"K": 1e3, "M": 1e6, "B": 1e9, "T": 1e12}
+# Keyed lowercase (the suffix group is case-insensitive). "thousand" must NOT
+# fall through to a first-letter heuristic — "t" alone is trillion, so each form
+# is mapped explicitly.
+_SUFFIX_SCALE = {
+    "k": 1e3,
+    "thousand": 1e3,
+    "m": 1e6,
+    "mn": 1e6,
+    "million": 1e6,
+    "b": 1e9,
+    "bn": 1e9,
+    "billion": 1e9,
+    "t": 1e12,
+    "tn": 1e12,
+    "trillion": 1e12,
+}
 
 # Leaves below this magnitude are index-like (years-in-model, counts, ratios
 # stored as 0.135) and would spuriously match small per-share amounts only by
@@ -138,7 +161,7 @@ def detect_report_drift(
             continue
         suffix = match.group("suffix")
         if suffix:
-            value *= _SUFFIX_SCALE[suffix]
+            value *= _SUFFIX_SCALE[suffix.lower()]
         # An explicit minus is unambiguous → the signed value only. Accounting
         # parentheses are ambiguous in prose (a parenthetical aside also wraps
         # amounts: "(see $5.00B above)" never closes adjacent, but "revenue

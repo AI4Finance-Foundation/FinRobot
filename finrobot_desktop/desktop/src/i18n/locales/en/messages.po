@@ -170,19 +170,19 @@ msgstr "SELL"
 
 #. js-lingui-explicit-id
 msgid "confidence.high"
-msgstr "HIGH CONVICTION"
+msgstr "DATA QUALITY · HIGH"
 
 #. js-lingui-explicit-id
 msgid "confidence.medium"
-msgstr "MEDIUM"
+msgstr "DATA QUALITY · MEDIUM"
 
 #. js-lingui-explicit-id
 msgid "confidence.low"
-msgstr "LOW"
+msgstr "DATA QUALITY · LOW"
 
 #. js-lingui-explicit-id
 msgid "confidence.veryLow"
-msgstr "SPECULATIVE"
+msgstr "DATA QUALITY · SPARSE"
 
 #. js-lingui-explicit-id
 msgid "targetRange.label"

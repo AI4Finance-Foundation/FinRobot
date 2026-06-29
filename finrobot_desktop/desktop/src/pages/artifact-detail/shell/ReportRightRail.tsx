@@ -228,7 +228,7 @@ function StatusPill({ tone, label }: { tone: 'now' | 'arch'; label: string }): R
   return (
     <span
       style={{
-        fontSize: 9,
+        fontSize: 10,
         padding: '1px 5px',
         borderRadius: 3,
         letterSpacing: '0.08em',
@@ -258,7 +258,7 @@ function VerdictBadge({
   return (
     <span
       style={{
-        fontSize: 9.5,
+        fontSize: 10,
         padding: '1px 6px',
         borderRadius: 3,
         background: tone.bg,
@@ -291,7 +291,7 @@ function SignalBadge({
   return (
     <span
       style={{
-        fontSize: 9.5,
+        fontSize: 10,
         padding: '1px 6px',
         borderRadius: 3,
         background: c.bg,

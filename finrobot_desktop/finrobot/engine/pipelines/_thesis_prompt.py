@@ -190,10 +190,14 @@ def build_thesis_prompt(
             f"by any cash-flow model; do not editorialize beyond it. "
             f"Make clear the {canonical_verdict} direction itself is "
             f"defensible. This is a feature (refusing to fabricate a number), not a failure. "
-            f"Your `valuation_overview` narrative MUST NOT state any single fair-value or "
-            f"point-target number (no weighted average, no midpoint, no 'approx $X'); it MAY "
-            f"cite the per-method valuation RANGE and the market-implied growth/price above "
-            f"to frame the direction. Do NOT pick a midpoint."
+            f"NONE of your prose fields (`narrative`, `valuation_overview`, `key_takeaways`, "
+            f"`tagline`) may state a single fair-value or point-target number — no weighted "
+            f"average, no midpoint, no 'approx $X' — and you must NEVER phrase any figure as "
+            f"'the price target is $X' / 'a 12-month price target of $X'. The point IS "
+            f"withheld; calling any number 'the target' directly contradicts the withheld "
+            f"headline the reader sees on the cover. You MAY cite the per-method valuation "
+            f"RANGE and the market-implied growth/price above to frame the direction. Do NOT "
+            f"pick a midpoint."
         )
     elif canonical_target is not None:
         # Per-tier band wording: the verdict is derived from confidence-tiered,

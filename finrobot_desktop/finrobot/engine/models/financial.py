@@ -700,9 +700,32 @@ class ThesisResult(BaseModel):
         ),
     )
     price_target_basis: str
-    catalysts: list[str] = Field(min_length=1)
-    risks: list[str] = Field(min_length=1)
-    narrative: str
+    catalysts: list[str] = Field(
+        min_length=1,
+        description=(
+            "3-5 UPSIDE drivers ONLY (reasons the stock could rise) — rendered under a "
+            "green 'Bull Case' heading. Never place a downside item here: investigations, "
+            "lawsuits, antitrust probes, regulatory penalties, margin pressure and "
+            "demand/backlash concerns are `risks`, not catalysts."
+        ),
+    )
+    risks: list[str] = Field(
+        min_length=1,
+        description=(
+            "3-5 DOWNSIDE scenarios ONLY (reasons the stock could fall) — rendered under "
+            "a red 'Bear Case' heading."
+        ),
+    )
+    narrative: str = Field(
+        description=(
+            "The thesis argument in 2-3 SHORT paragraphs separated by a blank line — "
+            "NOT one dense block of text (a wall is unreadable in the report). Plain "
+            "prose only: no markdown headers, no ** bold **, no bullet syntax — the "
+            "Company Overview / Valuation Overview / Competitor Analysis sections each "
+            "have their own dedicated fields, so do not duplicate them as a mini-report "
+            "inside the narrative."
+        ),
+    )
 
     # ── narrative LLM narrative slots ───────────────────────────────
     tagline: str | None = Field(

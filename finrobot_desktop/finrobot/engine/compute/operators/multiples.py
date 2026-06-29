@@ -470,21 +470,21 @@ def calculate_peer_statistics(comps: PeerComps) -> PeerComps:
     ev_ebitda_n = len(ev_ebitda_vals)
     if ev_ebitda_n < total:
         result.warnings.append(
-            f"EV/EBITDA computed on n={ev_ebitda_n} of {total} peers"
-            f" — {total - ev_ebitda_n} dropped due to data quality"
+            f"EV/EBITDA based on {ev_ebitda_n} of {total} peers"
+            f" — {total - ev_ebitda_n} dropped for data quality"
         )
     pe_n = len(pe_vals)
     if pe_n < total:
         result.warnings.append(
-            f"P/E computed on n={pe_n} of {total} peers"
-            f" — {total - pe_n} excluded (loss-maker / NM trailing P/E above"
-            f" {PEER_PE_NM_CAP:.0f}x — kept in set, out of median)"
+            f"P/E based on {pe_n} of {total} peers"
+            f" — {total - pe_n} excluded (loss-making, or an NM trailing P/E above"
+            f" {PEER_PE_NM_CAP:.0f}x — kept in the set, out of the median)"
         )
     ev_revenue_n = len(ev_revenue_vals)
     if ev_revenue_n < total:
         result.warnings.append(
-            f"EV/Revenue computed on n={ev_revenue_n} of {total} peers"
-            f" — {total - ev_revenue_n} dropped due to data quality"
+            f"EV/Revenue based on {ev_revenue_n} of {total} peers"
+            f" — {total - ev_revenue_n} dropped for data quality"
         )
     # Forward is legitimately sparse (foreign peers + names without analyst
     # consensus carry no forward P/E), so warn only when SOME but not all peers
@@ -493,9 +493,10 @@ def calculate_peer_statistics(comps: PeerComps) -> PeerComps:
     forward_pe_n = len(forward_pe_vals)
     if 0 < forward_pe_n < total:
         result.warnings.append(
-            f"Forward P/E computed on n={forward_pe_n} of {total} peers"
-            f" — {total - forward_pe_n} lack USD-clean analyst consensus or carry an"
-            f" NM forward P/E above {PEER_PE_NM_CAP:.0f}x (kept in set, out of median)"
+            f"Forward P/E based on {forward_pe_n} of {total} peers"
+            f" — {total - forward_pe_n} without USD-denominated analyst consensus, or"
+            f" with an NM forward P/E above {PEER_PE_NM_CAP:.0f}x (kept in the set,"
+            f" out of the median)"
         )
 
     return result

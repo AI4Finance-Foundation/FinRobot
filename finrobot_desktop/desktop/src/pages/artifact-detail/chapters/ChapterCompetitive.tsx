@@ -4,6 +4,7 @@ import { compsResultToPeerChartData, compsResultToRadarData } from '../../../uti
 import type { CompsResult } from '../../../types/finance'
 import { useI18n } from '../../../i18n'
 import { TermTip } from '../../../components/TermTip'
+import { MarkdownLite } from '../../../components/MarkdownLite'
 import { formatCurrencyCompact } from '../../../utils/format'
 import { Chapter, Narrative, SubChapter, TableScroll, tableStyle } from './ChapterBase'
 import type { PeerCompsShape, ThesisShape } from './types'
@@ -79,7 +80,7 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
     <Chapter id="competitive">
       {narrative && (
         <Narrative>
-          <p>{narrative}</p>
+          <MarkdownLite text={narrative} />
         </Narrative>
       )}
 
@@ -303,9 +304,10 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
 
       {peers?.positioning_narrative && (
         <SubChapter heading={t('chapter.competitive.subheading.positioning')}>
-          <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
-            {peers.positioning_narrative}
-          </p>
+          <MarkdownLite
+            text={peers.positioning_narrative}
+            style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' }}
+          />
         </SubChapter>
       )}
     </Chapter>

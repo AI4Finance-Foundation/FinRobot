@@ -81,6 +81,56 @@ async def test_catalysts_returns_ranked_events_filtering_sub_threshold(app_with_
     assert body[0]["impact_score"] == 4
 
 
+def _dup_classified() -> list[NewsItem]:
+    """Two near-duplicate variants of ONE story (same category, same day, high
+    title overlap) — the 'Apple raises prices' x4 inflation the live calendar showed."""
+    return [
+        NewsItem(
+            title="Apple raises iPhone prices across the lineup",
+            source="Reuters",
+            published=datetime(2026, 6, 4, tzinfo=timezone.utc),
+            url="https://reuters.com/a",
+            category="product",
+            sentiment="negative",
+            importance=5,
+            summary="Across-the-board price increase.",
+        ),
+        NewsItem(
+            title="Apple raises iPhone prices on the new lineup",
+            source="Bloomberg",
+            published=datetime(2026, 6, 4, tzinfo=timezone.utc),
+            url="https://bloomberg.com/b",
+            category="product",
+            sentiment="negative",
+            importance=5,
+            summary="Price hike on the latest models.",
+        ),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_catalysts_route_clusters_near_duplicates(app_with_deps):
+    """A① wiring: the live calendar route must run cluster_near_duplicates (like the
+    research pipeline), so N variants of one story collapse to a single event
+    carrying source_count = cluster size — not N rows each at impact 5."""
+    app = app_with_deps
+    with (
+        patch("finrobot.routes.data.fetch_news", new=AsyncMock(return_value=_raw())),
+        patch(
+            "finrobot.engine.analysis.news_classifier.classify_news",
+            new=AsyncMock(return_value=_dup_classified()),
+        ),
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/data/AAPL/catalysts")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 1  # the two variants merged, not two separate 5/5 rows
+    assert body[0]["source_count"] == 2
+
+
 @pytest.mark.asyncio
 async def test_catalysts_cache_hit_skips_llm(app_with_deps):
     """Second call for the same (ticker, min_importance) reuses the cache — no re-classify."""

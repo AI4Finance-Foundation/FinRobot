@@ -1877,6 +1877,10 @@ msgid "workspace.market.unnamedEvent"
 msgstr "(未命名事件)"
 
 #. js-lingui-explicit-id
+msgid "workspace.market.catalystSourceCount"
+msgstr "报道此事件的不同来源数(近重复已合并)"
+
+#. js-lingui-explicit-id
 msgid "workspace.market.noCatalysts"
 msgstr "暂无近期事件 · 财报 / 产品发布 / 监管"
 

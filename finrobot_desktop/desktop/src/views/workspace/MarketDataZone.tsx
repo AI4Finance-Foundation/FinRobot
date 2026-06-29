@@ -214,15 +214,25 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
                   borderRadius: 6,
                 }}
               >
-                <span
-                  style={{
-                    color: 'var(--text-secondary)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {c.headline ?? t('workspace.market.unnamedEvent')}
+                <span style={{ display: 'flex', alignItems: 'baseline', gap: 6, overflow: 'hidden' }}>
+                  <span
+                    style={{
+                      color: 'var(--text-secondary)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {c.headline ?? t('workspace.market.unnamedEvent')}
+                  </span>
+                  {(c.source_count ?? 1) > 1 && (
+                    <span
+                      title={t('workspace.market.catalystSourceCount')}
+                      style={{ flexShrink: 0, fontSize: 10, color: 'var(--text-muted)' }}
+                    >
+                      ·{c.source_count}×
+                    </span>
+                  )}
                 </span>
                 <span
                   style={{

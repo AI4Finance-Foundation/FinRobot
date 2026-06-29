@@ -148,6 +148,9 @@ export interface CatalystEventData {
   impact_score?: number | null
   probability?: number | null
   reasoning?: string
+  // Cluster size from near-duplicate merging (>1 ⇒ this event aggregates that
+  // many distinct source stories). 1/absent for a single-source event.
+  source_count?: number | null
 }
 
 // ── Fetcher helpers ───────────────────────────────────────────────────────────

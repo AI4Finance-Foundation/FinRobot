@@ -14,6 +14,7 @@ from starlette.requests import Request
 from finrobot.routes._ready import ensure_engine_ready
 
 from finrobot.engine.compute.operators.catalyst import (
+    cluster_near_duplicates,
     extract_catalysts_from_news,
     rank_catalysts,
 )
@@ -164,6 +165,13 @@ async def get_catalysts(
             return {"catalysts": []}
         classified = await classify_news(raw_news, deps, ticker=ticker_upper)
         events = extract_catalysts_from_news(classified, min_importance=min_importance)
+        # Event-level near-duplicate clustering BEFORE ranking — mirrors the research
+        # pipeline (equity_research.py). The live calendar previously skipped this, so
+        # N variants of the same story ("Apple raises prices") each rendered as a
+        # separate catalyst with its own 5/5 impact. Clustering collapses them to one
+        # event carrying source_count = cluster size (conservative Jaccard 0.6 / 3-day
+        # window, so genuinely distinct events are never merged).
+        events = cluster_near_duplicates(events)
         # Single ranking pass: rank_catalysts now keys on abs(expected impact)
         # (the same magnitude compute_expected_impact used), so the previous
         # compute_expected_impact-then-rank_catalysts chain was redundant — and

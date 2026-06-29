@@ -1877,6 +1877,10 @@ msgid "workspace.market.unnamedEvent"
 msgstr "(unnamed event)"
 
 #. js-lingui-explicit-id
+msgid "workspace.market.catalystSourceCount"
+msgstr "Distinct sources reporting this event (near-duplicates merged)"
+
+#. js-lingui-explicit-id
 msgid "workspace.market.noCatalysts"
 msgstr "No recent events · earnings / product launches / regulatory"
 

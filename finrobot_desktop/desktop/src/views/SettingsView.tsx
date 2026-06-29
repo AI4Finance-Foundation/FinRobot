@@ -264,6 +264,31 @@ export default function SettingsView() {
           </div>
         </div>
 
+        {/* Honest secret-storage disclosure. The backend stores secrets in the
+            OS keychain where it can; on an unsigned macOS build / Linux without a
+            keyring it falls back to a local file, and `secret_storage_mode` then
+            reports 'plaintext'. Surface that NEUTRALLY (it's a normal state, not
+            an error — muted, not red) so a user knows where their keys live. Page
+            level because it covers every secret across all panels. */}
+        {settingsResp.secret_storage_mode === 'plaintext' && (
+          <div
+            data-testid="secret-storage-plaintext"
+            style={{
+              background: 'var(--bg-card-faint)',
+              border: '1px solid var(--border-soft)',
+              borderRadius: 'var(--r-md)',
+              padding: '10px 14px',
+              marginBottom: 'var(--sp-5)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11.5,
+              lineHeight: 1.5,
+              color: 'var(--text-secondary)',
+            }}
+          >
+            {t('settings.secretStorage.localFile')}
+          </div>
+        )}
+
         {/* Startup error banner (a chosen-but-broken LLM config). Scoped to the
             AI Model panel — a boot config error is an LLM concern, so dangling
             it over Data Sources / Updates only confused (it read like every

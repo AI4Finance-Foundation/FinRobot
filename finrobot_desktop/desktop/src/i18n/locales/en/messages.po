@@ -2177,6 +2177,18 @@ msgid "workspace.ai.hot.history"
 msgstr "⏱ Version history · {n}"
 
 #. js-lingui-explicit-id
+msgid "workspace.ai.hot.notAnalyzed"
+msgstr "Not yet analyzed · run a model"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.versionCurrent"
+msgstr "current"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.versionNow"
+msgstr "now"
+
+#. js-lingui-explicit-id
 msgid "workspace.ai.age.justNow"
 msgstr "just now"
 
@@ -2619,6 +2631,10 @@ msgstr "Couldn't clear key"
 #. js-lingui-explicit-id
 msgid "settings.subtitle"
 msgstr "Configure your API keys and data sources here — everything is stored locally on this machine."
+
+#. js-lingui-explicit-id
+msgid "settings.secretStorage.localFile"
+msgstr "Keys are stored in a local file on this device"
 
 #. js-lingui-explicit-id
 msgid "settings.llm.apiKeyLabel"

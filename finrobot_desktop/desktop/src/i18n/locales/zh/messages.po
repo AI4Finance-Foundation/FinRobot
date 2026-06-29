@@ -2177,6 +2177,18 @@ msgid "workspace.ai.hot.history"
 msgstr "⏱ 历史版本 · {n} 份"
 
 #. js-lingui-explicit-id
+msgid "workspace.ai.hot.notAnalyzed"
+msgstr "尚未分析 · 运行一个模型"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.versionCurrent"
+msgstr "当前"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.versionNow"
+msgstr "现在"
+
+#. js-lingui-explicit-id
 msgid "workspace.ai.age.justNow"
 msgstr "刚刚"
 
@@ -2619,6 +2631,10 @@ msgstr "清除失败"
 #. js-lingui-explicit-id
 msgid "settings.subtitle"
 msgstr "API 密钥与数据源在这里配置，全部保存在本机。"
+
+#. js-lingui-explicit-id
+msgid "settings.secretStorage.localFile"
+msgstr "密钥存储在本机的本地文件中"
 
 #. js-lingui-explicit-id
 msgid "settings.llm.apiKeyLabel"

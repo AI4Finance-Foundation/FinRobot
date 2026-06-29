@@ -1184,7 +1184,7 @@ function HotState({
                 color: 'var(--text-muted)',
               }}
             >
-              current · v{versionNum} · {ageLabel(latest.created_at)}
+              {t('workspace.ai.versionCurrent')} · v{versionNum} · {ageLabel(latest.created_at)}
             </span>
             {latest.tagline ? (
               <p
@@ -1583,7 +1583,28 @@ function HotState({
             >
               {t('hotState.targetWithheld')}
             </button>
-          ) : null}
+          ) : (
+            /* Neither a verdict NOR a target number exists (a thesis-less
+               artifact). Reaching here means target===null && verdict===null, so
+               every branch above declined. Voice a neutral "not yet analyzed"
+               line instead of leaving the card's mid-section blank — a normal
+               not-run-yet state, NOT an error (no --danger red). */
+            <div
+              data-testid="ai-zone-not-analyzed"
+              style={{
+                background: 'var(--neutral-soft)',
+                border: '1px solid var(--neutral-edge)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 14px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 12,
+                lineHeight: 1.5,
+                color: 'var(--text-muted)',
+              }}
+            >
+              {t('workspace.ai.hot.notAnalyzed')}
+            </div>
+          )}
         </div>
 
         {/* actions — a solid blue primary (open report) + a clean ghost (rerun);
@@ -1787,7 +1808,7 @@ function HotState({
                         textTransform: 'uppercase',
                       }}
                     >
-                      now
+                      {t('workspace.ai.versionNow')}
                     </span>
                   )}
                   {a.archived && <ArchivedPill />}

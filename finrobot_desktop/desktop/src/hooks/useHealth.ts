@@ -76,6 +76,15 @@ const STARTUP_GRACE_MS = 120_000
 // means the backend died (offline), never "starting".
 let backendSeenOnce = false
 
+// Steady-state heartbeat once the backend is fully ready. Two serial fetches
+// (quotes-warmed + settings) fire every tick; at 15s that was a needless ~8
+// round-trips/min against a server whose ready state barely changes. 30s halves
+// that idle load while still catching a mid-session provider/model change within
+// a tick. The cold-start window keeps polling fast (BOOT_POLL_MS) so the UI
+// flips from "starting engine" to live the instant the warmup finishes.
+const STEADY_HEARTBEAT_MS = 30_000
+const BOOT_POLL_MS = 1_500
+
 function unreachableState(): HealthState {
   const starting = !backendSeenOnce && Date.now() - BOOT_TIME < STARTUP_GRACE_MS
   return {
@@ -149,12 +158,12 @@ export function useHealth() {
     // BootGate splash clears the moment this flips) AND through the cold-start
     // warmup window (engine/agents wiring in the background), so live-data UI
     // flips from "starting engine" to real the instant the warmup finishes.
-    // Once fully ready, settle into a calm 15 s heartbeat.
+    // Once fully ready, settle into a calm 30 s heartbeat (STEADY_HEARTBEAT_MS).
     staleTime: 15_000,
     refetchInterval: (query) => {
       const d = query.state.data
       const fullyReady = d?.backendReachable && d?.engineReady && d?.agentsReady
-      return fullyReady ? 15_000 : 1_500
+      return fullyReady ? STEADY_HEARTBEAT_MS : BOOT_POLL_MS
     },
     retry: false,
     placeholderData: unreachableState,

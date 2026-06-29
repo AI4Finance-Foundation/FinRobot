@@ -905,7 +905,10 @@ function Kv4({ cells }: { cells: KvCell[] }): React.ReactElement {
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
+        // auto-fit so a wide market column (≥1920 superwide) packs 3 cells per
+        // row instead of leaving the 2-col snapshot half-empty; min 280px keeps
+        // each value tile legible and falls back to 2 cols at the default 1440.
+        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
         gap: 1,
         background: 'var(--border-faint)',
         borderRadius: 6,
@@ -968,7 +971,9 @@ function KvSkeleton({ count }: { count: number }): React.ReactElement {
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
+        // Mirror Kv4's responsive auto-fit grid so the card doesn't reflow when
+        // real values land (was a fixed 2-col, which jumped to 3 on wide screens).
+        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
         gap: 1,
         background: 'var(--border-faint)',
         borderRadius: 6,

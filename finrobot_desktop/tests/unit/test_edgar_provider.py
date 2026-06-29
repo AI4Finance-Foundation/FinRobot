@@ -815,6 +815,64 @@ async def test_fetch_xbrl_balance_sheet_prefers_latest_period_over_latest_annual
     assert data["latest_shareholders_equity"]["value"] == 84_116_000_000
 
 
+def test_select_latest_fact_revenue_prefers_total_on_same_period() -> None:
+    """Financial-issuer revenue-subset bug (2026-06-29): MET reports total
+    ``Revenues`` (77B) and the ASC-606 contract-revenue subset (2.4B) at the SAME
+    annual period_end. prefer_recent resolves the tie to the total via concept
+    rank — first-match used to latch the 2.4B subset (31× understated, fed to the
+    LLM thesis prompt)."""
+    from finrobot.engine.data.providers.edgar_provider import (
+        _LATEST_REVENUE_CONCEPTS,
+        _select_latest_fact,
+    )
+
+    pe = date(2025, 12, 31)
+    facts = _FakeLatestFacts(
+        annual={
+            "us-gaap:Revenues": _FakeFinancialFact("us-gaap:Revenues", 77_084_000_000, pe),
+            "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax": _FakeFinancialFact(
+                "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax", 2_436_000_000, pe
+            ),
+        }
+    )
+    out = _select_latest_fact(
+        facts, _LATEST_REVENUE_CONCEPTS, annual=True, prefer_recent=True
+    )
+    assert out is not None
+    assert out["concept"] == "us-gaap:Revenues"
+    assert out["value"] == 77_084_000_000
+
+
+def test_select_latest_fact_revenue_recency_beats_rank() -> None:
+    """AAPL counter-case: ``Revenues`` froze at FY2018 (265B); live revenue is the
+    ASC-606 concept at FY2025 (416B). Recency wins ACROSS periods even though the
+    total outranks the subset — concept rank only breaks SAME-period ties, so a
+    blind reorder-to-front would have regressed AAPL to the stale 265B."""
+    from finrobot.engine.data.providers.edgar_provider import (
+        _LATEST_REVENUE_CONCEPTS,
+        _select_latest_fact,
+    )
+
+    facts = _FakeLatestFacts(
+        annual={
+            "us-gaap:Revenues": _FakeFinancialFact(
+                "us-gaap:Revenues", 265_595_000_000, date(2018, 9, 29)
+            ),
+            "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax": _FakeFinancialFact(
+                "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+                416_161_000_000,
+                date(2025, 9, 27),
+            ),
+        }
+    )
+    out = _select_latest_fact(
+        facts, _LATEST_REVENUE_CONCEPTS, annual=True, prefer_recent=True
+    )
+    assert out is not None
+    assert out["value"] == 416_161_000_000
+    assert "RevenueFromContractWithCustomer" in out["concept"]
+
+
 @pytest.mark.asyncio
 async def test_fetch_xbrl_suppresses_foreign_currency_filer() -> None:
     """BUG-037 end-to-end: a 20-F foreign private issuer (functional currency GBP)
@@ -1244,6 +1302,30 @@ class TestSelectRecentTTM:
         assert out is not None
         assert out["value"] == 253_491_000_000.0
         assert warnings == []
+
+    def test_revenue_prefers_total_over_asc606_subset_same_period(self) -> None:
+        """Financial-issuer revenue-subset bug (2026-06-29): an insurer reports
+        BOTH total ``Revenues`` (77B) and the ASC-606 contract-revenue subset
+        (2.4B) as a structurally valid TTM at the SAME latest quarter. With totals
+        ranked ahead of the subset in _TTM_REVENUE_CONCEPTS, the strict-``>`` tie
+        keeps the total — the subset must never win (was 31× understated)."""
+        pe = _date(2026, 3, 31)
+        quarters = [(2025, "Q2"), (2025, "Q3"), (2025, "Q4"), (2026, "Q1")]
+        facts = _FakeFacts(
+            {
+                "Revenues": _FakeTTMMetric("us-gaap:Revenues", 77_000_000_000.0, quarters, pe),
+                "RevenueFromContractWithCustomerExcludingAssessedTax": _FakeTTMMetric(
+                    "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+                    2_436_000_000.0,
+                    quarters,
+                    pe,
+                ),
+            }
+        )
+        out = _select_recent_ttm(facts, _TTM_REVENUE_CONCEPTS, today=_date(2026, 6, 1))
+        assert out is not None
+        assert out["concept"] == "us-gaap:Revenues"
+        assert out["value"] == 77_000_000_000.0
 
 
 # ---------------------------------------------------------------------------
@@ -1676,6 +1758,78 @@ class TestCompanyfactsAnnualSeries:
             ("RevenueFromContractWithCustomerExcludingAssessedTax", "Revenues", "SalesRevenueNet"),
         )
         assert series == {2020: 50}
+
+    def test_revenue_prefers_total_over_asc606_subset_same_year(self) -> None:
+        """Financial-issuer revenue-subset bug (2026-06-29): an insurer reports
+        BOTH total ``Revenues`` and the ASC-606 contract-revenue subset for the
+        SAME fiscal years. prefer_total_across_concepts surfaces the total (77B),
+        never the fee-only subset (2.4B) the old first-concept-wins latched."""
+        from finrobot.engine.data.providers.edgar_provider import (
+            _HIST_REVENUE_CONCEPTS,
+            _companyfacts_annual_series,
+        )
+
+        facts = {
+            "facts": {
+                "us-gaap": {
+                    "Revenues": {
+                        "units": {
+                            "USD": [
+                                _fact(start="2024-01-01", end="2024-12-31", val=70_000, fy=2024, filed="2025-02-19"),  # noqa: E501
+                                _fact(start="2025-01-01", end="2025-12-31", val=77_084, fy=2025, filed="2026-02-19"),  # noqa: E501
+                            ]
+                        }
+                    },
+                    "RevenueFromContractWithCustomerExcludingAssessedTax": {
+                        "units": {
+                            "USD": [
+                                _fact(start="2024-01-01", end="2024-12-31", val=2_300, fy=2024, filed="2025-02-19"),  # noqa: E501
+                                _fact(start="2025-01-01", end="2025-12-31", val=2_436, fy=2025, filed="2026-02-19"),  # noqa: E501
+                            ]
+                        }
+                    },
+                }
+            }
+        }
+        series = _companyfacts_annual_series(
+            facts, _HIST_REVENUE_CONCEPTS, prefer_total_across_concepts=True
+        )
+        assert series == {2024: 70_000, 2025: 77_084}  # totals, NOT the 2.4B subset
+
+    def test_revenue_mixes_total_early_years_and_asc606_recent_years(self) -> None:
+        """AAPL counter-case: ``Revenues`` froze at FY2018 (265B); live revenue is
+        the ASC-606 concept from FY2019 (416B by FY2025). The total concept owns
+        the years it reports; the subset fills ONLY the later years totals are
+        missing — one consistent total series, never a regression to stale 2018."""
+        from finrobot.engine.data.providers.edgar_provider import (
+            _HIST_REVENUE_CONCEPTS,
+            _companyfacts_annual_series,
+        )
+
+        facts = {
+            "facts": {
+                "us-gaap": {
+                    "Revenues": {
+                        "units": {
+                            "USD": [
+                                _fact(start="2017-10-01", end="2018-09-29", val=265_595, fy=2018, filed="2018-11-05"),  # noqa: E501
+                            ]
+                        }
+                    },
+                    "RevenueFromContractWithCustomerExcludingAssessedTax": {
+                        "units": {
+                            "USD": [
+                                _fact(start="2024-10-01", end="2025-09-27", val=416_161, fy=2025, filed="2025-11-01"),  # noqa: E501
+                            ]
+                        }
+                    },
+                }
+            }
+        }
+        series = _companyfacts_annual_series(
+            facts, _HIST_REVENUE_CONCEPTS, prefer_total_across_concepts=True
+        )
+        assert series == {2018: 265_595, 2025: 416_161}
 
 
 class TestCompanyfactsPointSeries:

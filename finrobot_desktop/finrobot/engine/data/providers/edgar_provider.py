@@ -215,11 +215,22 @@ _MIN_VALID_SECTION_CHARS = 1000
 # the chosen TTM on period structure (4 distinct consecutive quarters, recent).
 # A failed gate returns None — ``_ttm_value`` (compute layer) then falls back to
 # the FMP TTM, which is independently correct. See ADR-0008.
+# Revenue concept ranking (financial-issuer revenue-subset bug, 2026-06-29):
+# total-revenue concepts MUST outrank the ASC-606 contract-revenue SUBSET. For an
+# insurer/bank, ``RevenueFromContractWithCustomer…`` reports only fee/contract
+# revenue (MET FY2025: $2.4B) — a fraction of total ``Revenues`` ($77.1B) — yet
+# BOTH carry the SAME period_end, so the old ASC-606-first list latched the subset
+# and fed the LLM revenue understated ~31×. The selectors already pick by latest
+# period_end (so a newer concept still wins ACROSS periods — AAPL stopped reporting
+# ``Revenues`` after FY2018, its live revenue is ASC-606 only), but a SAME-period
+# tie was broken by list order; ordering totals first makes the tie resolve to the
+# true total. We break the tie by concept RANK, never magnitude, so a gross-of-tax
+# ``…IncludingAssessedTax`` cannot out-bid the real ``Revenues`` total.
 _TTM_REVENUE_CONCEPTS: tuple[str, ...] = (
-    "RevenueFromContractWithCustomerExcludingAssessedTax",
     "Revenues",
     "SalesRevenueNet",
     "Revenue",
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
 )
 _TTM_NET_INCOME_CONCEPTS: tuple[str, ...] = ("NetIncomeLoss", "NetIncome", "ProfitLoss")
 
@@ -231,13 +242,19 @@ _TTM_NET_INCOME_CONCEPTS: tuple[str, ...] = ("NetIncomeLoss", "NetIncome", "Prof
 # labelling the snapshot "us-gaap:Revenues" was provenance falsification (BUG-009).
 # Order = the getter's priority order; first concept with a usable fact wins,
 # exactly as ``_get_standardized_concept_value`` does.
+# Totals first, ASC-606 contract-revenue subset last — see _TTM_REVENUE_CONCEPTS
+# (financial-issuer revenue-subset bug, 2026-06-29). Paired with prefer_recent=True
+# at the call site so recency still wins across periods (AAPL: ASC-606 newer →
+# 416B) while a SAME-period tie resolves to the total (MET: Revenues 77B over
+# ASC-606 2.4B). Post-ASC-606 issuers (AAPL/MSFT/GOOGL) that no longer report
+# ``Revenues`` simply fall through to the ASC-606 concept (recency + presence).
 _LATEST_REVENUE_CONCEPTS: tuple[str, ...] = (
-    "RevenueFromContractWithCustomerExcludingAssessedTax",
-    "SalesRevenueNet",
     "Revenues",
-    "Revenue",
     "TotalRevenues",
+    "SalesRevenueNet",
     "NetSales",
+    "Revenue",
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
 )
 _LATEST_NET_INCOME_CONCEPTS: tuple[str, ...] = (
     "NetIncomeLoss",
@@ -438,6 +455,10 @@ def _select_recent_ttm(
             continue
         if not _validate_ttm_periods(getattr(metric, "periods", None)):
             continue
+        # Strict ``>`` (not ``>=``) keeps the FIRST concept seen at a given
+        # period_end. With totals ranked ahead of the ASC-606 subset in
+        # _TTM_REVENUE_CONCEPTS, a same-period tie resolves to the total (MET's
+        # Revenues over the contract-revenue subset) — do NOT relax to ``>=``.
         if best_end is None or latest_end > best_end:
             best = {
                 "concept": getattr(metric, "concept", ""),
@@ -473,6 +494,7 @@ def _select_latest_fact(
     concepts: tuple[str, ...],
     *,
     annual: bool,
+    prefer_recent: bool = False,
     warnings: list[str] | None = None,
 ) -> dict[str, Any] | None:
     """Recover the matched ``FinancialFact`` for a point-in-time concept.
@@ -481,11 +503,20 @@ def _select_latest_fact(
     (``us-gaap:`` / ``ifrs-full:``) and — when ``annual`` — preferring the FY
     fact (``get_annual_fact``) before falling back to the most recent point
     (``get_fact``), mirroring edgartools' ``_get_standardized_concept_value``.
-    The first variant with a usable ``numeric_value`` wins (first-match is
-    correct here: these are point/annual values, not the abandoned-concept TTM
-    case that needs latest-period selection). Returns
-    ``{"concept", "value", "period_end", "units"}`` aligned to ``XBRLFact``
-    (concept/period_end/units required), or None when no concept matches.
+    Returns ``{"concept", "value", "period_end", "units"}`` aligned to
+    ``XBRLFact`` (concept/period_end/units required), or None when no concept
+    matches.
+
+    ``prefer_recent`` selects among ALL matching concepts by latest period_end,
+    tie-broken by concept rank (earlier in ``concepts`` wins). This is required
+    for revenue, where a financial issuer reports both total ``Revenues`` and the
+    ASC-606 contract-revenue subset at the SAME period_end: first-match latched
+    the subset (MET 31× understated). With totals ranked first (see
+    ``_LATEST_REVENUE_CONCEPTS``), a same-period tie resolves to the total while a
+    newer concept still wins across periods (AAPL's live revenue is ASC-606 only,
+    its ``Revenues`` froze at FY2018). Default False keeps first-match for the
+    unambiguous concepts (net income / gross profit / balance sheet) — no
+    subset/total split there, and recency-first is unvalidated for them.
 
     BUG-037: a fact whose ``unit`` is a non-USD currency (a 20-F foreign private
     issuer's native EUR/GBP/CHF/JPY) is rejected — edgartools applies no FX, so
@@ -505,8 +536,13 @@ def _select_latest_fact(
     # resolution. We do the same so a normal multi-variant walk isn't log spam.
     prev_suppress = getattr(facts, "_suppress_warnings", False)
     facts._suppress_warnings = True
+    # prefer_recent collects the best candidate (latest period_end, then lowest
+    # concept rank) across all concepts instead of returning the first match.
+    best: dict[str, Any] | None = None
+    best_pe: date | None = None
+    best_rank = len(concepts)
     try:
-        for concept in concepts:
+        for rank, concept in enumerate(concepts):
             for variant in (concept, f"us-gaap:{concept}", f"ifrs-full:{concept}"):
                 fact = None
                 try:
@@ -532,15 +568,23 @@ def _select_latest_fact(
                             f"{unit}, not USD; suppressed (no FX in provider)."
                         )
                     continue
-                return {
+                result = {
                     "concept": str(getattr(fact, "concept", variant)),
                     "value": float(numeric),
                     "period_end": period_end,
                     "units": str(unit or "USD"),
                 }
+                if not prefer_recent:
+                    return result
+                if (
+                    best_pe is None
+                    or period_end > best_pe
+                    or (period_end == best_pe and rank < best_rank)
+                ):
+                    best, best_pe, best_rank = result, period_end, rank
     finally:
         facts._suppress_warnings = prev_suppress
-    return None
+    return best
 
 
 # SEC Form 4 XML lets date fields (exerciseDate / expirationDate on
@@ -899,10 +943,16 @@ def _form4_value(raw_value: Any, price: float | None) -> float | None:
 
 # us-gaap concept candidate lists for the annual flow series, in priority order
 # (first concept that yields data wins). Mirrors _cyclical_probe_sec.py.
+# Totals first, ASC-606 subset last — see _TTM_REVENUE_CONCEPTS (2026-06-29).
+# Paired with prefer_total_across_concepts=True at the call site: a higher-priority
+# (total) concept owns each fiscal year it reports; the ASC-606 subset only fills
+# years the totals lack (AAPL pre-FY2019 Revenues + post-FY2019 ASC-606 → one
+# consistent total series), instead of the old "first concept with data wins" that
+# latched the insurer/bank subset for every year.
 _HIST_REVENUE_CONCEPTS: tuple[str, ...] = (
-    "RevenueFromContractWithCustomerExcludingAssessedTax",
     "Revenues",
     "SalesRevenueNet",
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
     "RevenueFromContractWithCustomerIncludingAssessedTax",
 )
 _HIST_GROSS_PROFIT_CONCEPTS: tuple[str, ...] = ("GrossProfit",)
@@ -941,7 +991,10 @@ _ANNUAL_MIN_DURATION_DAYS = 300
 
 
 def _companyfacts_annual_series(
-    facts: dict[str, Any], concepts: tuple[str, ...]
+    facts: dict[str, Any],
+    concepts: tuple[str, ...],
+    *,
+    prefer_total_across_concepts: bool = False,
 ) -> dict[int, float]:
     """Annual (10-K, full-year) values keyed by TRUE fiscal year (period-end year).
 
@@ -957,8 +1010,14 @@ def _companyfacts_annual_series(
     USD units only, form 10-K/10-K-A, fp=FY, duration ≥ ~1 year.
     """
     usgaap = facts.get("facts", {}).get("us-gaap", {})
-    out: dict[int, tuple[str, float]] = {}  # period_end_year -> (filed, val)
-    for concept in concepts:
+    # period_end_year -> (concept_rank, filed, val). A lower concept rank (earlier
+    # in ``concepts``) owns the fiscal year; within the same concept, latest-filed
+    # wins (restatement). prefer_total_across_concepts keeps scanning every concept
+    # so a lower-priority one only fills years the higher-priority concepts don't
+    # report (revenue: total Revenues for the years it covers, ASC-606 subset only
+    # for the post-transition years totals are missing).
+    out: dict[int, tuple[int, str, float]] = {}
+    for rank, concept in enumerate(concepts):
         node = usgaap.get(concept)
         if not node:
             continue
@@ -983,11 +1042,16 @@ def _companyfacts_annual_series(
                 fy = d1.year  # TRUE fiscal year = period-end calendar year
                 filed = it.get("filed", "")
                 prev = out.get(fy)
-                if prev is None or filed > prev[0]:
-                    out[fy] = (filed, float(val))
-        if out:
-            break  # first concept that yields data wins
-    return {fy: v for fy, (_, v) in out.items()}
+                if prev is None:
+                    out[fy] = (rank, filed, float(val))
+                elif rank == prev[0] and filed > prev[1]:
+                    # same concept, later filing — restatement supersedes
+                    out[fy] = (rank, filed, float(val))
+                # else: a higher-priority concept already owns this fiscal year
+                # (concepts iterate in ascending rank) or this is an older filing.
+        if out and not prefer_total_across_concepts:
+            break  # legacy: first concept that yields data wins
+    return {fy: v for fy, (_, _, v) in out.items()}
 
 
 def _companyfacts_point_series(
@@ -1051,7 +1115,9 @@ def _build_sec_yearly_financials(facts: dict[str, Any], max_years: int) -> list[
     All figures are native USD (SEC domestic filers report USD; the deep-history
     path is gated to US issuers).
     """
-    rev = _companyfacts_annual_series(facts, _HIST_REVENUE_CONCEPTS)
+    rev = _companyfacts_annual_series(
+        facts, _HIST_REVENUE_CONCEPTS, prefer_total_across_concepts=True
+    )
     gp = _companyfacts_annual_series(facts, _HIST_GROSS_PROFIT_CONCEPTS)
     oi = _companyfacts_annual_series(facts, _HIST_OPERATING_INCOME_CONCEPTS)
     ni = _companyfacts_annual_series(facts, _HIST_NET_INCOME_CONCEPTS)
@@ -1770,7 +1836,7 @@ class EdgarToolsProvider(DataProvider):
             "ttm_revenue": ttm_revenue,
             "ttm_net_income": ttm_net_income,
             "latest_revenue": _select_latest_fact(
-                facts, _LATEST_REVENUE_CONCEPTS, annual=True, warnings=warnings
+                facts, _LATEST_REVENUE_CONCEPTS, annual=True, prefer_recent=True, warnings=warnings
             ),
             "latest_net_income": _select_latest_fact(
                 facts, _LATEST_NET_INCOME_CONCEPTS, annual=True, warnings=warnings

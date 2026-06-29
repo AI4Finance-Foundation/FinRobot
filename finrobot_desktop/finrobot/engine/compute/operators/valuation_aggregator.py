@@ -853,7 +853,10 @@ def _ev_ebitda_method(
         mid=mid,
         high=high,
         confidence=0.72,
-        source="self_3y_p25_p75 × forward_ebitda − current_net_debt",
+        # Window mirrors fetch_reverse_multiple_band(years=5) — the requested band
+        # window (all callers use that default); actual sample depth is disclosed
+        # separately via band_sample_n. Keep this label in sync if the default changes.
+        source="self_5y_p25_p75 × forward_ebitda − current_net_debt",
         warnings=method_warnings,
     )
 
@@ -878,5 +881,6 @@ def _p_fcf_method(
         mid=mid,
         high=high,
         confidence=0.65,
-        source="self_3y_p25_p75 × forward_fcf",
+        # Window mirrors fetch_reverse_multiple_band(years=5) — see _ev_ebitda_method.
+        source="self_5y_p25_p75 × forward_fcf",
     )

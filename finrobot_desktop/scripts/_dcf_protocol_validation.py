@@ -52,58 +52,65 @@ async def main() -> None:
     settings = await hydrate_settings_from_secrets(settings, store)
     dl = build_data_layer(settings)
 
-    for t in BASKET:
-        try:
-            _fin = await dl.fetch_canonical(DataType.FINANCIALS, t)
-            _price = await dl.fetch_canonical(DataType.PRICE, t)
-            fin = extract_financial_data(_fin, _price)
-            hist = await fetch_historical_metrics(dl, t)
-        except Exception as e:  # noqa: BLE001
-            print(f"\n{t}: data error {e}")
-            continue
-        price = fin.market.current_price
-        print(f"\n=== {t}  market ${price:.2f} " + "=" * 40)
-
-        # -- 1+2. variable isolation over the basket ------------------------
-        for label, v in VARIANTS:
-            inp = seed_dcf_inputs(
-                fin,
-                hist,
-                equity_risk_premium=float(v["erp"]),
-                projection_years=int(v["yrs"]),
-                terminal_growth_rate=float(v["tg"]),
-            )
-            if not v["blume"]:
-                # seed now always Blume-adjusts; invert to recover the raw beta
-                inp = inp.model_copy(update={"beta": max(0.3, min(2.5, un_blume(inp.beta)))})
+    try:
+        for t in BASKET:
             try:
-                r = calculate_dcf(inp)
-                print(
-                    f"  {label}: WACC {r.wacc:6.2%}  fair ${r.implied_price:8.2f}"
-                    f"  ({r.implied_price / price:4.0%} of mkt)"
-                )
-            except ValueError as e:
-                print(f"  {label}: DCF degraded — {str(e)[:70]}")
+                _fin = await dl.fetch_canonical(DataType.FINANCIALS, t)
+                _price = await dl.fetch_canonical(DataType.PRICE, t)
+                fin = extract_financial_data(_fin, _price)
+                hist = await fetch_historical_metrics(dl, t)
+            except Exception as e:  # noqa: BLE001
+                print(f"\n{t}: data error {e}")
+                continue
+            price = fin.market.current_price
+            print(f"\n=== {t}  market ${price:.2f} " + "=" * 40)
 
-        # -- 3. reverse inference: market-implied params, old vs new --------
-        for label, v in (("OLD", OLD), ("NEW", VARIANTS[-1][1])):
-            inp = seed_dcf_inputs(
-                fin,
-                hist,
-                equity_risk_premium=float(v["erp"]),
-                projection_years=int(v["yrs"]),
-                terminal_growth_rate=float(v["tg"]),
-            )
-            if not v["blume"]:
-                inp = inp.model_copy(update={"beta": max(0.3, min(2.5, un_blume(inp.beta)))})
-            chk = market_implied_check(inp, price, horizon_years=v["yrs"])
-            ig = f"{chk.implied_growth:.1%}" if chk.implied_growth is not None else "unreachable"
-            iw = f"{chk.implied_wacc:.2%}" if chk.implied_wacc is not None else "n/a"
-            seeded_g = inp.revenue_growth_rates[0]
-            print(
-                f"  [{label}] market implies: growth {ig} (seeded {seeded_g:.1%})"
-                f" | WACC {iw}"
-            )
+            # -- 1+2. variable isolation over the basket ------------------------
+            for label, v in VARIANTS:
+                inp = seed_dcf_inputs(
+                    fin,
+                    hist,
+                    equity_risk_premium=float(v["erp"]),
+                    projection_years=int(v["yrs"]),
+                    terminal_growth_rate=float(v["tg"]),
+                )
+                if not v["blume"]:
+                    # seed now always Blume-adjusts; invert to recover the raw beta
+                    inp = inp.model_copy(update={"beta": max(0.3, min(2.5, un_blume(inp.beta)))})
+                try:
+                    r = calculate_dcf(inp)
+                    print(
+                        f"  {label}: WACC {r.wacc:6.2%}  fair ${r.implied_price:8.2f}"
+                        f"  ({r.implied_price / price:4.0%} of mkt)"
+                    )
+                except ValueError as e:
+                    print(f"  {label}: DCF degraded — {str(e)[:70]}")
+
+            # -- 3. reverse inference: market-implied params, old vs new --------
+            for label, v in (("OLD", OLD), ("NEW", VARIANTS[-1][1])):
+                inp = seed_dcf_inputs(
+                    fin,
+                    hist,
+                    equity_risk_premium=float(v["erp"]),
+                    projection_years=int(v["yrs"]),
+                    terminal_growth_rate=float(v["tg"]),
+                )
+                if not v["blume"]:
+                    inp = inp.model_copy(update={"beta": max(0.3, min(2.5, un_blume(inp.beta)))})
+                chk = market_implied_check(inp, price, horizon_years=v["yrs"])
+                ig = f"{chk.implied_growth:.1%}" if chk.implied_growth is not None else "unreachable"
+                iw = f"{chk.implied_wacc:.2%}" if chk.implied_wacc is not None else "n/a"
+                seeded_g = inp.revenue_growth_rates[0]
+                print(
+                    f"  [{label}] market implies: growth {ig} (seeded {seeded_g:.1%})"
+                    f" | WACC {iw}"
+                )
+    finally:
+        # Non-server entrypoint: join the aiosqlite workers + checkpoint WAL so the
+        # process exits cleanly instead of hanging on "Event loop is closed" (2026-06-24).
+        from finrobot.engine.data.factory import shutdown_data_layer
+
+        await shutdown_data_layer(dl)
 
 
 if __name__ == "__main__":

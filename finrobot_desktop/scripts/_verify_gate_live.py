@@ -42,42 +42,49 @@ def _find(structured: dict[str, object], cls: type) -> object | None:
 
 async def main() -> None:
     deps = await build_deps()
-    factories = get_pipeline_factories()
-    rows = []
-    for ticker in TICKERS:
-        sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
-        pipeline = factories["research"](sub_agents)
-        try:
-            result = await pipeline.execute(deps, ticker, lang="zh")
-        except Exception as e:  # noqa: BLE001
-            rows.append((ticker, f"pipeline error: {type(e).__name__}: {e}"))
-            continue
-        vs = _find(result.structured_data, ValuationSynthesis)
-        thesis = _find(result.structured_data, ThesisResult)
-        mids = {}
-        ratio = "-"
-        price = "-"
-        if isinstance(vs, ValuationSynthesis):
-            mids = {m.name: m.mid for m in vs.methods}
-            price = f"${vs.current_price:.0f}"
-            vals = [m.mid for m in vs.methods]
-            if len(vals) >= 2 and min(vals) > 0:
-                ratio = f"{max(vals)/min(vals):.2f}x"
-        verdict = thesis.recommendation if isinstance(thesis, ThesisResult) else "?"
-        tgt = (
-            f"${thesis.price_target:.2f}"
-            if isinstance(thesis, ThesisResult) and thesis.price_target is not None
-            else "WITHHELD"
-        )
-        midstr = "  ".join(f"{k}=${v:.0f}" for k, v in mids.items())
-        rows.append(
-            (ticker, f"mkt {price:>6} | {midstr} | spread {ratio:>6} | {verdict:7} {tgt}")
-        )
+    try:
+        factories = get_pipeline_factories()
+        rows = []
+        for ticker in TICKERS:
+            sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
+            pipeline = factories["research"](sub_agents)
+            try:
+                result = await pipeline.execute(deps, ticker, lang="zh")
+            except Exception as e:  # noqa: BLE001
+                rows.append((ticker, f"pipeline error: {type(e).__name__}: {e}"))
+                continue
+            vs = _find(result.structured_data, ValuationSynthesis)
+            thesis = _find(result.structured_data, ThesisResult)
+            mids = {}
+            ratio = "-"
+            price = "-"
+            if isinstance(vs, ValuationSynthesis):
+                mids = {m.name: m.mid for m in vs.methods}
+                price = f"${vs.current_price:.0f}"
+                vals = [m.mid for m in vs.methods]
+                if len(vals) >= 2 and min(vals) > 0:
+                    ratio = f"{max(vals)/min(vals):.2f}x"
+            verdict = thesis.recommendation if isinstance(thesis, ThesisResult) else "?"
+            tgt = (
+                f"${thesis.price_target:.2f}"
+                if isinstance(thesis, ThesisResult) and thesis.price_target is not None
+                else "WITHHELD"
+            )
+            midstr = "  ".join(f"{k}=${v:.0f}" for k, v in mids.items())
+            rows.append(
+                (ticker, f"mkt {price:>6} | {midstr} | spread {ratio:>6} | {verdict:7} {tgt}")
+            )
 
-    print("\n" + "=" * 78)
-    for t, line in rows:
-        print(f"  {t:6s} {line}")
-    print("=" * 78)
+        print("\n" + "=" * 78)
+        for t, line in rows:
+            print(f"  {t:6s} {line}")
+        print("=" * 78)
+    finally:
+        # Non-server entrypoint: join the aiosqlite workers + checkpoint WAL so the
+        # process exits cleanly instead of hanging on "Event loop is closed" (2026-06-24).
+        from finrobot.engine.data.factory import shutdown_data_layer
+
+        await shutdown_data_layer(deps.data_layer)
 
 
 if __name__ == "__main__":

@@ -33,75 +33,82 @@ async def main() -> int:
     print(f"FMP key present: {bool(settings.fmp_api_key)}")
     dl = build_data_layer(settings)
 
-    # ---- 1+3. Live quote + profile (industry/sector/data availability) ------
-    print("\n" + "=" * 100)
-    print("PROFILE + LIVE QUOTE — REAL FMP payload per ticker (industry tag is load-bearing)")
-    print("=" * 100)
-    for t in STORAGE_CANDIDATES:
-        try:
-            prof_res = await dl.fetch(DataType.PROFILE, t)
-            prof = prof_res.data or {}
-        except Exception as e:  # noqa: BLE001
-            print(f"\n{t}: PROFILE fetch FAILED — {type(e).__name__}: {str(e)[:150]}")
-            prof = {}
-        try:
-            q_res = await dl.fetch(DataType.QUOTE, t)
-            q = q_res.data or {}
-        except Exception as e:  # noqa: BLE001
-            print(f"{t}: QUOTE fetch FAILED — {type(e).__name__}: {str(e)[:150]}")
-            q = {}
-        price = q.get("price") or q.get("current_price")
-        mcap = q.get("market_cap") or prof.get("market_cap")
-        print(f"\n--- {t} ---")
-        print(f"  company   : {prof.get('company_name') or prof.get('companyName')}")
-        print(f"  industry  : {prof.get('industry')!r}")
-        print(f"  sector    : {prof.get('sector')!r}")
-        print(f"  country   : {prof.get('country')!r}  currency: {prof.get('currency')!r}")
-        print(f"  live price: {price}   market_cap: {mcap}")
-        print(f"  pe(quote) : {q.get('pe')}   eps(quote): {q.get('eps')}")
-        # description snippet — what the role-classifier text actually sees
-        desc = (prof.get("description") or "")[:240]
-        print(f"  desc[:240]: {desc}")
-
-    # ---- 2. MU PEER_CANDIDATES — the actual pool the screen sees ------------
-    print("\n" + "=" * 100)
-    print("MU PEER_CANDIDATES — REAL pool (does any storage name appear?)")
-    print("=" * 100)
     try:
-        pc_res = await dl.fetch(DataType.PEER_CANDIDATES, "MU")
-        pc = pc_res.data or {}
-    except Exception as e:  # noqa: BLE001
-        print(f"PEER_CANDIDATES fetch FAILED — {type(e).__name__}: {str(e)[:200]}")
-        pc = {}
-    if pc:
-        prof = pc.get("profile") or {}
-        print(
-            f"target profile industry={prof.get('industry')!r} sector={prof.get('sector')!r} "
-            f"mcap={prof.get('market_cap')}"
-        )
-        print(f"stock_peers     : {pc.get('stock_peers')}")
-        print(f"industry_screen : {pc.get('industry_screen')}")
-        print(f"sector_screen   : {pc.get('sector_screen')}")
-        # per-candidate profile industry labels (the role/affinity inputs)
-        profiles = pc.get("profiles") or {}
-        print("\nper-candidate (sym → industry | sector | mcap):")
-        for sym in sorted(profiles.keys()):
-            p = profiles[sym]
-            print(
-                f"  {sym:6} {str(p.get('industry'))[:34]:34} | "
-                f"{str(p.get('sector'))[:22]:22} | mcap={p.get('market_cap')}"
-            )
-        quotes = pc.get("quotes") or {}
-        print(f"\nquotes keys present: {sorted(quotes.keys())}")
-        # Is any of WDC/SNDK/STX in the candidate universe at all?
-        universe = set()
-        for key in ("stock_peers", "industry_screen", "sector_screen"):
-            universe |= {str(s).upper() for s in (pc.get(key) or [])}
-        for cand in ("WDC", "SNDK", "STX"):
-            print(f"  {cand} in MU candidate universe? {cand in universe}")
+        # ---- 1+3. Live quote + profile (industry/sector/data availability) ------
+        print("\n" + "=" * 100)
+        print("PROFILE + LIVE QUOTE — REAL FMP payload per ticker (industry tag is load-bearing)")
+        print("=" * 100)
+        for t in STORAGE_CANDIDATES:
+            try:
+                prof_res = await dl.fetch(DataType.PROFILE, t)
+                prof = prof_res.data or {}
+            except Exception as e:  # noqa: BLE001
+                print(f"\n{t}: PROFILE fetch FAILED — {type(e).__name__}: {str(e)[:150]}")
+                prof = {}
+            try:
+                q_res = await dl.fetch(DataType.QUOTE, t)
+                q = q_res.data or {}
+            except Exception as e:  # noqa: BLE001
+                print(f"{t}: QUOTE fetch FAILED — {type(e).__name__}: {str(e)[:150]}")
+                q = {}
+            price = q.get("price") or q.get("current_price")
+            mcap = q.get("market_cap") or prof.get("market_cap")
+            print(f"\n--- {t} ---")
+            print(f"  company   : {prof.get('company_name') or prof.get('companyName')}")
+            print(f"  industry  : {prof.get('industry')!r}")
+            print(f"  sector    : {prof.get('sector')!r}")
+            print(f"  country   : {prof.get('country')!r}  currency: {prof.get('currency')!r}")
+            print(f"  live price: {price}   market_cap: {mcap}")
+            print(f"  pe(quote) : {q.get('pe')}   eps(quote): {q.get('eps')}")
+            # description snippet — what the role-classifier text actually sees
+            desc = (prof.get("description") or "")[:240]
+            print(f"  desc[:240]: {desc}")
 
-    print("\nDONE")
-    return 0
+        # ---- 2. MU PEER_CANDIDATES — the actual pool the screen sees ------------
+        print("\n" + "=" * 100)
+        print("MU PEER_CANDIDATES — REAL pool (does any storage name appear?)")
+        print("=" * 100)
+        try:
+            pc_res = await dl.fetch(DataType.PEER_CANDIDATES, "MU")
+            pc = pc_res.data or {}
+        except Exception as e:  # noqa: BLE001
+            print(f"PEER_CANDIDATES fetch FAILED — {type(e).__name__}: {str(e)[:200]}")
+            pc = {}
+        if pc:
+            prof = pc.get("profile") or {}
+            print(
+                f"target profile industry={prof.get('industry')!r} sector={prof.get('sector')!r} "
+                f"mcap={prof.get('market_cap')}"
+            )
+            print(f"stock_peers     : {pc.get('stock_peers')}")
+            print(f"industry_screen : {pc.get('industry_screen')}")
+            print(f"sector_screen   : {pc.get('sector_screen')}")
+            # per-candidate profile industry labels (the role/affinity inputs)
+            profiles = pc.get("profiles") or {}
+            print("\nper-candidate (sym → industry | sector | mcap):")
+            for sym in sorted(profiles.keys()):
+                p = profiles[sym]
+                print(
+                    f"  {sym:6} {str(p.get('industry'))[:34]:34} | "
+                    f"{str(p.get('sector'))[:22]:22} | mcap={p.get('market_cap')}"
+                )
+            quotes = pc.get("quotes") or {}
+            print(f"\nquotes keys present: {sorted(quotes.keys())}")
+            # Is any of WDC/SNDK/STX in the candidate universe at all?
+            universe = set()
+            for key in ("stock_peers", "industry_screen", "sector_screen"):
+                universe |= {str(s).upper() for s in (pc.get(key) or [])}
+            for cand in ("WDC", "SNDK", "STX"):
+                print(f"  {cand} in MU candidate universe? {cand in universe}")
+
+        print("\nDONE")
+        return 0
+    finally:
+        # Non-server entrypoint: join the aiosqlite workers + checkpoint WAL so the
+        # process exits cleanly instead of hanging on "Event loop is closed" (2026-06-24).
+        from finrobot.engine.data.factory import shutdown_data_layer
+
+        await shutdown_data_layer(dl)
 
 
 if __name__ == "__main__":

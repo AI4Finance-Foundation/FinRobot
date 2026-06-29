@@ -28,7 +28,7 @@ from typing import Any
 from edgar import Company, set_identity
 
 from finrobot.config import get_settings
-from finrobot.engine.data.factory import build_data_layer
+from finrobot.engine.data.factory import build_data_layer, shutdown_data_layer
 from finrobot.paths import SETTINGS_JSON
 from finrobot.routes.settings import load_non_secret_settings
 from finrobot.secret_store import create_secret_store
@@ -174,7 +174,7 @@ async def main() -> int:
     fmp = next((p for p in data_layer._providers if p.name == "fmp"), None)
     if fmp is None:
         print("FATAL: no FMP provider built (key not hydrated?)")
-        await data_layer.close()
+        await shutdown_data_layer(data_layer)
         return 1
 
     rows: list[dict[str, Any]] = []
@@ -311,7 +311,9 @@ async def main() -> int:
                 f"\nSEC agreement (<=3% rel)      : {sec_match}/{sec_n} ({sec_match / sec_n:.1%})"
             )
     finally:
-        await data_layer.close()
+        # Non-server entrypoint: join the aiosqlite workers + checkpoint WAL so the
+        # process exits cleanly instead of hanging on "Event loop is closed" (2026-06-24).
+        await shutdown_data_layer(data_layer)
     return 0
 
 

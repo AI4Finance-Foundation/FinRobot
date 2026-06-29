@@ -72,48 +72,55 @@ async def main() -> int:
     settings = await hydrate_settings_from_secrets(settings, store)
     data_layer = build_data_layer(settings)
 
-    payload = await build_technical_analysis(
-        ticker=TICKER,
-        dcf_inputs=dcf_inputs,
-        dcf_target=dcf_target,
-        current_price=current_price,
-        data_layer=data_layer,
-        reliable=reliable,
-        current_ev_ebitda=current_ev_ebitda,
-    )
+    try:
+        payload = await build_technical_analysis(
+            ticker=TICKER,
+            dcf_inputs=dcf_inputs,
+            dcf_target=dcf_target,
+            current_price=current_price,
+            data_layer=data_layer,
+            reliable=reliable,
+            current_ev_ebitda=current_ev_ebitda,
+        )
 
-    sn = payload.sniper
-    band = payload.historical_bands
-    print("\n--- B1: sniper ---")
-    print(f"direction   = {sn.direction if sn else None}")
-    print(f"take_profit = {sn.take_profit if sn else None}")
-    print(
-        f"support/res = {sn.support_level if sn else None} / {sn.resistance_level if sn else None}"
-    )
-    print("\n--- B2: historical band ---")
-    print(f"band.current = {band.current if band else None}")
-    print(f"comps        = {comps_ev_ebitda:.4f}")
-    if band:
-        for w in band.warnings:
-            print(f"band.warning: {w}")
+        sn = payload.sniper
+        band = payload.historical_bands
+        print("\n--- B1: sniper ---")
+        print(f"direction   = {sn.direction if sn else None}")
+        print(f"take_profit = {sn.take_profit if sn else None}")
+        print(
+            f"support/res = {sn.support_level if sn else None} / {sn.resistance_level if sn else None}"
+        )
+        print("\n--- B2: historical band ---")
+        print(f"band.current = {band.current if band else None}")
+        print(f"comps        = {comps_ev_ebitda:.4f}")
+        if band:
+            for w in band.warnings:
+                print(f"band.warning: {w}")
 
-    ok = True
-    # B1
-    assert sn is not None, "sniper unexpectedly None"
-    if sn.direction != "NEUTRAL":
-        print("FAIL B1: expected NEUTRAL, got", sn.direction)
-        ok = False
-    if sn.take_profit is not None:
-        print("FAIL B1: directional take_profit leaked:", sn.take_profit)
-        ok = False
-    # B2
-    assert band is not None and band.current is not None, "band/current None"
-    if abs(band.current - comps_ev_ebitda) > 0.01:
-        print(f"FAIL B2: band.current {band.current:.4f} != comps {comps_ev_ebitda:.4f}")
-        ok = False
+        ok = True
+        # B1
+        assert sn is not None, "sniper unexpectedly None"
+        if sn.direction != "NEUTRAL":
+            print("FAIL B1: expected NEUTRAL, got", sn.direction)
+            ok = False
+        if sn.take_profit is not None:
+            print("FAIL B1: directional take_profit leaked:", sn.take_profit)
+            ok = False
+        # B2
+        assert band is not None and band.current is not None, "band/current None"
+        if abs(band.current - comps_ev_ebitda) > 0.01:
+            print(f"FAIL B2: band.current {band.current:.4f} != comps {comps_ev_ebitda:.4f}")
+            ok = False
 
-    print("\nRESULT:", "PASS — both contradictions resolved" if ok else "FAIL")
-    return 0 if ok else 1
+        print("\nRESULT:", "PASS — both contradictions resolved" if ok else "FAIL")
+        return 0 if ok else 1
+    finally:
+        # Non-server entrypoint: join the aiosqlite workers + checkpoint WAL so the
+        # process exits cleanly instead of hanging on "Event loop is closed" (2026-06-24).
+        from finrobot.engine.data.factory import shutdown_data_layer
+
+        await shutdown_data_layer(data_layer)
 
 
 if __name__ == "__main__":

@@ -116,7 +116,11 @@ async def main() -> int:
             print(f"  FMP total_debt (served) {_b(fmp_d.get('total_debt'))}  <- system serves this")
             print(f"  yfinance total_debt     {_b(yf_d.get('total_debt'))}")
     finally:
-        await data_layer.close()
+        # Non-server entrypoint: join the aiosqlite workers + checkpoint WAL so the
+        # process exits cleanly instead of hanging on "Event loop is closed" (2026-06-24).
+        from finrobot.engine.data.factory import shutdown_data_layer
+
+        await shutdown_data_layer(data_layer)
     return 0
 
 

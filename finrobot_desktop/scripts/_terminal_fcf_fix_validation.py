@@ -108,74 +108,81 @@ async def main() -> int:
     settings = await hydrate_settings_from_secrets(settings, store)
     dl = build_data_layer(settings)
 
-    for ticker in BASKET:
+    try:
+        for ticker in BASKET:
+            print("=" * 96)
+            try:
+                fin, inputs = await seed_dcf_inputs_for_ticker(
+                    dl, ticker, fmp_api_key=settings.fmp_api_key
+                )
+            except Exception as e:  # noqa: BLE001 — per-ticker isolation, basket must finish
+                print(f"{ticker}: seed 失败 {type(e).__name__}: {str(e)[:120]}")
+                continue
+
+            price = fin.market.current_price if fin.market else None
+            m = min(inputs.da_pct_revenue, inputs.capex_pct_revenue)
+            print(
+                f"{ticker}  市价=${price:,.2f}" if price else f"{ticker}  市价=N/A",
+            )
+            print(
+                f"  种子: ebitda={inputs.ebitda_margin:.1%} da={inputs.da_pct_revenue:.1%} "
+                f"capex={inputs.capex_pct_revenue:.1%} nwc={inputs.nwc_pct_revenue:.1%} "
+                f"tax={inputs.tax_rate:.1%} → min锚={m:.1%}"
+            )
+            tg = inputs.terminal_growth_rate
+            factor_a = (
+                (inputs.ebitda_margin - inputs.da_pct_revenue) * (1 - inputs.tax_rate)
+                - inputs.da_pct_revenue * tg
+                - inputs.nwc_pct_revenue
+            )
+            factor_b = (
+                (inputs.ebitda_margin - m) * (1 - inputs.tax_rate) - m * tg - inputs.nwc_pct_revenue
+            )
+
+            # 终值 NWC 缩放需要历史 ΔNWC/Δrev——从 coordinator 再取一次 historical
+            from finrobot.engine.compute.coordinators.historical_extractor import (
+                fetch_historical_metrics,
+            )
+
+            try:
+                hist = await fetch_historical_metrics(dl, ticker)
+                nwc_t, nwc_note = _terminal_nwc_estimate(
+                    list(hist.change_in_working_capital or []), list(hist.revenue or []), tg
+                )
+            except Exception as e:  # noqa: BLE001
+                nwc_t, nwc_note = inputs.nwc_pct_revenue, f"历史不可得({type(e).__name__}),沿用现值"
+            factor_c = (inputs.ebitda_margin - m) * (1 - inputs.tax_rate) - m * tg - nwc_t
+            print(
+                f"  终值因子(每$1营收): A现状={factor_a:+.2%}  B改锚={factor_b:+.2%}  C锚+NWC={factor_c:+.2%}"
+            )
+            print(f"  终值NWC: {nwc_note}")
+
+            dcf_mod._terminal_fcf = _ORIG_TERMINAL_FCF
+            pa = _implied_price(inputs)
+            dcf_mod._terminal_fcf = _terminal_fcf_b
+            pb = _implied_price(inputs)
+            dcf_mod._terminal_fcf = _make_variant_c(nwc_t)
+            pc = _implied_price(inputs)
+            dcf_mod._terminal_fcf = _ORIG_TERMINAL_FCF
+
+            def _ratio(p: str) -> str:
+                if not p.startswith("$") or not price:
+                    return ""
+                return f"({float(p[1:].replace(',', '')) / price:.2f}x)"
+
+            print(f"  implied: A={pa}{_ratio(pa)}  B={pb}{_ratio(pb)}  C={pc}{_ratio(pc)}")
+
         print("=" * 96)
-        try:
-            fin, inputs = await seed_dcf_inputs_for_ticker(
-                dl, ticker, fmp_api_key=settings.fmp_api_key
-            )
-        except Exception as e:  # noqa: BLE001 — per-ticker isolation, basket must finish
-            print(f"{ticker}: seed 失败 {type(e).__name__}: {str(e)[:120]}")
-            continue
-
-        price = fin.market.current_price if fin.market else None
-        m = min(inputs.da_pct_revenue, inputs.capex_pct_revenue)
         print(
-            f"{ticker}  市价=${price:,.2f}" if price else f"{ticker}  市价=N/A",
+            "验收判据: AMD B/C 复活且向 comps 收敛 · TSLA B≈A(capex>da 不动) · KO/JNJ/MSFT |C−A|/A < 5%(NWC 本就≈0 的票) · MU/RIVN 拒绝原因仍诚实"
         )
-        print(
-            f"  种子: ebitda={inputs.ebitda_margin:.1%} da={inputs.da_pct_revenue:.1%} "
-            f"capex={inputs.capex_pct_revenue:.1%} nwc={inputs.nwc_pct_revenue:.1%} "
-            f"tax={inputs.tax_rate:.1%} → min锚={m:.1%}"
-        )
-        tg = inputs.terminal_growth_rate
-        factor_a = (
-            (inputs.ebitda_margin - inputs.da_pct_revenue) * (1 - inputs.tax_rate)
-            - inputs.da_pct_revenue * tg
-            - inputs.nwc_pct_revenue
-        )
-        factor_b = (
-            (inputs.ebitda_margin - m) * (1 - inputs.tax_rate) - m * tg - inputs.nwc_pct_revenue
-        )
+        return 0
+    finally:
+        # Non-server entrypoint: join the aiosqlite workers + checkpoint WAL so the
+        # process exits cleanly instead of hanging on "Event loop is closed" (2026-06-24).
+        from finrobot.engine.data.factory import shutdown_data_layer
 
-        # 终值 NWC 缩放需要历史 ΔNWC/Δrev——从 coordinator 再取一次 historical
-        from finrobot.engine.compute.coordinators.historical_extractor import (
-            fetch_historical_metrics,
-        )
-
-        try:
-            hist = await fetch_historical_metrics(dl, ticker)
-            nwc_t, nwc_note = _terminal_nwc_estimate(
-                list(hist.change_in_working_capital or []), list(hist.revenue or []), tg
-            )
-        except Exception as e:  # noqa: BLE001
-            nwc_t, nwc_note = inputs.nwc_pct_revenue, f"历史不可得({type(e).__name__}),沿用现值"
-        factor_c = (inputs.ebitda_margin - m) * (1 - inputs.tax_rate) - m * tg - nwc_t
-        print(
-            f"  终值因子(每$1营收): A现状={factor_a:+.2%}  B改锚={factor_b:+.2%}  C锚+NWC={factor_c:+.2%}"
-        )
-        print(f"  终值NWC: {nwc_note}")
-
-        dcf_mod._terminal_fcf = _ORIG_TERMINAL_FCF
-        pa = _implied_price(inputs)
-        dcf_mod._terminal_fcf = _terminal_fcf_b
-        pb = _implied_price(inputs)
-        dcf_mod._terminal_fcf = _make_variant_c(nwc_t)
-        pc = _implied_price(inputs)
-        dcf_mod._terminal_fcf = _ORIG_TERMINAL_FCF
-
-        def _ratio(p: str) -> str:
-            if not p.startswith("$") or not price:
-                return ""
-            return f"({float(p[1:].replace(',', '')) / price:.2f}x)"
-
-        print(f"  implied: A={pa}{_ratio(pa)}  B={pb}{_ratio(pb)}  C={pc}{_ratio(pc)}")
-
-    print("=" * 96)
-    print(
-        "验收判据: AMD B/C 复活且向 comps 收敛 · TSLA B≈A(capex>da 不动) · KO/JNJ/MSFT |C−A|/A < 5%(NWC 本就≈0 的票) · MU/RIVN 拒绝原因仍诚实"
-    )
-    return 0
+        await shutdown_data_layer(dl)
 
 
 if __name__ == "__main__":

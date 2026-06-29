@@ -52,43 +52,50 @@ def _find(structured: dict[str, object], cls: type) -> object | None:
 
 async def main() -> None:
     deps = await build_deps()
-    factories = get_pipeline_factories()
-    print("=" * 100, flush=True)
-    for ticker in TICKERS:
-        sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
-        pipeline = factories["research"](sub_agents)
-        try:
-            result = await asyncio.wait_for(pipeline.execute(deps, ticker, lang="zh"), timeout=200)
-        except asyncio.TimeoutError:
-            print(f"  {ticker:8s} TIMEOUT >200s", flush=True)
-            continue
-        except Exception as e:  # noqa: BLE001
-            print(f"  {ticker:8s} ERROR {type(e).__name__}: {e}", flush=True)
-            continue
-        vs = _find(result.structured_data, ValuationSynthesis)
-        th = _find(result.structured_data, ThesisResult)
-        rec = getattr(th, "recommendation", "?")
-        tgt = getattr(th, "price_target", None)
-        basis = getattr(th, "price_target_basis", "")
-        methods = []
-        cur = None
-        reliable = None
-        wpx = None
-        if isinstance(vs, ValuationSynthesis):
-            methods = [f"{m.name}=${m.mid:.0f}" for m in vs.methods]
-            cur = getattr(vs, "current_price", None)
-            reliable = getattr(vs, "reliable", None)
-            wpx = getattr(vs, "weighted_price", None)
-        tgts = f"${tgt:.2f}" if isinstance(tgt, (int, float)) else "WITHHELD"
-        curs = f"${cur:.2f}" if isinstance(cur, (int, float)) else "?"
-        flag = "🔴REVIEW" if rec == "REVIEW" else f"  {rec}"
-        print(
-            f"\n  {ticker:8s} {flag:10s} target={tgts:>10}  current={curs:>9}  reliable={reliable}",
-            flush=True,
-        )
-        print(f"           methods: {'  '.join(methods) or '(none)'}   weighted={wpx}", flush=True)
-        print(f"           basis: {basis[:240]}", flush=True)
-    print("\n" + "=" * 100, flush=True)
+    try:
+        factories = get_pipeline_factories()
+        print("=" * 100, flush=True)
+        for ticker in TICKERS:
+            sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
+            pipeline = factories["research"](sub_agents)
+            try:
+                result = await asyncio.wait_for(pipeline.execute(deps, ticker, lang="zh"), timeout=200)
+            except asyncio.TimeoutError:
+                print(f"  {ticker:8s} TIMEOUT >200s", flush=True)
+                continue
+            except Exception as e:  # noqa: BLE001
+                print(f"  {ticker:8s} ERROR {type(e).__name__}: {e}", flush=True)
+                continue
+            vs = _find(result.structured_data, ValuationSynthesis)
+            th = _find(result.structured_data, ThesisResult)
+            rec = getattr(th, "recommendation", "?")
+            tgt = getattr(th, "price_target", None)
+            basis = getattr(th, "price_target_basis", "")
+            methods = []
+            cur = None
+            reliable = None
+            wpx = None
+            if isinstance(vs, ValuationSynthesis):
+                methods = [f"{m.name}=${m.mid:.0f}" for m in vs.methods]
+                cur = getattr(vs, "current_price", None)
+                reliable = getattr(vs, "reliable", None)
+                wpx = getattr(vs, "weighted_price", None)
+            tgts = f"${tgt:.2f}" if isinstance(tgt, (int, float)) else "WITHHELD"
+            curs = f"${cur:.2f}" if isinstance(cur, (int, float)) else "?"
+            flag = "🔴REVIEW" if rec == "REVIEW" else f"  {rec}"
+            print(
+                f"\n  {ticker:8s} {flag:10s} target={tgts:>10}  current={curs:>9}  reliable={reliable}",
+                flush=True,
+            )
+            print(f"           methods: {'  '.join(methods) or '(none)'}   weighted={wpx}", flush=True)
+            print(f"           basis: {basis[:240]}", flush=True)
+        print("\n" + "=" * 100, flush=True)
+    finally:
+        # Non-server entrypoint: join the aiosqlite workers + checkpoint WAL so the
+        # process exits cleanly instead of hanging on "Event loop is closed" (2026-06-24).
+        from finrobot.engine.data.factory import shutdown_data_layer
+
+        await shutdown_data_layer(deps.data_layer)
 
 
 if __name__ == "__main__":

@@ -72,7 +72,11 @@ async def main() -> None:
             same = medians[0] == medians[1]
             print(f"  determinism (run1 == run2): {same}")
     finally:
-        await data_layer.close()
+        # Non-server entrypoint: join the aiosqlite workers + checkpoint WAL so the
+        # process exits cleanly instead of hanging on "Event loop is closed" (2026-06-24).
+        from finrobot.engine.data.factory import shutdown_data_layer
+
+        await shutdown_data_layer(data_layer)
 
 
 if __name__ == "__main__":

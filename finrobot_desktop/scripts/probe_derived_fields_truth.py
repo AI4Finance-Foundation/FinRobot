@@ -808,7 +808,11 @@ async def main() -> int:
                 ]
             all_rows.extend(rows)
     finally:
-        await layer.close()
+        # Non-server entrypoint: join the aiosqlite workers + checkpoint WAL so the
+        # process exits cleanly instead of hanging on "Event loop is closed" (2026-06-24).
+        from finrobot.engine.data.factory import shutdown_data_layer
+
+        await shutdown_data_layer(layer)
 
     summary = summarize(all_rows)
     RESULTS_PATH.write_text(

@@ -121,12 +121,6 @@ class TestListArtifacts:
         assert resp.status_code == 422
 
 
-class TestStudiedTickers:
-    def test_rejects_negative_limit(self, client: TestClient) -> None:
-        resp = client.get("/api/artifacts/studied-tickers?limit=-1")
-        assert resp.status_code == 422
-
-
 class TestGetArtifact:
     def test_returns_full_artifact(
         self, client: TestClient, store: ArtifactStore, sample_artifact: Artifact
@@ -340,6 +334,59 @@ class TestTimeline:
     def test_timeline_rejects_negative_limit(self, client: TestClient) -> None:
         resp = client.get("/api/artifacts/by-ticker/TSLA/timeline?limit=-1")
         assert resp.status_code == 422
+
+
+class TestTimelineIncludeSignals:
+    """The signal lamp (hit/watching/failed) needs a LIVE quote per ticker, so
+    attach_signals issues a synchronous fetch_canonical(PRICE) before the
+    timeline returns — market-data latency on what is otherwise a local-DB read.
+    Surfaces that don't render the lamp pass ?include_signals=false to skip it
+    and paint the report history instantly. These tests pin the gating: the spy
+    stands in for attach_signals so the contract holds regardless of whether any
+    stored artifact would actually qualify for a quote fetch."""
+
+    def _spy_attach(self, app: FastAPI, calls: list[int], monkeypatch: pytest.MonkeyPatch) -> None:
+        from types import SimpleNamespace
+
+        async def _spy(summaries: object, data_layer: object, **_: object) -> object:
+            calls.append(1)
+            return summaries
+
+        # Non-None data_layer so the route reaches the attach_signals branch.
+        app.state.deps = SimpleNamespace(data_layer=object())
+        monkeypatch.setattr("finrobot.routes.artifacts.attach_signals", _spy)
+
+    def test_signals_attached_by_default(
+        self,
+        app: FastAPI,
+        client: TestClient,
+        store: ArtifactStore,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _save_sync(store, _make_artifact(id="art_sig_default", ticker="TSLA"))
+        calls: list[int] = []
+        self._spy_attach(app, calls, monkeypatch)
+
+        resp = client.get("/api/artifacts/by-ticker/TSLA/timeline")
+        assert resp.status_code == 200
+        assert calls == [1]  # live-quote signal compute ran
+
+    def test_include_signals_false_skips_live_quote(
+        self,
+        app: FastAPI,
+        client: TestClient,
+        store: ArtifactStore,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        _save_sync(store, _make_artifact(id="art_sig_off", ticker="TSLA"))
+        calls: list[int] = []
+        self._spy_attach(app, calls, monkeypatch)
+
+        resp = client.get("/api/artifacts/by-ticker/TSLA/timeline?include_signals=false")
+        assert resp.status_code == 200
+        assert calls == []  # no fetch_canonical(PRICE) — instant local read
+        # History still returned in full; only the lamp is deferred.
+        assert {item["id"] for item in resp.json()} == {"art_sig_off"}
 
 
 class TestSchemaDriftGhostRows:

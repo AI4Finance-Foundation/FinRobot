@@ -25,14 +25,27 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
  * explicitly where the surface claims "full history" (Coverage Inspector) so a
  * heavily-run ticker isn't silently truncated at 50 while the card reports a
  * higher artifact_count — match the coverage service's own 200 ceiling. The
- * limit is part of the query key so different callers don't share a cache. */
-export function useV5ArtifactTimeline(ticker: string, limit?: number) {
+ * limit is part of the query key so different callers don't share a cache.
+ *
+ * `includeSignals` toggles the per-row hit/watching/failed lamp. Computing it
+ * costs a LIVE quote per ticker (the backend fetches it synchronously before
+ * returning), which bolts market-data latency onto what is otherwise a fast
+ * local-DB read. Surfaces that don't render the lamp (the workspace
+ * report-history preview) pass false so the history paints instantly; surfaces
+ * that do (the report detail page's version rail) keep the default. It is part
+ * of the query key so the with/without-lamp variants don't share a cache. */
+export function useV5ArtifactTimeline(ticker: string, limit?: number, includeSignals = true) {
   return useQuery<ArtifactSummaryV5[], Error>({
-    queryKey: ['v5-artifacts-timeline', ticker, limit ?? null],
+    queryKey: ['v5-artifacts-timeline', ticker, limit ?? null, includeSignals],
     queryFn: ({ signal }) => {
-      const qs = limit != null ? `?limit=${limit}` : ''
+      const params = new URLSearchParams()
+      if (limit != null) params.set('limit', String(limit))
+      // Backend defaults include_signals=true; only send it when opting out so
+      // existing URLs stay unchanged.
+      if (!includeSignals) params.set('include_signals', 'false')
+      const qs = params.toString()
       return getJson<ArtifactSummaryV5[]>(
-        `${BASE_URL}/api/artifacts/by-ticker/${ticker}/timeline${qs}`,
+        `${BASE_URL}/api/artifacts/by-ticker/${ticker}/timeline${qs ? `?${qs}` : ''}`,
         signal,
       )
     },
@@ -48,8 +61,13 @@ export function useV5ArtifactTimeline(ticker: string, limit?: number) {
  * the timeline can pass the SAME limit and share one query/request — two
  * different limits on one surface meant two HTTP fetches with two truncation
  * calibers for the same ticker (the AIZone 50-vs-200 split). */
-export function useLatestArtifact(ticker: string, type: ArtifactSummaryV5['type'], limit?: number) {
-  const query = useV5ArtifactTimeline(ticker, limit)
+export function useLatestArtifact(
+  ticker: string,
+  type: ArtifactSummaryV5['type'],
+  limit?: number,
+  includeSignals = true,
+) {
+  const query = useV5ArtifactTimeline(ticker, limit, includeSignals)
   const latest = query.data?.find((a) => a.type === type) ?? null
   return { ...query, latest }
 }

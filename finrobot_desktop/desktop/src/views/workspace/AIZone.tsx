@@ -79,10 +79,15 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
     isError: artifactError,
     error: artifactErr,
     refetch: artifactRefetch,
-    // limit 200 == the timeline query below, so both subscribe to the SAME
-    // react-query key → one request, one truncation caliber (was a second
-    // default-50 fetch whose "latest" could disagree with the 200-row list).
-  } = useLatestArtifact(ticker, 'equity_research', 200)
+    // limit 200 + includeSignals=false == the timeline query below, so both
+    // subscribe to the SAME react-query key → one request, one truncation
+    // caliber (was a second default-50 fetch whose "latest" could disagree with
+    // the 200-row list). includeSignals=false because this preview never renders
+    // the hit/watching/failed lamp (see "DO NOT read signal" below) — skipping
+    // it drops a synchronous live-quote fetch off the critical path so the report
+    // history paints from the local DB instantly instead of waiting on market
+    // data. The lamp lives only on the report detail page's version rail.
+  } = useLatestArtifact(ticker, 'equity_research', 200, false)
   const {
     data: timeline,
     isLoading: timelineLoading,
@@ -90,8 +95,9 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
     refetch: timelineRefetch,
     // limit 200 to match the report page / Coverage Inspector ceiling so this
     // preview reads from the same cached "full history" page rather than its own
-    // truncated default-50 slice for the same ticker (BUG-056).
-  } = useV5ArtifactTimeline(ticker, 200)
+    // truncated default-50 slice for the same ticker (BUG-056). includeSignals=
+    // false — see the useLatestArtifact note above; the preview doesn't use it.
+  } = useV5ArtifactTimeline(ticker, 200, false)
   const startRun = useRunStreamStore((s) => s.startRun)
   const runState = useRunStreamStore(selectRunByTicker(ticker))
   const dismissRun = useRunStreamStore((s) => s.dismiss)

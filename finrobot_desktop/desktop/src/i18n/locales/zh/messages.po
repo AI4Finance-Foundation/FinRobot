@@ -629,6 +629,10 @@ msgid "chapter.technical.subheading.sniper"
 msgstr "支撑 / 阻力位"
 
 #. js-lingui-explicit-id
+msgid "chapter.technical.subheading.tacticalReference"
+msgstr "战术交易参考"
+
+#. js-lingui-explicit-id
 msgid "chapter.technical.subheading.historicalBands"
 msgstr "历史 EV/EBITDA 估值带"
 
@@ -699,6 +703,10 @@ msgstr "DCF 平仓价"
 #. js-lingui-explicit-id
 msgid "chapter.technical.sniper.withheldUnreliable"
 msgstr "方向性狙击位已隐去：估值方法未交叉验证（DCF 与可比公司分歧过大，点位目标价已扣发），无可锚定的可靠目标。方向性评级仍然成立；仅保留下方支撑 / 阻力供参考。"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.tacticalFraming"
+msgstr "由 DCF 公允价值与近期价格走势机械推导的进出场参考位——仅为执行层的战术参照，并非投资论点本身。"
 
 #. js-lingui-explicit-id
 msgid "chapter.technical.sniper.support20d"

@@ -55,11 +55,11 @@ describe('ChapterTechnical', () => {
     expect(screen.getByText('38th')).toBeInTheDocument()
   })
 
-  it('renders sniper levels with buy / stop / target and R/R ratio', () => {
+  it('splits objective S/R levels from a separate Tactical Trade Reference block (entries / stop / target / R-R)', () => {
     renderChapter({
       sniper: {
         ideal_buy: 162.5,
-        secondary_buy: 154.0,
+        secondary_buy: 150.0,
         stop_loss: 138.0,
         take_profit: 200.0,
         position_size_pct: 3.0,
@@ -69,7 +69,14 @@ describe('ChapterTechnical', () => {
         risk_reward_ratio: 2.4,
       },
     })
+    // Objective technical-level module (the analytical content).
     expect(screen.getByText('Support / Resistance Levels')).toBeInTheDocument()
+    expect(screen.getByText('Support (20d)')).toBeInTheDocument()
+    expect(screen.getByText('$154.00')).toBeInTheDocument()
+    // The trade-desk fields live in a distinct, clearly-labelled adjunct block
+    // with an IB-framing caption — not embedded as the section's headline.
+    expect(screen.getByText('Tactical Trade Reference')).toBeInTheDocument()
+    expect(screen.getByTestId('sniper-tactical-note')).toBeInTheDocument()
     expect(screen.getByText('Ideal Buy')).toBeInTheDocument()
     expect(screen.getByText('$162.50')).toBeInTheDocument()
     expect(screen.getByText('Stop Loss')).toBeInTheDocument()
@@ -101,7 +108,10 @@ describe('ChapterTechnical', () => {
     // Support / resistance (pure price facts) still render.
     expect(screen.getByText('$292.68')).toBeInTheDocument()
     expect(screen.getByText('$315.20')).toBeInTheDocument()
-    // No directional trade may leak: no entry / stop / target / R/R cells.
+    // No directional trade may leak: no entry / stop / target / R/R cells, and
+    // the Tactical Trade Reference adjunct block must not render at all.
+    expect(screen.queryByText('Tactical Trade Reference')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('sniper-tactical-note')).not.toBeInTheDocument()
     expect(screen.queryByText('Ideal Buy')).not.toBeInTheDocument()
     expect(screen.queryByText('Take Profit')).not.toBeInTheDocument()
     expect(screen.queryByText('Stop Loss')).not.toBeInTheDocument()

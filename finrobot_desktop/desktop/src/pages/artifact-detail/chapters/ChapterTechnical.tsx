@@ -305,7 +305,17 @@ function SniperPanel({
   fmtPx: (v: number) => string
 }): React.ReactElement {
   type Cell = MetricCell
-  const cells: Cell[] = []
+  // Two distinct readouts, NOT one trading-desk block (BACKLOG PM-review ②):
+  //   • levelCells   — objective price-history facts (20-day support / resistance),
+  //     independent of the DCF. The analytical technical content; always shown when
+  //     present, including NEUTRAL where they're the only honest level left.
+  //   • tacticalCells — the mechanical entry / stop / target / R-R / sizing derived
+  //     from the DCF fair value. Extracted into a clearly-labelled, visually
+  //     subordinate "Tactical Trade Reference" module so the technical chapter reads
+  //     as IB research, not a retail day-trading signal. Empty in NEUTRAL → that
+  //     module renders nothing (MetricModule returns null on zero cells).
+  const levelCells: Cell[] = []
+  const tacticalCells: Cell[] = []
 
   // NEUTRAL (levels-only): the valuation synthesis flagged itself unreliable, so
   // the headline target was withheld. No directional trade may be anchored to it
@@ -318,7 +328,7 @@ function SniperPanel({
   const isShort = !isNeutral && (sniper.direction === 'SHORT' || sniper.sell_mode === true)
 
   if (sniper.ideal_buy != null) {
-    cells.push({
+    tacticalCells.push({
       label: isShort
         ? t('chapter.technical.sniper.idealShort')
         : t('chapter.technical.sniper.idealBuy'),
@@ -333,7 +343,7 @@ function SniperPanel({
     })
   }
   if (sniper.secondary_buy != null) {
-    cells.push({
+    tacticalCells.push({
       label: isShort
         ? t('chapter.technical.sniper.secondaryShort')
         : t('chapter.technical.sniper.secondaryBuy'),
@@ -344,14 +354,14 @@ function SniperPanel({
     })
   }
   if (sniper.stop_loss != null) {
-    cells.push({
+    tacticalCells.push({
       label: t('chapter.technical.sniper.stopLoss'),
       value: fmtPx(sniper.stop_loss),
       tone: 'down',
     })
   }
   if (sniper.take_profit != null) {
-    cells.push({
+    tacticalCells.push({
       label: isShort
         ? t('chapter.technical.sniper.coverTarget')
         : t('chapter.technical.sniper.takeProfit'),
@@ -362,31 +372,32 @@ function SniperPanel({
         : t('chapter.technical.sniper.dcfTarget'),
     })
   }
-  if (sniper.support_level != null) {
-    cells.push({
-      label: t('chapter.technical.sniper.support20d'),
-      value: fmtPx(sniper.support_level),
-    })
-  }
-  if (sniper.resistance_level != null) {
-    cells.push({
-      label: t('chapter.technical.sniper.resistance20d'),
-      value: fmtPx(sniper.resistance_level),
-    })
-  }
   if (sniper.risk_reward_ratio != null) {
     const rr = sniper.risk_reward_ratio
-    cells.push({
+    tacticalCells.push({
       label: t('chapter.technical.sniper.rrRatio'),
       value: rr.toFixed(2),
       tone: rr >= 2 ? 'up' : rr >= 1 ? undefined : 'down',
     })
   }
   if (sniper.position_size_pct != null) {
-    cells.push({
+    tacticalCells.push({
       label: t('chapter.technical.sniper.suggestedSize'),
       value: `${sniper.position_size_pct.toFixed(1)}%`,
       sub: t('chapter.technical.sniper.ofPortfolio'),
+    })
+  }
+
+  if (sniper.support_level != null) {
+    levelCells.push({
+      label: t('chapter.technical.sniper.support20d'),
+      value: fmtPx(sniper.support_level),
+    })
+  }
+  if (sniper.resistance_level != null) {
+    levelCells.push({
+      label: t('chapter.technical.sniper.resistance20d'),
+      value: fmtPx(sniper.resistance_level),
     })
   }
 
@@ -397,14 +408,29 @@ function SniperPanel({
           {t('chapter.technical.sniper.withheldUnreliable')}
         </p>
       )}
-      {/* The section heading is integrated into the module's accent title bar
-          (replacing the former SubChapter h4) — terminal-readout framing. */}
+      {/* Objective technical levels — the analytical content of this section. */}
       <MetricModule
         title={t('chapter.technical.subheading.sniper')}
-        accent="primary"
-        cells={cells}
+        accent="cyan"
+        cells={levelCells}
         columns={2}
       />
+      {/* Tactical execution levels are a derived, optional adjunct — not the
+          investment thesis. The caption frames them as such; in NEUTRAL the array
+          is empty and this whole block renders nothing. */}
+      {tacticalCells.length > 0 && (
+        <>
+          <p style={tacticalNote} data-testid="sniper-tactical-note">
+            {t('chapter.technical.sniper.tacticalFraming')}
+          </p>
+          <MetricModule
+            title={t('chapter.technical.subheading.tacticalReference')}
+            accent="primary"
+            cells={tacticalCells}
+            columns={2}
+          />
+        </>
+      )}
     </div>
   )
 }
@@ -638,4 +664,16 @@ const mutedNote: React.CSSProperties = {
   background: 'var(--bg-card-50)',
   border: '1px dashed var(--border-soft)',
   borderRadius: 'var(--radius-sm)',
+}
+
+// Lead-in framing for the Tactical Trade Reference module: a quiet caption (no
+// boxed/dashed treatment — that reads as a warning) that signals the levels below
+// are a derived implementation adjunct, not the report's view.
+const tacticalNote: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  lineHeight: 1.65,
+  letterSpacing: '0.02em',
+  color: 'var(--text-muted)',
+  margin: '20px 0 0',
 }

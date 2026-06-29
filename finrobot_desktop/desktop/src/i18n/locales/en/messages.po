@@ -629,6 +629,10 @@ msgid "chapter.technical.subheading.sniper"
 msgstr "Support / Resistance Levels"
 
 #. js-lingui-explicit-id
+msgid "chapter.technical.subheading.tacticalReference"
+msgstr "Tactical Trade Reference"
+
+#. js-lingui-explicit-id
 msgid "chapter.technical.subheading.historicalBands"
 msgstr "Historical EV/EBITDA Bands"
 
@@ -699,6 +703,10 @@ msgstr "DCF cover"
 #. js-lingui-explicit-id
 msgid "chapter.technical.sniper.withheldUnreliable"
 msgstr "Directional sniper levels withheld: the valuation methods do not corroborate (DCF vs comps diverge too far — the headline point target was withheld), so there is no defensible target to anchor a trade. The directional rating still stands; support / resistance below are shown for reference only."
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.tacticalFraming"
+msgstr "Mechanical entry / exit levels derived from the DCF fair value and recent price action — a tactical implementation reference, not the investment thesis."
 
 #. js-lingui-explicit-id
 msgid "chapter.technical.sniper.support20d"

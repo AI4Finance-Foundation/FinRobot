@@ -202,8 +202,12 @@ export function useTickerPrice(ticker: string) {
     staleTime: 60_000, // 1 min — price data is volatile
     // 60s normal cadence, but recover in ~2s from a cold-start 503 so a workspace
     // opened during the sidecar warmup window doesn't sit blank for a minute.
-    refetchInterval: (query) =>
-      query.state.error?.status === 503 ? COLD_START_503_RETRY_MS : 60_000,
+    // When the market is closed the price is the frozen session close and won't
+    // move — poll far less often (5 min) to save requests/battery.
+    refetchInterval: (query) => {
+      if (query.state.error?.status === 503) return COLD_START_503_RETRY_MS
+      return query.state.data?.session_state === 'closed' ? 300_000 : 60_000
+    },
     // No automatic react-query retries. For 422 (invalid ticker) retrying has
     // zero value, and for provider outages the workspace should render with
     // local degraded states instead of a hidden background retry loop.

@@ -1837,6 +1837,10 @@ msgid "workspace.market.valuationBand"
 msgstr "📐 Multiple vs Own History"
 
 #. js-lingui-explicit-id
+msgid "workspace.market.valuationBandError"
+msgstr "Valuation band unavailable (≠ no band) · click to retry"
+
+#. js-lingui-explicit-id
 msgid "workspace.market.priceTrend"
 msgstr "📈 Price Trend"
 

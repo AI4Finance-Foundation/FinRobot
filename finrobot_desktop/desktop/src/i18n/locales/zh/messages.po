@@ -1837,6 +1837,10 @@ msgid "workspace.market.valuationBand"
 msgstr "📐 倍数 vs 自身历史"
 
 #. js-lingui-explicit-id
+msgid "workspace.market.valuationBandError"
+msgstr "估值带暂不可用（≠ 无带）· 点击重试"
+
+#. js-lingui-explicit-id
 msgid "workspace.market.priceTrend"
 msgstr "📈 价格趋势"
 

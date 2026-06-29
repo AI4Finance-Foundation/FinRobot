@@ -62,7 +62,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
     isError: sentimentError,
     refetch: refetchSentiment,
   } = useTickerSentiment(ticker)
-  const { data: band } = useTickerHistoricalBands(ticker)
+  const { data: band, isError: bandError, refetch: refetchBand } = useTickerHistoricalBands(ticker)
   const { t, locale } = useI18n()
 
   return (
@@ -137,7 +137,12 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
           past", surfaced PRE-report, with our cheap/fair/rich classification +
           sample depth a static snapshot multiple can't convey. Hides itself when
           the band can't be computed (cold ticker / thin history). */}
-      <ValuationBandCard band={band} t={t} />
+      <ValuationBandCard
+        band={band}
+        isError={bandError}
+        onRetry={() => void refetchBand()}
+        t={t}
+      />
 
       {/* Market-implied expectations — reverse-DCF probe that interrogates what
           today's price requires you to believe. Placed right after the multiples
@@ -653,12 +658,26 @@ const BAND_METRIC_LABEL: Record<string, string> = { ev_ebitda: 'EV/EBITDA', p_fc
 // band.warnings (Chinese prose) are deliberately NOT rendered.
 function ValuationBandCard({
   band,
+  isError,
+  onRetry,
   t,
 }: {
   band: HistoricalBand | undefined
+  isError?: boolean
+  onRetry?: () => void
   t: (key: string, params?: Record<string, string | number>) => string
 }): React.ReactElement | null {
   const fin = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
+  // A fetch error is NOT the same as "no band exists": silently hiding it would
+  // read as "this ticker has no valuation band" (a cold/thin-history truth) when
+  // really the request failed. Surface it with retry; only a genuine no-band hides.
+  if (isError && (!band || !fin(band.current))) {
+    return (
+      <MktCard title={t('workspace.market.valuationBand')}>
+        <CardError message={t('workspace.market.valuationBandError')} onRetry={onRetry ?? (() => {})} />
+      </MktCard>
+    )
+  }
   if (!band || !fin(band.current) || !fin(band.p25) || !fin(band.p75)) return null
   const cur = band.current
   const p25 = band.p25

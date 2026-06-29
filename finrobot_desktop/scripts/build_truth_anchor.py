@@ -73,11 +73,16 @@ _STALE_FACT_DAYS = 450
 # SEC us-gaap concept priority lists — first concept with annual facts wins.
 # Mirrors the production edgar_provider concept lists (post-ASC-606 issuers key
 # revenue under RevenueFromContractWithCustomerExcludingAssessedTax, not Revenues).
+# Totals first, ASC-606 contract-revenue subset last (mirrors the edgar_provider
+# fix, 2026-06-29): a financial issuer reports BOTH total Revenues and the ASC-606
+# subset at the SAME period_end, so the strict-`>` recency tie in _sec_fundamental
+# keeps the first-iterated = total (MET Revenues 77B, not the 2.4B fee subset).
+# Recency still wins across periods (AAPL's live revenue is ASC-606, newer).
 _REVENUE_CONCEPTS = (
-    "RevenueFromContractWithCustomerExcludingAssessedTax",
     "Revenues",
-    "RevenueFromContractWithCustomerIncludingAssessedTax",
     "SalesRevenueNet",
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "RevenueFromContractWithCustomerIncludingAssessedTax",
 )
 _NET_INCOME_CONCEPTS = ("NetIncomeLoss", "ProfitLoss")
 # Shares outstanding is a dei concept (cover-page fact), not us-gaap.

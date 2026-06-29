@@ -113,11 +113,16 @@ _FLOW_REL_BAND = 0.15
 
 # SEC us-gaap concept priority lists. First concept with a usable annual window
 # wins WITHIN a family, but families that can double-count (debt) sum components.
+# Totals first, ASC-606 contract-revenue subset last (mirrors the edgar_provider
+# fix, 2026-06-29): a financial issuer reports BOTH total Revenues and the ASC-606
+# subset at the SAME period_end, so the strict-`>` recency tie in flow_annual keeps
+# the first-iterated = total (MET Revenues 77B, not the 2.4B fee subset). Recency
+# still wins across periods (AAPL's live revenue is ASC-606, newer).
 _REVENUE_CONCEPTS = (
-    "RevenueFromContractWithCustomerExcludingAssessedTax",
     "Revenues",
-    "RevenueFromContractWithCustomerIncludingAssessedTax",
     "SalesRevenueNet",
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "RevenueFromContractWithCustomerIncludingAssessedTax",
 )
 _COGS_CONCEPTS = ("CostOfRevenue", "CostOfGoodsAndServicesSold", "CostOfGoodsSold")
 _GROSS_PROFIT_CONCEPTS = ("GrossProfit",)

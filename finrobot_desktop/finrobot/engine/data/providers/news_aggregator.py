@@ -101,8 +101,11 @@ class NewsAggregatorProvider(DataProvider):
         for i, result in enumerate(results):
             source_name = "yfinance" if i == 0 else "Alpha Vantage"
             if isinstance(result, BaseException):
-                warn = f"{source_name} fetch failed: {result}"
-                logger.warning(warn)
+                # User-facing warning carries the exception TYPE only — the raw
+                # message (yfinance/httpx) embeds the upstream request URL, and this
+                # warning rides DataResult.warnings → the report. Full detail → log.
+                warn = f"{source_name} fetch failed: {type(result).__name__}"
+                logger.warning("%s fetch failed: %r", source_name, result)
                 warnings.append(warn)
                 failures.append(warn)
             else:

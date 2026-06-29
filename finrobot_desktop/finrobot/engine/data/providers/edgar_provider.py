@@ -1264,7 +1264,9 @@ def extract_segment_facts(xbrl: Any) -> tuple[dict[str, Any], list[str]]:
         try:
             rows = xbrl.query().by_concept(concept).execute()
         except _ADAPTER_CATCH as e:  # pragma: no cover — defensive
-            warnings.append(f"segment query failed for {concept}: {e}")
+            # Type only, not str(e): an httpx error embeds the request URL, and this
+            # warning rides DataResult.warnings → the report Disclaimer (reader-facing).
+            warnings.append(f"segment query failed for {concept}: {type(e).__name__}")
             return []
         out = []
         for x in rows:
@@ -1605,7 +1607,8 @@ class EdgarToolsProvider(DataProvider):
             try:
                 full_text = filing.text() or ""
             except _ADAPTER_CATCH as e:
-                warnings.append(f"filing.text() also failed: {e}")
+                # Type only — str(e) embeds the SEC URL; this rides to the report.
+                warnings.append(f"filing.text() also failed: {type(e).__name__}")
                 full_text = ""
             if full_text:
                 items["item_7_mdna"] = full_text

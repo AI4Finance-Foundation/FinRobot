@@ -137,12 +137,7 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
           past", surfaced PRE-report, with our cheap/fair/rich classification +
           sample depth a static snapshot multiple can't convey. Hides itself when
           the band can't be computed (cold ticker / thin history). */}
-      <ValuationBandCard
-        band={band}
-        isError={bandError}
-        onRetry={() => void refetchBand()}
-        t={t}
-      />
+      <ValuationBandCard band={band} isError={bandError} onRetry={() => void refetchBand()} t={t} />
 
       {/* Market-implied expectations — reverse-DCF probe that interrogates what
           today's price requires you to believe. Placed right after the multiples
@@ -219,7 +214,9 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
                   borderRadius: 6,
                 }}
               >
-                <span style={{ display: 'flex', alignItems: 'baseline', gap: 6, overflow: 'hidden' }}>
+                <span
+                  style={{ display: 'flex', alignItems: 'baseline', gap: 6, overflow: 'hidden' }}
+                >
                   <span
                     style={{
                       color: 'var(--text-secondary)',
@@ -674,7 +671,10 @@ function ValuationBandCard({
   if (isError && (!band || !fin(band.current))) {
     return (
       <MktCard title={t('workspace.market.valuationBand')}>
-        <CardError message={t('workspace.market.valuationBandError')} onRetry={onRetry ?? (() => {})} />
+        <CardError
+          message={t('workspace.market.valuationBandError')}
+          onRetry={onRetry ?? (() => {})}
+        />
       </MktCard>
     )
   }

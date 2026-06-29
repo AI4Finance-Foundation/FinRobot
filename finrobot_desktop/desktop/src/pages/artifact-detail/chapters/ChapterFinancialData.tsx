@@ -554,7 +554,7 @@ export function ChapterFinancialData({
           title={tr('估值倍数', 'Valuation Multiples', locale)}
           accent="violet"
           glyph={<GlyphChip color="var(--secondary)" glyph={<ValuationGlyph />} />}
-          meta={tr('实时 · ×', 'LIVE · ×', locale)}
+          meta={tr('报告时 · ×', 'AT REPORT · ×', locale)}
           cells={valuationCells}
           columns={3}
           range={range52 ?? undefined}

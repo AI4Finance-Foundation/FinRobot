@@ -1054,7 +1054,7 @@ msgstr "The Gap"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.marketLive"
-msgstr "MARKET · LIVE"
+msgstr "MARKET · AT REPORT"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.ledeA.pre"

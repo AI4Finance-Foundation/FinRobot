@@ -1054,7 +1054,7 @@ msgstr "估值落差"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.marketLive"
-msgstr "市价 · 实时"
+msgstr "市价 · 报告时"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.ledeA.pre"

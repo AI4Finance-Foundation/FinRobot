@@ -76,6 +76,20 @@ PEER_PB_SANITY_MAX: float = 50.0
 #   passes it and stays on the row, only the NM cap keeps it out of the median.)
 PEER_PE_NM_CAP: float = 75.0
 
+# Not-meaningful (NM) EV/EBITDA cap — the structural analog of PEER_PE_NM_CAP for the
+# enterprise multiple. For a low-debt issuer EV/EBITDA ≈ 0.67 × P/E (EV ≈ equity value,
+# EBITDA ≈ a pre-tax/pre-D&A proxy for earnings), so the 75x P/E cap maps to ≈ 50x here
+# (75 × 0.67 ≈ 50). On the live basket 50 sits in the natural gap between premium-but-
+# real multiples (SNPS 43.4x, AVGO 45.1x — all ≤ ~45) and genuine hyper-growth /
+# sliver-EBITDA NM prints (TSEM 57.1x, AMD 106.7x, PANW 109.6x, PLTR 141.8x — all >
+# ~55); any cap in [46, 57) yields identical exclusions on that basket, so 50 is the
+# robust mid-gap choice. A multiple above it is still a real, computable number (it
+# stays on the peer's row and ships in the comp table for the competitive landscape)
+# but a tiny-EBITDA denominator makes it carry no information about what a mature
+# target's cash flows are worth, so it must be excluded from the MEDIAN — the same
+# SET-vs-MEDIAN decoupling the P/E cap applies.
+PEER_EV_EBITDA_NM_CAP: float = 50.0
+
 # NOPAT core-earnings effective-tax band. Own rates outside this are degenerate
 # (tax holidays, credit/DTA releases — observed live: AMD 0.2%, AVGO 1.8% in the
 # NVDA peer set) and would distort NOPAT comparability, so such rows fall back to
@@ -419,8 +433,19 @@ def calculate_peer_statistics(comps: PeerComps) -> PeerComps:
     # `is not None` alone admits a NaN multiple (one corrupt peer poisons the
     # whole median); the pe / forward_pe lists are already NaN-safe via their
     # band bounds, so finiteness only needs adding to the two range-free lists.
+    # Trailing EV/EBITDA median applies the NM cap (not just the upstream SANITY
+    # floor), exactly as the trailing P/E median does: a real, computable multiple
+    # above PEER_EV_EBITDA_NM_CAP is a hyper-growth / sliver-EBITDA peer (PLTR, PANW)
+    # that says nothing about a mature target's worth, so it must not skew the median
+    # that feeds the comp display and the thesis prompt. The peer stays IN the set for
+    # the competitive landscape; only its median contribution is NM. (finiteness is
+    # still load-bearing: −Inf < cap would otherwise slip past the upper bound.)
     ev_ebitda_vals = [
-        p.ev_ebitda for p in result.peers if p.ev_ebitda is not None and math.isfinite(p.ev_ebitda)
+        p.ev_ebitda
+        for p in result.peers
+        if p.ev_ebitda is not None
+        and math.isfinite(p.ev_ebitda)
+        and p.ev_ebitda <= PEER_EV_EBITDA_NM_CAP
     ]
     # Trailing P/E median applies the NM cap (not just the SANITY floor): with the
     # touch-5 widened member gate a real-but-distorting trailing print (AMD 156x)
@@ -471,7 +496,8 @@ def calculate_peer_statistics(comps: PeerComps) -> PeerComps:
     if ev_ebitda_n < total:
         result.warnings.append(
             f"EV/EBITDA based on {ev_ebitda_n} of {total} peers"
-            f" — {total - ev_ebitda_n} dropped for data quality"
+            f" — {total - ev_ebitda_n} excluded (data quality, or an NM EV/EBITDA above"
+            f" {PEER_EV_EBITDA_NM_CAP:.0f}x — kept in the set, out of the median)"
         )
     pe_n = len(pe_vals)
     if pe_n < total:

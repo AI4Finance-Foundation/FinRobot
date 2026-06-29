@@ -148,6 +148,48 @@ class TestMedianPb:
         assert comps.median_pb is not None
 
 
+class TestMedianEvEbitdaNmCap:
+    """The trailing EV/EBITDA median applies the same NM cap the P/E median does: a
+    hyper-growth / sliver-EBITDA peer above the cap is a real, computable multiple that
+    stays IN the peer set for the competitive landscape, but is excluded from the median
+    so it cannot inflate the number the comp display and the thesis prompt consume."""
+
+    @staticmethod
+    def _row(ticker: str, ev_ebitda: float | None) -> CompanyFinancials:
+        # Independent fixture: ev_ebitda is set directly to a chosen multiple (the field
+        # calculate_peer_statistics actually reads), NOT derived from the implementation's
+        # gating — so the test can't go green-and-wrong from same-source contamination.
+        return CompanyFinancials(
+            ticker=ticker, revenue=100.0, market_cap=500.0, ev_ebitda=ev_ebitda
+        )
+
+    def test_nm_high_member_excluded_from_median_but_kept_in_set(self):
+        from finrobot.engine.compute.operators.multiples import PEER_EV_EBITDA_NM_CAP
+
+        assert PEER_EV_EBITDA_NM_CAP == 50.0
+        # In-band {20, 30} → median 25; the 60x member is NM (> 50) and must drop out.
+        peers = [self._row("A", 20.0), self._row("B", 30.0), self._row("NMHI", 60.0)]
+        comps = calculate_peer_statistics(PeerComps(target=self._row("T", 28.0), peers=peers))
+        assert comps.median_ev_ebitda == pytest.approx(25.0)
+        assert comps.mean_ev_ebitda == pytest.approx(25.0)  # mean of {20, 30}, NM excluded
+        # The NM peer is STILL in the set, on its row — only its median vote is dropped.
+        kept = {p.ticker for p in comps.peers}
+        assert "NMHI" in kept
+        nm_row = next(p for p in comps.peers if p.ticker == "NMHI")
+        assert nm_row.ev_ebitda == pytest.approx(60.0)
+        # A thinned EV/EBITDA median is disclosed, never silent.
+        assert any("NM EV/EBITDA" in w and "2 of 3" in w for w in comps.warnings)
+
+    def test_all_in_band_set_unchanged(self):
+        # Every peer ≤ cap → all three contribute, median is the middle value (30), and
+        # no EV/EBITDA NM/sample-size warning is emitted.
+        peers = [self._row("A", 20.0), self._row("B", 30.0), self._row("C", 40.0)]
+        comps = calculate_peer_statistics(PeerComps(target=self._row("T", 28.0), peers=peers))
+        assert comps.median_ev_ebitda == pytest.approx(30.0)
+        assert {p.ticker for p in comps.peers} == {"A", "B", "C"}
+        assert not any("EV/EBITDA based on" in w for w in comps.warnings)
+
+
 class TestCompsPbMethod:
     def _comps_with_median(
         self,

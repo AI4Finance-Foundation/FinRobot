@@ -117,4 +117,48 @@ describe('ValuationInstruments', () => {
     // the other idle tiles are disabled while the single run slot is held
     expect((screen.getByTestId('instrument-ddm') as HTMLButtonElement).disabled).toBe(true)
   })
+
+  it('a FAILED instrument run surfaces an explicit failed tile (never disguised as idle "not yet computed")', () => {
+    const runState = {
+      pipelineType: 'dcf',
+      status: 'failed',
+      error: 'provider timeout',
+      steps: [],
+    } as unknown as RunState
+    renderInstruments({ runState })
+    const dcf = screen.getByTestId('instrument-dcf')
+    expect(dcf.getAttribute('data-state')).toBe('failed')
+    expect(dcf.textContent).toContain('run failed')
+    expect(dcf.textContent).toContain('provider timeout') // the real error, surfaced
+    expect(dcf.textContent).not.toContain('not yet computed') // not disguised as never-run
+    expect((dcf as HTMLButtonElement).disabled).toBe(false) // retryable — no run holds the slot
+  })
+
+  it('a failed re-run KEEPS the prior successful value (failure never erases a computed value)', () => {
+    const runState = {
+      pipelineType: 'dcf',
+      status: 'failed',
+      error: 'boom',
+      steps: [],
+    } as unknown as RunState
+    renderInstruments({
+      timeline: [summary({ id: 'a_dcf', type: 'dcf', entry_price: 100, target_price: 120 })],
+      runState,
+      livePrice: 100,
+    })
+    const dcf = screen.getByTestId('instrument-dcf')
+    expect(dcf.getAttribute('data-state')).toBe('value')
+    expect(dcf.textContent).toContain('$120.00')
+  })
+
+  it('a user-CANCELLED run falls back to idle, not failed (cancel is not an error)', () => {
+    const runState = {
+      pipelineType: 'dcf',
+      status: 'cancelled',
+      error: null,
+      steps: [],
+    } as unknown as RunState
+    renderInstruments({ runState })
+    expect(screen.getByTestId('instrument-dcf').getAttribute('data-state')).toBe('idle')
+  })
 })

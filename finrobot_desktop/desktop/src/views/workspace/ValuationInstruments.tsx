@@ -337,6 +337,7 @@ function InstrumentTile({
   method,
   reading,
   running,
+  failed,
   runState,
   disabled,
   locale,
@@ -346,6 +347,7 @@ function InstrumentTile({
   method: { type: string; glyph: React.ReactNode; hint: { zh: string; en: string } }
   reading: InstrumentReading
   running: boolean
+  failed: boolean
   runState: RunState | null
   disabled: boolean
   locale: Locale
@@ -412,6 +414,61 @@ function InstrumentTile({
           </div>
         </div>
       </div>
+    )
+  }
+
+  // ── Failed: the run ended in error (not user-cancelled) and produced no
+  // artifact. Surface it HONESTLY instead of falling through to idle "not yet
+  // computed", which disguises a failure as "never ran". A prior successful
+  // artifact still wins (reading.kind === 'value' / 'withheld'); only the idle
+  // case (this method never produced a successful artifact) is overridden. Amber,
+  // not red — a failed run is recoverable (retry), not a broken product. ───────
+  if (failed && reading.kind === 'idle') {
+    return (
+      <button
+        type="button"
+        data-testid={`instrument-${method.type}`}
+        data-state="failed"
+        onClick={() => onLaunch(method.type)}
+        disabled={disabled}
+        title={zh ? '上次运行失败,点击重试' : 'Last run failed — click to retry'}
+        style={{
+          ...cardBase,
+          borderColor: 'var(--warning)',
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.45 : 1,
+        }}
+      >
+        <TileHeader glyph={method.glyph} title={title} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--warning)' }}>
+            {zh ? '运行失败' : 'run failed'}
+          </span>
+          <span
+            style={{
+              marginLeft: 'auto',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10.5,
+              fontWeight: 600,
+              letterSpacing: '0.08em',
+              color: 'var(--warning)',
+            }}
+          >
+            {ICON_RERUN}
+            {zh ? '重试' : 'RETRY'}
+          </span>
+        </div>
+        <div style={metaLine}>
+          {runState?.error
+            ? runState.error.slice(0, 80)
+            : zh
+              ? '管线未能完成'
+              : 'pipeline did not complete'}
+        </div>
+      </button>
     )
   }
 
@@ -627,6 +684,14 @@ export function ValuationInstruments({
   const isRunning = runState?.status === 'running'
   const runningMethod =
     isRunning && runState && runState.pipelineType !== 'research' ? runState.pipelineType : null
+  // The single run slot ended in error (not user-cancelled): light up the failed
+  // tile so a failure isn't disguised as the idle "not yet computed" affordance.
+  // Mutually exclusive with runningMethod (status is one value); research failures
+  // don't belong to a standalone instrument tile.
+  const failedMethod =
+    runState && runState.status === 'failed' && runState.pipelineType !== 'research'
+      ? runState.pipelineType
+      : null
   // The store holds ONE run slot per ticker: while any run holds it (research or
   // an instrument), no other instrument can start — disable the rest, but keep
   // them VISIBLE (the running one shows its progress in place).
@@ -716,13 +781,15 @@ export function ValuationInstruments({
               locale,
             )
             const running = runningMethod === m.type
+            const failed = failedMethod === m.type
             return (
               <InstrumentTile
                 key={m.type}
                 method={m}
                 reading={reading}
                 running={running}
-                runState={running ? runState : null}
+                failed={failed}
+                runState={running || failed ? runState : null}
                 disabled={lockOthers && !running}
                 locale={locale}
                 onLaunch={onLaunch}

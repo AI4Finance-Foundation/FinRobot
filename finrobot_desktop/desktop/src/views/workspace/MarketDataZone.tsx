@@ -29,6 +29,7 @@ import { formatCurrencyCompact } from '../../utils/format'
 import { degradedLabel } from './degradedLabel'
 import { PriceTrendChart } from '../../components/charts/PriceTrendChart'
 import { MarketImpliedPanel } from '../../components/valuation/MarketImpliedPanel'
+import { SkelBar } from '../../components/Skeleton'
 
 interface MarketDataZoneProps {
   ticker: string
@@ -1004,41 +1005,6 @@ function Empty({ children }: { children: React.ReactNode }): React.ReactElement 
     >
       {children}
     </p>
-  )
-}
-
-// Loading skeleton for the catalyst calendar. The endpoint runs ~12–18s
-// server-side (news → LLM classify → rank); without this, the empty-state copy
-// ("No recent events") rendered during the wait, which reads as "this stock has
-// no catalysts" rather than "still loading" — the exact confusion reported. The
-// shimmer rows mirror the real event-row layout so the card doesn't reflow when
-// data lands. The shared `.skeleton` utility is near-invisible on these dark
-// cards, so the bar paints a visible muted gradient (color-mix over var tokens)
-// swept by the global `shimmer` keyframe (App.css).
-function SkelBar({
-  height,
-  width,
-  radius = 'var(--r-sm)',
-}: {
-  height: number
-  width: number | string
-  radius?: number | string
-}): React.ReactElement {
-  return (
-    <span
-      style={{
-        display: 'block',
-        height,
-        width,
-        borderRadius: radius,
-        background:
-          'linear-gradient(90deg, color-mix(in srgb, var(--text-muted) 16%, transparent) 25%, ' +
-          'color-mix(in srgb, var(--text-secondary) 34%, transparent) 50%, ' +
-          'color-mix(in srgb, var(--text-muted) 16%, transparent) 75%)',
-        backgroundSize: '200% 100%',
-        animation: 'shimmer 1.4s ease-in-out infinite',
-      }}
-    />
   )
 }
 

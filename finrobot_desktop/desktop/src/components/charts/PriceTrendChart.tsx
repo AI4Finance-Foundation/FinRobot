@@ -13,6 +13,7 @@
 import { Area, AreaChart, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import type { PricePoint } from '../../hooks/useTickerData'
 import { useI18n } from '../../i18n'
+import { SkelBar } from '../Skeleton'
 import { CosmicTooltipShell } from './chartTooltip'
 
 interface Props {
@@ -123,9 +124,29 @@ export function PriceTrendChart({
   // non-empty yet all-null closes (windowOneYear drops those).
   const data = points && points.length > 0 ? windowOneYear(points) : []
   if (data.length < 2) {
+    // Fixed-height skeleton while the price query is still in flight, sized to
+    // the loaded render (170px chart area + the change-readout footer row) so
+    // the column doesn't reflow when the chart lands. Only the still-loading
+    // case gets it; a resolved-but-empty payload is a terminal "no history"
+    // state with nothing to reflow into, so it keeps the plain text line.
+    if (loading) {
+      return (
+        <div
+          data-testid="price-trend-skeleton"
+          aria-busy="true"
+          aria-label={t('chart.priceTrend.loading')}
+        >
+          <SkelBar height={170} width="100%" />
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+            <SkelBar height={12} width="42%" />
+            <SkelBar height={12} width="12%" />
+          </div>
+        </div>
+      )
+    }
     return (
       <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
-        {t(loading ? 'chart.priceTrend.loading' : 'chart.priceTrend.empty')}
+        {t('chart.priceTrend.empty')}
       </p>
     )
   }
@@ -154,7 +175,7 @@ export function PriceTrendChart({
   const spanLabel = spanDays >= 350 ? '1Y' : `${spanDays}D`
 
   return (
-    <div>
+    <div data-testid="price-trend-chart">
       <ResponsiveContainer width="100%" height={170}>
         <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
           <defs>

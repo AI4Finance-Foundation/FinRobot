@@ -23,6 +23,7 @@ import { fetchWithTimeout } from '../../api/fetch'
 import { useI18n } from '../../i18n'
 import { FetchHttpError, mapErrorToUserMessage } from '../../utils/errorMessage'
 import { CosmicTooltipShell } from '../charts/chartTooltip'
+import { SkelBar } from '../Skeleton'
 
 // The reverse solver's outcome code (mirrors backend ReverseSolveReason). The
 // operator emits this machine code, not prose — the localized sentence is built
@@ -395,9 +396,7 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
             </div>
           )}
           {!error && !warming && !seed && (
-            <p style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
-              {t('valuation.implied.loading')}
-            </p>
+            <MarketImpliedSkeleton label={t('valuation.implied.loading')} />
           )}
 
           {seed && (
@@ -573,6 +572,85 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+// Fixed-height placeholder for the normal dcf-seed fetch window (the cold-start
+// 503 "engine starting" + the error path have their own states above). Mirrors
+// the seeded layout block-for-block — lede line, three anchor cards (same chrome
+// as AnchorCard), the equivalence-line chart area (190px, matching its
+// ResponsiveContainer), the WACC slider, and the prior note — so the panel body
+// holds its height and the data column doesn't reflow when the probe resolves.
+function MarketImpliedSkeleton({ label }: { label: string }): React.ReactElement {
+  return (
+    <div data-testid="market-implied-skeleton" aria-busy="true" aria-label={label}>
+      {/* lede */}
+      <div style={{ margin: '8px 0 14px' }}>
+        <SkelBar height={11} width="92%" />
+        <div style={{ marginTop: 6 }}>
+          <SkelBar height={11} width="64%" />
+        </div>
+      </div>
+
+      {/* three anchor cards — same grid + card chrome as the seeded render */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: 10,
+          marginBottom: 18,
+        }}
+      >
+        {[0, 1, 2].map((i) => (
+          <div
+            key={i}
+            style={{
+              border: '1px solid var(--border-soft)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '10px 12px',
+              background: 'color-mix(in srgb, var(--primary) 4%, transparent)',
+            }}
+          >
+            <SkelBar height={9} width="56%" />
+            <div style={{ margin: '8px 0' }}>
+              <SkelBar height={18} width="46%" />
+            </div>
+            {/* anchor cards carry a ~5-line reason prose under the value — match
+                that line count so the card height tracks the loaded render. */}
+            <SkelBar height={9} width="92%" />
+            <div style={{ marginTop: 5 }}>
+              <SkelBar height={9} width="88%" />
+            </div>
+            <div style={{ marginTop: 5 }}>
+              <SkelBar height={9} width="84%" />
+            </div>
+            <div style={{ marginTop: 5 }}>
+              <SkelBar height={9} width="76%" />
+            </div>
+            <div style={{ marginTop: 5 }}>
+              <SkelBar height={9} width="54%" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* equivalence-line chart area */}
+      <div style={{ marginBottom: 6 }}>
+        <SkelBar height={10} width="56%" />
+      </div>
+      <SkelBar height={190} width="100%" />
+      <div style={{ marginTop: 8 }}>
+        <SkelBar height={10} width="100%" radius={999} />
+      </div>
+
+      {/* prior note (two lines, matching the wrapped footnote) */}
+      <div style={{ marginTop: 14, borderTop: '1px solid var(--border-soft)', paddingTop: 10 }}>
+        <SkelBar height={8} width="96%" />
+        <div style={{ marginTop: 5 }}>
+          <SkelBar height={8} width="62%" />
+        </div>
+      </div>
     </div>
   )
 }

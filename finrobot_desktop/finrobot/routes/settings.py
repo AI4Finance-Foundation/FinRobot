@@ -743,11 +743,14 @@ async def _replace_runtime_settings(request: Request, settings: FinRobotSettings
         from finrobot.engine.agents.factory import create_sub_agents
         from finrobot.engine.orchestrator import create_lead_agent
 
-        request.app.state.agent = create_lead_agent(
+        sub_agents = create_sub_agents(
             settings, skill_registry=request.app.state.deps.skill_runtime
         )
-        request.app.state.sub_agents = create_sub_agents(
-            settings, skill_registry=request.app.state.deps.skill_runtime
+        request.app.state.sub_agents = sub_agents
+        request.app.state.agent = create_lead_agent(
+            settings,
+            skill_registry=request.app.state.deps.skill_runtime,
+            sub_agents=sub_agents,
         )
     else:
         request.app.state.agent = None

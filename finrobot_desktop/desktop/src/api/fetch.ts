@@ -1,4 +1,5 @@
 import { getCapabilityToken } from './capability'
+import { isBackendUrl } from './backendUrl'
 
 export const DEFAULT_API_TIMEOUT_MS = 8_000
 
@@ -24,8 +25,8 @@ export class RequestTimeoutError extends Error {
 // third-party host. Gates token injection so the capability token can't leak
 // off-box even if some caller passes an external URL through fetchWithTimeout.
 function backendBound(input: RequestInfo | URL): boolean {
-  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
-  return url.startsWith('/') || url.includes('127.0.0.1:8321') || url.includes('localhost:8321')
+  const url = typeof input === 'string' || input instanceof URL ? input : input.url
+  return isBackendUrl(url)
 }
 
 /**

@@ -45,6 +45,23 @@ describe('fetchWithTimeout capability-token injection', () => {
     mockGetToken.mockResolvedValue('cap-123')
     await fetchWithTimeout('https://evil.example.com/collect')
     expect(lastFetchHeaders().get('Authorization')).toBeNull()
+    expect(mockGetToken).not.toHaveBeenCalled()
+  })
+
+  it('does NOT attach the token when an external URL only mentions the backend', async () => {
+    mockGetToken.mockResolvedValue('cap-123')
+    await fetchWithTimeout(
+      'https://evil.example.com/collect?next=http://localhost:8321/api/settings',
+    )
+    expect(lastFetchHeaders().get('Authorization')).toBeNull()
+    expect(mockGetToken).not.toHaveBeenCalled()
+  })
+
+  it('does NOT attach the token to a protocol-relative URL', async () => {
+    mockGetToken.mockResolvedValue('cap-123')
+    await fetchWithTimeout('//evil.example.com/collect')
+    expect(lastFetchHeaders().get('Authorization')).toBeNull()
+    expect(mockGetToken).not.toHaveBeenCalled()
   })
 
   it('is a no-op when there is no token (browser dev)', async () => {

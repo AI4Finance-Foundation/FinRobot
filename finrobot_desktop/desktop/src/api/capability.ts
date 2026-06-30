@@ -11,6 +11,7 @@
 // dev loop is unchanged.
 
 import { invoke } from '@tauri-apps/api/core'
+import { isBackendUrl } from './backendUrl'
 import { isTauri } from '../lib/tauri'
 
 // Memoize: the token is constant for the process lifetime, and we don't want to
@@ -47,6 +48,7 @@ export async function getCapabilityToken(): Promise<string | null> {
  * configured (browser dev).
  */
 export async function withCapabilityToken(url: string): Promise<string> {
+  if (!isBackendUrl(url)) return url
   const token = await getCapabilityToken()
   if (!token) return url
   const sep = url.includes('?') ? '&' : '?'

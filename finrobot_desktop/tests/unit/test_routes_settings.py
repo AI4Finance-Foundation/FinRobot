@@ -1018,6 +1018,51 @@ async def test_replace_runtime_settings_skips_agents_when_config_invalid(
 
 
 @pytest.mark.asyncio
+async def test_replace_runtime_settings_shares_sub_agents_with_lead_agent(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Runtime settings hot reload mirrors boot: create sub-agents once, store
+    that mapping, and pass the same object into the lead agent."""
+    import asyncio as _asyncio
+
+    from finrobot.routes import settings as settings_mod
+
+    app = _make_app(tmp_path)
+    old_layer = app.state.deps.data_layer
+    new_layer = MagicMock()
+    new_layer.close = AsyncMock()
+    shared_sub_agents = {"market": MagicMock()}
+    lead_agent = MagicMock()
+    create_sub_agents = MagicMock(return_value=shared_sub_agents)
+    create_lead_agent = MagicMock(return_value=lead_agent)
+
+    monkeypatch.setattr(settings_mod, "build_data_layer", lambda _s: new_layer)
+    monkeypatch.setattr(settings_mod, "_RETIRED_LAYER_GRACE_S", 0)
+    monkeypatch.setattr("finrobot.engine.agents.factory.create_sub_agents", create_sub_agents)
+    monkeypatch.setattr("finrobot.engine.orchestrator.create_lead_agent", create_lead_agent)
+
+    request = MagicMock()
+    request.app = app
+
+    await settings_mod._replace_runtime_settings(request, app.state.deps.settings)
+
+    create_sub_agents.assert_called_once_with(
+        app.state.deps.settings, skill_registry=app.state.deps.skill_runtime
+    )
+    create_lead_agent.assert_called_once_with(
+        app.state.deps.settings,
+        skill_registry=app.state.deps.skill_runtime,
+        sub_agents=shared_sub_agents,
+    )
+    assert app.state.deps.data_layer is new_layer
+    assert app.state.sub_agents is shared_sub_agents
+    assert app.state.agent is lead_agent
+
+    await _asyncio.sleep(0.01)
+    old_layer.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_clear_secret_rejects_non_secret_field(tmp_path: Path) -> None:
     """Only secret fields are clearable — a non-secret field is a 400."""
     app = _make_app(tmp_path)

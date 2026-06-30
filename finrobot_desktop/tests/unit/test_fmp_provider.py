@@ -1104,6 +1104,31 @@ class TestFMPQuote:
         assert result.data == {"price": 187.5, "quote_currency": None}
 
     @pytest.mark.asyncio
+    async def test_quote_currency_none_when_profile_http_error(self, provider):
+        """A live /profile HTTP miss (401/429/5xx) is best-effort for QUOTE:
+        keep the price and withhold quote_currency instead of leaking a raw
+        httpx exception past DataLayer's ProviderError fallback path."""
+        request = httpx.Request(
+            "GET",
+            "https://financialmodelingprep.com/stable/profile"
+            "?symbol=AAPL&apikey=LIVEKEY_SHOULD_NOT_LEAK",
+        )
+        response = httpx.Response(429, request=request)
+
+        async def _get(path, params=None):  # noqa: ANN001
+            if path == "/profile":
+                raise httpx.HTTPStatusError(
+                    "429 for url with apikey=LIVEKEY_SHOULD_NOT_LEAK",
+                    request=request,
+                    response=response,
+                )
+            return _mock_response([{"symbol": "AAPL", "price": 187.5}])
+
+        with patch.object(provider, "_get", AsyncMock(side_effect=_get)):
+            result = await provider.fetch("AAPL", "quote")
+        assert result.data == {"price": 187.5, "quote_currency": None}
+
+    @pytest.mark.asyncio
     async def test_quote_empty_response_raises(self, provider):
         with patch.object(provider, "_get", AsyncMock(return_value=_mock_response([]))):
             with pytest.raises(ProviderError):

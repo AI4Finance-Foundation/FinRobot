@@ -48,17 +48,28 @@ describe('withCapabilityToken', () => {
   it('appends ?token= when no existing query', async () => {
     mockIsTauri.mockReturnValue(true)
     mockInvoke.mockResolvedValue('abc')
-    expect(await withCapabilityToken('http://x/events')).toBe('http://x/events?token=abc')
+    expect(await withCapabilityToken('/api/runs/r1/events')).toBe('/api/runs/r1/events?token=abc')
   })
 
   it('appends &token= when a query already exists, url-encoding the token', async () => {
     mockIsTauri.mockReturnValue(true)
     mockInvoke.mockResolvedValue('a/b+c')
-    expect(await withCapabilityToken('http://x/e?foo=1')).toBe('http://x/e?foo=1&token=a%2Fb%2Bc')
+    expect(await withCapabilityToken('http://127.0.0.1:8321/api/runs/r1/events?foo=1')).toBe(
+      'http://127.0.0.1:8321/api/runs/r1/events?foo=1&token=a%2Fb%2Bc',
+    )
+  })
+
+  it('returns an external url unchanged and never reads the token', async () => {
+    mockIsTauri.mockReturnValue(true)
+    mockInvoke.mockResolvedValue('abc')
+    expect(await withCapabilityToken('http://x/events?next=http://localhost:8321/api')).toBe(
+      'http://x/events?next=http://localhost:8321/api',
+    )
+    expect(mockInvoke).not.toHaveBeenCalled()
   })
 
   it('returns the url unchanged in browser dev (no token)', async () => {
     mockIsTauri.mockReturnValue(false)
-    expect(await withCapabilityToken('http://x/events')).toBe('http://x/events')
+    expect(await withCapabilityToken('/api/runs/r1/events')).toBe('/api/runs/r1/events')
   })
 })

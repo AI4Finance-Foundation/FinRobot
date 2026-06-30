@@ -1018,8 +1018,22 @@ class FMPProvider(DataProvider):
             return self._quote_ccy_cache[key]
         try:
             resp = (await self._get("/profile", params={"symbol": ticker})).json()
+        except httpx.HTTPError as exc:
+            logger.info(
+                "FMP quote-currency /profile lookup failed for %s: %s",
+                ticker,
+                _unavailable_detail(exc),
+            )
+            return None
         except ProviderError as exc:
             logger.info("FMP quote-currency /profile lookup failed for %s: %s", ticker, exc)
+            return None
+        except (ValueError, TypeError, KeyError, AttributeError) as exc:
+            logger.info(
+                "FMP quote-currency /profile lookup returned unusable data for %s: %s",
+                ticker,
+                type(exc).__name__,
+            )
             return None
         if not isinstance(resp, list) or not resp or not isinstance(resp[0], dict):
             return None

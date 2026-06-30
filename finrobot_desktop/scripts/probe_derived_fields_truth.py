@@ -140,6 +140,7 @@ _LONG_TERM_DEBT_NONCURRENT = ("LongTermDebtNoncurrent",)
 _LONG_TERM_DEBT_CURRENT = ("LongTermDebtCurrent", "LongTermDebtAndCapitalLeaseObligationsCurrent")
 _SHORT_TERM_BORROWINGS = ("ShortTermBorrowings", "DebtCurrent", "ShortTermDebt")
 _LONG_TERM_DEBT_WHOLE = ("LongTermDebt", "LongTermDebtAndCapitalLeaseObligations")
+_OPERATING_LEASE_LIABILITY = ("OperatingLeaseLiability",)
 _CASH_CONCEPTS = (
     "CashAndCashEquivalentsAtCarryingValue",
     "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
@@ -482,20 +483,61 @@ def _sec_total_cash(cf: _CompanyFacts) -> _SecFact | None:
 def _sec_total_debt(cf: _CompanyFacts) -> _SecFact | None:
     """SEC total debt = LongTermDebtNoncurrent + (current LTD or short-term
     borrowings), falling back to a whole-line LongTermDebt concept."""
+    candidates = _sec_total_debt_candidates(cf)
+    return candidates[0] if candidates else None
+
+
+def _sec_total_debt_candidates(cf: _CompanyFacts) -> list[_SecFact]:
+    """Acceptable SEC reconstructions for provider ``totalDebt``.
+
+    Providers are not fully consistent on whether ``totalDebt`` capitalizes
+    operating leases. Compare against funded debt first, plus a lease-inclusive
+    alternate when SEC reports the lease leg on a comparable date. Concrete
+    examples:
+
+    - AAPL/TSLA reconcile to funded debt (adding operating leases overstates).
+    - NVDA reconciles to funded debt + OperatingLeaseLiability.
+    - Ford lacks fresh standard funded-debt concepts for its finance-sub debt;
+      a lease-only row is NOT a debt baseline, so the probe abstains.
+    """
     ltn = cf.balance_instant(_LONG_TERM_DEBT_NONCURRENT)
     cur = cf.balance_instant(_LONG_TERM_DEBT_CURRENT) or cf.balance_instant(_SHORT_TERM_BORROWINGS)
+    candidates: list[_SecFact] = []
     if ltn is not None:
         total = ltn.value + (cur.value if cur is not None else 0.0)
         parts = ltn.concept + (f"+{cur.concept}" if cur is not None else "")
-        return _SecFact(total, ltn.period_end, parts)
-    whole = cf.balance_instant(_LONG_TERM_DEBT_WHOLE)
-    if whole is not None:
-        total = whole.value + (cur.value if cur is not None else 0.0)
-        parts = whole.concept + (f"+{cur.concept}" if cur is not None else "")
-        return _SecFact(total, whole.period_end, parts)
-    if cur is not None:
-        return cur
-    return None
+        candidates.append(_SecFact(total, ltn.period_end, parts))
+    else:
+        whole = cf.balance_instant(_LONG_TERM_DEBT_WHOLE)
+        if whole is not None:
+            total = whole.value + (cur.value if cur is not None else 0.0)
+            parts = whole.concept + (f"+{cur.concept}" if cur is not None else "")
+            candidates.append(_SecFact(total, whole.period_end, parts))
+        elif cur is not None:
+            candidates.append(cur)
+
+    lease = cf.balance_instant(_OPERATING_LEASE_LIABILITY)
+    if candidates and lease is not None:
+        base = candidates[0]
+        d_base, d_lease = _days_old(base.period_end), _days_old(lease.period_end)
+        if d_base is not None and d_lease is not None and abs(d_base - d_lease) <= 95:
+            candidates.append(
+                _SecFact(
+                    base.value + lease.value,
+                    base.period_end,
+                    f"{base.concept}+{lease.concept}",
+                )
+            )
+    return candidates
+
+
+def _best_sec_total_debt_for_our(cf: _CompanyFacts, our_debt: float | None) -> _SecFact | None:
+    candidates = _sec_total_debt_candidates(cf)
+    if not candidates:
+        return None
+    if our_debt is None:
+        return candidates[0]
+    return min(candidates, key=lambda fact: _rel(our_debt, fact.value))
 
 
 # ── per-ticker probe ──────────────────────────────────────────────────────────
@@ -632,7 +674,7 @@ async def probe_ticker(
                 )
             )
     else:
-        sec_debt = _sec_total_debt(cf)
+        sec_debt = _best_sec_total_debt_for_our(cf, our_debt)
         sec_cash = _sec_total_cash(cf)
         sec_pref = cf.balance_instant(_PREFERRED_CONCEPTS)
         sec_nci = cf.balance_instant(_NCI_CONCEPTS)
@@ -668,7 +710,7 @@ async def probe_ticker(
     # (market_cap + debt − cash + preferred + NCI) only when single-currency and all
     # legs present, so the bridge isn't built on fabricated zeros.
     if not cross_ccy and our_ev is not None and our_mcap is not None:
-        sec_debt2 = _sec_total_debt(cf)
+        sec_debt2 = _best_sec_total_debt_for_our(cf, our_debt)
         sec_cash2 = _sec_total_cash(cf)
         if sec_debt2 is not None and sec_cash2 is not None:
             sec_pref2 = cf.balance_instant(_PREFERRED_CONCEPTS)

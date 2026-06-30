@@ -49,7 +49,7 @@ import asyncio
 import json
 import sys
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -89,6 +89,8 @@ _TOL = {
 # Damodaran's observation that >~40%/yr revenue CAGR over 5y is reached by a
 # vanishing fraction of public companies.
 _IMPLIED_GROWTH_ABSURD = 0.40
+_LIVE_ANCHOR_MAX_AGE = timedelta(hours=6)
+_SHARES_ANCHOR_MAX_AGE = timedelta(days=120)
 
 
 @dataclass
@@ -151,6 +153,7 @@ async def _financial_rows(
     fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
     price = await deps.data_layer.fetch_canonical(DataType.PRICE, ticker)
     fd = extract_financial_data(fin, price)
+    sec_facts = await _safe_sec(deps, ticker, DataType.XBRL_FACTS)
 
     our = {
         "current_price": fd.market.current_price,
@@ -164,9 +167,21 @@ async def _financial_rows(
     # (a) LIVE — price / market_cap. Memory weight 0; baseline is FMP /profile.
     for field in ("current_price", "market_cap"):
         rows.append(_compare(ticker, "a", field, anchor.get(field), our[field]))
-    # (b) FUNDAMENTALS — revenue / net_income / shares vs SEC annual FY XBRL.
+    # (b) FUNDAMENTALS — revenue / net_income prefer SEC TTM XBRL; fall back to
+    # the static annual-FY anchor only as a coarse smoke signal.
     for field in ("revenue", "net_income", "shares_outstanding"):
-        rows.append(_compare(ticker, "b", field, anchor.get(field), our[field]))
+        ttm_anchor = _sec_ttm_anchor(sec_facts, field)
+        rows.append(
+            _compare(
+                ticker,
+                "b",
+                field,
+                ttm_anchor or anchor.get(field),
+                our[field],
+                annual_fundamental_fallback=ttm_anchor is None
+                and field in ("revenue", "net_income"),
+            )
+        )
 
     meta = {
         "reporting_currency": fd.reporting_currency,
@@ -176,11 +191,34 @@ async def _financial_rows(
 
 
 def _compare(
-    ticker: str, path: str, field: str, anchor_field: dict[str, Any] | None, our: Any
+    ticker: str,
+    path: str,
+    field: str,
+    anchor_field: dict[str, Any] | None,
+    our: Any,
+    *,
+    annual_fundamental_fallback: bool = False,
 ) -> FieldRow:
     baseline = anchor_field.get("value") if anchor_field else None
     caliber = anchor_field.get("caliber") if anchor_field else "(no anchor)"
     note = anchor_field.get("note") if anchor_field else None
+    as_of = _parse_anchor_as_of(anchor_field.get("as_of") if anchor_field else None)
+
+    if path == "a" and _anchor_is_stale(as_of, _LIVE_ANCHOR_MAX_AGE):
+        as_of_text = as_of.isoformat() if as_of else "missing"
+        return FieldRow(
+            ticker,
+            path,
+            field,
+            baseline,
+            caliber or "(none)",
+            our,
+            consistent=None,
+            note=(
+                f"abstain: static live anchor as_of={as_of_text} is older than "
+                f"{_LIVE_ANCHOR_MAX_AGE}; refresh the anchor before validating a live {field}"
+            ),
+        )
 
     if baseline is None:
         # No external baseline (foreign 20-F has no us-gaap concept, etc.) → abstain.
@@ -221,8 +259,47 @@ def _compare(
     tol = _TOL.get(field, 0.10)
     caliber_note = None
     if path == "b" and field in ("revenue", "net_income"):
-        caliber_note = (
-            "baseline=annual FY (SEC XBRL); our=TTM — within-band gap is a caliber offset"
+        caliber_note = "baseline=SEC XBRL TTM; our=TTM"
+        if annual_fundamental_fallback:
+            caliber_note = (
+                "baseline=annual FY (SEC XBRL); our=TTM — no same-period SEC TTM "
+                "baseline was available"
+            )
+    if annual_fundamental_fallback and rel > tol:
+        return FieldRow(
+            ticker,
+            path,
+            field,
+            baseline,
+            caliber or "(none)",
+            our,
+            consistent=None,
+            rel_diff=round(rel, 4),
+            note=(
+                f"{caliber_note}; gap exceeds {tol:.0%}, so this is a human-review "
+                "caliber offset, not an automatic bug"
+            ),
+            needs_human=True,
+        )
+    if path == "b" and field == "shares_outstanding" and _anchor_is_stale(
+        as_of, _SHARES_ANCHOR_MAX_AGE
+    ) and rel > tol:
+        as_of_text = as_of.date().isoformat() if as_of else "missing"
+        return FieldRow(
+            ticker,
+            path,
+            field,
+            baseline,
+            caliber or "(none)",
+            our,
+            consistent=None,
+            rel_diff=round(rel, 4),
+            note=(
+                f"SEC share-count anchor as_of={as_of_text} is older than "
+                f"{_SHARES_ANCHOR_MAX_AGE.days}d while our value is current-market; "
+                "inspect manually, not an automatic bug"
+            ),
+            needs_human=True,
         )
     return FieldRow(
         ticker,
@@ -235,6 +312,47 @@ def _compare(
         rel_diff=round(rel, 4),
         note=caliber_note,
     )
+
+
+def _sec_ttm_anchor(sec_facts: dict[str, Any], field: str) -> dict[str, Any] | None:
+    key = {"revenue": "ttm_revenue", "net_income": "ttm_net_income"}.get(field)
+    if key is None:
+        return None
+    fact = sec_facts.get(key)
+    if not isinstance(fact, dict) or fact.get("value") is None:
+        return None
+    concept = fact.get("concept") or "SEC XBRL"
+    period_end = fact.get("period_end")
+    warning = fact.get("warning")
+    return {
+        "value": fact.get("value"),
+        "caliber": f"SEC XBRL TTM ({concept})",
+        "source_url": "edgartools:xbrl_facts",
+        "as_of": period_end,
+        "note": warning,
+    }
+
+
+def _parse_anchor_as_of(raw: Any) -> datetime | None:
+    if not isinstance(raw, str) or not raw:
+        return None
+    text = raw.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        try:
+            parsed = datetime.fromisoformat(f"{text}T00:00:00+00:00")
+        except ValueError:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _anchor_is_stale(as_of: datetime | None, max_age: timedelta) -> bool:
+    if as_of is None:
+        return True
+    return datetime.now(tz=timezone.utc) - as_of > max_age
 
 
 # ── (d) entities: CEO from the ownership operator ─────────────────────────────

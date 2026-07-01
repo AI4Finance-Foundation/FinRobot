@@ -22,8 +22,11 @@ External authority, by field family:
     are RATIOS — TTM-vs-annual barely drifts (<1-2pt) — so they are the sharpest
     discriminator: our margin off SEC annual margin by >3pt absolute = candidate bug.
   - EBITDA_operating → SEC OperatingIncomeLoss + D&A (annual). Flow caliber, 15%.
-  - EV bridge components (total_debt / total_cash / preferred / NCI) → SEC balance
-    instants (freshest quarter/annual). Point values, 10% band.
+  - EV bridge components (total_cash / preferred / NCI) → SEC balance instants
+    (freshest quarter/annual). Point values, 10% band. total_debt is recorded
+    against the nearest funded/lease-inclusive SEC reconstruction, but over-band
+    debt gaps abstain rather than candidate_bug because provider debt conventions
+    differ on operating/capital lease capitalization.
   - current multiples (PE / EV-EBITDA / EV-Revenue) → recorded, no equality
     asserted (no external truth for a forward-looking live multiple); ADR / bank
     intended-None handled as PASS-by-abstain.
@@ -70,6 +73,7 @@ from finrobot.config import get_settings
 from finrobot.engine.compute.coordinators.extractor import extract_financial_data
 from finrobot.engine.data.factory import build_data_layer
 from finrobot.engine.data.types import DataType
+from finrobot.engine.primitives.industry import is_balance_sheet_financial
 from finrobot.paths import SETTINGS_JSON, ensure_home
 from finrobot.routes.settings import load_non_secret_settings
 from finrobot.secret_store import create_secret_store
@@ -110,6 +114,11 @@ _MARGIN_ABS_BAND = 0.03  # 3 percentage points absolute
 _BALANCE_REL_BAND = 0.10
 # flow magnitudes (revenue/NI/EBITDA) are TTM-vs-annual → wider band absorbs timing.
 _FLOW_REL_BAND = 0.15
+_TTM_FY_MISMATCH_DAYS = 45
+_DEBT_LEASE_CALIBER_NOTE = (
+    "abstain: provider total_debt lease capitalization is not a single SEC concept; "
+    "nearest funded/lease-inclusive reconstruction recorded only"
+)
 
 # SEC us-gaap concept priority lists. First concept with a usable annual window
 # wins WITHIN a family, but families that can double-count (debt) sum components.
@@ -188,6 +197,27 @@ def _is_stale_instant(period_end: str) -> bool:
     concept). An unparseable date is treated as stale (don't trust it as truth)."""
     age = _days_old(period_end)
     return age is None or age > _STALE_INSTANT_DAYS
+
+
+def _ttm_fy_mismatch_note(our_period_end: date | None, sec_fy_end: str | None) -> str | None:
+    """Explain when our TTM contains a newer quarter than the SEC FY baseline.
+
+    In that case a large margin/flow gap is useful evidence but not a confirmed
+    data bug: the probe lacks a same-caliber external TTM truth row.
+    """
+    if our_period_end is None or not sec_fy_end:
+        return None
+    try:
+        sec_end = date.fromisoformat(sec_fy_end)
+    except ValueError:
+        return None
+    days = (our_period_end - sec_end).days
+    if days <= _TTM_FY_MISMATCH_DAYS:
+        return None
+    return (
+        f"abstain: our TTM period_end {our_period_end.isoformat()} is {days} days newer "
+        f"than SEC FY {sec_end.isoformat()}; no same-caliber external TTM baseline"
+    )
 
 
 def _is_full_year(start: str | None, end: str | None) -> bool:
@@ -337,6 +367,7 @@ def _margin_row(
     caliber: str,
     *,
     suppressed_note: str | None = None,
+    caliber_mismatch_note: str | None = None,
 ) -> FieldRow:
     """Compare a margin (our vs SEC-reconstructed) on an ABSOLUTE pp band.
 
@@ -366,6 +397,14 @@ def _margin_row(
         )
     abs_diff = abs(our - truth)
     over = abs_diff > _MARGIN_ABS_BAND
+    note = (
+        f"margin gap {abs_diff * 100:.2f}pp "
+        f"({'over' if over else 'within'} {_MARGIN_ABS_BAND * 100:.0f}pp band)"
+    )
+    verdict = "candidate_bug" if over else "pass"
+    if over and caliber_mismatch_note is not None:
+        verdict = "abstain"
+        note = f"{note}; {caliber_mismatch_note}"
     return FieldRow(
         ticker,
         field,
@@ -375,8 +414,8 @@ def _margin_row(
         round(abs_diff, 4),
         round(_rel(our, truth), 4),
         over,
-        "candidate_bug" if over else "pass",
-        f"margin gap {abs_diff * 100:.2f}pp ({'over' if over else 'within'} {_MARGIN_ABS_BAND * 100:.0f}pp band)",
+        verdict,
+        note,
     )
 
 
@@ -392,6 +431,7 @@ def _magnitude_row(
     band: float,
     *,
     our_none_is_intended: str | None = None,
+    caliber_mismatch_note: str | None = None,
 ) -> FieldRow:
     if truth is None:
         # SEC didn't report the concept. our None → abstain; our value → record-only.
@@ -419,6 +459,11 @@ def _magnitude_row(
         )
     rel = _rel(our, truth_v)
     over = rel > band
+    note = f"rel gap {rel * 100:.1f}% ({'over' if over else 'within'} {band * 100:.0f}% band)"
+    verdict = "candidate_bug" if over else "pass"
+    if over and caliber_mismatch_note is not None:
+        verdict = "abstain"
+        note = f"{note}; {caliber_mismatch_note}"
     return FieldRow(
         ticker,
         field,
@@ -428,8 +473,8 @@ def _magnitude_row(
         abs(our - truth_v),
         round(rel, 4),
         over,
-        "candidate_bug" if over else "pass",
-        f"rel gap {rel * 100:.1f}% ({'over' if over else 'within'} {band * 100:.0f}% band)",
+        verdict,
+        note,
     )
 
 
@@ -557,6 +602,10 @@ async def probe_ticker(
     quote = (fd.quote_currency or "").upper()
     cross_ccy = bool(rep and quote and rep != quote)
     adr_note = f"cross-currency ADR (reporting={rep} quote={quote}): nulled by design"
+    balance_sheet_financial = is_balance_sheet_financial(
+        industry=fd.market.industry,
+        sector=fd.market.sector,
+    )
 
     # our derived values
     our_gross = fd.income.gross_margin
@@ -610,6 +659,9 @@ async def probe_ticker(
     oi_end = oi.period_end if oi is not None else "?"
     ni_end = ni.period_end if ni is not None else "?"
     cal_suffix = f" [our TTM@{our_end} vs SEC FY]"
+    rev_mismatch_note = _ttm_fy_mismatch_note(fin.period_end, rev.period_end if rev else None)
+    oi_mismatch_note = _ttm_fy_mismatch_note(fin.period_end, oi.period_end if oi else None)
+    ni_mismatch_note = _ttm_fy_mismatch_note(fin.period_end, ni.period_end if ni else None)
 
     is_bank = "bank" in archetype.lower()
     rows.append(
@@ -622,6 +674,7 @@ async def probe_ticker(
             suppressed_note="bank: gross margin suppressed by design (no COGS)"
             if is_bank
             else None,
+            caliber_mismatch_note=rev_mismatch_note,
         )
     )
     rows.append(
@@ -631,6 +684,7 @@ async def probe_ticker(
             our_op_margin,
             sec_op,
             f"SEC annual OI/Rev (OI@{oi_end} ÷ Rev@{rev_end}){cal_suffix}",
+            caliber_mismatch_note=oi_mismatch_note or rev_mismatch_note,
         )
     )
     rows.append(
@@ -640,6 +694,7 @@ async def probe_ticker(
             our_net_margin,
             sec_net,
             f"SEC annual NI/Rev (NI@{ni_end} ÷ Rev@{rev_end}){cal_suffix}",
+            caliber_mismatch_note=ni_mismatch_note or rev_mismatch_note,
         )
     )
 
@@ -649,7 +704,13 @@ async def probe_ticker(
         sec_ebitda_op = _SecFact(oi.value + da.value, oi.period_end, "OperatingIncomeLoss+D&A")
     rows.append(
         _magnitude_row(
-            ticker, "ebitda_operating", our_ebitda_op, sec_ebitda_op, "annual flow", _FLOW_REL_BAND
+            ticker,
+            "ebitda_operating",
+            our_ebitda_op,
+            sec_ebitda_op,
+            f"annual flow{cal_suffix}",
+            _FLOW_REL_BAND,
+            caliber_mismatch_note=oi_mismatch_note,
         )
     )
 
@@ -673,6 +734,24 @@ async def probe_ticker(
                     f"abstain: {adr_note} — SEC reports {rep}, our balance is {quote}",
                 )
             )
+    elif balance_sheet_financial:
+        for f, our in (
+            ("total_debt", our_debt),
+            ("total_cash", our_cash),
+            ("preferred_stock", our_pref),
+            ("noncontrolling_interest", our_nci),
+        ):
+            rows.append(
+                _abstain(
+                    ticker,
+                    f,
+                    our,
+                    None,
+                    "SEC balance instant",
+                    "abstain: balance-sheet financial — debt/cash/float are operating "
+                    "raw material, not a non-financial EV bridge",
+                )
+            )
     else:
         sec_debt = _best_sec_total_debt_for_our(cf, our_debt)
         sec_cash = _sec_total_cash(cf)
@@ -680,7 +759,13 @@ async def probe_ticker(
         sec_nci = cf.balance_instant(_NCI_CONCEPTS)
         rows.append(
             _magnitude_row(
-                ticker, "total_debt", our_debt, sec_debt, "balance instant", _BALANCE_REL_BAND
+                ticker,
+                "total_debt",
+                our_debt,
+                sec_debt,
+                "balance instant",
+                _BALANCE_REL_BAND,
+                caliber_mismatch_note=_DEBT_LEASE_CALIBER_NOTE,
             )
         )
         rows.append(

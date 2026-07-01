@@ -33,6 +33,7 @@ from finrobot.engine.compute.operators.dcf_seed import (
     _BETA_OUT_OF_BAND_REASON,
     _BETA_RELATIVE_FLOOR,
     _BETA_RELATIVE_INDUSTRY_MIN,
+    _bank_beta_proxy,
     DEFAULT_EQUITY_RISK_PREMIUM,
     DEFAULT_PROJECTION_YEARS,
     DEFAULT_RISK_FREE_RATE,
@@ -273,11 +274,13 @@ def seed_ddm_inputs(
         )
 
     # ----- beta (CAPM) -------------------------------------------------------
+    bank_issuer = is_bank(industry=financials.market.industry, sector=financials.market.sector)
+    beta_proxy, beta_proxy_label = _bank_beta_proxy(industry, is_bank_issuer=bank_issuer)
     raw_beta, beta_source = _pick_with_provenance(
         ticker_value=financials.market.beta,
         ticker_label="provider-reported 5y beta",
-        industry_value=industry.levered_beta,
-        industry_label=f"{industry.industry} industry levered beta",
+        industry_value=beta_proxy,
+        industry_label=beta_proxy_label,
         floor=_BETA_BAND_FLOOR,
         ceiling=_BETA_BAND_CEILING,
         rejected_ticker_reason=_BETA_OUT_OF_BAND_REASON,
@@ -286,11 +289,7 @@ def seed_ddm_inputs(
         # sub-0.7×-industry bank beta is vendor noise; every other sector's low beta is
         # real and kept (dcf-recall red line). The DDM/RI is bank-only anyway, but gate
         # explicitly so the shared helper never误伤s a non-bank caller.
-        relative_floor=(
-            _BETA_RELATIVE_FLOOR
-            if is_bank(industry=financials.market.industry, sector=financials.market.sector)
-            else None
-        ),
+        relative_floor=_BETA_RELATIVE_FLOOR if bank_issuer else None,
         relative_floor_industry_min=_BETA_RELATIVE_INDUSTRY_MIN,
         relative_reject_reason=_BETA_IMPLAUSIBLY_LOW_REASON,
     )
@@ -300,7 +299,8 @@ def seed_ddm_inputs(
     # dcf-recall). adjust_beta_blume is a no-op for β ≤ 1.0, so structurally
     # low-beta defensive payers (utilities/staples — the DDM's bread and butter)
     # are untouched; only a noisy high-β (> 1.0) estimate mean-reverts toward 1.0.
-    beta_blumed = adjust_beta_blume(raw_beta)
+    used_provider_beta = beta_source == "provider-reported 5y beta"
+    beta_blumed = adjust_beta_blume(raw_beta) if used_provider_beta else raw_beta
     # Pre-existing DDM clamp — load-bearing for crash safety: DDMInputs.beta is
     # Field(ge=0, le=3), tighter than DCF's le=5, so a Blume value that still
     # exceeds the cap (e.g. raw 4.8 → 3.53) MUST be capped here or construction
@@ -311,11 +311,7 @@ def seed_ddm_inputs(
     # raw (core contract: every number traces to what produced it). Mirrors
     # dcf_seed; out-of-band → industry proxy is already a levered industry beta
     # (no Blume note), and beta_source carries the substitution + rejected raw.
-    in_band_ticker = (
-        financials.market.beta is not None
-        and _BETA_BAND_FLOOR < financials.market.beta <= _BETA_BAND_CEILING
-    )
-    if not in_band_ticker:
+    if not used_provider_beta:
         prov["beta"] = f"{beta_final:.2f} ({beta_source})"
     elif raw_beta > 1.0:
         prov["beta"] = (

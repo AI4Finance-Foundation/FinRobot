@@ -253,10 +253,10 @@ def _report_drift_flag(
     structured_out["report_drift"] = drift.model_dump(mode="json")
     redacted_tokens = {f.token for f in drift.unmatched}
     for name in narrative_steps:
-        text = result.steps.get(name)
-        if not text:
+        step_text = result.steps.get(name)
+        if not step_text:
             continue
-        redacted = text
+        redacted = step_text
         for token in redacted_tokens:
             redacted = redacted.replace(token, "[unverified amount redacted]")
         result.steps[name] = redacted

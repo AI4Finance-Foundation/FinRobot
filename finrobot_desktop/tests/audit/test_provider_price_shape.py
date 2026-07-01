@@ -120,7 +120,13 @@ async def _fmp_price() -> DataResult:
     with patch.object(
         provider,
         "_get",
-        AsyncMock(side_effect=[_mock_response(quote), _mock_response(historical)]),
+        AsyncMock(
+            side_effect=[
+                _mock_response(quote),
+                _mock_response(historical),
+                _mock_response([{"currency": "USD"}]),
+            ]
+        ),
     ):
         return await provider.fetch("AAPL", "price")
 

@@ -12,8 +12,12 @@ What these tests verify beyond "code runs":
 
 from __future__ import annotations
 
+import csv
+from pathlib import Path
+
 import pytest
 
+from finrobot.engine.data import industry_defaults
 from finrobot.engine.data.industry_defaults import (
     IndustryDefault,
     get_industry_default,
@@ -48,10 +52,35 @@ class TestLookup:
         d = get_industry_default("Semiconductors")
         assert d.industry == "Semiconductor"
 
+    @pytest.mark.parametrize(
+        ("provider_label", "expected"),
+        [
+            ("Software - Application", "Software (System & Application)"),
+            ("Software - Infrastructure", "Software (System & Application)"),
+            ("Utilities - Renewable", "Green & Renewable Energy"),
+            ("Medical Care Facilities", "Hospitals/Healthcare Facilities"),
+            ("Health Information Services", "Heathcare Information and Technology"),
+            ("Healthcare Information Services", "Heathcare Information and Technology"),
+            ("Beverages - Non-Alcoholic", "Beverage (Soft)"),
+            ("Restaurants", "Restaurant/Dining"),
+            ("Home Improvement", "Retail (Building Supply)"),
+            ("Apparel - Retail", "Retail (Special Lines)"),
+        ],
+    )
+    def test_common_provider_labels_do_not_fall_back_to_total_market(
+        self, provider_label: str, expected: str
+    ):
+        d = get_industry_default(provider_label)
+        assert d.industry == expected
+
     def test_substring_match_for_close_names(self):
         """'Software' should hit some Software (* ) row, not fall back to Total Market."""
         d = get_industry_default("Software")
         assert "Software" in d.industry
+
+    def test_internet_retail_alias_hits_existing_retail_bucket(self):
+        d = get_industry_default("Internet Retail")
+        assert d.industry == "Retail (General)"
 
     def test_unknown_industry_falls_back_to_total_market(self):
         d = get_industry_default("NonexistentIndustry-12345")
@@ -84,6 +113,28 @@ class TestRanges:
     def test_debt_equity_in_range(self):
         for d in self.industries:
             assert 0.0 <= d.debt_equity <= 5.0, f"{d.industry}: {d.debt_equity}"
+
+
+class TestDatasetArtifact:
+    def test_every_alias_target_exists_in_runtime_table(self):
+        known = set(list_known_industries())
+        missing = {
+            target
+            for target in industry_defaults._ALIAS_MAP.values()
+            if target not in known
+        }
+        assert missing == set()
+
+    def test_runtime_csv_has_no_blank_numeric_cells(self):
+        csv_path = (
+            Path(industry_defaults.__file__).with_name("datasets") / "industry_medians.csv"
+        )
+        with csv_path.open(newline="", encoding="utf-8") as fh:
+            for line_no, row in enumerate(csv.DictReader(fh), start=2):
+                for key, value in row.items():
+                    if key == "industry":
+                        continue
+                    assert value and value.strip(), f"{csv_path}:{line_no} blank {key}"
 
 
 class TestDebtRatioConversion:

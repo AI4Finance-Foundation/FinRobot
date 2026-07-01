@@ -16,6 +16,7 @@ from finrobot.engine.data.cache import DataCache
 
 
 _PYTEST_SESSION_TIMEOUT_SECONDS = int(os.environ.get("FINROBOT_PYTEST_TIMEOUT_SECONDS", "600"))
+_AIOSQLITE_CLOSE_TIMEOUT_SECONDS = 2.0
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:
@@ -72,7 +73,12 @@ async def _close_leaked_aiosqlite_connections(monkeypatch):
         if getattr(conn, "_connection", None) is None:
             continue
         try:
-            await conn.close()
+            await asyncio.wait_for(conn.close(), timeout=_AIOSQLITE_CLOSE_TIMEOUT_SECONDS)
+        except TimeoutError:
+            # A wedged worker/loop must not freeze the whole suite in teardown.
+            # ``close()`` runs its own ``finally`` on cancellation; ``stop()`` is a
+            # final best-effort nudge for a connection whose worker did not drain.
+            conn.stop()
         except Exception:
             # A test may have already closed it, or the underlying handle is
             # gone — nothing left to leak in either case.

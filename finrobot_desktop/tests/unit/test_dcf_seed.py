@@ -1400,8 +1400,9 @@ class TestSeedDcfBetaEndToEnd:
 
     def test_bank_implausibly_low_beta_uses_industry_proxy(self):
         # MTB-style: a bank β 0.59 sits far below the Banks-Regional industry levered
-        # beta (~0.91) → vendor short-window artifact → industry proxy. Banks are never
-        # low-beta defensives, so the industry-relative check is gated to is_bank.
+        # beta proxy floor → vendor short-window artifact → industry proxy. The matched
+        # Banks (Regional) Damodaran row stays available for every other industry field,
+        # but beta comparison is floored because banks are never low-beta defensives.
         fin = _aapl_financials()
         fin.market.industry = "Banks - Regional"
         fin.market.sector = "Financial Services"
@@ -1410,6 +1411,8 @@ class TestSeedDcfBetaEndToEnd:
         assert inputs.beta > 0.59  # lifted to the higher industry levered proxy
         prov = inputs.assumption_provenance["beta"]
         assert "implausibly low" in prov
+        assert "Total Market industry levered beta used as bank beta proxy floor" in prov
+        assert "Banks (Regional) Damodaran beta" in prov
         assert "0.59" in prov  # raw disclosed
 
     def test_non_bank_same_low_beta_kept_raw(self):

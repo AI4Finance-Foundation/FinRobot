@@ -95,6 +95,13 @@ def main() -> None:
     margin = _load_margin()
     tax = _load_taxrate()
     betas = _load_betas()
+    total_market_tax = tax.loc[
+        tax["industry"].eq("Total Market"), "effective_tax_rate"
+    ].dropna()
+    fallback_tax_rate = (
+        float(total_market_tax.iloc[0]) if not total_market_tax.empty else 0.21
+    )
+    tax["effective_tax_rate"] = tax["effective_tax_rate"].fillna(fallback_tax_rate)
 
     merged = (
         capex.merge(margin, on="industry", how="inner")

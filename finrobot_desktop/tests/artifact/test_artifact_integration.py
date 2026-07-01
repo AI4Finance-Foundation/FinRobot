@@ -13,6 +13,7 @@ Tests that:
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -44,6 +45,15 @@ from finrobot.engine.pipelines.validators import ValidationResult, validate_is_n
 
 
 UTC = timezone.utc
+
+
+@pytest.fixture
+async def artifact_store(tmp_store_dir: Path) -> AsyncIterator[ArtifactStore]:
+    store = ArtifactStore(base_dir=tmp_store_dir)
+    try:
+        yield store
+    finally:
+        await store.close()
 
 
 # ---------------------------------------------------------------------------
@@ -214,9 +224,8 @@ class TestDCFPipelineArtifact:
         return pipeline, deps
 
     @pytest.mark.asyncio
-    async def test_artifact_is_persisted_after_execute(self, tmp_store_dir: Path) -> None:
-        store = ArtifactStore(base_dir=tmp_store_dir)
-        pipeline, deps = self._build_minimal_dcf_pipeline(store)
+    async def test_artifact_is_persisted_after_execute(self, artifact_store: ArtifactStore) -> None:
+        pipeline, deps = self._build_minimal_dcf_pipeline(artifact_store)
 
         result = await pipeline.execute(deps, "AAPL")
 
@@ -227,25 +236,23 @@ class TestDCFPipelineArtifact:
         assert "dcf" in result.artifact_id
 
     @pytest.mark.asyncio
-    async def test_artifact_is_retrievable(self, tmp_store_dir: Path) -> None:
-        store = ArtifactStore(base_dir=tmp_store_dir)
-        pipeline, deps = self._build_minimal_dcf_pipeline(store)
+    async def test_artifact_is_retrievable(self, artifact_store: ArtifactStore) -> None:
+        pipeline, deps = self._build_minimal_dcf_pipeline(artifact_store)
 
         result = await pipeline.execute(deps, "AAPL")
         assert result.artifact_id is not None
 
-        artifact = await store.get(result.artifact_id)
+        artifact = await artifact_store.get(result.artifact_id)
         assert artifact is not None
         assert artifact.ticker == "AAPL"
         assert artifact.type == "dcf"
 
     @pytest.mark.asyncio
-    async def test_artifact_inputs_contain_raw_data(self, tmp_store_dir: Path) -> None:
-        store = ArtifactStore(base_dir=tmp_store_dir)
-        pipeline, deps = self._build_minimal_dcf_pipeline(store)
+    async def test_artifact_inputs_contain_raw_data(self, artifact_store: ArtifactStore) -> None:
+        pipeline, deps = self._build_minimal_dcf_pipeline(artifact_store)
 
         result = await pipeline.execute(deps, "AAPL")
-        artifact = await store.get(result.artifact_id)  # type: ignore[arg-type]
+        artifact = await artifact_store.get(result.artifact_id)  # type: ignore[arg-type]
         assert artifact is not None
 
         # raw_data should contain financial fields (FinancialData dump)
@@ -253,12 +260,11 @@ class TestDCFPipelineArtifact:
         assert artifact.inputs.data_source == "fake"
 
     @pytest.mark.asyncio
-    async def test_artifact_assumptions_contain_wacc(self, tmp_store_dir: Path) -> None:
-        store = ArtifactStore(base_dir=tmp_store_dir)
-        pipeline, deps = self._build_minimal_dcf_pipeline(store)
+    async def test_artifact_assumptions_contain_wacc(self, artifact_store: ArtifactStore) -> None:
+        pipeline, deps = self._build_minimal_dcf_pipeline(artifact_store)
 
         result = await pipeline.execute(deps, "AAPL")
-        artifact = await store.get(result.artifact_id)  # type: ignore[arg-type]
+        artifact = await artifact_store.get(result.artifact_id)  # type: ignore[arg-type]
         assert artifact is not None
 
         params = artifact.assumptions.parameters
@@ -267,23 +273,21 @@ class TestDCFPipelineArtifact:
         ), f"Expected WACC-related field in assumptions, got: {list(params.keys())}"
 
     @pytest.mark.asyncio
-    async def test_artifact_outputs_contain_implied_price(self, tmp_store_dir: Path) -> None:
-        store = ArtifactStore(base_dir=tmp_store_dir)
-        pipeline, deps = self._build_minimal_dcf_pipeline(store)
+    async def test_artifact_outputs_contain_implied_price(self, artifact_store: ArtifactStore) -> None:
+        pipeline, deps = self._build_minimal_dcf_pipeline(artifact_store)
 
         result = await pipeline.execute(deps, "AAPL")
-        artifact = await store.get(result.artifact_id)  # type: ignore[arg-type]
+        artifact = await artifact_store.get(result.artifact_id)  # type: ignore[arg-type]
         assert artifact is not None
 
         assert artifact.outputs.structured.get("implied_price") == pytest.approx(185.0)
 
     @pytest.mark.asyncio
-    async def test_artifact_compute_version_formula_id(self, tmp_store_dir: Path) -> None:
-        store = ArtifactStore(base_dir=tmp_store_dir)
-        pipeline, deps = self._build_minimal_dcf_pipeline(store)
+    async def test_artifact_compute_version_formula_id(self, artifact_store: ArtifactStore) -> None:
+        pipeline, deps = self._build_minimal_dcf_pipeline(artifact_store)
 
         result = await pipeline.execute(deps, "AAPL")
-        artifact = await store.get(result.artifact_id)  # type: ignore[arg-type]
+        artifact = await artifact_store.get(result.artifact_id)  # type: ignore[arg-type]
         assert artifact is not None
 
         # Formula ID should reflect the FCF formula used. Post Phase B the
@@ -300,9 +304,7 @@ class TestPipelineWithoutArtifactBuilder:
     """Pipeline with no artifact_builder but store is set — should not crash."""
 
     @pytest.mark.asyncio
-    async def test_no_artifact_builder_does_not_crash(self, tmp_store_dir: Path) -> None:
-        store = ArtifactStore(base_dir=tmp_store_dir)
-
+    async def test_no_artifact_builder_does_not_crash(self, artifact_store: ArtifactStore) -> None:
         pipeline = Pipeline(
             artifact_builder=None,  # explicitly no builder
             steps=[
@@ -313,12 +315,12 @@ class TestPipelineWithoutArtifactBuilder:
                 ),
             ],
         )
-        deps = FakeDeps(artifact_store=store)
+        deps = FakeDeps(artifact_store=artifact_store)
         result = await pipeline.execute(deps, "AAPL")
 
         assert result.artifact_id is None
         # No artifacts in store
-        summaries = await store.list_by_ticker()
+        summaries = await artifact_store.list_by_ticker()
         assert summaries == []
 
 

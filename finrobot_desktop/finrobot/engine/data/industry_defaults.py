@@ -20,6 +20,7 @@ own 3-year historical medians; industry defaults only fire when D&A / CapEx
 from __future__ import annotations
 
 import csv
+import re
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -57,19 +58,31 @@ _ALIAS_MAP: dict[str, str] = {
     "software—application": "Software (System & Application)",
     "software—infrastructure": "Software (System & Application)",
     "internet content & information": "Software (Internet)",
-    "internet retail": "Retail (Online)",
+    # Damodaran 2026-01 has no Retail (Online) row; use the nearest retail
+    # operating bucket instead of silently falling through to Total Market.
+    "internet retail": "Retail (General)",
+    "beverages—non—alcoholic": "Beverage (Soft)",
     "auto manufacturers": "Auto & Truck",
     "auto & truck dealerships": "Auto & Truck",
     "specialty retail": "Retail (Special Lines)",
     "discount stores": "Retail (General)",
     "home improvement retail": "Retail (Building Supply)",
+    "home improvement": "Retail (Building Supply)",
+    "apparel retail": "Retail (Special Lines)",
+    "apparel—retail": "Retail (Special Lines)",
+    "restaurants": "Restaurant/Dining",
     "drug manufacturers—general": "Drugs (Pharmaceutical)",
     "drug manufacturers—specialty & generic": "Drugs (Pharmaceutical)",
     "biotechnology": "Drugs (Biotechnology)",
     "medical devices": "Healthcare Products",
     "medical instruments & supplies": "Healthcare Products",
     "diagnostics & research": "Healthcare Products",
+    "medical care facilities": "Hospitals/Healthcare Facilities",
     "healthcare plans": "Healthcare Support Services",
+    # Damodaran's source row is misspelled "Heathcare"; keep the exact runtime
+    # row name but map common provider spellings to it.
+    "health information services": "Heathcare Information and Technology",
+    "healthcare information services": "Heathcare Information and Technology",
     "banks—diversified": "Bank (Money Center)",
     "banks—regional": "Banks (Regional)",
     "credit services": "Financial Svcs. (Non-bank & Insurance)",
@@ -139,9 +152,13 @@ def _load_all() -> dict[str, IndustryDefault]:
     return out
 
 
+_DASH_RE = re.compile(r"\s*[—–-]\s*")
+
+
 def _normalize(name: str) -> str:
-    """Lower-case, collapse whitespace, strip — for alias matching."""
-    return " ".join(name.lower().split())
+    """Lower-case, normalize dash variants, collapse whitespace — for alias matching."""
+    dashed = _DASH_RE.sub("—", name.lower())
+    return " ".join(dashed.split())
 
 
 def get_industry_default(industry: str | None) -> IndustryDefault:

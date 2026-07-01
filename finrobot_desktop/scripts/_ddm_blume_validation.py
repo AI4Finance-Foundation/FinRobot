@@ -39,6 +39,12 @@ from finrobot.engine.compute.coordinators.historical_extractor import fetch_hist
 from finrobot.engine.compute.operators.dcf_seed import (
     _BETA_BAND_CEILING,
     _BETA_BAND_FLOOR,
+    _BETA_IMPLAUSIBLY_LOW_REASON,
+    _BETA_OUT_OF_BAND_REASON,
+    _BETA_RELATIVE_FLOOR,
+    _BETA_RELATIVE_INDUSTRY_MIN,
+    _bank_beta_proxy,
+    _pick_with_provenance,
     seed_dcf_inputs,
 )
 from finrobot.engine.compute.operators.ddm import calculate_ddm
@@ -48,6 +54,7 @@ from finrobot.engine.data.factory import build_data_layer
 from finrobot.engine.data.industry_defaults import get_industry_default
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import DDMInputs
+from finrobot.engine.primitives.industry import is_bank
 from finrobot.paths import SETTINGS_JSON
 from finrobot.routes.settings import load_non_secret_settings
 from finrobot.secret_store import create_secret_store
@@ -125,16 +132,29 @@ async def main() -> int:
 
             price = fin.market.current_price
 
-            # Reconstruct the pre-clamp raw picked beta exactly as _pick_with_provenance
-            # does (in-band provider beta kept; else industry levered proxy).
-            raw_provider = fin.market.beta
-            in_band = raw_provider is not None and _BETA_BAND_FLOOR < raw_provider <= _BETA_BAND_CEILING
-            raw_picked = (
-                raw_provider if in_band else get_industry_default(fin.market.industry).levered_beta
+            # Reconstruct the DDM beta pick exactly as seed_ddm_inputs does:
+            # provider beta when valid, else the industry proxy; for banks, the
+            # relative low-beta glitch check uses the bank beta proxy floor.
+            industry = get_industry_default(fin.market.industry)
+            bank_issuer = is_bank(industry=fin.market.industry, sector=fin.market.sector)
+            beta_proxy, beta_proxy_label = _bank_beta_proxy(industry, is_bank_issuer=bank_issuer)
+            raw_picked, beta_source = _pick_with_provenance(
+                ticker_value=fin.market.beta,
+                ticker_label="provider-reported 5y beta",
+                industry_value=beta_proxy,
+                industry_label=beta_proxy_label,
+                floor=_BETA_BAND_FLOOR,
+                ceiling=_BETA_BAND_CEILING,
+                rejected_ticker_reason=_BETA_OUT_OF_BAND_REASON,
+                reject_value_fmt="{:.2f}",
+                relative_floor=_BETA_RELATIVE_FLOOR if bank_issuer else None,
+                relative_floor_industry_min=_BETA_RELATIVE_INDUSTRY_MIN,
+                relative_reject_reason=_BETA_IMPLAUSIBLY_LOW_REASON,
             )
+            provider_beta_used = beta_source == "provider-reported 5y beta"
 
             beta_now = _clamp_ddm(raw_picked)
-            beta_fix = _clamp_ddm(adjust_beta_blume(raw_picked))
+            beta_fix = _clamp_ddm(adjust_beta_blume(raw_picked) if provider_beta_used else raw_picked)
 
             # DCF beta for the SAME stock (already Blume-adjusted) — proves the gap.
             try:
@@ -170,16 +190,18 @@ async def main() -> int:
             v_fix = _ddm_value(ddm_inputs, beta_fix)
             implied = _implied_beta(ddm_inputs, price) if price else "—"
 
-            grp = "β>1" if raw_picked > 1.0 else "β≤1"
+            grp = ("β>1" if raw_picked > 1.0 else "β≤1") if provider_beta_used else "proxy"
             note = ""
 
             # PILLAR 2 — β≤1 must not move at all.
-            if raw_picked <= 1.0 and (
+            if (not provider_beta_used or raw_picked <= 1.0) and (
                 abs(beta_fix - beta_now) > 1e-12
                 or (math.isfinite(v_now) and math.isfinite(v_fix) and abs(v_fix - v_now) > 1e-6)
             ):
-                failures.append(f"{t}: β≤1 name moved (beta {beta_now}->{beta_fix}, value {v_now}->{v_fix})")
-                note = "‼ low-β moved"
+                failures.append(
+                    f"{t}: no-Blume beta branch moved (beta {beta_now}->{beta_fix}, value {v_now}->{v_fix})"
+                )
+                note = "‼ no-Blume moved"
 
             # PILLAR 3 — no new degradation.
             if math.isfinite(v_now) and v_now > 0 and not (math.isfinite(v_fix) and v_fix > 0):
@@ -187,7 +209,7 @@ async def main() -> int:
                 note = "‼ new degrade"
 
             # PILLAR 4 — β>1 direction: Blume lowers beta → value rises.
-            if raw_picked > 1.0 and math.isfinite(v_now) and math.isfinite(v_fix):
+            if provider_beta_used and raw_picked > 1.0 and math.isfinite(v_now) and math.isfinite(v_fix):
                 if not (beta_fix < beta_now - 1e-9 and coe_fix < coe_now and v_fix > v_now - 1e-9):
                     failures.append(
                         f"{t}: β>1 wrong direction (β {beta_now}->{beta_fix}, val {v_now:.2f}->{v_fix:.2f})"

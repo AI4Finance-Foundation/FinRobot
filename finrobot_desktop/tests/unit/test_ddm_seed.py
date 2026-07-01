@@ -371,9 +371,10 @@ class TestDdmBetaBand:
 
     def test_implausibly_low_bank_beta_uses_industry_proxy(self) -> None:
         # A bank beta 0.354 is NOT a real defensive reading (banks are never low-beta
-        # defensives) — it sits far below the bank industry levered beta, so it is treated
+        # defensives) — it sits far below the bank beta proxy floor, so it is treated
         # as a short-window vendor artifact and routes to the industry proxy (MTB-style).
         inputs = seed_ddm_inputs(_financials(beta=0.354), _normalized())
         assert inputs.beta > 0.354
         prov = inputs.assumption_provenance["beta"]
         assert "implausibly low" in prov
+        assert "Total Market industry levered beta used as bank beta proxy floor" in prov

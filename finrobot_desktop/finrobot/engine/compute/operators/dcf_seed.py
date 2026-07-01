@@ -112,7 +112,8 @@ _BETA_OUT_OF_BAND_REASON: Final[str] = (
 # a ticker beta below 70% of a normal-magnitude industry levered beta is a vendor
 # short-window regression artifact. Gated on the industry beta itself being ≥ 0.8 so
 # genuinely low-beta sectors (utilities/staples, industry β well below 0.8) are
-# structurally exempt and never误伤ed. Catches MTB (β 0.59 in Banks-Regional β 0.91).
+# structurally exempt and never误伤ed. Catches MTB (β 0.59 versus a bank beta
+# proxy floored to a normal-magnitude market comparator).
 _BETA_RELATIVE_FLOOR: Final[float] = 0.7
 _BETA_RELATIVE_INDUSTRY_MIN: Final[float] = 0.8
 _BETA_IMPLAUSIBLY_LOW_REASON: Final[str] = (
@@ -759,11 +760,12 @@ def seed_dcf_inputs(
     # utilities) — applying the relative check there would误伤 true low-beta defensives,
     # the dcf-recall red line.
     _bank = is_bank(industry=financials.market.industry, sector=financials.market.sector)
+    beta_proxy, beta_proxy_label = _bank_beta_proxy(industry, is_bank_issuer=_bank)
     raw_beta, beta_source = _pick_with_provenance(
         ticker_value=financials.market.beta,
         ticker_label="provider-reported 5y beta",
-        industry_value=industry.levered_beta,
-        industry_label=f"{industry.industry} industry levered beta",
+        industry_value=beta_proxy,
+        industry_label=beta_proxy_label,
         floor=_BETA_BAND_FLOOR,
         ceiling=_BETA_BAND_CEILING,
         rejected_ticker_reason=_BETA_OUT_OF_BAND_REASON,
@@ -772,7 +774,8 @@ def seed_dcf_inputs(
         relative_floor_industry_min=_BETA_RELATIVE_INDUSTRY_MIN,
         relative_reject_reason=_BETA_IMPLAUSIBLY_LOW_REASON,
     )
-    beta_chosen = adjust_beta_blume(raw_beta)
+    used_provider_beta = beta_source == "provider-reported 5y beta"
+    beta_chosen = adjust_beta_blume(raw_beta) if used_provider_beta else raw_beta
     # Provenance must match the branch actually taken (same 1.0 threshold as
     # adjust_beta_blume) — printing "Blume-adjusted" for a β ≤ 1.0 name that was
     # NOT adjusted would be a false provenance trail (CLAUDE.md core contract:
@@ -781,11 +784,7 @@ def seed_dcf_inputs(
     # already a levered industry beta, not a noisy regression); beta_source already
     # discloses the substitution + the rejected raw value, so emit just the chosen
     # value + that self-complete source rather than a false regression/Blume note.
-    in_band_ticker = (
-        financials.market.beta is not None
-        and _BETA_BAND_FLOOR < financials.market.beta <= _BETA_BAND_CEILING
-    )
-    if not in_band_ticker:
+    if not used_provider_beta:
         prov["beta"] = f"{beta_chosen:.2f} ({beta_source})"
     else:
         if raw_beta > 1.0:
@@ -1076,6 +1075,33 @@ def _pick_with_provenance(
             f"{industry_label}; {ticker_label} {reject_value_fmt.format(ticker_value)} {reason}",
         )
     return industry_value, industry_label
+
+
+def _bank_beta_proxy(industry: IndustryDefault, *, is_bank_issuer: bool) -> tuple[float, str]:
+    """Beta proxy used by bank WACC seeds.
+
+    Damodaran's bank sub-industry rows can occasionally carry low-beta readings
+    (2026-01 regional banks: 0.3985). That is useful as a raw source fact, but it
+    defeats the project-level rule that banks are not low-beta defensives. For
+    beta only, floor a low bank sub-industry proxy to Total Market so the
+    industry-relative vendor-glitch check has a normal-magnitude comparator.
+    Other industry fields (tax, D/E, margins) still use the matched bank row.
+    """
+    label = f"{industry.industry} industry levered beta"
+    if not is_bank_issuer or industry.levered_beta >= _BETA_RELATIVE_INDUSTRY_MIN:
+        return industry.levered_beta, label
+
+    market = get_industry_default(None)
+    if market.levered_beta <= industry.levered_beta:
+        return industry.levered_beta, label
+    return (
+        market.levered_beta,
+        (
+            f"Total Market industry levered beta used as bank beta proxy floor "
+            f"({industry.industry} Damodaran beta {industry.levered_beta:.2f} is "
+            "below the non-defensive bank floor)"
+        ),
+    )
 
 
 # Marginal NWC ratio (ΔNWC/Δrevenue) clamp band. Real NWC-to-revenue LEVELS sit

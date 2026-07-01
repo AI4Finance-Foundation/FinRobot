@@ -450,6 +450,30 @@ class TestArtifactLanguageStamping:
         assert saved["artifact"].meta.language == expected
 
 
+class TestArtifactPersistenceFailure:
+    @pytest.mark.asyncio
+    async def test_execute_raises_when_artifact_save_fails(self):
+        def builder(result, ticker, deps):
+            return _minimal_artifact()
+
+        store = MagicMock()
+
+        async def _save(_art):
+            raise OSError("disk full")
+
+        store.save = _save
+
+        deps = MagicMock()
+        deps.skill_runtime = None
+        deps.artifact_store = store
+        deps.settings.language = "en"
+
+        pipeline = Pipeline(steps=[_make_step("s1")], artifact_builder=builder)
+
+        with pytest.raises(PipelineStepError, match="artifact persistence failed"):
+            await pipeline.execute(deps, "AAPL")
+
+
 class TestArtifactParentLineageStamping:
     """meta.parent_artifact_id is stamped from the run's source_artifact_id at
     the same single write point in execute() — it records version lineage so the

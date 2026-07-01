@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import stat
 import sys
 from pathlib import Path
@@ -74,6 +75,25 @@ async def test_perms_drift_group_world_readable_self_heals(tmp_path: Path) -> No
     assert await store.get("k") == "v"
     assert await store.get("k2") == "v2"
     assert stat.S_IMODE(path.stat().st_mode) == stat.S_IRUSR | stat.S_IWUSR
+
+
+@pytest.mark.asyncio
+async def test_parent_permission_lock_failure_is_fatal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "secrets" / ".secrets"
+    store = FileSecretStore(path)
+    real_chmod = os.chmod
+
+    def deny_chmod(target: Path | str, mode: int) -> None:
+        if Path(target) == path.parent:
+            raise OSError("chmod denied")
+        real_chmod(target, mode)
+
+    monkeypatch.setattr("finrobot.secret_store.os.chmod", deny_chmod)
+
+    with pytest.raises(SecretStoreError, match="could not be permission-locked"):
+        await store.set("k", "v")
 
 
 # ---------------------------------------------------------------------------

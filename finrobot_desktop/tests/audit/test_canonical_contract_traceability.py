@@ -97,6 +97,7 @@ def _yf_price() -> DataResult:
     return DataResult(
         data={
             "current_price": 175.0,
+            "quote_currency": "USD",
             "price_history": [
                 # Ancient bar (>52w before the latest) — must be trimmed out.
                 {"date": "2024-01-02", "open": 100, "high": 101, "low": 99, "close": 100},
@@ -116,6 +117,7 @@ def _fmp_price_close_only() -> DataResult:
     return DataResult(
         data={
             "current_price": 175.0,
+            "quote_currency": "USD",
             "price_history": [
                 {"date": "2026-05-20", "close": 170},
                 {"date": "2026-05-21", "close": 175},

@@ -142,6 +142,7 @@ class FinnhubProvider(DataProvider):
 
         profile = (await self._get("/stock/profile2", params={"symbol": ticker})).json()
         exchange = profile.get("exchange") if isinstance(profile, dict) else None
+        quote_currency = profile.get("currency") if isinstance(profile, dict) else None
 
         price_history = await self._fetch_candle_bars(ticker)
 
@@ -149,6 +150,7 @@ class FinnhubProvider(DataProvider):
             "current_price": float(current_price),
             "price_history": price_history,
             "exchange": exchange,
+            "quote_currency": quote_currency,
         }
 
     async def _fetch_candle_bars(self, ticker: str) -> list[dict[str, Any]]:

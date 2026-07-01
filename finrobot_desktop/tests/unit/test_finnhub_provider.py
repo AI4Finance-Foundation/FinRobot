@@ -28,6 +28,7 @@ def _finnhub_profile_response() -> dict:
         "marketCapitalization": 2_620_000,  # Finnhub reports in millions
         "shareOutstanding": 15_000,  # millions
         "exchange": "NASDAQ",
+        "currency": "USD",
     }
 
 
@@ -163,6 +164,7 @@ class TestFinnhubPrice:
         assert result.data_type == "price"
         assert result.data["current_price"] == 175.5
         assert result.data["exchange"] == "NASDAQ"
+        assert result.data["quote_currency"] == "USD"
         history = result.data["price_history"]
         # Oldest-first ordering — the 52w high/low window relies on it.
         assert [p["date"] for p in history] == list(_CANDLE_DATES)
@@ -235,6 +237,7 @@ class TestFinnhubPrice:
         norm = normalize_price(result)
         assert norm.current_price == 175.5
         assert norm.exchange == "NASDAQ"
+        assert norm.quote_currency == "USD"
         assert len(norm.bars) == 3
         assert norm.is_ohlc_complete is True
 

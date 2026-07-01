@@ -620,7 +620,9 @@ class Pipeline:
             warnings=run_warnings,
         )
 
-        # Auto-persist artifact if store is available (non-blocking on failure)
+        # Auto-persist artifact if store is available. A builder/store failure is
+        # terminal for the run: returning "completed" without the artifact is a
+        # false-success state for users and downstream automation.
         _artifact_store = getattr(deps, "artifact_store", None)
         if _artifact_store is not None and self.artifact_builder is not None:
             try:
@@ -648,8 +650,12 @@ class Pipeline:
                 logger.info("Artifact persisted: %s", artifact_id)
             except (ValueError, TypeError, KeyError, AttributeError, OSError, RuntimeError):
                 logger.exception(
-                    "Failed to persist artifact for %s — result still returned",
+                    "Failed to persist artifact for %s",
                     ticker,
+                )
+                raise PipelineStepError(
+                    "__artifact_persist__",
+                    f"artifact persistence failed for {ticker}; run marked failed",
                 )
 
         return pipeline_result

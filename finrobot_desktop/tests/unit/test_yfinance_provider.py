@@ -65,6 +65,7 @@ VALID_INFO = {
     "operatingMargins": 0.30,
     "trailingPE": 28.3,
     "sharesOutstanding": 15_500_000_000,
+    "currency": "USD",
 }
 
 
@@ -213,8 +214,20 @@ class TestFetchPrice:
             result = await provider.fetch("AAPL", "price")
         assert isinstance(result, DataResult)
         assert "price_history" in result.data
+        assert result.data["quote_currency"] == "USD"
         assert len(result.data["price_history"]) == 1
         assert result.data["price_history"][0]["close"] == 152.0
+
+    @pytest.mark.asyncio
+    async def test_fetch_price_carries_foreign_quote_currency(self):
+        provider = YFinanceProvider()
+        mock_ticker = _make_mock_ticker({**VALID_INFO, "currency": "TWD"})
+        with patch(
+            "finrobot.engine.data.providers.yfinance_provider.yf.Ticker", return_value=mock_ticker
+        ):
+            result = await provider.fetch("2330.TW", "price")
+        assert result.data["current_price"] == 150.0
+        assert result.data["quote_currency"] == "TWD"
 
 
 class TestFetchPriceRange:

@@ -270,6 +270,7 @@ class _ConcurrencyTrackingLayer:
         return NormalizedPrice(
             ticker=ticker,
             current_price=float(raw.data["current_price"]),
+            quote_currency="USD",
             bars=[],
             provenance=Provenance(provider="stub", as_of=NOW, fetched_at=NOW),
         )

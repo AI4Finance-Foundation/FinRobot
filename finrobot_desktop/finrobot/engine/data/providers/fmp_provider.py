@@ -896,6 +896,7 @@ class FMPProvider(DataProvider):
         if current_price is None:
             raise ProviderError(f"FMP /quote/{ticker} returned no price field")
         exchange = quote.get("exchange")
+        quote_currency = await self._quote_currency(ticker)
 
         # Stable returns a BARE array (no {symbol, historical: [...]} wrapper).
         # Adjusted basis: the dividend-adjusted variant matches yfinance
@@ -917,6 +918,7 @@ class FMPProvider(DataProvider):
                 "current_price": float(current_price),
                 "price_history": price_history,
                 "exchange": exchange,
+                "quote_currency": quote_currency,
                 # Authoritative observation instant of the quote (unix epoch
                 # seconds). normalize_price stamps Provenance.as_of from this so a
                 # closed-market last-close reads as the real 16:00 ET close, not

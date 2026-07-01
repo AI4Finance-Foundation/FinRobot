@@ -1,9 +1,8 @@
 """Plan-B report reconcile: the equity_research builder scans the report step's
-$-amounts against every numeric leaf it freezes into the artifact (structured
-snapshot + raw FinancialData). Unmatched amounts are FLAGGED — a warning in
-outputs.warnings + a structured ``report_drift`` block — and never rewritten
-(rewriting without a complete registry would corrupt legitimate numbers; the
-warning costs one triage glance)."""
+    $-amounts against every numeric leaf it freezes into the artifact (structured
+    snapshot + raw FinancialData). Unmatched amounts are redacted from the scanned
+    narrative steps, while a warning in outputs.warnings + a structured
+    ``report_drift`` block preserves the audit evidence."""
 
 from __future__ import annotations
 
@@ -54,6 +53,9 @@ def test_fabricated_report_amount_is_flagged_into_warnings_and_provenance() -> N
     drift = artifact.outputs.structured["report_drift"]
     assert drift["unmatched_count"] == 1
     assert drift["unmatched"][0]["token"] == "$999.99"
+    assert drift["redacted"] == ["$999.99"]
+    assert "$999.99" not in artifact.outputs.summary_text
+    assert "[unverified amount redacted]" in artifact.outputs.summary_text
 
     drift_warnings = [w for w in artifact.outputs.warnings if w.startswith("[REPORT-DRIFT")]
     assert len(drift_warnings) == 1
@@ -97,6 +99,7 @@ def test_data_collection_narrative_is_scanned_too() -> None:
     drift = artifact.outputs.structured.get("report_drift")
     assert drift is not None and drift["unmatched_count"] == 1
     assert drift["unmatched"][0]["token"] == "$777.77"
+    assert "$777.77" not in artifact.outputs.summary_text
 
 
 def test_earnings_builder_scans_its_two_narrative_steps() -> None:
@@ -119,6 +122,8 @@ def test_earnings_builder_scans_its_two_narrative_steps() -> None:
     assert drift is not None
     tokens = {f["token"] for f in drift["unmatched"]}
     assert {"$123.45", "$678.90"} <= tokens
+    assert "$123.45" not in artifact.outputs.summary_text
+    assert "$678.90" not in artifact.outputs.summary_text
     assert any(w.startswith("[REPORT-DRIFT") for w in artifact.outputs.warnings)
 
 

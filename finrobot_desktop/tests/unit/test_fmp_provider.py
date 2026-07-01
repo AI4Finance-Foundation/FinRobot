@@ -1593,13 +1593,34 @@ class TestFMPPrice:
     next instead of falling straight through to the 20h-stale-cache warning
     the user saw in production (2026-05-25)."""
 
+    @staticmethod
+    def _price_get(quote_rows, history_rows, profile_rows=None):
+        async def _get(path, params=None):  # noqa: ANN001
+            if path == "/profile":
+                return _mock_response(
+                    profile_rows
+                    if profile_rows is not None
+                    else _fmp_profile_response(params.get("symbol", "AAPL"))
+                )
+            if "historical-price-eod" in path:
+                return _mock_response(history_rows)
+            return _mock_response(quote_rows)
+
+        return _get
+
     @pytest.mark.asyncio
     async def test_fetch_price_returns_yfinance_compatible_shape(self, provider):
-        responses = [
-            _mock_response(_fmp_quote_response("AAPL", price=175.5)),
-            _mock_response(_fmp_historical_price_response(days=3)),
-        ]
-        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(
+                side_effect=self._price_get(
+                    _fmp_quote_response("AAPL", price=175.5),
+                    _fmp_historical_price_response(days=3),
+                    _fmp_profile_response("AAPL", currency="USD"),
+                )
+            ),
+        ):
             result = await provider.fetch("AAPL", "price")
 
         assert isinstance(result, DataResult)
@@ -1608,12 +1629,31 @@ class TestFMPPrice:
         assert result.data_type == "price"
         assert result.data["current_price"] == 175.5
         assert result.data["exchange"] == "NASDAQ"
+        assert result.data["quote_currency"] == "USD"
         # Oldest first — extract_financial_data relies on this ordering when
         # it pulls 52w high/low from the close column.
         history = result.data["price_history"]
         assert [p["date"] for p in history] == ["2026-05-21", "2026-05-22", "2026-05-23"]
         assert history[0]["close"] == 172.0
         assert history[-1]["close"] == 175.0
+
+    @pytest.mark.asyncio
+    async def test_fetch_price_carries_foreign_quote_currency_from_profile(self, provider):
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(
+                side_effect=self._price_get(
+                    _fmp_quote_response("2330.TW", price=640.0),
+                    _fmp_historical_price_response(days=1),
+                    _fmp_profile_response("2330.TW", currency="TWD", country="TW"),
+                )
+            ),
+        ):
+            result = await provider.fetch("2330.TW", "price")
+
+        assert result.data["current_price"] == 640.0
+        assert result.data["quote_currency"] == "TWD"
 
     @pytest.mark.asyncio
     async def test_fetch_price_requests_calendar_year_ohlc(self, provider):
@@ -1624,10 +1664,11 @@ class TestFMPPrice:
         from datetime import date as _date
 
         get_mock = AsyncMock(
-            side_effect=[
-                _mock_response(_fmp_quote_response("AAPL", price=175.5)),
-                _mock_response(_fmp_historical_price_response(days=3)),
-            ]
+            side_effect=self._price_get(
+                _fmp_quote_response("AAPL", price=175.5),
+                _fmp_historical_price_response(days=3),
+                _fmp_profile_response("AAPL", currency="USD"),
+            )
         )
         with patch.object(provider, "_get", get_mock):
             await provider.fetch("AAPL", "price")
@@ -1664,14 +1705,21 @@ class TestFMPPrice:
     @pytest.mark.asyncio
     async def test_fetch_price_handles_empty_history(self, provider):
         """No history rows → empty price_history list, not a crash."""
-        responses = [
-            _mock_response(_fmp_quote_response("NEW", price=10.0)),
-            _mock_response([]),
-        ]
-        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(
+                side_effect=self._price_get(
+                    _fmp_quote_response("NEW", price=10.0),
+                    [],
+                    _fmp_profile_response("NEW", currency="USD"),
+                )
+            ),
+        ):
             result = await provider.fetch("NEW", "price")
         assert result.data["current_price"] == 10.0
         assert result.data["price_history"] == []
+        assert result.data["quote_currency"] == "USD"
 
     @pytest.mark.asyncio
     async def test_fetch_price_history_is_split_adjusted(self, provider):
@@ -1685,11 +1733,17 @@ class TestFMPPrice:
         against yfinance auto_adjust): the 52-week high taken off close must
         land on the adjusted ~130, never the nominal ~134.
         """
-        responses = [
-            _mock_response(_fmp_quote_response("AAPL", price=130.13)),
-            _mock_response(_fmp_adj_historical_price_response()),
-        ]
-        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(
+                side_effect=self._price_get(
+                    _fmp_quote_response("AAPL", price=130.13),
+                    _fmp_adj_historical_price_response(),
+                    _fmp_profile_response("AAPL", currency="USD"),
+                )
+            ),
+        ):
             result = await provider.fetch("AAPL", "price")
 
         history = result.data["price_history"]
@@ -1733,11 +1787,17 @@ class TestFMPPrice:
                 "volume": 48_000_000,
             },
         ]
-        responses = [
-            _mock_response(_fmp_quote_response("AAPL", price=175.0)),
-            _mock_response(hist),
-        ]
-        with patch.object(provider, "_get", AsyncMock(side_effect=responses)):
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(
+                side_effect=self._price_get(
+                    _fmp_quote_response("AAPL", price=175.0),
+                    hist,
+                    _fmp_profile_response("AAPL", currency="USD"),
+                )
+            ),
+        ):
             result = await provider.fetch("AAPL", "price")
         history = result.data["price_history"]
         assert [p["date"] for p in history] == ["2026-05-23"]

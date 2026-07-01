@@ -233,13 +233,11 @@ def _report_drift_flag(
 
     Every $-amount an LLM narrative prints should trace to SOME numeric leaf of
     what the artifact freezes (structured snapshot + raw FinancialData — exactly
-    the numbers the agent was allowed to assemble). Unmatched amounts are
-    FLAGGED, never rewritten: unlike the thesis guard there is no single
-    canonical target to rewrite TO, and a false-positive rewrite would corrupt a
-    legitimate figure. The flag does not gate ``artifact_status`` either — an
-    LLM restating "$391.0B" as "roughly $400B" is triage-worthy, not
-    withhold-worthy. On drift: warning returned + a ``report_drift`` provenance
-    block recorded in ``structured_out``.
+    the numbers the agent was allowed to assemble). Unmatched amounts are not
+    allowed to ship as prose numbers: redact the exact unmatched tokens from the
+    scanned narrative steps, then return a warning + structured ``report_drift``
+    provenance block. This is deliberately narrower than rewriting to a
+    canonical value — there may be no single safe replacement.
     """
     text = "\n\n".join(
         step_text for name in narrative_steps if (step_text := result.steps.get(name))
@@ -253,11 +251,21 @@ def _report_drift_flag(
     if not drift.unmatched_count:
         return []
     structured_out["report_drift"] = drift.model_dump(mode="json")
+    redacted_tokens = {f.token for f in drift.unmatched}
+    for name in narrative_steps:
+        text = result.steps.get(name)
+        if not text:
+            continue
+        redacted = text
+        for token in redacted_tokens:
+            redacted = redacted.replace(token, "[unverified amount redacted]")
+        result.steps[name] = redacted
+    structured_out["report_drift"]["redacted"] = sorted(redacted_tokens)
     examples = ", ".join(f.token for f in drift.unmatched[:5])
     return [
-        f"[REPORT-DRIFT/review] {drift.unmatched_count}/{drift.total_dollar_amounts} "
-        f"narrative $-amounts match no computed value ({examples}) — verify the "
-        f"narrative before publishing"
+        f"[REPORT-DRIFT/redacted] {drift.unmatched_count}/{drift.total_dollar_amounts} "
+        f"narrative $-amounts matched no computed value and were redacted "
+        f"({examples}) — verify the narrative before publishing"
     ]
 
 

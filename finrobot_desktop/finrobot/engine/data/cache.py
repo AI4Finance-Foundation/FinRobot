@@ -105,8 +105,11 @@ def canonical_key(data_type: str | DataType, provider: str | None = None) -> str
 #   return_on_equity (/key-metrics-ttm). Legacy rows omit them, so the DDM seed
 #   can never recover a dividend on an FMP-primary ticker (raises "no dividend").
 #   Pairs with the CANONICAL_CONTRACT_VERSION v8 bump.
+#   price v3 — 2026-07-01: full PRICE provider payloads now carry quote_currency.
+#   Legacy PRICE rows omit it and would normalize to UNKNOWN (or, pre-v9, USD),
+#   so they must miss and refetch instead of feeding mixed-currency comparisons.
 _RAW_SLOT_VERSION: dict[str, int] = {
-    DataType.PRICE.value: 2,
+    DataType.PRICE.value: 3,
     DataType.PROXY_STATEMENT.value: 2,
     DataType.PEER_CANDIDATES.value: 2,
     DataType.SENTIMENT.value: 2,

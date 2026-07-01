@@ -485,6 +485,7 @@ class YFinanceProvider(DataProvider):
     async def _fetch_price(self, ticker: str, t: yf.Ticker, info: dict[str, Any]) -> DataResult:
         try:
             current_price = info.get("currentPrice") or info.get("regularMarketPrice")
+            quote_currency = info.get("currency")
             # Exchange name for the LIVE pill (TickerHero) — NASDAQ vs NYSE
             # vs AMEX matters for retail investors who associate trust signals
             # with exchange. fullExchangeName ("NasdaqGS" etc.) gets pretty-
@@ -532,6 +533,7 @@ class YFinanceProvider(DataProvider):
                 "current_price": current_price,
                 "price_history": price_history,
                 "exchange": exchange,
+                "quote_currency": quote_currency,
                 # Authoritative observation instant (unix epoch seconds). Same key
                 # as the FMP path (Mode A/B symmetry) so normalize_price stamps
                 # Provenance.as_of from one provider-agnostic chain.

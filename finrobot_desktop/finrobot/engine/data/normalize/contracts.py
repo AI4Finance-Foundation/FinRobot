@@ -77,7 +77,12 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 # canonical snapshots carry these as None; the canonical slot is read before the
 # raw slot and has a 24h TTL, so without this bump a fresh-but-pre-fix snapshot
 # would keep DDM dead until expiry. Pairs with the FINANCIALS raw-slot bump.
-CANONICAL_CONTRACT_VERSION = 8
+# v9 — 2026-07-01: PRICE canonical no longer silently defaults a missing
+# quote_currency to USD. Old PRICE snapshots may have stamped foreign local
+# quotes (TWD/HKD/JPY) as USD, letting coverage/valuation compare native prices
+# against USD targets. Miss old canonicals so full PRICE refetches with an
+# explicit quote-currency tag or a visible unknown-currency degrade.
+CANONICAL_CONTRACT_VERSION = 9
 
 # Degradation markers carried in ``Provenance.degraded``. Surfaced to the UI so
 # a fallback is visible rather than silent.
@@ -93,6 +98,10 @@ DEGRADED_PRICE_FALLBACK_CLOSE = "price_fallback_close"
 # the session, not the minute. Distinct from a missing PRICE: the number is real,
 # only its observation time is approximate.
 DEGRADED_QUOTE_TS_MISSING = "quote_ts_missing"
+# Provider returned a usable PRICE but did not identify the quote currency. This
+# is not safe to default to USD: a foreign local listing would bypass FX and feed
+# native prices into USD comparisons. Downstream FX gates see UNKNOWN and abstain.
+DEGRADED_QUOTE_CURRENCY_MISSING = "quote_currency_missing"
 # The live provider served a quote WITHOUT history bars (Finnhub free tier:
 # /quote works, /stock/candle is premium-403) and the layer grafted the bars
 # from the last cached PRICE row instead of letting the chart go blank.
@@ -209,7 +218,7 @@ class NormalizedPrice(BaseModel):
     model_config = ConfigDict(frozen=False)
 
     ticker: str
-    quote_currency: str = "USD"
+    quote_currency: str = "UNKNOWN"
     bars: list[PriceBar] = Field(default_factory=list)
     current_price: float
     is_ohlc_complete: bool = True

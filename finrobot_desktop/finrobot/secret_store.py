@@ -241,8 +241,10 @@ class FileSecretStore(SecretStore):
         try:
             if stat.S_IMODE(parent.stat().st_mode) != 0o700:
                 os.chmod(parent, 0o700)
-        except OSError:
-            pass
+        except OSError as exc:
+            raise SecretStoreError(
+                f"Secret directory {parent} could not be permission-locked to 0700"
+            ) from exc
         if not self._path.exists():
             # Use O_CREAT|O_WRONLY|O_EXCL|O_NOFOLLOW with mode 0o600 to create the
             # file atomically: the permission bits are set by the kernel on the

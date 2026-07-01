@@ -14,6 +14,7 @@ from finrobot.engine.data.normalize.contracts import (
     DEGRADED_CLOSE_ONLY,
     DEGRADED_PERIOD_BASIS_UNKNOWN,
     DEGRADED_PRICE_FALLBACK_CLOSE,
+    DEGRADED_QUOTE_CURRENCY_MISSING,
     DEGRADED_QUOTE_TS_MISSING,
     DEGRADED_TTM_LAG,
 )
@@ -24,7 +25,7 @@ FETCH = datetime(2026, 5, 28, 3, 21, tzinfo=timezone.utc)
 
 
 def _price_result(history, provider="fmp", timestamp=FETCH, **data) -> DataResult:
-    base = {"price_history": history}
+    base = {"price_history": history, "quote_currency": "USD"}
     base.update(data)
     return DataResult(
         data=base, provider=provider, ticker="TSLA", data_type="price", timestamp=timestamp
@@ -80,6 +81,15 @@ def test_price_market_state_non_string_coerced_to_none():
         _price_result(hist, provider="yfinance", current_price=440.0, market_state=7)
     )
     assert p.market_state is None
+
+
+def test_price_missing_quote_currency_degrades_to_unknown_not_usd():
+    hist = [{"date": "2026-05-27", "close": 640.0}]
+    p = normalize_price(
+        _price_result(hist, provider="yfinance", current_price=640.0, quote_currency=None)
+    )
+    assert p.quote_currency == "UNKNOWN"
+    assert DEGRADED_QUOTE_CURRENCY_MISSING in p.provenance.degraded
 
 
 def test_price_as_of_uses_quote_timestamp_not_bar_midnight():

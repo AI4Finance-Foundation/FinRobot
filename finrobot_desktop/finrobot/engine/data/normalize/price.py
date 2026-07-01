@@ -18,6 +18,7 @@ from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.normalize.contracts import (
     DEGRADED_CLOSE_ONLY,
     DEGRADED_PRICE_FALLBACK_CLOSE,
+    DEGRADED_QUOTE_CURRENCY_MISSING,
     DEGRADED_QUOTE_TS_MISSING,
     NormalizedPrice,
     PriceBar,
@@ -113,6 +114,14 @@ def normalize_price(result: DataResult) -> NormalizedPrice:
         # session close. The number is real — only its observation time is
         # accurate to the session, not the minute.
         degraded.append(DEGRADED_QUOTE_TS_MISSING)
+    raw_quote_currency = data.get("quote_currency")
+    quote_currency = (
+        raw_quote_currency.strip().upper()
+        if isinstance(raw_quote_currency, str) and raw_quote_currency.strip()
+        else "UNKNOWN"
+    )
+    if quote_currency == "UNKNOWN":
+        degraded.append(DEGRADED_QUOTE_CURRENCY_MISSING)
     provenance = Provenance(
         provider=result.provider,
         as_of=as_of,
@@ -122,7 +131,7 @@ def normalize_price(result: DataResult) -> NormalizedPrice:
     market_state = data.get("market_state")
     return NormalizedPrice(
         ticker=result.ticker,
-        quote_currency=(data.get("quote_currency") or "USD").upper(),
+        quote_currency=quote_currency,
         bars=bars,
         current_price=current_price,
         is_ohlc_complete=ohlc_complete,

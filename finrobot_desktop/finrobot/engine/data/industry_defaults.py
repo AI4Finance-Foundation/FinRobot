@@ -63,6 +63,7 @@ _ALIAS_MAP: dict[str, str] = {
     "internet retail": "Retail (General)",
     "beverages—non—alcoholic": "Beverage (Soft)",
     "auto manufacturers": "Auto & Truck",
+    "auto—manufacturers": "Auto & Truck",
     "auto & truck dealerships": "Auto & Truck",
     "specialty retail": "Retail (Special Lines)",
     "discount stores": "Retail (General)",
@@ -85,8 +86,12 @@ _ALIAS_MAP: dict[str, str] = {
     "healthcare information services": "Heathcare Information and Technology",
     "banks—diversified": "Bank (Money Center)",
     "banks—regional": "Banks (Regional)",
+    "community banking": "Banks (Regional)",
+    "financial—capital markets": "Brokerage & Investment Banking",
     "credit services": "Financial Svcs. (Non-bank & Insurance)",
+    "financial—credit services": "Financial Svcs. (Non-bank & Insurance)",
     "asset management": "Investments & Asset Management",
+    "insurance—brokers": "Insurance (General)",
     "insurance—life": "Insurance (Life)",
     "insurance—property & casualty": "Insurance (Prop/Cas.)",
     "oil & gas integrated": "Oil/Gas (Integrated)",
@@ -116,6 +121,7 @@ _ALIAS_MAP: dict[str, str] = {
     "aerospace & defense": "Aerospace/Defense",
     "semiconductors": "Semiconductor",
     "semiconductor equipment & materials": "Semiconductor Equip",
+    "travel services": "Business & Consumer Services",
 }
 
 

@@ -65,6 +65,12 @@ class TestLookup:
             ("Restaurants", "Restaurant/Dining"),
             ("Home Improvement", "Retail (Building Supply)"),
             ("Apparel - Retail", "Retail (Special Lines)"),
+            ("Auto - Manufacturers", "Auto & Truck"),
+            ("Community Banking", "Banks (Regional)"),
+            ("Financial - Capital Markets", "Brokerage & Investment Banking"),
+            ("Financial - Credit Services", "Financial Svcs. (Non-bank & Insurance)"),
+            ("Insurance - Brokers", "Insurance (General)"),
+            ("Travel Services", "Business & Consumer Services"),
         ],
     )
     def test_common_provider_labels_do_not_fall_back_to_total_market(

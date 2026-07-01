@@ -99,6 +99,23 @@ def _normalize_provider_key_updates(provider_keys: dict[str, str] | None) -> dic
     return updates
 
 
+def _normalize_model_name_update(model_name: str | None) -> str | None:
+    """Normalize only the provider prefix in ``provider:model_id`` updates.
+
+    Provider ids are case-insensitive at the settings boundary (custom provider
+    ids and provider_keys are already lowercased here), but model ids are owned
+    by upstream providers and may be case-sensitive. Keep the right-hand side as
+    typed while making the left-hand side match the persisted provider registry.
+    """
+    if model_name is None:
+        return None
+    provider_id, sep, model_id = model_name.partition(":")
+    provider_id = provider_id.strip().lower()
+    if not provider_id:
+        return model_name.strip()
+    return f"{provider_id}:{model_id.strip()}" if sep else provider_id
+
+
 # Non-secret fields are written into ``~/.finrobot/settings.json`` only when
 # the user explicitly changes them. A field the user never touched stays out
 # of settings.json so it keeps resolving to the built-in default — we only
@@ -274,6 +291,10 @@ async def _put_settings_locked(update: SettingsUpdate, request: Request) -> Sett
     payload = update.model_dump(exclude_unset=True)
 
     non_secret_updates = {k: v for k, v in payload.items() if k in _NON_SECRET_FIELDS}
+    if "model_name" in non_secret_updates:
+        non_secret_updates["model_name"] = _normalize_model_name_update(
+            non_secret_updates["model_name"]
+        )
     data_secret_updates = {k: v for k, v in payload.items() if k in _DATA_SECRET_FIELDS}
     provider_key_updates = _normalize_provider_key_updates(update.provider_keys)
 

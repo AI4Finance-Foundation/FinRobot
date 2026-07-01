@@ -527,6 +527,59 @@ async def test_put_lowercases_custom_provider_id_before_persisting(
 
 
 @pytest.mark.asyncio
+async def test_put_normalizes_model_name_provider_prefix_with_custom_provider(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A single PUT that adds ``OpenRouter`` and selects ``OpenRouter:model``
+    must persist a coherent lower-case provider id everywhere.
+
+    Regression: custom_providers[].id was normalized to ``openrouter`` while
+    model_name stayed ``OpenRouter:...``, leaving the saved config unable to
+    find its own provider.
+    """
+    secret_store = AsyncMock()
+    secret_store.has = AsyncMock(return_value=False)
+    secret_store.get = AsyncMock(return_value=None)
+    secret_store.set = AsyncMock()
+    secret_store.delete = AsyncMock()
+    app = _make_app(tmp_path, settings=get_settings(model_name=""), secret_store=secret_store)
+
+    async def _fake_replace(request: Any, candidate: Any) -> None:
+        request.app.state.deps.settings = candidate
+
+    monkeypatch.setattr("finrobot.routes.settings._replace_runtime_settings", _fake_replace)
+
+    custom = [
+        {
+            "id": "OpenRouter",
+            "label": "OpenRouter",
+            "kind": "openai-compatible",
+            "base_url": "https://openrouter.ai/api/v1",
+            "models": ["openai/gpt-4o-mini"],
+        }
+    ]
+    async with _client(app) as c:
+        resp = await c.put(
+            "/api/settings",
+            json={
+                "custom_providers": custom,
+                "model_name": "OpenRouter:openai/gpt-4o-mini",
+                "provider_keys": {"OpenRouter": "sk-test"},
+            },
+        )
+
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["model_name"] == "openrouter:openai/gpt-4o-mini"
+    assert body["custom_providers"][0]["id"] == "openrouter"
+    assert body["model_configured"] is True
+    assert body["startup_error"] is None
+    secret_store.set.assert_awaited_with("provider_key:openrouter", "sk-test")
+    content = json.loads((tmp_path / "settings.json").read_text())
+    assert content["model_name"] == "openrouter:openai/gpt-4o-mini"
+
+
+@pytest.mark.asyncio
 async def test_put_strips_custom_provider_label_before_persisting(
     tmp_path: Path, monkeypatch: Any
 ) -> None:

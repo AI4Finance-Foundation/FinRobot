@@ -14,6 +14,11 @@ import { ProviderDropdown, type ProviderOption } from './ProviderDropdown'
 type ProviderInfo = components['schemas']['ProviderInfo']
 type ProviderConfig = components['schemas']['ProviderConfig']
 
+function normalizeCustomProviderName(rawName: string): { id: string; label: string } {
+  const label = rawName.trim().replace(/:/g, '')
+  return { id: label.toLowerCase(), label }
+}
+
 /** Draft for the "add custom provider" form. The name doubles as the provider
  * id (no separate id field); a single model id (no list). */
 export interface DraftProvider {
@@ -80,6 +85,7 @@ export function AiModelPanel({
   const currentModelId = effectiveModelName.split(':').slice(1).join(':')
   const currentProviderInfo = providers.find((p) => p.id === currentProviderId)
   const currentIsCustom = currentProviderInfo ? !currentProviderInfo.is_builtin : false
+  const providerSelected = currentProviderInfo != null
   // Options for the provider dropdown.
   const providerOptions: ProviderOption[] = providers.map((p) => ({
     id: p.id,
@@ -125,6 +131,7 @@ export function AiModelPanel({
     scheduleStandardSave({ model_name: next }, autoTest)
   }
   const handleModelIdChange = (mid: string) => {
+    if (!providerSelected) return
     const next = `${currentProviderId}:${mid}`
     setModelName(next)
     setTestState({ status: 'idle' })
@@ -135,6 +142,7 @@ export function AiModelPanel({
     scheduleStandardSave({ model_name: next }, autoTest)
   }
   const handleLlmKeyChange = (v: string) => {
+    if (!providerSelected) return
     setLlmApiKey(v)
     setTestState({ status: 'idle' })
     if (!v.trim()) return
@@ -151,6 +159,7 @@ export function AiModelPanel({
   // reports "no key" — the bug where every key seemed to need 2-3 attempts. The
   // data-source Test path already does this; this brings the LLM path to parity.
   const handleTestConnection = async () => {
+    if (!providerSelected) return
     await flushPending()
     void testConnection(currentProviderId, currentModelId || null)
   }
@@ -167,9 +176,9 @@ export function AiModelPanel({
       models: p.models,
     }))
   const handleAddCustomProvider = () => {
-    const name = draftProvider.name.trim().replace(/:/g, '')
+    const { id: providerId, label } = normalizeCustomProviderName(draftProvider.name)
     const baseUrl = draftProvider.baseUrl.trim()
-    if (!name || !baseUrl) {
+    if (!providerId || !baseUrl) {
       addToast({ type: 'error', title: t('settings.customProvider.incompleteTitle') })
       return
     }
@@ -177,8 +186,8 @@ export function AiModelPanel({
     const next = [
       ...serializeCustomProviders(customProviders),
       {
-        id: name,
-        label: name,
+        id: providerId,
+        label,
         kind: 'openai-compatible' as const,
         base_url: baseUrl,
         models: modelId ? [modelId] : [],
@@ -186,14 +195,14 @@ export function AiModelPanel({
     ]
     const payload: Record<string, unknown> = {
       custom_providers: next,
-      model_name: `${name}:${modelId}`,
+      model_name: `${providerId}:${modelId}`,
     }
     const hasKey = !!draftProvider.apiKey.trim()
-    if (hasKey) payload.provider_keys = { [name]: draftProvider.apiKey.trim() }
+    if (hasKey) payload.provider_keys = { [providerId]: draftProvider.apiKey.trim() }
     // A custom provider added WITH a key + model is a complete config → auto-test.
-    const autoTest = hasKey && modelId ? () => void testConnection(name, modelId) : undefined
+    const autoTest = hasKey && modelId ? () => void testConnection(providerId, modelId) : undefined
     scheduleStandardSave(payload, autoTest)
-    setModelName(`${name}:${modelId}`) // select the new provider
+    setModelName(`${providerId}:${modelId}`) // select the new provider
     setLlmApiKey('')
     setTestState({ status: 'idle' })
     setDraftProvider({ name: '', baseUrl: '', modelId: '', apiKey: '' })
@@ -345,6 +354,7 @@ export function AiModelPanel({
                 placeholder={currentProviderInfo?.models?.[0] ?? t('settings.model.idPlaceholder')}
                 autoComplete="off"
                 spellCheck={false}
+                disabled={!providerSelected}
               />
               <datalist id="model-id-suggestions">
                 {(currentProviderInfo?.models ?? []).map((m) => (
@@ -405,6 +415,7 @@ export function AiModelPanel({
               <SecretInput
                 value={llmApiKey}
                 onChange={handleLlmKeyChange}
+                disabled={!providerSelected}
                 placeholder={
                   llmKeyConfigured
                     ? '••••••••'
@@ -418,7 +429,7 @@ export function AiModelPanel({
                   type="button"
                   className="settings-btn"
                   onClick={() => void handleTestConnection()}
-                  disabled={testState.status === 'testing'}
+                  disabled={!providerSelected || testState.status === 'testing'}
                 >
                   {testState.status === 'testing'
                     ? t('settings.test.testing')

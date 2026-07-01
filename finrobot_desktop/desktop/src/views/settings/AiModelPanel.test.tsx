@@ -88,6 +88,53 @@ describe('AiModelPanel auto-test on save', () => {
     expect(api.POST).not.toHaveBeenCalled()
   })
 
+  it('disables model/key/test controls until a provider is selected', () => {
+    renderPanel({ modelName: '', serverModelName: '' })
+
+    expect(screen.getByPlaceholderText('settings.model.idPlaceholder')).toBeDisabled()
+    expect(keyInput()).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'settings.test.button' })).toBeDisabled()
+
+    fireEvent.change(keyInput(), { target: { value: 'sk-should-not-save' } })
+    expect(saveSpy).not.toHaveBeenCalled()
+  })
+
+  it('normalizes a custom provider id before saving model_name and provider_keys', async () => {
+    renderPanel({
+      addingCustom: true,
+      draftProvider: {
+        name: 'OpenRouter',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        modelId: 'openai/gpt-4o-mini',
+        apiKey: 'sk-openrouter',
+      },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.customProvider.add' }))
+
+    expect(saveSpy).toHaveBeenCalledWith(
+      {
+        custom_providers: [
+          {
+            id: 'openrouter',
+            label: 'OpenRouter',
+            kind: 'openai-compatible',
+            base_url: 'https://openrouter.ai/api/v1',
+            models: ['openai/gpt-4o-mini'],
+          },
+        ],
+        model_name: 'openrouter:openai/gpt-4o-mini',
+        provider_keys: { openrouter: 'sk-openrouter' },
+      },
+      expect.any(Function),
+    )
+    await vi.waitFor(() =>
+      expect(api.POST).toHaveBeenCalledWith('/api/settings/test-provider', {
+        body: { provider_id: 'openrouter', model_id: 'openai/gpt-4o-mini' },
+      }),
+    )
+  })
+
   it('flushes the pending save BEFORE the manual Test probe (no test-before-save race)', async () => {
     // Regression for "every key had to be configured 2-3 times": clicking Test
     // inside the 500ms auto-save window must persist the on-screen key FIRST,

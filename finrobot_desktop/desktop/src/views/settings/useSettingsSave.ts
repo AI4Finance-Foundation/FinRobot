@@ -26,7 +26,7 @@ export function useSettingsSave() {
 
   // ── PUT /api/settings mutation (debounced auto-save) ─────────────────────
   const settingsMutation = useMutation({
-    mutationFn: async (body: Record<string, string | null>) => {
+    mutationFn: async (body: Record<string, unknown>) => {
       const { data, error } = await api.PUT('/api/settings', { body: body as never })
       if (error) {
         const detail = (error as { detail?: string }).detail
@@ -43,7 +43,9 @@ export function useSettingsSave() {
       if (variables && 'adanos_api_key' in variables) {
         void queryClient.invalidateQueries({ queryKey: ['ticker-sentiment'] })
       }
-      lastPayloadRef.current = null
+      if (lastPayloadRef.current === variables) {
+        lastPayloadRef.current = null
+      }
       setSaveState('saved')
       saveTimerRef.current = setTimeout(() => setSaveState('idle'), 2500)
     },
@@ -112,7 +114,6 @@ export function useSettingsSave() {
     }
     const payload = lastPayloadRef.current
     if (!payload) return
-    lastPayloadRef.current = null
     await settingsMutationRef.current.mutateAsync(payload as never)
   }, [])
 

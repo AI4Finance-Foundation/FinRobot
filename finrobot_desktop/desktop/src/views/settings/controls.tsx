@@ -32,12 +32,14 @@ export function SecretInput({
   placeholder,
   invalid,
   ariaLabel,
+  disabled,
 }: {
   value: string
   onChange: (v: string) => void
   placeholder?: string
   invalid?: boolean
   ariaLabel?: string
+  disabled?: boolean
 }) {
   const { t } = useI18n()
   const [revealed, setRevealed] = useState(false)
@@ -52,6 +54,7 @@ export function SecretInput({
         autoComplete="off"
         spellCheck={false}
         aria-label={ariaLabel}
+        disabled={disabled}
       />
       <button
         type="button"
@@ -59,6 +62,7 @@ export function SecretInput({
         aria-label={revealed ? t('settings.key.hide') : t('settings.key.show')}
         title={revealed ? t('settings.key.hide') : t('settings.key.show')}
         onClick={() => setRevealed((r) => !r)}
+        disabled={disabled}
       >
         {revealed ? (
           <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>

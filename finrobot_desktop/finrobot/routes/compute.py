@@ -39,7 +39,7 @@ from finrobot.engine.models.financial import (
     LBOInputs,
     LBOResult,
 )
-from finrobot.warning_text import humanize_warnings
+from finrobot.warning_text import safe_error_text
 
 if TYPE_CHECKING:
     from finrobot.engine.deps import FinRobotDeps
@@ -63,7 +63,7 @@ def _compute_http_error(exc: Exception, *, context: str | None = None) -> HTTPEx
     an opaque 500. ``context`` is a short phrase (ticker or operation) for detail.
     """
     where = f" ({context})" if context else ""
-    detail = _safe_exception_detail(exc)
+    detail = safe_error_text(exc)
     if isinstance(exc, ProviderError):
         return HTTPException(
             status_code=502, detail=f"Data source temporarily unavailable{where}: {detail}"
@@ -71,12 +71,6 @@ def _compute_http_error(exc: Exception, *, context: str | None = None) -> HTTPEx
     return HTTPException(
         status_code=422, detail=f"Computation could not be completed{where}: {detail}"
     )
-
-
-def _safe_exception_detail(exc: Exception) -> str:
-    text = str(exc).strip() or type(exc).__name__
-    cleaned = humanize_warnings([text])
-    return cleaned[0] if cleaned else type(exc).__name__
 
 
 def apply_growth_scale_override(inputs: DCFInputs, scale: float | None) -> DCFInputs:

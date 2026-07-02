@@ -36,7 +36,7 @@ from finrobot.events import (
 )
 from finrobot.obs import bind_run
 from finrobot.run_store import TERMINAL_RUN_STATUSES, RunRecord, RunStore
-from finrobot.warning_text import humanize_warnings
+from finrobot.warning_text import safe_error_text
 
 if TYPE_CHECKING:
     # Annotation-only: pipelines.base pulls the pydantic_ai stack. Kept out of the
@@ -60,15 +60,6 @@ _SSE_POLL_BACKOFF_FACTOR = 2.0
 # Max run ids one aggregated /api/runs/events stream may multiplex — see the
 # cap check in stream_runs_events.
 _MAX_MULTIPLEX_IDS = 50
-
-
-def _safe_error_text(exc: BaseException | str, *, limit: int = 500) -> str:
-    text = str(exc).strip() or (
-        type(exc).__name__ if isinstance(exc, BaseException) else "unspecified error"
-    )
-    cleaned = humanize_warnings([text])
-    out = cleaned[0] if cleaned else text
-    return out[:limit]
 
 
 async def ensure_llm_reachable(request: Request) -> None:
@@ -260,7 +251,7 @@ async def create_run(request_body: CreateRunRequest, request: Request) -> Create
             source_artifact_id=request_body.source_artifact_id,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=_safe_error_text(exc)) from exc
+        raise HTTPException(status_code=400, detail=safe_error_text(exc, limit=500)) from exc
     return CreateRunResponse(
         run_id=record.run_id,
         status="created",
@@ -714,7 +705,7 @@ async def _run_pipeline_impl(run_id: str, request: Request) -> None:
         logger.exception("Pipeline %s failed unexpectedly", run_id)
         # finish_run appends run.failed BEFORE flipping status — same BUG-034
         # ordering invariant as the success branch, now mechanical.
-        safe_error = _safe_error_text(e)
+        safe_error = safe_error_text(e, limit=500)
         try:
             await store.finish_run(
                 run_id,
@@ -793,7 +784,7 @@ async def _execute_pipeline_run(
                     # step). The client renders amber instead of a green ✓
                     # (BUG-058). Truncate to match the step.retry error cap.
                     degraded=error is not None,
-                    error=_safe_error_text(error) if error is not None else None,
+                    error=safe_error_text(error, limit=500) if error is not None else None,
                 ),
             )
 
@@ -807,7 +798,7 @@ async def _execute_pipeline_run(
                     total=len(pipeline.steps),
                     name=name,
                     attempt=attempt,
-                    error=_safe_error_text(error),
+                    error=safe_error_text(error, limit=500),
                 ),
             )
 

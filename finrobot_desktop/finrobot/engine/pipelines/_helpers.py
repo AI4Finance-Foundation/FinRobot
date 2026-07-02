@@ -53,7 +53,7 @@ from finrobot.engine.models.financial import (
     ValuationMethod,
     ValuationSynthesis,
 )
-from finrobot.warning_text import humanize_warnings
+from finrobot.warning_text import safe_error_text
 
 logger = logging.getLogger(__name__)
 
@@ -68,12 +68,6 @@ _PEER_COMP_SET_MAX = 6
 # imports this so its entry-point validation can't drift from the runtime
 # defense-in-depth check below (BUG-047).
 _PEER_COMP_INPUT_MAX = 10
-
-
-def _safe_error_text(exc: BaseException) -> str:
-    text = str(exc).strip() or type(exc).__name__
-    cleaned = humanize_warnings([text])
-    return cleaned[0] if cleaned else type(exc).__name__
 
 
 # ── Whitelist formatting (must mirror the frontend SourcedNumber render) ──────
@@ -426,7 +420,7 @@ async def execute_peer_analysis(
         # valuation (2026-06-12 TSLA incident). A systematic TypeError bug still
         # shows: it drops every peer → thin/empty set → the thin-comps warning.
         except (ProviderError, ValueError, KeyError, ArithmeticError, TypeError) as e:
-            peer_drops[peer_ticker] = _safe_error_text(e)
+            peer_drops[peer_ticker] = safe_error_text(e)
             logger.warning(f"Skipping peer {peer_ticker}: {e}")
             return None
 

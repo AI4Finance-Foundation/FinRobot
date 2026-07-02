@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import SettingsView, { isValidSecIdentity, secHeaderIdentityPreview } from './SettingsView'
@@ -26,6 +26,7 @@ const OK_SETTINGS = {
 vi.mock('../api/client', () => ({
   api: {
     GET: vi.fn(),
+    POST: vi.fn(),
     PUT: vi.fn().mockResolvedValue({ data: {}, error: undefined }),
   },
   BASE_URL: 'http://127.0.0.1:8321',
@@ -78,6 +79,10 @@ const PROVIDER_HEALTH = {
 
 beforeEach(() => {
   vi.mocked(api.GET).mockResolvedValue({ data: OK_SETTINGS, error: undefined } as never)
+  vi.mocked(api.POST).mockResolvedValue({
+    data: { ok: true, code: 'ok', detail: '' },
+    error: undefined,
+  } as never)
   // SecHoldingsSection / provider-health rows / reset mutation use raw fetch;
   // dispatch on URL so each consumer gets its own payload shape.
   vi.stubGlobal(
@@ -127,6 +132,29 @@ describe('SettingsView', () => {
     // badge yields to it until the circuit closes again.
     expect(screen.getByText('Cooldown · 429')).toBeInTheDocument()
     expect(screen.queryByText('Always on')).not.toBeInTheDocument()
+  })
+
+  it('promotes a saved data-source key to verified only after Test connection passes', async () => {
+    vi.mocked(api.GET).mockResolvedValue({
+      data: { ...OK_SETTINGS, fmp_api_key_set: true },
+      error: undefined,
+    } as never)
+
+    renderWithQuery(<SettingsView />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Data Sources' }))
+
+    expect(await screen.findByText('Saved')).toBeInTheDocument()
+    const fmpRow = screen.getByLabelText('FMP API Key').closest('.settings-provider-row')
+    expect(fmpRow).not.toBeNull()
+    fireEvent.click(within(fmpRow as HTMLElement).getByRole('button', { name: 'Test connection' }))
+
+    await waitFor(() =>
+      expect(api.POST).toHaveBeenCalledWith('/api/settings/test-data-provider', {
+        body: { provider: 'fmp' },
+      }),
+    )
+    expect(await within(fmpRow as HTMLElement).findByText('Verified')).toBeInTheDocument()
+    expect(within(fmpRow as HTMLElement).getByText(/Connection OK/)).toBeInTheDocument()
   })
 
   it('shows only the selected panel: Data Sources hidden until its nav item is clicked', async () => {

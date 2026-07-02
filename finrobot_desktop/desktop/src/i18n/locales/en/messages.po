@@ -1457,6 +1457,18 @@ msgid "settings.badge.configured"
 msgstr "Configured"
 
 #. js-lingui-explicit-id
+msgid "settings.badge.saved"
+msgstr "Saved"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.verified"
+msgstr "Verified"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.failed"
+msgstr "Failed"
+
+#. js-lingui-explicit-id
 msgid "settings.badge.required"
 msgstr "Required"
 

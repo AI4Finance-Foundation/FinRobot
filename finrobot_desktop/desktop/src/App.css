@@ -1843,73 +1843,116 @@ select.settings-input {
 }
 
 /* ── Data Sources: unified per-provider rows ──────────────────────────── */
-/* One row per source: live circuit dot + name + state badge + inline key
-   input + test + clear on a single line, hint copy underneath. Replaces the
-   old read-only status panel + separate tiered key form (same providers were
-   listed twice). */
+/* One row per source: stable source/status column + config actions column,
+   with explanatory copy below. Dense enough for repeated settings work, but
+   with a quiet terminal-like rhythm instead of loose wrapped rows. */
 .settings-provider-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-2);
+  display: grid;
+  gap: 10px;
 }
 .settings-provider-row {
-  padding: 10px 12px;
+  position: relative;
+  overflow: hidden;
+  padding: 12px 14px 12px 16px;
   border-radius: var(--r-md);
-  background: var(--bg-2);
-  border: 1px solid var(--border-subtle);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 72%, transparent), transparent),
+    var(--bg-2);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 76%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text-primary) 6%, transparent),
+    0 10px 24px color-mix(in srgb, #000 10%, transparent);
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    transform 0.15s;
+}
+.settings-provider-row::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: color-mix(in srgb, var(--text-dim) 42%, transparent);
+}
+.settings-provider-row.has-control::before {
+  background: linear-gradient(
+    180deg,
+    var(--accent),
+    color-mix(in srgb, var(--secondary) 55%, var(--accent))
+  );
+}
+.settings-provider-row.is-open::before {
+  background: linear-gradient(180deg, var(--danger), var(--warning));
+}
+.settings-provider-row:hover {
+  border-color: var(--border-glow);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-card) 84%, transparent), transparent),
+    var(--bg-2);
 }
 .settings-provider-line {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.72fr) minmax(300px, 1.28fr);
+  align-items: center;
+  gap: 14px;
+}
+.settings-provider-row:not(.has-control) .settings-provider-line {
+  grid-template-columns: minmax(0, 1fr);
+}
+.settings-provider-meta {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap;
+  min-width: 0;
 }
 .settings-provider-dot {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   flex-shrink: 0;
+  outline: 3px solid color-mix(in srgb, currentColor 10%, transparent);
 }
 .settings-provider-dot.is-ok {
   background: var(--success);
-  box-shadow: 0 0 6px var(--success-soft);
+  color: var(--success);
+  box-shadow: 0 0 9px var(--success-soft);
 }
 .settings-provider-dot.is-bad {
   background: var(--danger);
-  box-shadow: 0 0 6px var(--danger-soft);
+  color: var(--danger);
+  box-shadow: 0 0 9px var(--danger-soft);
 }
 .settings-provider-dot.is-na {
   background: var(--text-dim);
+  color: var(--text-dim);
 }
 .settings-provider-name {
+  flex: 1;
+  min-width: 0;
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   color: var(--text-primary);
-  min-width: 118px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-/* Inline config cluster: input grows, test/clear trail on the line. Buttons
-   never shrink or wrap their label — variable-width content (the test
-   outcome) lives on the status line below, so this line stays put. Cooldown
-   detail lives inside the COOLDOWN badge: tripped rows keep the same height
-   as healthy ones. */
+/* Inline config cluster: input grows, buttons stay stable, results render on
+   the status line below. */
 .settings-provider-control {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  flex: 1;
-  /* Must cover the cluster's true content minimum (input 200 + test ~150 +
-     clear ~60 + gaps) — anything smaller lets flex squeeze the box below its
-     children and the trailing button overflows the card instead of the whole
-     cluster wrapping to its own line. */
-  min-width: 430px;
+  justify-content: flex-end;
+  min-width: 0;
 }
 .settings-provider-control .settings-input-wrap,
 .settings-provider-control > .settings-input {
   flex: 1;
-  min-width: 200px;
+  min-width: 220px;
 }
 .settings-provider-control .settings-input {
-  padding: 6px 10px;
+  padding: 7px 10px;
   font-size: 0.78rem;
 }
 .settings-provider-control .settings-btn,
@@ -1927,13 +1970,16 @@ select.settings-input {
   align-items: baseline;
   gap: var(--sp-3);
   flex-wrap: wrap;
-  margin: 6px 0 0 18px; /* align past the dot (8px) + line gap (10px) */
+  margin: 8px 0 0;
+  padding-left: 24px;
 }
 .settings-provider-hint {
-  margin: 6px 0 0 18px; /* align past the dot (8px) + line gap (10px) */
+  margin: 8px 0 0;
+  padding-left: 24px;
   font-size: 0.75rem;
   color: var(--text-muted);
   line-height: 1.55;
+  max-width: 78ch;
 }
 .settings-provider-hint .settings-hint {
   display: block;
@@ -2214,6 +2260,22 @@ select.settings-input {
   }
   .settings-nav-item {
     border-left: none;
+  }
+  .settings-provider-line {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .settings-provider-control {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+  .settings-provider-control .settings-input-wrap,
+  .settings-provider-control > .settings-input {
+    min-width: min(100%, 260px);
+  }
+  .settings-provider-status,
+  .settings-provider-hint {
+    padding-left: 19px;
   }
 }
 

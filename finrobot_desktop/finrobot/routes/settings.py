@@ -489,7 +489,7 @@ async def test_provider_route(body: TestProviderRequest, request: Request) -> Te
         raise HTTPException(status_code=404, detail=f"Unknown provider '{body.provider_id}'.")
     if cfg.kind != "test" and not settings.provider_key(body.provider_id):
         return TestProviderResponse(ok=False, code="no_key")
-    model_id = (body.model_id or "").strip() or (cfg.models[0] if cfg.models else "")
+    model_id = (body.model_id or "").strip()
     if not model_id:
         return TestProviderResponse(ok=False, code="no_model")
 
@@ -663,8 +663,39 @@ async def test_data_provider_route(
         raise  # never swallow control-flow / shutdown signals (red-line N2)
     except BaseException as exc:  # noqa: BLE001 — classify any probe failure for the UI
         code, detail = _classify_data_provider_error(exc)
+        if code == "rate_limited":
+            _record_data_probe_health(request, body.provider, ok=False, code=code)
         return TestProviderResponse(ok=False, code=code, detail=detail)
+    _record_data_probe_health(request, body.provider, ok=True, code="ok")
     return TestProviderResponse(ok=True, code="ok")
+
+
+def _record_data_probe_health(request: Request, provider: str, *, ok: bool, code: str) -> None:
+    """Fold Settings' explicit probe verdict back into the live provider-health dot.
+
+    A successful manual test is strong evidence that a previously-open breaker can
+    close now; a 429 should open the cooldown immediately. Auth / plan failures
+    stay in the row-level test verdict instead of poisoning the runtime breaker.
+    Alpha Vantage is nested under NewsAggregatorProvider, so it has no standalone
+    breaker row to update.
+    """
+    data_layer = getattr(request.app.state.deps, "data_layer", None)
+    health = getattr(data_layer, "_health", None)
+    if health is None:
+        return
+    provider_status = getattr(data_layer, "provider_status", None)
+    if not callable(provider_status):
+        return
+    try:
+        provider_names = {name for name, _available, _state in provider_status()}
+    except (AttributeError, TypeError, ValueError):  # pragma: no cover - defensive test doubles
+        return
+    if provider not in provider_names:
+        return
+    if ok:
+        health.record_success(provider)
+    elif code == "rate_limited":
+        health.record_failure(provider, rate_limited=True)
 
 
 async def _build_response(request: Request) -> SettingsResponse:

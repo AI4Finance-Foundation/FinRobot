@@ -1269,6 +1269,26 @@ async def test_test_provider_no_key_returns_not_ok(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_test_provider_blank_model_returns_no_model_without_first_suggestion(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """An empty model field must not silently probe the provider's first suggestion
+    (OpenAI used to fall through to gpt-4o, which looked like an unwanted default)."""
+    probe = AsyncMock(return_value=MagicMock())
+    monkeypatch.setattr("pydantic_ai.direct.model_request", probe)
+    app = _make_app(tmp_path)  # openai keyed by default
+    async with _client(app) as c:
+        resp = await c.post(
+            "/api/settings/test-provider", json={"provider_id": "openai", "model_id": ""}
+        )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["ok"] is False
+    assert body["code"] == "no_model"
+    probe.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_test_provider_success(tmp_path: Path, monkeypatch: Any) -> None:
     """A successful tiny model call returns ok=True (model_request mocked)."""
     monkeypatch.setattr("pydantic_ai.direct.model_request", AsyncMock(return_value=MagicMock()))
@@ -1337,6 +1357,32 @@ async def test_test_data_provider_success(tmp_path: Path, monkeypatch: Any) -> N
         resp = await c.post("/api/settings/test-data-provider", json={"provider": "fmp"})
     assert resp.status_code == 200, resp.text
     assert resp.json() == {"ok": True, "code": "ok", "detail": ""}
+
+
+@pytest.mark.asyncio
+async def test_test_data_provider_success_closes_live_health_breaker(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A manual successful test should immediately turn an open status dot healthy."""
+    from finrobot.engine.data.provider_health import ProviderHealth
+
+    monkeypatch.setitem(_DATA_PROBES, "fmp", ("fmp_api_key", AsyncMock(return_value=None)))
+    app = _make_app(tmp_path, settings=_settings(fmp_api_key="fmp-key-123"))
+    health = ProviderHealth()
+    health.record_failure("fmp", rate_limited=True)
+    app.state.deps.data_layer._health = health
+    app.state.deps.data_layer.provider_status.return_value = [
+        ("fmp", False, health.snapshot("fmp"))
+    ]
+    assert health.is_available("fmp") is False
+
+    async with _client(app) as c:
+        resp = await c.post("/api/settings/test-data-provider", json={"provider": "fmp"})
+
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["ok"] is True
+    assert health.is_available("fmp") is True
+    assert health.snapshot("fmp").last_success is not None
 
 
 @pytest.mark.asyncio

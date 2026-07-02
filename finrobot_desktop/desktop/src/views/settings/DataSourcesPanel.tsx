@@ -7,6 +7,7 @@
 // composition over props.
 
 import { api } from '../../api/client'
+import { useQueryClient } from '@tanstack/react-query'
 import { useI18n } from '../../i18n'
 import { formatDate } from '../../utils/format'
 import { openExternal } from '../../lib/tauri'
@@ -98,34 +99,38 @@ function DataSourceRow({
         ? t('settings.providerStatus.dotOpen')
         : t('settings.providerStatus.dotOk')
   return (
-    <div className="settings-provider-row">
+    <div
+      className={`settings-provider-row${open ? ' is-open' : ''}${control ? ' has-control' : ''}`}
+    >
       <div className="settings-provider-line">
-        <span
-          className={`settings-provider-dot ${dot}`}
-          role="img"
-          aria-label={dotTitle}
-          title={dotTitle}
-        />
-        <span className="settings-provider-name">{name}</span>
-        {/* One badge slot per row — a live problem (COOLDOWN) outranks config
+        <div className="settings-provider-meta">
+          <span
+            className={`settings-provider-dot ${dot}`}
+            role="img"
+            aria-label={dotTitle}
+            title={dotTitle}
+          />
+          <span className="settings-provider-name">{name}</span>
+          {/* One badge slot per row — a live problem (COOLDOWN) outranks config
             state; both at once is noisy AND overflows the ~750px column,
             wrapping tripped rows taller than healthy ones. Cooldown-end time
             on hover; a saved key still shows via Clear + the •••• placeholder. */}
-        {open ? (
-          <span
-            className="settings-badge is-required"
-            title={
-              health?.cooldown_until
-                ? `${t('settings.providerStatus.cooldownUntil')} ${formatDate(health.cooldown_until, locale, 'time')}`
-                : undefined
-            }
-          >
-            {t('settings.providerStatus.cooldown')}
-            {health?.last_rate_limited ? ' · 429' : ''}
-          </span>
-        ) : (
-          badge
-        )}
+          {open ? (
+            <span
+              className="settings-badge is-required"
+              title={
+                health?.cooldown_until
+                  ? `${t('settings.providerStatus.cooldownUntil')} ${formatDate(health.cooldown_until, locale, 'time')}`
+                  : undefined
+              }
+            >
+              {t('settings.providerStatus.cooldown')}
+              {health?.last_rate_limited ? ' · 429' : ''}
+            </span>
+          ) : (
+            badge
+          )}
+        </div>
         {control && <div className="settings-provider-control">{control}</div>}
       </div>
       {result && <div className="settings-provider-status">{result}</div>}
@@ -197,6 +202,7 @@ export function DataSourcesPanel({
   secIdentityActive,
 }: DataSourcesPanelProps): React.ReactElement {
   const { t } = useI18n()
+  const queryClient = useQueryClient()
 
   // ── Derived ──────────────────────────────────────────────────────────────
   // Shape-guard, not just null-guard: an unexpected health payload (proxy
@@ -257,6 +263,7 @@ export function DataSourcesPanel({
         ...s,
         [provider]: { status: 'done', ok: data.ok, code: data.code, detail: data.detail },
       }))
+      void queryClient.invalidateQueries({ queryKey: ['provider-health'] })
     } catch {
       setDataTestState((s) => ({
         ...s,
@@ -327,16 +334,30 @@ export function DataSourcesPanel({
       </span>
     )
   }
-  /** Key-state badge for a data-source row: configured wins; an empty key reads
-   * as "Recommended" (core tier) or "Optional" (enrichment tier). */
-  const renderKeyBadge = (configured: boolean, tier: 'core' | 'optional'): React.ReactElement =>
-    configured ? (
-      <span className="settings-badge is-ok">{t('settings.badge.configured')}</span>
-    ) : tier === 'core' ? (
+  /** Key-state badge for a data-source row. "Saved" only means the secret is
+   * stored; "Verified" appears only after THIS screen's live probe passes. */
+  const renderKeyBadge = (
+    configured: boolean,
+    tier: 'core' | 'optional',
+    provider: string,
+  ): React.ReactElement => {
+    const st = dataTestState[provider]
+    if (st?.status === 'done') {
+      return st.ok ? (
+        <span className="settings-badge is-ok">{t('settings.badge.verified')}</span>
+      ) : (
+        <span className="settings-badge is-required">{t('settings.badge.failed')}</span>
+      )
+    }
+    if (configured) {
+      return <span className="settings-badge is-pending">{t('settings.badge.saved')}</span>
+    }
+    return tier === 'core' ? (
       <span className="settings-badge is-recommended">{t('settings.badge.recommended')}</span>
     ) : (
       <span className="settings-badge is-optional">{t('settings.badge.optional')}</span>
     )
+  }
   /** Trailing "· Get a key ↗" link appended to a data-source hint. Opens the
    * provider's signup page in the system browser (Tauri shell / window.open). */
   const renderSignupLink = (url: string): React.ReactElement => (
@@ -378,7 +399,7 @@ export function DataSourcesPanel({
         <DataSourceRow
           health={healthByName.get('fmp')}
           name={PROVIDER_DISPLAY_NAMES.fmp}
-          badge={renderKeyBadge(fmpConfigured, 'core')}
+          badge={renderKeyBadge(fmpConfigured, 'core', 'fmp')}
           control={renderKeyControl({
             labelKey: 'settings.fmp.label',
             placeholderKey: 'settings.fmp.placeholder',
@@ -400,7 +421,7 @@ export function DataSourcesPanel({
         <DataSourceRow
           health={healthByName.get('finnhub')}
           name={PROVIDER_DISPLAY_NAMES.finnhub}
-          badge={renderKeyBadge(finnhubConfigured, 'optional')}
+          badge={renderKeyBadge(finnhubConfigured, 'optional', 'finnhub')}
           control={renderKeyControl({
             labelKey: 'settings.finnhub.label',
             placeholderKey: 'settings.finnhub.placeholder',
@@ -422,7 +443,7 @@ export function DataSourcesPanel({
         <DataSourceRow
           health={healthByName.get('adanos')}
           name={PROVIDER_DISPLAY_NAMES.adanos}
-          badge={renderKeyBadge(adanosConfigured, 'optional')}
+          badge={renderKeyBadge(adanosConfigured, 'optional', 'adanos')}
           control={renderKeyControl({
             labelKey: 'settings.adanos.label',
             placeholderKey: 'settings.adanos.placeholder',
@@ -441,12 +462,12 @@ export function DataSourcesPanel({
           }
         />
 
-        {/* Alpha Vantage has a key but no entry in the live breaker
-        feed — dim dot, key entry still works. */}
+        {/* Alpha Vantage is nested under News Aggregator, so it has no standalone
+        live breaker row. The badge still reflects saved vs just-tested state. */}
         <DataSourceRow
           health={healthByName.get('alpha_vantage')}
           name={PROVIDER_DISPLAY_NAMES.alpha_vantage}
-          badge={renderKeyBadge(alphaVantageConfigured, 'optional')}
+          badge={renderKeyBadge(alphaVantageConfigured, 'optional', 'alpha_vantage')}
           control={renderKeyControl({
             labelKey: 'settings.alphaVantage.label',
             placeholderKey: 'settings.alphaVantage.placeholder',

@@ -349,9 +349,9 @@ export function AiModelPanel({
                 list="model-id-suggestions"
                 value={currentModelId}
                 onChange={(e) => handleModelIdChange(e.target.value)}
-                /* Hint with the selected provider's own first model (e.g. gpt-4o)
-                   rather than a generic 'deepseek-chat' that names no built-in. */
-                placeholder={currentProviderInfo?.models?.[0] ?? t('settings.model.idPlaceholder')}
+                /* Keep this generic: provider suggestions live in the datalist,
+                   not as a fake-looking selected default such as gpt-4o. */
+                placeholder={t('settings.model.idPlaceholder')}
                 autoComplete="off"
                 spellCheck={false}
                 disabled={!providerSelected}

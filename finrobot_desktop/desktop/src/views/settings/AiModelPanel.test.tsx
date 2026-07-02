@@ -88,6 +88,13 @@ describe('AiModelPanel auto-test on save', () => {
     expect(api.POST).not.toHaveBeenCalled()
   })
 
+  it('does not show the provider first suggestion as a fake model default', () => {
+    renderPanel({ modelName: 'anthropic:', serverModelName: 'anthropic:' })
+
+    expect(screen.getByPlaceholderText('settings.model.idPlaceholder')).toBeEnabled()
+    expect(screen.queryByPlaceholderText('claude-sonnet-4-6')).not.toBeInTheDocument()
+  })
+
   it('disables model/key/test controls until a provider is selected', () => {
     renderPanel({ modelName: '', serverModelName: '' })
 

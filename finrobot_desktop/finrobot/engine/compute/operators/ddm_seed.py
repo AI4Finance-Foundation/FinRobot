@@ -349,8 +349,8 @@ def seed_ddm_inputs(
         terminal_payout = None
         prov["terminal_payout_ratio"] = (
             "payout ratio held constant in perpetuity (non-financial — capital returned via "
-            "reinvestment/buyback is not future dividends; the terminal-payout step-up is a "
-            "balance-sheet-financial pattern, see calculate_ddm step 4)"
+            "reinvestment/buyback is not future dividends; the terminal-payout step-up "
+            "applies only to balance-sheet financials)"
         )
 
     # ----- beta (CAPM) -------------------------------------------------------

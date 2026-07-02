@@ -85,7 +85,7 @@ def _calculate_lbo_core(inputs: LBOInputs) -> LBOResult:
 
     capital_structure_warning = (
         "Simplified sources & uses: entry debt is modeled as new debt of "
-        "leverage_multiple × LTM EBITDA. The target's existing balance-sheet "
+        "the leverage multiple × LTM EBITDA. The target's existing balance-sheet "
         "cash (which would reduce sponsor equity) and existing debt (which "
         "would be refinanced) are NOT netted into the equity check, and "
         "transaction/financing fees and a minimum operating-cash requirement "
@@ -124,7 +124,7 @@ def _calculate_lbo_core(inputs: LBOInputs) -> LBOResult:
             f"Entry equity is non-positive (entry EV ${entry_ev / 1e6:.0f}M − entry debt "
             f"${entry_debt / 1e6:.0f}M = ${entry_equity / 1e6:.0f}M): debt ≥ enterprise "
             f"value, an impossible LBO structure. MOIC / IRR are UNDEFINED (not a total "
-            f"loss) — leverage_multiple ({inputs.leverage_multiple:.1f}×) exceeds the entry "
+            f"loss) — the leverage multiple ({inputs.leverage_multiple:.1f}×) exceeds the entry "
             f"multiple ({inputs.entry_ev_ebitda:.1f}×). " + capital_structure_warning
         )
     if self_financing is False:
@@ -159,7 +159,7 @@ def _calculate_lbo_core(inputs: LBOInputs) -> LBOResult:
         self_financing=self_financing,
         irr_formula_warning=(
             "IRR computed via Newton-Raphson NPV=0 solver on the cash flow vector "
-            "[-entry_equity, 0, ..., 0, exit_equity]. Currently models a single "
+            "[-entry equity, 0, ..., 0, exit equity]. Currently models a single "
             "entry and single exit with no interim cash flows. Dividend recaps, "
             "management fee recaps, and partial exits are not yet modeled — "
             "actual IRR may differ if these are material."

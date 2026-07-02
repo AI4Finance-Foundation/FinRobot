@@ -3,14 +3,26 @@
 The report step is a pure LLM assembly: its mandate is to arrange numbers that
 were already computed (and frozen into the artifact snapshot) into chapters, so
 every monetary amount it prints should trace to SOME numeric leaf of that
-snapshot. An amount that matches nothing is either an LLM-derived restatement
-("roughly $400B") or a fabricated figure — the two are mechanically
-indistinguishable, which is why this guard DETECTS and FLAGS but never rewrites:
-a false-positive warning costs one triage glance, a false-positive rewrite
-corrupts a legitimate $391B revenue into a price target (the exact failure the
-thesis-side ``_reconcile_narrative_targets`` can avoid only because it has a
-single canonical target to compare against — the report has hundreds of
-legitimate numbers).
+snapshot. Three bands, by relative distance to the NEAREST leaf:
+
+  · ≤ ``NARRATIVE_DRIFT_TOLERANCE`` (1%)      — verified; untouched.
+  · ≤ ``NARRATIVE_APPROXIMATION_BAND`` (10%)  — an LLM approximation of a real
+    computed value ("roughly $400B" vs a $391B leaf, 2.3%); kept in prose,
+    surfaced for review. Redacting these mutilated legitimate narrative.
+  · beyond the band — near NOTHING the artifact computed; a fabrication or a
+    materially wrong figure (calibration corpus: "$1.58 trillion" 15% off,
+    "$-31892M" 102% off). These ORPHANS are the only tokens a builder may
+    redact.
+
+At 1% an approximation and a fabrication are mechanically indistinguishable;
+distance-to-nearest-leaf is what separates them — an approximation is NEAR
+something, a fabrication is near nothing (band calibrated on the stored-artifact
+corpus, see ``reconcile_tolerances``). The guard still NEVER REWRITES a value:
+with hundreds of legitimate leaves there is no safe substitution target — a
+false-positive rewrite corrupts a legitimate $391B revenue into a price target
+(the thesis-side ``_reconcile_narrative_targets`` may rewrite only because it
+has a single canonical target to compare against). Removal-on-orphan carries no
+such risk: it never puts a number in the analyst's hands.
 
 Same "same number" rule as the thesis reconcile and output-contract C3:
 ``NARRATIVE_DRIFT_TOLERANCE`` from the shared leaf constant.
@@ -24,7 +36,10 @@ from typing import Any, Iterable
 
 from pydantic import BaseModel, Field
 
-from finrobot.engine.models.reconcile_tolerances import NARRATIVE_DRIFT_TOLERANCE
+from finrobot.engine.models.reconcile_tolerances import (
+    NARRATIVE_APPROXIMATION_BAND,
+    NARRATIVE_DRIFT_TOLERANCE,
+)
 
 # $-amounts and ISO-code amounts ("USD 391B") with optional comma grouping and
 # an optional magnitude suffix. The number-discipline contract makes agents
@@ -93,10 +108,16 @@ class ReportDriftFinding(BaseModel):
         "minus was written (accounting parens keep the positive face value — the "
         "token shows the parens)."
     )
+    nearest_gap: float | None = Field(
+        default=None,
+        description="Relative distance to the NEAREST numeric leaf (None when the "
+        "leaf registry was empty). ≤ the approximation band ⇒ approximation; "
+        "beyond ⇒ orphan.",
+    )
 
 
 class ReportDrift(BaseModel):
-    """Detector verdict for one report text. Flag-only — never a rewrite."""
+    """Detector verdict for one report text. Classifies — never rewrites a value."""
 
     total_dollar_amounts: int
     unmatched: list[ReportDriftFinding] = Field(
@@ -104,6 +125,18 @@ class ReportDrift(BaseModel):
         description="First N unmatched amounts (see unmatched_count for the truth).",
     )
     unmatched_count: int = 0
+    approximate_count: int = Field(
+        default=0,
+        description="Unmatched amounts within the approximation band of some leaf "
+        "— legitimate LLM roundings, kept in prose.",
+    )
+    orphan_count: int = 0
+    orphan_tokens: list[str] = Field(
+        default_factory=list,
+        description="EVERY distinct orphan token (not capped like ``unmatched``) — "
+        "the complete redaction set for builders. A capped list here once let "
+        "unmatched tokens past the 10-finding window ship unredacted.",
+    )
 
 
 def collect_numeric_leaves(payload: Any) -> set[float]:
@@ -134,26 +167,36 @@ def detect_report_drift(
     canonical_leaves: Iterable[float],
     *,
     tolerance: float = NARRATIVE_DRIFT_TOLERANCE,
+    approximation_band: float = NARRATIVE_APPROXIMATION_BAND,
     max_findings: int = 10,
 ) -> ReportDrift:
     """Scan a report's monetary amounts against the computed-value registry.
 
     An amount matches when it is within ``tolerance`` (relative, vs the leaf) of
-    ANY leaf — display roundings ("$276" vs 276.43) pass, contradictions ("$280"
-    vs 276.43) flag. With an empty registry every amount flags: a builder that
-    failed to hand over the snapshot must read as loud drift, not silent green.
+    ANY leaf — display roundings ("$276" vs 276.43) pass. Unmatched amounts are
+    classified by distance to the NEAREST leaf: within ``approximation_band`` ⇒
+    approximation (kept), beyond ⇒ orphan (the builder's redaction set). With an
+    empty registry every amount is an orphan: a builder that failed to hand over
+    the snapshot must read as loud drift, not silent green.
     """
     leaves = [leaf for leaf in canonical_leaves if math.isfinite(leaf)]
 
-    def _matches(value: float) -> bool:
-        for leaf in leaves:
-            if abs(value - leaf) <= max(abs(leaf) * tolerance, _ABS_EPSILON):
-                return True
-        return False
+    def _nearest_gap(candidates: tuple[float, ...]) -> float | None:
+        """Smallest relative distance from any sign-candidate to any leaf."""
+        if not leaves:
+            return None
+        return min(
+            abs(value - leaf) / max(abs(leaf), _ABS_EPSILON)
+            for value in candidates
+            for leaf in leaves
+        )
 
     total = 0
     findings: list[ReportDriftFinding] = []
     unmatched_count = 0
+    approximate_count = 0
+    orphan_occurrences = 0
+    orphan_tokens: dict[str, None] = {}  # ordered dedup (redaction set)
     for match in _AMOUNT_RE.finditer(report_text):
         try:
             value = float(match.group("num").replace(",", ""))
@@ -166,8 +209,8 @@ def detect_report_drift(
         # parentheses are ambiguous in prose (a parenthetical aside also wraps
         # amounts: "(see $5.00B above)" never closes adjacent, but "revenue
         # ($5.00B)" does), so a paren-wrapped amount matches a leaf of EITHER
-        # sign — flag-only guard: the sign false-accept costs nothing, a false
-        # flag on every parenthetical aside costs a triage glance each.
+        # sign — the sign false-accept costs nothing, a false flag on every
+        # parenthetical aside costs a triage glance each.
         if match.group("neg_pre") or match.group("neg_post"):
             candidates: tuple[float, ...] = (-value,)
         elif match.group("paren") and match.group("close"):
@@ -175,14 +218,29 @@ def detect_report_drift(
         else:
             candidates = (value,)
         total += 1
-        if any(_matches(v) for v in candidates):
+        gap = _nearest_gap(candidates)
+        if gap is not None and gap <= tolerance:
             continue
         unmatched_count += 1
+        if gap is not None and gap <= approximation_band:
+            approximate_count += 1
+        else:
+            orphan_occurrences += 1
+            orphan_tokens[match.group(0).rstrip()] = None
         if len(findings) < max_findings:
-            findings.append(ReportDriftFinding(token=match.group(0).rstrip(), value=candidates[0]))
+            findings.append(
+                ReportDriftFinding(
+                    token=match.group(0).rstrip(),
+                    value=candidates[0],
+                    nearest_gap=gap,
+                )
+            )
 
     return ReportDrift(
         total_dollar_amounts=total,
         unmatched=findings,
         unmatched_count=unmatched_count,
+        approximate_count=approximate_count,
+        orphan_count=orphan_occurrences,
+        orphan_tokens=list(orphan_tokens),
     )

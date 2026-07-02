@@ -40,6 +40,7 @@ from finrobot.engine.compute.operators.report_drift import (
     collect_numeric_leaves,
     detect_report_drift,
 )
+from finrobot.engine.models.reconcile_tolerances import NARRATIVE_APPROXIMATION_BAND
 
 logger = logging.getLogger(__name__)
 
@@ -233,11 +234,13 @@ def _report_drift_flag(
 
     Every $-amount an LLM narrative prints should trace to SOME numeric leaf of
     what the artifact freezes (structured snapshot + raw FinancialData — exactly
-    the numbers the agent was allowed to assemble). Unmatched amounts are not
-    allowed to ship as prose numbers: redact the exact unmatched tokens from the
-    scanned narrative steps, then return a warning + structured ``report_drift``
-    provenance block. This is deliberately narrower than rewriting to a
-    canonical value — there may be no single safe replacement.
+    the numbers the agent was allowed to assemble). Unmatched amounts split by
+    distance to the nearest leaf (see ``report_drift`` module docstring):
+    APPROXIMATIONS (within the band of some real leaf — "roughly $400B" against
+    $391B) stay in prose and are surfaced for review; ORPHANS (near nothing the
+    artifact computed) are redacted from the scanned narrative steps. Both
+    outcomes land in the structured ``report_drift`` provenance block. Never a
+    rewrite-to-canonical — there is no single safe replacement.
     """
     text = "\n\n".join(
         step_text for name in narrative_steps if (step_text := result.steps.get(name))
@@ -251,22 +254,36 @@ def _report_drift_flag(
     if not drift.unmatched_count:
         return []
     structured_out["report_drift"] = drift.model_dump(mode="json")
-    redacted_tokens = {f.token for f in drift.unmatched}
-    for name in narrative_steps:
-        step_text = result.steps.get(name)
-        if not step_text:
-            continue
-        redacted = step_text
-        for token in redacted_tokens:
-            redacted = redacted.replace(token, "[unverified amount redacted]")
-        result.steps[name] = redacted
-    structured_out["report_drift"]["redacted"] = sorted(redacted_tokens)
-    examples = ", ".join(f.token for f in drift.unmatched[:5])
-    return [
-        f"[REPORT-DRIFT/redacted] {drift.unmatched_count}/{drift.total_dollar_amounts} "
-        f"narrative $-amounts matched no computed value and were redacted "
-        f"({examples}) — verify the narrative before publishing"
-    ]
+    warnings: list[str] = []
+    if drift.orphan_tokens:
+        for name in narrative_steps:
+            step_text = result.steps.get(name)
+            if not step_text:
+                continue
+            redacted = step_text
+            for token in drift.orphan_tokens:
+                redacted = redacted.replace(token, "[unverified amount redacted]")
+            result.steps[name] = redacted
+        examples = ", ".join(drift.orphan_tokens[:5])
+        warnings.append(
+            f"[REPORT-DRIFT/redacted] {drift.orphan_count}/{drift.total_dollar_amounts} "
+            f"narrative $-amounts matched nothing the artifact computed and were "
+            f"redacted ({examples}) — verify the narrative before publishing"
+        )
+    structured_out["report_drift"]["redacted"] = sorted(drift.orphan_tokens)
+    if drift.approximate_count:
+        approx_examples = ", ".join(
+            f.token
+            for f in drift.unmatched
+            if f.nearest_gap is not None and f.nearest_gap <= NARRATIVE_APPROXIMATION_BAND
+        )
+        warnings.append(
+            f"[REPORT-DRIFT/review] {drift.approximate_count}/{drift.total_dollar_amounts} "
+            f"narrative $-amounts are approximations of computed values (within "
+            f"{NARRATIVE_APPROXIMATION_BAND:.0%}) and were kept ({approx_examples}) "
+            f"— verify the rounding language before publishing"
+        )
+    return warnings
 
 
 def _data_capability_warnings(deps: Any) -> list[str]:

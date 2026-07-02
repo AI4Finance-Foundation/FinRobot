@@ -203,3 +203,52 @@ class TestSpelledOutMagnitudes:
             "net debt of -$17.93 Billion (net cash).", {-17_930_000_000.0}
         )
         assert drift.unmatched_count == 0
+
+
+class TestApproximationBand:
+    """Unmatched amounts split by distance to the nearest leaf: within the band
+    ⇒ approximation (kept — a legit LLM rounding of a real computed value),
+    beyond ⇒ orphan (the ONLY redaction candidates). Band calibrated on the
+    stored-artifact corpus — see reconcile_tolerances.NARRATIVE_APPROXIMATION_BAND."""
+
+    def test_near_leaf_amount_is_approximation_not_orphan(self):
+        # "roughly $400B" against the 391.035B revenue leaf: 2.3% off — outside
+        # the 1% match, inside the 10% band. Kept, never in the redaction set.
+        drift = detect_report_drift("revenue of roughly $400B", {391_035_000_000.0})
+        assert drift.unmatched_count == 1
+        assert drift.approximate_count == 1
+        assert drift.orphan_count == 0
+        assert drift.orphan_tokens == []
+        gap = drift.unmatched[0].nearest_gap
+        assert gap is not None and 0.02 < gap < 0.03
+
+    def test_far_from_every_leaf_is_orphan(self):
+        drift = detect_report_drift("a $120B charge", {391_035_000_000.0, 425.10})
+        assert drift.approximate_count == 0
+        assert drift.orphan_count == 1
+        assert drift.orphan_tokens == ["$120B"]
+
+    def test_band_boundary_splits_kept_vs_orphan(self):
+        # Leaf 100: $109 (9% off) stays; $115 (15% off) is an orphan.
+        drift = detect_report_drift("levels near $109 then $115", {100.0})
+        assert drift.unmatched_count == 2
+        assert drift.approximate_count == 1
+        assert drift.orphan_tokens == ["$115"]
+
+    def test_empty_registry_makes_every_amount_an_orphan(self):
+        # No snapshot handed over must stay a LOUD signal — nothing to be
+        # "approximately near", so nothing is spared from the redaction set.
+        drift = detect_report_drift("price $10.00", set())
+        assert drift.orphan_count == 1
+        assert drift.orphan_tokens == ["$10.00"]
+        assert drift.unmatched[0].nearest_gap is None
+
+    def test_orphan_tokens_are_complete_beyond_the_findings_cap(self):
+        # The findings list is capped for provenance readability, but the
+        # redaction set must be COMPLETE — a capped set once let unmatched
+        # tokens past the window ship unredacted.
+        report = " ".join(f"${i}.77" for i in range(1000, 1030))
+        drift = detect_report_drift(report, {276.43}, max_findings=5)
+        assert len(drift.unmatched) == 5
+        assert drift.orphan_count == 30
+        assert len(drift.orphan_tokens) == 30

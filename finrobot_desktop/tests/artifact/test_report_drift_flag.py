@@ -141,3 +141,36 @@ def test_failed_validations_surface_in_artifact_warnings() -> None:
     assert any(
         "peer_analysis" in w and "降级" in w for w in artifact.outputs.warnings
     ), artifact.outputs.warnings
+
+
+def test_approximation_of_a_real_leaf_is_kept_not_redacted() -> None:
+    # "roughly USD 400B" against the 391.035B revenue leaf (2.3% off): a legit
+    # LLM rounding — stays in prose, flagged for review, never redacted.
+    report = "# Report\n\nRevenue of roughly USD 400B anchors the thesis."
+    artifact = build_equity_research_artifact(_result(report), "AAPL", cast(Any, None))
+
+    assert "USD 400B" in artifact.outputs.summary_text
+    assert "[unverified amount redacted]" not in artifact.outputs.summary_text
+    drift = artifact.outputs.structured["report_drift"]
+    assert drift["unmatched_count"] == 1
+    assert drift["approximate_count"] == 1
+    assert drift["redacted"] == []
+    review = [w for w in artifact.outputs.warnings if w.startswith("[REPORT-DRIFT/review]")]
+    assert len(review) == 1 and "USD 400B" in review[0]
+    assert not [w for w in artifact.outputs.warnings if w.startswith("[REPORT-DRIFT/redacted]")]
+
+
+def test_mixed_approximation_survives_while_orphan_is_redacted() -> None:
+    # $999.99 is near NOTHING the artifact computed → redacted; the 400B
+    # approximation in the same narrative must survive the redaction pass.
+    report = "# Report\n\nRoughly USD 400B in revenue supports a $999.99 target."
+    artifact = build_equity_research_artifact(_result(report), "AAPL", cast(Any, None))
+
+    assert "USD 400B" in artifact.outputs.summary_text
+    assert "$999.99" not in artifact.outputs.summary_text
+    assert "[unverified amount redacted]" in artifact.outputs.summary_text
+    drift = artifact.outputs.structured["report_drift"]
+    assert drift["redacted"] == ["$999.99"]
+    assert drift["approximate_count"] == 1
+    kinds = {w.split()[0] for w in artifact.outputs.warnings if w.startswith("[REPORT-DRIFT")}
+    assert kinds == {"[REPORT-DRIFT/redacted]", "[REPORT-DRIFT/review]"}

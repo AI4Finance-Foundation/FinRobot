@@ -26,3 +26,14 @@ from __future__ import annotations
 
 # Relative tolerance for "these two dollar amounts are the same number".
 NARRATIVE_DRIFT_TOLERANCE = 0.01
+
+# Report-drift approximation band: an unmatched narrative amount within this
+# relative distance of SOME numeric leaf is an LLM approximation ("roughly
+# $400B" against a $391B leaf, 2.3%) — kept in prose, flagged for review.
+# Beyond it the amount is near NOTHING the artifact computed → redacted as a
+# high-confidence fabrication/material error. Calibrated 2026-07-02 on all 51
+# stored artifacts (627 amounts, 99 unmatched@1%): gaps ≤10% read as roundings
+# (1.4%/2.8%/4.2%…), gaps >10% were materially wrong numbers (JPM DDM
+# "$1.58 trillion" 15% off, "$140.95B" 22.5% off, MU LBO "$-31892M" 102% off)
+# — a visible break, not a smooth continuum.
+NARRATIVE_APPROXIMATION_BAND = 0.10

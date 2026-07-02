@@ -557,7 +557,7 @@ class Pipeline:
                 if step.critical or any(s in str(exc).lower() for s in _FATAL_SUBSTRINGS):
                     raise
                 validation_error = (
-                    "executor 异常(不可恢复,降级继续): "
+                    "executor error (non-recoverable, degrading and continuing): "
                     f"{type(exc).__name__}: {safe_error_text(exc, limit=400)}"
                 )
                 # exc_info=True: capture the full traceback for an exception-degrade.

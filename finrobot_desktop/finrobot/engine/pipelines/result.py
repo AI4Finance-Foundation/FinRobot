@@ -40,7 +40,7 @@ class PipelineResult(BaseModel):
         warnings: list[str] = []
         _append_unique(warnings, humanize_warnings([str(w) for w in self.warnings]))
         for fv in self.failed_validations:
-            line = f"步骤 {fv.get('step', '?')} 降级(验证未通过): {fv.get('error', '')}"
+            line = f"Step {fv.get('step', '?')} degraded (validation failed): {fv.get('error', '')}"
             _append_unique(warnings, humanize_warnings([line]))
         for val in self.structured_data.values():
             val_warnings = getattr(val, "warnings", None)

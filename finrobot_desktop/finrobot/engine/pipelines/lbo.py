@@ -148,12 +148,23 @@ async def _execute_lbo_calc(
     # N/A instead of crashing the f-string.
     moic_str = f"{result.moic:.1f}×" if result.moic is not None else "N/A"
     irr_str = f"{result.irr:.1%}" if result.irr is not None else "N/A"
+    # Equity value floors at 0 under limited liability — a negative exit_equity is a
+    # debt shortfall (exit debt exceeds exit EV), NOT negative equity value, so never
+    # print a negative dollar equity into the summary. moic=0×/irr=-100% already carry
+    # the total-loss signal; add the plain-language wipeout note here.
+    if result.exit_equity < 0:
+        exit_equity_clause = (
+            f"Exit equity: $0M (equity wiped at exit — exit debt exceeds exit enterprise "
+            f"value by ${-result.exit_equity / 1e6:.0f}M; LBO not viable at this structure)."
+        )
+    else:
+        exit_equity_clause = f"Exit equity: ${result.exit_equity / 1e6:.0f}M."
     narrative = (
         f"{warning_prefix}"
         f"LBO implies {moic_str} MOIC and {irr_str} IRR over "
         f"{inputs.holding_period_years} years. "
         f"Entry equity: ${result.entry_equity / 1e6:.0f}M, "
-        f"Exit equity: ${result.exit_equity / 1e6:.0f}M. "
+        f"{exit_equity_clause} "
         f"Entry EV: ${result.entry_ev / 1e6:.0f}M "
         f"({inputs.entry_ev_ebitda:.1f}× EBITDA), "
         f"Entry debt: ${result.entry_debt / 1e6:.0f}M."

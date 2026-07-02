@@ -1067,6 +1067,17 @@ class LBOInputs(BaseModel):
 
     ticker: str
     ltm_ebitda: float = Field(gt=0, description="LTM EBITDA at entry (USD)")
+    entry_ebitda: float | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "EBITDA the entry EV and acquisition debt are PRICED on (USD). None → "
+            "price on ltm_ebitda (the non-cyclical case). For a commodity/deep-cyclical "
+            "this is the NORMALIZED through-cycle EBITDA (revenue_base × through-cycle "
+            "EBITDA margin) so entry leverage is underwritten against sustainable earnings, "
+            "matching the projection caliber, not the current cycle-peak/trough LTM."
+        ),
+    )
     entry_ev_ebitda: float = Field(gt=0, description="Entry EV/EBITDA multiple")
     exit_ev_ebitda: float = Field(gt=0, description="Exit EV/EBITDA multiple")
     holding_period_years: int = Field(default=5, ge=1, le=10)

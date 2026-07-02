@@ -33,8 +33,16 @@ def _calculate_lbo_core(inputs: LBOInputs) -> LBOResult:
 
     Called by calculate_lbo_sensitivity to avoid infinite recursion.
     """
-    entry_ev = inputs.entry_ev_ebitda * inputs.ltm_ebitda
-    entry_debt = inputs.leverage_multiple * inputs.ltm_ebitda
+    # Price the entry EV and the acquisition debt on entry_ebitda when the seed
+    # supplied it (a commodity/deep-cyclical's NORMALIZED through-cycle EBITDA),
+    # else on ltm_ebitda (every non-cyclical — byte-identical to before). Pricing a
+    # cyclical's entry on its cycle-peak LTM while the projection reverts to the
+    # normalized margin sets entry debt at a multiple of PEAK EBITDA the projected
+    # NORMALIZED EBITDA cannot service, so the schedule blows up and exit equity
+    # goes negative purely as a caliber artifact (MU: 5× peak = 10.6× normalized).
+    entry_ebitda = inputs.entry_ebitda if inputs.entry_ebitda is not None else inputs.ltm_ebitda
+    entry_ev = inputs.entry_ev_ebitda * entry_ebitda
+    entry_debt = inputs.leverage_multiple * entry_ebitda
     entry_equity = entry_ev - entry_debt
 
     schedule, exit_ebitda, _ = _run_schedule(inputs, entry_debt)
@@ -71,6 +79,21 @@ def _calculate_lbo_core(inputs: LBOInputs) -> LBOResult:
         "are not modeled. Entry equity and returns may differ from a full "
         "sources-&-uses build."
     )
+    if inputs.entry_ebitda is not None and inputs.entry_ebitda != inputs.ltm_ebitda:
+        # Cyclical: entry priced on NORMALIZED through-cycle EBITDA, not the current
+        # LTM. Disclose both so an analyst never reads the modeled returns as an
+        # at-market deal — the entry EV below is the sponsor's ability-to-pay, which
+        # for a cycle-peak name sits far below the current market enterprise value.
+        capital_structure_warning = (
+            f"Cyclical entry normalization: the entry EV (${entry_ev / 1e6:.0f}M) and "
+            f"acquisition debt are priced on the NORMALIZED through-cycle EBITDA "
+            f"(${entry_ebitda / 1e6:.0f}M), not the current LTM EBITDA "
+            f"(${inputs.ltm_ebitda / 1e6:.0f}M) — a sponsor underwrites leverage against "
+            f"sustainable through-cycle earnings, not the current cycle phase. This entry "
+            f"EV is the sponsor's ability-to-pay; for a cycle-peak issuer it is far below "
+            f"the current market enterprise value, so an LBO at today's market price is not "
+            f"feasible. " + capital_structure_warning
+        )
     if entry_equity <= 0:
         capital_structure_warning = (
             f"Entry equity is non-positive (entry EV ${entry_ev / 1e6:.0f}M − entry debt "
@@ -272,8 +295,8 @@ def calculate_lbo_sensitivity(
 ) -> dict[str, Any]:
     """Build IRR and MOIC sensitivity grids vs entry/exit EV/EBITDA multiples.
 
-    Runs the debt schedule once (it depends on leverage_multiple × ltm_ebitda,
-    not on entry/exit multiples), then computes MOIC and IRR for each
+    Runs the debt schedule once (it depends on leverage_multiple × the entry
+    EBITDA anchor, not on entry/exit multiples), then computes MOIC and IRR for each
     (entry, exit) pair from the schedule's exit EBITDA and remaining debt.
 
     Grid axes:
@@ -294,7 +317,11 @@ def calculate_lbo_sensitivity(
         exit_range = [e for e in exit_range if e > 0]
 
     # --- Run schedule once (entry_debt is fixed regardless of entry multiple) ---
-    entry_debt = inputs.leverage_multiple * inputs.ltm_ebitda
+    # Price entry debt/equity on entry_ebitda (cyclical normalized EBITDA) when the
+    # seed supplied it, else ltm_ebitda — the SAME anchor _calculate_lbo_core uses,
+    # so the grid and the headline never diverge on caliber.
+    entry_ebitda = inputs.entry_ebitda if inputs.entry_ebitda is not None else inputs.ltm_ebitda
+    entry_debt = inputs.leverage_multiple * entry_ebitda
     schedule, exit_ebitda, _ = _run_schedule(inputs, entry_debt)
     remaining_debt = schedule[-1].ending_debt
     years = inputs.holding_period_years
@@ -306,7 +333,7 @@ def calculate_lbo_sensitivity(
     for e_entry in entry_range:
         irr_row: list[float | None] = []
         moic_row: list[float | None] = []
-        entry_equity = e_entry * inputs.ltm_ebitda - entry_debt
+        entry_equity = e_entry * entry_ebitda - entry_debt
         for e_exit in exit_range:
             if entry_equity <= 0:
                 irr_row.append(None)

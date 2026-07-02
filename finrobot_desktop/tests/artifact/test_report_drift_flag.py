@@ -139,7 +139,7 @@ def test_failed_validations_surface_in_artifact_warnings() -> None:
     artifact = build_equity_research_artifact(result, "AAPL", cast(Any, None))
 
     assert any(
-        "peer_analysis" in w and "降级" in w for w in artifact.outputs.warnings
+        "peer_analysis" in w and "degraded" in w for w in artifact.outputs.warnings
     ), artifact.outputs.warnings
 
 

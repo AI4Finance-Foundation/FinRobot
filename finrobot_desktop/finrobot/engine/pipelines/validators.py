@@ -568,8 +568,12 @@ def validate_lbo_result(result: LBOResult) -> ValidationResult:
         return ValidationResult(
             passed=False, error="LBO returns undefined (non-positive entry equity)"
         )
-    if result.moic <= 0:
-        return ValidationResult(passed=False, error=f"MOIC {result.moic:.2f}x must be positive")
+    # moic == 0 with irr == -1 is the RATIFIED total-loss sentinel (positive entry
+    # equity wiped at exit — BUG-011): a correctly-computed, meaningful outcome, not
+    # an error. Rejecting it degraded a genuine total loss and leaked the deep-red
+    # headline anyway. Only a NEGATIVE multiple (arithmetically impossible) fails.
+    if result.moic < 0:
+        return ValidationResult(passed=False, error=f"MOIC {result.moic:.2f}x cannot be negative")
     if not (-1.0 <= result.irr <= 10.0):
         return ValidationResult(
             passed=False, error=f"IRR {result.irr:.2%} out of bounds [-100%, 1000%]"

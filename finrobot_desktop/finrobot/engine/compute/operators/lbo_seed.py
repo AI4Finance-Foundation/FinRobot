@@ -42,6 +42,10 @@ from finrobot.engine.models.financial import (
     HistoricalMetrics,
     LBOInputs,
 )
+from finrobot.engine.primitives.industry import (
+    commodity_cyclical_basis,
+    is_commodity_cyclical,
+)
 
 # Standard PE-convention defaults — refreshed against Rosenbaum & Pearl,
 # "Investment Banking" 3rd Ed., Chapter 8 (LBO benchmarks).
@@ -256,15 +260,69 @@ def seed_lbo_inputs(
         f"{DEFAULT_MANDATORY_AMORT:.1%} (Term Loan B mandatory-amortization convention)"
     )
 
+    # ----- entry EBITDA (cyclical normalization) ----------------------------
+    # A commodity/deep-cyclical's entry EV and acquisition debt must be priced on
+    # NORMALIZED through-cycle EBITDA (revenue_base × the normalized margin the
+    # projection already uses), NOT the current LTM. Pricing entry on a cycle-PEAK
+    # LTM while the projection reverts to the normalized margin sets debt at a
+    # multiple of peak EBITDA the projected normalized EBITDA cannot service — the
+    # schedule blows up and exit equity goes negative purely as a caliber artifact
+    # (MU: leverage 5× peak EBITDA = 10.6× normalized). Mirrors the Damodaran
+    # convention seed_dcf_inputs uses: normalized MARGIN × current revenue (revenue
+    # is NOT re-based). entry_ebitda stays None for every non-cyclical, so the
+    # operator prices entry on ltm_ebitda exactly as before (byte-identical). The
+    # normalization is symmetric: a trough-phase cyclical (normalized > LTM) is
+    # priced UP to its through-cycle earnings power, not the depressed current LTM.
+    final_ebitda_margin = max(0.01, min(0.95, ebitda_margin))
+    entry_ebitda: float | None = None
+    cyclical = is_commodity_cyclical(
+        industry=financials.market.industry,
+        sector=financials.market.sector,
+        ticker=financials.ticker,
+    )
+    if cyclical:
+        entry_ebitda = revenue_base * final_ebitda_margin
+        basis = commodity_cyclical_basis(financials.market.industry)
+        basis_note = (
+            "steel / shipping / chemicals / oil & gas / autos and other commodity-cyclical industries"
+            if basis == "industry"
+            else "memory / storage whitelist / keyword"
+        )
+        phase = "peak" if ltm_ebitda > entry_ebitda else "trough"
+        entry_ev_ability = entry_ev_ebitda * entry_ebitda
+        market_clause = ""
+        market_cap = financials.market.market_cap if financials.market else None
+        if market_cap and market_cap > 0:
+            net_debt = (financials.balance.total_debt or 0.0) - (financials.balance.total_cash or 0.0)
+            market_ev = market_cap + net_debt
+            if market_ev > 0:
+                ratio = entry_ev_ability / market_ev
+                market_clause = (
+                    f", ~{ratio:.0%} of the current market enterprise value ${market_ev / 1e9:.0f}B"
+                )
+                if ratio < 0.85:
+                    market_clause += " — an LBO at today's market price is not feasible"
+        prov["cyclical_normalization"] = (
+            f"Classified as a commodity-cyclical ({basis_note}) → entry EV and acquisition "
+            f"debt are priced on NORMALIZED through-cycle EBITDA ${entry_ebitda / 1e9:.1f}B "
+            f"(revenue base ${revenue_base / 1e9:.1f}B × normalized EBITDA margin "
+            f"{final_ebitda_margin:.1%}), not the current {phase} LTM EBITDA "
+            f"${ltm_ebitda / 1e9:.1f}B — a sponsor underwrites leverage against sustainable "
+            f"through-cycle earnings, not the current cycle phase. Ability-to-pay entry EV = "
+            f"{entry_ev_ebitda:.1f}× × ${entry_ebitda / 1e9:.1f}B = ${entry_ev_ability / 1e9:.0f}B"
+            f"{market_clause}."
+        )
+
     return LBOInputs(
         ticker=financials.ticker,
         ltm_ebitda=ltm_ebitda,
+        entry_ebitda=entry_ebitda,
         entry_ev_ebitda=entry_ev_ebitda,
         exit_ev_ebitda=exit_ev_ebitda,
         holding_period_years=holding_period_years,
         revenue_base=revenue_base,
         revenue_growth_rate=revenue_growth_rate,
-        ebitda_margin=max(0.01, min(0.95, ebitda_margin)),
+        ebitda_margin=final_ebitda_margin,
         da_pct_revenue=max(0.0, min(0.3, da_pct)),
         capex_pct_revenue=max(0.0, min(0.5, capex_pct)),
         nwc_change_pct_revenue=max(-0.2, min(0.3, nwc_pct)),

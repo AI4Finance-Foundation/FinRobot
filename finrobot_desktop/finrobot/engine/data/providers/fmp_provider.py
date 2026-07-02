@@ -99,6 +99,26 @@ def _adjusted_bar(p: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _interest_expense_or_none(value: float | None) -> float | None:
+    """Map FMP ``interestExpense`` to a value, treating a hard 0 as undisclosed.
+
+    FMP reports ``interestExpense: 0`` for issuers that fold interest into
+    "other income/expense, net" instead of breaking it out on the income
+    statement (Apple flips to 0 from FY2024; the 2023 figure was a real
+    $3.9B). A literal 0 is FMP's "not separately disclosed" sentinel, NOT a
+    real $0 financing cost — a company carrying debt always pays interest.
+    Coercing it to a real 0 fabricated a "$0 · FINANCING COST" line in the
+    financials chapter and drove DCF cost-of-debt to 0% (interest/total_debt).
+    None ≠ 0 (CLAUDE.md invariant): a missing/undisclosed line stays None so
+    the chapter hides the row and DCF falls back to its default cost of debt.
+    A genuinely debt-free issuer also reports 0 here; None is the honest
+    reading there too (DCF already defaults when total_debt <= 0).
+    """
+    if value is None or not math.isfinite(value) or value == 0:
+        return None
+    return float(value)
+
+
 def _quarter_int(item: dict[str, Any]) -> int | None:
     """Quarter number from a stable transcript row.
 
@@ -655,7 +675,9 @@ class FMPProvider(DataProvider):
             # this provider the whole time; the unit-test fixtures mirrored the
             # same wrong name, so mocks stayed green.)
             "sga_expense": inc.get("sellingGeneralAndAdministrativeExpenses"),
-            "interest_expense": inc.get("interestExpense"),
+            # None ≠ 0: FMP reports interestExpense 0 for issuers that don't
+            # break interest out (Apple FY24+) — see _interest_expense_or_none.
+            "interest_expense": _interest_expense_or_none(inc.get("interestExpense")),
             # Full cash-flow statement. FCF trio (OCF/CapEx/ΔNWC) feeds DCF;
             # investing/financing complete the HistoricalMetrics cash-flow
             # contract. capex is abs()'d above; investing/financing keep their
@@ -812,7 +834,9 @@ class FMPProvider(DataProvider):
             "rd_expense": total("researchAndDevelopmentExpenses"),
             # Full "...Expenses" name — see _build_single_year_data.
             "sga_expense": total("sellingGeneralAndAdministrativeExpenses"),
-            "interest_expense": total("interestExpense"),
+            # None ≠ 0: a TTM sum of undisclosed (0) interest quarters is still
+            # "not disclosed", not a real $0 cost — see _interest_expense_or_none.
+            "interest_expense": _interest_expense_or_none(total("interestExpense")),
             # None ≠ 0: a missing balance-sheet line must stay None so enterprise
             # value is left undefined rather than fabricated (market_cap + 0 - 0).
             # calculate_multiples only computes EV when both are present.

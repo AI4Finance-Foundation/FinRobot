@@ -11,7 +11,10 @@ from finrobot.engine.data.interface import (
     RateLimitedProviderError,
     is_rate_limit_error,
 )
-from finrobot.engine.data.providers.fmp_provider import FMPProvider
+from finrobot.engine.data.providers.fmp_provider import (
+    FMPProvider,
+    _interest_expense_or_none,
+)
 
 
 @pytest.fixture
@@ -216,6 +219,27 @@ class TestFMPPriceRange:
             await provider.fetch(
                 "AAPL", "price_range", start="2020-01-01", end="2020-02-01", interval="1wk"
             )
+
+
+class TestInterestExpenseUndisclosed:
+    """FMP reports interestExpense 0 as its 'not separately disclosed' sentinel
+    (Apple flips to 0 from FY2024, folding interest into other income/expense).
+    A hard 0 must become None so the financials chapter hides the row instead of
+    rendering '$0 · FINANCING COST' and DCF doesn't take a 0% cost of debt."""
+
+    def test_hard_zero_becomes_none(self):
+        assert _interest_expense_or_none(0) is None
+        assert _interest_expense_or_none(0.0) is None
+
+    def test_real_value_passes_through(self):
+        assert _interest_expense_or_none(3_933_000_000) == 3_933_000_000.0
+
+    def test_missing_stays_none(self):
+        assert _interest_expense_or_none(None) is None
+
+    def test_non_finite_becomes_none(self):
+        assert _interest_expense_or_none(float("nan")) is None
+        assert _interest_expense_or_none(float("inf")) is None
 
 
 class TestFMPFetch:

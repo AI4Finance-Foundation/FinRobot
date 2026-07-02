@@ -53,15 +53,22 @@ def _data_http_error(exc: Exception, ticker: str) -> HTTPException:
     Detail is Chinese so the desktop UI can surface it directly to retail users
     without an extra translation layer.
     """
+    detail = _safe_exception_detail(exc)
     if isinstance(exc, ProviderError):
         return HTTPException(
             status_code=502,
-            detail=f"Data source temporarily unavailable ({ticker}): {exc}",
+            detail=f"Data source temporarily unavailable ({ticker}): {detail}",
         )
     return HTTPException(
         status_code=422,
-        detail=f"Unable to fetch data for {ticker}: {exc}",
+        detail=f"Unable to fetch data for {ticker}: {detail}",
     )
+
+
+def _safe_exception_detail(exc: Exception) -> str:
+    text = str(exc).strip() or type(exc).__name__
+    cleaned = humanize_warnings([text])
+    return cleaned[0] if cleaned else type(exc).__name__
 
 
 def _normalize_ticker_param(ticker: str) -> str:

@@ -75,6 +75,22 @@ def test_compute_http_error_provider_error_is_502() -> None:
     assert "AAPL" in err.detail
 
 
+def test_compute_http_error_strips_raw_provider_url() -> None:
+    err = _compute_http_error(
+        ProviderError(
+            "FMP request failed for url "
+            "'https://financialmodelingprep.com/api/v3/quote/AAPL?apikey=secret'"
+            "\nFor more information check: https://developer.mozilla.org/"
+        ),
+        context="AAPL",
+    )
+
+    assert err.status_code == 502
+    assert "apikey" not in err.detail
+    assert "for url" not in err.detail
+    assert "financialmodelingprep.com" not in err.detail
+
+
 # ── pure-operator routes: operator ValueError → 422 (not 500) ───────────
 def test_wacc_operator_value_error_maps_to_422() -> None:
     with patch("finrobot.routes.compute.calculate_wacc", side_effect=ValueError("bad")):

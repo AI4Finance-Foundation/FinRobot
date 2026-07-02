@@ -434,16 +434,24 @@ async def test_price_endpoint_provider_error_returns_502(app_with_deps):
 
     with patch(
         "finrobot.routes.data.fetch_price_history",
-        new=AsyncMock(side_effect=ProviderError("yfinance service down: 429")),
+        new=AsyncMock(
+            side_effect=ProviderError(
+                "FMP quote failed for url "
+                "'https://financialmodelingprep.com/api/v3/quote/AAPL?apikey=secret'"
+                "\nFor more information check: https://developer.mozilla.org/"
+            )
+        ),
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             resp = await client.get("/api/data/AAPL/price?period=1y")
 
     assert resp.status_code == 502
-    assert (
-        "Data source" in resp.json()["detail"] or "temporarily unavailable" in resp.json()["detail"]
-    )
+    detail = resp.json()["detail"]
+    assert "Data source" in detail or "temporarily unavailable" in detail
+    assert "apikey" not in detail
+    assert "for url" not in detail
+    assert "financialmodelingprep.com" not in detail
 
 
 @pytest.mark.asyncio

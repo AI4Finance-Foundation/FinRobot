@@ -78,11 +78,12 @@ const AXIS_TICK = {
   fontFamily: 'var(--font-mono)',
 } as const
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
+async function postJson<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
   const res = await fetchWithTimeout(`${BASE_URL}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal,
   })
   if (!res.ok) {
     // Carry the backend's user-facing `detail` into the typed error so the
@@ -91,6 +92,12 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
     throw new FetchHttpError(res.status, res.statusText, await extractErrorDetail(res, ''))
   }
   return (await res.json()) as T
+}
+
+// Abort (unmount / ticker switch / superseded slider fetch) is a cancellation,
+// never an error to render red.
+function isAbortError(e: unknown): boolean {
+  return e instanceof DOMException && e.name === 'AbortError'
 }
 
 // Credibility priors — these ARE analyst judgement, surfaced (not hidden in the
@@ -212,20 +219,33 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
   const [retry, setRetry] = useState(0)
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
   const retryTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // In-flight equivalence-line POST. Each new fetch aborts the previous one —
+  // only the latest WACC matters, and a stale multi-second POST would
+  // otherwise keep holding a heavy-lane slot (and a browser socket) after
+  // unmount / ticker switch / a superseding slider drag.
+  const lineAbort = useRef<AbortController | null>(null)
 
   const fetchLine = useCallback(
     async (waccOverride: number | null) => {
+      lineAbort.current?.abort()
+      const controller = new AbortController()
+      lineAbort.current = controller
       try {
-        const l = await postJson<EquivLine>('/api/compute/dcf-equivalence-line', {
-          ticker,
-          wacc_override: waccOverride,
-          growth_lo: 0.2,
-          growth_hi: 0.5,
-          steps: 13,
-        })
+        const l = await postJson<EquivLine>(
+          '/api/compute/dcf-equivalence-line',
+          {
+            ticker,
+            wacc_override: waccOverride,
+            growth_lo: 0.2,
+            growth_hi: 0.5,
+            steps: 13,
+          },
+          controller.signal,
+        )
         setLine(l)
         if (waccOverride === null) setWacc(l.wacc)
       } catch (e) {
+        if (isAbortError(e)) return
         setError(mapErrorToUserMessage(e))
       }
     },
@@ -250,6 +270,9 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
     setError(null)
     setWarming(false)
     if (retryTimer.current) clearTimeout(retryTimer.current)
+    // The old ticker's line fetch must not keep holding a socket (or land its
+    // stale curve) under the new ticker's header.
+    lineAbort.current?.abort()
   }, [ticker])
 
   // Fetch when open and not yet seeded. Open defaults true, so this fires on
@@ -257,21 +280,31 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
   useEffect(() => {
     if (!open || seed) return
     let cancelled = false
+    // Abortable so cleanup actually CANCELS the in-flight POST (frees its
+    // heavy-lane slot + browser socket) instead of merely ignoring the result:
+    // StrictMode's dev double-mount fired a duplicate dcf-seed that ran to
+    // completion, and a ticker switch left the old ticker's multi-second
+    // compute holding a connection under the new page.
+    const controller = new AbortController()
     // Clear any prior error before each attempt so a recovered fetch never
     // double-renders the stale red message alongside fresh data.
     setError(null)
     void (async () => {
       try {
-        const s = await postJson<SeedReverse>('/api/compute/dcf-seed', {
-          ticker,
-          include_reverse: true,
-        })
+        const s = await postJson<SeedReverse>(
+          '/api/compute/dcf-seed',
+          {
+            ticker,
+            include_reverse: true,
+          },
+          controller.signal,
+        )
         if (cancelled) return
         setWarming(false)
         setSeed(s)
         await fetchLine(null)
       } catch (e) {
-        if (cancelled) return
+        if (cancelled || isAbortError(e)) return
         if (e instanceof FetchHttpError && e.status === 503) {
           // Engine still warming — calm "starting" state + auto-retry in ~2s,
           // never red. Self-resolves the moment the provider chain is wired.
@@ -285,9 +318,24 @@ export function MarketImpliedPanel({ ticker }: Props): React.ReactElement | null
     })()
     return () => {
       cancelled = true
+      // Abort ONLY this run's seed POST. The equivalence-line fetch is NOT
+      // aborted here: setSeed re-runs this effect (seed is a dep) and this
+      // cleanup fires while fetchLine(null) is mid-flight — killing it here
+      // would mean the line never loads. lineAbort is handled by the
+      // ticker-reset effect and the unmount effect below.
+      controller.abort()
       if (retryTimer.current) clearTimeout(retryTimer.current)
     }
   }, [open, seed, ticker, fetchLine, retry])
+
+  // Unmount: cancel whatever line fetch is still in flight so it releases its
+  // heavy-lane slot + socket instead of running to a discarded completion.
+  useEffect(
+    () => () => {
+      lineAbort.current?.abort()
+    },
+    [],
+  )
 
   const onWacc = useCallback(
     (next: number) => {

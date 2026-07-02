@@ -451,6 +451,19 @@ async def execute_peer_analysis(
                 "comp (preferred / non-operating listing or provider glitch); dropped"
             )
             logger.warning("Dropping structurally-invalid peer %s: revenue=%s", p.ticker, p.revenue)
+    # The deterministic screen intentionally over-selects (PEER_SCREEN_TOP_N=7)
+    # as drop-insurance, but the comp set is capped at _PEER_COMP_SET_MAX=6. When
+    # every candidate fetches cleanly the lowest-ranked survivor is trimmed here.
+    # That trim was SILENT — the screen rationale ("picking 7 firms: …") still
+    # claimed 7 while the delivered table showed 6, breaking the 7→6 audit trail
+    # (KO 2026-07-02: PRMB in the trace, absent from the table, no drop record).
+    # Name each trimmed peer in peer_drops so the reconciliation surfaces.
+    for trimmed in survivors[_PEER_COMP_SET_MAX:]:
+        peer_drops[trimmed.ticker] = (
+            f"trimmed as excess drop-insurance beyond the {_PEER_COMP_SET_MAX}-peer "
+            "comp-set cap (screen over-selects for fetch resilience; lowest-ranked "
+            "survivor dropped when the full set fetches cleanly)"
+        )
     peers: list[CompanyFinancials] = survivors[:_PEER_COMP_SET_MAX]
 
     # A thin comp set is a QUALITY problem, not a crash. peer_analysis is a
@@ -523,10 +536,12 @@ async def execute_peer_analysis(
     # Name every dropped candidate (even when the surviving set is healthy) so a
     # genuine comp lost to a transient FX rate-limit — e.g. a foreign memory peer
     # like SK Hynix — is visibly accounted for, never silently swapped for a
-    # less-comparable substitute that happened to fetch cleanly.
+    # less-comparable substitute that happened to fetch cleanly. Each reason
+    # carries its own cause (fetch/FX failure, non-positive revenue, or cap-trim),
+    # so the screen's "picking N firms" rationale reconciles to the delivered set.
     if peer_drops:
         dropped_warning = (
-            "Peers excluded (data/FX unavailable, retry for a fuller set): "
+            "Peers excluded from the comp set (each with its reason below): "
             + "; ".join(f"{t}: {reason}" for t, reason in peer_drops.items())
         )
         if dropped_warning not in peer_comps.warnings:

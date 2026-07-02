@@ -364,6 +364,57 @@ class TestPeerAnalysisDegradesInsteadOfCrashing:
         assert "for url" not in warning_blob
         assert "financialmodelingprep.com" not in warning_blob
 
+    def test_cap_trimmed_peer_is_named_not_silently_dropped(self, monkeypatch):
+        """The screen over-selects (TOP_N=7) but the comp set caps at MAX=6. When
+        all 7 fetch cleanly the 7th is trimmed — previously SILENTLY, leaving the
+        'picking 7 firms' rationale contradicting a 6-row table with no drop
+        record (KO 2026-07-02: PRMB in trace, absent from table). The trimmed peer
+        must now be named so the 7→6 audit trail reconstructs."""
+        from finrobot.engine.models.financial import PeerComps, StepOutput
+
+        # Every candidate fetches cleanly; extract keys the company off the ticker
+        # so survivors carry distinct identities and the trimmed one is nameable.
+        # payload() is the FORWARD_ESTIMATES shape (empty → no forward, no crash).
+        async def _fetch_canonical(_dt, ticker):
+            return SimpleNamespace(ticker=ticker, payload=lambda: {})
+
+        async def _fetch(_dt, _ticker):
+            return SimpleNamespace(data={})
+
+        deps = SimpleNamespace(
+            data_layer=SimpleNamespace(fetch_canonical=_fetch_canonical, fetch=_fetch),
+            settings=SimpleNamespace(fmp_api_key=""),
+        )
+
+        async def _id_normalize(company, **_k):
+            return company
+
+        monkeypatch.setattr(
+            _helpers, "extract_company_financials", lambda fin: _canned_company(fin.ticker)
+        )
+        monkeypatch.setattr(_helpers, "normalize_peer_to_usd", _id_normalize)
+        monkeypatch.setattr(_helpers, "calculate_multiples", lambda c: c)
+        monkeypatch.setattr(_helpers, "override_company_with_xbrl", lambda c, _x: c)
+
+        async def _canned_target(**_k):
+            return _canned_company("AAPL")
+
+        monkeypatch.setattr(_helpers, "build_xbrl_aligned_company", _canned_target)
+
+        ctx = {"target_data": _target_financial_data()}
+        candidates = ["P1", "P2", "P3", "P4", "P5", "P6", "P7"]
+        out = asyncio.run(execute_peer_analysis(None, deps, "", ctx, "AAPL", peers=candidates))
+
+        assert isinstance(out, StepOutput)
+        assert isinstance(out.structured, PeerComps)
+        # Capped at MAX=6, and the 7th (lowest-ranked survivor) is trimmed…
+        assert len(out.structured.peers) == 6
+        assert "P7" not in {p.ticker for p in out.structured.peers}
+        # …but named in the warnings so the trace reconstructs 7 → 6.
+        warning_blob = " ".join(out.structured.warnings)
+        assert "P7" in warning_blob
+        assert "comp-set cap" in warning_blob
+
 
 def _financial_sector_target_data():
     """A bank target FinancialData (industry triggers is_balance_sheet_financial)."""

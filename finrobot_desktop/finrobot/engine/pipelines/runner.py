@@ -33,6 +33,7 @@ from finrobot.engine.pipelines.result import PipelineResult
 from finrobot.engine.pipelines.step import PipelineStep, PipelineStepError, iter_skill_sections
 from finrobot.engine.pipelines.validators import ValidationResult
 from finrobot.engine.skills.pipeline_methodology import render_pipeline_methodology
+from finrobot.warning_text import humanize_warnings
 
 # Seconds to wait before each executor-exception retry (index = attempt number).
 _RETRY_DELAYS = [2, 5, 10]
@@ -197,6 +198,15 @@ def _is_recoverable_exception(exc: BaseException) -> bool:
     if isinstance(exc, (AgentRunError, ProviderError, httpx.TimeoutException, httpx.ConnectError)):
         return True
     return any(s in msg for s in _RECOVERABLE_SUBSTRINGS)
+
+
+def _safe_error_text(exc: BaseException | str, *, limit: int | None = None) -> str:
+    text = str(exc).strip() or (
+        type(exc).__name__ if isinstance(exc, BaseException) else "unspecified error"
+    )
+    cleaned = humanize_warnings([text])
+    out = cleaned[0] if cleaned else text
+    return out[:limit] if limit is not None else out
 
 
 logger = logging.getLogger(__name__)
@@ -552,7 +562,8 @@ class Pipeline:
                 if step.critical or any(s in str(exc).lower() for s in _FATAL_SUBSTRINGS):
                     raise
                 validation_error = (
-                    f"executor 异常(不可恢复,降级继续): " f"{type(exc).__name__}: {str(exc)[:400]}"
+                    "executor 异常(不可恢复,降级继续): "
+                    f"{type(exc).__name__}: {_safe_error_text(exc, limit=400)}"
                 )
                 # exc_info=True: capture the full traceback for an exception-degrade.
                 # A non-recoverable boundary exception (e.g. a storm-time TypeError
@@ -779,7 +790,7 @@ class Pipeline:
             except BaseException as exc:
                 if not _is_recoverable_exception(exc):
                     raise
-                return None, str(exc), budget
+                return None, _safe_error_text(exc), budget
 
         # ── first attempt ──────────────────────────────────────────────────────
         validation, exc_err, _ = await _attempt_with_exc_retry(prompt, self.max_retries)
@@ -936,7 +947,7 @@ class Pipeline:
                 parts.append(_truncate_for_prompt(rendered, _PROMPT_MAX_STEP_DATA_CHARS))
             except (ProviderError, ValueError, KeyError) as e:
                 logger.warning(f"Failed to fetch {data_type} for {ticker}: {e}")
-                parts.append(f"[{data_type}: data unavailable — {e}]")
+                parts.append(f"[{data_type}: data unavailable — {_safe_error_text(e)}]")
         return "\n\n".join(parts)
 
     def _build_step_prompt(

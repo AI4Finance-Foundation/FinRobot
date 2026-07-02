@@ -255,6 +255,38 @@ class TestGatherData:
         assert "[canonical] financials (normalized contract)" in prompt
         assert "[fake] AAPL / financials" not in prompt
 
+    async def test_gather_data_failure_strips_raw_provider_url_from_prompt(self):
+        captured_prompts: list[str] = []
+
+        class BrokenDataLayer(FakeDataLayer):
+            async def fetch(self, data_type: str, ticker: str, **kwargs) -> DataResult:
+                raise ProviderError(
+                    "FMP request failed for url "
+                    "'https://financialmodelingprep.com/api/v3/quote/AAPL?apikey=secret'"
+                    "\nFor more information check: https://developer.mozilla.org/"
+                )
+
+        async def capture_fn(agent, deps, prompt, structured_context, ticker):
+            captured_prompts.append(prompt)
+            return "ok"
+
+        step = PipelineStep(
+            name="data_step",
+            agent=MagicMock(),
+            required_data=["news"],
+            validator=TextValidator(validate_is_non_empty),
+            executor=capture_fn,
+        )
+        pipeline = Pipeline(steps=[step])
+
+        await pipeline.execute(FakeDeps(data_layer=BrokenDataLayer()), "AAPL")
+
+        prompt = captured_prompts[0]
+        assert "data unavailable" in prompt
+        assert "apikey" not in prompt
+        assert "for url" not in prompt
+        assert "financialmodelingprep.com" not in prompt
+
     async def test_gather_data_uses_previous_results_when_required_data_empty(self):
         steps = [
             _make_step("s1", output="first step output"),
@@ -1717,6 +1749,32 @@ async def test_non_critical_step_non_recoverable_exception_degrades_not_kills():
 
     assert result.steps["report"] == "narrative continues"
     assert any(fv["step"] == "peer_analysis" for fv in result.failed_validations)
+
+
+@pytest.mark.asyncio
+async def test_non_critical_degrade_strips_raw_provider_url_from_failed_validation():
+    async def dead_peer_executor(agent, deps, prompt, structured_context, ticker):
+        raise ValueError(
+            "peer screen failed for url "
+            "https://financialmodelingprep.com/api/v3/stock-screener?apikey=secret"
+        )
+
+    step = PipelineStep(
+        name="peer_analysis",
+        agent=MagicMock(),
+        validator=TextValidator(validate_is_non_empty),
+        executor=dead_peer_executor,
+    )
+    pipeline = Pipeline(steps=[step], max_retries=1)
+    mock_deps = MagicMock()
+    mock_deps.skill_runtime = None
+
+    result = await pipeline.execute(mock_deps, "AAPL")
+
+    error = result.failed_validations[0]["error"]
+    assert "apikey" not in error
+    assert "for url" not in error
+    assert "financialmodelingprep.com" not in error
 
 
 @pytest.mark.asyncio

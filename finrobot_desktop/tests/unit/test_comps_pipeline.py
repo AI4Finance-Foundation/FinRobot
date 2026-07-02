@@ -318,7 +318,10 @@ class TestPeerAnalysisDegradesInsteadOfCrashing:
         async def _fetch_canonical(_dt, ticker):
             if ticker in ("A", "B"):
                 return good
-            raise ProviderError(f"forced drop {ticker}")
+            raise ProviderError(
+                f"forced drop {ticker} for url "
+                f"https://financialmodelingprep.com/api/v3/profile/{ticker}?apikey=secret"
+            )
 
         async def _fetch(_dt, _ticker):
             return SimpleNamespace(data={})
@@ -355,6 +358,11 @@ class TestPeerAnalysisDegradesInsteadOfCrashing:
         assert isinstance(out.structured, PeerComps)
         assert len(out.structured.peers) == 2
         assert any("Thin comp set" in w for w in out.structured.warnings)
+        warning_blob = " ".join(out.structured.warnings)
+        assert "Peers excluded" in warning_blob
+        assert "apikey" not in warning_blob
+        assert "for url" not in warning_blob
+        assert "financialmodelingprep.com" not in warning_blob
 
 
 def _financial_sector_target_data():

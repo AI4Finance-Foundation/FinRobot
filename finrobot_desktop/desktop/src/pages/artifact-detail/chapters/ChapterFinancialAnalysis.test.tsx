@@ -51,9 +51,12 @@ describe('ChapterFinancialAnalysis KV cards', () => {
     // is read correctly. Pre-fix (top-level read) this card was always absent.
     expect(screen.getByText('EBITDA')).toBeInTheDocument()
     expect(screen.getByText('净利润')).toBeInTheDocument()
-    // fiscal year derived from top-level fiscal_period_end, not a (nonexistent)
-    // fiscal_year field.
-    expect(screen.getByText('FY2024')).toBeInTheDocument()
+    // Revenue (Base) is a TTM figure (Σ latest 4 quarters), NOT a completed
+    // fiscal year — the badge must say TTM (+ the TTM window's end month), not
+    // "FY2024" (BUG-10 regression: that claimed a completed fiscal year the
+    // pipeline never asserts, since fiscal_period_end is the TTM period end).
+    expect(screen.getByText('TTM · 2024-09')).toBeInTheDocument()
+    expect(screen.queryByText('FY2024')).not.toBeInTheDocument()
   })
 
   it('does NOT surface cards when income bucket is absent', () => {

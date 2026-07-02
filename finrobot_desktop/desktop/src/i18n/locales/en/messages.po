@@ -1378,7 +1378,7 @@ msgstr "Earnings per Share (EPS) Trend"
 
 #. js-lingui-explicit-id
 msgid "chapter.financial.chart.title.eps"
-msgstr "Diluted EPS · by Year"
+msgstr "Basic EPS · by Year"
 
 #. js-lingui-explicit-id
 msgid "chart.epsTrend.eps"

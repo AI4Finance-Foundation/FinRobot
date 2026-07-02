@@ -183,7 +183,7 @@ function buildIncomeCells(
   return cells
 }
 
-function buildBalanceCells(
+export function buildBalanceCells(
   balance: BalanceShape | undefined,
   market: MarketShape,
   locale: Locale,
@@ -228,7 +228,13 @@ function buildBalanceCells(
       value: formatCompactNumber(market.shares_outstanding, locale),
       source,
       addr: addr(),
-      sub: tr('稀释后', 'DILUTED', locale),
+      // Not a reported diluted count: FMP carries no raw shares field at all
+      // (shares_outstanding = market_cap / price at the provider layer), and
+      // even on the yfinance path a mismatch against market_cap/price falls
+      // back to that same market-cap-implied count (engine/compute/coordinators/
+      // extractor.py). "DILUTED" claimed a 10-Q-sourced diluted count this
+      // pipeline never has.
+      sub: tr('隐含', 'IMPLIED', locale),
     })
   }
   return cells

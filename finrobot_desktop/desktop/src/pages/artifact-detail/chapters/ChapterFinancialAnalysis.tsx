@@ -106,8 +106,13 @@ export function ChapterFinancialAnalysis({
       value: fmtMoney(baseRev),
       raw: baseRev,
       source: numberSource,
-      fy: rawData?.fiscal_period_end
-        ? `FY${String(rawData.fiscal_period_end).slice(0, 4)}`
+      // baseRev (income.revenue) is a TTM figure (Σ latest 4 quarters, per
+      // FinancialData.fiscal_period_end's backend contract), NOT an annual
+      // report — `fiscal_period_end` is the TTM window's end date, so tagging
+      // it "FY{year}" claimed a completed fiscal year that, mid-year, hasn't
+      // happened yet (analysts read that as the 10-K figure).
+      periodTag: rawData?.fiscal_period_end
+        ? `TTM · ${String(rawData.fiscal_period_end).slice(0, 7)}`
         : undefined,
     })
   }

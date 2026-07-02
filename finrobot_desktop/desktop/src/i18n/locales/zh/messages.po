@@ -1378,7 +1378,7 @@ msgstr "每股收益（EPS）趋势"
 
 #. js-lingui-explicit-id
 msgid "chapter.financial.chart.title.eps"
-msgstr "摊薄 EPS · 逐年"
+msgstr "基本 EPS · 逐年"
 
 #. js-lingui-explicit-id
 msgid "chart.epsTrend.eps"

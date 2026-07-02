@@ -28,8 +28,13 @@ export interface WaterfallRow {
   /** Raw amount (reporting currency) — drives bar width + margin. */
   raw: number
   source?: NumberSource
-  /** Optional fiscal-year tag for the top line (e.g. "FY2024"), its own node. */
-  fy?: string
+  /**
+   * Optional caliber tag for the top line, its own node — e.g. "TTM · 2026-03".
+   * NOT a fiscal-year badge: revenue here is a trailing-twelve-month figure
+   * (see ChapterFinancialAnalysis), so the tag must say TTM, never "FYxxxx"
+   * (a full fiscal year that may not even be over yet).
+   */
+  periodTag?: string
 }
 
 const SWATCH: Record<WaterfallTone, string> = {
@@ -78,9 +83,9 @@ function Row({ row, denom }: { row: WaterfallRow; denom: number | null }): React
         >
           <span style={{ width: 9, height: 9, borderRadius: 2, background: color, flex: 'none' }} />
           <span>{row.label}</span>
-          {row.fy && (
+          {row.periodTag && (
             <span style={{ fontSize: 10.5, color: 'var(--text-dim)', letterSpacing: '0.1em' }}>
-              {row.fy}
+              {row.periodTag}
             </span>
           )}
         </span>

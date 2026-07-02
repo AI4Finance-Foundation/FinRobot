@@ -221,12 +221,14 @@ export function historicalToCashFlowData(h: HistoricalMetrics) {
 }
 
 /**
- * Annual diluted EPS with YoY growth. Historical P/E is intentionally NOT
- * paired here: the backend only carries a current-year P/E (prior years are
- * null), so an EPS×P/E dual chart would render a one-point P/E line. EPS itself
- * is fully populated, so this powers a clean EPS-trend bar chart instead.
- * yoy uses abs(prev) as the base so a swing off a tiny/negative EPS keeps its
- * sign without flipping.
+ * Annual BASIC EPS (not diluted — FMP's `eps` field is basic, and the
+ * yfinance path preferentially matches a "Basic EPS" row when present; see
+ * fmp_provider.py's per-year extraction comment) with YoY growth. Historical
+ * P/E is intentionally NOT paired here: the backend only carries a
+ * current-year P/E (prior years are null), so an EPS×P/E dual chart would
+ * render a one-point P/E line. EPS itself is fully populated, so this powers
+ * a clean EPS-trend bar chart instead. yoy uses abs(prev) as the base so a
+ * swing off a tiny/negative EPS keeps its sign without flipping.
  */
 export function historicalToEpsData(h: HistoricalMetrics) {
   return h.years.map((year, i) => {

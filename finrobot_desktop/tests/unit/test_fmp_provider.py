@@ -2411,3 +2411,41 @@ class TestFMPBankCaliber:
         row = result.data["yearly_data"][0]
         net_rev = 285_000_000_000 - 98_000_000_000
         assert row["operating_margin"] == pytest.approx(79_000_000_000 / net_rev)
+
+
+class TestFMPFetchDividends:
+    """DIVIDENDS: declared per-payment rows aggregated to full-calendar-year DPS
+    (the DDM growth seed's honest dividend-growth source for buyback franchises)."""
+
+    @pytest.mark.asyncio
+    async def test_aggregates_payments_to_annual_dps(self, provider):
+        from finrobot.engine.data.types import DataType
+
+        rows = [
+            {"date": "2025-12-01", "dividend": 0.51},
+            {"date": "2025-09-01", "dividend": 0.51},
+            {"date": "2025-06-01", "dividend": 0.51},
+            {"date": "2025-03-01", "dividend": 0.51},
+            {"date": "2024-12-01", "dividend": 0.485},
+            {"date": "2024-03-01", "dividend": 0.485},
+        ]
+        with patch.object(provider, "_get", AsyncMock(return_value=_mock_response(rows))):
+            result = await provider.fetch("KO", DataType.DIVIDENDS)
+        assert result.data_type == DataType.DIVIDENDS
+        annual = result.data["annual_dps"]
+        assert annual["2025"] == pytest.approx(2.04)
+        assert annual["2024"] == pytest.approx(0.97)
+
+    @pytest.mark.asyncio
+    async def test_empty_or_malformed_rows_yield_empty_map(self, provider):
+        from finrobot.engine.data.types import DataType
+
+        with patch.object(provider, "_get", AsyncMock(return_value=_mock_response([]))):
+            result = await provider.fetch("XYZ", DataType.DIVIDENDS)
+        assert result.data["annual_dps"] == {}
+
+    @pytest.mark.asyncio
+    async def test_dividends_is_a_supported_capability(self, provider):
+        from finrobot.engine.data.types import DataType
+
+        assert DataType.DIVIDENDS in provider.capabilities()

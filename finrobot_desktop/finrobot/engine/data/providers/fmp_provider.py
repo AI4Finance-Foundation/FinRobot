@@ -51,6 +51,7 @@ _SUPPORTED = [
     DataType.EARNINGS_TRANSCRIPT,
     DataType.FORWARD_ESTIMATES,
     DataType.PEER_CANDIDATES,
+    DataType.DIVIDENDS,
 ]
 _TIMEOUT = 15.0
 _MIN_INTERVAL = 0.15  # 6 req/sec — stays within per-minute burst limits on all FMP tiers
@@ -284,6 +285,8 @@ class FMPProvider(DataProvider):
             return await self._fetch_forward_estimates(ticker)
         if data_type == DataType.PEER_CANDIDATES:
             return await self._fetch_peer_candidates(ticker)
+        if data_type == DataType.DIVIDENDS:
+            return await self._fetch_dividends(ticker)
         years: int | None = kwargs.get("years")
         warnings: list[str] = []
         cashflow: list[dict[str, Any]] = []
@@ -1212,6 +1215,45 @@ class FMPProvider(DataProvider):
             provider=self.name,
             ticker=ticker,
             data_type=DataType.FORWARD_ESTIMATES,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+    async def _fetch_dividends(self, ticker: str) -> DataResult:
+        """Fetch the declared dividend history from stable /dividends.
+
+        Ships the dividend record aggregated to full-calendar-year DPS under
+        ``annual_dps`` (a ``{"YYYY": total}`` map — JSON-serialisable string keys
+        so it survives the cache). Per-payment rows are summed within their
+        payment-date year; the DDM seed's pure ``_dps_cagr`` operator selects the
+        window, drops the incomplete current year, and computes the growth rate
+        (spec §6.4.1: the provider never derives the CAGR itself). Used only for
+        buyback-distorted franchises whose book-based ROE×(1−payout) overstates
+        dividend growth — the board-managed DPS record is the honest measure.
+        """
+        with self._wrap_errors(ticker, "dividends fetch"):
+            resp = await self._get("/dividends", params={"symbol": ticker})
+        raw: Any = resp.json()
+        rows = raw if isinstance(raw, list) else []
+        annual: dict[str, float] = {}
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            date_str = row.get("date") or row.get("paymentDate")
+            amount = row.get("dividend")
+            if amount is None:
+                amount = row.get("adjDividend")
+            if not date_str or amount is None:
+                continue
+            try:
+                year = str(date_str)[:4]
+                annual[year] = annual.get(year, 0.0) + float(amount)
+            except (TypeError, ValueError):
+                continue
+        return DataResult(
+            data={"annual_dps": annual},
+            provider=self.name,
+            ticker=ticker,
+            data_type=DataType.DIVIDENDS,
             timestamp=datetime.now(tz=timezone.utc),
         )
 

@@ -22,7 +22,11 @@ from finrobot.engine.compute.operators.dcf_seed import (
     DEFAULT_TERMINAL_GROWTH,
 )
 from finrobot.engine.compute.operators.ddm import calculate_ddm
-from finrobot.engine.compute.operators.ddm_seed import seed_ddm_inputs
+from finrobot.engine.compute.operators.ddm_seed import (
+    _PB_DISTORTION_THRESHOLD,
+    _dps_cagr,
+    seed_ddm_inputs,
+)
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials, Provenance
 from finrobot.engine.models.financial import (
     BalanceSheet,
@@ -378,3 +382,115 @@ class TestDdmBetaBand:
         prov = inputs.assumption_provenance["beta"]
         assert "implausibly low" in prov
         assert "Total Market industry levered beta used as bank beta proxy floor" in prov
+
+
+# KO declared-DPS record (FMP stable /dividends, 2026-07-02): full calendar years
+# 2020-2025 = $1.64 → $2.04, a 4.5% 5y CAGR — vs the ROE×(1−payout) formula's 15%.
+KO_DIVIDEND_HISTORY = {
+    "2019": 1.60, "2020": 1.64, "2021": 1.68,
+    "2022": 1.76, "2023": 1.84, "2024": 1.94, "2025": 2.04,
+    "2026": 0.53,  # partial (single Q so far) — must be dropped from the CAGR
+}
+
+
+class TestDpsCagr:
+    """The declared-DPS CAGR primitive — the honest dividend-growth measure."""
+
+    def test_clean_series_cagr(self) -> None:
+        # 2020 $1.64 → 2025 $2.04 over 5 years = 4.46%.
+        assert _dps_cagr(KO_DIVIDEND_HISTORY) == pytest.approx(0.0446, abs=1e-3)
+
+    def test_drops_trailing_partial_year(self) -> None:
+        # The 2026 partial ($0.53 < prior full year) must not tank the CAGR toward
+        # a −74% collapse; it is dropped and the 2020-2025 rate stands.
+        assert _dps_cagr(KO_DIVIDEND_HISTORY) > 0
+
+    def test_spans_calendar_years_not_point_count(self) -> None:
+        # A missing interior year is a 4-year span (2021→2025), not a single step.
+        cagr = _dps_cagr({"2021": 1.68, "2025": 2.04})
+        assert cagr == pytest.approx((2.04 / 1.68) ** (1 / 4) - 1, abs=1e-6)
+
+    def test_insufficient_history_returns_none(self) -> None:
+        assert _dps_cagr({"2025": 2.04}) is None
+        assert _dps_cagr({}) is None
+        assert _dps_cagr(None) is None
+
+    def test_non_positive_values_ignored(self) -> None:
+        assert _dps_cagr({"2024": 0.0, "2025": 2.04}) is None
+
+
+class TestBuybackDistortedGrowth:
+    """High-P/B franchises grow the dividend at the declared-DPS CAGR, not the
+    depleted-book ROE×(1−payout). Reasonable-P/B names are untouched."""
+
+    def _ko_like(self):
+        # KO-shaped: price ~$82, book ~$8 → P/B ~10 (distorted), ROE 44%, payout 65%.
+        return (
+            _financials(price=82.0),
+            _normalized(
+                dividend_per_share=2.04,
+                payout_ratio=0.653,
+                return_on_equity=0.436,
+                book_value_per_share=8.0,
+            ),
+        )
+
+    def test_distorted_book_uses_dps_cagr(self) -> None:
+        fin, norm = self._ko_like()
+        inputs = seed_ddm_inputs(fin, norm, dividend_history=KO_DIVIDEND_HISTORY)
+        # Growth base is the ~4.5% DPS CAGR, an order of magnitude below the 15%
+        # ROE×(1−payout) = 0.436×(1−0.653) the formula would have produced.
+        assert inputs.dividend_growth_rates[0] == pytest.approx(0.0446, abs=1e-3)
+        prov = inputs.assumption_provenance["dividend_growth_rates"]
+        assert "declared-DPS CAGR" in prov
+        assert "buyback-depleted" in prov
+
+    def test_distorted_book_no_history_degrades_to_nominal(self) -> None:
+        # Distorted book but the DPS record is unavailable: never ship the
+        # overstated book-based rate — degrade to long-run nominal growth.
+        fin, norm = self._ko_like()
+        inputs = seed_ddm_inputs(fin, norm, dividend_history=None)
+        assert inputs.dividend_growth_rates[0] == pytest.approx(DEFAULT_TERMINAL_GROWTH)
+        prov = inputs.assumption_provenance["dividend_growth_rates"]
+        assert "long-run nominal" in prov
+
+    def test_non_positive_book_is_distorted(self) -> None:
+        # Negative book equity (buyback-past-book: MO/PM) → distorted branch.
+        fin = _financials(price=72.0)
+        norm = _normalized(
+            dividend_per_share=4.16,
+            payout_ratio=0.87,
+            return_on_equity=None,
+            book_value_per_share=-3.0,
+        )
+        inputs = seed_ddm_inputs(fin, norm, dividend_history=KO_DIVIDEND_HISTORY)
+        prov = inputs.assumption_provenance["dividend_growth_rates"]
+        assert "declared-DPS CAGR" in prov
+        assert "non-positive book value" in prov
+
+    def test_reasonable_pb_bank_unchanged_with_or_without_history(self) -> None:
+        # JPM (P/B ~2.3 < threshold) keeps ROE×(1−payout); passing a dividend
+        # history must NOT change it — the gate is book-distortion, not payer-hood.
+        without = seed_ddm_inputs(_financials(), _normalized(), dividend_history=None)
+        with_hist = seed_ddm_inputs(
+            _financials(), _normalized(), dividend_history=KO_DIVIDEND_HISTORY
+        )
+        assert with_hist.dividend_growth_rates == without.dividend_growth_rates
+        assert (
+            with_hist.assumption_provenance["dividend_growth_rates"]
+            == without.assumption_provenance["dividend_growth_rates"]
+        )
+        assert "ROE" in with_hist.assumption_provenance["dividend_growth_rates"]
+
+    def test_pb_threshold_boundary(self) -> None:
+        # Exactly at the threshold (P/B == 4.0) is NOT distorted; just past it is.
+        norm_at = _normalized(book_value_per_share=82.0 / _PB_DISTORTION_THRESHOLD)
+        at = seed_ddm_inputs(
+            _financials(price=82.0), norm_at, dividend_history=KO_DIVIDEND_HISTORY
+        )
+        assert "ROE" in at.assumption_provenance["dividend_growth_rates"]
+        norm_over = _normalized(book_value_per_share=82.0 / (_PB_DISTORTION_THRESHOLD + 0.5))
+        over = seed_ddm_inputs(
+            _financials(price=82.0), norm_over, dividend_history=KO_DIVIDEND_HISTORY
+        )
+        assert "declared-DPS CAGR" in over.assumption_provenance["dividend_growth_rates"]

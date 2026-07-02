@@ -71,3 +71,9 @@ class DataType(StrEnum):
     # retired LLM peer selection whose run-to-run nondeterminism swung the
     # published comps_pe target ±30% within a day (MSFT $487 → $636).
     PEER_CANDIDATES = "peer_candidates"
+    # Declared dividend history (FMP stable /dividends). Feeds the DDM seed's
+    # dividend-growth base for buyback-distorted franchises (high P/B), where the
+    # book-based sustainable growth g = ROE×(1−payout) overstates — the company's
+    # own board-managed DPS record is the honest, traceable growth measure. The
+    # provider ships aggregated annual DPS; the CAGR is a pure operator (ddm_seed).
+    DIVIDENDS = "dividends"

@@ -140,6 +140,7 @@ _TTL_SECONDS: dict[str, int] = {
     DataType.FINANCIALS: 86400,  # 24 hours
     DataType.EARNINGS: 86400,  # 24 hours (quarterly data)
     DataType.EARNINGS_TRANSCRIPT: 604800,  # 7 days
+    DataType.DIVIDENDS: 604800,  # 7 days — declared dividend history changes at most quarterly
     # FILINGS_10K is canonical; FILINGS aliases to it via _DATA_TYPE_ALIASES
     DataType.FILINGS_10K: 604800,  # 7 days (SEC filings don't change)
     DataType.FILINGS_10Q: 86400,  # 24 hours (quarterly cadence)

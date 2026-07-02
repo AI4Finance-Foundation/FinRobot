@@ -27,6 +27,7 @@ from pydantic_ai import Agent
 from finrobot.engine.compute.operators.ddm import calculate_ddm, calculate_ddm_sensitivity
 from finrobot.engine.compute.operators.ddm_seed import seed_ddm_inputs
 from finrobot.engine.compute.operators.fx_normalize import normalize_financialdata_to_usd
+from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
@@ -129,7 +130,27 @@ async def _execute_ddm_seed(
     # US issuers (financial_data was never reassigned above).
     structured_context["historical_data"] = financial_data
 
-    ddm_inputs = seed_ddm_inputs(financial_data, _fin)
+    # Declared dividend history for the DDM growth seed. Used only for
+    # buyback-distorted franchises (high P/B) where ROE×(1−payout) overstates
+    # growth — seed_ddm_inputs grows their dividend at the issuer's own DPS CAGR
+    # instead (see ddm_seed). A CAGR is a ratio, so the reporting-currency /
+    # per-ADR-share caliber of the raw DPS cancels out — no FX normalization
+    # needed here. Best-effort: a fetch failure leaves reasonable-P/B names on the
+    # book-based growth (unchanged) and degrades a distorted name to nominal
+    # growth rather than shipping an overstated rate.
+    dividend_history: dict[str, float] | None = None
+    try:
+        _div = await deps.data_layer.fetch(DataType.DIVIDENDS, ticker)
+        annual = _div.data.get("annual_dps") if isinstance(_div.data, dict) else None
+        if isinstance(annual, dict):
+            dividend_history = {str(k): float(v) for k, v in annual.items()}
+    except (ProviderError, ValueError, KeyError, TypeError) as _div_err:
+        # An auxiliary fetch must never fail the DDM (mirrors the forward-estimates
+        # best-effort in execute_financial_data_step): a reasonable-P/B name is
+        # unaffected, and a distorted name degrades to nominal growth.
+        logger.debug("DIVIDENDS unavailable for %s: %s", ticker, _div_err)
+
+    ddm_inputs = seed_ddm_inputs(financial_data, _fin, dividend_history=dividend_history)
 
     return StepOutput(text=ddm_inputs.model_dump_json(), structured=ddm_inputs)
 

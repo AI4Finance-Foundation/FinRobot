@@ -4,7 +4,9 @@ What this code does that raw LLM cannot:
 - Deterministically derives every DDM assumption from the provider's reported
   dividend / payout / ROE / beta — never lets the LLM "pick" a growth rate from
   a typically-3-8% prompt. Dividend growth is the textbook sustainable growth
-  ``g = ROE × (1 − payout)`` decayed to perpetuity, not a narrative guess.
+  ``g = ROE × (1 − payout)`` decayed to perpetuity — except for buyback-distorted
+  franchises (high P/B), where reported ROE is a depleted-book artifact and the
+  issuer's own declared-DPS CAGR is the honest growth base instead.
 - Normalizes the terminal payout to ``1 − g/ROE`` (the payout a mature firm can
   sustain at its ROE and terminal growth) so the Gordon perpetuity doesn't carry
   a low trailing payout forever — the error that values JPM (28% payout, 16.5%
@@ -76,16 +78,61 @@ _ADR_YIELD_DISAGREE_REL: Final[float] = 0.25
 # it the Gordon multi-stage convergence stops being meaningful.
 _MAX_SUSTAINABLE_GROWTH: Final[float] = 0.40
 
+# Above this price-to-book, ROE = earnings / book is a depleted-denominator
+# artifact (buyback franchises trade at 6-500× book — KO ~10x, CL ~500x), so the
+# textbook sustainable growth g = ROE × (1 − payout) overstates dividend growth
+# (KO 15% vs its actual ~4.5% DPS CAGR). Past this band we grow the dividend at
+# the company's own declared-DPS CAGR instead. 4.0× cleanly separates the
+# distorted staples (live 2026-07-02: KO 10.5 / PG 6.5 / JNJ 7.6 / PEP 9.2 / CL
+# 519, all > 4) from names whose book is a real capital base (banks 1.5-2.6,
+# utilities 1.7-2.9, energy 2.2 — all < 4, kept on ROE×(1−payout) unchanged).
+_PB_DISTORTION_THRESHOLD: Final[float] = 4.0
+
 # CAPM beta clamp — same band dcf_seed uses, tighter than the DDMInputs Field
 # ceiling (≤ 3) so an outlier provider beta can't blow up cost of equity.
 _BETA_FLOOR: Final[float] = 0.3
 _BETA_CAP: Final[float] = 2.5
 
 
+def _dps_cagr(annual_dps: dict[str, float] | None, *, max_window: int = 5) -> float | None:
+    """Compound annual dividend growth from a declared-DPS-per-year map.
+
+    ``annual_dps`` is the FMP DIVIDENDS payload (``{"YYYY": total_dps}``, string
+    keys from JSON). Robust to the current incomplete calendar year — its partial
+    total falls below the prior full year (dividends are sticky for a going
+    concern, never materially cut), so a trailing year below 99% of its
+    predecessor is dropped. Uses up to ``max_window`` year-over-year steps (a 5y
+    look-back, the sell-side standard for a dividend-growth rate). Returns None
+    when there isn't enough positive history (< 2 full years) to compute a rate.
+    """
+    if not annual_dps:
+        return None
+    try:
+        by_year = {int(y): float(v) for y, v in annual_dps.items() if v is not None}
+    except (TypeError, ValueError):
+        return None
+    series = [(y, by_year[y]) for y in sorted(by_year) if by_year[y] > 0]
+    if len(series) < 2:
+        return None
+    if series[-1][1] < 0.99 * series[-2][1]:
+        series = series[:-1]  # trailing partial (mid-year) total — drop it
+    if len(series) < 2:
+        return None
+    window = series[-(max_window + 1) :]
+    # Span the actual calendar years, not the point count — robust to a missing
+    # year in the record (a gap must not be compounded as a single step).
+    n = window[-1][0] - window[0][0]
+    start, end = window[0][1], window[-1][1]
+    if n <= 0 or start <= 0 or end <= 0:
+        return None
+    return float((end / start) ** (1.0 / n) - 1.0)
+
+
 def seed_ddm_inputs(
     financials: FinancialData,
     normalized: NormalizedFinancials,
     *,
+    dividend_history: dict[str, float] | None = None,
     risk_free_rate: float = DEFAULT_RISK_FREE_RATE,
     equity_risk_premium: float = DEFAULT_EQUITY_RISK_PREMIUM,
     terminal_growth_rate: float = DEFAULT_TERMINAL_GROWTH,
@@ -99,12 +146,19 @@ def seed_ddm_inputs(
     describe the same snapshot; the executor builds ``normalized`` via
     ``normalize_financials`` on the same DataResult.
 
+    ``dividend_history`` (optional) is the DIVIDENDS payload's ``annual_dps`` map
+    ({"YYYY": total_dps}); it supplies the declared-DPS CAGR used as the growth
+    base for buyback-distorted franchises (high P/B). None ⇒ the growth stays on
+    the book-based ``g = ROE × (1 − payout)`` (banks, utilities — reasonable P/B).
+
     Field derivation:
       - dividend_per_share: provider DPS → payout × net_income / shares.
       - payout_ratio: provider → DPS / EPS → generic 50%.
-      - dividend_growth_rates: sustainable ``g = ROE × (1 − payout)`` clamped to
-        [0, 40%], linearly decayed to ``terminal_growth_rate``. ROE missing ⇒
-        generic growth start (same fallback as dcf_seed).
+      - dividend_growth_rates: for a reasonable-P/B name, sustainable
+        ``g = ROE × (1 − payout)`` clamped to [0, 40%]; for a buyback-distorted
+        name (P/B > threshold or non-positive book) the declared-DPS CAGR (book
+        value no longer reflects reinvested capital). Linearly decayed to
+        ``terminal_growth_rate``. ROE missing and no DPS history ⇒ generic start.
       - terminal_payout_ratio: ``1 − g/ROE`` (floored at trailing payout); None
         when ROE missing, which leaves calculate_ddm on the naive Gordon path.
       - beta: provider beta → industry levered beta, clamped to [0.3, 2.5].
@@ -210,8 +264,48 @@ def seed_ddm_inputs(
     # Sustainable growth g = retention × ROE = (1 − payout) × ROE — the rate at
     # which a firm reinvesting at ROE grows book value (and, at constant payout,
     # EPS and DPS). Decays linearly to terminal growth over the explicit window.
+    #
+    # BUT g = ROE × (1 − payout) is only meaningful when book value ≈ invested
+    # capital. A buyback-distorted franchise (KO/CL: decades of repurchases shrink
+    # book to a sliver, so reported ROE = earnings / tiny-book runs 40%+ and P/B
+    # 6-500×; the retained earnings fund MORE buybacks, not book growth) makes the
+    # formula overstate dividend growth badly (KO 15% vs its actual ~4.5% DPS
+    # CAGR — the +60% DDM garbage-in). When book is distorted (P/B above the
+    # threshold, or non-positive), grow the dividend at the company's OWN declared
+    # -DPS CAGR (board-managed, the honest and traceable measure); ROE×(1−payout)
+    # is kept only inside a reasonable P/B band (banks / utilities / energy, where
+    # book is a real capital base). Live 2026-07-02: gate flips only distorted
+    # staples (KO/PG/CL/JNJ/PEP/MO); banks & utilities stay byte-identical.
     roe = normalized.return_on_equity
-    if roe is not None and roe > 0:
+    book_value_per_share = normalized.book_value_per_share
+    dps_cagr = _dps_cagr(dividend_history)
+    book_distorted = (
+        book_value_per_share is None
+        or book_value_per_share <= 0
+        or (current_price > 0 and current_price / book_value_per_share > _PB_DISTORTION_THRESHOLD)
+    )
+    if book_distorted and dps_cagr is not None:
+        g = max(0.0, min(_MAX_SUSTAINABLE_GROWTH, dps_cagr))
+        distortion = (
+            f"P/B {current_price / book_value_per_share:.1f}x"
+            if (book_value_per_share is not None and book_value_per_share > 0)
+            else "non-positive book value"
+        )
+        growth_source = (
+            f"dividend growth g = {g:.1%} (declared-DPS CAGR from the issuer's own "
+            f"dividend record; ROE×(1−payout) not used — {distortion} means book value "
+            f"is buyback-depleted and overstates reinvestment growth)"
+        )
+    elif book_distorted:
+        # Distorted book but no usable dividend history: ROE×(1−payout) is
+        # unreliable and the DPS record is unavailable → degrade to long-run
+        # nominal growth (disclosed), never the overstated book-based rate.
+        g = terminal_growth_rate
+        growth_source = (
+            f"dividend growth held at long-run nominal {g:.1%} (book value distorted, so "
+            f"ROE×(1−payout) is unreliable, and the dividend-growth history is unavailable)"
+        )
+    elif roe is not None and roe > 0:
         g = max(0.0, min(_MAX_SUSTAINABLE_GROWTH, roe * (1 - payout)))
         growth_source = (
             f"sustainable growth g = ROE {roe:.1%} × (1 − payout ratio {payout:.1%}) = {g:.1%}"
@@ -330,7 +424,6 @@ def seed_ddm_inputs(
     prov["shares_outstanding"] = f"current shares outstanding {shares / 1e9:.2f}B shares"
     prov["current_price"] = f"current share price ${current_price:.2f}"
 
-    book_value_per_share = normalized.book_value_per_share
     if roe is not None:
         prov["return_on_equity"] = f"{roe:.1%} (provider-reported ROE)"
     if book_value_per_share is not None and book_value_per_share > 0:

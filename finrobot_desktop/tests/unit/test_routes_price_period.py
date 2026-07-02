@@ -99,7 +99,10 @@ async def test_price_endpoint_reuses_provider_price_cache_for_default_period(app
             ticker="NVDA",
             data_type=DataType.PRICE,
             timestamp=datetime(2026, 5, 27, 12, 0, tzinfo=timezone.utc),
-            warnings=["Price discrepancy: fmp 212.60 vs yfinance 200.00"],
+            warnings=[
+                "Price discrepancy: fmp 212.60 vs yfinance 200.00",
+                "FMP quote failed for url 'https://financialmodelingprep.com/api/v3/quote/NVDA?apikey=secret'\nFor more information check: https://developer.mozilla.org/",
+            ],
         ),
     )
 
@@ -119,6 +122,10 @@ async def test_price_endpoint_reuses_provider_price_cache_for_default_period(app
     assert payload["change_pct"] == pytest.approx(6.3)
     assert payload["data_source"] == "yfinance:provider-cache"
     assert any("Price discrepancy" in w for w in payload["warnings"])
+    warning_blob = " ".join(payload["warnings"])
+    assert "http" not in warning_blob
+    assert "apikey" not in warning_blob
+    assert "for url" not in warning_blob
     # Regression: the provider-cache fast path bypasses fetch_price_history, so
     # technicals must be backfilled at the _enrich choke point — not only on the
     # fetch path. Two bars is too short for a snapshot, but the key must exist.

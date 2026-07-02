@@ -58,6 +58,26 @@ def test_price_payload_note_appended_once_and_list_coerced() -> None:
     assert _with_fmp_degradation_note(req, clean)["warnings"] == []
 
 
+def test_price_payload_warnings_strip_internal_urls() -> None:
+    payload = {
+        "data_source": "fmp",
+        "warnings": [
+            "FMP request failed for url 'https://financialmodelingprep.com/api/v3/quote/AAPL?apikey=secret'\nFor more information check: https://developer.mozilla.org/",
+            "429 for url https://financialmodelingprep.com/api/v3/profile/AAPL?apikey=secret",
+            "clean warning stays",
+        ],
+    }
+
+    out = _with_fmp_degradation_note(_request("fmp-key"), payload)
+    blob = " ".join(out["warnings"])
+
+    assert "clean warning stays" in blob
+    assert "http" not in blob
+    assert "apikey" not in blob
+    assert "for url" not in blob
+    assert "For more information" not in blob
+
+
 def test_historical_metrics_payload_roundtrips_through_note() -> None:
     """/historical appends the note to the cached dict and re-validates it —
     the HistoricalMetrics model must carry data_source + warnings through."""

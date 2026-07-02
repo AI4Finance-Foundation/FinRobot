@@ -2,6 +2,14 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+from finrobot.warning_text import humanize_warnings
+
+
+def _append_unique(target: list[str], items: list[str]) -> None:
+    for item in items:
+        if item not in target:
+            target.append(item)
+
 
 class PipelineResult(BaseModel):
     steps: dict[str, str]
@@ -29,17 +37,15 @@ class PipelineResult(BaseModel):
         DCF degrade or a failed-validation line showed in the artifact but made
         the run look clean.)
         """
-        warnings: list[str] = list(self.warnings)
+        warnings: list[str] = []
+        _append_unique(warnings, humanize_warnings([str(w) for w in self.warnings]))
         for fv in self.failed_validations:
             line = f"步骤 {fv.get('step', '?')} 降级(验证未通过): {fv.get('error', '')}"
-            if line not in warnings:
-                warnings.append(line)
+            _append_unique(warnings, humanize_warnings([line]))
         for val in self.structured_data.values():
             val_warnings = getattr(val, "warnings", None)
             if val_warnings:
-                for w in val_warnings:
-                    if w not in warnings:
-                        warnings.append(w)
+                _append_unique(warnings, humanize_warnings([str(w) for w in val_warnings]))
         return warnings
 
     @property
@@ -58,6 +64,8 @@ class PipelineResult(BaseModel):
             for failure in self.failed_validations:
                 step = failure.get("step", "unknown")
                 error = failure.get("error", "unspecified error")
+                cleaned = humanize_warnings([error])
+                error = cleaned[0] if cleaned else "unspecified error"
                 warning_lines.append(f"> - **{step}**: {error}")
             warning_lines.append(
                 "> \n> Results from failed steps may contain inaccuracies. "
@@ -74,9 +82,7 @@ class PipelineResult(BaseModel):
         primary_source: str | None = None
         for model in self.structured_data.values():
             if hasattr(model, "warnings"):
-                for w in model.warnings:
-                    if w not in all_warnings:
-                        all_warnings.append(w)
+                _append_unique(all_warnings, humanize_warnings([str(w) for w in model.warnings]))
             if hasattr(model, "data_source") and primary_source is None:
                 primary_source = model.data_source
 
@@ -108,7 +114,7 @@ class PipelineResult(BaseModel):
         if self.warnings:
             source_warnings = [
                 w
-                for w in self.warnings
+                for w in humanize_warnings([str(item) for item in self.warnings])
                 if "source" in w.lower() or "stale" in w.lower() or "cache" in w.lower()
             ]
             if source_warnings:

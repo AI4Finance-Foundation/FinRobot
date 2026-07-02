@@ -352,6 +352,7 @@ class TestPipelineResult:
             warnings = [
                 "Data discrepancy: revenue differs by 33% (fmp: 100 vs yfinance: 75).",
                 "total_debt not available — defaulted to 0",
+                "FMP request failed for url 'https://financialmodelingprep.com/api/v3/income-statement/AAPL?apikey=secret'\nFor more information check: https://developer.mozilla.org/",
             ]
             data_source = "fmp"
 
@@ -364,6 +365,40 @@ class TestPipelineResult:
         assert "revenue differs by 33%" in summary
         assert "total_debt not available" in summary
         assert "Primary data source (fmp)" in summary
+        assert "http" not in summary
+        assert "apikey" not in summary
+        assert "for url" not in summary
+
+    def test_collect_warnings_sanitizes_internal_urls(self):
+        """Artifact/runs warning collection must not surface provider endpoints."""
+
+        class FakeModel:
+            warnings = [
+                "Provider failed for url https://financialmodelingprep.com/api/v3/quote/MSFT?apikey=secret"
+            ]
+
+        result = PipelineResult(
+            steps={},
+            warnings=[
+                "All data sources failed; showing cached data from 1h ago.",
+                "HTTP 429 for url 'https://api.example.test/private?apikey=secret'",
+            ],
+            failed_validations=[
+                {
+                    "step": "peer_analysis",
+                    "error": "429 for url https://api.example.test/peers?apikey=secret",
+                }
+            ],
+            structured_data={"data_collection": FakeModel()},
+        )
+
+        blob = " ".join(result.collect_warnings())
+        assert "cached data" in blob
+        assert "https://" not in blob.lower()
+        assert "api.example" not in blob
+        assert "financialmodelingprep" not in blob
+        assert "apikey" not in blob
+        assert "for url" not in blob
 
     def test_format_summary_no_notes_when_no_warnings(self):
         """No Data Source Notes section when there are no warnings."""

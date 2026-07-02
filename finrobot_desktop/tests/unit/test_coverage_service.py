@@ -743,6 +743,32 @@ async def test_overview_degraded_market_keeps_research_and_flags_partial() -> No
     assert ov.partial is True
 
 
+async def test_overview_warnings_strip_internal_urls() -> None:
+    class _LeakyDataLayer(_StubDataLayer):
+        async def fetch_canonical(self, data_type, ticker, **_):
+            raise ProviderError(
+                "Client error '429 Too Many Requests' for url "
+                "'https://financialmodelingprep.com/api/v3/quote/NVDA?apikey=secret'\n"
+                "For more information check: https://developer.mozilla.org/"
+            )
+
+    store = _StubArtifactStore({"NVDA": [_summary(ticker="NVDA", verdict="HOLD")]})
+    ov = await build_overview(
+        _group("NVDA"),
+        artifact_store=store,  # type: ignore[arg-type]
+        data_layer=_LeakyDataLayer(),  # type: ignore[arg-type]
+        now=NOW,
+    )
+
+    (row,) = ov.rows
+    blob = " ".join(row.warnings)
+    assert row.warnings
+    assert "http" not in blob
+    assert "apikey" not in blob
+    assert "for url" not in blob
+    assert "For more information" not in blob
+
+
 async def test_overview_one_bad_ticker_does_not_blank_others() -> None:
     store = _StubArtifactStore(
         {"AAPL": [_summary(ticker="AAPL")], "NVDA": [_summary(ticker="NVDA")]}

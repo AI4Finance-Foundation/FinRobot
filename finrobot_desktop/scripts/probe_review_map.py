@@ -12,7 +12,6 @@ Run: uv run python scripts/probe_review_map.py AAPL NVDA KO MU TSLA F RIVN
 from __future__ import annotations
 
 import asyncio
-import os
 import sys
 from pathlib import Path
 
@@ -99,6 +98,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
-    sys.stdout.flush()
-    os._exit(0)  # aiosqlite non-daemon thread keeps the process alive otherwise
+    raise SystemExit(asyncio.run(main()))

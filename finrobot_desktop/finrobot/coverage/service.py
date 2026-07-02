@@ -57,6 +57,7 @@ from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.data.types import DataType
 from finrobot.run_store import RunRecord, RunStore
+from finrobot.warning_text import humanize_warnings
 
 logger = logging.getLogger(__name__)
 
@@ -253,6 +254,9 @@ async def _assemble_row(
             artifact_id=row.latest_artifact_id,
         )
     row.needs_refresh = _needs_refresh(row)
+    cleaned_warnings: list[str] = []
+    _extend_unique(cleaned_warnings, humanize_warnings(row.warnings))
+    row.warnings = cleaned_warnings
     return row
 
 

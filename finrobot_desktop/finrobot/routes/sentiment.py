@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import logging
 import math
-import re
 from typing import Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query
@@ -25,6 +24,7 @@ from finrobot.engine.data.providers.adanos_provider import AlignmentToken
 from finrobot.engine.data.ticker import validate_ticker
 from finrobot.engine.data.types import DataType
 from finrobot.ratelimit import enforce_live_data_limit
+from finrobot.warning_text import humanize_warnings as _humanize_warnings
 
 logger = logging.getLogger(__name__)
 
@@ -195,32 +195,6 @@ def _sentiment_failure_reason(
         if name in sentiment_providers and state.last_rate_limited:
             return "rate_limited"
     return "provider_error"
-
-
-# Internal upstream endpoints / httpx "for url '...'" tails are an audit trail,
-# not analyst-facing copy. The sentiment card renders `warnings` verbatim
-# (frontend-contract red line ⑥), so strip URLs here at the contract boundary —
-# defends already-poisoned cache entries written before the provider was cleaned.
-_URL_TAIL_RE = re.compile(r"\s*for url '[^']*'")
-_BARE_URL_RE = re.compile(r"https?://\S+")
-
-
-def _humanize_warnings(warnings: list[str]) -> list[str]:
-    """Strip raw upstream URLs out of provider warnings before they enter the
-    contract. Keeps the human lead text; drops the internal endpoint / stack
-    detail that must never reach the analyst card."""
-    cleaned: list[str] = []
-    for w in warnings:
-        # httpx renders "<msg> for url '<url>'\nFor more information check: <mdn>"
-        # — drop the continuation line (boilerplate) first; a legitimate
-        # degradation note is single-line. Then strip any URL the lead line carries.
-        s = w.split("\n", 1)[0]
-        s = _URL_TAIL_RE.sub("", s)
-        s = _BARE_URL_RE.sub("", s)
-        s = re.sub(r"\s{2,}", " ", s).strip()
-        if s:
-            cleaned.append(s)
-    return cleaned
 
 
 def _has_usable_sentiment(raw: Any) -> bool:

@@ -37,6 +37,7 @@ from finrobot.engine.models.financial import (
 )
 from finrobot.engine.services.market_data import fetch_price_history
 from finrobot.ratelimit import enforce_live_data_limit
+from finrobot.warning_text import humanize_warnings
 
 logger = logging.getLogger(__name__)
 
@@ -110,13 +111,12 @@ def _with_fmp_degradation_note(request: Request, payload: dict[str, Any]) -> dic
     degraded = _fmp_degradation_warning(
         request, raw_source if isinstance(raw_source, str) else None
     )
+    warnings = _warning_list(payload.get("warnings"))
     if degraded:
-        warnings = payload.get("warnings")
-        if not isinstance(warnings, list):
-            warnings = []
-            payload["warnings"] = warnings
         if degraded not in warnings:
             warnings.append(degraded)
+    if warnings or "warnings" in payload:
+        payload["warnings"] = _dedupe(humanize_warnings(warnings))
     return payload
 
 
@@ -226,6 +226,7 @@ async def get_financials(ticker: str, request: Request) -> FinancialData:
     degraded = _fmp_degradation_warning(request, extracted.data_source)
     if degraded and degraded not in extracted.warnings:
         extracted.warnings.append(degraded)
+    extracted.warnings = _dedupe(humanize_warnings(extracted.warnings))
     return extracted
 
 
@@ -444,6 +445,14 @@ def _dedupe(items: list[str]) -> list[str]:
         seen.add(item)
         out.append(item)
     return out
+
+
+def _warning_list(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [str(item) for item in value]
+    if value is None:
+        return []
+    return [str(value)]
 
 
 async def _provider_price_cache_payload(

@@ -179,3 +179,32 @@ def test_local_listing_same_currency_is_noop():
 def test_nonpositive_rate_raises():
     with pytest.raises(ValueError, match="positive"):
         normalize_canonical_financials_currency(_tsm_canonical_twd(), 0.0)
+
+
+def test_adr_dividend_per_share_reconciled_to_quote_unit():
+    """ADR per-ordinary vs per-ADR DPS reconciliation (TSM 2026-07-02): the provider
+    per-share DPS is per-ORDINARY-share (22 TWD) while the untouched price is per-ADR
+    ($427). FX-scaling alone leaves $0.69 (per-ordinary-USD) beside a per-ADR price/
+    yield — DPS/price implies 0.16% vs the provider yield 0.89%. Re-derive to the quote
+    unit (yield × price ≈ $3.8) so the DISPLAYED DPS/price/yield are self-consistent."""
+    nf = _tsm_canonical_twd().model_copy(
+        update={"dividend_per_share": 22.0, "dividend_yield": 0.00892}
+    )
+    out = normalize_canonical_financials_currency(nf, TWD_USD)
+    # Reconciled to per-ADR: yield × per-ADR price, NOT the per-ordinary FX-scaled 22×rate.
+    assert out.dividend_per_share == pytest.approx(0.00892 * out.current_price)
+    assert out.dividend_per_share > 3.0  # per-ADR ≈ $3.8, not the $0.70 per-ordinary
+    # DPS/price now agrees with the provider yield (the whole point).
+    assert out.dividend_per_share / out.current_price == pytest.approx(0.00892)
+    assert any("per-ordinary-share vs per-ADR-price" in w for w in out.warnings)
+
+
+def test_us_issuer_dividend_not_reconciled():
+    """A US issuer (reporting == quote) whose DPS and yield already agree is the fast-path
+    no-op — the reconciliation must not fire (no per-ADR caliber gap)."""
+    nf = _aapl_canonical_usd().model_copy(
+        update={"dividend_per_share": 1.0, "dividend_yield": 1.0 / 200.0}  # 200 price → 0.5%
+    )
+    out = normalize_canonical_financials_currency(nf, 1.0)
+    assert out is nf  # identity no-op, DPS untouched
+    assert out.dividend_per_share == 1.0

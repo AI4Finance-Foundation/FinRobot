@@ -21,6 +21,7 @@ analyst's eye, never rewrite a number on a guess.
 from __future__ import annotations
 
 from finrobot.engine.data.normalize.contracts import NormalizedFinancials
+from finrobot.engine.primitives.dividend import reconcile_per_share_dividend_to_quote_unit
 
 
 def normalize_canonical_financials_currency(
@@ -102,6 +103,19 @@ def normalize_canonical_financials_currency(
     converted.capital_expenditure = _scale(financials.capital_expenditure)
     converted.book_value_per_share = _scale(financials.book_value_per_share)
     converted.dividend_per_share = _scale(financials.dividend_per_share)
+    # ADR per-share/per-ADR reconciliation: the provider per-share DPS is per-ORDINARY
+    # share while the (untouched, quote-currency) price is per-ADR — FX-scaling alone
+    # leaves it on the wrong unit (TSM: $0.69 per ordinary beside a per-ADR price/yield
+    # ≈ $3.8). Re-derive to the quote unit from the dimensionless yield × price so the
+    # DISPLAYED DPS/price/yield are self-consistent — the same guard the DDM seed runs,
+    # now applied at the canonical layer so every consumer (report summary, /financials)
+    # gets it, not just the bank DDM path. dividend_yield is currency-invariant (unchanged).
+    reconciled_dps, dps_note = reconcile_per_share_dividend_to_quote_unit(
+        converted.dividend_per_share, financials.dividend_yield, converted.current_price
+    )
+    converted.dividend_per_share = reconciled_dps
+    if dps_note is not None:
+        converted.warnings = [*converted.warnings, dps_note]
     converted.forward_eps = _scale(financials.forward_eps)
     converted.trailing_eps = _scale(financials.trailing_eps)
 

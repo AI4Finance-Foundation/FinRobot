@@ -159,10 +159,33 @@ async def _execute_lbo_calc(
         )
     else:
         exit_equity_clause = f"Exit equity: ${result.exit_equity / 1e6:.0f}M."
+    # When the deal does not self-finance (levered FCF negative across the hold →
+    # net debt rises on revolver draws instead of amortizing), the MOIC / IRR are
+    # exit-multiple artifacts, not achievable returns. Lead the headline with the
+    # feasibility verdict and demote the returns to a disclosed footnote rather than
+    # reporting them as an unconditional headline. This is NOT a punt (contract ②):
+    # the schedule, entry/exit breakdown, ability-to-pay and the returns themselves
+    # all stay as traceable outputs — "not feasible as modeled, and why" IS the
+    # conclusion.
+    ending_debt = result.schedule[-1].ending_debt
+    if result.self_financing is False:
+        headline = (
+            f"LBO not self-financing as modeled: the acquisition debt does not amortize — "
+            f"projected levered free cash flow is negative across the hold, so net debt rises "
+            f"from ${result.entry_debt / 1e6:.0f}M to ${ending_debt / 1e6:.0f}M on revolver "
+            f"draws rather than paying down. The modeled {moic_str} MOIC / {irr_str} IRR over "
+            f"{inputs.holding_period_years} years are exit-multiple-dependent (no operating "
+            f"deleveraging), not returns a sponsor could underwrite at "
+            f"{inputs.leverage_multiple:.1f}× leverage. "
+        )
+    else:
+        headline = (
+            f"LBO implies {moic_str} MOIC and {irr_str} IRR over "
+            f"{inputs.holding_period_years} years. "
+        )
     narrative = (
         f"{warning_prefix}"
-        f"LBO implies {moic_str} MOIC and {irr_str} IRR over "
-        f"{inputs.holding_period_years} years. "
+        f"{headline}"
         f"Entry equity: ${result.entry_equity / 1e6:.0f}M, "
         f"{exit_equity_clause} "
         f"Entry EV: ${result.entry_ev / 1e6:.0f}M "

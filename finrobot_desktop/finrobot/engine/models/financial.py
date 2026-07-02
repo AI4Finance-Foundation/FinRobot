@@ -1162,6 +1162,20 @@ class LBOResult(BaseModel):
         description="Annualized IRR (decimal). -1.0 = total loss (equity wiped at exit). "
         "None = undefined (non-positive entry equity — impossible LBO structure).",
     )
+    self_financing: bool | None = Field(
+        default=None,
+        description=(
+            "Whether the modeled levered FCF deleverages the acquisition debt over the "
+            "hold (exit debt < entry debt). False = the deal does NOT self-finance: "
+            "projected operating cash flow is negative across the hold, the revolver funds "
+            "the shortfall every year and net debt RISES instead of amortizing, so any "
+            "positive exit equity is manufactured by exit-multiple expansion on a larger, "
+            "debt-financed EBITDA base — NOT by operating deleveraging. MOIC / IRR are then "
+            "exit-multiple-dependent, not returns a sponsor could underwrite at this "
+            "structure, and must not headline as achievable. None = undefined (impossible "
+            "structure: non-positive entry equity)."
+        ),
+    )
     sensitivity: dict[str, Any] = Field(
         default_factory=dict,
         description="entry_multiples, exit_multiples, irr_grid, moic_grid",

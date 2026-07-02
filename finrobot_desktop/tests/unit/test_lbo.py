@@ -245,3 +245,56 @@ class TestCapitalStructureWarning:
         text = result.capital_structure_warning.lower()
         assert "cash" in text
         assert "fee" in text  # transaction/financing fees not modeled
+
+
+class TestSelfFinancingGate:
+    """A deal that does not deleverage from the target's own levered FCF is NOT
+    self-financing: the revolver funds the shortfall every year and net debt RISES
+    instead of amortizing, so the MOIC/IRR are exit-multiple artifacts, not achievable
+    returns. Live-validated on MU (memory, capex 42% > EBITDA margin 36%) and DUK
+    (regulated utility, rate-base capex 43%), both of which trip the gate at 5×
+    leverage while XOM/AAPL/KO/VZ deleverage cleanly (see 2026-07-03 T4 fix)."""
+
+    def test_healthy_deal_is_self_financing(self):
+        """Low capex vs margin → positive FCF → debt amortizes → self_financing True."""
+        result = calculate_lbo(_base_inputs())  # margin 20% > capex 4%
+        assert result.self_financing is True
+        assert result.schedule[-1].ending_debt < result.entry_debt  # deleveraged
+
+    def test_structural_cash_burn_not_self_financing(self):
+        """capex_pct (30%) > ebitda_margin (20%) → EBITDA − capex < 0 → FCF negative
+        every year regardless of leverage → revolver draws → debt rises. This is the
+        MU pathology reproduced deterministically."""
+        inputs = _base_inputs(capex_pct_revenue=0.30, ebitda_margin=0.20)
+        result = calculate_lbo(inputs)
+        assert result.entry_equity > 0  # a real (not impossible) structure
+        assert result.self_financing is False
+        # Debt must RISE over the hold (revolver-funded burn), never amortize.
+        assert result.schedule[-1].ending_debt > result.entry_debt
+        assert all(y.fcf < 0 for y in result.schedule)
+        # MOIC/IRR are still computed (traceable, not withheld — contract ②) but the
+        # warning leads with the feasibility verdict so they never headline as achievable.
+        text = result.capital_structure_warning.lower()
+        assert "exit multiple" in text
+        assert text.startswith("lbo not self-financing")  # verdict leads the warning
+
+    def test_impossible_structure_self_financing_undefined(self):
+        """Non-positive entry equity is the impossible-structure case: returns are
+        already None, so self_financing is undefined (None), not False — the two
+        signals must not be conflated."""
+        inputs = _base_inputs(leverage_multiple=10.0)  # entry_equity = 800 − 1000 < 0
+        result = calculate_lbo(inputs)
+        assert result.entry_equity < 0
+        assert result.self_financing is None
+        # The impossible-structure clause leads; the feasibility clause is suppressed.
+        assert "not self-financing" not in result.capital_structure_warning.lower()
+
+    def test_self_financing_matches_debt_trajectory(self):
+        """Invariant: with positive entry equity, self_financing ⟺ debt amortized
+        (exit debt < entry debt). Guards against the flag drifting from the schedule."""
+        for kw in ({}, {"capex_pct_revenue": 0.30, "ebitda_margin": 0.20}):
+            result = calculate_lbo(_base_inputs(**kw))
+            if result.entry_equity > 0:
+                assert result.self_financing == (
+                    result.schedule[-1].ending_debt < result.entry_debt
+                )

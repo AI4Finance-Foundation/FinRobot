@@ -2701,6 +2701,11 @@ export interface components {
        */
       irr?: number | null
       /**
+       * Self Financing
+       * @description Whether the modeled levered FCF deleverages the acquisition debt over the hold (exit debt < entry debt). false = does NOT self-finance (operations burn cash, revolver funds the shortfall, net debt rises) → MOIC/IRR are exit-multiple artifacts, NOT achievable returns; must not headline. null = undefined (impossible structure, non-positive entry equity).
+       */
+      self_financing?: boolean | null
+      /**
        * Sensitivity
        * @description entry_multiples, exit_multiples, irr_grid, moic_grid
        */

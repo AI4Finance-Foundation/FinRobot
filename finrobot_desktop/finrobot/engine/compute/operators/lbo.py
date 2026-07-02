@@ -70,6 +70,19 @@ def _calculate_lbo_core(inputs: LBOInputs) -> LBOResult:
         moic = None
         irr = None
 
+    # Self-financing test: an LBO must DELEVERAGE from the target's own levered FCF —
+    # the acquisition debt is paid down over the hold. When projected FCF is negative
+    # across the hold the revolver funds the shortfall every year and net debt RISES
+    # (ending_debt ≥ entry_debt) instead of amortizing; the deal does NOT self-finance,
+    # and any positive exit equity is a pure exit-multiple artifact on a debt-financed
+    # larger EBITDA base, not operating deleveraging. The test is UNIVERSAL — it keys on
+    # the computed schedule, not on the industry or a ticker list — so a non-cyclical
+    # capital-hungry name trips it on the same footing as a cyclical one (live-validated:
+    # MU memory capex 42% > margin 36% AND DUK regulated-utility rate-base capex 43% both
+    # fail at 5× leverage; XOM/AAPL/KO/VZ deleverage cleanly and pass). Undefined (None)
+    # for the impossible structure (entry_equity ≤ 0), where returns are already None.
+    self_financing: bool | None = (remaining_debt < entry_debt) if entry_equity > 0 else None
+
     capital_structure_warning = (
         "Simplified sources & uses: entry debt is modeled as new debt of "
         "leverage_multiple × LTM EBITDA. The target's existing balance-sheet "
@@ -82,17 +95,29 @@ def _calculate_lbo_core(inputs: LBOInputs) -> LBOResult:
     if inputs.entry_ebitda is not None and inputs.entry_ebitda != inputs.ltm_ebitda:
         # Cyclical: entry priced on NORMALIZED through-cycle EBITDA, not the current
         # LTM. Disclose both so an analyst never reads the modeled returns as an
-        # at-market deal — the entry EV below is the sponsor's ability-to-pay, which
-        # for a cycle-peak name sits far below the current market enterprise value.
+        # at-market deal. Branch the direction on the cycle PHASE — a peak issuer
+        # (LTM > normalized) is priced DOWN so its ability-to-pay sits below the current
+        # market EV; a trough issuer (LTM < normalized) is priced UP from the depressed
+        # current LTM toward sustainable earnings. The seed provenance carries the exact
+        # market-EV ratio; the operator has no market cap, so it states only the
+        # direction — a trough name (XOM) is never mislabeled "cycle-peak".
+        if inputs.ltm_ebitda > entry_ebitda:
+            phase_clause = (
+                "for a cycle-peak issuer this normalized entry EV sits below the current "
+                "market enterprise value, so an LBO at today's market price is not feasible"
+            )
+        else:
+            phase_clause = (
+                "for a cycle-trough issuer this marks the entry UP from the depressed "
+                "current-LTM basis to sustainable through-cycle earnings"
+            )
         capital_structure_warning = (
             f"Cyclical entry normalization: the entry EV (${entry_ev / 1e6:.0f}M) and "
             f"acquisition debt are priced on the NORMALIZED through-cycle EBITDA "
             f"(${entry_ebitda / 1e6:.0f}M), not the current LTM EBITDA "
             f"(${inputs.ltm_ebitda / 1e6:.0f}M) — a sponsor underwrites leverage against "
-            f"sustainable through-cycle earnings, not the current cycle phase. This entry "
-            f"EV is the sponsor's ability-to-pay; for a cycle-peak issuer it is far below "
-            f"the current market enterprise value, so an LBO at today's market price is not "
-            f"feasible. " + capital_structure_warning
+            f"sustainable through-cycle earnings, not the current cycle phase; "
+            f"{phase_clause}. " + capital_structure_warning
         )
     if entry_equity <= 0:
         capital_structure_warning = (
@@ -101,6 +126,24 @@ def _calculate_lbo_core(inputs: LBOInputs) -> LBOResult:
             f"value, an impossible LBO structure. MOIC / IRR are UNDEFINED (not a total "
             f"loss) — leverage_multiple ({inputs.leverage_multiple:.1f}×) exceeds the entry "
             f"multiple ({inputs.entry_ev_ebitda:.1f}×). " + capital_structure_warning
+        )
+    if self_financing is False:
+        # Lead the warning with the feasibility verdict (prepended last so it sits
+        # first): the deal does not deleverage, so the headline MOIC / IRR must not be
+        # read as achievable sponsor returns.
+        cumulative_fcf = sum(y.fcf for y in schedule)
+        capital_structure_warning = (
+            f"LBO NOT self-financing as modeled: projected levered free cash flow is "
+            f"negative across the {inputs.holding_period_years}-year hold (cumulative "
+            f"${cumulative_fcf / 1e6:.0f}M), so the revolver funds the shortfall every year "
+            f"and net debt RISES from ${entry_debt / 1e6:.0f}M at entry to "
+            f"${remaining_debt / 1e6:.0f}M at exit rather than amortizing. The modeled MOIC / "
+            f"IRR are therefore NOT the product of operating deleveraging — they depend "
+            f"entirely on the {inputs.exit_ev_ebitda:.1f}× exit multiple applied to a larger, "
+            f"debt-financed EBITDA base. A sponsor could not underwrite this structure at "
+            f"{inputs.leverage_multiple:.1f}× leverage; the returns are shown for transparency "
+            f"but are exit-multiple-dependent, not achievable through the LBO's own cash "
+            f"generation. " + capital_structure_warning
         )
 
     return LBOResult(
@@ -113,6 +156,7 @@ def _calculate_lbo_core(inputs: LBOInputs) -> LBOResult:
         exit_equity=exit_equity,
         moic=moic,
         irr=irr,
+        self_financing=self_financing,
         irr_formula_warning=(
             "IRR computed via Newton-Raphson NPV=0 solver on the cash flow vector "
             "[-entry_equity, 0, ..., 0, exit_equity]. Currently models a single "

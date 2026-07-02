@@ -13,12 +13,17 @@ import { ValuationInstruments } from './ValuationInstruments'
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }))
 
 // lbo/comps read the full artifact for their headline; mock it keyed on the id
-// so an lbo id resolves IRR/MOIC and everything else returns no detail.
+// so an lbo id resolves IRR/MOIC and everything else returns no detail. An id
+// containing 'burn' resolves a NON-self-financing deal (debt rises, returns are
+// exit-multiple artifacts) so the reframing path is covered.
 vi.mock('../../hooks/useV5Artifacts', () => ({
-  useArtifactDetail: (id: string | null | undefined) =>
-    id && id.includes('lbo')
-      ? { data: { outputs: { structured: { irr: 0.24, moic: 2.1 } } }, isLoading: false }
-      : { data: undefined, isLoading: false },
+  useArtifactDetail: (id: string | null | undefined) => {
+    if (!id || !id.includes('lbo')) return { data: undefined, isLoading: false }
+    const structured = id.includes('burn')
+      ? { irr: 0.166, moic: 2.15, self_financing: false }
+      : { irr: 0.24, moic: 2.1 }
+    return { data: { outputs: { structured } }, isLoading: false }
+  },
 }))
 
 function summary(
@@ -99,6 +104,18 @@ describe('ValuationInstruments', () => {
     expect(lbo.getAttribute('data-state')).toBe('value')
     expect(lbo.textContent).toContain('24% IRR')
     expect(lbo.textContent).toContain('2.10× MOIC')
+  })
+
+  it('lbo that does NOT self-finance leads with the verdict, never headlines the unearned IRR', () => {
+    renderInstruments({
+      timeline: [summary({ id: 'art_lbo_burn_1', type: 'lbo', target_price: null })],
+    })
+    const lbo = screen.getByTestId('instrument-lbo')
+    expect(lbo.getAttribute('data-state')).toBe('value')
+    // Verdict is the headline; the IRR is demoted + qualified, never a bare "17% IRR".
+    expect(lbo.textContent).toContain('Not self-financing')
+    expect(lbo.textContent).toContain('exit-multiple only')
+    expect(lbo.textContent).not.toContain('2.15× MOIC')
   })
 
   it('an instrument run renders progress IN its own tile and locks the others (never the top panel)', () => {

@@ -227,6 +227,22 @@ function deriveReading(
     const irr = plainNum(s.irr)
     const moic = plainNum(s.moic)
     if (irr == null && moic == null) return { kind: 'withheld', ...base }
+    // A deal that does not deleverage (backend self_financing === false): projected
+    // levered FCF is negative across the hold, so net debt rises on revolver draws and
+    // the MOIC / IRR are pure exit-multiple artifacts, not achievable returns. Lead with
+    // the verdict and demote the numbers so this headline chip never reports an unearned
+    // IRR — the detail page's capital_structure_warning carries the full prose.
+    if (s.self_financing === false) {
+      return {
+        kind: 'value',
+        primary: 'Not self-financing',
+        secondary:
+          irr != null ? `${formatPercent(irr, locale, 0)} IRR · exit-multiple only` : undefined,
+        tone: 'neg',
+        source,
+        ...base,
+      }
+    }
     return {
       kind: 'value',
       primary: irr != null ? `${formatPercent(irr, locale, 0)} IRR` : '—',

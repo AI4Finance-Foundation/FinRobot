@@ -96,8 +96,8 @@ describe('FootballField historical-band provenance rail', () => {
 
 describe('FootballField calibrated synthesis target overlay', () => {
   // 172 is not a method low/mid/high in KEYED_ROWS, so "$172" is a clean signal
-  // that the weighted-target marker mounted (price-space, same axis as the bars).
-  it('overlays the weighted-target marker on the price axis', () => {
+  // that the headline-target marker mounted (price-space, same axis as the bars).
+  it('overlays the headline-target marker on the price axis', () => {
     const { container } = render(
       <FootballField
         data={KEYED_ROWS}
@@ -118,5 +118,46 @@ describe('FootballField calibrated synthesis target overlay', () => {
   it('omits the target overlay when no target band is supplied', () => {
     const { container } = render(<FootballField data={KEYED_ROWS} title="FF" />)
     expect(container.textContent).not.toMatch(/\$172/)
+  })
+})
+
+// 🔴 Surface gate #2 (render): the ONLY number the football field labels "Target"
+// is targetBand.point. When the headline is anchored ($188) the DISCARDED weighted
+// blend ($209) can still surface as a method-bar mid — but it must NEVER carry a
+// "Target" label. This is the render half of the price-split double gate (the data
+// half lives in ChapterValuation.test.tsx): together they lock "anchor active ⇒
+// every 'Target' surface points at the anchor value, never the blend".
+describe('FootballField "Target" label points only at the headline point', () => {
+  // dcf mid = $188 is the anchored headline; ev_ebitda mid = $209 is the discarded
+  // blend value surfacing as a method bar (fmtPrice rounds ≥$100 to whole dollars,
+  // so 188.31→"$188" and 208.65→"$209" — the exact strings the bug displayed).
+  const ANCHOR_ROWS = [
+    { method: 'dcf', low: 165, mid: 188, high: 200 },
+    { method: 'ev_ebitda', low: 195, mid: 209, high: 260 },
+  ]
+
+  it('labels only the headline point "Target"; the discarded blend value carries no Target label', () => {
+    render(
+      <FootballField
+        data={ANCHOR_ROWS}
+        title="FF"
+        currentPrice={210.02}
+        targetBand={{ low: 170, high: 205, point: 188 }}
+      />,
+    )
+    // (b) Every visible node containing "Target" shows the headline $188 — never $209.
+    const targetNodes = screen.getAllByText(/Target/)
+    expect(targetNodes.length).toBeGreaterThan(0)
+    for (const n of targetNodes) {
+      expect(n.textContent).toMatch(/\$188\b/)
+      expect(n.textContent).not.toMatch(/\$209\b/)
+    }
+    // (c) The discarded blend value $209 is present (as a method mid) but no node
+    // that shows it is labelled "Target".
+    const blendNodes = screen.getAllByText(/\$209/)
+    expect(blendNodes.length).toBeGreaterThan(0)
+    for (const n of blendNodes) {
+      expect(n.textContent).not.toMatch(/Target/)
+    }
   })
 })

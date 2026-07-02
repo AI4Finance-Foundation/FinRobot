@@ -14,11 +14,13 @@ interface ChartProps {
   // is. Multiple-space (its own mini-axis), never overlaid on the price plot
   // (the bars are price-space, the band is multiple-space — different units).
   historicalBand?: HistoricalBandShape | null
-  // Calibrated synthesis target: the confidence-weighted fair value (point) and
-  // its target_low/target_high band. BOTH price-space, overlaid on the same axis
-  // as the method bars so methods -> synthesis + band vs current price read in
-  // one glance (the traceable form of a fair-value gauge; the band widens as the
-  // confidence dial drops). Parts render only when finite.
+  // Calibrated synthesis target: the HEADLINE fair-value target (point) and its
+  // target_low/target_high band. The point is the SAME number the cover / thesis
+  // publish (anchor value when methods diverge, blend when they corroborate) — NOT
+  // the raw weighted blend, which the confidence dial discards on divergence. BOTH
+  // price-space, overlaid on the same axis as the method bars so methods -> synthesis
+  // + band vs current price read in one glance (the traceable form of a fair-value
+  // gauge; the band widens as the confidence dial drops). Parts render only when finite.
   targetBand?: { low?: number | null; high?: number | null; point?: number | null } | null
 }
 
@@ -424,7 +426,7 @@ export default function FootballField({
               </>
             )}
 
-            {/* Weighted synthesis target marker (label rides the bottom so it
+            {/* Headline synthesis target marker (label rides the bottom so it
                 never collides with the current-price label pinned to the top) */}
             {tgtPoint !== null && (
               <>

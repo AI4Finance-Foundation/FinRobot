@@ -396,12 +396,21 @@ export function ChapterValuation({
             // sits vs the company's own 3-year band (frozen in technical_analysis).
             historicalBand={historicalBand}
             // Calibrated synthesis target overlaid on the price axis: the
-            // confidence-weighted fair value + its target_low–target_high band,
-            // so the method bars visibly reconcile to the headline conclusion.
+            // HEADLINE target (the same number the cover / left-rail / thesis
+            // publish) + its target_low–target_high band, so the method bars
+            // visibly reconcile to the published conclusion.
+            //
+            // The point is `thesis.price_target`, NOT valuation_synthesis.weighted_price:
+            // when methods diverge the confidence dial DISCARDS the blend and anchors
+            // the headline on a single method (anchor-not-blend), so weighted_price is
+            // the rejected midpoint — labelling it "Target" here contradicts the cover
+            // (the price-split bug: cover $188 anchored vs football "Target $209" blend).
+            // Withheld point (thesis.price_target=null) → no marker, but the band still
+            // renders — 撤点≠撤区间.
             targetBand={{
               low: valuationSynthesis?.target_low ?? null,
               high: valuationSynthesis?.target_high ?? null,
-              point: valuationSynthesis?.weighted_price ?? null,
+              point: thesis?.price_target ?? null,
             }}
           />
           {forwardEstimates?.source && (

@@ -11,6 +11,7 @@ import type {
   DcfShape,
   ForwardEstimatesShape,
   NumericAuditShape,
+  ThesisShape,
   ValuationSynthesisShape,
 } from './types'
 
@@ -39,11 +40,12 @@ function renderChapter(
   numericAudit: NumericAuditShape | null = null,
   valuationSynthesis: ValuationSynthesisShape | null = null,
   forwardEstimates: ForwardEstimatesShape | null = null,
+  thesis: ThesisShape | null = null,
 ) {
   return render(
     <ChapterValuation
       dcf={dcf}
-      thesis={null}
+      thesis={thesis}
       valuationSynthesis={valuationSynthesis}
       forwardEstimates={forwardEstimates}
       quoteCurrency="USD"
@@ -221,5 +223,121 @@ describe('ChapterValuation frozen football field', () => {
     // Footnote cites the frozen source + confidence.
     expect(screen.getByText(/FMP \/v3\/analyst-estimates/)).toBeInTheDocument()
     expect(screen.getByText(/high/)).toBeInTheDocument()
+  })
+})
+
+// 🔴 Surface gate #1 (prop chain): the football field's Target point MUST be the
+// HEADLINE target (thesis.price_target — the same number the cover / left-rail /
+// synthesis publish), NEVER valuation_synthesis.weighted_price. When the confidence
+// dial judges a method an outlier it DISCARDS the blend and anchors the headline on
+// a single method (anchor-not-blend), so weighted_price is the rejected midpoint;
+// feeding it to the football field printed "Target $209" while the cover said $188
+// (the price-split bug, AAPL art_2026-07-02). Render-side companion gate lives in
+// FootballField.test.tsx ("Target" label points only at the headline point).
+type TargetBandProps = {
+  targetBand?: { point?: number | null; low?: number | null; high?: number | null }
+}
+function lastTargetBand(): TargetBandProps['targetBand'] {
+  return (footballProps.mock.calls.at(-1)![0] as TargetBandProps).targetBand
+}
+
+describe('ChapterValuation football-field target = headline, not the discarded blend', () => {
+  // Anchor regime: EV/EBITDA judged an outlier → headline anchored to DCF $188.31,
+  // the weighted blend $208.65 rejected (AAPL art_2026-07-02 shape).
+  const ANCHORED: ValuationSynthesisShape = {
+    current_price: 210.02,
+    weighted_price: 208.65, // the DISCARDED blend — must NOT be the Target point
+    target_low: 170,
+    target_high: 205,
+    anchor_method: 'dcf',
+    confidence: 'medium',
+    methods: [
+      {
+        name: 'dcf',
+        low: 165,
+        mid: 188.31,
+        high: 210,
+        confidence: 0.85,
+        source: 'implied_price ± 12%',
+      },
+      {
+        name: 'comps_pe',
+        low: 240,
+        mid: 266,
+        high: 292,
+        confidence: 0.8,
+        source: 'peer_median_forward_pe × forward_eps',
+      },
+      {
+        name: 'ev_ebitda',
+        low: 150,
+        mid: 183,
+        high: 210,
+        confidence: 0.7,
+        source: 'peer_median_ev_ebitda × ebitda',
+      },
+    ],
+  }
+
+  it('feeds the anchored headline target ($188.31), not the rejected blend ($208.65)', () => {
+    footballProps.mockClear()
+    renderChapter(DCF, null, ANCHORED, null, {
+      recommendation: 'HOLD',
+      price_target: 188.31,
+      price_target_basis: 'anchored to the corroborated DCF $188 rather than a blend',
+    })
+    const band = lastTargetBand()
+    expect(band?.point).toBe(188.31) // headline (anchor value)
+    expect(band?.point).not.toBe(208.65) // never the discarded weighted blend
+  })
+
+  it('withheld point (thesis.price_target absent) draws no marker but keeps the band', () => {
+    footballProps.mockClear()
+    renderChapter(DCF, null, { ...ANCHORED, valuation_withheld: true }, null, {
+      recommendation: 'HOLD',
+      price_target_basis: 'FAIRLY VALUED — price sits inside the fair-value range',
+    })
+    const band = lastTargetBand()
+    expect(band?.point).toBeNull() // 撤点: no headline point → no marker
+    expect(band?.low).toBe(170) // ≠撤区间: the fair-value band still renders
+    expect(band?.high).toBe(205)
+  })
+
+  // Regression (no-anchor / TSM shape): when methods corroborate, the backend
+  // publishes the blend AS the headline, so thesis.price_target == weighted_price
+  // and the Target point must still equal that value. This coincidence (anchor ==
+  // weighted) is exactly what masked the bug on TSM.
+  it('no-anchor regime keeps the Target point == weighted blend (headline == blend)', () => {
+    footballProps.mockClear()
+    const CORROBORATED: ValuationSynthesisShape = {
+      current_price: 180,
+      weighted_price: 205.5,
+      target_low: 190,
+      target_high: 221,
+      confidence: 'high',
+      methods: [
+        {
+          name: 'dcf',
+          low: 185,
+          mid: 204,
+          high: 223,
+          confidence: 0.85,
+          source: 'implied_price ± 10%',
+        },
+        {
+          name: 'comps_pe',
+          low: 190,
+          mid: 207,
+          high: 224,
+          confidence: 0.8,
+          source: 'peer_median_forward_pe × forward_eps',
+        },
+      ],
+    }
+    renderChapter(DCF, null, CORROBORATED, null, {
+      recommendation: 'BUY',
+      price_target: 205.5, // backend publishes the blend as the headline
+    })
+    expect(lastTargetBand()?.point).toBe(205.5) // == weighted_price, unchanged
   })
 })

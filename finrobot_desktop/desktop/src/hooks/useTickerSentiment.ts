@@ -13,6 +13,7 @@
 
 import { useQuery } from '@tanstack/react-query'
 import { BASE_URL } from '../api/client'
+import { extractErrorDetail } from '../api/errors'
 import { fetchWithTimeout } from '../api/fetch'
 import { FetchHttpError } from '../utils/errorMessage'
 import type { SentimentSnapshot } from '../types/v5'
@@ -23,18 +24,24 @@ export type { SentimentSnapshot } from '../types/v5'
  *  2xx (the `reason` field tells the UI why it's unavailable); throws on a
  *  non-2xx or network/timeout so the consumer can render a retry, never a
  *  misleading "not configured". */
+export async function fetchSentimentSnapshot(
+  ticker: string,
+  days = 7,
+  signal?: AbortSignal,
+): Promise<SentimentSnapshot> {
+  const r = await fetchWithTimeout(`${BASE_URL}/api/sentiment/${ticker}?days=${days}`, {
+    signal,
+  })
+  if (!r.ok) {
+    throw new FetchHttpError(r.status, r.statusText, await extractErrorDetail(r, ''))
+  }
+  return (await r.json()) as SentimentSnapshot
+}
+
 export function useTickerSentiment(ticker: string, days = 7) {
   return useQuery<SentimentSnapshot, FetchHttpError | Error>({
     queryKey: ['ticker-sentiment', ticker, days],
-    queryFn: async ({ signal }) => {
-      const r = await fetchWithTimeout(`${BASE_URL}/api/sentiment/${ticker}?days=${days}`, {
-        signal,
-      })
-      if (!r.ok) {
-        throw new FetchHttpError(r.status, r.statusText)
-      }
-      return (await r.json()) as SentimentSnapshot
-    },
+    queryFn: ({ signal }) => fetchSentimentSnapshot(ticker, days, signal),
     enabled: !!ticker,
     staleTime: 5 * 60_000,
     refetchOnMount: false,

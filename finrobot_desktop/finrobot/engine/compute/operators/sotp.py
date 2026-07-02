@@ -25,6 +25,7 @@ ZERO I/O: segment extraction (SEC) lives in the coordinator
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timezone
 
 from finrobot.engine.models.financial import SegmentValuation, SOTPBreakdown
@@ -74,13 +75,16 @@ def compute_sotp_breakdown(
         = implied_option_ev / option_ev_if_success is surfaced. v1 default None —
         the floor + implied_option_pct legs are zero-anchor, the most robust.
 
-    Raises ``ValueError`` on non-positive shares (a div-by-zero floor is a bug,
-    not a degenerate-but-legal case — the caller must gate on a real share count).
+    Raises ``ValueError`` on non-positive / non-finite market inputs (a div-by-zero
+    floor or residual is a bug, not a degenerate-but-legal case — the caller must
+    gate on a real quote and share count).
     """
-    if shares_outstanding <= 0:
+    if not math.isfinite(shares_outstanding) or shares_outstanding <= 0:
         raise ValueError(
             f"SOTP needs positive shares_outstanding, got {shares_outstanding!r} for {ticker}"
         )
+    if not math.isfinite(current_price) or current_price <= 0:
+        raise ValueError(f"SOTP needs positive current_price, got {current_price!r} for {ticker}")
     warn = list(warnings or [])
 
     ev_floor = sum(s.implied_ev for s in modelable_segments)

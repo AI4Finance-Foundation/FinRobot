@@ -19,6 +19,8 @@ EXTERNAL authoritative sources, not to the implementation:
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from finrobot.engine.compute.operators.sotp import compute_sotp_breakdown, value_segment
@@ -212,6 +214,39 @@ def test_boundary_4_floor_exceeds_market_flags_non_option_name() -> None:
     assert b.implied_option_ev < 0  # legal negative — not clamped
     assert b.implied_option_pct < 0
     assert any("floor exceeds market" in w for w in b.warnings)
+
+
+@pytest.mark.parametrize(
+    ("shares_outstanding", "current_price", "message"),
+    [
+        (0.0, 100.0, "shares_outstanding"),
+        (math.nan, 100.0, "shares_outstanding"),
+        (1e9, 0.0, "current_price"),
+        (1e9, -1.0, "current_price"),
+        (1e9, math.inf, "current_price"),
+    ],
+)
+def test_market_inputs_must_be_positive_and_finite(
+    shares_outstanding: float, current_price: float, message: str
+) -> None:
+    legs = [
+        value_segment(
+            name="SegA",
+            metric_label="gp",
+            metric_value=10e9,
+            multiple=5.0,
+            multiple_source="x",
+        )
+    ]
+
+    with pytest.raises(ValueError, match=message):
+        compute_sotp_breakdown(
+            ticker="BAD",
+            modelable_segments=legs,
+            net_debt=0.0,
+            shares_outstanding=shares_outstanding,
+            current_price=current_price,
+        )
 
 
 # --- Boundary 5: market exceeds full-success SOTP ceiling (implied prob > 1) ---

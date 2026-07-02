@@ -1,5 +1,6 @@
 import { getCapabilityToken } from './capability'
 import { isBackendUrl } from './backendUrl'
+import { acquireHeavySlot, isHeavyApiPath } from './requestLanes'
 
 export const DEFAULT_API_TIMEOUT_MS = 8_000
 
@@ -75,8 +76,17 @@ export async function fetchWithTimeout(
   timeoutMs = DEFAULT_API_TIMEOUT_MS,
 ): Promise<Response> {
   const authedInit = await injectCapabilityToken(input, init)
-  const controller = new AbortController()
   const callerSignal = authedInit.signal
+
+  // Heavy lane (requestLanes.ts): cap concurrent provider/compute calls so a
+  // millisecond local read (artifact timeline) always finds a free browser
+  // socket instead of queueing behind 5-15 s live fetches. Acquired BEFORE the
+  // timeout timer starts — lane wait is not request time, so a throttled live
+  // call can't surface as a fake timeout error on an honest degraded card.
+  // An abort while queued rejects with the same AbortError fetch would throw.
+  const release = isHeavyApiPath(input) ? await acquireHeavySlot(callerSignal ?? undefined) : null
+
+  const controller = new AbortController()
   let timedOut = false
 
   const timeoutId = globalThis.setTimeout(() => {
@@ -97,6 +107,7 @@ export async function fetchWithTimeout(
     if (timedOut) throw new RequestTimeoutError(timeoutMs)
     throw err
   } finally {
+    release?.()
     globalThis.clearTimeout(timeoutId)
     callerSignal?.removeEventListener('abort', abortFromCaller)
   }

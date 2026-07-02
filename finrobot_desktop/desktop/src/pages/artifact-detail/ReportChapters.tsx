@@ -63,6 +63,13 @@ export function ReportChapters({
   // withheld; the directional verdict still stands).
   const withheldReason = contractFindings[0]?.evidence ?? null
 
+  // Balance-sheet financial (bank / insurer): the backend withholds the FCFF-DCF,
+  // Monte Carlo and EV/EBITDA band at the source (category errors). The single
+  // authority is Python's is_balance_sheet_financial, persisted here — the chapters
+  // frame the absent panels as "not applicable" rather than "re-run", never
+  // re-deriving the classification client-side.
+  const financialSector = d.valuationSynthesis?.financial_sector ?? false
+
   return (
     <main style={{ minWidth: 0, padding: '12px 0 60px' }}>
       <ChapterAuditBanner audit={d.numericAudit} contractFindings={contractFindings} />
@@ -161,12 +168,17 @@ export function ReportChapters({
         // football field's per-multiple provenance rail (frozen, no live refetch).
         historicalBand={d.technical?.historical_bands ?? null}
       />
-      <ChapterSensitivity dcf={d.dcf} quoteCurrency={d.quoteCurrency} />
+      <ChapterSensitivity
+        dcf={d.dcf}
+        financialSector={financialSector}
+        quoteCurrency={d.quoteCurrency}
+      />
       {/* Timeline: what has happened (news) → what's ahead (catalysts). */}
       <ChapterNews thesis={d.thesis} catalysts={d.catalysts} />
       <ChapterCatalysts catalysts={d.catalysts} />
       <ChapterTechnical
         technical={d.technical}
+        financialSector={financialSector}
         quoteCurrency={d.quoteCurrency}
         snapshotPrice={d.snapshotPrice}
         snapshotBeta={d.snapshotBeta}

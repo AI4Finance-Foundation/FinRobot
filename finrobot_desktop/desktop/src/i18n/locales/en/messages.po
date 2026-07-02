@@ -433,6 +433,10 @@ msgid "chapter.valuation.empty"
 msgstr "No DCF output in this report — re-run to generate the full valuation model."
 
 #. js-lingui-explicit-id
+msgid "chapter.cashflowMethods.notApplicableForFinancials"
+msgstr "Cash-flow valuation — DCF, Monte Carlo, EV/EBITDA and P/FCF — does not apply to a balance-sheet financial (bank / insurer): free cash flow and enterprise value are category errors when deposits, float and reserves are operating raw material, not capital structure. This name is valued on P/B · P/E · residual income · DDM — see the valuation football field."
+
+#. js-lingui-explicit-id
 msgid "chapter.valuation.subheading.football"
 msgstr "Valuation Triangulation (Football Field)"
 

@@ -9,10 +9,11 @@ import { render, screen } from '@testing-library/react'
 import { ChapterTechnical } from './ChapterTechnical'
 import type { TechnicalAnalysisShape } from './types'
 
-function renderChapter(technical: TechnicalAnalysisShape | null) {
+function renderChapter(technical: TechnicalAnalysisShape | null, financialSector = false) {
   return render(
     <ChapterTechnical
       technical={technical}
+      financialSector={financialSector}
       quoteCurrency="USD"
       snapshotPrice={162.0}
       snapshotBeta={1.2}
@@ -34,6 +35,17 @@ describe('ChapterTechnical', () => {
     expect(screen.getByTestId('technical-cold-state')).toBeInTheDocument()
     expect(screen.queryByTestId('mc-histogram')).not.toBeInTheDocument()
     expect(screen.queryByTestId('band-timeline')).not.toBeInTheDocument()
+  })
+
+  it('frames the empty overlays as a category error (not "re-run") for a balance-sheet financial', () => {
+    // A bank / insurer report has no Monte Carlo / EV-EBITDA band by design — the
+    // backend withholds the DCF-derived overlays at the source. The empty state must
+    // read as "not applicable to a balance-sheet financial", never "re-run".
+    renderChapter(null, true)
+    const note = screen.getByTestId('technical-cold-state')
+    expect(note).toHaveTextContent(/balance-sheet financial/i)
+    expect(note).toHaveTextContent(/P\/B/)
+    expect(note).not.toHaveTextContent(/re-run/i)
   })
 
   it('renders Monte Carlo histogram with percentile stats from the artifact', () => {

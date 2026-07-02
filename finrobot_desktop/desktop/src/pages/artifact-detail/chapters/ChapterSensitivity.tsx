@@ -84,10 +84,14 @@ function computeAxisSwing(table: Record<string, unknown> | null | undefined): Ax
 
 export function ChapterSensitivity({
   dcf,
+  // True for a balance-sheet financial (bank / insurer): there is no FCFF-DCF, so a
+  // WACC × terminal-growth sensitivity grid is a category error — show why, not "re-run".
+  financialSector,
   // Sensitivity-grid implied prices are per-share → quote currency (BUG-030).
   quoteCurrency,
 }: {
   dcf: DcfShape | null
+  financialSector: boolean
   quoteCurrency: string
 }): React.ReactElement {
   const { t, locale } = useI18n()
@@ -96,6 +100,17 @@ export function ChapterSensitivity({
   const inputs = dcf?.inputs
   const heatmapRows = flattenSensitivity(table)
   const swing = computeAxisSwing(table)
+
+  // A balance-sheet financial has no DCF at all — the whole sensitivity chapter (which
+  // sweeps WACC × terminal growth of the FCFF-DCF) does not apply. Lead with the reason
+  // instead of an empty grid + a content-free assumptions heading.
+  if (financialSector) {
+    return (
+      <Chapter id="sensitivity">
+        <p style={mutedNote}>{t('chapter.cashflowMethods.notApplicableForFinancials')}</p>
+      </Chapter>
+    )
+  }
 
   return (
     <Chapter id="sensitivity">

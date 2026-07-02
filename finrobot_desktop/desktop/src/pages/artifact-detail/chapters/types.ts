@@ -426,6 +426,12 @@ export interface ValuationSynthesisShape {
   valuation_withheld?: boolean
   /** Human-readable disclosure of what degraded + which proxy/anchor was used. */
   degradation_note?: string | null
+  /** True for a balance-sheet financial (bank / insurer) whose cash-flow methods
+   * (FCFF-DCF, EV/EBITDA, P/FCF) are category errors and suppressed at the source.
+   * Lets the DCF / Monte-Carlo / EV-EBITDA-band / sensitivity chapters frame the
+   * absent panels as 'not applicable to a balance-sheet financial' rather than
+   * 'missing — re-run', WITHOUT re-deriving the classification in the client. */
+  financial_sector?: boolean
 }
 
 // Scenario SOTP (Batch 3B v1): the reverse-SOTP market-implied decomposition for

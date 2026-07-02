@@ -77,6 +77,11 @@ export function ChapterValuation({
   // the cover headline — the cash-flow ceiling here is the dcf METHOD mid
   // (valuation_synthesis), never implied_price.
   const dcfMethodMid = valuationSynthesis?.methods?.find((m) => m.name === 'dcf')?.mid ?? null
+  // Balance-sheet financial (bank / insurer): the DCF cells are absent by design
+  // (FCFF-DCF is a category error), but the football field still leads on P/B · P/E
+  // (+ DDM / residual income). Frame the empty DCF-inputs box as "not applicable",
+  // not "re-run", so it does not contradict the full football field rendered below.
+  const financialSector = valuationSynthesis?.financial_sector ?? false
   const reviewMarketPrice = valuationSynthesis?.current_price ?? null
   const showReviewEcho =
     mi !== null &&
@@ -351,7 +356,9 @@ export function ChapterValuation({
             borderRadius: 'var(--radius-sm)',
           }}
         >
-          {t('chapter.valuation.empty')}
+          {financialSector
+            ? t('chapter.cashflowMethods.notApplicableForFinancials')
+            : t('chapter.valuation.empty')}
         </p>
       )}
 

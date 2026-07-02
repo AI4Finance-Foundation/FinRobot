@@ -674,6 +674,39 @@ _SUPPRESSION_SWEEP = [
         },
         "ddm: equity value per share",
     ),
+    # Balance-sheet financial (bank / insurer): the cash-flow methods DCF / EV-EBITDA /
+    # P-FCF are category errors (deposits / float / reserves are operating raw material,
+    # not financing) and are suppressed at the aggregate. Each suppression reason must
+    # surface to vs.warnings AND the analyst headline (basis) — the same sibling闸 the
+    # per-method exits ride. The report path additionally withholds the whole FCFF-DCF at
+    # the SOURCE (equity_research._execute_financial_modeling) so no DCFResult exists to
+    # begin with; these rows pin the belt-and-suspenders aggregate suppression that keeps
+    # the football field clean even if a DCF is somehow present. A surviving bank method
+    # (DDM) keeps vs non-None. One row per suppressed cash-flow method.
+    (
+        "financial_sector_dcf_suppressed",
+        lambda: {
+            "ddm_calc": _ddm(),  # bank lead method → vs non-None
+            "data_collection": _financial_data(industry="Banks - Diversified"),
+        },
+        "dcf: financial-sector issuer",
+    ),
+    (
+        "financial_sector_ev_ebitda_suppressed",
+        lambda: {
+            "ddm_calc": _ddm(),
+            "data_collection": _financial_data(industry="Banks - Diversified"),
+        },
+        "ev_ebitda: financial-sector issuer",
+    ),
+    (
+        "financial_sector_p_fcf_suppressed",
+        lambda: {
+            "ddm_calc": _ddm(),
+            "data_collection": _financial_data(industry="Banks - Diversified"),
+        },
+        "p_fcf: financial-sector issuer",
+    ),
 ]
 
 

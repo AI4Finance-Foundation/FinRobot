@@ -22,6 +22,11 @@ import type {
 
 interface ChapterTechnicalProps {
   technical: TechnicalAnalysisShape | null
+  // True for a balance-sheet financial (bank / insurer): the quant overlays are all
+  // DCF / enterprise-value derived (Monte Carlo IS a DCF distribution, the EV/EBITDA
+  // band IS an enterprise-value multiple), so they are withheld at the source as
+  // category errors — frame the empty state as "not applicable", not "re-run".
+  financialSector: boolean
   // Every amount in this chapter is a per-share price (current/52w/MC/sniper)
   // → quote currency (BUG-030).
   quoteCurrency: string
@@ -37,6 +42,7 @@ interface ChapterTechnicalProps {
 
 export function ChapterTechnical({
   technical,
+  financialSector,
   quoteCurrency,
   snapshotPrice,
   snapshotBeta,
@@ -103,7 +109,9 @@ export function ChapterTechnical({
 
       {!anyOverlay && (
         <p style={mutedNote} data-testid="technical-cold-state">
-          {t('chapter.technical.empty.overlay')}
+          {financialSector
+            ? t('chapter.cashflowMethods.notApplicableForFinancials')
+            : t('chapter.technical.empty.overlay')}
         </p>
       )}
 

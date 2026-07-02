@@ -465,6 +465,7 @@ def synthesize_valuations(
             valuation_withheld=withheld,
             degradation_note=note,
             mna_transition=mna_transition,
+            financial_sector=financial_sector,
         )
 
     weighted_price = sum(m.mid * m.confidence for m in methods) / total_confidence
@@ -560,6 +561,7 @@ def synthesize_valuations(
         valuation_withheld=withheld,
         degradation_note=note,
         mna_transition=mna_transition,
+        financial_sector=financial_sector,
     )
 
 

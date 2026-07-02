@@ -1034,6 +1034,20 @@ class ValuationSynthesis(BaseModel):
             "data-lineage degradation, NOT a calibration call. Default False."
         ),
     )
+    financial_sector: bool = Field(
+        default=False,
+        description=(
+            "True for a balance-sheet financial (bank / risk-carrying insurer) whose "
+            "cash-flow valuation methods — FCFF-DCF, EV/EBITDA, P/FCF — are suppressed as "
+            "category errors (deposits / float / reserves are operating raw material, not "
+            "capital structure). The football field leads on P/B · P/E (+ DDM / residual "
+            "income for banks). Persisted so a consumer (the report chapters) can frame the "
+            "absent DCF / Monte-Carlo / EV-EBITDA-band panels as 'not applicable to a "
+            "balance-sheet financial' rather than 'missing — re-run', WITHOUT re-deriving "
+            "is_balance_sheet_financial in the client (single authority stays in Python). "
+            "Default False."
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------

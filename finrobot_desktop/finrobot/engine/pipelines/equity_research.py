@@ -79,7 +79,11 @@ from finrobot.engine.pipelines._helpers import (
 )
 from finrobot.engine.pipelines._thesis_prompt import build_thesis_prompt
 from finrobot.engine.pipelines.ddm import _execute_ddm_calc, _execute_ddm_seed
-from finrobot.engine.primitives.industry import is_bank, is_commodity_cyclical
+from finrobot.engine.primitives.industry import (
+    is_balance_sheet_financial,
+    is_bank,
+    is_commodity_cyclical,
+)
 from finrobot.engine.pipelines.validators import (
     validate_catalyst_analysis,
     validate_has_fields,
@@ -652,6 +656,66 @@ async def _execute_financial_modeling(
     # USD-consistent rather than mixing a USD DCF target with a native-ccy quote.
     structured_context["data_collection"] = financial_data
 
+    # Balance-sheet financial (bank / risk-carrying insurer) → withhold the ENTIRE
+    # FCFF-DCF at the SOURCE, not just its football-field row. Free cash flow, EBITDA
+    # and the net-debt bridge are all category errors when deposits / float / reserves
+    # ARE the operating raw material, not capital structure (is_balance_sheet_financial
+    # is the single authority; is_bank documents "use DDM, not FCF-DCF"). The synthesis
+    # already suppressed the DCF/EV/P-FCF METHOD rows, but a computed DCFResult still
+    # leaked its projection into the financial chapter (10y EBITDA trajectory, terminal
+    # value, EV, equity, implied price), seeded the technical chapter's Monte Carlo (the
+    # DCF distribution) and drew an EV/EBITDA historical band — every one the same
+    # category error (JPM: net_debt −$630B treated as net cash → $805 vs a ~$334 price).
+    # Skipping seed/calculate here means _execute_technical_analysis finds no DCFResult
+    # and degrades its overlays too. The bank still leads on DDM / residual income
+    # (computed above for is_bank) + P/B + P/E; build that football field now. No
+    # EV/EBITDA band is fetched (enterprise value is the same category error). Mirrors
+    # the standalone _execute_dcf_calc gate (dcf.py) and aggregate_valuation's
+    # financial_sector row suppression — this is the report-path sibling that was still
+    # computing the trajectory.
+    if is_balance_sheet_financial(
+        industry=financial_data.market.industry, sector=financial_data.market.sector
+    ):
+        logger.info(
+            "FCFF-DCF withheld for %s: balance-sheet financial issuer (category error) — "
+            "valued on P/B · P/E · residual income · DDM",
+            ticker,
+        )
+        current_price = (
+            financial_data.market.current_price if hasattr(financial_data, "market") else 0
+        )
+        if current_price > 0:
+            from finrobot.engine.pipelines._helpers import build_valuation_synthesis
+
+            vs = build_valuation_synthesis(
+                structured_context,
+                current_price,
+                ticker=ticker,
+                # No EV/EBITDA band — enterprise value is a category error for a
+                # balance-sheet financial; aggregate_valuation suppresses the row anyway.
+                historical_ev_ebitda_band=None,
+                historical_ev_ebitda_sample_n=None,
+            )
+            if vs is not None:
+                structured_context["valuation_synthesis"] = vs
+        return StepOutput(
+            text=(
+                f"FCFF-DCF withheld: {ticker} is a balance-sheet financial (bank / insurer). "
+                f"Free cash flow, EBITDA and the net-debt bridge are ill-defined when deposits / "
+                f"float / reserves are operating raw material, not capital structure — the entire "
+                f"cash-flow projection (EBITDA / FCF trajectory, terminal value, enterprise value, "
+                f"implied price), its Monte-Carlo distribution and the EV/EBITDA band are category "
+                f"errors here. This name is valued on P/B · P/E · residual income · DDM instead."
+            ),
+            structured=None,
+            warnings=[
+                f"financial_modeling withheld: FCFF-DCF is a category error for balance-sheet "
+                f"financial {ticker} — no EBITDA/FCF trajectory, terminal value, EV, implied "
+                f"price, Monte-Carlo or EV/EBITDA band produced; valued on P/B · P/E · RI · DDM "
+                f"— method withheld"
+            ],
+        )
+
     # Stage-1 growth seed: prefer analyst consensus (the multi-year forward path
     # the data step already fetched) over a backward-looking trailing CAGR, so
     # the DCF stops contradicting the pipeline's own forward projection — the
@@ -854,29 +918,51 @@ async def _execute_technical_analysis(
     dcf = structured_context.get("financial_modeling")
     financial_data = structured_context.get("data_collection")
     if not isinstance(dcf, DCFResult):
-        # financial_modeling degraded gracefully (DCF not applicable for this
-        # profile — e.g. terminal_growth ≥ WACC, Gordon undefined). It returned
-        # StepOutput(structured=None) and never wrote a DCFResult here. The
-        # quant overlays (Monte Carlo / Sniper / Bands) all seed off DCF inputs,
-        # so chapter 09 has nothing to compute — but that's an expected
-        # degrade, NOT a run-ending error. Mirror financial_modeling: skip the
-        # chapter, emit a degraded payload with all branches None and an
-        # explicit marker the validator recognizes, and let the run continue to
-        # a relative-valuation report.
-        return StepOutput(
-            text=(
+        # financial_modeling produced no DCFResult. Two disjoint reasons, one
+        # degraded outcome: (a) a balance-sheet financial (bank / insurer) whose
+        # FCFF-DCF is withheld at the source as a category error, or (b) a
+        # non-financial whose Gordon terminal value is undefined (terminal_growth ≥
+        # WACC — low-WACC utilities / REITs). Either way the quant overlays (Monte
+        # Carlo / Sniper / Bands) all seed off DCF inputs, so chapter 09 has nothing
+        # to compute — an expected degrade, NOT a run-ending error. Emit a degraded
+        # payload with all branches None and the marker the validator recognizes.
+        # For a financial the Monte Carlo (a DCF distribution) and the EV/EBITDA band
+        # are themselves the category error, so say so — never frame it as a re-run.
+        is_financial = isinstance(financial_data, FinancialData) and is_balance_sheet_financial(
+            industry=financial_data.market.industry, sector=financial_data.market.sector
+        )
+        if is_financial:
+            text = (
+                "Technical / quant overlays (Monte Carlo, sniper entries, historical "
+                "valuation bands) not applicable: this is a balance-sheet financial "
+                "(bank / insurer). The Monte Carlo is a DCF distribution and the EV/EBITDA "
+                "band an enterprise-value multiple — both category errors when free cash "
+                "flow and enterprise value are ill-defined for a deposit / float funded "
+                "balance sheet. The valuation relies on P/B · P/E · residual income · DDM."
+            )
+            reason_warnings = [
+                TECHNICAL_DCF_UNAVAILABLE_MARKER,
+                "technical_analysis withheld: Monte Carlo and the EV/EBITDA band are "
+                "DCF / enterprise-value derived — category errors for a balance-sheet "
+                "financial; no cash-flow overlays produced — method withheld",
+            ]
+        else:
+            text = (
                 "Technical / quant overlays (Monte Carlo, sniper entries, historical "
                 "valuation bands) skipped: every metric in this chapter is seeded from "
                 "DCF inputs, and the DCF valuation is not applicable to this issuer "
                 "(the cost-of-capital and terminal-growth assumptions leave the Gordon "
                 "perpetual-growth model undefined). The valuation conclusion relies on "
                 "relative valuation."
-            ),
+            )
+            reason_warnings = [TECHNICAL_DCF_UNAVAILABLE_MARKER]
+        return StepOutput(
+            text=text,
             structured=TechnicalAnalysis(
                 monte_carlo=None,
                 sniper=None,
                 historical_bands=None,
-                warnings=[TECHNICAL_DCF_UNAVAILABLE_MARKER],
+                warnings=reason_warnings,
             ),
         )
     if not isinstance(financial_data, FinancialData):

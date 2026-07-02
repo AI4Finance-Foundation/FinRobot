@@ -1262,6 +1262,158 @@ async def test_low_wacc_run_degrades_to_relative_valuation(mock_deps):
     tech_out = await _execute_technical_analysis(mock_agent, mock_deps, "prompt", ctx, "LOWW")
     assert isinstance(tech_out, StepOutput)
     assert validate_technical_analysis(tech_out.structured).passed is True
+    # CONTROL (non-financial): the degrade reason is the generic Gordon-undefined
+    # marker only — NOT the balance-sheet-financial category-error reason.
+    assert not any(
+        "balance-sheet financial" in w for w in tech_out.structured.warnings
+    ), "non-financial degrade must not claim the FCFF-DCF is a category error"
+
+
+def _insurer_financial_data():
+    """A USD property & casualty insurer: is_balance_sheet_financial True (risk-carrying
+    insurer), is_bank False. USD/USD so financial_modeling's FX normalization is a
+    network-free no-op and the is_bank DDM block never runs — the whole path stays
+    deterministic and offline for the test."""
+    from datetime import datetime, timezone
+
+    from finrobot.engine.models.financial import (
+        BalanceSheet,
+        FinancialData,
+        IncomeStatement,
+        MarketData,
+        ValuationMetrics,
+    )
+
+    return FinancialData(
+        ticker="ALL",
+        company_name="Allstate",
+        timestamp=datetime.now(tz=timezone.utc),
+        reporting_currency="USD",
+        quote_currency="USD",
+        income=IncomeStatement(revenue=5e10, ebitda=8e9, net_income=4e9),
+        balance=BalanceSheet(total_debt=8e9, total_cash=6e9),
+        market=MarketData(
+            market_cap=4.9e10,
+            shares_outstanding=2.6e8,
+            current_price=190.0,
+            industry="Insurance - Property & Casualty",
+            sector="Financial Services",
+            book_value_per_share=70.0,
+        ),
+        valuation=ValuationMetrics(),
+    )
+
+
+def _insurer_peer_comps():
+    from finrobot.engine.models.financial import CompanyFinancials, PeerComps
+
+    target = CompanyFinancials(
+        ticker="ALL",
+        name="Allstate",
+        revenue=5e10,
+        ebitda=8e9,
+        net_income=4e9,
+        market_cap=4.9e10,
+        total_debt=8e9,
+        total_cash=6e9,
+        book_value_per_share=70.0,
+        pb_ratio=1.3,
+        pe_ratio=12.0,
+    )
+    peers = [
+        target.model_copy(update={"ticker": t, "pb_ratio": 1.2, "pe_ratio": 12.5})
+        for t in ("PGR", "TRV", "CB")
+    ]
+    return PeerComps(
+        target=target, peers=peers, median_pb=1.2, pb_sample_n=4, median_pe=12.5, pe_sample_n=4
+    )
+
+
+@pytest.mark.asyncio
+async def test_financial_modeling_withholds_fcff_for_balance_sheet_financial(mock_deps):
+    """P1-5 (2026-07-02): a bank / insurer report leaked a full FCFF-DCF — the synthesis
+    suppressed the METHOD row, but the raw DCFResult still rendered the 10y EBITDA/FCF
+    trajectory + terminal value + EV + implied price in the financial chapter, seeded the
+    technical chapter's Monte Carlo (a DCF distribution) and drew an EV/EBITDA band. The
+    source-enforce gate withholds the ENTIRE FCFF-DCF for a balance-sheet financial: no
+    DCFResult is computed or written, a machine-readable reason surfaces, and the
+    football field is still built from the bank/insurer methods (financial_sector flag
+    set for the frontend). is_balance_sheet_financial covers insurers too (is_bank does
+    not) — the P&C insurer here confirms the wider boundary and needs no DDM/network."""
+    from finrobot.engine.models.financial import (
+        HistoricalMetrics,
+        StepOutput,
+        ValuationSynthesis,
+    )
+    from finrobot.engine.pipelines.equity_research import _execute_financial_modeling
+
+    fd = _insurer_financial_data()
+    hm = HistoricalMetrics(
+        years=[],
+        revenue=[],
+        revenue_growth_yoy=[],
+        cogs=[],
+        gross_profit=[],
+        gross_margin=[],
+        sga=[],
+        sga_ratio=[],
+        ebitda=[],
+        ebitda_margin=[],
+        operating_income=[],
+        operating_margin=[],
+        net_income=[],
+        eps=[],
+        pe_ratio=[],
+        cagr_revenue=None,
+        ticker="ALL",
+    )
+    ctx: dict[str, object] = {
+        "data_collection": fd,
+        "historical_metrics": hm,
+        "peer_analysis": _insurer_peer_comps(),
+    }
+
+    out = await _execute_financial_modeling(MagicMock(), mock_deps, "prompt", ctx, "ALL")
+
+    # No DCFResult — the entire cash-flow projection is withheld at the source…
+    assert isinstance(out, StepOutput)
+    assert out.structured is None
+    assert "financial_modeling" not in ctx
+    # …with a machine-readable reason (carries the surfacing marker)…
+    assert out.warnings and "method withheld" in out.warnings[0]
+    assert "category error" in out.warnings[0]
+    # …and the football field is still built from the insurer's P/B · P/E, flagged
+    # financial_sector so the frontend frames the absent DCF panels as not-applicable.
+    vs = ctx.get("valuation_synthesis")
+    assert isinstance(vs, ValuationSynthesis)
+    assert vs.financial_sector is True
+    assert "dcf" not in {m.name for m in vs.methods}
+    assert {m.name for m in vs.methods} <= {"comps_pb", "comps_pe"}
+
+
+@pytest.mark.asyncio
+async def test_technical_analysis_reason_is_category_error_for_financial(mock_deps):
+    """The bank/insurer technical degrade must read as a category error (the Monte Carlo
+    is a DCF distribution, the EV/EBITDA band an enterprise-value multiple — both
+    ill-defined for a balance-sheet financial), carrying a 'method withheld' reason —
+    NOT the generic 'Gordon undefined / re-run' framing a low-WACC non-financial gets.
+    Same all-None payload, validator still passes; only the reason differs by issuer."""
+    from finrobot.engine.models.financial import StepOutput
+    from finrobot.engine.pipelines.equity_research import _execute_technical_analysis
+    from finrobot.engine.pipelines.validators import validate_technical_analysis
+
+    # No DCFResult in ctx (financial_modeling withheld) + an insurer data_collection.
+    ctx: dict[str, object] = {"data_collection": _insurer_financial_data()}
+    out = await _execute_technical_analysis(MagicMock(), mock_deps, "prompt", ctx, "ALL")
+    assert isinstance(out, StepOutput)
+    assert out.structured.monte_carlo is None
+    assert out.structured.sniper is None
+    assert out.structured.historical_bands is None
+    assert validate_technical_analysis(out.structured).passed is True
+    assert any(
+        "balance-sheet financial" in w and "method withheld" in w
+        for w in out.structured.warnings
+    ), f"financial degrade must state the category error: {out.structured.warnings}"
 
 
 def _twd_local_financial_data():

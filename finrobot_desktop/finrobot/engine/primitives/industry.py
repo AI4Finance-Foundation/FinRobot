@@ -313,6 +313,22 @@ def semiconductor_role(profile: dict[str, object] | None) -> str | None:
         "wafer processing equipment",
         "deposition",
         "etch",
+        # Fab-TOOL / materials-engineering vendors (Applied Materials-class). They
+        # sell the TOOLS customers use to fabricate chips — NOT a foundry. Their
+        # descriptions carry "wafer fabrication TOOLS" / "materials engineering"
+        # (live-verified AMAT 2026-07-03: "provision of materials engineering
+        # solutions used to produce semiconductors … critical wafer fabrication
+        # tools used for customers to manufacture semiconductors"), which miss the
+        # narrow terms above yet greedily match the foundry substring "wafer
+        # fabrication" below → AMAT was mis-tagged foundry and slipped into TSM's
+        # foundry comp set. These identity terms fire equipment FIRST. No real
+        # pure-play foundry (TSM/UMC/GFS/TSEM) uses them (they fabricate chips, they
+        # do not sell tools/equipment), so foundry classification is unaffected.
+        "fabrication tools",
+        "fabrication equipment",
+        "manufacturing equipment",
+        "materials engineering",
+        "process control",
     )
     if any(term in text for term in equipment_terms):
         return "equipment"

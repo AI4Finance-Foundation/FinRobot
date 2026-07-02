@@ -54,12 +54,28 @@ class TestThinSampleGuard:
         assert m is None
         assert any("sample is only 1" in w for w in warnings)
 
-    def test_forward_median_of_three_passes(self):
+    def test_forward_median_of_three_passes_but_downweighted(self):
+        """3 家中位数越过 n<3 硬闸 → 方法保留、mid 正确,但样本薄(<4)→ 置信降权
+        + 一句可读披露(降权不砍方法,contract ②)。"""
         warnings: list[str] = []
         comps = _comps(median_forward_pe=33.0, forward_pe_sample_n=3)
         m = _comps_pe_method(comps, 7.47, shares_outstanding=1.6e9, warnings=warnings)
         assert m is not None
         assert abs(m.mid - 33.0 * 7.47) < 1e-9
+        # Method retained, confidence DOWNWEIGHTED (0.80 → 0.80 × 0.7 = 0.56).
+        assert m.confidence == round(0.80 * 0.7, 3)
+        assert any("thin sample" in w and "confidence reduced" in w for w in warnings)
+        # NOT a "method withheld" line — it must not be forwarded to the synthesis
+        # basis prose (which only picks up withheld reasons).
+        assert not any("method withheld" in w for w in warnings)
+
+    def test_forward_median_of_four_full_confidence_no_downweight(self):
+        """n≥4(KO=6 / JPM=6 形状)→ 满置信,零降权、零披露。"""
+        warnings: list[str] = []
+        comps = _comps(median_forward_pe=33.0, forward_pe_sample_n=4)
+        m = _comps_pe_method(comps, 7.47, shares_outstanding=1.6e9, warnings=warnings)
+        assert m is not None
+        assert m.confidence == 0.80
         assert warnings == []
 
     def test_sample_n_zero_means_unknown_and_trusts_median(self):

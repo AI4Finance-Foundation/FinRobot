@@ -431,7 +431,26 @@ async def execute_peer_analysis(
     # the order-preserving comprehension keep best-first ranking, so the slice
     # retains the most-comparable survivors.
     peer_results = await asyncio.gather(*[_fetch_one_peer(t) for t in selection.tickers])
-    survivors: list[CompanyFinancials] = [p for p in peer_results if p is not None]
+    fetched: list[CompanyFinancials] = [p for p in peer_results if p is not None]
+    # Drop-and-continue on a structurally-invalid peer instead of failing the whole
+    # set. A non-positive (or non-finite) revenue row is not a common-equity operating
+    # comp — a preferred / non-operating listing that slipped selection, or a provider
+    # glitch. validate_peer_comps used to fail the ENTIRE set on one such row (C comps
+    # 2026-07-02: MER-PK's non-positive bank net-revenue → median_pb=None, the whole
+    # report crashed). Remove it INDIVIDUALLY, name it in peer_drops (surfaced in the
+    # artifact warning), and let the rest compute a median (降级不全崩). ``> 0`` also
+    # rejects NaN; out-of-band multiples are already nulled by calculate_multiples, so
+    # revenue is the one structural check that would otherwise sink the set.
+    survivors: list[CompanyFinancials] = []
+    for p in fetched:
+        if p.revenue > 0:
+            survivors.append(p)
+        else:
+            peer_drops[p.ticker] = (
+                f"non-positive revenue ({p.revenue:g}) — not a common-equity operating "
+                "comp (preferred / non-operating listing or provider glitch); dropped"
+            )
+            logger.warning("Dropping structurally-invalid peer %s: revenue=%s", p.ticker, p.revenue)
     peers: list[CompanyFinancials] = survivors[:_PEER_COMP_SET_MAX]
 
     # A thin comp set is a QUALITY problem, not a crash. peer_analysis is a

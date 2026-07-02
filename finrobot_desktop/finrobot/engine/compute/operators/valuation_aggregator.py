@@ -25,6 +25,7 @@ stays omitted: FMP /analyst-estimates carries no free-cash-flow figure, so
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
@@ -70,6 +71,22 @@ wearing a median's authority — priced TSLA at $10.93. A sample of 0 means the
 PeerComps was built without calculate_peer_statistics (hand-constructed /
 pre-field cached payloads) — counts unknown, median trusted as before."""
 
+_COMPS_RELIABLE_MULTIPLE_SAMPLE = 4
+"""At/above this many surviving peers a multiple median carries FULL method
+confidence. Between the floor (``_COMPS_MIN_MULTIPLE_SAMPLE``) and here — i.e. a
+3-firm median — the median is a REAL comp but rests on a thin sample, so its
+confidence is DOWNWEIGHTED (never cut — contract ②「降权不砍方法」) so a thin
+peer set can't dominate the confidence-weighted synthesis blend. TSM 2026-07-02:
+its forward comps_pe rested on a 3-peer median (one of which was a value-chain-
+misclassified equipment vendor) yet drove a +50% BUY headline; the role gate
+keeps the bad peer out, and this keeps a genuinely-3-firm median from over-
+weighting. A ≥4-firm median (KO=6, JPM=6) is untouched."""
+
+_COMPS_THIN_SAMPLE_CONFIDENCE_FACTOR = 0.7
+"""Confidence multiplier for a thin (3-firm) multiple median. ~0.7 keeps the
+method a real contributor (not withheld) while demoting it a tier's-worth in the
+blend — comps_pe 0.55 → 0.385, below dcf's 0.85 cash-flow confidence."""
+
 _COMPS_MULTIPLE_MISMATCH_MAX = 10.0
 """Premise guard: comps prices the target AT the peer median, which presumes
 the market would value it like its peers. A same-caliber target multiple ≥10x
@@ -108,6 +125,33 @@ def _comps_median_refusal(
                 f"at the peer median, so the 'converge to peers' premise does not apply — method withheld"
             )
     return None
+
+
+def _thin_sample_confidence(
+    confidence: float,
+    sample_n: int,
+    method: str,
+    label: str,
+    warn: Callable[[str], None],
+) -> float:
+    """Downweight (never withhold) a multiple median that clears the ``n≥3`` floor
+    but rests on a thin sample (``3 ≤ n < _COMPS_RELIABLE_MULTIPLE_SAMPLE``).
+
+    ``_comps_median_refusal`` already withholds ``n < 3`` (a single/pair multiple is
+    not a median). This is the SOFTER, complementary rule for the 3-firm median: it
+    IS a real comp, so we keep the method and reduce its confidence — a thin peer set
+    should not dominate the confidence-weighted synthesis blend nor stamp a
+    high-confidence headline (contract ②:「降权不砍方法」). A ≥4-firm median is
+    returned unchanged. ``sample_n == 0`` means counts are unknown (hand-built /
+    pre-field cached payload) — trusted as before, no penalty."""
+    if _COMPS_MIN_MULTIPLE_SAMPLE <= sample_n < _COMPS_RELIABLE_MULTIPLE_SAMPLE:
+        warn(
+            f"{method}: {label} median rests on only {sample_n} peers "
+            f"(< {_COMPS_RELIABLE_MULTIPLE_SAMPLE}); a thin sample — confidence reduced "
+            f"(method retained, downweighted in the synthesis blend)."
+        )
+        return round(confidence * _COMPS_THIN_SAMPLE_CONFIDENCE_FACTOR, 3)
+    return confidence
 
 
 def aggregate_valuation(
@@ -428,6 +472,7 @@ def _comps_pe_method(
     multiple: float | None = None
     caliber = ""
     confidence = 0.55
+    used_sample_n = 0  # peers behind the CHOSEN median → thin-sample confidence penalty
 
     if used_forward:
         # Forward EPS is analyst consensus — a normalised forward number. Prefer a
@@ -455,6 +500,7 @@ def _comps_pe_method(
             multiple = peer_comps.median_forward_pe
             caliber = "forward EPS (peer forward P/E, same caliber)"
             confidence = 0.80
+            used_sample_n = peer_comps.forward_pe_sample_n
         elif peer_comps.median_pe is not None and peer_comps.median_pe > 0:
             refusal = _comps_median_refusal(
                 peer_comps.median_pe,
@@ -478,6 +524,7 @@ def _comps_pe_method(
             multiple = peer_comps.median_pe
             caliber = "forward EPS (as-reported peer P/E)"
             confidence = 0.78
+            used_sample_n = peer_comps.pe_sample_n
     else:
         # Trailing path: use the NOPAT core caliber so the target EPS and the
         # peer median P/E share ONE earnings definition — stripping the
@@ -509,6 +556,7 @@ def _comps_pe_method(
             multiple = peer_comps.median_core_pe
             caliber = "NOPAT core-earnings EPS"
             confidence = 0.55
+            used_sample_n = peer_comps.core_pe_sample_n
         elif peer_comps.median_pe is not None and peer_comps.median_pe > 0 and has_shares:
             # Fallback: core caliber unavailable (provider omitted operating
             # margin / tax) — keep the as-reported trailing path rather than
@@ -529,10 +577,12 @@ def _comps_pe_method(
                 multiple = peer_comps.median_pe
                 caliber = "trailing EPS"
                 confidence = 0.55
+                used_sample_n = peer_comps.pe_sample_n
 
     if mid is None or mid <= 0:
         return None
 
+    confidence = _thin_sample_confidence(confidence, used_sample_n, "comps_pe", "P/E", _warn)
     band = mid * _COMPS_PE_BAND_WIDTH
     assumptions = (
         f"anchored to peer median P/E {multiple:.1f}× × {caliber}" if multiple is not None else None
@@ -590,15 +640,17 @@ def _comps_pb_method(
     if mid <= 0:
         return None
     band = mid * _COMPS_PB_BAND_WIDTH
+    # Slightly above comps_pe's trailing confidence: for a cyclical, P/B is the more
+    # reliable relative anchor than a cycle-distorted P/E — then downweighted for a
+    # thin (3-firm) peer median just like comps_pe.
+    confidence = _thin_sample_confidence(0.60, peer_comps.pb_sample_n, "comps_pb", "P/B", _warn)
     return ValuationMethodRange(
         method="comps_pb",
         method_type="valuation",
         low=mid - band,
         mid=mid,
         high=mid + band,
-        # Slightly above comps_pe's trailing confidence: for a cyclical, P/B is the
-        # more reliable relative anchor than a cycle-distorted P/E.
-        confidence=0.60,
+        confidence=confidence,
         source="peer_median_pb × target_book_value_per_share (cyclical book-value caliber, primary multiple)",
         assumptions=f"anchored to peer median P/B {median_pb:.2f}× × book value per share ${target_bvps:,.2f}",
     )

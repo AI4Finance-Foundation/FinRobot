@@ -2019,6 +2019,99 @@ async def test_peer_analysis_excludes_target_and_names_dropped_peers(mock_deps):
     assert any("FAILME" in w for w in peer_comps.warnings)
 
 
+@pytest.mark.asyncio
+async def test_peer_analysis_drops_non_positive_revenue_peer_keeps_rest(mock_deps):
+    """A structurally-invalid peer (non-positive revenue — a preferred/non-operating
+    listing whose bank net-revenue caliber went negative, or a provider glitch) is
+    dropped INDIVIDUALLY and named, and the remaining peers still compute a median —
+    it no longer fails the WHOLE set (C/MER-PK comps crash, 2026-07-02)."""
+    from datetime import datetime, timezone
+
+    from finrobot.engine.data.normalize.financials import normalize_financials
+    from finrobot.engine.models.financial import (
+        BalanceSheet,
+        FinancialData,
+        IncomeStatement,
+        MarketData,
+        ValuationMetrics,
+    )
+    from finrobot.engine.pipelines._helpers import execute_peer_analysis
+
+    def _mk_norm(t: str, revenue: float):
+        return normalize_financials(
+            DataResult(
+                data=dict(
+                    revenue=revenue,
+                    ebitda=15e9,
+                    net_income=10e9,
+                    gross_margin=0.40,
+                    operating_margin=0.25,
+                    pe_ratio=20.0,
+                    market_cap=2e11,  # P/E = 2e11 / 10e9 net income = 20x (under the NM cap)
+                    shares_outstanding=5e9,
+                    current_price=100.0,
+                    total_debt=10e9,
+                    total_cash=5e9,
+                ),
+                provider="yfinance",
+                ticker=t,
+                data_type="financials",
+                timestamp=datetime.now(tz=timezone.utc),
+            )
+        )
+
+    async def _canon(_dt, t, **kw):
+        from finrobot.engine.data.interface import ProviderError
+        from finrobot.engine.data.types import DataType as _DT
+
+        if _DT(_dt) != _DT.FINANCIALS:
+            raise ProviderError(f"no canonical fake for {_dt}")
+        # PREFPK simulates a preferred listing whose bank net-revenue caliber is
+        # negative — present (so extract does NOT raise), just non-positive.
+        return _mk_norm(t, -5e9 if t == "PREFPK" else 50e9)
+
+    mock_deps.data_layer.fetch_canonical = AsyncMock(side_effect=_canon)
+    mock_deps.data_layer.fetch = AsyncMock(
+        return_value=DataResult(
+            data={},
+            provider="fake",
+            ticker="x",
+            data_type="xbrl_facts",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+    )
+    mock_deps.settings.fmp_api_key = None
+
+    target_fd = FinancialData(
+        ticker="C",
+        company_name="Citigroup Inc.",
+        timestamp=datetime.now(tz=timezone.utc),
+        income=IncomeStatement(
+            revenue=88e9, ebitda=26e9, net_income=16e9, interest_expense=83e9
+        ),
+        balance=BalanceSheet(total_debt=749e9, total_cash=23e9),
+        market=MarketData(
+            market_cap=239e9, shares_outstanding=1.7e9, current_price=139.0,
+            industry="Banks - Diversified",
+        ),
+        valuation=ValuationMetrics(),
+    )
+    ctx = {"data_collection": target_fd}
+
+    out = await execute_peer_analysis(
+        MagicMock(), mock_deps, "prompt", ctx, "C",
+        peers=["WFC", "MUFG", "TD", "RY", "PREFPK"],
+    )
+    peer_comps = out.structured
+    peer_tickers = {p.ticker.upper() for p in peer_comps.peers}
+    # The bad peer is gone; the healthy 4 survive and a median is computed.
+    assert "PREFPK" not in peer_tickers
+    assert peer_tickers == {"WFC", "MUFG", "TD", "RY"}
+    assert peer_comps.median_pe is not None
+    # ... and it is NAMED (not silently swapped), with the reason.
+    assert any("PREFPK" in w and "non-positive revenue" in w for w in peer_comps.warnings)
+
+
 def test_override_empty_canonical_withholds_llm_target():
     """When EVERY valuation method degrades (resolve_canonical_thesis's empty
     branch: no synthesis → verdict=None, target=None), the LLM's own

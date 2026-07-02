@@ -46,6 +46,7 @@ then rank by |log(mcap / target_mcap)| ascending (ties: alphabetical), filling
 from __future__ import annotations
 
 import math
+import re
 from typing import Any, Final
 
 from finrobot.engine.primitives.industry import semiconductor_role
@@ -163,6 +164,21 @@ class PeerScreenResult(BaseModel):
     not on LLM rationale wording.
     """
 
+    dropped_non_common: list[str] = []
+    """Candidates excluded as a NON-common-stock listing (preferred / warrant / unit /
+    right), which are not trading comps for a common-equity valuation.
+
+    A preferred listing (FMP ``MER-PK`` = Merrill Lynch preferred series K, ``RY-PZ``,
+    ``BAC-PB``) trades on its coupon near par (~$25), not on the issuer's common
+    equity, and FMP attributes the PARENT's market cap + income statement to it — so
+    it double-weights the parent AND its bank net-revenue caliber collapses to
+    non-positive, which then failed the WHOLE peer set's sanity check (Citigroup
+    comps 2026-07-02: MER-PK → statistical_bench degraded → median_pb=None, a single
+    bad listing crashing the report). Dropped here so it never enters the set; the
+    same-issuer dedup only caught the ones whose common was ALSO present (RY-PZ.TO
+    beside RY), which is why MER-PK slipped through.
+    """
+
     dropped_duplicate: list[str] = []
     """Candidates excluded as the redundant listing of an issuer already in the set.
 
@@ -228,6 +244,30 @@ def _normalize_issuer_name(name: str) -> str:
     while tokens and len(tokens[-1]) == 1 and tokens[-1].isalpha():
         tokens.pop()  # trailing class letter ("ALPHABET A")
     return "".join(tokens)
+
+
+# Preferred-share listings are not common-equity trading comps. FMP encodes them
+# with a ``-P<series>`` class segment after a HYPHEN: ``MER-PK`` (Merrill Lynch pref
+# series K), ``RY-PZ``, ``BAC-PB``, ``WFC-PL``, ``TD-PFK`` (P + multi-letter series),
+# and bare ``-P``. Common-stock DUAL-CLASS listings ALSO use a hyphen (BRK-B, HEI-A,
+# GEF-B) — those are real comps, so we match ONLY a ``P``-prefixed class code (which
+# only preferred uses), never a bare ``-A``/``-B`` class letter. Checked against the
+# base symbol (exchange suffix ``.TO`` stripped first).
+_PREFERRED_TICKER_RE: Final[re.Pattern[str]] = re.compile(r"-P[A-Z]{0,3}$")
+# Name-based backstop for any non-common listing whose ticker form is unusual (some
+# warrant/unit rows, or a provider that spells it out). FMP usually names a preferred
+# after its PARENT (no token), so the ticker form above is the primary catch.
+_NON_COMMON_NAME_TOKENS: Final[tuple[str, ...]] = ("PFD", "PREF", "PREFERRED", "WARRANT")
+
+
+def _is_non_common_listing(ticker: str, raw_name: str) -> bool:
+    """Whether a candidate is a non-common-stock listing (preferred / warrant / …),
+    which must not enter a common-equity comp set."""
+    base = ticker.upper().split(".", 1)[0]
+    if _PREFERRED_TICKER_RE.search(base):
+        return True
+    up = raw_name.upper()
+    return any(tok in up for tok in _NON_COMMON_NAME_TOKENS)
 
 
 def _base_symbol(ticker: str) -> str:
@@ -405,6 +445,30 @@ def screen_peers(
     def _name_of(sym: str) -> str:
         return cand_names.get(sym, "")
 
+    # Raw (un-normalized) candidate names for the non-common-listing name backstop —
+    # ``cand_names`` above is normalized (legal-form/class tokens stripped), which
+    # would swallow a "preferred" token before it can be matched.
+    raw_names: dict[str, str] = {}
+    if isinstance(names_raw, dict):
+        for sym, nm in names_raw.items():
+            raw_names[str(sym).upper()] = str(nm or "")
+    for sym, prof in profiles.items():
+        raw_names.setdefault(sym, str(prof.get("company_name") or ""))
+
+    # Preferred / warrant / other non-common listings are not common-equity trading
+    # comps; drop them before selection. A preferred (MER-PK) trades near par, carries
+    # the PARENT's market cap + income statement, and its bank net-revenue caliber goes
+    # non-positive — which failed the WHOLE peer set's sanity check (C comps 2026-07-02).
+    # The same-issuer dedup only caught preferred whose common was ALSO in the set
+    # (RY-PZ.TO beside RY); this is the general catch.
+    non_common_drop: set[str] = {
+        sym
+        for tier_syms in tiers
+        for sym in tier_syms
+        if sym != target and _is_non_common_listing(sym, raw_names.get(sym, ""))
+    }
+    dropped_non_common = sorted(s for s in non_common_drop if s in quotes)
+
     # Candidates that could actually be selected (a quote + inside their tier's
     # band). Grouping over these keeps the primary listing selectable and shares
     # band-membership across the cross-listing pair.
@@ -476,6 +540,10 @@ def screen_peers(
                 # Redundant listing of an issuer kept elsewhere in the set (or the
                 # target itself under another ticker) — already in dropped_duplicate.
                 continue
+            if sym in non_common_drop:
+                # Preferred / warrant / non-common listing — already in
+                # dropped_non_common; not a common-equity trading comp.
+                continue
             if not role_ok(sym):
                 dropped_role.append(sym)
                 continue
@@ -510,6 +578,7 @@ def screen_peers(
             if s != target
             and s not in seen
             and s not in dup_drop
+            and s not in non_common_drop
             and s in quotes
             and in_band(quotes[s][0], tier_idx)
             and role_ok(s)
@@ -544,6 +613,8 @@ def screen_peers(
         f"{': ' + ', '.join(dropped_nm[:6]) if dropped_nm else ''}; "
         f"role-dropped {len(dropped_role)}"
         f"{': ' + ', '.join(dropped_role[:6]) if dropped_role else ''}; "
+        f"non-common (preferred/warrant) dropped {len(dropped_non_common)}"
+        f"{': ' + ', '.join(dropped_non_common[:6]) if dropped_non_common else ''}; "
         f"same-issuer duplicate listing dropped {len(dropped_duplicate)}"
         f"{': ' + ', '.join(dropped_duplicate[:6]) if dropped_duplicate else ''}); "
         f"{sector_note} -> tiered by same-industry > mutual-rec > same-sector, "
@@ -557,6 +628,7 @@ def screen_peers(
         rationale=rationale,
         dropped_nm=dropped_nm,
         dropped_role=dropped_role,
+        dropped_non_common=dropped_non_common,
         dropped_duplicate=dropped_duplicate,
         pool_median_pe=pool_median,
         selected_median_pe=selected_median,

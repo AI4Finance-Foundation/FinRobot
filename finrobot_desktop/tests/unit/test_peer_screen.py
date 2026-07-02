@@ -648,3 +648,96 @@ def test_foundry_target_excludes_idm_keeps_pure_play() -> None:
         assert idm not in result.tickers
         assert idm in result.dropped_role
     assert result == screen_peers(payload, "TSM")
+
+
+def test_foundry_target_excludes_fab_tool_equipment_vendor() -> None:
+    """Regression钉死 for the TSM/AMAT bug (2026-07-02): Applied Materials makes the
+    TOOLS used to fabricate chips (equipment), not chips — but its real FMP
+    description ("materials engineering solutions … critical wafer fabrication tools")
+    misses the narrow equipment vocabulary while greedily matching the foundry
+    substring "wafer fabrication", so it was mis-tagged foundry and drove TSM's comps.
+    """
+    payload = {
+        "profile": {
+            "company_name": "Taiwan Semiconductor Manufacturing Company Limited",
+            "sector": "Technology",
+            "industry": "Semiconductors",
+            "market_cap": 2_198_000_000_000,
+            "description": (
+                "TSMC specializes in the manufacturing, packaging, and testing of integrated "
+                "circuits; renowned for its wafer fabrication processes and core foundry services."
+            ),
+        },
+        "industry_screen": ["UMC", "GFS", "TSEM", "AMAT"],
+        "stock_peers": [],
+        "sector_screen": [],
+        "quotes": {
+            "UMC": {"market_cap": 54_000_000_000, "pe": 33.3},
+            "GFS": {"market_cap": 45_000_000_000, "pe": 58.1},
+            "TSEM": {"market_cap": 18_000_000_000, "pe": 30.0},
+            "AMAT": {"market_cap": 180_000_000_000, "pe": 25.0},
+        },
+        "profiles": {
+            "UMC": {"description": "Operates as a specialized semiconductor wafer foundry."},
+            "GFS": {"description": "Operates as a prominent global semiconductor foundry."},
+            "TSEM": {"description": "Operates as an independent semiconductor foundry."},
+            "AMAT": {
+                "description": (
+                    "Applied Materials, Inc. engages in provision of materials engineering "
+                    "solutions used to produce semiconductors. The firm also focuses on design, "
+                    "development, production, and servicing of the critical wafer fabrication "
+                    "tools used for customers to manufacture semiconductors."
+                )
+            },
+        },
+    }
+
+    result = screen_peers(payload, "TSM")
+
+    assert set(result.tickers) == {"UMC", "GFS", "TSEM"}
+    assert "AMAT" not in result.tickers
+    assert "AMAT" in result.dropped_role
+
+
+def test_preferred_stock_listing_excluded_from_peer_set() -> None:
+    """Regression钉死 for the C/MER-PK bug (2026-07-02): a preferred listing (FMP
+    ``MER-PK``) trades near par, carries the parent's cap/financials, and its bank
+    net-revenue caliber collapses to non-positive — which crashed the WHOLE peer set.
+    It must be dropped at the screen (not selected), leaving the freed slot for a real
+    common-stock peer. Common dual-class (BRK-B) must NOT be swept up.
+    """
+    payload = {
+        "profile": {
+            "company_name": "Citigroup Inc.",
+            "sector": "Financial Services",
+            "industry": "Banks - Diversified",
+            "market_cap": 239_000_000_000,
+        },
+        "industry_screen": ["WFC", "MER-PK", "MUFG", "TD", "BRK-B", "BAC"],
+        "stock_peers": [],
+        "sector_screen": [],
+        "names": {
+            "WFC": "Wells Fargo & Company",
+            "MER-PK": "Merrill Lynch & Co., Inc.",  # name carries NO "preferred" token
+            "MUFG": "Mitsubishi UFJ Financial Group, Inc.",
+            "TD": "The Toronto-Dominion Bank",
+            "BRK-B": "Berkshire Hathaway Inc.",
+            "BAC": "Bank of America Corporation",
+        },
+        "quotes": {
+            "WFC": {"market_cap": 260_000_000_000, "pe": 14.0},
+            "MER-PK": {"market_cap": 194_000_000_000, "pe": 6.4},  # parent-attributed cap/pe
+            "MUFG": {"market_cap": 200_000_000_000, "pe": 12.0},
+            "TD": {"market_cap": 130_000_000_000, "pe": 13.0},
+            "BRK-B": {"market_cap": 900_000_000_000, "pe": 10.0},
+            "BAC": {"market_cap": 320_000_000_000, "pe": 13.5},
+        },
+    }
+
+    result = screen_peers(payload, "C")
+
+    assert "MER-PK" not in result.tickers
+    assert "MER-PK" in result.dropped_non_common
+    # A common dual-class listing is a real comp — never swept up as "non-common".
+    assert "BRK-B" not in result.dropped_non_common
+    assert {"WFC", "MUFG", "TD", "BAC"}.issubset(set(result.tickers))

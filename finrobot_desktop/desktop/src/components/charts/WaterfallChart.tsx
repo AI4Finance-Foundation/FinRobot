@@ -31,7 +31,7 @@ const AXIS_TICK = {
   fontFamily: "'JetBrains Mono', monospace",
 }
 
-interface WaterfallBar {
+export interface WaterfallBar {
   label: string
   value: number
   is_total: boolean
@@ -43,6 +43,49 @@ interface WaterfallBar {
   // unsigned stack HEIGHT, so it can't be labelled directly — it would drop the
   // minus sign on cash outflows.)
   labelValue: number
+}
+
+// Pure geometry: turns signed component/total rows into stacked (base, delta)
+// pairs. `base` is the invisible floor a component bar starts from (the
+// running cumulative BEFORE this row) — a "total" bar always starts at 0 (it
+// draws the full cumulative-to-date height as a checkpoint), a component bar
+// floats from the prior running total, growing up for an add or extending
+// down for a subtract. Exported standalone (not inlined in the component) so
+// the base/delta stacking semantics are unit-testable without needing
+// Recharts to actually paint pixels.
+export function buildWaterfallBars(
+  data: Record<string, number | string | boolean | null>[],
+): WaterfallBar[] {
+  if (!data || data.length === 0) return []
+  let runningTotal = 0
+  return data.map((d) => {
+    const value = Number(d.value)
+    const isTotal = Boolean(d.is_total)
+
+    if (isTotal) {
+      return {
+        label: String(d.label),
+        value,
+        is_total: true,
+        base: 0,
+        delta: runningTotal,
+        fill: TOTAL_COLOR,
+        labelValue: runningTotal,
+      }
+    }
+
+    const base = runningTotal
+    runningTotal += value
+    return {
+      label: String(d.label),
+      value,
+      is_total: false,
+      base: value >= 0 ? base : base + value,
+      delta: Math.abs(value),
+      fill: value >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR,
+      labelValue: value,
+    }
+  })
 }
 
 // Bespoke content (Add / Subtract / Total) but the shared cosmic shell so it
@@ -75,39 +118,7 @@ function WaterfallTooltip({
 
 export default function WaterfallChart({ data, title }: ChartProps) {
   const { locale } = useI18n()
-  const bars = useMemo<WaterfallBar[]>(() => {
-    if (!data || data.length === 0) return []
-    let runningTotal = 0
-    return data.map((d) => {
-      const value = Number(d.value)
-      const isTotal = Boolean(d.is_total)
-
-      if (isTotal) {
-        const bar: WaterfallBar = {
-          label: String(d.label),
-          value,
-          is_total: true,
-          base: 0,
-          delta: runningTotal,
-          fill: TOTAL_COLOR,
-          labelValue: runningTotal,
-        }
-        return bar
-      }
-
-      const base = runningTotal
-      runningTotal += value
-      return {
-        label: String(d.label),
-        value,
-        is_total: false,
-        base: value >= 0 ? base : base + value,
-        delta: Math.abs(value),
-        fill: value >= 0 ? POSITIVE_COLOR : NEGATIVE_COLOR,
-        labelValue: value,
-      }
-    })
-  }, [data])
+  const bars = useMemo<WaterfallBar[]>(() => buildWaterfallBars(data), [data])
 
   if (bars.length === 0) return null
 
@@ -118,7 +129,11 @@ export default function WaterfallChart({ data, title }: ChartProps) {
       </div>
       <div className="card-body">
         <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={bars}>
+          {/* Top margin reserves room for the bar-top value labels: waterfall
+              "total" bars (EV, Equity Value) draw at ~the Y-domain max by
+              design, so their label sits right at the plot area's top edge —
+              the recharts default (~5px) clipped it against the card. */}
+          <BarChart data={bars} margin={{ top: 24, right: 8, left: 4, bottom: 0 }}>
             <XAxis
               dataKey="label"
               tick={AXIS_TICK}
@@ -142,8 +157,24 @@ export default function WaterfallChart({ data, title }: ChartProps) {
               cursor={{ fill: 'var(--primary-soft)', radius: 4 }}
             />
             <ReferenceLine y={0} stroke="var(--border-soft)" />
-            <Bar dataKey="base" stackId="waterfall" fill="transparent" />
-            <Bar dataKey="delta" stackId="waterfall" radius={[3, 3, 0, 0]}>
+            {/* This stack's floor: kept invisible via a per-cell "transparent"
+                fill, NOT just the Bar-level `fill` prop — Recharts prioritizes
+                a datum's own `fill` field (which every row here carries, for
+                the visible `delta` bar's Cell below) over the Bar's default,
+                so without per-cell overrides this "invisible" bar painted
+                each row's real color, turning every floating brick into a
+                solid full-height bar from $0. */}
+            <Bar dataKey="base" stackId="waterfall" fill="transparent" isAnimationActive={false}>
+              {bars.map((_, index) => (
+                <Cell key={`base-cell-${index}`} fill="transparent" />
+              ))}
+            </Bar>
+            <Bar
+              dataKey="delta"
+              stackId="waterfall"
+              radius={[3, 3, 0, 0]}
+              isAnimationActive={false}
+            >
               {bars.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.fill} />
               ))}

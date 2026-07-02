@@ -110,6 +110,15 @@ _STALE_INSTANT_DAYS = 450
 # ── tolerances by field family (口径-aware, from the task spec) ────────────────
 # margins are ratios → barely drift across TTM/annual → tight ABSOLUTE band in pp.
 _MARGIN_ABS_BAND = 0.03  # 3 percentage points absolute
+# Ceiling on what a TTM-vs-FY window offset can PLAUSIBLY explain for a margin.
+# The offset abstain (no same-caliber external TTM baseline) is legitimate for
+# a few pp of drift, but a blanket exemption also swallowed 30pp+ gaps — the
+# exact magnitude of a real margin bug. Beyond this cap the row stays
+# candidate_bug (human review queue): a genuine step-change (MU's memory
+# supercycle: 33pp net-margin jump vs the pre-boom FY, externally verified
+# real) costs one review; a silent pass on a real 33pp bug costs a shipped
+# wrong number.
+_MARGIN_OFFSET_ABSTAIN_CAP = 0.15  # 15 percentage points absolute
 # EV bridge components are point values → should track SEC freshest instant closely.
 _BALANCE_REL_BAND = 0.10
 # flow magnitudes (revenue/NI/EBITDA) are TTM-vs-annual → wider band absorbs timing.
@@ -403,8 +412,18 @@ def _margin_row(
     )
     verdict = "candidate_bug" if over else "pass"
     if over and caliber_mismatch_note is not None:
-        verdict = "abstain"
-        note = f"{note}; {caliber_mismatch_note}"
+        if abs_diff > _MARGIN_OFFSET_ABSTAIN_CAP:
+            # Over the band AND beyond anything a TTM-vs-FY offset can explain:
+            # keep candidate_bug so a 30pp+ real bug can't hide behind the
+            # window-offset exemption. The note keeps the offset context.
+            note = (
+                f"{note}; exceeds the {_MARGIN_OFFSET_ABSTAIN_CAP * 100:.0f}pp cap a "
+                f"TTM-vs-FY offset can plausibly explain — review "
+                f"({caliber_mismatch_note.removeprefix('abstain: ')})"
+            )
+        else:
+            verdict = "abstain"
+            note = f"{note}; {caliber_mismatch_note}"
     return FieldRow(
         ticker,
         field,

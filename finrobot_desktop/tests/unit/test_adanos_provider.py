@@ -164,18 +164,27 @@ class TestAdanosFetch:
         The provider must raise the TYPED RateLimitedProviderError so the
         DataLayer trips the circuit breaker (BUG-045) and serves last-known-good
         stale sentiment instead of caching an empty 0/3 snapshot for the TTL."""
-        request = httpx.Request("GET", "https://adanos.example/api")
+        request = httpx.Request(
+            "GET", "https://api.adanos.org/reddit/stocks/v1/compare?tickers=MU&days=7"
+        )
         response = httpx.Response(429, request=request)
 
         async def mock_get(path, params=None):
             raise httpx.HTTPStatusError(
-                "429 Too Many Requests", request=request, response=response
+                "Client error '429 Too Many Requests' for url "
+                "'https://api.adanos.org/reddit/stocks/v1/compare?tickers=MU&days=7'",
+                request=request,
+                response=response,
             )
 
         with patch.object(provider, "_get", side_effect=mock_get):
             with pytest.raises(RateLimitedProviderError) as exc_info:
                 await provider.fetch("MU", "sentiment")
         assert is_rate_limit_error(exc_info.value)
+        message = str(exc_info.value)
+        assert "HTTP 429" in message or "rate limited" in message
+        assert "api.adanos.org" not in message
+        assert "for url" not in message
 
     @pytest.mark.asyncio
     async def test_fetch_partial_errors_with_one_response_does_not_raise(self, provider):
@@ -247,20 +256,29 @@ class TestAdanosFetch:
         """An Adanos 429 at the per-platform wrap point must surface as the
         TYPED RateLimitedProviderError (fetch() currently folds it into a
         warning, but the wrap point owns the structural classification)."""
-        request = httpx.Request("GET", "https://adanos.example/api/reddit")
+        request = httpx.Request(
+            "GET", "https://api.adanos.org/reddit/stocks/v1/compare?tickers=AAPL&days=7"
+        )
         response = httpx.Response(429, request=request)
         with patch.object(
             provider,
             "_get",
             AsyncMock(
                 side_effect=httpx.HTTPStatusError(
-                    "429 Too Many Requests", request=request, response=response
+                    "Client error '429 Too Many Requests' for url "
+                    "'https://api.adanos.org/reddit/stocks/v1/compare?tickers=AAPL&days=7'",
+                    request=request,
+                    response=response,
                 )
             ),
         ):
             with pytest.raises(RateLimitedProviderError) as exc_info:
                 await provider._fetch_one_platform(_PLATFORM_SPECS[0], "AAPL", 7)
         assert is_rate_limit_error(exc_info.value)
+        message = str(exc_info.value)
+        assert "HTTP 429" in message
+        assert "api.adanos.org" not in message
+        assert "for url" not in message
 
     @pytest.mark.asyncio
     async def test_ticker_normalization(self, provider):

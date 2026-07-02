@@ -341,20 +341,50 @@ class TestFinnhubNetworkErrors:
         """A Finnhub 429 (60 req/min free tier) must surface as the TYPED
         RateLimitedProviderError so classification survives any upstream
         rewording; substring matching is fallback only."""
-        request = httpx.Request("GET", "https://finnhub.io/api/v1/quote")
+        request = httpx.Request("GET", "https://finnhub.io/api/v1/quote?symbol=AAPL")
         response = httpx.Response(429, request=request)
         with patch.object(
             provider,
             "_get",
             AsyncMock(
                 side_effect=httpx.HTTPStatusError(
-                    "429 Too Many Requests", request=request, response=response
+                    "Client error '429 Too Many Requests' for url "
+                    "'https://finnhub.io/api/v1/quote?symbol=AAPL'",
+                    request=request,
+                    response=response,
                 )
             ),
         ):
             with pytest.raises(RateLimitedProviderError) as exc_info:
                 await provider.fetch("AAPL", "price")
         assert is_rate_limit_error(exc_info.value)
+        message = str(exc_info.value)
+        assert "HTTP 429" in message
+        assert "finnhub.io" not in message
+        assert "for url" not in message
+
+    @pytest.mark.asyncio
+    async def test_non_429_http_error_is_clean_no_raw_url(self, provider):
+        request = httpx.Request("GET", "https://finnhub.io/api/v1/quote?symbol=AAPL")
+        response = httpx.Response(500, request=request)
+        with patch.object(
+            provider,
+            "_get",
+            AsyncMock(
+                side_effect=httpx.HTTPStatusError(
+                    "Server error '500 Internal Server Error' for url "
+                    "'https://finnhub.io/api/v1/quote?symbol=AAPL'",
+                    request=request,
+                    response=response,
+                )
+            ),
+        ):
+            with pytest.raises(ProviderError) as exc_info:
+                await provider.fetch("AAPL", "price")
+        message = str(exc_info.value)
+        assert "HTTP 500" in message
+        assert "finnhub.io" not in message
+        assert "for url" not in message
 
 
 class TestFinnhubRateLimiter:

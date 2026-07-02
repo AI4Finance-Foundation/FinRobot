@@ -77,29 +77,34 @@ class FinnhubProvider(DataProvider):
             else:
                 raise ProviderError(f"Unhandled data_type: {data_type}")
         except httpx.TimeoutException as e:
-            raise ProviderError(f"Finnhub timeout for '{ticker}': {e}") from e
+            raise ProviderError(f"Finnhub timeout for '{ticker}'") from e
         except httpx.HTTPStatusError as e:
             # Finnhub free tier signals throttling with HTTP 429 (60 req/min).
             # ONLY 429 maps to the typed RateLimitedProviderError; 403 here
             # means endpoint-not-on-plan (e.g. /stock/candle premium gate),
-            # which is a capability gap, not throttling. Auth is via the
-            # X-Finnhub-Token header, so interpolating ``e`` leaks no key.
+            # which is a capability gap, not throttling. Never interpolate the raw
+            # httpx exception: it embeds the request URL and can surface through
+            # route/provider diagnostics.
             if e.response.status_code == 429:
                 raise RateLimitedProviderError(
-                    f"Finnhub rate limited (HTTP 429) for '{ticker}': {e}"
+                    f"Finnhub rate limited (HTTP 429) for '{ticker}'"
                 ) from e
-            raise ProviderError(f"Finnhub API error for '{ticker}': {e}") from e
+            raise ProviderError(
+                f"Finnhub API error for '{ticker}' (HTTP {e.response.status_code})"
+            ) from e
         except (
             httpx.ConnectError,
             httpx.RemoteProtocolError,
             httpx.ReadError,
             httpx.WriteError,
         ) as e:
-            raise ProviderError(f"Finnhub network error for '{ticker}': {e}") from e
+            raise ProviderError(
+                f"Finnhub network error for '{ticker}' ({type(e).__name__})"
+            ) from e
         except ProviderError:
             raise
         except (ValueError, KeyError, TypeError, AttributeError) as e:
-            raise ProviderError(f"Finnhub fetch failed for '{ticker}': {e}") from e
+            raise ProviderError(f"Finnhub fetch failed for '{ticker}' ({type(e).__name__})") from e
 
         return DataResult(
             data=data,

@@ -120,7 +120,9 @@ class AdanosProvider(DataProvider):
         errors = [r for r in results if isinstance(r, BaseException)]
         if len(errors) == len(_PLATFORM_SPECS):
             detail = "; ".join(
-                f"{spec['label']}: {r}" for spec, r in zip(_PLATFORM_SPECS, results)
+                f"{spec['label']}: {_safe_platform_error_detail(r)}"
+                for spec, r in zip(_PLATFORM_SPECS, results)
+                if isinstance(r, BaseException)
             )
             if all(is_rate_limit_error(e) for e in errors):
                 raise RateLimitedProviderError(
@@ -169,7 +171,7 @@ class AdanosProvider(DataProvider):
         try:
             resp = await self._get(spec["path"], params={"tickers": ticker, "days": days_back})
         except httpx.TimeoutException as e:
-            raise ProviderError(f"Adanos timeout for {spec['label']}: {e}") from e
+            raise ProviderError(f"Adanos timeout for {spec['label']}") from e
         except httpx.HTTPStatusError as e:
             # ONLY 429 carries throttling semantics; other 4xx/5xx stay generic.
             # _fetch_all currently folds per-platform failures into warnings,
@@ -178,9 +180,11 @@ class AdanosProvider(DataProvider):
             # 429 structurally instead of by message wording.
             if e.response.status_code == 429:
                 raise RateLimitedProviderError(
-                    f"Adanos rate limited (HTTP 429) for {spec['label']}: {e}"
+                    f"Adanos rate limited (HTTP 429) for {spec['label']}"
                 ) from e
-            raise ProviderError(f"Adanos API error for {spec['label']}: {e}") from e
+            raise ProviderError(
+                f"Adanos API error for {spec['label']} (HTTP {e.response.status_code})"
+            ) from e
 
         payload = resp.json()
         row: dict[str, Any] | None = None
@@ -253,6 +257,21 @@ def _empty_source(spec: dict[str, str]) -> dict[str, Any]:
         "trend": "n/a",
         "has_data": False,
     }
+
+
+def _safe_platform_error_detail(exc: BaseException) -> str:
+    """Return compact Adanos diagnostics without carrying raw request URLs."""
+
+    if is_rate_limit_error(exc):
+        return "rate limited"
+    cause = exc.__cause__
+    if isinstance(cause, httpx.HTTPStatusError):
+        return f"HTTP {cause.response.status_code}"
+    if isinstance(exc, httpx.HTTPStatusError):
+        return f"HTTP {exc.response.status_code}"
+    if isinstance(cause, httpx.TimeoutException) or isinstance(exc, httpx.TimeoutException):
+        return "timeout"
+    return type(exc).__name__
 
 
 def _compute_alignment(bullish_values: list[float]) -> AlignmentToken:

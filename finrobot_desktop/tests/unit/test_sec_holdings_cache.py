@@ -251,3 +251,51 @@ def test_ephemeral_connection_survives_sequential_asyncio_run_loops(
         # merely-dropped reference (reset_singleton_sync) blocks interpreter
         # exit forever on SimpleQueue.get() — pytest would hang after green.
         asyncio.run(asyncio.wait_for(cache_mod.close_singleton(), timeout=5))
+
+
+@pytest.mark.asyncio
+async def test_qoq_change_computed_across_two_quarters(_isolated_cache) -> None:  # type: ignore[no-untyped-def]
+    """shares_change_pct is the QoQ delta vs the immediately-prior cached quarter,
+    keyed on (holder_cik, title_of_class). A holder present in both quarters gets a
+    real %; a NEW holder (absent last quarter) stays None (never +∞)."""
+    await cache_mod.bulk_upsert_holdings(
+        [
+            _row(holder_cik="A", period_end=date(2025, 12, 31), shares=10, value_usd=100.0),
+            _row(holder_cik="A", period_end=date(2026, 3, 31), shares=20, value_usd=200.0),
+            _row(holder_cik="B", period_end=date(2026, 3, 31), shares=30, value_usd=300.0),
+        ]
+    )
+    rows = await cache_mod.lookup_holders_for_ticker("NVDA")  # latest = 2026-03-31
+    by_cik = {r["holder_cik"]: r for r in rows}
+    # A: 10 → 20 = +100%
+    assert by_cik["A"]["shares_change_pct"] == 100.0
+    # B: new position this quarter → None, not a fabricated 0 or +∞
+    assert by_cik["B"]["shares_change_pct"] is None
+
+
+@pytest.mark.asyncio
+async def test_qoq_change_none_with_single_quarter(_isolated_cache) -> None:  # type: ignore[no-untyped-def]
+    """A fresh cache holds one quarter — QoQ has nothing to diff against, so the
+    column stays None (renders '—'), never a fabricated 0. This is why the column
+    was a permanent dead '—': the diff was never computed AND only one quarter is
+    ever cached today; it lights up automatically once ≥2 quarters land."""
+    await cache_mod.bulk_upsert_holdings(
+        [_row(holder_cik="A", period_end=date(2026, 3, 31), shares=20, value_usd=200.0)]
+    )
+    rows = await cache_mod.lookup_holders_for_ticker("NVDA")
+    assert rows[0]["shares_change_pct"] is None
+
+
+@pytest.mark.asyncio
+async def test_completion_marker_roundtrip(_isolated_cache) -> None:  # type: ignore[no-untyped-def]
+    """A quarter is 'complete' only once its refresh finished and set the marker.
+    Rows present without a marker = an interrupted/capped run → NOT complete, so the
+    freshness guard re-fetches instead of freezing a partial cache (missing BlackRock
+    / early Vanguard filers)."""
+    await cache_mod.bulk_upsert_holdings([_row(period_end=date(2026, 3, 31))])
+    # Rows exist, but no completion marker yet → treated as incomplete (partial run).
+    assert await cache_mod.is_period_complete(date(2026, 3, 31)) is False
+    await cache_mod.mark_period_complete(date(2026, 3, 31), filings_processed=6200)
+    assert await cache_mod.is_period_complete(date(2026, 3, 31)) is True
+    # A different, unmarked quarter stays incomplete.
+    assert await cache_mod.is_period_complete("2025-12-31") is False

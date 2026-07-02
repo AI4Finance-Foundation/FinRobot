@@ -82,7 +82,7 @@ async def start_refresh(
         _is_valid_identity,
         _sec_header_identity,
     )
-    from finrobot.engine.data.sec_holdings_cache import cache_status
+    from finrobot.engine.data.sec_holdings_cache import cache_status, is_period_complete
     from scripts.refresh_sec_holdings import _latest_completed_quarter_end
 
     async with _LOCK:
@@ -105,14 +105,21 @@ async def start_refresh(
             if latest_raw:
                 latest = date.fromisoformat(str(latest_raw))
                 # Skip only when the cache already holds the newest quarter that
-                # EXISTS. 13F-HR for a quarter aren't filed until ~45 days after
-                # it ends, so for ~half of every quarter the latest *available*
-                # quarter is already >60 days old. A naive "cache younger than
-                # 60 days" window therefore re-pulls a quarter we hold in full
-                # on every boot (1-2h of wasted SEC traffic). Compare against the
-                # latest *completed* quarter instead: if we're not behind it,
-                # there is nothing newer to fetch.
-                if latest >= target:
+                # EXISTS *and that quarter's refresh actually FINISHED*. 13F-HR for
+                # a quarter aren't filed until ~45 days after it ends, so for ~half
+                # of every quarter the latest *available* quarter is already >60
+                # days old. A naive "cache younger than 60 days" window therefore
+                # re-pulls a quarter we hold in full on every boot (1-2h of wasted
+                # SEC traffic). Compare against the latest *completed* quarter
+                # instead: if we're not behind it, there is nothing newer to fetch.
+                #
+                # The completion-marker check is the second half: a quarter can be
+                # PRESENT but PARTIAL (an interrupted / --max-filings-capped run
+                # ingested only the newest-filed slice, dropping early filers like
+                # BlackRock and the Vanguard sub-entities). Without it "has rows for
+                # the latest quarter" was read as "complete" and the partial cache
+                # froze forever. Re-fetch a present-but-incomplete quarter.
+                if latest >= target and await is_period_complete(target):
                     _STATE.status = "done"
                     _STATE.summary = status
                     logger.info(

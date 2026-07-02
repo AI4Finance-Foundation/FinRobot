@@ -34,7 +34,9 @@ def _app() -> FastAPI:
     return app
 
 
-def _patch_env(monkeypatch, *, latest: str | None, target: date) -> None:
+def _patch_env(
+    monkeypatch, *, latest: str | None, target: date, complete: bool = True
+) -> None:
     import scripts.refresh_sec_holdings as refresh_mod
     from finrobot.engine.data import sec_holdings_cache as cache_mod
 
@@ -46,21 +48,48 @@ def _patch_env(monkeypatch, *, latest: str | None, target: date) -> None:
             "distinct_tickers": 7 if latest else 0,
         }
 
+    async def _is_complete(_period) -> bool:
+        return complete
+
     monkeypatch.setattr(cache_mod, "cache_status", _status)
+    monkeypatch.setattr(cache_mod, "is_period_complete", _is_complete)
     monkeypatch.setattr(refresh_mod, "_latest_completed_quarter_end", lambda: target)
 
 
 @pytest.mark.asyncio
 async def test_skips_when_cache_already_at_latest_available_quarter(monkeypatch) -> None:
-    """Cache holds 2026-03-31 and that IS the newest filed quarter → skip,
-    even though it's >60 days old. No background task spawned."""
-    _patch_env(monkeypatch, latest="2026-03-31", target=date(2026, 3, 31))
+    """Cache holds 2026-03-31 in full (completion marker present) and that IS the
+    newest filed quarter → skip, even though it's >60 days old. No task spawned."""
+    _patch_env(monkeypatch, latest="2026-03-31", target=date(2026, 3, 31), complete=True)
     app = _app()
     state = await sec_holdings_sync.start_refresh(
         app, SimpleNamespace(sec_user_agent=_VALID_IDENTITY), force=False
     )
     assert state["status"] == "done"
     assert app.state.background_tasks == []
+
+
+@pytest.mark.asyncio
+async def test_runs_when_latest_quarter_present_but_incomplete(monkeypatch) -> None:
+    """Cache holds rows for 2026-03-31 but the refresh never finished (no marker —
+    an interrupted / --max-filings-capped run that dropped early filers like
+    BlackRock). Must re-run to backfill instead of freezing the partial cache."""
+    spawned: list = []
+
+    async def _fake_run(period: date, header_identity: str) -> None:
+        spawned.append(period)
+
+    monkeypatch.setattr(sec_holdings_sync, "_run", _fake_run)
+    _patch_env(monkeypatch, latest="2026-03-31", target=date(2026, 3, 31), complete=False)
+    app = _app()
+    state = await sec_holdings_sync.start_refresh(
+        app, SimpleNamespace(sec_user_agent=_VALID_IDENTITY), force=False
+    )
+    assert state["status"] == "running"
+    assert state["period_end"] == "2026-03-31"
+    for task in app.state.background_tasks:
+        await task
+    assert spawned == [date(2026, 3, 31)]
 
 
 @pytest.mark.asyncio

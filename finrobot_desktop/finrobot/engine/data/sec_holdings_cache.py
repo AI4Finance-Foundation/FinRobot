@@ -35,7 +35,7 @@ import sqlite3
 import re
 from collections.abc import AsyncIterator, Iterable
 from contextlib import asynccontextmanager
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +70,11 @@ CREATE INDEX IF NOT EXISTS idx_holdings_issuer_key
     ON holdings(issuer_key, period_end DESC);
 CREATE INDEX IF NOT EXISTS idx_holdings_period
     ON holdings(period_end);
+CREATE TABLE IF NOT EXISTS holdings_refresh_meta (
+    period_end        TEXT PRIMARY KEY,
+    filings_processed INTEGER NOT NULL,
+    completed_at      TEXT NOT NULL
+);
 """
 
 # Connection singleton — same pattern as QuoteCache. Async-safe init.
@@ -276,6 +281,18 @@ async def lookup_holders_for_ticker(
     ) as cur:
         rows = await cur.fetchall()
 
+    # QoQ share-count change vs the immediately-prior cached quarter, keyed on
+    # (holder_cik, title_of_class). Populated ONLY when a prior quarter exists in
+    # cache — a fresh cache holds one quarter, so this stays None (the UI renders
+    # "—") rather than a fabricated 0. A holder absent from the prior quarter (a
+    # NEW position) also stays None, never +∞. This is the one place the QoQ Δ
+    # column was ever meant to be filled: the field was declared "computed by
+    # FinRobot vs prior quarter" but never actually computed, so the column was a
+    # permanent dead "—". Now it lights up automatically once ≥2 quarters cache.
+    prior_shares = await _prior_quarter_shares(
+        c, where_sql, where_params, period_end_str
+    )
+
     return [
         {
             "holder_name": row[0],
@@ -288,9 +305,51 @@ async def lookup_holders_for_ticker(
             "name_of_issuer": str(row[7]),
             "cusip": str(row[8]),
             "title_of_class": str(row[9]),
+            "shares_change_pct": _shares_change_pct(
+                int(row[2]), prior_shares.get((str(row[1]), str(row[9])))
+            ),
         }
         for row in rows
     ]
+
+
+def _shares_change_pct(current: int, prior: int | None) -> float | None:
+    """QoQ % change in a holder's share count, or None when there is no prior
+    position to diff against (fresh cache / new holder). None ≠ 0 and never ±∞."""
+    if prior is None or prior <= 0:
+        return None
+    return round((current - prior) / prior * 100.0, 2)
+
+
+async def _prior_quarter_shares(
+    c: aiosqlite.Connection,
+    where_sql: str,
+    where_params: tuple[Any, ...],
+    current_period_end: str,
+) -> dict[tuple[str, str], int]:
+    """Map (holder_cik, title_of_class) → shares for the newest cached quarter
+    strictly before ``current_period_end`` for this ticker/issuer. Empty when no
+    earlier quarter is cached (so QoQ change stays None, not a fabricated 0)."""
+    async with c.execute(
+        f"""
+        SELECT MAX(period_end) FROM holdings
+        WHERE {where_sql} AND period_end < ?
+        """,
+        (*where_params, current_period_end),
+    ) as cur:
+        row = await cur.fetchone()
+    if row is None or row[0] is None:
+        return {}
+    prior_period = str(row[0])
+    async with c.execute(
+        f"""
+        SELECT holder_cik, title_of_class, shares FROM holdings
+        WHERE {where_sql} AND period_end = ?
+        """,
+        (*where_params, prior_period),
+    ) as cur:
+        prior_rows = await cur.fetchall()
+    return {(str(r[0]), str(r[1])): int(r[2]) for r in prior_rows}
 
 
 async def bulk_upsert_holdings(rows: Iterable[dict[str, Any]]) -> int:
@@ -406,3 +465,58 @@ async def cache_status(*, conn: aiosqlite.Connection | None = None) -> dict[str,
         # ISO date strings compare lexicographically == chronologically.
         "stale": bool(latest_str is not None and latest_str < expected),
     }
+
+
+async def mark_period_complete(
+    period_end: date | str,
+    filings_processed: int,
+    *,
+    conn: aiosqlite.Connection | None = None,
+) -> None:
+    """Record that a quarter's refresh finished — every 13F-HR for the period
+    was parsed, not just the newest slice the run happened to reach before it
+    was interrupted.
+
+    Why this exists: ``_refresh_quarter`` iterates ``get_filings(form="13F-HR")``
+    NEWEST-first, and a partial run (app quit mid-parse, ``--max-filings`` dev
+    cap, rate-limit abort) leaves only the most-recently-filed managers. The
+    early filers — including the two largest, BlackRock (files its holdings under
+    "BlackRock, Inc." CIK 2012383 since its 2025 reorg) and the Vanguard advisory
+    sub-entities — file on/near the deadline day, so a truncated run silently
+    drops them. Without a completion marker the freshness guard treats "has ANY
+    rows for the latest quarter" as "complete" and never re-fetches, freezing the
+    partial cache forever (2026: AAPL's top-8 institutional table missing
+    BlackRock entirely). The marker lets the guard re-run an incomplete quarter.
+    """
+    period_str = period_end.isoformat() if isinstance(period_end, date) else str(period_end)
+    completed_at = datetime.now(tz=timezone.utc).isoformat()
+    c = conn if conn is not None else await _conn()
+    await c.execute(
+        """
+        INSERT INTO holdings_refresh_meta (period_end, filings_processed, completed_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(period_end) DO UPDATE SET
+            filings_processed = excluded.filings_processed,
+            completed_at = excluded.completed_at
+        """,
+        (period_str, int(filings_processed), completed_at),
+    )
+    await c.commit()
+
+
+async def is_period_complete(
+    period_end: date | str,
+    *,
+    conn: aiosqlite.Connection | None = None,
+) -> bool:
+    """True when ``period_end`` has a completion marker (a full refresh finished).
+
+    A quarter with holdings rows but NO marker was populated by an interrupted /
+    capped run and should be re-fetched, not treated as done."""
+    period_str = period_end.isoformat() if isinstance(period_end, date) else str(period_end)
+    c = conn if conn is not None else await _conn()
+    async with c.execute(
+        "SELECT 1 FROM holdings_refresh_meta WHERE period_end = ?",
+        (period_str,),
+    ) as cur:
+        return await cur.fetchone() is not None

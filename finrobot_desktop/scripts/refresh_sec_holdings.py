@@ -174,7 +174,11 @@ async def _refresh_quarter(period_end: date, *, max_filings: int | None = None) 
     bootstrap or rate-limit-sensitive dev runs). None = process all.
     """
     from edgar import get_filings  # local import: scripts shouldn't fail to load
-    from finrobot.engine.data.sec_holdings_cache import bulk_upsert_holdings, cache_status
+    from finrobot.engine.data.sec_holdings_cache import (
+        bulk_upsert_holdings,
+        cache_status,
+        mark_period_complete,
+    )
 
     logger.info(
         "refreshing 13F holdings for period_end=%s (max_filings=%s)", period_end, max_filings
@@ -255,12 +259,21 @@ async def _refresh_quarter(period_end: date, *, max_filings: int | None = None) 
             skipped_schema_examples,
         )
 
+    # Mark the quarter complete ONLY on a full (uncapped) run that reached the end
+    # of the filings iterator. A ``max_filings`` dev/bootstrap run is deliberately
+    # partial, so it must NOT set the marker — otherwise the freshness guard would
+    # treat a capped slice as the full quarter and never backfill the early filers
+    # (BlackRock / Vanguard sub-entities file on/near the deadline day).
+    if max_filings is None:
+        await mark_period_complete(period_end, filings_processed)
+
     status = await cache_status()
     return {
         "period_end": period_end.isoformat(),
         "filings_processed": filings_processed,
         "filings_skipped_schema": filings_skipped_schema,
         "rows_inserted": rows_inserted,
+        "complete": max_filings is None,
         "cache_status_after": status,
     }
 

@@ -72,7 +72,9 @@ def _install_fakes(
     monkeypatch: pytest.MonkeyPatch,
     filings: list[_FakeFiling],
     captured_rows: list[dict[str, Any]],
-) -> None:
+) -> list[tuple[Any, int]]:
+    """Install fake edgar + cache modules. Returns the list that captures
+    ``mark_period_complete`` calls so a test can assert completion behaviour."""
     fake_edgar = types.ModuleType("edgar")
     fake_edgar.get_filings = lambda form: list(filings)  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "edgar", fake_edgar)
@@ -90,10 +92,17 @@ def _install_fakes(
             "distinct_tickers": 0,
         }
 
+    marked: list[tuple[Any, int]] = []
+
+    async def _fake_mark_complete(period_end: Any, filings_processed: int) -> None:
+        marked.append((period_end, filings_processed))
+
     fake_cache = types.ModuleType("finrobot.engine.data.sec_holdings_cache")
     fake_cache.bulk_upsert_holdings = _capture_bulk_upsert  # type: ignore[attr-defined]
     fake_cache.cache_status = _fake_cache_status  # type: ignore[attr-defined]
+    fake_cache.mark_period_complete = _fake_mark_complete  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "finrobot.engine.data.sec_holdings_cache", fake_cache)
+    return marked
 
 
 @pytest.mark.asyncio
@@ -108,7 +117,7 @@ async def test_refresh_quarter_parses_real_edgartools_schema(
     rename(columns=str.lower) on ingest, so rows are parsed.
     """
     captured: list[dict[str, Any]] = []
-    _install_fakes(
+    marked = _install_fakes(
         monkeypatch,
         [_FakeFiling("a1", _real_schema_holdings())],
         captured,
@@ -132,6 +141,29 @@ async def test_refresh_quarter_parses_real_edgartools_schema(
     # A fixtured 250_000_000 stays 250_000_000, not 250_000_000_000.
     assert row["value_usd"] == float(_FIXTURE_VALUE_WHOLE_DOLLARS)
     assert row["value_usd"] != float(_FIXTURE_VALUE_WHOLE_DOLLARS) * 1000.0
+
+    # A full (uncapped) run reached the end of the iterator → mark the quarter
+    # complete so the freshness guard won't later mistake a partial cache for a
+    # finished one (the missing-BlackRock root cause).
+    assert summary["complete"] is True
+    assert marked == [(date(2026, 3, 31), 1)]
+
+
+@pytest.mark.asyncio
+async def test_capped_run_does_not_mark_complete(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A --max-filings-capped run is deliberately partial; it must NOT set the
+    completion marker, or the guard would freeze the capped slice as 'done'."""
+    captured: list[dict[str, Any]] = []
+    marked = _install_fakes(
+        monkeypatch,
+        [_FakeFiling("a1", _real_schema_holdings())],
+        captured,
+    )
+
+    summary = await _refresh_quarter(date(2026, 3, 31), max_filings=1)
+
+    assert summary["complete"] is False
+    assert marked == []
 
 
 def _holdings_with_missing_value_and_shares() -> pd.DataFrame:

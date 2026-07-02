@@ -378,7 +378,7 @@ msgstr "Free Cash Flow"
 
 #. js-lingui-explicit-id
 msgid "chapter.financial.table.source"
-msgstr "Source: 10-K filings + compute/forward_estimates.py (deterministic)"
+msgstr "Source: 10-K filings + deterministic forward model"
 
 #. js-lingui-explicit-id
 msgid "chapter.financial.empty"
@@ -622,7 +622,7 @@ msgstr "Price data unavailable — check ticker or retry later"
 
 #. js-lingui-explicit-id
 msgid "chapter.technical.empty.overlay"
-msgstr "Quant overlays not yet generated · re-run to see Monte Carlo / sniper levels / historical bands"
+msgstr "Quant overlays not yet generated · re-run to see Monte Carlo / trade levels / historical bands"
 
 #. js-lingui-explicit-id
 msgid "chapter.technical.subheading.monteCarlo"
@@ -706,7 +706,7 @@ msgstr "DCF cover"
 
 #. js-lingui-explicit-id
 msgid "chapter.technical.sniper.withheldUnreliable"
-msgstr "Directional sniper levels withheld: the valuation methods do not corroborate (DCF vs comps diverge too far — the headline point target was withheld), so there is no defensible target to anchor a trade. The directional rating still stands; support / resistance below are shown for reference only."
+msgstr "Directional trade levels withheld: the valuation methods do not corroborate (DCF vs comps diverge too far — the headline point target was withheld), so there is no defensible target to anchor a trade. The directional rating still stands; support / resistance below are shown for reference only."
 
 #. js-lingui-explicit-id
 msgid "chapter.technical.sniper.tacticalFraming"
@@ -2858,7 +2858,7 @@ msgstr "Quant overlay & IC debate"
 
 #. js-lingui-explicit-id
 msgid "landing.dock.quant.desc"
-msgstr "Monte Carlo · sniper levels · bull/bear IC debate"
+msgstr "Monte Carlo · trade levels · bull/bear IC debate"
 
 #. js-lingui-explicit-id
 msgid "update.pill.available"

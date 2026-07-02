@@ -378,7 +378,7 @@ msgstr "自由现金流"
 
 #. js-lingui-explicit-id
 msgid "chapter.financial.table.source"
-msgstr "来源：10-K 文件 + compute/forward_estimates.py（确定性）"
+msgstr "来源：10-K 文件 + 确定性预测模型"
 
 #. js-lingui-explicit-id
 msgid "chapter.financial.empty"
@@ -622,7 +622,7 @@ msgstr "价格数据暂不可用，请检查代码是否有效或稍后重试"
 
 #. js-lingui-explicit-id
 msgid "chapter.technical.empty.overlay"
-msgstr "量化叠加层尚未生成 · 重新生成研报后将显示蒙特卡洛分布 / 狙击位 / 历史估值带"
+msgstr "量化叠加层尚未生成 · 重新生成研报后将显示蒙特卡洛分布 / 交易点位 / 历史估值带"
 
 #. js-lingui-explicit-id
 msgid "chapter.technical.subheading.monteCarlo"
@@ -706,7 +706,7 @@ msgstr "DCF 平仓价"
 
 #. js-lingui-explicit-id
 msgid "chapter.technical.sniper.withheldUnreliable"
-msgstr "方向性狙击位已隐去：估值方法未交叉验证（DCF 与可比公司分歧过大，点位目标价已扣发），无可锚定的可靠目标。方向性评级仍然成立；仅保留下方支撑 / 阻力供参考。"
+msgstr "方向性交易点位已隐去：估值方法未交叉验证（DCF 与可比公司分歧过大，点位目标价已扣发），无可锚定的可靠目标。方向性评级仍然成立；仅保留下方支撑 / 阻力供参考。"
 
 #. js-lingui-explicit-id
 msgid "chapter.technical.sniper.tacticalFraming"
@@ -1806,7 +1806,7 @@ msgstr "技术与高阶"
 
 #. js-lingui-explicit-id
 msgid "workspace.pipeline.step.technicalAnalysis.help"
-msgstr "蒙特卡洛 + 狙击位 + 价格走势"
+msgstr "蒙特卡洛 + 入场点位 + 价格走势"
 
 #. js-lingui-explicit-id
 msgid "workspace.pipeline.step.thesis.label"
@@ -2858,7 +2858,7 @@ msgstr "量化叠加 & IC 辩论"
 
 #. js-lingui-explicit-id
 msgid "landing.dock.quant.desc"
-msgstr "Monte Carlo · 狙击点位 · 牛熊 IC 辩论"
+msgstr "Monte Carlo · 交易点位 · 牛熊 IC 辩论"
 
 #. js-lingui-explicit-id
 msgid "update.pill.available"

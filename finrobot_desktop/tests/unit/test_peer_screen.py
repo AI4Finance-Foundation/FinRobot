@@ -1,5 +1,256 @@
 from finrobot.engine.compute.operators.cyclical_peers import screen_peers_with_cyclical
-from finrobot.engine.compute.operators.peer_screen import screen_peers
+from finrobot.engine.compute.operators.peer_screen import (
+    _normalize_issuer_name,
+    screen_peers,
+)
+
+
+def _assert_one_row_per_issuer(result, payload) -> None:
+    """Invariant: no two SELECTED peers are the same issuer (same normalized name
+    AND market caps within the dedup band). Guards the JPM RY.TO+RY class of
+    median-polluting cross-listing / dual-class double-counts."""
+    names = payload.get("names") or {}
+    quotes = payload["quotes"]
+    tol = 3.0
+    for i, a in enumerate(result.tickers):
+        for b in result.tickers[i + 1 :]:
+            na = _normalize_issuer_name(str(names.get(a, "")))
+            nb = _normalize_issuer_name(str(names.get(b, "")))
+            ma = float(quotes[a]["market_cap"])
+            mb = float(quotes[b]["market_cap"])
+            near = ma > 0 and mb > 0 and max(ma, mb) / min(ma, mb) <= tol
+            assert not (na and na == nb and near), (
+                f"{a} and {b} are the same issuer but both selected: {result.tickers}"
+            )
+
+
+def _jpm_bank_payload() -> dict:
+    """JPM's bank peer pool with Royal Bank of Canada cross-listed as BOTH RY.TO
+    (Toronto) and RY (NYSE) — the 2026-07-02 bug: near-identical market cap, both
+    land in the set, and the issuer's P/B (and here its P/E) double-weights the
+    peer median. Trailing P/E is chosen so the double-count visibly moves the
+    selected median (12.0 polluted vs 11.5 deduped)."""
+    return {
+        "profile": {
+            "company_name": "JPMorgan Chase & Co.",
+            "sector": "Financial Services",
+            "industry": "Banks - Diversified",
+            "market_cap": 700_000_000_000,
+            "description": "Global bank holding company.",
+        },
+        "industry_screen": ["BAC", "RY.TO", "HSBC", "RY", "TD.TO", "WFC", "C"],
+        "stock_peers": [],
+        "sector_screen": [],
+        "quotes": {
+            "BAC": {"market_cap": 380_000_000_000, "pe": 12.0},
+            "RY.TO": {"market_cap": 288_000_000_000, "pe": 14.0},
+            "RY": {"market_cap": 288_000_000_000, "pe": 14.0},
+            "HSBC": {"market_cap": 220_000_000_000, "pe": 9.0},
+            "TD.TO": {"market_cap": 140_000_000_000, "pe": 11.0},
+            "WFC": {"market_cap": 260_000_000_000, "pe": 13.0},
+            "C": {"market_cap": 160_000_000_000, "pe": 8.0},
+        },
+        "names": {
+            "BAC": "Bank of America Corporation",
+            "RY.TO": "Royal Bank of Canada",
+            "RY": "Royal Bank of Canada",
+            "HSBC": "HSBC Holdings plc",
+            "TD.TO": "The Toronto-Dominion Bank",
+            "WFC": "Wells Fargo & Company",
+            "C": "Citigroup Inc.",
+        },
+    }
+
+
+def test_cross_listed_same_issuer_deduped_to_primary_us_listing() -> None:
+    """RY.TO and RY are one issuer (Royal Bank of Canada). Exactly one survives,
+    and it is the unsuffixed US listing (RY), not the Toronto ticker (RY.TO)."""
+    payload = _jpm_bank_payload()
+    result = screen_peers(payload, "JPM")
+
+    assert "RY" in result.tickers
+    assert "RY.TO" not in result.tickers
+    assert "RY.TO" in result.dropped_duplicate
+    # One row per issuer in the selected sheet.
+    _assert_one_row_per_issuer(result, payload)
+    # The redundant listing no longer double-weights the median: deduped 11.5 vs
+    # the polluted 12.0 you get when RY.TO and RY both count.
+    assert result.selected_median_pe == 11.5
+    # Deterministic.
+    assert result == screen_peers(payload, "JPM")
+
+
+def test_cross_listing_dedup_frees_slot_for_next_peer() -> None:
+    """Dropping the duplicate listing frees its top-N slot for the next real peer
+    so the comp sheet stays full (dedup thins issuers, not the sheet size)."""
+    payload = _jpm_bank_payload()
+    # An 8th distinct bank; with RY.TO removed it takes the freed slot (top_n=7).
+    payload["industry_screen"].append("USB")
+    payload["quotes"]["USB"] = {"market_cap": 70_000_000_000, "pe": 10.0}
+    payload["names"]["USB"] = "U.S. Bancorp"
+
+    result = screen_peers(payload, "JPM")
+
+    assert len(result.tickers) == 7  # sheet refilled, not left at 6
+    assert "RY.TO" not in result.tickers
+    assert "RY" in result.tickers
+    assert "USB" in result.tickers  # freed slot went to the next distinct issuer
+    _assert_one_row_per_issuer(result, payload)
+
+
+def test_dual_class_same_issuer_deduped_by_name() -> None:
+    """Dual-class listings (GOOGL Class A + GOOG Class C = Alphabet) share no base
+    symbol but ARE one issuer — the normalized NAME collapses them so Alphabet
+    counts once. Keeps the larger-cap / alphabetically-first class."""
+    payload = {
+        "profile": {
+            "company_name": "Microsoft Corporation",
+            "sector": "Technology",
+            "industry": "Software - Infrastructure",
+            "market_cap": 3_400_000_000_000,
+            "description": "Software and cloud.",
+        },
+        "industry_screen": ["GOOGL", "GOOG", "META", "AMZN"],
+        "stock_peers": [],
+        "sector_screen": [],
+        "quotes": {
+            "GOOGL": {"market_cap": 2_300_000_000_000, "pe": 24.0},
+            "GOOG": {"market_cap": 2_290_000_000_000, "pe": 24.0},
+            "META": {"market_cap": 1_500_000_000_000, "pe": 27.0},
+            "AMZN": {"market_cap": 2_400_000_000_000, "pe": 40.0},
+        },
+        "names": {
+            "GOOGL": "Alphabet Inc.",
+            "GOOG": "Alphabet Inc.",
+            "META": "Meta Platforms, Inc.",
+            "AMZN": "Amazon.com, Inc.",
+        },
+    }
+
+    result = screen_peers(payload, "MSFT")
+
+    assert "GOOGL" in result.tickers
+    assert "GOOG" not in result.tickers
+    assert "GOOG" in result.dropped_duplicate
+    _assert_one_row_per_issuer(result, payload)
+
+
+def test_distinct_issuers_sharing_a_common_name_word_not_merged() -> None:
+    """Control group: the Coca-Cola family (KO / KOF / COKE / CCEP) are DIFFERENT
+    issuers that merely share the words 'Coca-Cola'. Conservative name
+    normalization keeps their keys distinct, so none is wrongly deduped."""
+    payload = {
+        "profile": {
+            "company_name": "The Coca-Cola Company",
+            "sector": "Consumer Defensive",
+            "industry": "Beverages - Non-Alcoholic",
+            "market_cap": 300_000_000_000,
+            "description": "Beverages.",
+        },
+        "industry_screen": ["PEP", "MNST", "CCEP", "KDP", "KOF", "COKE"],
+        "stock_peers": [],
+        "sector_screen": [],
+        "quotes": {
+            "PEP": {"market_cap": 230_000_000_000, "pe": 22.0},
+            "MNST": {"market_cap": 55_000_000_000, "pe": 30.0},
+            "CCEP": {"market_cap": 40_000_000_000, "pe": 19.0},
+            "KDP": {"market_cap": 45_000_000_000, "pe": 18.0},
+            "KOF": {"market_cap": 20_000_000_000, "pe": 16.0},
+            "COKE": {"market_cap": 12_000_000_000, "pe": 21.0},
+        },
+        "names": {
+            "PEP": "PepsiCo, Inc.",
+            "MNST": "Monster Beverage Corporation",
+            "CCEP": "Coca-Cola Europacific Partners plc",
+            "KDP": "Keurig Dr Pepper Inc.",
+            "KOF": "Coca-Cola FEMSA, S.A.B. de C.V.",
+            "COKE": "Coca-Cola Consolidated, Inc.",
+        },
+    }
+
+    result = screen_peers(payload, "KO")
+
+    assert result.dropped_duplicate == []
+    assert set(result.tickers) == {"PEP", "MNST", "CCEP", "KDP", "KOF", "COKE"}
+    _assert_one_row_per_issuer(result, payload)
+
+
+def test_same_base_symbol_different_company_not_merged() -> None:
+    """Veto: two DIFFERENT companies that happen to share a base ticker across
+    exchanges (a US 'ABC' and a London 'ABC.L') must NOT merge — present, differing
+    names are authoritative even though the base symbol and market cap coincide."""
+    payload = {
+        "profile": {
+            "company_name": "Target Co",
+            "sector": "Industrials",
+            "industry": "Specialty Industrial Machinery",
+            "market_cap": 100_000_000_000,
+            "description": "Industrial.",
+        },
+        "industry_screen": ["ABC", "ABC.L", "DEF"],
+        "stock_peers": [],
+        "sector_screen": [],
+        "quotes": {
+            "ABC": {"market_cap": 50_000_000_000, "pe": 18.0},
+            "ABC.L": {"market_cap": 52_000_000_000, "pe": 20.0},
+            "DEF": {"market_cap": 40_000_000_000, "pe": 15.0},
+        },
+        "names": {
+            "ABC": "Alpha Industrial Corporation",
+            "ABC.L": "Beta Machinery plc",
+            "DEF": "Delta Works Inc.",
+        },
+    }
+
+    result = screen_peers(payload, "TGT")
+
+    assert {"ABC", "ABC.L", "DEF"}.issubset(set(result.tickers))
+    assert result.dropped_duplicate == []
+
+
+def test_target_own_cross_listing_excluded_as_self_comp() -> None:
+    """A candidate that is the TARGET under another listing (RY.TO when the target
+    is RY) is a self-comp and is dropped as a duplicate, not shipped as a peer."""
+    payload = {
+        "profile": {
+            "company_name": "Royal Bank of Canada",
+            "sector": "Financial Services",
+            "industry": "Banks - Diversified",
+            "market_cap": 288_000_000_000,
+            "description": "Canadian bank.",
+        },
+        "industry_screen": ["RY.TO", "TD", "BNS"],
+        "stock_peers": [],
+        "sector_screen": [],
+        "quotes": {
+            "RY.TO": {"market_cap": 288_000_000_000, "pe": 14.0},
+            "TD": {"market_cap": 140_000_000_000, "pe": 11.0},
+            "BNS": {"market_cap": 90_000_000_000, "pe": 10.0},
+        },
+        "names": {
+            "RY.TO": "Royal Bank of Canada",
+            "TD": "The Toronto-Dominion Bank",
+            "BNS": "The Bank of Nova Scotia",
+        },
+    }
+
+    result = screen_peers(payload, "RY")
+
+    assert "RY.TO" not in result.tickers
+    assert "RY.TO" in result.dropped_duplicate
+    assert {"TD", "BNS"}.issubset(set(result.tickers))
+
+
+def test_cross_listing_dedup_falls_back_to_base_symbol_without_names() -> None:
+    """A stale payload without the ``names`` map still dedups a shared-base-symbol
+    cross-listing (RY.TO + RY) via the base-symbol fallback + market-cap band."""
+    payload = _jpm_bank_payload()
+    del payload["names"]  # simulate a pre-``names`` cached payload
+    result = screen_peers(payload, "JPM")
+
+    assert "RY" in result.tickers
+    assert "RY.TO" not in result.tickers
+    assert "RY.TO" in result.dropped_duplicate
 
 
 def test_semiconductor_design_target_excludes_foundry_and_equipment_peers() -> None:

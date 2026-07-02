@@ -80,6 +80,56 @@ its own; padding it with same-sector-different-industry names (retail for an
 automaker) only dilutes the median. Below 3, sector breadth fill is the lesser
 evil (some comp signal beats none) — the original mega-cap-thin-industry net."""
 
+PEER_ISSUER_MCAP_RATIO_TOL: Final[float] = 3.0
+"""Same-issuer dedup guard: two candidates are only collapsed as ONE issuer when
+their market caps agree within this ratio (max/min ≤ 3). Two listings of one
+company (RY.TO / RY — Royal Bank of Canada on Toronto vs NYSE) carry a near-equal
+market cap once FX-normalised (≈1x); dual-class shares (GOOGL / GOOG) differ only
+by the class float split (≈1.05x). The identity signal is the normalized company
+NAME; this size band is only a sanity guard that stops a name-normalization
+collision (two DIFFERENT firms whose names collapse to the same token) from
+merging a $10B name-twin into a $300B issuer. 3x leaves margin for quote-timing /
+share-count drift while still blocking any real size mismatch."""
+
+# Legal-form + share-class tokens stripped from a company name before comparing
+# issuer identity. Deliberately conservative — legal suffixes and class markers
+# ONLY, never semantic words like HOLDINGS / GROUP / AMERICAN — so distinct
+# issuers that merely share a common word are NOT collapsed (the Coca-Cola family
+# KO / KOF / COKE / CCEP each normalize to a DIFFERENT token, so they never merge).
+_ISSUER_NAME_NOISE_TOKENS: Final[frozenset[str]] = frozenset(
+    {
+        "THE",
+        "INC",
+        "INCORPORATED",
+        "CORP",
+        "CORPORATION",
+        "CO",
+        "COMPANY",
+        "LTD",
+        "LIMITED",
+        "LLC",
+        "LLP",
+        "LP",
+        "PLC",
+        "SA",
+        "SAB",
+        "AG",
+        "NV",
+        "SE",
+        "AB",
+        "ASA",
+        "OYJ",
+        "SPA",
+        "KGAA",
+        "GMBH",
+        "CLASS",
+        "CL",
+        "SERIES",
+        "SER",
+        "ADR",
+    }
+)
+
 
 class PeerScreenResult(BaseModel):
     """Deterministic screening outcome + the trace that makes it auditable."""
@@ -111,6 +161,19 @@ class PeerScreenResult(BaseModel):
     and semiconductor equipment vendors (ASML/LRCX/AMAT/KLAC) are suppliers, not
     trading-comps. The rule is deterministic and based on provider profile text,
     not on LLM rationale wording.
+    """
+
+    dropped_duplicate: list[str] = []
+    """Candidates excluded as the redundant listing of an issuer already in the set.
+
+    A company cross-listed on two exchanges (RY.TO Toronto + RY NYSE = Royal Bank
+    of Canada) or carrying dual share classes (GOOGL + GOOG = Alphabet) arrives as
+    two candidate tickers with near-identical market cap. Counting both double-
+    weights that one issuer in the peer MEDIAN (JPM's median P/B was inflated +26%
+    by RY.TO and RY both landing in the set, 2026-07-02). The redundant listing —
+    the exchange-suffixed / non-target-market one — is dropped here so each issuer
+    contributes to the median exactly once; the surviving primary listing keeps its
+    slot and the freed slot is refilled from the pool.
     """
 
     pool_median_pe: float | None
@@ -149,6 +212,66 @@ def _value_chain_compatible(
     if target_role in {"foundry", "equipment"}:
         return candidate_role == target_role
     return candidate_role not in {"foundry", "equipment"} or target_role == candidate_role
+
+
+def _normalize_issuer_name(name: str) -> str:
+    """Collapse a company name to a stable issuer key for cross-listing dedup.
+
+    Uppercases, drops punctuation, removes legal-form / share-class noise tokens
+    (``_ISSUER_NAME_NOISE_TOKENS``) and any trailing single-letter class marker,
+    then joins the rest with no separators. "Royal Bank of Canada" (RY and RY.TO
+    both) → ``ROYALBANKOFCANADA``; "Alphabet Inc. Class A" / "Alphabet Inc." →
+    ``ALPHABET``. Returns ``""`` for an empty/absent name (no identity → the caller
+    falls back to the base symbol and never merges on an empty key)."""
+    cleaned = "".join(ch if ch.isalnum() else " " for ch in name.upper())
+    tokens = [t for t in cleaned.split() if t and t not in _ISSUER_NAME_NOISE_TOKENS]
+    while tokens and len(tokens[-1]) == 1 and tokens[-1].isalpha():
+        tokens.pop()  # trailing class letter ("ALPHABET A")
+    return "".join(tokens)
+
+
+def _base_symbol(ticker: str) -> str:
+    """Ticker with any exchange suffix stripped (``RY.TO`` → ``RY``, ``RY`` → ``RY``).
+
+    Used only as the FALLBACK issuer key when a company name is unavailable — a
+    shared base symbol across a suffixed / unsuffixed pair is a strong cross-listing
+    signal (also covers dual-class dotted US tickers ``BRK.A`` / ``BRK.B``)."""
+    return ticker.upper().split(".", 1)[0]
+
+
+def _has_exchange_suffix(ticker: str) -> bool:
+    """Whether the ticker carries an exchange suffix (a ``.`` segment, e.g. ``.TO``).
+
+    Drives the "keep the primary listing" rule: within a same-issuer group the
+    unsuffixed listing (the US / target-market ticker ``RY``) is preferred over the
+    exchange-suffixed one (``RY.TO``)."""
+    return "." in ticker
+
+
+def _same_issuer(
+    mcap_a: float,
+    name_a: str,
+    base_a: str,
+    mcap_b: float,
+    name_b: str,
+    base_b: str,
+) -> bool:
+    """Whether two candidates are the SAME issuer (a cross-listing / dual-class pair).
+
+    Requires the market caps to agree within ``PEER_ISSUER_MCAP_RATIO_TOL`` (the
+    sanity guard), then: when BOTH normalized names are present, the names are
+    authoritative — equal ⇒ same issuer, different ⇒ different issuer even if the
+    base symbols coincide (this is the veto that stops the same ticker string
+    meaning different companies on two exchanges from merging). When a name is
+    missing (a stale payload without the ``names`` map) it falls back to base-symbol
+    equality. Either market cap ≤ 0 → never merge (fail-safe: keep both)."""
+    if mcap_a <= 0 or mcap_b <= 0:
+        return False
+    if max(mcap_a, mcap_b) / min(mcap_a, mcap_b) > PEER_ISSUER_MCAP_RATIO_TOL:
+        return False
+    if name_a and name_b:
+        return name_a == name_b
+    return base_a == base_b
 
 
 def screen_peers(
@@ -260,6 +383,83 @@ def screen_peers(
             return True
         return _value_chain_compatible(target_profile, profiles.get(sym))
 
+    # ── Same-issuer dedup (cross-listing / dual-class) ────────────────────────
+    # A company reachable under two tickers (RY.TO Toronto + RY NYSE = Royal Bank
+    # of Canada; GOOGL + GOOG = Alphabet) must count ONCE, or its multiple double-
+    # weights the peer median (JPM median P/B +26%, 2026-07-02). Issuer identity =
+    # normalized company name (authoritative) with a market-cap sanity band; the
+    # base symbol is the fallback key when a name is unavailable. Names come from
+    # the provider's top-level ``names`` map, falling back to the semiconductor
+    # ``profiles`` company_name (the only target class that ships profiles).
+    names_raw = payload.get("names") or {}
+    cand_names: dict[str, str] = {}
+    if isinstance(names_raw, dict):
+        for sym, nm in names_raw.items():
+            cand_names[str(sym).upper()] = _normalize_issuer_name(str(nm or ""))
+    for sym, prof in profiles.items():
+        if sym not in cand_names or not cand_names[sym]:
+            cand_names[sym] = _normalize_issuer_name(str(prof.get("company_name") or ""))
+    target_name = _normalize_issuer_name(str(target_profile.get("company_name") or ""))
+    target_base = _base_symbol(target)
+
+    def _name_of(sym: str) -> str:
+        return cand_names.get(sym, "")
+
+    # Candidates that could actually be selected (a quote + inside their tier's
+    # band). Grouping over these keeps the primary listing selectable and shares
+    # band-membership across the cross-listing pair.
+    first_tier: dict[str, int] = {}
+    for tier_idx, tier_syms in enumerate(tiers, start=1):
+        for sym in tier_syms:
+            if sym == target or sym not in quotes:
+                continue
+            first_tier.setdefault(sym, tier_idx)
+    band_ok = [s for s, t in first_tier.items() if in_band(quotes[s][0], t)]
+
+    def _keep_rank(sym: str) -> tuple[int, int, float, str]:
+        # Lower = kept. Prefer a curated/protected member, then the primary listing
+        # (no exchange suffix = US / target-market ticker), then the larger cap
+        # (more-liquid listing), ties broken alphabetically for determinism.
+        return (
+            0 if sym in protected else 1,
+            1 if _has_exchange_suffix(sym) else 0,
+            -quotes[sym][0],
+            sym,
+        )
+
+    dup_drop: set[str] = set()
+    # A candidate that IS the target under another listing is a self-comp — drop it.
+    remaining: list[str] = []
+    for sym in band_ok:
+        if _same_issuer(
+            quotes[sym][0], _name_of(sym), _base_symbol(sym), target_mcap, target_name, target_base
+        ):
+            dup_drop.add(sym)
+        else:
+            remaining.append(sym)
+    # Group the rest by issuer identity; keep one primary listing per group.
+    issuer_groups: list[list[str]] = []
+    for sym in remaining:
+        for group in issuer_groups:
+            rep = group[0]
+            if _same_issuer(
+                quotes[sym][0],
+                _name_of(sym),
+                _base_symbol(sym),
+                quotes[rep][0],
+                _name_of(rep),
+                _base_symbol(rep),
+            ):
+                group.append(sym)
+                break
+        else:
+            issuer_groups.append([sym])
+    for group in issuer_groups:
+        if len(group) > 1:
+            primary = min(group, key=_keep_rank)
+            dup_drop.update(s for s in group if s != primary)
+    dropped_duplicate = sorted(dup_drop)
+
     dropped_nm: list[str] = []
     dropped_role: list[str] = []
     eligible: list[tuple[str, int, float]] = []  # (sym, first-seen tier, pe)
@@ -271,6 +471,10 @@ def screen_peers(
             seen_pool.add(sym)
             mcap, pe = quotes[sym]
             if not in_band(mcap, tier_idx):
+                continue
+            if sym in dup_drop:
+                # Redundant listing of an issuer kept elsewhere in the set (or the
+                # target itself under another ticker) — already in dropped_duplicate.
                 continue
             if not role_ok(sym):
                 dropped_role.append(sym)
@@ -305,6 +509,7 @@ def screen_peers(
             for s in sorted(set(tier_syms))
             if s != target
             and s not in seen
+            and s not in dup_drop
             and s in quotes
             and in_band(quotes[s][0], tier_idx)
             and role_ok(s)
@@ -338,7 +543,9 @@ def screen_peers(
         f"{len(eligible_pool_pes)} firms (loss-making dropped {len(dropped_nm)}"
         f"{': ' + ', '.join(dropped_nm[:6]) if dropped_nm else ''}; "
         f"role-dropped {len(dropped_role)}"
-        f"{': ' + ', '.join(dropped_role[:6]) if dropped_role else ''}); "
+        f"{': ' + ', '.join(dropped_role[:6]) if dropped_role else ''}; "
+        f"same-issuer duplicate listing dropped {len(dropped_duplicate)}"
+        f"{': ' + ', '.join(dropped_duplicate[:6]) if dropped_duplicate else ''}); "
         f"{sector_note} -> tiered by same-industry > mutual-rec > same-sector, "
         f"picking {len(chosen)} firms by within-tier size proximity: "
         f"{', '.join(trace_picks)}"
@@ -350,6 +557,7 @@ def screen_peers(
         rationale=rationale,
         dropped_nm=dropped_nm,
         dropped_role=dropped_role,
+        dropped_duplicate=dropped_duplicate,
         pool_median_pe=pool_median,
         selected_median_pe=selected_median,
     )

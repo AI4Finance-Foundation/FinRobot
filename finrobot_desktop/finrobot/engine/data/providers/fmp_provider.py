@@ -1260,6 +1260,12 @@ class FMPProvider(DataProvider):
             # its single /quote dropped the pe field anyway, so the old
             # "40-symbol chunked quotes" enrichment is unportable.
             mcap_by_sym: dict[str, float] = {}
+            # Company names ride along from the SAME rows (both /stock-peers and
+            # /company-screener carry ``companyName``) — no extra request. The peer
+            # operator uses them to collapse a cross-listed / dual-class issuer
+            # (RY.TO + RY = Royal Bank of Canada) to ONE row so its multiple does
+            # not double-weight the peer median.
+            name_by_sym: dict[str, str] = {}
 
             stock_peers: list[str] = []
             peers_rows = (await self._get("/stock-peers", params={"symbol": ticker})).json()
@@ -1277,6 +1283,8 @@ class FMPProvider(DataProvider):
                         mcap_by_sym[sym] = float(r.get("mktCap") or 0.0)
                     except (TypeError, ValueError):
                         pass
+                    if r.get("companyName"):
+                        name_by_sym.setdefault(sym, str(r["companyName"]))
 
             async def _screen(params: dict[str, Any], label: str) -> list[str]:
                 """One /company-screener pull; plan-gated → empty + warning.
@@ -1304,6 +1312,8 @@ class FMPProvider(DataProvider):
                         mcap_by_sym.setdefault(sym, float(r.get("marketCap") or 0.0))
                     except (TypeError, ValueError):
                         pass
+                    if r.get("companyName"):
+                        name_by_sym.setdefault(sym, str(r["companyName"]))
                 return out
 
             industry_screen: list[str] = []
@@ -1412,6 +1422,9 @@ class FMPProvider(DataProvider):
                 "sector_screen": sector_screen,
                 "profiles": profiles,
                 "quotes": quotes,
+                # Company name per in-scope candidate (from the pool rows above,
+                # no extra request) — the peer operator's same-issuer dedup key.
+                "names": {s: name_by_sym[s] for s in in_scope if s in name_by_sym},
             },
             provider=self.name,
             ticker=ticker,

@@ -1444,6 +1444,9 @@ class TestFMPPeerCandidates:
         assert result.data["quotes"]["AMD"]["market_cap"] == 260_000_000_000
         assert result.data["quotes"]["TSM"]["market_cap"] == 1_300_000_000_000
         assert result.data["stock_peers"] == ["AMD"]
+        # Company name harvested from the pool rows (no extra request) — the
+        # operator's same-issuer dedup key. AMD's name rides the /stock-peers row.
+        assert result.data["names"]["AMD"] == "Advanced Micro Devices, Inc."
 
     @pytest.mark.asyncio
     async def test_peer_candidates_skip_profiles_for_non_semiconductor_target(self, provider):
@@ -1485,6 +1488,9 @@ class TestFMPPeerCandidates:
 
         assert result.data["quotes"]["PEP"]["pe"] == 22.0
         assert result.data["profiles"] == {}
+        # Names still ride along for a non-semiconductor target (dedup key comes
+        # from the pool rows, not the skipped per-candidate profiles).
+        assert result.data["names"] == {"PEP": "PepsiCo"}
         # No per-candidate /profile call — only the target's own.
         assert [c for c in calls if c[0] == "/profile"] == [("/profile", "KO")]
 

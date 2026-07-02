@@ -439,7 +439,14 @@ class DCFInputs(BaseModel):
     seed_dcf_inputs.
     """
 
-    revenue_base: float = Field(description="Base year revenue in USD")
+    revenue_base: float = Field(
+        description=(
+            "Base-year revenue in USD (the current run-rate — TTM by default). Year 1 "
+            "is projected off it. The consensus seed restates Year-1 growth to NTM "
+            "caliber (growth from this TTM base to the FY1 estimate) so the FY-over-FY "
+            "consensus rate does not double-count the current fiscal year's realized stub."
+        )
+    )
     revenue_growth_rates: list[float] = Field(
         min_length=1, description="Projected annual growth rates as decimals"
     )

@@ -822,6 +822,93 @@ class TestForwardGrowthSeed:
         assert "FY1-6" not in prov
 
 
+class TestRevenueBaseNtmCaliber:
+    """Consensus Year-1 growth is restated to NTM caliber so Year 1 lands on the
+    FY1 estimate — WITHOUT re-basing off TTM.
+
+    Consensus rates are FY-over-FY (FY1/last-FY − 1, …). Applying the raw FY1 rate
+    to a TTM base double-counts the current fiscal year's realized stub: AAPL FY26
+    consensus revenue ~$478B (14.9% over last FY $416B), yet 14.9% × TTM $451B ≈
+    $519B, +8.5% over consensus and the false FY25→Y1 +24.7% cliff. The seed keeps
+    the TTM base (current run-rate) but restates g[0] to the growth from TTM to the
+    FY1 consensus LEVEL. The end-to-end AAPL fixture has TTM == latest annual, so it
+    can't distinguish the two — these cases force TTM ≠ annual.
+    """
+
+    @staticmethod
+    def _ttm_above_last_annual() -> tuple[FinancialData, HistoricalMetrics]:
+        """AAPL-shape but TTM ($451.4B) above the last actual FY ($416.2B)."""
+        fin = _aapl_financials()
+        fin = fin.model_copy(
+            update={"income": fin.income.model_copy(update={"revenue": 451_400_000_000})}
+        )
+        hist = _aapl_historical().model_copy(
+            update={
+                "revenue": [365_817_000_000, 394_328_000_000, 383_285_000_000, 416_200_000_000]
+            }
+        )
+        return fin, hist
+
+    def test_base_stays_ttm_year1_lands_on_fy1_estimate(self):
+        fin, hist = self._ttm_above_last_annual()
+        inputs = seed_dcf_inputs(fin, hist, forward_growth=[0.149, 0.084, 0.071])
+        # Base stays the current TTM run-rate (Damodaran convention), NOT re-based.
+        assert inputs.revenue_base == pytest.approx(451_400_000_000)
+        # Year-1 growth is restated to NTM caliber: 416.2×1.149 / 451.4 − 1 ≈ 5.94%,
+        # NOT the raw FY-over-FY 14.9%.
+        ntm_g0 = 416_200_000_000 * 1.149 / 451_400_000_000 - 1
+        assert inputs.revenue_growth_rates[0] == pytest.approx(ntm_g0, rel=1e-6)
+        assert inputs.revenue_growth_rates[0] < 0.10  # well below the 14.9% raw rate
+        # Years 2+ stay native FY-over-FY consensus.
+        assert inputs.revenue_growth_rates[1] == pytest.approx(0.084)
+        assert inputs.revenue_growth_rates[2] == pytest.approx(0.071)
+        # Year 1 revenue lands on the FY1 estimate (~$478B), not the ~$519B overshoot.
+        result = calculate_dcf(inputs)
+        assert result.projected_revenue[0] == pytest.approx(416_200_000_000 * 1.149, rel=1e-6)
+        assert result.projected_revenue[0] < 490_000_000_000  # far below the ~519B overshoot
+
+    def test_provenance_names_consensus_and_discloses_ntm_restatement(self):
+        fin, hist = self._ttm_above_last_annual()
+        prov = seed_dcf_inputs(
+            fin, hist, forward_growth=[0.149, 0.084, 0.071]
+        ).assumption_provenance["revenue_growth_rates"]
+        # Shows the ACTUAL consensus rate (14.9%), not the restated 5.9%, and
+        # discloses the NTM restatement.
+        assert "analyst consensus" in prov
+        assert "14.9%" in prov
+        assert "Year 1 applied as" in prov
+
+    def test_hyper_grower_year1_stays_above_run_rate(self):
+        # MU-shape memory super-cycle: TTM run-rate $90B, last actual FY $37B,
+        # consensus FY1 +247% ($129B). The capped NTM rate must hold Year 1 just
+        # ABOVE the current run-rate — never the last-FY × capped-rate collapse below
+        # it ($37B × 1.40 = $52B ≪ the $90B run-rate).
+        fin = _aapl_financials().model_copy(
+            update={"income": _aapl_financials().income.model_copy(update={"revenue": 90_000_000_000})}
+        )
+        hist = _aapl_historical().model_copy(
+            update={"revenue": [15_500_000_000, 25_100_000_000, 30_800_000_000, 37_000_000_000]}
+        )
+        inputs = seed_dcf_inputs(fin, hist, forward_growth=[2.47, 0.90, 0.11])
+        # NTM g0 = 37×3.47/90 − 1 ≈ 42.6% → capped to 40%.
+        assert inputs.revenue_growth_rates[0] == pytest.approx(0.40)
+        # Year 1 = revenue_base × (1 + g[0]) (the _project_full first step) = 90 × 1.40
+        # = 126B, ABOVE the $90B run-rate — not the last-FY-anchored $52B collapse.
+        year1 = inputs.revenue_base * (1 + inputs.revenue_growth_rates[0])
+        assert year1 > 90_000_000_000
+        assert year1 == pytest.approx(90_000_000_000 * 1.40, rel=1e-6)
+
+    def test_falls_back_to_raw_rate_on_ttm_without_annual_history(self):
+        # Degraded historical (empty) → no FY anchor to restate against, so the raw
+        # FY-over-FY rate rides the TTM base (honest degradation), no NTM note.
+        fin = _aapl_financials()
+        hist_no_annual = _aapl_historical().model_copy(update={"revenue": [], "years": []})
+        inputs = seed_dcf_inputs(fin, hist_no_annual, forward_growth=[0.149])
+        assert inputs.revenue_base == pytest.approx(391_035_000_000)  # income.revenue (TTM)
+        assert inputs.revenue_growth_rates[0] == pytest.approx(0.149)  # raw, not restated
+        assert "Year 1 applied as" not in inputs.assumption_provenance["revenue_growth_rates"]
+
+
 class TestInputsFetchedAtProvenance:
     """门四溯源半: the seeded DCFInputs must carry WHEN its market/financial
     inputs were fetched, so every surface that prints a DCF (REST /dcf-seed,

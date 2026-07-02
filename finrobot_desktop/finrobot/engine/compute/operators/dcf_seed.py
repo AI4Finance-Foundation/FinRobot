@@ -379,9 +379,13 @@ def seed_dcf_inputs(
             FULL cycle window (not the trailing 3y), so the DCF anchors on a
             normalized through-cycle earnings power rather than whatever phase the
             cycle is in now. ``revenue_base`` is DELIBERATELY left at the current
-            TTM — Damodaran applies the normalized MARGIN to CURRENT revenue;
-            re-basing revenue too would double-count the cycle phase. False is the
-            unchanged trailing-3y path for every non-cyclical (KO逐位 identical).
+            TTM — Damodaran applies the normalized MARGIN to CURRENT revenue; re-
+            basing revenue too would double-count the cycle phase. This is also why
+            the base must stay TTM for a cyclical mid-ramp (MU: TTM run-rate ~$90B is
+            far above the last completed FY ~$37B) — anchoring on the stale FY and
+            applying the growth-capped consensus would project Year 1 BELOW the current
+            run-rate. False is the unchanged trailing-3y path for every non-cyclical
+            (KO逐位 identical).
 
     Returns:
         DCFInputs ready to pass to ``calculate_dcf``. The ``da_pct_revenue``
@@ -445,8 +449,13 @@ def seed_dcf_inputs(
         )
 
     # ----- revenue_base ------------------------------------------------------
-    # Label the basis HONESTLY: revenue_base is the canonical financials' revenue,
-    # which is TTM by default (not annual). Mislabeling TTM as "年报" is exactly
+    # The base is the CURRENT run-rate (TTM by default) — Year 1 is projected off
+    # it. Keeping the base at the current revenue is what anchors the DCF to today's
+    # earnings power (and is the Damodaran cyclical convention: normalized margin ×
+    # current revenue). It does NOT mean the FY-over-FY consensus rate rides TTM raw —
+    # that would double-count the current fiscal year's realized stub; the consensus
+    # branch below restates Year-1 growth to NTM caliber so Year 1 still lands on the
+    # FY1 estimate. Label the basis HONESTLY: mislabeling TTM as "annual" is exactly
     # the口径 error the project forbids. Read the actual basis from provenance.
     revenue_base = financials.income.revenue
     _basis = financials.provenance.period_basis if financials.provenance else "ttm"
@@ -471,12 +480,38 @@ def seed_dcf_inputs(
     # and falls through to trailing-CAGR seeding.
     consensus = [g for g in forward_growth if math.isfinite(g)] if forward_growth else []
     if consensus:
-        # Analyst consensus drives the explicit window. Clamp each consensus year
-        # to the shared floor/cap, then decay the tail from the last consensus
-        # year down to terminal — don't extrapolate a finite-horizon estimate
-        # forever, and don't fabricate a rise when the last consensus year is
+        # Analyst consensus drives the explicit window. The consensus rates are
+        # FY-over-FY (FY1/last-actual-FY − 1, FY2/FY1 − 1, …), but revenue_base is the
+        # current TTM run-rate, which already contains this fiscal year's realized stub.
+        # Applying the raw FY1 rate to TTM double-counts that stub: AAPL FY26 consensus
+        # revenue $478B on a $416B last FY is +14.9%, yet 14.9% × TTM $451B = $519B
+        # (+8.5% over consensus), printing the false FY25→Y1 +24.7% cliff in the
+        # financial chapter. Restate ONLY Year 1 to NTM caliber — the growth from the
+        # current TTM run-rate to the FY1 CONSENSUS LEVEL (last_FY × (1 + g[0])) — so
+        # Year 1 lands on the FY1 estimate. Years 2+ stay native FY-over-FY: once Year 1
+        # sits at the FY1 level, FY2/FY1 chains correctly. The NTM restatement is ALSO
+        # what keeps a mid-ramp hyper-grower sane — when FY1/TTM exceeds the cap (MU
+        # memory super-cycle, FY1 ~$129B on a ~$90B TTM run-rate), the capped NTM rate
+        # holds Year 1 just above the current run-rate, NOT the last-FY × capped-rate
+        # collapse BELOW it (last FY ~$37B × 1.40 = $52B ≪ the $90B run-rate). Needs the
+        # last actual FY as the consensus anchor; without history the raw rate rides TTM.
+        seed_rates = list(consensus[:projection_years])
+        _last_annual = historical.revenue[-1] if historical.revenue else None
+        _ntm_restated = (
+            _last_annual is not None
+            and math.isfinite(_last_annual)
+            and _last_annual > 0
+            and revenue_base > 0
+        )
+        if _ntm_restated:
+            assert _last_annual is not None  # narrowing for mypy
+            fy1_level = _last_annual * (1 + seed_rates[0])
+            seed_rates[0] = fy1_level / revenue_base - 1
+        # Clamp each explicit year to the shared floor/cap, then decay the tail from the
+        # last consensus year down to terminal — don't extrapolate a finite-horizon
+        # estimate forever, and don't fabricate a rise when the last consensus year is
         # already ≤ terminal (mature: hold flat, Gordon perpetuity does the rest).
-        explicit = [max(min(g, _GROWTH_CAP), _GROWTH_FLOOR) for g in consensus][:projection_years]
+        explicit = [max(min(g, _GROWTH_CAP), _GROWTH_FLOOR) for g in seed_rates]
         # Honest consensus count = what actually survived the slice, NOT the raw
         # input length. When consensus is longer than projection_years the tail
         # years are dropped here, so provenance must not claim them (e.g. a 12y
@@ -490,10 +525,22 @@ def seed_dcf_inputs(
         elif remaining > 0:
             explicit += [tail_start] * remaining
         growth_schedule = explicit
-        pct = "/".join(f"{g:.1%}" for g in growth_schedule[:n_consensus])
+        # Provenance shows the ACTUAL consensus rates (FY-over-FY), then discloses the
+        # Year-1 NTM restatement so the seeded schedule[0] never looks like a mystery
+        # rate divorced from consensus.
+        consensus_pct = "/".join(
+            f"{max(min(g, _GROWTH_CAP), _GROWTH_FLOOR):.1%}" for g in consensus[:n_consensus]
+        )
+        ntm_note = (
+            f"; Year 1 applied as {growth_schedule[0]:.1%} — growth from the TTM base to "
+            "the FY1 consensus level, so it does not double-count the current fiscal "
+            "year's growth already in TTM"
+            if _ntm_restated
+            else ""
+        )
         prov["revenue_growth_rates"] = (
-            f"analyst consensus FY1-{n_consensus} growth {pct}, "
-            f"then linear fade to terminal {terminal_growth_rate:.1%}"
+            f"analyst consensus FY1-{n_consensus} growth {consensus_pct}, "
+            f"then linear fade to terminal {terminal_growth_rate:.1%}{ntm_note}"
         )
     elif has_real_cagr:
         assert cagr is not None  # narrowing for mypy

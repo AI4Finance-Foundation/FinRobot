@@ -680,7 +680,11 @@ async def test_failed_event_appended_before_status_flip(tmp_path: Any, monkeypat
 
     pipeline = MagicMock()
     pipeline.steps = [MagicMock()]
-    pipeline.execute = AsyncMock(side_effect=ValueError("boom"))
+    pipeline.execute = AsyncMock(
+        side_effect=ValueError(
+            "boom for url https://financialmodelingprep.com/api/v3/quote/AAPL?apikey=secret"
+        )
+    )
     monkeypatch.setattr(
         runs_mod, "get_pipeline_factories", lambda: {"research": lambda agents: pipeline}
     )
@@ -694,8 +698,17 @@ async def test_failed_event_appended_before_status_flip(tmp_path: Any, monkeypat
     # Invariant: status is terminal AND the terminal event exists in run_events.
     final = await inner.get_run(record.run_id)
     assert final is not None and final.status == "failed"
+    assert final.error is not None
+    assert "apikey" not in final.error
+    assert "for url" not in final.error
+    assert "financialmodelingprep.com" not in final.error
     events = await inner.get_events_after(record.run_id, 0)
-    assert any(e.event.get("event") == "run.failed" for e in events)
+    failed = [e.event for e in events if e.event.get("event") == "run.failed"]
+    assert failed
+    failed_error = str(failed[0].get("error") or "")
+    assert "apikey" not in failed_error
+    assert "for url" not in failed_error
+    assert "financialmodelingprep.com" not in failed_error
     await inner.close()
 
 

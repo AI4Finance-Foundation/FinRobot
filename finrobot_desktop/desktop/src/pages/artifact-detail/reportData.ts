@@ -151,7 +151,10 @@ const NON_READER_WARNING_PREFIXES = ['[NUMERIC-AUDIT/', '[CONTRACT/', '[REPORT-D
  * by the full report (ReportChapters) and the compact viewer so the two never drift
  * on what counts as reader-facing. */
 export function readerFacingComputeWarnings(warnings: string[]): string[] {
-  return warnings.filter((w) => !NON_READER_WARNING_PREFIXES.some((p) => w.startsWith(p)))
+  return warnings
+    .map((w) => w.trim())
+    .filter((w) => w.length > 0)
+    .filter((w) => !NON_READER_WARNING_PREFIXES.some((p) => w.startsWith(p)))
 }
 
 export function deriveReportData(

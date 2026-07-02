@@ -223,6 +223,15 @@ describe('MarketDataZone — retail sentiment honest states', () => {
     expect(screen.getByTestId('sentiment-available')).toBeInTheDocument()
     expect(screen.queryByTestId('sentiment-unconfigured')).not.toBeInTheDocument()
   })
+
+  it('filters blank backend warnings instead of rendering empty warning glyphs', () => {
+    vi.mocked(useTickerSentiment).mockReturnValue(
+      settled({ ...SENTIMENT_OK, warnings: ['', '   ', 'stale sentiment cache used'] }) as never,
+    )
+    renderZone()
+    expect(screen.getAllByTestId('market-warning-line')).toHaveLength(1)
+    expect(screen.getByText(/stale sentiment cache used/)).toBeInTheDocument()
+  })
 })
 
 describe('MarketDataZone — valuation band card', () => {

@@ -86,4 +86,9 @@ describe('readerFacingComputeWarnings', () => {
     ])
     expect(out).toEqual([])
   })
+
+  it('drops blank warning entries before rendering reader-facing bullets', () => {
+    const out = readerFacingComputeWarnings(['', '   ', '  Forward P/E based on 4 of 5 peers  '])
+    expect(out).toEqual(['Forward P/E based on 4 of 5 peers'])
+  })
 })

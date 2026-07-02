@@ -579,12 +579,14 @@ function SentimentCard({
 // but its caliber is reduced (stale graft, cross-source divergence, …) and a
 // degraded surface must be visibly degraded (可溯源 red-line).
 function WarningLines({ warnings }: { warnings?: string[] }): React.ReactElement | null {
-  if (!warnings || warnings.length === 0) return null
+  const items = (warnings ?? []).map((w) => w.trim()).filter((w) => w.length > 0)
+  if (items.length === 0) return null
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 8 }}>
-      {warnings.map((w, i) => (
+      {items.map((w, i) => (
         <span
           key={i}
+          data-testid="market-warning-line"
           style={{
             fontFamily: 'var(--font-mono)',
             fontSize: 9.5,

@@ -153,12 +153,14 @@ describe('ArtifactDetailPage type branch (BUG-039)', () => {
 
     renderPage()
 
-    // Compact viewer mounts with the artifact's real numbers.
+    // Compact viewer mounts with the artifact's real numbers. The implied price
+    // now surfaces both in the headline and in the reused DCF valuation panel.
     expect(screen.getByTestId('compact-artifact-viewer')).toBeTruthy()
     expect(screen.getByText('DCF Implied Price')).toBeTruthy()
-    expect(screen.getByText('$187.40')).toBeTruthy()
-    // Inputs surfaced.
-    expect(screen.getByText('Terminal Growth Rate')).toBeTruthy()
+    expect(screen.getAllByText('$187.40').length).toBeGreaterThan(0)
+    // Inputs surfaced via the reused ValuationBody DCF-inputs module (the tool page
+    // now shares the report's chapter primitives instead of a flat K-V dump).
+    expect(screen.getByText('DCF Inputs & Implied Value')).toBeTruthy()
     // Audit trail surfaced.
     expect(screen.getByText('pipeline:dcf')).toBeTruthy()
 

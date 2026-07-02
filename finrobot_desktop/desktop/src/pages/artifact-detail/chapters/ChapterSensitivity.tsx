@@ -82,18 +82,31 @@ function computeAxisSwing(table: Record<string, unknown> | null | undefined): Ax
   }
 }
 
-export function ChapterSensitivity({
+interface ChapterSensitivityProps {
+  dcf: DcfShape | null
+  financialSector: boolean
+  quoteCurrency: string
+}
+
+export function ChapterSensitivity(props: ChapterSensitivityProps): React.ReactElement {
+  return (
+    <Chapter id="sensitivity">
+      <SensitivityBody {...props} />
+    </Chapter>
+  )
+}
+
+/** The WACC × terminal-growth sensitivity content WITHOUT the numbered <Chapter>
+ * chrome, so the standalone DCF tool page reuses the exact same assumptions lead +
+ * heatmap + swing notes under its own section header. */
+export function SensitivityBody({
   dcf,
   // True for a balance-sheet financial (bank / insurer): there is no FCFF-DCF, so a
   // WACC × terminal-growth sensitivity grid is a category error — show why, not "re-run".
   financialSector,
   // Sensitivity-grid implied prices are per-share → quote currency (BUG-030).
   quoteCurrency,
-}: {
-  dcf: DcfShape | null
-  financialSector: boolean
-  quoteCurrency: string
-}): React.ReactElement {
+}: ChapterSensitivityProps): React.ReactElement {
   const { t, locale } = useI18n()
   const fmtPrice = (v: number): string => formatCurrency(v, quoteCurrency, locale, v >= 100 ? 0 : 2)
   const table = dcf?.sensitivity_table ?? null
@@ -105,15 +118,11 @@ export function ChapterSensitivity({
   // sweeps WACC × terminal growth of the FCFF-DCF) does not apply. Lead with the reason
   // instead of an empty grid + a content-free assumptions heading.
   if (financialSector) {
-    return (
-      <Chapter id="sensitivity">
-        <p style={mutedNote}>{t('chapter.cashflowMethods.notApplicableForFinancials')}</p>
-      </Chapter>
-    )
+    return <p style={mutedNote}>{t('chapter.cashflowMethods.notApplicableForFinancials')}</p>
   }
 
   return (
-    <Chapter id="sensitivity">
+    <>
       <SubChapter heading={t('chapter.sensitivity.subheading.assumptions')}>
         <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
           {t('chapter.sensitivity.assumptions.lead')}
@@ -189,7 +198,7 @@ export function ChapterSensitivity({
           </p>
         </SubChapter>
       )}
-    </Chapter>
+    </>
   )
 }
 

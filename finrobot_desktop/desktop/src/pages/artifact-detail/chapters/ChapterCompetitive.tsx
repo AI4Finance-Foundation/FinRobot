@@ -14,7 +14,19 @@ interface ChapterCompetitiveProps {
   thesis: ThesisShape | null
 }
 
-export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): React.ReactElement {
+export function ChapterCompetitive(props: ChapterCompetitiveProps): React.ReactElement {
+  return (
+    <Chapter id="competitive">
+      <CompetitiveBody {...props} />
+    </Chapter>
+  )
+}
+
+/** The peer-comps content WITHOUT the numbered <Chapter> chrome, so the standalone
+ * comps tool page (CompactArtifactViewer) reuses the exact same peer table + heat
+ * shading + medians + charts under its own section header. `thesis` is null on a
+ * standalone comps artifact, so the competitor-analysis narrative simply omits. */
+export function CompetitiveBody({ peers, thesis }: ChapterCompetitiveProps): React.ReactElement {
   const { t, locale } = useI18n()
   const narrative = thesis?.competitor_analysis ?? null
   const target = peers?.target
@@ -77,7 +89,7 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
   const radarData = compsForCharts ? compsResultToRadarData(compsForCharts) : []
 
   return (
-    <Chapter id="competitive">
+    <>
       {narrative && (
         <Narrative>
           <MarkdownLite text={narrative} />
@@ -310,7 +322,7 @@ export function ChapterCompetitive({ peers, thesis }: ChapterCompetitiveProps): 
           />
         </SubChapter>
       )}
-    </Chapter>
+    </>
   )
 }
 

@@ -49,7 +49,22 @@ interface ChapterValuationProps {
   historicalBand?: HistoricalBandShape | null
 }
 
-export function ChapterValuation({
+export function ChapterValuation(props: ChapterValuationProps): React.ReactElement {
+  return (
+    <Chapter id="valuation">
+      <ValuationBody {...props} />
+    </Chapter>
+  )
+}
+
+/** The valuation content WITHOUT the numbered <Chapter> chrome, so the standalone
+ * DCF tool page (CompactArtifactViewer) can reuse the exact same DCF-inputs +
+ * bridge + football rendering under its own section header — one source of truth,
+ * no drift. Degrades cleanly when a standalone artifact lacks the report-only
+ * blocks: the review echo, football field, forward footnote and target line all
+ * gate on thesis / valuation_synthesis / forwardEstimates / sotp and simply omit
+ * themselves; the DCF-inputs module + bridge render from `dcf` alone. */
+export function ValuationBody({
   dcf,
   thesis,
   valuationSynthesis,
@@ -217,7 +232,7 @@ export function ChapterValuation({
   ].filter((c): c is Cell => Boolean(c))
 
   return (
-    <Chapter id="valuation">
+    <>
       {showReviewEcho && mi && (
         <div
           data-testid="valuation-review-echo"
@@ -476,7 +491,7 @@ export function ChapterValuation({
           )}
         </p>
       )}
-    </Chapter>
+    </>
   )
 }
 

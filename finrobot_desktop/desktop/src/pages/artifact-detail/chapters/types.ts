@@ -61,6 +61,117 @@ export interface DcfShape {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Standalone DDM / LBO tool read models. Unlike DCF (financial_modeling) and
+// comps (peer_analysis), these two have NO dedicated report chapter — they only
+// appear as a football-field method row in the full report. The standalone DDM /
+// LBO artifacts persist the raw DDMResult / LBOResult model_dump() at
+// outputs.structured top level (builders.build_ddm_artifact / build_lbo_artifact),
+// so the tool detail page renders them through DdmBody / LboBody (chapters/) using
+// the SAME shared primitives (MetricModule / SubChapter / tableStyle) the report
+// chapters use — one visual language, no raw K-V dump. Mirror
+// finrobot.engine.models.financial.{DDMResult,DDMInputs,LBOResult,LBOYear,LBOInputs};
+// keep in sync when those models change.
+// ---------------------------------------------------------------------------
+
+export interface DdmInputsShape {
+  dividend_per_share?: number
+  dividend_growth_rates?: number[]
+  payout_ratio?: number
+  risk_free_rate?: number
+  beta?: number
+  equity_risk_premium?: number
+  terminal_growth_rate?: number
+  terminal_payout_ratio?: number | null
+  shares_outstanding?: number
+  current_price?: number
+  book_value_per_share?: number | null
+  return_on_equity?: number | null
+  net_interest_margin?: number | null
+  // key (snake_case) → human-readable prose explanation of how each input was
+  // derived (e.g. "34.4% (trailing 3yr EBITDA margin median)"). The VALUES are
+  // already analyst prose; the tool page humanises the KEY and renders the value
+  // verbatim (see CompactArtifactViewer ProvenanceList).
+  assumption_provenance?: Record<string, string>
+}
+
+export interface DdmShape {
+  cost_of_equity?: number
+  projected_dividends?: number[]
+  pv_dividends?: number[]
+  pv_dividends_total?: number
+  terminal_dividend?: number
+  terminal_value?: number
+  pv_terminal?: number
+  equity_value_per_share?: number
+  inputs?: DdmInputsShape
+}
+
+/** One year of the LBO debt schedule. All numbers deterministically computed. */
+export interface LboYearShape {
+  year: number
+  revenue: number
+  ebitda: number
+  da: number
+  ebit: number
+  interest_expense: number
+  ebt: number
+  taxes: number
+  net_income: number
+  capex: number
+  delta_nwc: number
+  fcf: number
+  mandatory_amort: number
+  cash_sweep_amount: number
+  total_debt_paydown: number
+  revolver_draw: number
+  ending_debt: number
+}
+
+export interface LboInputsShape {
+  ticker?: string
+  ltm_ebitda?: number
+  entry_ebitda?: number | null
+  entry_ev_ebitda?: number
+  exit_ev_ebitda?: number
+  holding_period_years?: number
+  revenue_base?: number
+  revenue_growth_rate?: number
+  ebitda_margin?: number
+  leverage_multiple?: number
+  interest_rate?: number
+  mandatory_amort_pct?: number
+  tax_rate?: number
+  assumption_provenance?: Record<string, string>
+}
+
+export interface LboSensitivityShape {
+  entry_multiples?: number[]
+  exit_multiples?: number[]
+  irr_grid?: (number | null)[][]
+  moic_grid?: (number | null)[][]
+}
+
+export interface LboShape {
+  // Null throughout when the lbo_calculation step degraded (e.g. an impossible
+  // capital structure) — the tool page degrades to the inputs + warnings rather
+  // than crashing on a missing schedule (mirrors the MU peak-EBITDA case).
+  entry_ev?: number | null
+  entry_debt?: number | null
+  entry_equity?: number | null
+  schedule?: LboYearShape[]
+  exit_ebitda?: number | null
+  exit_ev?: number | null
+  exit_equity?: number | null
+  // MOIC/IRR contract (see lbo-recall): None = impossible capital structure
+  // (negative entry equity); 0×/-1 = a genuine total loss (equity wiped).
+  moic?: number | null
+  irr?: number | null
+  sensitivity?: LboSensitivityShape | null
+  irr_formula_warning?: string | null
+  capital_structure_warning?: string | null
+}
+
 export interface CatalystEventShape {
   category: string
   headline: string

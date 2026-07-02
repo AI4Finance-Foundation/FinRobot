@@ -1,27 +1,47 @@
 // CompactArtifactViewer — the detail body for NON equity_research artifacts
-// (dcf / lbo / ddm / comps / earnings / ic_memo / peer_research / ad_hoc).
+// (dcf / ddm / lbo / comps / earnings / ic_memo / peer_research / ad_hoc).
 //
-// These artifacts are single deterministic computations, not 13-chapter
-// reports. Forcing them through ReportChapters renders a mostly-empty equity
-// shell (empty thesis/valuation/ownership chapters) — see BUG-20260602-039.
-// Instead we show what the artifact ACTUALLY carries:
-//   - a type-aware headline number (DCF→implied price, DDM→equity value/sh,
-//     LBO→IRR·MOIC, comps→median multiples, earnings→beat rate)
-//   - its inputs / assumptions (assumptions.parameters)
-//   - its result key numbers (outputs.structured, generic flatten)
-//   - its summary text + warnings
-//   - an audit / provenance trail (created_at · source · data_source ·
-//     compute version · formula id)
+// These artifacts are single deterministic computations, not 13-chapter reports.
+// The four valuation tools (dcf / ddm / lbo / comps) now render through the SAME
+// chapter primitives the full report uses — one visual language, no raw K-V dump:
+//   - dcf   → ValuationBody (DCF inputs + bridge) + DcfForecastTable (10y, full) +
+//             SensitivityBody (WACC × TG heatmap)
+//   - comps → CompetitiveBody (peer table + heat shading + medians + charts)
+//   - ddm   → DdmBody (inputs module + full dividend projection)
+//   - lbo   → LboBody (entry/exit modules + full debt schedule + IRR sensitivity)
+// Every array renders in full (no silent slice); every number is type-formatted
+// (currency / percent / ×), never a bare decimal or ISO timestamp; labels are
+// human, never snake_case.
 //
-// It is a generic structured-data renderer with just enough type-awareness to
-// label the headline; the long tail (ad_hoc, future types) degrades to a clean
-// flattened key/value grid rather than an empty page.
+// This viewer keeps ownership of the artifact-generic surfaces: the type-aware
+// headline number, the LLM summary, the numeric-audit banner (reused), a READABLE
+// assumption-provenance trail (the sourcing gold that was buried as "16 fields"),
+// the reader-facing compute warnings, and the audit/provenance metadata. Uncovered
+// types (earnings / ic_memo / ad_hoc) still degrade to a clean flattened grid —
+// but arrays are no longer truncated.
 
 import type { ArtifactDetail } from '../../hooks/useV5Artifacts'
 import { useI18n, type Locale } from '../../i18n'
 import { formatCurrency, formatPercent, formatDate, formatCompactNumber } from '../../utils/format'
 import { MarkdownLite } from '../../components/MarkdownLite'
-import { readerFacingComputeWarnings } from './reportData'
+import { readerFacingComputeWarnings, parseSurfacedContractFindings } from './reportData'
+import {
+  ChapterAuditBanner,
+  ValuationBody,
+  SensitivityBody,
+  CompetitiveBody,
+  DcfForecastTable,
+  DdmBody,
+  LboBody,
+} from './chapters'
+import type {
+  DcfShape,
+  DdmShape,
+  LboShape,
+  LboInputsShape,
+  PeerCompsShape,
+  NumericAuditShape,
+} from './chapters/types'
 
 interface CompactInputs {
   data_source?: string
@@ -47,7 +67,6 @@ interface CompactComputeVersion {
 interface HeadlineStat {
   label: string
   value: string
-  /** Optional secondary stat shown next to the headline (e.g. MOIC next to IRR). */
 }
 
 const T = (locale: Locale, zh: string, en: string): string => (locale === 'zh' ? zh : en)
@@ -62,6 +81,7 @@ function humanizeKey(key: string): string {
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
     .replace(/\bPe\b/g, 'P/E')
+    .replace(/\bPb\b/g, 'P/B')
     .replace(/\bEv\b/g, 'EV')
     .replace(/\bEbitda\b/g, 'EBITDA')
     .replace(/\bIrr\b/g, 'IRR')
@@ -69,17 +89,22 @@ function humanizeKey(key: string): string {
     .replace(/\bWacc\b/g, 'WACC')
     .replace(/\bDcf\b/g, 'DCF')
     .replace(/\bLbo\b/g, 'LBO')
+    .replace(/\bDdm\b/g, 'DDM')
     .replace(/\bDps\b/g, 'DPS')
+    .replace(/\bNwc\b/g, 'NWC')
+    .replace(/\bDa\b/g, 'D&A')
+    .replace(/\bRoe\b/g, 'ROE')
+    .replace(/\bTtm\b/g, 'TTM')
     .replace(/\bPct\b/g, '%')
 }
 
-/** Render a scalar value for the generic grid. Arrays/objects are summarized. */
+/** Render a scalar value for the generic grid (uncovered types only). Arrays
+ * render IN FULL (never a silent slice) — the "10 年投影只显示前 8 项" bug. */
 function renderScalar(v: unknown, locale: Locale): string | null {
   if (v === null || v === undefined) return null
   if (typeof v === 'boolean') return v ? T(locale, '是', 'Yes') : T(locale, '否', 'No')
   if (typeof v === 'string') return v.trim() === '' ? null : v
   if (isPlainNumber(v)) {
-    // Large magnitudes → compact; otherwise plain with 2 decimals.
     if (Math.abs(v) >= 1e6) return formatCompactNumber(v, locale)
     return new Intl.NumberFormat(locale === 'zh' ? 'zh-CN' : 'en-US', {
       maximumFractionDigits: 4,
@@ -88,10 +113,7 @@ function renderScalar(v: unknown, locale: Locale): string | null {
   if (Array.isArray(v)) {
     if (v.length === 0) return null
     if (v.every((x) => isPlainNumber(x) || typeof x === 'string')) {
-      return v
-        .slice(0, 8)
-        .map((x) => (isPlainNumber(x) ? renderScalar(x, locale) : String(x)))
-        .join(', ')
+      return v.map((x) => (isPlainNumber(x) ? renderScalar(x, locale) : String(x))).join(', ')
     }
     return T(locale, `${v.length} 项`, `${v.length} items`)
   }
@@ -108,7 +130,8 @@ interface KV {
   value: string
 }
 
-/** Flatten a structured dict into displayable key/value rows (one level deep). */
+/** Flatten a structured dict into displayable key/value rows (one level deep).
+ * Only used by the generic fallback for uncovered artifact types. */
 function flatten(obj: Record<string, unknown> | undefined, locale: Locale): KV[] {
   if (!obj) return []
   const rows: KV[] = []
@@ -163,11 +186,7 @@ function deriveHeadline(
       const irr = num('irr')
       if (irr !== undefined) stats.push({ label: 'IRR', value: formatPercent(irr, locale) })
       const moic = num('moic')
-      if (moic !== undefined)
-        stats.push({
-          label: 'MOIC',
-          value: `${moic.toFixed(2)}×`,
-        })
+      if (moic !== undefined) stats.push({ label: 'MOIC', value: `${moic.toFixed(2)}×` })
       return stats
     }
     case 'comps': {
@@ -179,9 +198,8 @@ function deriveHeadline(
           value: `${pe.toFixed(1)}×`,
         })
       // P/B is the lead relative multiple for cyclicals & financials (book equity is
-      // cycle-stable / the bank-and-insurer anchor), so surface it whenever present —
-      // the full report leads with it for those regimes. EV/EBITDA is nulled for
-      // financial issuers upstream (build_comps_artifact), so a bank shows P/E + P/B.
+      // cycle-stable / the bank-and-insurer anchor), so surface it whenever present.
+      // EV/EBITDA is nulled for financial issuers upstream (build_comps_artifact).
       const pb = num('median_pb')
       if (pb !== undefined)
         stats.push({
@@ -206,10 +224,7 @@ function deriveHeadline(
         })
       const streak = num('consecutive_beats')
       if (streak !== undefined)
-        stats.push({
-          label: T(locale, '连续超预期', 'Consecutive Beats'),
-          value: String(streak),
-        })
+        stats.push({ label: T(locale, '连续超预期', 'Consecutive Beats'), value: String(streak) })
       return stats
     }
     case 'ic_memo': {
@@ -247,6 +262,19 @@ function typeLabel(type: string, locale: Locale): string {
   return type
 }
 
+/** Currency for a standalone valuation tool. All four standalone pipelines
+ * FX-normalize to USD before seeding (BUG-073 family), so USD is the correct
+ * default; the DCF artifact additionally stamps `currency` at the structured /
+ * inputs level, which we honour for the rare foreign case. */
+function toolCurrency(structured: Record<string, unknown>): string {
+  const top = structured.currency
+  if (typeof top === 'string' && top) return top
+  const inputs = structured.inputs as Record<string, unknown> | undefined
+  const inner = inputs?.currency
+  if (typeof inner === 'string' && inner) return inner
+  return 'USD'
+}
+
 export function CompactArtifactViewer({
   artifact,
 }: {
@@ -260,31 +288,36 @@ export function CompactArtifactViewer({
   const assumptions = (artifact.assumptions as { parameters?: Record<string, unknown> }) ?? {}
 
   const structured = outputs.structured ?? {}
-  const headline = deriveHeadline(artifact.type, structured, locale)
-
-  const inputRows = flatten(assumptions.parameters, locale)
-  // For ic_memo the top level is { dcf_result, lbo_result } — surface their
-  // scalars one level deeper so the result grid isn't just "N fields, N fields".
-  const resultSource: Record<string, unknown> =
-    artifact.type === 'ic_memo'
-      ? {
-          ...((structured.dcf_result as Record<string, unknown>) ?? {}),
-          ...((structured.lbo_result as Record<string, unknown>) ?? {}),
-        }
-      : structured
-  const resultRows = flatten(resultSource, locale)
+  const type = artifact.type
+  const headline = deriveHeadline(type, structured, locale)
+  const currency = toolCurrency(structured)
+  const numericAudit = (structured.numeric_audit as NumericAuditShape | undefined) ?? null
 
   // Same reader-facing filter as the full report — drop machine-tagged audit / QA
   // lines ([NUMERIC-AUDIT/], [CONTRACT/], [REPORT-DRIFT/]); they live in the
-  // structured payload for triage, not the analyst's caveat list.
+  // structured payload for triage / the audit banner, not the analyst caveat list.
+  const contractFindings = parseSurfacedContractFindings(outputs.warnings ?? [])
   const warnings = [
     ...readerFacingComputeWarnings(outputs.warnings ?? []),
     ...(cv?.formula_warnings ?? []),
   ]
   const summaryText = (outputs.summary_text ?? '').trim()
 
+  // Assumption-provenance trail (key → analyst prose). DCF / DDM stash it under
+  // structured.inputs; LBO under assumptions.parameters (its result has no inputs).
+  // Comps has no per-input provenance dict — its sourcing story is the peer-selection
+  // trace, which the SUMMARY already carries (statistical_bench step), so we don't
+  // repeat it here.
+  const structuredInputs = structured.inputs as Record<string, unknown> | undefined
+  const provenance =
+    type === 'lbo'
+      ? (assumptions.parameters?.assumption_provenance as Record<string, string> | undefined)
+      : (structuredInputs?.assumption_provenance as Record<string, string> | undefined)
+
   return (
     <main data-testid="compact-artifact-viewer" style={{ minWidth: 0, padding: '12px 0 60px' }}>
+      <ChapterAuditBanner audit={numericAudit} contractFindings={contractFindings} />
+
       {/* Header: type + ticker + headline number */}
       <header style={{ marginBottom: 28 }}>
         <div
@@ -297,7 +330,7 @@ export function CompactArtifactViewer({
             marginBottom: 6,
           }}
         >
-          {typeLabel(artifact.type, locale)}
+          {typeLabel(type, locale)}
           {artifact.ticker ? ` · ${artifact.ticker}` : ''}
         </div>
         <h1
@@ -310,7 +343,7 @@ export function CompactArtifactViewer({
             letterSpacing: '0.5px',
           }}
         >
-          {typeLabel(artifact.type, locale)}
+          {typeLabel(type, locale)}
         </h1>
 
         {headline.length > 0 && (
@@ -353,15 +386,18 @@ export function CompactArtifactViewer({
         </Section>
       )}
 
-      {inputRows.length > 0 && (
-        <Section title={T(locale, '输入假设', 'Inputs & Assumptions')}>
-          <KVGrid rows={inputRows} />
-        </Section>
-      )}
+      <ToolBody
+        artifact={artifact}
+        structured={structured}
+        assumptionParams={assumptions.parameters}
+        currency={currency}
+        numericAudit={numericAudit}
+        locale={locale}
+      />
 
-      {resultRows.length > 0 && (
-        <Section title={T(locale, '计算结果', 'Computed Results')}>
-          <KVGrid rows={resultRows} />
+      {provenance && Object.keys(provenance).length > 0 && (
+        <Section title={T(locale, '假设与溯源', 'Assumptions & Provenance')}>
+          <ProvenanceList provenance={provenance} />
         </Section>
       )}
 
@@ -407,11 +443,7 @@ export function CompactArtifactViewer({
               label: T(locale, '生成时间', 'Created'),
               value: meta.created_at ? formatDate(meta.created_at, locale, 'datetime') : '—',
             },
-            {
-              key: 'source',
-              label: T(locale, '来源', 'Source'),
-              value: meta.source ?? '—',
-            },
+            { key: 'source', label: T(locale, '来源', 'Source'), value: meta.source ?? '—' },
             {
               key: 'data_source',
               label: T(locale, '数据源', 'Data Source'),
@@ -434,15 +466,176 @@ export function CompactArtifactViewer({
               label: T(locale, '计算版本', 'Compute Version'),
               value: cv?.version ? `finrobot ${cv.version}` : '—',
             },
-            {
-              key: 'artifact_id',
-              label: 'Artifact ID',
-              value: artifact.id,
-            },
+            { key: 'artifact_id', label: 'Artifact ID', value: artifact.id },
           ]}
         />
       </Section>
     </main>
+  )
+}
+
+/** Route each covered valuation tool to the report's chapter primitives; degrade
+ * uncovered types to the flattened grid (arrays no longer truncated). */
+function ToolBody({
+  artifact,
+  structured,
+  assumptionParams,
+  currency,
+  numericAudit,
+  locale,
+}: {
+  artifact: ArtifactDetail
+  structured: Record<string, unknown>
+  assumptionParams: Record<string, unknown> | undefined
+  currency: string
+  numericAudit: NumericAuditShape | null
+  locale: Locale
+}): React.ReactElement {
+  switch (artifact.type) {
+    case 'dcf': {
+      const dcf = structured as unknown as DcfShape
+      return (
+        <>
+          <Section title={T(locale, '估值', 'Valuation')}>
+            <ValuationBody
+              dcf={dcf}
+              thesis={null}
+              valuationSynthesis={null}
+              forwardEstimates={null}
+              sotpBreakdown={null}
+              quoteCurrency={currency}
+              reportingCurrency={currency}
+              numericAudit={numericAudit}
+            />
+          </Section>
+          <Section title={T(locale, '财务预测', 'Financial Forecast')}>
+            <DcfForecastTable dcf={dcf} reportingCurrency={currency} />
+          </Section>
+          <Section title={T(locale, '敏感性', 'Sensitivity')}>
+            <SensitivityBody dcf={dcf} financialSector={false} quoteCurrency={currency} />
+          </Section>
+        </>
+      )
+    }
+    case 'ddm':
+      return (
+        <Section title={T(locale, 'DDM 模型', 'DDM Model')}>
+          <DdmBody ddm={structured as unknown as DdmShape} currency={currency} />
+        </Section>
+      )
+    case 'lbo':
+      return (
+        <Section title={T(locale, 'LBO 模型', 'LBO Model')}>
+          <LboBody
+            lbo={structured as unknown as LboShape}
+            inputs={(assumptionParams as unknown as LboInputsShape | undefined) ?? null}
+            currency={currency}
+          />
+        </Section>
+      )
+    case 'comps':
+      return (
+        <Section title={T(locale, '同业对比', 'Peer Comparison')}>
+          <CompetitiveBody peers={structured as unknown as PeerCompsShape} thesis={null} />
+        </Section>
+      )
+    default:
+      return (
+        <GenericBody structured={structured} assumptionParams={assumptionParams} locale={locale} />
+      )
+  }
+}
+
+/** Fallback for uncovered types (earnings / ic_memo / peer_research / ad_hoc):
+ * the inputs + results flattened grid. Arrays render in full (no slice). */
+function GenericBody({
+  structured,
+  assumptionParams,
+  locale,
+}: {
+  structured: Record<string, unknown>
+  assumptionParams: Record<string, unknown> | undefined
+  locale: Locale
+}): React.ReactElement {
+  const inputRows = flatten(assumptionParams, locale)
+  // ic_memo nests { dcf_result, lbo_result } — surface their scalars one level
+  // deeper so the grid isn't just "N fields, N fields".
+  const resultSource: Record<string, unknown> =
+    'dcf_result' in structured || 'lbo_result' in structured
+      ? {
+          ...((structured.dcf_result as Record<string, unknown>) ?? {}),
+          ...((structured.lbo_result as Record<string, unknown>) ?? {}),
+        }
+      : structured
+  const resultRows = flatten(resultSource, locale)
+  return (
+    <>
+      {inputRows.length > 0 && (
+        <Section title={T(locale, '输入假设', 'Inputs & Assumptions')}>
+          <KVGrid rows={inputRows} />
+        </Section>
+      )}
+      {resultRows.length > 0 && (
+        <Section title={T(locale, '计算结果', 'Computed Results')}>
+          <KVGrid rows={resultRows} />
+        </Section>
+      )}
+    </>
+  )
+}
+
+/** Readable assumption-provenance trail: a humanized label + the analyst-prose
+ * explanation (the backend value is already prose carrying the value in correct
+ * units — e.g. "34.4% (trailing 3yr EBITDA margin median)"). Replaces the flat
+ * "16 fields" dead text that buried this sourcing layer. */
+function ProvenanceList({
+  provenance,
+}: {
+  provenance: Record<string, string>
+}): React.ReactElement {
+  const rows = Object.entries(provenance).filter(
+    ([, v]) => typeof v === 'string' && v.trim() !== '',
+  )
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-sm)',
+        overflow: 'hidden',
+      }}
+    >
+      {rows.map(([key, value], i) => (
+        <div
+          key={key}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(140px, 200px) 1fr',
+            gap: 16,
+            padding: '10px 14px',
+            background: i % 2 === 0 ? 'var(--surface-2)' : 'transparent',
+            borderTop: i === 0 ? undefined : '1px solid var(--border-faint)',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: 'var(--text-muted)',
+            }}
+          >
+            {humanizeKey(key)}
+          </span>
+          <span style={{ fontSize: 12.5, lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+            {value}
+          </span>
+        </div>
+      ))}
+    </div>
   )
 }
 

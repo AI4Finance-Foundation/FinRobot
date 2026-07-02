@@ -51,9 +51,11 @@ describe('ReportExportBody — export body mirrors the in-app page', () => {
     render(<ReportExportBody artifact={dcfArtifact()} timeline={[]} />)
     expect(screen.getByTestId('compact-artifact-viewer')).toBeTruthy()
     // The artifact's real headline + inputs surface (not an empty equity cover).
-    expect(screen.getByText('DCF Implied Price')).toBeTruthy()
-    expect(screen.getByText('$187.40')).toBeTruthy()
-    expect(screen.getByText('Terminal Growth Rate')).toBeTruthy()
+    // "DCF Implied Price" + "$187.40" show in the headline AND the reused DCF
+    // valuation panel (hero number + the inputs/implied module).
+    expect(screen.getAllByText('DCF Implied Price').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('$187.40').length).toBeGreaterThan(0)
+    expect(screen.getByText('DCF Inputs & Implied Value')).toBeTruthy()
     // The 13-chapter shell must be absent.
     expect(screen.queryByTestId('mock-report-chapters')).toBeNull()
   })

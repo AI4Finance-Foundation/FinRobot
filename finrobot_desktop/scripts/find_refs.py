@@ -27,6 +27,7 @@ If --def-file is omitted, the tool locates the unique `def <symbol>` /
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -59,8 +60,9 @@ def _line_of(text: str, offset: int) -> int:
 
 def _find_def_site(symbol: str) -> str:
     """Return the single repo-relative file that defines `symbol`, or exit."""
+    literal = re.escape(symbol)
     out = subprocess.run(
-        ["grep", "-rlE", rf"^\s*(def|class)\s+{symbol}\b", "--include=*.py", *GREP_ROOTS],
+        ["grep", "-rlE", rf"^\s*(def|class)\s+{literal}\b", "--include=*.py", *GREP_ROOTS],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -93,7 +95,7 @@ def _grep_hits(symbol: str) -> set[tuple[str, int]]:
     includes = [f"--include={g}" for g in GREP_GLOBS]
     excludes = [f"--exclude-dir={d.split('/')[-1]}" for d in IGNORED]
     out = subprocess.run(
-        ["grep", "-rwnE", symbol, *includes, *excludes, *GREP_ROOTS],
+        ["grep", "-rwnF", symbol, *includes, *excludes, *GREP_ROOTS],
         cwd=ROOT,
         capture_output=True,
         text=True,

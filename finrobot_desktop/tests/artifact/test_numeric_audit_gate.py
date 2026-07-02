@@ -12,6 +12,8 @@ from datetime import date, datetime, timezone
 from types import SimpleNamespace
 from typing import Any, cast
 
+import pytest
+
 from finrobot.artifact.builders import (
     build_comps_artifact,
     build_dcf_artifact,
@@ -169,11 +171,15 @@ def test_synthesis_dial_withhold_sets_top_level_flag_like_numeric_audit():
     from finrobot.engine.compute.operators.valuation_synthesis import synthesize_valuations
     from finrobot.engine.models.financial import ValuationMethod
 
-    # lone comps_pb 0.28x of market → outside the [0.5x, 2x] single-method band →
+    # lone comps_pb far below market → outside the [0.5x, 2x] single-method band →
     # the dial withholds the point (the verdict still ships directionally).
+    # current_price matches _fd's market block (100.0): in production the synthesis
+    # price IS financial_data.market.current_price, and the artifact's single-as-of
+    # gate (_assert_price_snapshot_coherent) rejects a synthesis price that trails
+    # the market block, so the mock must keep them coherent.
     vs = synthesize_valuations(
         [ValuationMethod(name="comps_pb", low=3.92, mid=4.61, high=5.30, confidence=0.6, source="PB")],
-        current_price=16.52,
+        current_price=100.0,
     )
     assert vs.valuation_withheld is True  # precondition: the dial withheld
     # clean financials → numeric audit does NOT block (isolates the dial path)
@@ -416,3 +422,54 @@ def test_ic_memo_audits_nested_snapshot_and_records_block():
     # No single per-share headline → nothing auto-withheld; the DCF / LBO ship.
     assert "valuation_withheld" not in art.outputs.structured
     assert "dcf_result" in art.outputs.structured
+
+
+# ---------------------------------------------------------------------------
+# Single-as-of gate — one artifact carries one price as-of (AAPL 2026-07-02:
+# summary_text $287.98 / $4.230T trailed the frozen market block $294.38 /
+# $4.324T by a full session; the 10% report-drift approximation band read the
+# stale price as a rounding and shipped it).
+# ---------------------------------------------------------------------------
+
+
+def _split_result(data_collection_text: str):
+    # _fd's market block = current_price 100.0 / market_cap 500e9.
+    return PipelineResult(
+        steps={"data_collection": data_collection_text, "thesis": "Price target $100"},
+        structured_data={
+            "data_collection": _fd(),
+            "thesis": {"recommendation": "BUY", "price_target": 100.0, "tagline": "t"},
+        },
+    )
+
+
+def test_price_snapshot_split_in_summary_fails_build():
+    """A summary narrative restating a price/market-cap that trails the frozen
+    market block (>1% same-number tolerance) fails the build — a second price
+    for one artifact is a fabrication surface, never shipped (绝不编数字)."""
+    result = _split_result("| Current Price | $95.00 |\n| Market Cap | $475.0 Billion |")
+    with pytest.raises(ValueError, match="price snapshot as-of split"):
+        _build(result, "X")
+
+
+def test_price_snapshot_coherent_narrative_builds():
+    """A narrative price within the tight same-number band builds fine — the gate
+    only fires on a genuine cross-session split, not on rounding."""
+    result = _split_result("| Current Price | $100.00 |\n| Market Cap | $500.0 Billion |")
+    art = _build(result, "X")
+    assert "$100.00" in art.outputs.summary_text  # built, no raise
+
+
+def test_price_snapshot_derived_field_split_fails_build():
+    """A code-derived price field (valuation_synthesis.current_price) that trails
+    the frozen market block also fails the build — deterministic desync, not LLM
+    variance."""
+    result = _split_result("data collection ok")
+    # 90.0 vs the market block's 100.0 → 10% split. A plain dict round-trips through
+    # _safe_dump unchanged (structured_out reads current_price straight off it).
+    result.structured_data["valuation_synthesis"] = {
+        "current_price": 90.0,
+        "valuation_withheld": False,
+    }
+    with pytest.raises(ValueError, match="price snapshot as-of split"):
+        _build(result, "X")

@@ -242,7 +242,18 @@ def extract_financial_data(
     return FinancialData(
         ticker=ticker,
         company_name=fin.company_name or "",
-        timestamp=fin.provenance.fetched_at,
+        # As-of of THIS snapshot's headline = the session the displayed
+        # current_price belongs to (PRICE canonical's semantic ``as_of``), NOT the
+        # FINANCIALS fetch time. The two canonicals have independent TTLs, so the
+        # FINANCIALS fetch (which embeds a staler price) can lag the dedicated
+        # PRICE canonical by a full session; stamping fin.fetched_at here mislabels
+        # the "As of" pill against the fresh price the market block / 13 chapters
+        # actually render (AAPL 2026-07-02: pill said 06-30 16:14 while the
+        # headline was 07-01's $294.38). The financials' own period is separately
+        # carried in ``fiscal_period_end`` / the "TTM 截至 X" label, so no fidelity
+        # is lost. Contract: the freshness pill reads the price ``as_of``
+        # (normalize/contracts Provenance docstring).
+        timestamp=price.provenance.as_of,
         fiscal_period_end=fin.period_end,
         # Carry the TTM constituent quarter-ends so audit.ttm_period can assert the
         # four quarters don't overlap/gap (numeric-audit family-4). Empty on the

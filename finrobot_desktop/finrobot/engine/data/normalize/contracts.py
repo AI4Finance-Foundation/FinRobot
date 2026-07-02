@@ -381,6 +381,41 @@ class NormalizedFinancials(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+def financials_with_display_price(
+    fin: NormalizedFinancials, price: NormalizedPrice
+) -> NormalizedFinancials:
+    """Overlay the dedicated PRICE canonical's live basis onto a FINANCIALS
+    snapshot's own price-derived fields (``current_price`` / ``market_cap`` /
+    ``pe_ratio``).
+
+    The FINANCIALS canonical bundles a price / market_cap / P-E captured at the
+    FINANCIALS fetch, which lags the dedicated (fresher) PRICE canonical. The
+    structured producer (``extract_financial_data``) already reconciles this — it
+    marks the market block to the live PRICE basis — but any surface that renders
+    the RAW FINANCIALS snapshot (the LLM data-collection prompt) would otherwise
+    show the stale price and narrate it into the artifact's ``summary_text``, a
+    SECOND as-of inside one artifact (AAPL 2026-07-02: summary $287.98 vs headline
+    $294.38). Scale market_cap / P-E by the same price move so all three stay
+    mutually consistent (market_cap = shares × live price — exactly what
+    ``extract_financial_data`` marks to, since the provider's reported cap =
+    shares × its own price). No-op when either price is missing / ≤ 0 (nothing to
+    mark to). Both prices are quote-currency, so the ratio is unitless and safe
+    for ADRs.
+    """
+    live = price.current_price
+    stale = fin.current_price
+    if not live or live <= 0 or not stale or stale <= 0:
+        return fin
+    ratio = live / stale
+    return fin.model_copy(
+        update={
+            "current_price": live,
+            "market_cap": fin.market_cap * ratio if fin.market_cap is not None else None,
+            "pe_ratio": fin.pe_ratio * ratio if fin.pe_ratio is not None else None,
+        }
+    )
+
+
 class NormalizedForwardEstimates(BaseModel):
     """Canonical analyst-consensus estimates — a typed ENVELOPE, not a parse.
 

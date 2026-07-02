@@ -2,11 +2,15 @@
 
 from datetime import date, datetime, timezone
 
+import pytest
+
 from finrobot.engine.data.normalize.contracts import (
     DEGRADED_CLOSE_ONLY,
+    NormalizedFinancials,
     NormalizedPrice,
     PriceBar,
     Provenance,
+    financials_with_display_price,
 )
 
 
@@ -114,3 +118,42 @@ def test_to_prompt_summary_safe_on_empty_bars():
     ).to_prompt_summary()
     assert summary["most_recent_bars"] == []
     assert summary["fifty_two_week_high"] is None
+
+
+def _fin(**kw) -> NormalizedFinancials:
+    base = dict(
+        ticker="AAPL",
+        current_price=287.98,
+        market_cap=4.230e12,
+        pe_ratio=34.51,
+        shares_outstanding=4.230e12 / 287.98,
+        as_of=datetime(2026, 6, 30, 16, 14, tzinfo=timezone.utc),
+        provenance=_prov(),
+    )
+    base.update(kw)
+    return NormalizedFinancials(**base)
+
+
+def test_financials_with_display_price_marks_to_live():
+    """The FINANCIALS canonical's stale embedded price/market_cap/P-E are marked to
+    the fresh PRICE canonical, scaled by the price move so all three stay mutually
+    consistent (market_cap = shares × live price) — the same basis
+    extract_financial_data marks the structured market block to. Reproduces the
+    AAPL 2026-07-02 numbers: $287.98/$4.230T/34.51 → $294.38/$4.324T/35.28."""
+    fin = _fin()
+    price = _price([PriceBar(date=date(2026, 7, 1), close=294.38)], current_price=294.38)
+    marked = financials_with_display_price(fin, price)
+    ratio = 294.38 / 287.98
+    assert marked.current_price == 294.38
+    assert marked.market_cap == pytest.approx(4.230e12 * ratio)  # ≈ 4.324e12 = shares × live
+    assert marked.pe_ratio == pytest.approx(34.51 * ratio)  # ≈ 35.28
+    # Pure: the source snapshot is untouched.
+    assert fin.current_price == 287.98
+    assert fin.market_cap == 4.230e12
+
+
+def test_financials_with_display_price_noop_when_price_absent():
+    """No live price to mark to → the FINANCIALS snapshot is returned unchanged."""
+    fin = _fin()
+    price = _price([PriceBar(date=date(2026, 7, 1), close=294.38)], current_price=0.0)
+    assert financials_with_display_price(fin, price) is fin

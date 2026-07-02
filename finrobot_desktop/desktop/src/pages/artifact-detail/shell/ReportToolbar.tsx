@@ -15,7 +15,7 @@ import { useHistoryBack } from '../../../hooks/useHistoryBack'
 import { useRunStreamStore, selectRunByTicker } from '../../../stores/runStreamStore'
 import { useToastStore } from '../../../stores/toastStore'
 import { useI18n } from '../../../i18n'
-import { formatCurrency, formatDate } from '../../../utils/format'
+import { formatCurrency, formatSourceDate } from '../../../utils/format'
 import { mapErrorToUserMessage } from '../../../utils/errorMessage'
 
 interface ReportToolbarProps {
@@ -263,7 +263,7 @@ export function ReportToolbar({
           }}
           data-testid="report-asof"
         >
-          {t('sourced.asOf')} {formatDate(snapshotAsOf, locale, 'short')}
+          {t('sourced.asOf')} {formatSourceDate(snapshotAsOf, locale)}
         </span>
       )}
 

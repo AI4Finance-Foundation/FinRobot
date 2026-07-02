@@ -25,7 +25,11 @@ from finrobot.engine.compute.coordinators.news import (
     sanitize_untrusted_text,
 )
 from finrobot.engine.data.interface import ProviderError
-from finrobot.engine.data.normalize.contracts import NormalizedPrice
+from finrobot.engine.data.normalize.contracts import (
+    NormalizedFinancials,
+    NormalizedPrice,
+    financials_with_display_price,
+)
 from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import CatalystAnalysis, CatalystEvent, StepOutput
 from finrobot.engine.pipelines.protocols import ArtifactBuilder, ProgressCallback
@@ -919,11 +923,30 @@ class Pipeline:
             return "\n\n".join(parts)
 
         parts = []
+        required_types = {_data_type_or_none(dt) for dt in required_data}
         for data_type in required_data:
             try:
                 canonical_type = _data_type_or_none(data_type)
                 if canonical_type in (DataType.FINANCIALS, DataType.PRICE):
                     normalized = await deps.data_layer.fetch_canonical(canonical_type, ticker)
+                    # One as-of per artifact: the FINANCIALS canonical bundles a
+                    # price / market_cap / P-E from its OWN (staler) fetch. When
+                    # this step also pulls the dedicated PRICE canonical, overlay
+                    # the fresh price onto the FINANCIALS render so the LLM data
+                    # narrative rides the SAME snapshot the structured pipeline
+                    # marks to (extract_financial_data) — otherwise the stale
+                    # FINANCIALS price leaks into summary_text (AAPL 2026-07-02:
+                    # summary $287.98 vs headline $294.38). A PRICE miss leaves the
+                    # FINANCIALS render on its own price (best-effort, non-fatal).
+                    if canonical_type is DataType.FINANCIALS and DataType.PRICE in required_types:
+                        try:
+                            live = await deps.data_layer.fetch_canonical(DataType.PRICE, ticker)
+                            if isinstance(normalized, NormalizedFinancials) and isinstance(
+                                live, NormalizedPrice
+                            ):
+                                normalized = financials_with_display_price(normalized, live)
+                        except (ProviderError, ValueError, KeyError):
+                            pass
                     rendered = _canonical_context_string(canonical_type, normalized)
                 elif canonical_type is DataType.NEWS:
                     # Third-party headlines must reach the prompt flattened and

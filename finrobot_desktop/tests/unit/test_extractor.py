@@ -92,6 +92,21 @@ def test_extract_financial_data_valid():
     assert fd.income.gross_margin == 0.47
 
 
+def test_extract_financial_data_timestamp_is_price_as_of():
+    """The snapshot's as-of (→ data_fetched_at / the 'As of' pill) rides the PRICE
+    canonical's semantic ``as_of`` — the session the displayed current_price
+    belongs to — NOT the FINANCIALS fetch time. The two canonicals have
+    independent TTLs and can be a full session apart; stamping the FINANCIALS
+    fetch mislabels the pill against the fresh headline price (AAPL 2026-07-02:
+    pill said 06-30 16:14 while the headline was 07-01's close)."""
+    fin = _make_fin()
+    price = _make_price()
+    fd = extract_financial_data(fin, price)
+    assert fd.timestamp == price.provenance.as_of
+    # …and NOT the old (wrong) source — the financials fetch instant.
+    assert fd.timestamp != fin.provenance.fetched_at
+
+
 @pytest.mark.parametrize("beta", [-0.248, -1.0, 0.0, 6.0, 100.0])
 def test_extract_financial_data_survives_out_of_band_beta(beta):
     """Out-of-band vendor beta must NOT crash extraction (refuse-to-conclude).

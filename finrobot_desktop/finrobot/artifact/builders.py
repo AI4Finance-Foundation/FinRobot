@@ -17,6 +17,7 @@ Design decisions:
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
 import uuid
 from datetime import datetime, timezone
@@ -40,9 +41,136 @@ from finrobot.engine.compute.operators.report_drift import (
     collect_numeric_leaves,
     detect_report_drift,
 )
-from finrobot.engine.models.reconcile_tolerances import NARRATIVE_APPROXIMATION_BAND
+from finrobot.engine.models.reconcile_tolerances import (
+    NARRATIVE_APPROXIMATION_BAND,
+    NARRATIVE_DRIFT_TOLERANCE,
+)
 
 logger = logging.getLogger(__name__)
+
+
+# Labeled current-price / market-cap restatements in the data-collection
+# "Financial Data Summary" table (the block an equity_research summary_text opens
+# with). Anchored on the label so an unrelated prose $-amount is never mistaken
+# for the current-price claim.
+_MAGNITUDE: dict[str, float] = {
+    "TRILLION": 1e12,
+    "T": 1e12,
+    "BILLION": 1e9,
+    "B": 1e9,
+    "MILLION": 1e6,
+    "M": 1e6,
+    "THOUSAND": 1e3,
+    "K": 1e3,
+}
+# Gap between the label and the "$" is only spaces / tabs / table pipes (never a
+# newline, so the match stays on the label's own row and never leaps to a "$" on
+# another line).
+_LABELED_PRICE_RE = re.compile(r"Current Price[ \t|]*\$\s*([\d,]+(?:\.\d+)?)", re.IGNORECASE)
+_LABELED_MCAP_RE = re.compile(
+    r"Market Cap(?:italization)?[ \t|]*\$\s*([\d,]+(?:\.\d+)?)"
+    r"\s*(Trillion|Billion|Million|Thousand|[TBMK])?",
+    re.IGNORECASE,
+)
+
+
+def _labeled_price(text: str) -> float | None:
+    match = _LABELED_PRICE_RE.search(text)
+    if match is None:
+        return None
+    try:
+        return float(match.group(1).replace(",", ""))
+    except ValueError:
+        return None
+
+
+def _labeled_market_cap(text: str) -> float | None:
+    match = _LABELED_MCAP_RE.search(text)
+    if match is None:
+        return None
+    try:
+        value = float(match.group(1).replace(",", ""))
+    except ValueError:
+        return None
+    return value * _MAGNITUDE.get((match.group(2) or "").upper(), 1.0)
+
+
+def _assert_price_snapshot_coherent(
+    ticker: str,
+    summary_text: str,
+    raw_data: dict[str, Any],
+    structured_out: dict[str, Any],
+) -> None:
+    """Build-time identity gate: every price / market-cap the artifact surfaces
+    must ride ONE as-of.
+
+    The FINANCIALS and PRICE canonicals have independent TTLs, so a snapshot can
+    carry a headline price from one session while a summary / derived field trails
+    a session behind (AAPL 2026-07-02: summary_text $287.98 / $4.230T vs market
+    block $294.38 / $4.324T). ``extract_financial_data`` marks the market block to
+    the live PRICE and ``financials_with_display_price`` keeps the LLM narrative on
+    the same basis; this is the tripwire that FAILS THE BUILD if a future
+    regression reintroduces the split — a contradictory current price is a
+    fabrication surface (绝不编数字), never shipped. Tolerance is the tight "same
+    number" ``NARRATIVE_DRIFT_TOLERANCE``, not the loose 10% approximation band
+    (which read the full-session-stale price as a rounding and let it ship).
+    """
+    market = raw_data.get("market")
+    if not isinstance(market, dict):
+        return
+    canon_price = market.get("current_price")
+    canon_mcap = market.get("market_cap")
+
+    def _diverges(claimed: float | None, canonical: float | None) -> bool:
+        return (
+            isinstance(claimed, (int, float))
+            and isinstance(canonical, (int, float))
+            and claimed > 0
+            and canonical > 0
+            and abs(claimed - canonical) > abs(canonical) * NARRATIVE_DRIFT_TOLERANCE
+        )
+
+    violations: list[str] = []
+
+    # Deterministic cross-field identity: valuation_synthesis.current_price and the
+    # comps target market_cap / P-E are code-computed off the SAME market block, so
+    # any divergence is a definite pipeline desync, not LLM variance.
+    vs = structured_out.get("valuation_synthesis")
+    if isinstance(vs, dict) and _diverges(vs.get("current_price"), canon_price):
+        violations.append(
+            f"valuation_synthesis.current_price {vs.get('current_price')} vs "
+            f"market.current_price {canon_price}"
+        )
+    # The comps target market_cap is the same underlying cap, USD-normalized by the
+    # same FX as the market block (no-op for a US issuer / a USD-quoted ADR), so it
+    # must match. P/E is deliberately NOT checked: the target row carries a
+    # separately-computed multiple (core vs provider-reported) that can legitimately
+    # differ from the marked market-block ratio.
+    peer = structured_out.get("peer_analysis")
+    target = peer.get("target") if isinstance(peer, dict) else None
+    if isinstance(target, dict) and _diverges(target.get("market_cap"), canon_mcap):
+        violations.append(
+            f"peer target.market_cap {target.get('market_cap')} vs market.market_cap {canon_mcap}"
+        )
+
+    # Narrative identity: the data-collection table restates the snapshot verbatim,
+    # so its labeled Current Price / Market Cap must match the frozen market block.
+    if _diverges(_labeled_price(summary_text), canon_price):
+        violations.append(
+            f"summary_text Current Price {_labeled_price(summary_text)} vs "
+            f"market.current_price {canon_price}"
+        )
+    if _diverges(_labeled_market_cap(summary_text), canon_mcap):
+        violations.append(
+            f"summary_text Market Cap {_labeled_market_cap(summary_text)} vs "
+            f"market.market_cap {canon_mcap}"
+        )
+
+    if violations:
+        raise ValueError(
+            f"price snapshot as-of split in {ticker} equity_research artifact "
+            f"(one artifact must carry one price as-of): " + "; ".join(violations)
+        )
 
 
 def _now() -> datetime:
@@ -814,6 +942,13 @@ def build_equity_research_artifact(
         structured_out, raw_data, result, "report", "data_collection"
     )
 
+    summary_text = _summary_text(result, structured_out, deps)
+    # Single-as-of gate: the summary narrative, the frozen market block, and every
+    # code-derived price/market-cap must agree (绝不编数字 — never ship two prices
+    # for one artifact). Fails the build on a regression that reintroduces the
+    # canonical-split leak (AAPL 2026-07-02).
+    _assert_price_snapshot_coherent(ticker.upper(), summary_text, raw_data, structured_out)
+
     return Artifact(
         id=_make_artifact_id(ticker, "equity_research"),
         ticker=ticker.upper(),
@@ -833,7 +968,7 @@ def build_equity_research_artifact(
         outputs=ArtifactOutputs(
             structured=structured_out,
             llm_narrative=llm_narrative,
-            summary_text=_summary_text(result, structured_out, deps),
+            summary_text=summary_text,
             warnings=_collect_warnings(result) + audit_warnings,
         ),
         meta=ArtifactMeta(

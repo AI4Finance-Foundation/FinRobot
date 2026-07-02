@@ -18,7 +18,6 @@ interface ChapterCoverProps {
   thesis: ThesisShape | null
   createdAt: string | null
   artifactId: string
-  computeVersion: string | null
   reportType: string
   versionNumber: number | null
   totalVersions: number
@@ -56,7 +55,6 @@ export function ChapterCover({
   thesis,
   createdAt,
   artifactId: _artifactId,
-  computeVersion,
   reportType,
   versionNumber,
   totalVersions,
@@ -285,6 +283,7 @@ export function ChapterCover({
       )}
 
       <div
+        data-testid="cover-meta"
         style={{
           marginTop: 12,
           fontFamily: 'var(--font-mono)',
@@ -293,7 +292,7 @@ export function ChapterCover({
           letterSpacing: '0.06em',
         }}
       >
-        {t('chapter.cover.typeLabel')} {reportType.toUpperCase()}
+        {t('chapter.cover.typeLabel')} {reportType.replace(/_/g, ' ').toUpperCase()}
         {versionNumber !== null && (
           <>
             {' · '}
@@ -302,7 +301,6 @@ export function ChapterCover({
               : t('chapter.cover.version', { version: versionNumber })}
           </>
         )}
-        {computeVersion && <> · {computeVersion}</>}
       </div>
     </section>
   )

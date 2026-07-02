@@ -105,7 +105,6 @@ export function ReportChapters({
         thesis={d.thesis}
         createdAt={d.createdAt}
         artifactId={artifact.id}
-        computeVersion={d.computeVersionStr}
         reportType={artifact.type}
         versionNumber={d.versionNumber}
         totalVersions={d.totalVersions}

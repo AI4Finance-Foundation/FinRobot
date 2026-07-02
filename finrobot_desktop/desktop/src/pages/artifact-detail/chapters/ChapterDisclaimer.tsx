@@ -89,7 +89,11 @@ export function ChapterDisclaimer({
             color: 'var(--text-dim)',
           }}
         >
-          {isEn ? 'ID' : '编号'} {artifactId.slice(0, 12)} ·{' '}
+          {/* Full ID, not a truncated prefix — every artifact ID shares the same
+              "art_<date>T…" prefix (created-at timestamp), so slicing the first
+              N characters rendered visually-identical, zero-information IDs
+              across every report generated on the same day. */}
+          {isEn ? 'ID' : '编号'} {artifactId} ·{' '}
           {computeVersion && (
             <>
               {isEn ? 'COMPUTE' : '计算版本'} {computeVersion} ·{' '}

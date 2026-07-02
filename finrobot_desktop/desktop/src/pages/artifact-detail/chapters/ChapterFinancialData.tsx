@@ -767,6 +767,10 @@ function EarningsCallSection({
         style={{
           padding: 14,
           maxHeight: 360,
+          // Measure cap — the chapter column is far wider than a readable prose
+          // line; uncapped, this ran to ~180 characters/line (the report's
+          // prose convention elsewhere in this component is 68ch).
+          maxWidth: '68ch',
           overflowY: 'auto',
           fontFamily: 'var(--font-body)',
           fontSize: 12.5,

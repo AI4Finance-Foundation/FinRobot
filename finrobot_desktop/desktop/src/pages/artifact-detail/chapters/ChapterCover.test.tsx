@@ -13,7 +13,6 @@ const BASE = {
   ticker: 'MU',
   createdAt: '2026-06-08T00:00:00Z',
   artifactId: 'art_MU_equity_research',
-  computeVersion: 'equity_research_v1',
   reportType: 'equity_research',
   versionNumber: 1,
   totalVersions: 1,
@@ -123,6 +122,29 @@ describe('ChapterCover — withheld-target self-explanation', () => {
     // jammed beside the compute version.
     expect(screen.getByText('Price Target Basis')).toBeInTheDocument()
     expect(screen.getByText(/method-weighted blend: DCF \$189/)).toBeInTheDocument()
+  })
+
+  it('humanizes the report-type metadata line (no raw snake_case enum, no internal package version)', () => {
+    render(
+      <ChapterCover
+        {...BASE}
+        thesis={thesis({ recommendation: 'HOLD' })}
+        withheldReason={null}
+        versionNumber={3}
+        totalVersions={3}
+      />,
+    )
+    // "equity_research" reads as "EQUITY RESEARCH" — a raw underscore is
+    // developer-ese ("EQUITY_RESEARCH") that leaked onto the analyst-facing
+    // cover metadata line.
+    const meta = screen.getByTestId('cover-meta')
+    expect(meta).toHaveTextContent('EQUITY RESEARCH')
+    expect(meta).not.toHaveTextContent('EQUITY_RESEARCH')
+    // The version sequence (v3 of 3) is analyst-meaningful and stays; the
+    // internal finrobot package version (e.g. "0.1.0") is not and must not
+    // render here (it still appears in the Disclaimer's reproducibility footer).
+    expect(meta).toHaveTextContent('v3 of 3')
+    expect(meta).not.toHaveTextContent('0.1.0')
   })
 
   it('maps a legacy REVIEW recommendation to a neutral WITHHELD badge, never the word REVIEW', () => {

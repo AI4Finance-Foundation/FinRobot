@@ -161,12 +161,53 @@ function MonteCarloPanel({
   const width = 720
   const height = 220
   const padX = 36
-  const padY = 24
+  // 30 (not 24) leaves headroom above the histogram for a staggered second
+  // label row (layoutMarkerRows) without clipping against the SVG viewBox
+  // when two percentile markers land close together.
+  const padY = 30
   const innerW = width - padX * 2
   const innerH = height - padY * 2
 
   const xScale = (p: number): number =>
     maxPrice > minPrice ? padX + ((p - minPrice) / (maxPrice - minPrice)) * innerW : padX
+
+  // Percentile markers cluster whenever the current price sits near a
+  // percentile (P95 and "Current" land on top of each other for a name
+  // trading near its distribution's tail) — every marker shares the same
+  // label y, so overlapping labels rendered as illegible stacked text.
+  // Assign each marker a row (0 = default, above the axis; 1+ = staggered
+  // further up) so labels within MARKER_LABEL_MIN_GAP px of an
+  // already-placed label on a row bump to the next row instead of
+  // overlapping it.
+  const markerSpecs = [
+    percentiles['5'] !== undefined && {
+      key: 'p5',
+      x: xScale(percentiles['5']),
+      label: 'P5',
+      color: 'var(--warning)',
+    },
+    percentiles['50'] !== undefined && {
+      key: 'p50',
+      x: xScale(percentiles['50']),
+      label: 'P50',
+      color: 'var(--accent-cyan)',
+    },
+    percentiles['95'] !== undefined && {
+      key: 'p95',
+      x: xScale(percentiles['95']),
+      label: 'P95',
+      color: 'var(--warning)',
+    },
+    current !== null &&
+      current >= minPrice &&
+      current <= maxPrice && {
+        key: 'current',
+        x: xScale(current),
+        label: 'Current',
+        color: 'var(--success)',
+      },
+  ].filter((m): m is { key: string; x: number; label: string; color: string } => m !== false)
+  const markerRows = layoutMarkerRows(markerSpecs)
 
   return (
     <div>
@@ -219,42 +260,17 @@ function MonteCarloPanel({
               />
             )
           })}
-          {percentiles['5'] !== undefined && (
+          {markerSpecs.map((m) => (
             <Marker
-              x={xScale(percentiles['5'])}
-              label="P5"
-              color="var(--warning)"
+              key={m.key}
+              x={m.x}
+              label={m.label}
+              color={m.color}
               height={innerH}
               padY={padY}
+              row={markerRows.get(m.key) ?? 0}
             />
-          )}
-          {percentiles['50'] !== undefined && (
-            <Marker
-              x={xScale(percentiles['50'])}
-              label="P50"
-              color="var(--accent-cyan)"
-              height={innerH}
-              padY={padY}
-            />
-          )}
-          {percentiles['95'] !== undefined && (
-            <Marker
-              x={xScale(percentiles['95'])}
-              label="P95"
-              color="var(--warning)"
-              height={innerH}
-              padY={padY}
-            />
-          )}
-          {current !== null && current >= minPrice && current <= maxPrice && (
-            <Marker
-              x={xScale(current)}
-              label="Current"
-              color="var(--success)"
-              height={innerH}
-              padY={padY}
-            />
-          )}
+          ))}
         </svg>
       )}
     </div>
@@ -267,12 +283,18 @@ function Marker({
   color,
   height,
   padY,
+  row = 0,
 }: {
   x: number
   label: string
   color: string
   height: number
   padY: number
+  /** Stagger row from layoutMarkerRows — 0 sits directly above the axis line
+   * (the original position); each row above that lifts the label further up
+   * so labels whose lines land close together don't overlap. The dashed
+   * marker line itself never moves — only the text. */
+  row?: number
 }): React.ReactElement {
   return (
     <g>
@@ -287,7 +309,7 @@ function Marker({
       />
       <text
         x={x}
-        y={padY - 6}
+        y={padY - 6 - row * MARKER_LABEL_ROW_HEIGHT}
         textAnchor="middle"
         fontFamily="var(--font-mono)"
         fontSize={10}
@@ -297,6 +319,33 @@ function Marker({
       </text>
     </g>
   )
+}
+
+// Two markers whose x-positions are closer than this (in the SVG's local
+// coordinate space) render labels that visually collide — "Current" landing
+// on top of "P95" for a name trading near its Monte Carlo distribution's
+// tail was the reported symptom. ~28px comfortably clears a 4-5 char mono
+// label ("P95", "Current") at fontSize 10 with textAnchor="middle".
+const MARKER_LABEL_MIN_GAP = 28
+const MARKER_LABEL_ROW_HEIGHT = 11
+
+// Greedy left-to-right label stacking: sort markers by x, then for each one
+// walk up rows until it lands MARKER_LABEL_MIN_GAP away from the last label
+// placed on that row. Two markers at (nearly) the same x end up on different
+// rows instead of drawing overlapping text; markers far enough apart share
+// row 0 (the original, un-staggered layout).
+function layoutMarkerRows(markers: { key: string; x: number }[]): Map<string, number> {
+  const rows = new Map<string, number>()
+  const lastXByRow: number[] = []
+  for (const m of [...markers].sort((a, b) => a.x - b.x)) {
+    let row = 0
+    while (lastXByRow[row] !== undefined && m.x - lastXByRow[row] < MARKER_LABEL_MIN_GAP) {
+      row += 1
+    }
+    lastXByRow[row] = m.x
+    rows.set(m.key, row)
+  }
+  return rows
 }
 
 // ---------------------------------------------------------------------------

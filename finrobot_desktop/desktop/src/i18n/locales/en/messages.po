@@ -1918,7 +1918,7 @@ msgstr "Retail sentiment source is rate-limited"
 
 #. js-lingui-explicit-id
 msgid "workspace.market.sentimentRateLimitedHint"
-msgstr "Upstream throttled (HTTP 429) · auto-retrying shortly"
+msgstr "Rate-limited by the data source · auto-retrying shortly"
 
 #. js-lingui-explicit-id
 msgid "workspace.market.retry"

@@ -67,6 +67,46 @@ describe('ChapterTechnical', () => {
     expect(screen.getByText('38th')).toBeInTheDocument()
   })
 
+  it('staggers the Current/P95 marker labels onto different rows when the current price sits near a percentile (they would otherwise render on top of each other)', () => {
+    // current (snapshotPrice=193) sits 2 price-units from P95 (195) — a real
+    // symptom for a name trading near its Monte Carlo distribution's tail
+    // (e.g. AAPL at the 97.6th percentile). Both markers land within a few
+    // pixels of each other on the x-axis.
+    render(
+      <ChapterTechnical
+        technical={{
+          monte_carlo: {
+            histogram_bins: [100, 120, 140, 160, 180, 200],
+            histogram_counts: [50, 120, 230, 180, 90],
+            percentiles: { '5': 110, '50': 150, '95': 195 },
+            mean: 152.4,
+            std: 24.1,
+            current_price_percentile: 97.6,
+            n_valid: 9876,
+          },
+        }}
+        financialSector={false}
+        quoteCurrency="USD"
+        snapshotPrice={193}
+        snapshotBeta={1.2}
+        snapshot52wHigh={180}
+        snapshot52wLow={110}
+      />,
+    )
+    const chart = screen.getByTestId('mc-histogram')
+    const p95Label = Array.from(chart.querySelectorAll('text')).find(
+      (el) => el.textContent === 'P95',
+    )
+    const currentLabel = Array.from(chart.querySelectorAll('text')).find(
+      (el) => el.textContent === 'Current',
+    )
+    expect(p95Label).toBeDefined()
+    expect(currentLabel).toBeDefined()
+    // Different label rows ⇒ different y — the old code placed every label
+    // at the same y regardless of x-proximity, so this failed pre-fix.
+    expect(p95Label?.getAttribute('y')).not.toBe(currentLabel?.getAttribute('y'))
+  })
+
   it('splits objective S/R levels from a separate Tactical Trade Reference block (entries / stop / target / R-R)', () => {
     renderChapter({
       sniper: {

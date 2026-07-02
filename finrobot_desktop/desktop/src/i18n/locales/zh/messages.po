@@ -1918,7 +1918,7 @@ msgstr "散户情绪源被限流"
 
 #. js-lingui-explicit-id
 msgid "workspace.market.sentimentRateLimitedHint"
-msgstr "上游限流(HTTP 429)· 稍后自动重试"
+msgstr "数据源限流,稍后自动重试"
 
 #. js-lingui-explicit-id
 msgid "workspace.market.retry"

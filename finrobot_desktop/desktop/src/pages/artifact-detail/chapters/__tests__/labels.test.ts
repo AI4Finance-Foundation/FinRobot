@@ -50,7 +50,7 @@ describe('chapter labels — zh', () => {
     ['valuation', '估值分析'],
     ['news', '近期新闻与事件'],
     ['sensitivity', '敏感性分析'],
-    ['catalysts', '关键催化剂'],
+    ['catalysts', '催化剂信号'],
     ['technical', '技术分析'],
     ['competitive', '竞争格局'],
     ['data', '财务数据'],

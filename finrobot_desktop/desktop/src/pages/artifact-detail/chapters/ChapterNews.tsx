@@ -6,11 +6,12 @@
 // the provider (SEC filing or the finnhub API endpoint, labelled honestly —
 // never a fabricated "read article" claim).
 //
-// Distinct from Chapter 07 (Key Catalysts): that chapter curates the forward-
-// looking top_positive/top_negative/monitor buckets with impact×probability;
-// THIS feed is the raw chronological record and shows NO probability. No
-// aggregate sentiment gauge here — per-item only (the events carry known
-// near-duplicates; an aggregate would amplify that data-quality artifact).
+// Distinct from the Catalysts chapter (ch 09): that chapter shows only the
+// AGGREGATE signal (net direction + category mix) and re-lists NO events, so
+// THIS feed is the single home for the itemized record — no probability column
+// here or there (a per-event probability was a hardcoded constant = fake
+// precision). No aggregate sentiment gauge in this feed; the gauge lives once in
+// the Catalysts chapter, computed on de-duplicated events upstream.
 
 import type { CSSProperties } from 'react'
 

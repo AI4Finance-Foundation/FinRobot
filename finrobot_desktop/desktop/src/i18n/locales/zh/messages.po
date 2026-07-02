@@ -1145,48 +1145,28 @@ msgid "chapter.companyOverview.empty"
 msgstr "该研报未包含公司概览叙述，请重新生成完整研报即可在本章看到投行口吻的公司业务与定位描述。"
 
 #. js-lingui-explicit-id
-msgid "chapter.catalysts.positiveHeading"
-msgstr "正面催化（上行潜力）"
+msgid "chapter.catalysts.directionalHeading"
+msgstr "方向判读"
 
 #. js-lingui-explicit-id
-msgid "chapter.catalysts.riskHeading"
-msgstr "风险因素（下行风险）"
-
-#. js-lingui-explicit-id
-msgid "chapter.catalysts.monitorHeading"
-msgstr "待追踪事件"
-
-#. js-lingui-explicit-id
-msgid "chapter.catalysts.emptyPositive"
-msgstr "未识别到 positive catalysts"
-
-#. js-lingui-explicit-id
-msgid "chapter.catalysts.emptyRisks"
-msgstr "未识别到主要 risk factors"
-
-#. js-lingui-explicit-id
-msgid "chapter.catalysts.emptyMonitor"
-msgstr "该 artifact 未标记需追踪事件 · 实时事件日历在工作区"
-
-#. js-lingui-explicit-id
-msgid "chapter.catalysts.overallSentiment"
-msgstr "整体情绪"
+msgid "chapter.catalysts.categoryHeading"
+msgstr "类别构成"
 
 #. js-lingui-explicit-id
 msgid "chapter.catalysts.netSentiment"
 msgstr "净情绪"
 
 #. js-lingui-explicit-id
-msgid "chapter.catalysts.metaCategory"
-msgstr "类别"
+msgid "chapter.catalysts.eventCount"
+msgstr "覆盖 {count} 条近期催化剂事件"
 
 #. js-lingui-explicit-id
-msgid "chapter.catalysts.metaImpact"
-msgstr "影响"
+msgid "chapter.catalysts.crossRef"
+msgstr "逐条事件（含来源与日期）见上方近期新闻事件流；前瞻性多空催化剂见投资论点章。"
 
 #. js-lingui-explicit-id
-msgid "chapter.catalysts.metaProbability"
-msgstr "概率"
+msgid "chapter.catalysts.empty"
+msgstr "该研报未抓取到催化剂事件。"
 
 #. js-lingui-explicit-id
 msgid "chapter.thesis.empty"

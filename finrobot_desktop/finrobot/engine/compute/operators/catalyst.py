@@ -149,7 +149,14 @@ def extract_catalysts_from_news(
                 headline=item.title,
                 sentiment=item.sentiment,
                 impact_score=item.importance,
-                probability=0.7,  # default; pipeline can override via LLM
+                # Internal net-sentiment WEIGHT, not a displayed forecast. A
+                # news event has already happened, so it carries no real
+                # occurrence probability; this constant weights news uniformly
+                # below primary-source 8-Ks (1.0) in the expected-impact
+                # aggregate. It is NEVER surfaced to the reader — the report
+                # shows impact and direction only (a displayed constant would be
+                # fake precision).
+                probability=0.7,
                 reasoning=item.summary,
                 published=item.published,
                 url=item.url or None,

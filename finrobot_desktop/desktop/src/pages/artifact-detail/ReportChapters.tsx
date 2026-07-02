@@ -173,7 +173,9 @@ export function ReportChapters({
         financialSector={financialSector}
         quoteCurrency={d.quoteCurrency}
       />
-      {/* Timeline: what has happened (news) → what's ahead (catalysts). */}
+      {/* News = the itemized, sourced record of recent events; Catalysts = the
+          aggregate directional read of that same flow (net sentiment + category
+          mix, no re-listing). Each event appears in exactly one of the two. */}
       <ChapterNews thesis={d.thesis} catalysts={d.catalysts} />
       <ChapterCatalysts catalysts={d.catalysts} />
       <ChapterTechnical

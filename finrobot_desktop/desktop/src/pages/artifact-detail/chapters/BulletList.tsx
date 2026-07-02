@@ -1,8 +1,8 @@
 // Shared bullet list for THESIS-LEVEL qualitative items (string[]): the bull /
 // bear case in the Investment Thesis chapter. Tone drives the left-border colour
-// (success / danger / warning). Distinct from ChapterCatalysts' CatalystList,
-// which renders structured CatalystEventShape rows with impact/probability meters
-// — different data caliber (qualitative argument vs dated event).
+// (success / danger / warning). This is where the forward-looking bull/bear
+// catalysts live — the itemized recent events live in the news feed (ch 08) and
+// their aggregate signal in the Catalysts chapter (ch 09).
 
 interface BulletListProps {
   items: string[]

@@ -18,8 +18,9 @@ export interface ChapterLabel {
 // (conclusion-first), then the company (overview) and WHERE it competes
 // (competitive) frame how to read the numbers — so the valuation case is built up
 // (financial → valuation) and stress-tested immediately (sensitivity), then the
-// timeline of what has happened and what's ahead (news → catalysts), the quant
-// deep-dive (technical), and finally the appendix (data → ownership → disclaimer).
+// recent event record (news — itemized, sourced) and its aggregate signal read
+// (catalysts — net direction + category mix, no re-listing), the quant deep-dive
+// (technical), and finally the appendix (data → ownership → disclaimer).
 //
 // ⚠ This array drives ONLY the numbering (chapterNum) + left-rail nav order. The
 // actual VISUAL render order is the hardcoded JSX sequence in ReportChapters.tsx —
@@ -50,7 +51,7 @@ const ZH: Record<ChapterId, Omit<ChapterLabel, 'num'>> = {
   valuation: { title: '估值分析', sub: 'Football Field · DCF · Comps · DDM' },
   news: { title: '近期新闻与事件', sub: '事件 · 情绪' },
   sensitivity: { title: '敏感性分析', sub: '关键假设变动' },
-  catalysts: { title: '关键催化剂', sub: '正向 · 风险 · 待观察' },
+  catalysts: { title: '催化剂信号', sub: '方向判读 · 类别构成' },
   technical: { title: '技术分析', sub: '蒙特卡洛 · 狙击位 · 价格走势' },
   competitive: { title: '竞争格局', sub: '同业三视图' },
   data: { title: '财务数据', sub: '原始数据 · 来源 · 审计轨迹' },
@@ -66,7 +67,7 @@ const EN: Record<ChapterId, Omit<ChapterLabel, 'num'>> = {
   valuation: { title: 'Valuation Analysis', sub: 'Football Field · DCF · Comps · DDM' },
   news: { title: 'Recent News & Events', sub: 'Events · Sentiment' },
   sensitivity: { title: 'Sensitivity Analysis', sub: 'Key Assumption Shifts' },
-  catalysts: { title: 'Key Catalysts', sub: 'Positive · Risks · Watch' },
+  catalysts: { title: 'Catalyst Signal', sub: 'Directional Read · Category Mix' },
   technical: { title: 'Technical Analysis', sub: 'Monte Carlo · Sniper · Price' },
   competitive: { title: 'Competitive Landscape', sub: 'Peers — 3 views' },
   data: { title: 'Financial Data', sub: 'Raw · Source · Audit Trail' },

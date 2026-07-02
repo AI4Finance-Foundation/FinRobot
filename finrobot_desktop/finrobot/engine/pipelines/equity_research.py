@@ -289,6 +289,10 @@ def _sec_8k_to_catalyst(event: dict[str, Any]) -> CatalystEvent:
         headline=headline,
         sentiment="neutral",
         impact_score=3,
+        # Internal weight (see extract_catalysts_from_news): a company-filed 8-K
+        # is a primary-source fact, weighted 1.0 in the expected-impact
+        # aggregate. Never displayed — an 8-K is a past event, so a shown "100%
+        # probability" would be fake precision.
         probability=1.0,
         reasoning=(
             "Source is a company-filed SEC 8-K current report; treated as "

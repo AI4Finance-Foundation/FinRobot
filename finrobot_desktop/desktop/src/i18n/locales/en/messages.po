@@ -1145,48 +1145,28 @@ msgid "chapter.companyOverview.empty"
 msgstr "This report has no company-overview narrative. Re-run a full report to add an investment-bank-style write-up of the company's business and positioning here."
 
 #. js-lingui-explicit-id
-msgid "chapter.catalysts.positiveHeading"
-msgstr "Positive Catalysts (Upside Potential)"
+msgid "chapter.catalysts.directionalHeading"
+msgstr "Directional Read"
 
 #. js-lingui-explicit-id
-msgid "chapter.catalysts.riskHeading"
-msgstr "Risk Factors (Downside Risks)"
-
-#. js-lingui-explicit-id
-msgid "chapter.catalysts.monitorHeading"
-msgstr "Events to Monitor"
-
-#. js-lingui-explicit-id
-msgid "chapter.catalysts.emptyPositive"
-msgstr "No positive catalysts identified"
-
-#. js-lingui-explicit-id
-msgid "chapter.catalysts.emptyRisks"
-msgstr "No major risk factors identified"
-
-#. js-lingui-explicit-id
-msgid "chapter.catalysts.emptyMonitor"
-msgstr "This artifact flagged no events to monitor · live event calendar is in the workspace"
-
-#. js-lingui-explicit-id
-msgid "chapter.catalysts.overallSentiment"
-msgstr "Overall sentiment"
+msgid "chapter.catalysts.categoryHeading"
+msgstr "Category Mix"
 
 #. js-lingui-explicit-id
 msgid "chapter.catalysts.netSentiment"
 msgstr "net sentiment"
 
 #. js-lingui-explicit-id
-msgid "chapter.catalysts.metaCategory"
-msgstr "CATEGORY"
+msgid "chapter.catalysts.eventCount"
+msgstr "across {count} recent catalyst events"
 
 #. js-lingui-explicit-id
-msgid "chapter.catalysts.metaImpact"
-msgstr "IMPACT"
+msgid "chapter.catalysts.crossRef"
+msgstr "Individual events, with their sources and dates, are itemized in the recent-news feed above; forward-looking bull and bear catalysts are covered in the investment thesis."
 
 #. js-lingui-explicit-id
-msgid "chapter.catalysts.metaProbability"
-msgstr "PROBABILITY"
+msgid "chapter.catalysts.empty"
+msgstr "No catalyst events were captured for this report."
 
 #. js-lingui-explicit-id
 msgid "chapter.thesis.empty"

@@ -880,7 +880,17 @@ class CatalystEvent(BaseModel):
     headline: str
     sentiment: Literal["positive", "negative", "neutral"]
     impact_score: int = Field(ge=1, le=5)
-    probability: float = Field(ge=0, le=1)
+    probability: float = Field(
+        ge=0,
+        le=1,
+        description=(
+            "Internal weight in the expected-impact aggregate (net_sentiment), "
+            "NOT a displayed forecast: news events are weighted 0.7, primary-"
+            "source 8-Ks 1.0. It is never surfaced to the reader — these are "
+            "PAST events, so a shown probability would be fake precision. The "
+            "report displays impact_score and sentiment direction only."
+        ),
+    )
     reasoning: str
     published: datetime | None = None
     url: str | None = None

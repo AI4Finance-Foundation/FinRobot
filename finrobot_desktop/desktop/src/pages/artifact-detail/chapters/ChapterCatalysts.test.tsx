@@ -1,9 +1,9 @@
-// ChapterCatalysts — the forward-looking Positive / Risks / Monitor buckets.
-// These tests pin the per-item meta line after the W11 change: impact now
-// renders as the shared ImpactMeter (magnitude on a non-text channel), while
-// category and probability stay as text (probability is legitimate here, unlike
-// the raw News feed). The app renders EN by default, so assertions use the EN
-// catalog strings.
+// ChapterCatalysts — the AGGREGATE catalyst signal (directional read + category
+// mix). These tests pin the post-dedup redesign: the chapter no longer re-lists
+// the individual events the news feed already carries, no longer sweeps past
+// filings into an "events to monitor" bucket, and no longer prints a per-event
+// probability column (which was a hardcoded constant = fake precision). The app
+// renders EN by default, so assertions use the EN catalog strings.
 
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
@@ -26,61 +26,89 @@ function catalysts(over: Partial<CatalystAnalysisShape>): CatalystAnalysisShape 
   return { events: [], ...over }
 }
 
-describe('ChapterCatalysts meta line', () => {
-  it('renders impact as the shared ImpactMeter (not plain "X/5" text)', () => {
+describe('ChapterCatalysts aggregate signal', () => {
+  it('renders the directional read (sentiment token + net sentiment)', () => {
     const cat = catalysts({
-      top_positive: [ev({ headline: 'New chip launch', impact_score: 4 })],
-    })
-    render(<ChapterCatalysts catalysts={cat} />)
-    // The meter is present and reflects the impact score…
-    const meter = screen.getByTestId('impact-meter')
-    expect(meter.getAttribute('data-filled')).toBe('4')
-    // …and the old plain-text "4/5" rendering is gone.
-    expect(screen.queryByText(/\b4\/5\b/)).toBeNull()
-  })
-
-  it('keeps category and probability as text alongside the meter', () => {
-    const cat = catalysts({
-      top_positive: [ev({ category: 'product_launch', probability: 0.7 })],
-    })
-    render(<ChapterCatalysts catalysts={cat} />)
-    expect(screen.getByText(/product_launch/)).toBeInTheDocument()
-    expect(screen.getByText(/70%/)).toBeInTheDocument()
-    // IMPACT label still labels the meter.
-    expect(screen.getByText(/IMPACT/)).toBeInTheDocument()
-  })
-
-  it('renders a meter for each catalyst item', () => {
-    const cat = catalysts({
-      top_positive: [
-        ev({ headline: 'A', impact_score: 5 }),
-        ev({ headline: 'B', impact_score: 2 }),
-      ],
-    })
-    render(<ChapterCatalysts catalysts={cat} />)
-    const meters = screen.getAllByTestId('impact-meter')
-    expect(meters).toHaveLength(2)
-    expect(meters[0].getAttribute('data-filled')).toBe('5')
-    expect(meters[1].getAttribute('data-filled')).toBe('2')
-  })
-
-  it('leaves the aggregate net/overall sentiment block intact', () => {
-    const cat = catalysts({
-      top_positive: [ev({})],
+      events: [ev({}), ev({ sentiment: 'negative' })],
       overall_sentiment: 'bullish',
       net_sentiment: 0.42,
     })
     render(<ChapterCatalysts catalysts={cat} />)
-    expect(screen.getByText('BULLISH')).toBeInTheDocument()
+    expect(screen.getByTestId('catalyst-direction')).toHaveTextContent('BULLISH')
     expect(screen.getByText(/\+0\.42/)).toBeInTheDocument()
+    // Event count caption reflects the number of underlying events.
+    expect(screen.getByText(/across 2 recent catalyst events/i)).toBeInTheDocument()
   })
 
-  it('shows the empty-risks note (no thesis fallback) when there are no structured negative events', () => {
-    // thesis.risks no longer back-fills the risk bucket here — it lives in the
-    // Investment Thesis bull/bear case. With no top_negative, the bucket shows the
-    // empty note, NOT a thesis-risk fallback (so risks render in exactly one place).
-    const cat = catalysts({ top_positive: [ev({ headline: 'Up' })] })
+  it('renders the category mix as counted chips, highest count first', () => {
+    const cat = catalysts({
+      events: [ev({}), ev({}), ev({ category: 'earnings' })],
+      overall_sentiment: 'neutral',
+      net_sentiment: 0,
+      category_breakdown: { product_launch: 2, earnings: 1 },
+    })
     render(<ChapterCatalysts catalysts={cat} />)
-    expect(screen.getByText('No major risk factors identified')).toBeInTheDocument()
+    const chips = screen.getAllByTestId('catalyst-category')
+    expect(chips).toHaveLength(2)
+    // Sorted by count desc: product_launch (2) before earnings (1).
+    expect(chips[0]).toHaveTextContent(/Product Launch\s*2/)
+    expect(chips[1]).toHaveTextContent(/Earnings\s*1/)
+  })
+
+  it('does NOT re-list individual event headlines (they live once in the news feed)', () => {
+    const cat = catalysts({
+      events: [ev({ headline: 'Apple unveils Vision Pro 2' })],
+      overall_sentiment: 'bullish',
+      net_sentiment: 1.2,
+      top_positive: [ev({ headline: 'Apple unveils Vision Pro 2' })],
+      category_breakdown: { product_launch: 1 },
+    })
+    render(<ChapterCatalysts catalysts={cat} />)
+    expect(screen.queryByText('Apple unveils Vision Pro 2')).toBeNull()
+  })
+
+  it('never prints a probability column (constant probability = fake precision)', () => {
+    const cat = catalysts({
+      events: [ev({ probability: 0.7 }), ev({ probability: 1.0, sentiment: 'neutral' })],
+      overall_sentiment: 'bullish',
+      net_sentiment: 0.8,
+      category_breakdown: { product_launch: 2 },
+    })
+    render(<ChapterCatalysts catalysts={cat} />)
+    expect(screen.queryByText(/70%/)).toBeNull()
+    expect(screen.queryByText(/100%/)).toBeNull()
+    expect(screen.queryByText(/PROBABILITY/i)).toBeNull()
+  })
+
+  it('has no "events to monitor" bucket (past filings are not forward events)', () => {
+    const cat = catalysts({
+      events: [ev({ category: 'regulatory', sentiment: 'neutral', impact_score: 3 })],
+      overall_sentiment: 'neutral',
+      net_sentiment: 0,
+      category_breakdown: { regulatory: 1 },
+    })
+    render(<ChapterCatalysts catalysts={cat} />)
+    expect(screen.queryByText(/Events to Monitor/i)).toBeNull()
+  })
+
+  it('shows the cross-reference note pointing events to the news feed and thesis', () => {
+    const cat = catalysts({
+      events: [ev({})],
+      overall_sentiment: 'bullish',
+      net_sentiment: 0.5,
+      category_breakdown: { product_launch: 1 },
+    })
+    render(<ChapterCatalysts catalysts={cat} />)
+    expect(screen.getByText(/itemized in the recent-news feed/i)).toBeInTheDocument()
+  })
+
+  it('degrades to a muted note when there are no events (never blank)', () => {
+    render(<ChapterCatalysts catalysts={catalysts({ events: [] })} />)
+    expect(screen.getByText(/No catalyst events were captured/i)).toBeInTheDocument()
+  })
+
+  it('degrades to the muted note even when catalysts is null', () => {
+    render(<ChapterCatalysts catalysts={null} />)
+    expect(screen.getByText(/No catalyst events were captured/i)).toBeInTheDocument()
   })
 })

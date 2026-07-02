@@ -90,6 +90,47 @@ def test_withheld_overrides_steps() -> None:
     assert "DDM implies" not in summary
 
 
+def test_equity_research_fairly_valued_keeps_full_summary_not_numeric_audit_stub() -> None:
+    """⑤ JPM dial-withhold: an in-band bank (basis leads "FAIRLY VALUED") must NOT
+    collapse to a 68-char stub misattributed to "numeric audit". It keeps the full
+    data-collection summary (parity with a published bank like BAC) and prefixes a
+    correctly-attributed "fairly valued" note."""
+    structured = {
+        "valuation_withheld": True,
+        "withheld_reason": "valuation_synthesis_dial",
+        "thesis": {
+            "price_target_basis": "FAIRLY VALUED: price $334.60 sits within the band [$272, $369]."
+        },
+    }
+    # equity_research declares NO summary_steps.
+    summary = _summary_text(_result(), structured, cast(Any, None))
+    assert "numeric audit" not in summary.lower()  # the misattribution is gone
+    assert "fairly valued" in summary.lower()
+    assert "# FinRobot Analysis Report" in summary  # full data summary retained (BAC parity)
+
+
+def test_equity_research_dial_withhold_attributes_to_synthesis_not_audit() -> None:
+    """A genuine dial withhold (single method far from market / divergence, no FAIRLY
+    VALUED basis) attributes to the valuation synthesis, never the numeric audit."""
+    structured = {
+        "valuation_withheld": True,
+        "withheld_reason": "valuation_synthesis_dial",
+        "thesis": {"price_target_basis": "POINT TARGET WITHHELD: single method 3.2x market."},
+    }
+    summary = _summary_text(_result(), structured, cast(Any, None))
+    assert "numeric audit" not in summary.lower()
+    assert "valuation synthesis" in summary.lower()
+    assert "# FinRobot Analysis Report" in summary
+
+
+def test_numeric_audit_blocked_still_reads_numeric_audit() -> None:
+    """The numeric-audit-blocked path keeps its correct "numeric audit" attribution."""
+    structured = {"valuation_withheld": True, "withheld_reason": "numeric_audit_blocked_field"}
+    summary = _summary_text(_result(), structured, cast(Any, None), summary_steps=_STEPS)
+    assert "Valuation withheld by numeric audit" in summary
+    assert "DDM implies" not in summary  # standalone still suppresses the withheld number
+
+
 def test_build_ddm_artifact_summary_is_calc_line_not_generic_report() -> None:
     """End-to-end through the real builder: build_ddm_artifact wires
     summary_steps=("ddm_calc", "ddm_narrative") so the persisted artifact summary

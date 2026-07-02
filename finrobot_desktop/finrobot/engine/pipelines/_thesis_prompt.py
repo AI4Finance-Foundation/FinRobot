@@ -181,10 +181,12 @@ def build_thesis_prompt(
             f"vs the market, NOT on a point estimate. "
             f"Your `price_target` field MUST be null/omitted — the only point we could "
             f"give would be fabricated, and we never invent a number. "
-            f"Your `price_target_basis` MUST explain, in plain language, WHY the point is "
-            f"withheld (cite the reason in the derivation above — methods diverge too far "
-            f"to blend into an honest point, and/or the model sits outside its calibration "
-            f"band). For the NATURE of the price-vs-model gap, cite the AUTHORITATIVE "
+            f"Your `price_target_basis` MUST explain WHY the point is withheld by RESTATING "
+            f"the AUTHORITATIVE reason already given in the derivation above — do NOT "
+            f"substitute a different or generic reason. In particular, if the derivation "
+            f"says the price is FAIRLY VALUED within the range, say fairly valued; do NOT "
+            f"claim 'methods diverge' or 'outside the calibration band' unless the "
+            f"derivation actually says so. For the NATURE of the price-vs-model gap, cite the AUTHORITATIVE "
             f"MARKET-IMPLIED GROWTH read above VERBATIM if one is shown — it already states "
             f"whether the price reflects reachable (if aggressive) growth or is unreachable "
             f"by any cash-flow model; do not editorialize beyond it. "
@@ -261,6 +263,20 @@ def build_thesis_prompt(
                 f"  - valuation_synthesis.methods['{m.name}']: "
                 f"low=${m.low:.2f}, mid=${m.mid:.2f}, high=${m.high:.2f}"
             )
+        # Method fidelity: the LLM narrated methods that were never run (a bank whose
+        # actual methods are P/B + P/E + residual income narrated as "DDM was used" —
+        # JPM 2026-07-02). The listed methods are the ONLY ones run; the LLM references
+        # them, never re-asserts a method list of its own.
+        _method_names = ", ".join(m.name for m in vs_for_prompt.methods) or "(none)"
+        _whitelist_parts.append(
+            "  - METHOD FIDELITY RULE: the valuation methods listed above "
+            f"({_method_names}) are the ONLY methods that were run. Do NOT name, "
+            "characterize, or attribute a value to any method NOT in that list — in "
+            "particular do not state that a method (e.g. DDM or FCF-DCF) 'was used', "
+            "'was withheld', or 'is the basis' unless it appears above. For a financial-"
+            "sector issuer, cite only the methods shown; do not assume DDM or FCF-DCF "
+            "were computed just because the issuer is a bank."
+        )
         # When the POINT is withheld, weighted_price IS the suppressed headline
         # number. Whitelisting it would let the narrative fields (valuation_overview
         # etc.) "legally" quote the very number we refuse to publish — the

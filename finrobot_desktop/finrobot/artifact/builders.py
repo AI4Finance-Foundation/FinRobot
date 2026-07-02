@@ -428,6 +428,48 @@ def _data_capability_warnings(deps: Any) -> list[str]:
     ]
 
 
+def _withhold_summary_note(structured_out: dict[str, Any], lang: str) -> str:
+    """One correctly-ATTRIBUTED sentence for a withheld/fairly-valued summary.
+
+    Attribution must reflect the REAL cause, never a hardcoded "numeric audit" (the
+    dial withholds on its own terms — a lone method too far from market, method
+    divergence, or price inside the fair-value band = fairly valued, not "withheld").
+    The thesis ``price_target_basis`` is the single authority (06-24: it leads with
+    "FAIRLY VALUED" for an in-band price, "POINT TARGET WITHHELD" otherwise), so a
+    fairly-valued price reads as fairly valued; only ``numeric_audit_blocked_field``
+    keeps the "numeric audit" wording."""
+    thesis = structured_out.get("thesis")
+    basis = str((thesis or {}).get("price_target_basis") or "") if isinstance(thesis, dict) else ""
+    reason = structured_out.get("withheld_reason")
+    if basis.upper().startswith("FAIRLY VALUED"):
+        if lang == "zh":
+            return "估值合理：现价落在公允价值区间内,故不钉单一目标价;方向性裁决与区间照常给出。"
+        return (
+            "Fairly valued — price sits within the fair-value range, so no single point "
+            "target is stamped; the directional verdict and range still ship."
+        )
+    if reason == "numeric_audit_blocked_field":
+        if lang == "zh":
+            return "估值已被数字审计闸门隐藏;请查看 numeric_audit 与 warnings。"
+        return "Valuation withheld by numeric audit; see numeric_audit and warnings."
+    if isinstance(reason, str) and reason.startswith("contract_"):
+        gate = reason.replace("contract_", "contract ", 1)
+        if lang == "zh":
+            return f"点目标价已由 {gate} 估值闸门撤回;方向性裁决与区间照常给出。"
+        return (
+            f"Point target withheld by the {gate} valuation gate; the directional verdict "
+            "and range still ship."
+        )
+    # Synthesis dial (single lone method far from market / method divergence) and any
+    # other reason: attribute to the synthesis, never to the audit.
+    if lang == "zh":
+        return "点目标价已由估值合成撤回(单一方法远离市价或方法间背离);方向性裁决与区间照常给出。"
+    return (
+        "Point target withheld by the valuation synthesis (a single method too far from "
+        "market, or method divergence); the directional verdict and range still ship."
+    )
+
+
 def _summary_text(
     result: "PipelineResult",
     structured_out: dict[str, Any],
@@ -442,9 +484,17 @@ def _summary_text(
     # still ship in ``structured`` would contradict the published data.
     if structured_out.get("valuation_withheld") is True:
         lang = getattr(getattr(deps, "settings", None), "language", "en")
-        if lang == "zh":
-            return "估值已被数字审计闸门隐藏；请查看 numeric_audit 与 warnings。"
-        return "Valuation withheld by numeric audit; see numeric_audit and warnings."
+        note = _withhold_summary_note(structured_out, lang)
+        # A single-method artifact (summary_steps present) SUPPRESSES its calc line —
+        # it carries the withheld point number ("DDM implies $X") — so the note stands
+        # alone. Multi-method equity_research declares no summary_steps: keep its full
+        # data-collection summary (parity with a published bank like BAC) and PREFIX
+        # the attributed note, instead of collapsing to a bare stub that also
+        # misattributed the cause.
+        if summary_steps:
+            return note
+        base = result.format_summary()[:2000]
+        return f"{note}\n\n{base}" if base else note
     # A single-method artifact's summary must be ABOUT that method and stay a
     # SUMMARY: surface the pipeline's deterministic calc-step narrative (e.g.
     # "DDM implies $X per share … cost of equity Y% …") — every number traced to
@@ -786,6 +836,164 @@ def build_earnings_artifact(
 # ---------------------------------------------------------------------------
 
 
+def _fmt_usd_humanized(value: Any) -> str:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return "n/a"
+    a = abs(v)
+    if a >= 1e12:
+        return f"${v / 1e12:.2f}T"
+    if a >= 1e9:
+        return f"${v / 1e9:.2f}B"
+    if a >= 1e6:
+        return f"${v / 1e6:.1f}M"
+    return f"${v:,.0f}"
+
+
+def _fmt_multiple_x(value: Any) -> str:
+    try:
+        return f"{float(value):.1f}x"
+    except (TypeError, ValueError):
+        return "n/a"
+
+
+def _fill_narrative_fallbacks(
+    structured_out: dict[str, Any], raw_data: dict[str, Any], ticker: str
+) -> list[str]:
+    """Fill any narrative field the LLM left NULL with a DETERMINISTIC summary built
+    from the frozen structured data — so a report never publishes empty sections.
+
+    The synthesis LLM's optional prose fields (tagline / company_overview /
+    valuation_overview / competitor_analysis / news_summary / key_takeaways) come back
+    None intermittently under structured-output pressure (TSM 2026-07-02: 5/9 sections
+    NULL in one run, all present in the next). Rather than render blank sections (or
+    fabricate prose), we assemble a traceable one-liner per missing field from the
+    numbers the artifact already froze (peer medians, the deterministic valuation
+    basis, catalyst sentiment, company facts) and flag which fields were filled. Every
+    value is sourced from ``structured_out`` / ``raw_data`` — no model-authored text,
+    no invented numbers. Mutates ``structured_out['thesis']`` in place; returns the
+    provenance warning line(s)."""
+    thesis = structured_out.get("thesis")
+    if not isinstance(thesis, dict):
+        return []
+    vs = structured_out.get("valuation_synthesis")
+    vs = vs if isinstance(vs, dict) else {}
+    pa = structured_out.get("peer_analysis")
+    pa = pa if isinstance(pa, dict) else {}
+    ca = structured_out.get("catalyst_analysis")
+    ca = ca if isinstance(ca, dict) else {}
+    market = raw_data.get("market") if isinstance(raw_data, dict) else None
+    market = market if isinstance(market, dict) else {}
+    income = raw_data.get("income") if isinstance(raw_data, dict) else None
+    income = income if isinstance(income, dict) else {}
+    company = (raw_data.get("company_name") if isinstance(raw_data, dict) else None) or ticker
+    verdict = str(thesis.get("recommendation") or "HOLD")
+    confidence = str(vs.get("confidence") or "medium")
+
+    def _need(key: str) -> bool:
+        return thesis.get(key) in (None, "", [])
+
+    filled: list[str] = []
+
+    if _need("tagline"):
+        thesis["tagline"] = (
+            f"{ticker}: {verdict} rating ({confidence} confidence) on the deterministic "
+            "valuation synthesis."
+        )[:120]
+        filled.append("tagline")
+
+    if _need("company_overview"):
+        industry = market.get("industry")
+        sector = market.get("sector")
+        loc = f"the {industry} industry" if industry else "its industry"
+        if sector:
+            loc += f" within the {sector} sector"
+        parts = [f"{company} ({ticker}) operates in {loc}."]
+        if income.get("revenue"):
+            parts.append(
+                f"Trailing-twelve-month revenue is approximately {_fmt_usd_humanized(income['revenue'])}."
+            )
+        if market.get("market_cap"):
+            parts.append(
+                f"Market capitalization is approximately {_fmt_usd_humanized(market['market_cap'])}."
+            )
+        parts.append(
+            "Segment revenue breakdown was not available in SEC XBRL structured data; "
+            "see the latest annual report for the exact proportions."
+        )
+        thesis["company_overview"] = " ".join(parts)
+        filled.append("company_overview")
+
+    if _need("valuation_overview"):
+        # The deterministic price_target_basis IS the traceable valuation explanation
+        # (lists the real methods + reasoning) — the ideal fallback.
+        basis = str(thesis.get("price_target_basis") or "").strip()
+        thesis["valuation_overview"] = basis or (
+            "Valuation rests on the deterministic synthesis of the methods shown in the "
+            "valuation section."
+        )
+        filled.append("valuation_overview")
+
+    if _need("competitor_analysis"):
+        peers = [
+            str(p["ticker"])
+            for p in (pa.get("peers") or [])
+            if isinstance(p, dict) and p.get("ticker")
+        ]
+        if peers:
+            thesis["competitor_analysis"] = (
+                f"Peer set: {', '.join(peers[:8])}. Peer-median P/E "
+                f"{_fmt_multiple_x(pa.get('median_pe'))}, peer-median EV/EBITDA "
+                f"{_fmt_multiple_x(pa.get('median_ev_ebitda'))}. These are peer-set medians, "
+                f"not {ticker}'s own trading multiples."
+            )
+        else:
+            thesis["competitor_analysis"] = (
+                f"A comparable peer set was not available for {ticker}; relative-multiple "
+                "positioning is therefore not shown."
+            )
+        filled.append("competitor_analysis")
+
+    if _need("news_summary"):
+        sent = ca.get("overall_sentiment")
+        net = ca.get("net_sentiment")
+        if sent is not None and isinstance(net, (int, float)):
+            thesis["news_summary"] = (
+                f"Recent news sentiment is {sent} (net sentiment {net:+.2f}), from the "
+                "catalyst analysis; see the catalysts and risks sections for the specific events."
+            )
+        else:
+            thesis["news_summary"] = (
+                "No material recent-news signal was available; see the catalysts and risks sections."
+            )
+        filled.append("news_summary")
+
+    if _need("key_takeaways"):
+        takeaways = [f"Rating: {verdict} ({confidence} confidence)."]
+        target = thesis.get("price_target")
+        if isinstance(target, (int, float)):
+            takeaways.append(f"Deterministic price target: {_fmt_usd_humanized(target)} per share.")
+        else:
+            takeaways.append(
+                "Point target withheld; the directional verdict and fair-value range still ship."
+            )
+        if pa.get("median_pe") is not None:
+            takeaways.append(f"Peer-median P/E {_fmt_multiple_x(pa.get('median_pe'))}.")
+        if isinstance(ca.get("net_sentiment"), (int, float)):
+            takeaways.append(f"Net catalyst sentiment {ca['net_sentiment']:+.2f}.")
+        thesis["key_takeaways"] = takeaways
+        filled.append("key_takeaways")
+
+    if filled:
+        return [
+            f"[NARRATIVE-FALLBACK] The model omitted {len(filled)} narrative field(s) "
+            f"({', '.join(filled)}); filled deterministically from the frozen structured "
+            "data (traceable, not model-authored prose)."
+        ]
+    return []
+
+
 def build_equity_research_artifact(
     result: "PipelineResult",
     ticker: str,
@@ -866,6 +1074,11 @@ def build_equity_research_artifact(
         "quote_currency": str(raw_data.get("quote_currency") or "USD"),
         "reporting_currency": str(raw_data.get("reporting_currency") or "USD"),
     }
+
+    # Deterministic narrative fallback: fill any prose field the LLM left NULL from the
+    # frozen structured data BEFORE mirroring, so no section renders empty and the
+    # mirror below carries the filled values. Provenance flagged in the warnings.
+    narrative_fallback_warnings = _fill_narrative_fallbacks(structured_out, raw_data, ticker)
 
     # Mirror the LLM-authored narrative fields into outputs.llm_narrative so
     # that AGENTS.md consumers can read from a semantically named top-level key
@@ -969,7 +1182,7 @@ def build_equity_research_artifact(
             structured=structured_out,
             llm_narrative=llm_narrative,
             summary_text=summary_text,
-            warnings=_collect_warnings(result) + audit_warnings,
+            warnings=_collect_warnings(result) + audit_warnings + narrative_fallback_warnings,
         ),
         meta=ArtifactMeta(
             created_at=_now(),

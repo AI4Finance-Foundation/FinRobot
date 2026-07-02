@@ -133,6 +133,30 @@ class TestBuildThesisPrompt:
         assert "we never invent a number" in prompt
         # On the withheld path no authoritative-target block is injected.
         assert "AUTHORITATIVE PRICE TARGET (do not deviate)" not in prompt
+        # ④ The withhold-reason instruction references the AUTHORITATIVE basis instead
+        # of hardcoding "methods diverge" — so a fairly-valued bank isn't mis-narrated.
+        assert "RESTATING" in prompt
+        assert "do NOT" in prompt and "methods diverge" in prompt  # forbidden unless the basis says so
+        assert "FAIRLY VALUED" in prompt
+
+    def test_method_fidelity_rule_lists_only_run_methods(self):
+        """④ The whitelist pins the exact methods run so the narrative cannot name a
+        method that wasn't (JPM: P/B + P/E + RI narrated as DDM)."""
+        methods = [
+            ValuationMethod(
+                name="comps_pb", low=200, mid=210, high=220, confidence=0.6, source="PB"
+            ),
+            ValuationMethod(
+                name="comps_pe", low=260, mid=272, high=285, confidence=0.55, source="PE"
+            ),
+            ValuationMethod(
+                name="residual_income", low=272, mid=309, high=369, confidence=0.6, source="RI"
+            ),
+        ]
+        prompt = _build(methods, current_price=334.0)
+        assert "METHOD FIDELITY RULE" in prompt
+        assert "comps_pb, comps_pe, residual_income" in prompt
+        assert "do not assume DDM or FCF-DCF were computed" in prompt
 
     def test_converged_target_block(self):
         """Three converging methods → authoritative target + market-price block."""

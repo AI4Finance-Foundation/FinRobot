@@ -45,6 +45,49 @@ from finrobot.engine.primitives.industry import is_balance_sheet_financial, is_b
 # owned by ``primitives.book_value`` so the share-count reconciliation below and the
 # book-value-per-share reconciliation move in lockstep on the same threshold.
 
+# Economic band for a margin ratio. A gross/operating margin ABOVE 100% implies a
+# negative cost of goods / operating cost — not credible: the only legitimate breach
+# is a rare supplier-rebate contra-cost, indistinguishable from the far more common
+# provider artifact of a dropped/restated cost line (FMP reports UL grossProfit ≥
+# revenue with quarterly costOfRevenue=0, GM 100.14%, while the real gross margin is
+# ~47% per the annual filings — unrecoverable in the TTM path). Withhold such a value
+# (None → shown as N/A) rather than fabricate a 100% figure OR crash the IncomeStatement
+# ``le`` bound. Invariant-suite #5: gross_margin ≤ 100% is a SOFT rule (compute-and-flag,
+# legitimacy exit before any throw), not a hard model crash. Below -500% is a
+# percent/decimal mixup (the same magnitude the ``ge=-5`` model floor documents).
+_MARGIN_CEILING = 1.0
+_MARGIN_FLOOR = -5.0
+
+
+def _sanitize_margin(
+    value: float | None, *, label: str, warnings: list[str] | None = None
+) -> float | None:
+    """Withhold (return None) a margin ratio outside the economically-credible band.
+
+    A margin > 100% (implied negative cost) or < -500% (percent/decimal mixup) is not a
+    trustworthy figure — return None so the metric shows N/A instead of a fabricated
+    value, and never let it reach the IncomeStatement bound and crash the whole report.
+    Byte-identical (returns the input) for every credible margin in ``[-5.0, 1.0]``.
+    """
+    if value is None:
+        return None
+    if value > _MARGIN_CEILING:
+        if warnings is not None:
+            warnings.append(
+                f"{label} {value:.1%} exceeds 100% (implied negative cost) — the provider's "
+                f"gross profit ≥ revenue with the cost line unreported/restated; withheld as "
+                f"unreliable rather than shown as a fabricated 100% or crashing the report"
+            )
+        return None
+    if value < _MARGIN_FLOOR:
+        if warnings is not None:
+            warnings.append(
+                f"{label} {value:.1%} below -500% — a likely percent/decimal mixup or provider "
+                f"error; withheld"
+            )
+        return None
+    return value
+
 
 def extract_financial_data(
     fin: NormalizedFinancials,
@@ -281,8 +324,13 @@ def extract_financial_data(
             # is withheld (data unavailable) rather than fabricated as a real 0.
             ebitda=ebitda,
             net_income=fin.net_income,
-            gross_margin=gross_margin,
-            operating_margin=fin.operating_margin,
+            # Withhold an economically-impossible margin (>100% / <-500%) so a broken
+            # provider figure (UL: FMP grossProfit ≥ revenue) shows N/A instead of
+            # crashing the IncomeStatement le bound or printing a fabricated 100%.
+            gross_margin=_sanitize_margin(gross_margin, label="gross_margin", warnings=warnings),
+            operating_margin=_sanitize_margin(
+                fin.operating_margin, label="operating_margin", warnings=warnings
+            ),
             operating_income=fin.operating_income,
             depreciation_amortization=fin.depreciation_amortization,
             rd_expense=fin.rd_expense,
@@ -439,10 +487,13 @@ def extract_company_financials(fin: NormalizedFinancials) -> CompanyFinancials:
         # Banks have no COGS — suppress the meaningless gross margin so a bank
         # peer row doesn't show ~60% (FMP) / 0% (yfinance). Symmetric with the
         # target path (extract_financial_data) and the FMP provider source fix.
+        # A >100% (impossible) margin is withheld too so a broken provider figure
+        # doesn't print a fabricated 100% in the comps table (peer path has no
+        # warnings channel — silent withhold, mirroring how peers drop other fields).
         gross_margin=None
         if is_bank(industry=fin.industry, sector=fin.sector)
-        else fin.gross_margin,
-        operating_margin=fin.operating_margin,
+        else _sanitize_margin(fin.gross_margin, label="gross_margin"),
+        operating_margin=_sanitize_margin(fin.operating_margin, label="operating_margin"),
         # Period-consistent EBIT for NOPAT core P/E (BUG-017) — preferred over
         # operating_margin × revenue once revenue may be XBRL-reconciled.
         operating_income=fin.operating_income,

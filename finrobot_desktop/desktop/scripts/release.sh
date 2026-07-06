@@ -32,7 +32,7 @@ set -euo pipefail
 # ── Config ───────────────────────────────────────────────────────────────────
 # The PUBLIC repo that hosts releases. MUST match the owner baked into
 # src-tauri/tauri.conf.json → plugins.updater.endpoints. Override via env.
-RELEASES_REPO="${RELEASES_REPO:-lrz68/finrobot-releases}"
+RELEASES_REPO="${RELEASES_REPO:-AI4Finance-Foundation/finrobot-releases}"
 # Private key that signs the update bundle (Tauri reads the file path or its
 # contents). Generated once via `npm run tauri -- signer generate`.
 : "${TAURI_SIGNING_PRIVATE_KEY:=$HOME/.tauri/finrobot-updater.key}"

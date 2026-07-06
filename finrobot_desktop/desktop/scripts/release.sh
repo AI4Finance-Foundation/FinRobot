@@ -125,15 +125,46 @@ _gate_run "npm test"              "$DESKTOP_DIR" npm test
 _gate_run "npm run build"         "$DESKTOP_DIR" npm run build
 echo "[gate $(_gate_ts)] ===== release quality gate: PASSED ====="
 
-# ── 1. Sync the version into tauri.conf.json (drives getVersion + updater compare)
-node -e '
-  const fs = require("fs");
-  const f = process.argv[1], v = process.argv[2];
-  const o = JSON.parse(fs.readFileSync(f, "utf8"));
-  o.version = v;
-  fs.writeFileSync(f, JSON.stringify(o, null, 2) + "\n");
-' "$CONF" "$VERSION"
-echo "[release] set tauri.conf.json version → $VERSION"
+# ── 1. Stamp $VERSION into all four version sources (single source of truth) ──
+# tauri.conf.json drives getVersion() + the updater's version compare; the other
+# three keep the app / npm / cargo / python package metadata in lockstep so
+# nothing ever reports a stale version. Every file gets a SURGICAL line edit that
+# touches only its version string — NOT a parse-and-rewrite. (node JSON.stringify
+# / jq would reformat tauri.conf.json's hand-compacted inline objects into a
+# 30-line noise diff on every release; a targeted sed keeps the formatting.) The
+# top-level JSON "version" is uniquely at 2-space indent; the TOML version is
+# scoped to the [package] / [project] section so a dependency pin is never hit.
+# --dry-run prints the diff for all four and writes nothing.
+PKG_JSON="$DESKTOP_DIR/package.json"
+CARGO_TOML="$SRC_TAURI/Cargo.toml"
+PYPROJECT="$REPO_ROOT/pyproject.toml"
+
+_stamp_json() {   # replace only the top-level "version" line (2-space indent) → stdout
+    sed -e "s/^  \"version\": \"[^\"]*\"/  \"version\": \"$VERSION\"/" "$1"
+}
+_stamp_toml() {   # replace the version line inside a named [section] via sed → stdout
+    sed -e "/^\[$2\]/,/^\[/ s/^version = \".*\"/version = \"$VERSION\"/" "$1"
+}
+_apply_version() {   # _apply_version <label> <file> <newcontent-cmd...>
+    local label="$1" file="$2"; shift 2
+    local tmp; tmp="$(mktemp)"
+    "$@" > "$tmp"
+    if diff -u "$file" "$tmp" >/dev/null 2>&1; then
+        echo "[release] version $label: already $VERSION (no change)"
+    else
+        echo "[release] version $label → $VERSION:"
+        # `|| true`: diff exits 1 when files differ, which under set -o pipefail
+        # would abort the release mid-preview. The diff here is purely cosmetic.
+        diff -u "$file" "$tmp" | tail -n +3 | sed 's/^/    /' || true
+    fi
+    if [[ "$DRY_RUN" == 1 ]]; then rm -f "$tmp"; else mv "$tmp" "$file"; fi
+}
+
+_apply_version "tauri.conf.json" "$CONF"       _stamp_json "$CONF"
+_apply_version "package.json"    "$PKG_JSON"   _stamp_json "$PKG_JSON"
+_apply_version "Cargo.toml"      "$CARGO_TOML" _stamp_toml "$CARGO_TOML" package
+_apply_version "pyproject.toml"  "$PYPROJECT"  _stamp_toml "$PYPROJECT" project
+echo "[release] stamped version → $VERSION across 4 files (dry-run=$DRY_RUN)"
 
 # ── 2. (Optional) refreeze the Python sidecar for this arch ───────────────────
 if [[ "$BUILD_SIDECAR" == 1 ]]; then

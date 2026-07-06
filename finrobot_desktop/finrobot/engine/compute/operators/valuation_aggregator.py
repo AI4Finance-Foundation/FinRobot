@@ -25,9 +25,9 @@ stays omitted: FMP /analyst-estimates carries no free-cash-flow figure, so
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Final
 
 from finrobot.engine.models.financial import (
     DCFResult,
@@ -60,6 +60,53 @@ _COMPS_PB_BAND_WIDTH = 0.15
 """P/B band — book equity is cycle-stable but the peer P/B dispersion across a
 memory/storage cohort is wider than the trailing-P/E dispersion (re-rating during
 the up-cycle), so a slightly wider placeholder spread than comps_pe."""
+
+# Insurer comps ROE adjustment (2026-07-06). A flat peer-median P/B grants no quality
+# premium, so it under-prices a high-ROE insurer and over-prices a low-ROE one (justified
+# P/B ∝ ROE). We scale the median P/B by target/peer THROUGH-CYCLE ROE (own-history mean,
+# so an underwriting-cycle peak doesn't inflate it), NOT residual income — a structurally
+# low insurer beta (0.2-0.5) makes the RI/justified-P/B Gordon denominator (CoE−g) tiny and
+# the value explode (PGR 8.5x vs market 4.5x); the peer group already embeds the sector CoE.
+_TCROE_MIN_YEARS: Final[int] = 5
+"""Minimum valid (positive-book) years to trust a through-cycle ROE mean; below this the
+window doesn't span a cycle, so comps_pb keeps the flat median (disclosed)."""
+_TCROE_MIN_PEER_MEDIAN: Final[float] = 0.02
+"""Floor on the peer-median through-cycle ROE used as the scaling divisor. Below 2% the
+ratio divisor is unstable/explosive (a near-zero denominator), so fall back to flat."""
+_TCROE_SCALE_CAP: Final[float] = 2.6
+"""Sanity band on the scaling ratio. Live 2026-07-06 the largest legitimate sample is PGR
+(target/peer through-cycle ROE ≈ 1.9x → P/B ≈ 3.9x, matching its 4.0x market P/B); the cap
+gives cycle headroom above that but keeps a data glitch from an unbounded multiple. Clamp
+is disclosed in provenance (post-clamp value shown)."""
+
+
+def through_cycle_roe(
+    net_income: Sequence[float | None],
+    shareholders_equity: Sequence[float | None],
+    *,
+    min_years: int = _TCROE_MIN_YEARS,
+) -> float | None:
+    """Mean annual ROE = net_income / shareholders_equity across the history window.
+
+    Both are raw currency amounts from the same year's statements (no share count), so
+    it survives a year whose market-derived share count is missing. Loss years are kept
+    (a negative-ROE year is a real part of the cycle); only a non-positive-equity year is
+    skipped (undefined ratio). Returns None when fewer than ``min_years`` valid years
+    exist — the caller then keeps the flat peer-median P/B. Used to normalize an
+    insurer's underwriting-cycle ROE swing for the comps_pb quality adjustment.
+    """
+    roes = [
+        n / e
+        for n, e in zip(net_income, shareholders_equity, strict=False)
+        if isinstance(n, (int, float))
+        and not isinstance(n, bool)
+        and isinstance(e, (int, float))
+        and not isinstance(e, bool)
+        and e > 0
+    ]
+    if len(roes) < min_years:
+        return None
+    return sum(roes) / len(roes)
 
 _COMPS_MIN_MULTIPLE_SAMPLE = 3
 """Minimum surviving peers behind a multiple median before it may price the
@@ -636,7 +683,36 @@ def _comps_pb_method(
     if refusal is not None:
         _warn(refusal)
         return None
-    mid = median_pb * target_bvps
+
+    # Insurer ROE quality adjustment: a flat peer-median P/B grants no quality premium,
+    # so it under-prices a high-through-cycle-ROE insurer (PGR) and over-prices a low-ROE
+    # one (CB). Scale the median P/B by the target's through-cycle ROE relative to the peer
+    # median (justified P/B ∝ ROE). Both fields are set ONLY for the insurer cohort
+    # (execute_peer_analysis), so banks / non-financials keep the flat median unchanged.
+    effective_pb = median_pb
+    roe_note = ""
+    tgt_roe = peer_comps.target_through_cycle_roe
+    peer_roe = peer_comps.peer_median_through_cycle_roe
+    if tgt_roe is not None and peer_roe is not None:
+        if peer_roe < _TCROE_MIN_PEER_MEDIAN or tgt_roe <= 0:
+            # Divisor unstable (near-zero peer ROE) or target has no positive through-cycle
+            # ROE → keep the flat median, disclose (dirty-value fallback, guardrail 1).
+            _warn(
+                f"comps_pb: through-cycle ROE adjustment skipped — peer-median ROE "
+                f"{peer_roe:.1%} below the {_TCROE_MIN_PEER_MEDIAN:.0%} divisor floor or "
+                f"target ROE {tgt_roe:.1%} non-positive; flat peer-median P/B used"
+            )
+        else:
+            raw_scale = tgt_roe / peer_roe
+            scale = max(1.0 / _TCROE_SCALE_CAP, min(_TCROE_SCALE_CAP, raw_scale))
+            effective_pb = median_pb * scale
+            clamp_note = f" (clamped from {raw_scale:.2f}×)" if abs(scale - raw_scale) > 1e-9 else ""
+            roe_note = (
+                f"; ROE-adjusted ×{scale:.2f}{clamp_note} (through-cycle ROE {tgt_roe:.1%} "
+                f"÷ peer-median {peer_roe:.1%})"
+            )
+
+    mid = effective_pb * target_bvps
     if mid <= 0:
         return None
     band = mid * _COMPS_PB_BAND_WIDTH
@@ -652,7 +728,10 @@ def _comps_pb_method(
         high=mid + band,
         confidence=confidence,
         source="peer_median_pb × target_book_value_per_share (cyclical book-value caliber, primary multiple)",
-        assumptions=f"anchored to peer median P/B {median_pb:.2f}× × book value per share ${target_bvps:,.2f}",
+        assumptions=(
+            f"anchored to peer median P/B {median_pb:.2f}× × book value per share "
+            f"${target_bvps:,.2f}{roe_note}"
+        ),
     )
 
 

@@ -28,6 +28,7 @@ from finrobot.engine.compute.operators.valuation_aggregator import (
     _comps_pb_method,
     _comps_pe_method,
     aggregate_valuation,
+    through_cycle_roe,
 )
 from finrobot.engine.models.financial import CompanyFinancials, PeerComps
 
@@ -376,3 +377,79 @@ class TestCyclicalCompsPeSuppression:
         pe_rows = [m for m in agg.methods if m.method == "comps_pe"]
         assert len(pe_rows) == 1
         assert pe_rows[0].mid == pytest.approx(36.9 * 58.9)
+
+
+class TestThroughCycleRoe:
+    """Through-cycle ROE = mean(net_income / shareholders_equity) — normalizes an
+    insurer's underwriting-cycle ROE swing for the comps_pb quality adjustment."""
+
+    def test_mean_of_annual_roe(self):
+        # ROE each year = 10/100 … 20/100 → mean 0.13.
+        r = through_cycle_roe([10.0, 12.0, 8.0, 15.0, 20.0], [100.0] * 5)
+        assert r == pytest.approx(0.13)
+
+    def test_loss_years_kept(self):
+        # A negative-ROE year is a real part of the cycle, not dropped.
+        r = through_cycle_roe([-5.0, 10.0, 10.0, 10.0, 10.0], [100.0] * 5)
+        assert r == pytest.approx((-0.05 + 0.10 * 4) / 5)
+
+    def test_non_positive_equity_year_skipped(self):
+        # Only a non-positive-equity year (undefined ratio) is skipped; here that drops
+        # the sample below min_years → None (can't trust a sub-cycle window).
+        assert through_cycle_roe([10.0, 12.0, 8.0, 15.0, 20.0, 9.0], [100, 0, -50, 100, 100, 100]) is None
+
+    def test_min_years_guard(self):
+        # 4 valid years < default 5 → None (window doesn't span a cycle).
+        assert through_cycle_roe([10.0, 12.0, 8.0, 15.0], [100.0] * 4) is None
+
+    def test_none_and_short_lists(self):
+        assert through_cycle_roe([], []) is None
+        assert through_cycle_roe([None, None], [None, None]) is None
+
+
+class TestCompsPbRoeAdjustment:
+    """comps_pb scales the flat peer-median P/B by target/peer through-cycle ROE for the
+    insurer cohort (fields set), and is byte-identical (flat) when they are absent."""
+
+    def _pc(self, *, tgt_roe, peer_roe, median_pb=2.0, bvps=50.0, tgt_pb=3.0):
+        target = _peer("T", market_cap=1e9, bvps=bvps, pb=tgt_pb)
+        pc = PeerComps(target=target, peers=[_peer("P", market_cap=1e9, bvps=bvps, pb=median_pb)])
+        pc.median_pb = median_pb
+        pc.pb_sample_n = 5  # ≥3 so _comps_median_refusal doesn't fire
+        pc.target_through_cycle_roe = tgt_roe
+        pc.peer_median_through_cycle_roe = peer_roe
+        return pc
+
+    def test_no_roe_fields_is_flat(self):
+        # Banks / non-financials never set the fields → flat median (byte-identical).
+        m = _comps_pb_method(self._pc(tgt_roe=None, peer_roe=None))
+        assert m is not None and m.mid == pytest.approx(2.0 * 50.0)  # 100
+
+    def test_high_roe_target_scaled_up(self):
+        # PGR-shape: target 24% vs peer 12% → ×2.0 → $100 flat becomes $200.
+        m = _comps_pb_method(self._pc(tgt_roe=0.24, peer_roe=0.12))
+        assert m is not None and m.mid == pytest.approx(2.0 * 2.0 * 50.0)  # 200
+        assert "ROE-adjusted ×2.00" in m.assumptions
+
+    def test_low_roe_target_scaled_down(self):
+        # AIG-shape: target 8% vs peer 16% → ×0.5 → $100 flat becomes $50.
+        m = _comps_pb_method(self._pc(tgt_roe=0.08, peer_roe=0.16))
+        assert m is not None and m.mid == pytest.approx(2.0 * 0.5 * 50.0)  # 50
+
+    def test_scale_ratio_clamped(self):
+        # target 30% vs peer 5% → raw ×6.0 clamped to the 2.6× cap.
+        warns: list[str] = []
+        m = _comps_pb_method(self._pc(tgt_roe=0.30, peer_roe=0.05), warns)
+        assert m is not None and m.mid == pytest.approx(2.0 * 2.6 * 50.0)  # 260
+        assert "clamped from 6.00×" in m.assumptions
+
+    def test_dirty_peer_roe_falls_back_to_flat(self):
+        # Peer-median ROE below the 2% divisor floor → unstable ratio → flat + disclose.
+        warns: list[str] = []
+        m = _comps_pb_method(self._pc(tgt_roe=0.20, peer_roe=0.01), warns)
+        assert m is not None and m.mid == pytest.approx(2.0 * 50.0)  # flat 100
+        assert any("adjustment skipped" in w for w in warns)
+
+    def test_non_positive_target_roe_falls_back_to_flat(self):
+        m = _comps_pb_method(self._pc(tgt_roe=-0.05, peer_roe=0.12))
+        assert m is not None and m.mid == pytest.approx(2.0 * 50.0)  # flat 100

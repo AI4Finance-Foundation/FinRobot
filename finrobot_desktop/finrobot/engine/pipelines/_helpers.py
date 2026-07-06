@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
+from statistics import median
 from typing import Any
 
 from pydantic_ai import Agent
@@ -13,6 +14,7 @@ from finrobot.engine.compute.operators.cyclical_peers import screen_peers_with_c
 from finrobot.engine.primitives.corporate_actions import detect_mna_transition
 from finrobot.engine.primitives.industry import (
     is_balance_sheet_financial,
+    is_bank,
     is_commodity_cyclical,
 )
 from finrobot.engine.compute.coordinators.extractor import (
@@ -26,7 +28,10 @@ from finrobot.engine.compute.operators.multiples import (
     calculate_multiples,
     calculate_peer_statistics,
 )
-from finrobot.engine.compute.operators.valuation_aggregator import aggregate_valuation
+from finrobot.engine.compute.operators.valuation_aggregator import (
+    aggregate_valuation,
+    through_cycle_roe,
+)
 from finrobot.engine.compute.operators.valuation_synthesis import synthesize_valuations
 from finrobot.engine.compute.operators.xbrl_aligned_comps import (
     build_xbrl_aligned_company,
@@ -581,6 +586,35 @@ async def execute_peer_analysis(
     # NOPAT core P/E (target + peers) so the comps_pe method pairs a core peer
     # median with the target's core EPS — one earnings caliber on both sides.
     peer_comps = calculate_core_pe(peer_comps)
+
+    # Insurer comps ROE quality: attach the target + peer-median through-cycle ROE so
+    # _comps_pb_method scales the flat peer-median P/B by ROE (a flat median grants no
+    # quality premium — it under-prices a high-ROE insurer like PGR, comps $115 vs price
+    # $216, and over-prices a low-ROE one). ONLY the insurer cohort
+    # (is_balance_sheet_financial and NOT is_bank); banks / non-financials skip the
+    # per-peer historical fetch entirely and keep both fields None → flat median →
+    # byte-identical. Best-effort: a fetch miss leaves the flat median (comps_pb discloses).
+    if is_balance_sheet_financial(
+        industry=target_fin.market.industry, sector=target_fin.market.sector
+    ) and not is_bank(industry=target_fin.market.industry, sector=target_fin.market.sector):
+        try:
+            tgt_hist = await fetch_historical_metrics(deps.data_layer, ticker)
+            peer_roes: list[float] = []
+            for _peer in peers:
+                try:
+                    _ph = await fetch_historical_metrics(deps.data_layer, _peer.ticker)
+                    _pr = through_cycle_roe(_ph.net_income, _ph.shareholders_equity)
+                    if _pr is not None:
+                        peer_roes.append(_pr)
+                except (ProviderError, ValueError, KeyError, TypeError):
+                    continue
+            peer_comps.target_through_cycle_roe = through_cycle_roe(
+                tgt_hist.net_income, tgt_hist.shareholders_equity
+            )
+            peer_comps.peer_median_through_cycle_roe = median(peer_roes) if peer_roes else None
+        except (ProviderError, ValueError, KeyError, TypeError) as _tcroe_err:
+            logger.debug("Through-cycle ROE unavailable for %s: %s", ticker, _tcroe_err)
+
     if thin_warning is not None and thin_warning not in peer_comps.warnings:
         peer_comps.warnings.insert(0, thin_warning)
 

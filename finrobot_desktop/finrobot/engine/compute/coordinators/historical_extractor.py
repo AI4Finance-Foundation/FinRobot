@@ -211,6 +211,7 @@ def _build_from_yearly(
     da_list: list[float] = []
     capex_list: list[float] = []
     nwc_change_list: list[float] = []
+    equity_list: list[float | None] = []
 
     for _fy_str, year, data in rows:
         # Raw (None when the provider omitted the row) drives the margins below
@@ -265,6 +266,9 @@ def _build_from_yearly(
         nwc_change_list.append(
             (_safe_float(data.get("change_in_working_capital")) or 0.0) * fx_rate
         )
+        # Per-year parent equity (None when omitted). FX-scaled like net_income so the
+        # net_income/equity through-cycle ROE ratio is currency-invariant either way.
+        equity_list.append(_fx(_safe_float(data.get("total_equity")), fx_rate))
 
     # YoY revenue growth (None for the oldest year and across any 0-fill gaps).
     revenue_growth: list[float | None] = []
@@ -311,6 +315,7 @@ def _build_from_yearly(
         depreciation_amortization=da_list,
         capital_expenditure=capex_list,
         change_in_working_capital=nwc_change_list,
+        shareholders_equity=equity_list,
     )
 
 

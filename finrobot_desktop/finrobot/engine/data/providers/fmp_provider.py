@@ -710,6 +710,11 @@ class FMPProvider(DataProvider):
             # Book value per common share (cyclical comps_pb anchor). None ≠ 0:
             # withheld when equity or shares is missing; raw reporting-ccy.
             "book_value_per_share": _book_value_per_share(bal, shares),
+            # Raw parent-only shareholders' equity (reporting-ccy). Feeds the per-year
+            # through-cycle ROE = net_income / equity — shares-free, so it survives a
+            # historical year where the market-derived share count is missing (there
+            # book_value_per_share goes None, but ROE from raw equity does not).
+            "total_equity": bal.get("totalStockholdersEquity"),
             "pe_ratio": pe_ratio,
             "beta": beta,
             "current_price": price,
@@ -854,6 +859,8 @@ class FMPProvider(DataProvider):
             # Book value per common share (cyclical comps_pb anchor). None ≠ 0:
             # withheld when equity or shares is missing; raw reporting-ccy.
             "book_value_per_share": _book_value_per_share(bal, shares),
+            # Raw parent-only shareholders' equity (reporting-ccy) — see single-year.
+            "total_equity": bal.get("totalStockholdersEquity"),
             # Dividend / payout / ROE for the DDM seed (current TTM snapshot, from
             # /ratios-ttm + /key-metrics-ttm). None when that best-effort pull
             # missed → seed_ddm_inputs degrades (payout fallback) or abstains.

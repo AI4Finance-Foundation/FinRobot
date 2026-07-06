@@ -406,6 +406,15 @@ class PeerComps(BaseModel):
     median_pb: float | None = None
     pb_sample_n: int = 0
 
+    # Through-cycle ROE (mean of annual eps / book_value_per_share) for the target and
+    # the peer-median. Set ONLY for the insurer cohort (is_balance_sheet_financial and
+    # not is_bank), where a flat peer-median P/B grants no quality premium and mis-
+    # prices a high-ROE insurer (PGR comps $115 vs price $216) — comps_pb scales the
+    # median P/B by target_tcROE / peer_median_tcROE. None (both) → no ROE adjustment,
+    # comps_pb keeps the flat median (banks / non-financials byte-identical).
+    target_through_cycle_roe: float | None = None
+    peer_median_through_cycle_roe: float | None = None
+
     # LLM-provided
     peer_justification: str = ""
     positioning_narrative: str = ""
@@ -864,6 +873,15 @@ class HistoricalMetrics(BaseModel):
     depreciation_amortization: list[float] = Field(default_factory=list)
     capital_expenditure: list[float] = Field(default_factory=list)
     change_in_working_capital: list[float] = Field(default_factory=list)
+
+    # Per-year parent shareholders' equity (parallel to net_income/years). Populated
+    # from the yearly balance sheet; None for a year the provider omitted. Enables a
+    # through-cycle ROE = mean(net_income / shareholders_equity) — both raw, so it
+    # survives a historical year whose market-derived share count (and thus book value
+    # PER SHARE) is missing. Feeds the insurer comps ROE adjustment. Empty when the
+    # producer path predates this field (test fakes / legacy cache); consumers must
+    # guard for a short/empty list.
+    shareholders_equity: list[float | None] = Field(default_factory=list)
 
 
 class CatalystEvent(BaseModel):

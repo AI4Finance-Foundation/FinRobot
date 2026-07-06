@@ -68,6 +68,8 @@ export interface CompanyFinancials {
   pe_ratio: number | null
   ev_ebitda: number | null
   ev_revenue: number | null
+  // Price-to-book — banks' primary comps caliber (EV/EBITDA is a category error).
+  pb_ratio?: number | null
 }
 
 export interface CompsResult {
@@ -76,6 +78,7 @@ export interface CompsResult {
   median_ev_ebitda: number | null
   median_pe: number | null
   median_ev_revenue: number | null
+  median_pb?: number | null
   mean_ev_ebitda: number | null
   mean_pe: number | null
   peer_justification: string
@@ -101,6 +104,10 @@ export interface HistoricalMetrics {
   operating_cash_flow: number[]
   investing_cash_flow: number[]
   financing_cash_flow: number[]
+  // Per-year shareholders' equity (plumbed 2026-07-06 for through-cycle ROE).
+  // Empty on artifacts generated before that; the bank ROE trajectory omits ROE
+  // and degrades to Revenue + Net Income when this is absent (never fabricated).
+  shareholders_equity?: (number | null)[]
   cagr_revenue: number | null
   ticker: string
   price_data_available: boolean

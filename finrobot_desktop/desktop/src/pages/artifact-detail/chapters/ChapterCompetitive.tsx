@@ -12,6 +12,11 @@ import type { PeerCompsShape, ThesisShape } from './types'
 interface ChapterCompetitiveProps {
   peers: PeerCompsShape | null
   thesis: ThesisShape | null
+  // Balance-sheet financial (bank / insurer): lead the multiples on P/B, not
+  // EV/EBITDA (a category error for deposit-takers). Persisted as
+  // ValuationSynthesis.financial_sector. Undefined on the standalone comps tool
+  // page (treated as non-bank).
+  financialSector?: boolean
 }
 
 export function ChapterCompetitive(props: ChapterCompetitiveProps): React.ReactElement {
@@ -26,8 +31,13 @@ export function ChapterCompetitive(props: ChapterCompetitiveProps): React.ReactE
  * comps tool page (CompactArtifactViewer) reuses the exact same peer table + heat
  * shading + medians + charts under its own section header. `thesis` is null on a
  * standalone comps artifact, so the competitor-analysis narrative simply omits. */
-export function CompetitiveBody({ peers, thesis }: ChapterCompetitiveProps): React.ReactElement {
+export function CompetitiveBody({
+  peers,
+  thesis,
+  financialSector,
+}: ChapterCompetitiveProps): React.ReactElement {
   const { t, locale } = useI18n()
+  const isBank = financialSector === true
   const narrative = thesis?.competitor_analysis ?? null
   const target = peers?.target
   const peerList = (peers?.peers ?? []).filter((p) => !target || p.ticker !== target.ticker)
@@ -47,7 +57,8 @@ export function CompetitiveBody({ peers, thesis }: ChapterCompetitiveProps): Rea
   const med = {
     pe: peers?.median_pe ?? null,
     corePe: peers?.median_core_pe ?? null,
-    evEbitda: peers?.median_ev_ebitda ?? null,
+    // The primary multiple column: P/B for banks, EV/EBITDA otherwise.
+    primary: isBank ? (peers?.median_pb ?? null) : (peers?.median_ev_ebitda ?? null),
     gross: marginsStable ? peerMedian(peerList.map((p) => p.gross_margin)) : null,
     opMargin: marginsStable ? peerMedian(peerList.map((p) => p.operating_margin)) : null,
   }
@@ -77,6 +88,7 @@ export function CompetitiveBody({ peers, thesis }: ChapterCompetitiveProps): Rea
           target,
           peers: peerList,
           median_ev_ebitda: peers?.median_ev_ebitda ?? null,
+          median_pb: peers?.median_pb ?? null,
           median_pe: peers?.median_pe ?? null,
           median_ev_revenue: peers?.median_ev_revenue ?? null,
           mean_ev_ebitda: null,
@@ -120,7 +132,7 @@ export function CompetitiveBody({ peers, thesis }: ChapterCompetitiveProps): Rea
                   <TermTip term="Core P/E">{coreLabel.header}</TermTip>
                 </th>
                 <th style={{ ...thStyle, textAlign: 'right' }}>
-                  <TermTip term="EV/EBITDA" />
+                  <TermTip term={isBank ? 'P/B' : 'EV/EBITDA'} />
                 </th>
                 <th style={{ ...thStyle, textAlign: 'right' }}>
                   {t('chapter.competitive.col.grossMargin')}
@@ -133,10 +145,11 @@ export function CompetitiveBody({ peers, thesis }: ChapterCompetitiveProps): Rea
             <tbody>
               {all.map((c, i) => {
                 const isTarget = i === 0 && target !== undefined
+                const primaryMult = isBank ? (c.pb_ratio ?? null) : c.ev_ebitda
                 const h = {
                   pe: heat(c.pe_ratio, med.pe, true),
                   corePe: heat(c.core_pe_ratio, med.corePe, true),
-                  ev: heat(c.ev_ebitda, med.evEbitda, true),
+                  ev: heat(primaryMult, med.primary, true),
                   gross: heat(c.gross_margin, med.gross, false),
                   op: heat(c.operating_margin, med.opMargin, false),
                 }
@@ -213,8 +226,8 @@ export function CompetitiveBody({ peers, thesis }: ChapterCompetitiveProps): Rea
                       style={{ ...tdStyle, textAlign: 'right', ...h.ev.style }}
                       title={h.ev.title}
                     >
-                      {c.ev_ebitda !== null && c.ev_ebitda !== undefined
-                        ? c.ev_ebitda.toFixed(1)
+                      {primaryMult !== null && primaryMult !== undefined
+                        ? primaryMult.toFixed(1)
                         : '—'}
                     </td>
                     <td
@@ -266,9 +279,7 @@ export function CompetitiveBody({ peers, thesis }: ChapterCompetitiveProps): Rea
         </div>
       )}
 
-      {(peers?.median_pe !== null && peers?.median_pe !== undefined) ||
-      (peers?.median_core_pe !== null && peers?.median_core_pe !== undefined) ||
-      (peers?.median_ev_ebitda !== null && peers?.median_ev_ebitda !== undefined) ? (
+      {med.pe != null || med.corePe != null || med.primary != null ? (
         <p
           style={{
             fontFamily: 'var(--font-mono)',
@@ -278,12 +289,12 @@ export function CompetitiveBody({ peers, thesis }: ChapterCompetitiveProps): Rea
           }}
         >
           {t('chapter.competitive.peerMedian')}
-          {peers.median_pe !== null && peers.median_pe !== undefined && (
+          {peers?.median_pe != null && (
             <span style={{ marginLeft: 10, color: 'var(--text-secondary)' }}>
               P/E {peers.median_pe.toFixed(1)}
             </span>
           )}
-          {peers.median_core_pe !== null && peers.median_core_pe !== undefined && (
+          {peers?.median_core_pe != null && (
             <span
               style={{ marginLeft: 10, color: 'var(--accent-cyan)', cursor: 'help' }}
               title={coreLabel.tooltip}
@@ -291,24 +302,38 @@ export function CompetitiveBody({ peers, thesis }: ChapterCompetitiveProps): Rea
               {coreLabel.medianPrefix} {peers.median_core_pe.toFixed(1)}
             </span>
           )}
-          {peers.median_ev_ebitda !== null && peers.median_ev_ebitda !== undefined && (
+          {med.primary != null && (
             <span style={{ marginLeft: 10, color: 'var(--text-secondary)' }}>
-              EV/EBITDA {peers.median_ev_ebitda.toFixed(1)}
+              {isBank ? 'P/B' : 'EV/EBITDA'} {med.primary.toFixed(1)}
             </span>
           )}
         </p>
       ) : null}
+
+      {isBank && all.length > 0 && (
+        <p style={caliberNote}>
+          {locale === 'zh'
+            ? '银行口径 comps:用 P/B 与 P/E。对存款机构而言 EV/EBITDA 是口径错误——存款是经营性原料而非资本结构,且无干净 EBITDA。'
+            : 'Bank-caliber comps: led on P/B and P/E. EV/EBITDA is a category error for a deposit-funded institution — deposits are operating raw material, not capital structure, and there is no clean EBITDA.'}
+        </p>
+      )}
 
       {peerBarData.length > 0 && (
         <SubChapter heading={t('chapter.competitive.subheading.multiples')}>
           <PeerComparisonChart
             data={peerBarData}
             title={t('chapter.competitive.chart.multiples')}
+            // Banks: primary bar = P/B (EV/EBITDA is a category error for them).
+            primaryKey={isBank ? 'pb_ratio' : 'ev_ebitda'}
+            primaryName={isBank ? 'P/B' : undefined}
           />
         </SubChapter>
       )}
 
-      {radarData.length > 0 && (
+      {/* Radar profiles a company on margins + multiples; for a bank the margin
+          axes are undefined (no COGS) and EV/EBITDA is a category error, leaving
+          too few valid axes — the P/B + P/E table above carries the comparison. */}
+      {!isBank && radarData.length > 0 && (
         <SubChapter heading={t('chapter.competitive.subheading.profile')}>
           <CompanyRadarChart data={radarData} title={t('chapter.competitive.chart.radar')} />
         </SubChapter>
@@ -363,6 +388,19 @@ const mutedNote: React.CSSProperties = {
   padding: '14px 18px',
   background: 'var(--bg-card-50)',
   border: '1px dashed var(--border-soft)',
+  borderRadius: 'var(--radius-sm)',
+}
+// Calm caliber note (ChapterAuditBanner "note" tone): muted, no glow, no red — a
+// structural fact (why this branch uses P/B, not a defect).
+const caliberNote: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  color: 'var(--text-muted)',
+  lineHeight: 1.6,
+  margin: '10px 0 0',
+  padding: '8px 12px',
+  background: 'var(--bg-card-50)',
+  borderLeft: '2px solid color-mix(in srgb, var(--secondary) 55%, transparent)',
   borderRadius: 'var(--radius-sm)',
 }
 

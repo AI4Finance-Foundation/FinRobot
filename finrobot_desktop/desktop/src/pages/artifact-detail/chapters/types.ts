@@ -210,6 +210,10 @@ export interface CompanyFinancialsShape {
   pe_ratio?: number | null
   ev_ebitda?: number | null
   ev_revenue?: number | null
+  // Price-to-book (market_cap / book equity). Banks' primary comps caliber — the
+  // competitive table swaps its EV/EBITDA column to this for balance-sheet
+  // financials (EV/EBITDA is a category error for deposit-takers).
+  pb_ratio?: number | null
   // NOPAT core P/E (market_cap / NOPAT). Same caliber the trailing comps_pe
   // valuation target is computed on (peer_median_core_pe × core_eps), so the
   // table can reconcile with the football-field "Comps (core P/E)" row. Filled
@@ -224,6 +228,9 @@ export interface PeerCompsShape {
   median_ev_ebitda?: number | null
   median_pe?: number | null
   median_ev_revenue?: number | null
+  // Peer median P/B — the bank-caliber comps multiple the competitive table leads
+  // on for balance-sheet financials (in place of EV/EBITDA).
+  median_pb?: number | null
   // Peer median of the NOPAT core P/E — the multiple the trailing comps target
   // uses. Distinct from median_pe (as-reported, the forward-EPS path multiple).
   median_core_pe?: number | null

@@ -93,6 +93,9 @@ export function compsResultToPeerChartData(
   return all.map((c) => ({
     ticker: c.ticker,
     ev_ebitda: c.ev_ebitda,
+    // P/B rides along so the balance-sheet-financial branch can plot it as the
+    // primary bar in place of EV/EBITDA (a category error for deposit-takers).
+    pb_ratio: c.pb_ratio ?? null,
     pe_ratio: c.pe_ratio,
     is_target: c.ticker === result.target.ticker,
   }))
@@ -209,6 +212,27 @@ export function historicalToMarginData(h: HistoricalMetrics) {
     operating_margin: h.operating_margin[i],
     is_forecast: false,
   }))
+}
+
+/**
+ * Bank-caliber trajectory (balance-sheet financials): Revenue + Net Income bars
+ * plus a Return-on-Equity line. EBITDA / EBITDA-margin are a category error for
+ * deposit-takers, so this replaces the Revenue&EBITDA + margin charts.
+ *
+ * ROE = net_income / shareholders_equity per year — emitted ONLY when that year's
+ * equity is a positive finite number (the field is empty on artifacts generated
+ * before the 2026-07-06 equity plumbing). A year without valid equity carries
+ * roe=null and the chart degrades to Revenue + Net Income (never fabricated).
+ */
+export function historicalToBankTrajectoryData(h: HistoricalMetrics) {
+  const equity = h.shareholders_equity ?? []
+  return h.years.map((year, i) => {
+    const eq = equity[i]
+    const ni = h.net_income[i]
+    const roe =
+      typeof eq === 'number' && Number.isFinite(eq) && eq > 0 && ni != null ? ni / eq : null
+    return { year: String(year), revenue: h.revenue[i], net_income: ni, roe }
+  })
 }
 
 export function historicalToCashFlowData(h: HistoricalMetrics) {

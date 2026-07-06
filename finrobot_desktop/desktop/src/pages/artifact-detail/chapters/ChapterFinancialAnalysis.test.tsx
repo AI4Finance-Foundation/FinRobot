@@ -26,6 +26,8 @@ vi.mock('../../../i18n', () => ({
 // Charts are irrelevant to the KV-card regression; render them as no-ops.
 vi.mock('../../../components/charts/RevenueEbitdaChart', () => ({ default: () => null }))
 vi.mock('../../../components/charts/MarginTrendChart', () => ({ default: () => null }))
+vi.mock('../../../components/charts/BankTrajectoryChart', () => ({ default: () => null }))
+vi.mock('../../../components/charts/EpsTrendChart', () => ({ default: () => null }))
 vi.mock('../../../components/charts/CashFlowChart', () => ({ default: () => null }))
 
 const RAW_DATA = {
@@ -69,5 +71,66 @@ describe('ChapterFinancialAnalysis KV cards', () => {
       />,
     )
     expect(screen.queryByText('EBITDA')).not.toBeInTheDocument()
+  })
+})
+
+// Minimal history so the bank trajectory (and its calm note) render; the adapters
+// touch every array, so all are present even though the charts are mocked out.
+const HIST = {
+  years: [2023, 2024],
+  revenue: [1e11, 1.1e11],
+  revenue_growth_yoy: [null, 0.1],
+  cogs: [null, null],
+  gross_profit: [null, null],
+  gross_margin: [null, null],
+  sga: [0, 0],
+  sga_ratio: [null, null],
+  ebitda: [4e10, 4.4e10],
+  ebitda_margin: [0.4, 0.4],
+  operating_income: [3e10, 3.2e10],
+  operating_margin: [0.3, 0.29],
+  net_income: [3e10, 3.2e10],
+  eps: [10, 11],
+  pe_ratio: [null, 12],
+  operating_cash_flow: [0, 0],
+  investing_cash_flow: [0, 0],
+  financing_cash_flow: [0, 0],
+  shareholders_equity: [],
+  cagr_revenue: 0.1,
+  ticker: 'BNK',
+  price_data_available: true,
+} as unknown as import('../../../types/finance').HistoricalMetrics
+
+describe('ChapterFinancialAnalysis bank branch (financial_sector)', () => {
+  it('omits the EBITDA row and renders the bank trajectory + calm caliber note', () => {
+    render(
+      <ChapterFinancialAnalysis
+        dcf={null}
+        rawData={RAW_DATA}
+        historicalMetrics={HIST}
+        reportingCurrency="USD"
+        financialSector
+      />,
+    )
+    // EBITDA is a category error for a bank — the waterfall row is gone.
+    expect(screen.queryByText('EBITDA')).not.toBeInTheDocument()
+    // Net income is still surfaced.
+    expect(screen.getByText('净利润')).toBeInTheDocument()
+    // Calm caliber note (zh locale in this file's i18n mock) explains the omission.
+    expect(screen.getByText(/口径错误/)).toBeInTheDocument()
+  })
+
+  it('non-bank control keeps the EBITDA row (byte-identical path)', () => {
+    render(
+      <ChapterFinancialAnalysis
+        dcf={null}
+        rawData={RAW_DATA}
+        historicalMetrics={HIST}
+        reportingCurrency="USD"
+        financialSector={false}
+      />,
+    )
+    expect(screen.getByText('EBITDA')).toBeInTheDocument()
+    expect(screen.queryByText(/口径错误/)).not.toBeInTheDocument()
   })
 })

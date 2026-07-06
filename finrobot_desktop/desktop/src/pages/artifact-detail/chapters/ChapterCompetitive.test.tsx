@@ -105,6 +105,40 @@ describe('ChapterCompetitive heat-shading legend', () => {
   })
 })
 
+describe('ChapterCompetitive bank branch (financial_sector → P/B, not EV/EBITDA)', () => {
+  const BANK: PeerCompsShape = {
+    target: { ...co('BNK', 12, 13, 8, 0.0, 0.35), pb_ratio: 1.8 },
+    peers: [
+      { ...co('B1', 14, 15, 9, 0.0, 0.3), pb_ratio: 1.2 },
+      { ...co('B2', 16, 17, 10, 0.0, 0.3), pb_ratio: 1.5 },
+      { ...co('B3', 18, 19, 11, 0.0, 0.3), pb_ratio: 2.0 },
+    ],
+    median_pe: 15,
+    median_pb: 1.5,
+    median_ev_ebitda: 10, // present but must be IGNORED for a bank
+  }
+
+  it('leads the primary multiple column on P/B and hides EV/EBITDA', () => {
+    render(<ChapterCompetitive peers={BANK} thesis={null} financialSector />)
+    expect(screen.getByText('P/B')).toBeInTheDocument()
+    expect(screen.queryByText('EV/EBITDA')).toBeNull()
+    // Target's P/B (1.8), NOT its EV/EBITDA (8.0), fills the primary cell.
+    expect(screen.getByText('1.8')).toBeInTheDocument()
+    // Median line advertises P/B, not EV/EBITDA.
+    expect(screen.getByText(/P\/B 1\.5/)).toBeInTheDocument()
+    // Calm caliber note explains why EV/EBITDA is dropped.
+    expect(screen.getByText(/category error/i)).toBeInTheDocument()
+  })
+
+  it('non-bank control keeps EV/EBITDA and shows no P/B column', () => {
+    render(<ChapterCompetitive peers={BANK} thesis={null} financialSector={false} />)
+    expect(screen.getByText('EV/EBITDA')).toBeInTheDocument()
+    expect(screen.queryByText('P/B')).toBeNull()
+    // EV/EBITDA target value 8.0 fills the primary cell (not P/B 1.8).
+    expect(screen.getByText('8.0')).toBeInTheDocument()
+  })
+})
+
 describe('ChapterCompetitive target (subject) row emphasis', () => {
   it('marks the target row with the EQRV subject accent rail, leaving peers unmarked', () => {
     const { container } = render(<ChapterCompetitive peers={PEERS} thesis={null} />)

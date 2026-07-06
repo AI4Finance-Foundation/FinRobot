@@ -147,12 +147,13 @@ export function ReportChapters({
       />
       {/* Competitive landscape precedes the financial build-up: the moat / peer
           context frames how to read the numbers (analyst reading order). */}
-      <ChapterCompetitive peers={d.peers} thesis={d.thesis} />
+      <ChapterCompetitive peers={d.peers} thesis={d.thesis} financialSector={financialSector} />
       <ChapterFinancialAnalysis
         dcf={d.dcf}
         rawData={d.inputs.raw_data ?? null}
         historicalMetrics={d.historicalMetrics}
         reportingCurrency={d.reportingCurrency}
+        financialSector={financialSector}
       />
       <ChapterValuation
         dcf={d.dcf}

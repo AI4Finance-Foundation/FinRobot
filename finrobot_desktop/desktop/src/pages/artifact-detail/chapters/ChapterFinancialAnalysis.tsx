@@ -1,10 +1,12 @@
 import RevenueEbitdaChart from '../../../components/charts/RevenueEbitdaChart'
 import MarginTrendChart from '../../../components/charts/MarginTrendChart'
+import BankTrajectoryChart from '../../../components/charts/BankTrajectoryChart'
 import CashFlowChart from '../../../components/charts/CashFlowChart'
 import EpsTrendChart from '../../../components/charts/EpsTrendChart'
 import {
   historicalToRevenueEbitdaData,
   historicalToMarginData,
+  historicalToBankTrajectoryData,
   historicalToCashFlowData,
   historicalToEpsData,
   dcfResultToRevenueEbitdaData,
@@ -31,6 +33,11 @@ interface ChapterFinancialAnalysisProps {
   // All amounts here are income-statement absolutes (revenue / EBITDA /
   // net income / projected FCF) → reporting currency (BUG-030).
   reportingCurrency: string
+  // Balance-sheet financial (bank / insurer): EBITDA / EBITDA-margin are a
+  // category error, so the branch hides them and renders a Revenue + Net Income
+  // (+ ROE when equity is present) trajectory instead. Persisted as
+  // ValuationSynthesis.financial_sector.
+  financialSector?: boolean
 }
 
 export function ChapterFinancialAnalysis({
@@ -38,8 +45,10 @@ export function ChapterFinancialAnalysis({
   rawData,
   historicalMetrics,
   reportingCurrency,
+  financialSector,
 }: ChapterFinancialAnalysisProps): React.ReactElement {
   const { t, locale } = useI18n()
+  const isBank = financialSector === true
   // Currency-aware compact: en → $1.23B / $4.5M, zh → $1.23 亿; non-USD →
   // HK$1.23B / TWD 1.23B. Reporting currency (IS-caliber line items).
   const fmtMoney = (v: number): string => formatCurrencyCompact(v, reportingCurrency, locale)
@@ -88,6 +97,10 @@ export function ChapterFinancialAnalysis({
     return hist
   })()
 
+  // Bank-caliber trajectory (Revenue + Net Income + ROE) — replaces the
+  // Revenue&EBITDA + margin charts for balance-sheet financials.
+  const bankTrajectory = isBank && historical ? historicalToBankTrajectoryData(historical) : []
+
   const cashFlowChartData = historical ? historicalToCashFlowData(historical) : []
   // Only render EPS when at least one year actually carries a number.
   const epsChartData = (historical ? historicalToEpsData(historical) : []).filter(
@@ -116,7 +129,9 @@ export function ChapterFinancialAnalysis({
         : undefined,
     })
   }
-  if (baseEbitda !== null) {
+  // EBITDA is a category error for a deposit-taking financial — omit the row
+  // (the bank branch renders Revenue + Net Income + ROE below instead).
+  if (!isBank && baseEbitda !== null) {
     waterfallRows.push({
       tone: 'ebitda',
       label: 'EBITDA',
@@ -139,7 +154,23 @@ export function ChapterFinancialAnalysis({
     <Chapter id="financial">
       <ProfitWaterfall rows={waterfallRows} />
 
-      {revenueChartData.length > 0 && (
+      {isBank && bankTrajectory.length > 0 && (
+        <SubChapter
+          heading={locale === 'zh' ? '营收 · 净利润 · ROE 轨迹' : 'Revenue · Net Income · ROE'}
+        >
+          <BankTrajectoryChart
+            data={bankTrajectory}
+            title={locale === 'zh' ? '营收 · 净利润 · ROE' : 'Revenue · Net Income · ROE'}
+          />
+          <p style={caliberNote}>
+            {locale === 'zh'
+              ? '银行口径:略去 EBITDA 与 EBITDA 利润率——对存款机构是口径错误(存款是经营性原料而非资本结构,且无干净 EBITDA)。盈利能力看净利润与 ROE。'
+              : 'Bank caliber: EBITDA and EBITDA-margin are omitted — category errors for a deposit-funded institution (deposits are operating raw material, not capital structure, and there is no clean EBITDA). Profitability is read on Net Income and Return on Equity.'}
+          </p>
+        </SubChapter>
+      )}
+
+      {!isBank && revenueChartData.length > 0 && (
         <SubChapter heading={t('chapter.financial.subheading.revenueEbitda')}>
           <RevenueEbitdaChart
             data={revenueChartData}
@@ -148,7 +179,7 @@ export function ChapterFinancialAnalysis({
         </SubChapter>
       )}
 
-      {marginChartData.length > 0 && (
+      {!isBank && marginChartData.length > 0 && (
         <SubChapter heading={t('chapter.financial.subheading.marginTrend')}>
           <MarginTrendChart
             data={marginChartData}
@@ -188,5 +219,18 @@ const emptyMsg: React.CSSProperties = {
   padding: '14px 18px',
   background: 'var(--bg-card-50)',
   border: '1px dashed var(--border-soft)',
+  borderRadius: 'var(--radius-sm)',
+}
+// Calm caliber note (ChapterAuditBanner "note" tone): a structural fact (why the
+// bank branch omits EBITDA), not a defect — muted, no glow, no red.
+const caliberNote: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 11,
+  color: 'var(--text-muted)',
+  lineHeight: 1.6,
+  margin: '8px 0 0',
+  padding: '8px 12px',
+  background: 'var(--bg-card-50)',
+  borderLeft: '2px solid color-mix(in srgb, var(--secondary) 55%, transparent)',
   borderRadius: 'var(--radius-sm)',
 }

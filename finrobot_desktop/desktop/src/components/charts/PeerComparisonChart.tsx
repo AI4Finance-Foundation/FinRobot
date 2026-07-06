@@ -15,6 +15,10 @@ import { CosmicTooltip, CosmicLegend } from './chartTooltip'
 interface ChartProps {
   data: Record<string, number | string | boolean | null>[]
   title: string
+  // Primary (first) bar series. Defaults to EV/EBITDA; balance-sheet financials
+  // pass pb_ratio / "P/B" since EV/EBITDA is a category error for them.
+  primaryKey?: string
+  primaryName?: string
 }
 
 // Design system chart palette
@@ -44,9 +48,15 @@ export function multipleLabel(v: unknown): string {
   return typeof v === 'number' && Number.isFinite(v) ? `${v.toFixed(1)}x` : ''
 }
 
-export default function PeerComparisonChart({ data, title }: ChartProps) {
+export default function PeerComparisonChart({
+  data,
+  title,
+  primaryKey = 'ev_ebitda',
+  primaryName,
+}: ChartProps) {
   const { t } = useI18n()
   if (!data || data.length === 0) return null
+  const primaryLabel = primaryName ?? t('chart.peer.evEbitda')
 
   return (
     <div className="card animate-in">
@@ -66,17 +76,12 @@ export default function PeerComparisonChart({ data, title }: ChartProps) {
             {/* fill on <Bar> drives the legend swatch; <Cell> overrides per-bar
                 so the target ticker can be highlighted. Without Bar fill the
                 legend icons render black (Recharts default). */}
-            <Bar
-              dataKey="ev_ebitda"
-              name={t('chart.peer.evEbitda')}
-              fill={PRIMARY}
-              radius={[3, 3, 0, 0]}
-            >
+            <Bar dataKey={primaryKey} name={primaryLabel} fill={PRIMARY} radius={[3, 3, 0, 0]}>
               {data.map((entry, index) => (
                 <Cell key={`ev-${index}`} fill={entry.is_target ? TARGET_HIGHLIGHT : PRIMARY} />
               ))}
               <LabelList
-                dataKey="ev_ebitda"
+                dataKey={primaryKey}
                 position="top"
                 formatter={multipleLabel}
                 style={LABEL_STYLE}

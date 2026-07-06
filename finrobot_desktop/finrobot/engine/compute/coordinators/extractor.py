@@ -30,19 +30,20 @@ from finrobot.engine.compute.operators.fx_normalize import (
     normalize_financialdata_to_usd,
 )
 from finrobot.engine.compute.operators.multiples import calculate_ev
+from finrobot.engine.primitives.book_value import (
+    SHARES_PRICE_CONSISTENCY_TOL as _SHARES_PRICE_CONSISTENCY_TOL,
+    reconcile_book_value_to_price_basis,
+)
 from finrobot.engine.primitives.ebitda import (
     calculate_ebitda_operating,
     calculate_ebitda_reported,
 )
 from finrobot.engine.primitives.industry import is_balance_sheet_financial, is_bank
 
-# Relative gap above which a reported share count is treated as NOT on the price's
-# basis (multi-class issuer with one class reported, ADR ratio, or stale data), so
-# the market_cap/price-implied count is used for per-share valuation instead. 10%
-# clears normal timestamp drift between the financials and price fetches while
-# catching the ~2× single-vs-all-class mismatch. Mirrors the validator's 0.9–1.1
-# closing band (see engine/data/validator.market_cap_consistency).
-_SHARES_PRICE_CONSISTENCY_TOL = 0.10
+# The tolerance governing when a reported share count is treated as OFF the quoted
+# price's basis (→ use the market_cap/price-implied count for per-share calibers) is
+# owned by ``primitives.book_value`` so the share-count reconciliation below and the
+# book-value-per-share reconciliation move in lockstep on the same threshold.
 
 
 def extract_financial_data(
@@ -152,6 +153,21 @@ def extract_financial_data(
         field_warnings.setdefault("pe", []).append(FIELD_WARN_SHARES_DERIVED)
     else:
         shares = reported_shares
+
+    # --- book value per share on the SAME price-consistent basis as `shares`/EPS ---
+    # The provider divided book equity by `reported_shares`; when that count is off
+    # the quoted price's basis (BP's /shares-float ~437M vs the ~2.62B ADR count) the
+    # per-ordinary bvps ($128) is the ADR ratio × the per-ADR figure ($21). Rescale
+    # it in lockstep with `shares` above (same tol, same market_cap/current_price) so
+    # the displayed bvps and the comps_pb anchor (peer median P/B × bvps) sit on the
+    # per-ADR price basis. No-op / byte-identical for US issuers and price-consistent
+    # ADRs (SHEL/HSBC/TSM). `market_cap` is still the raw provider cap here (marked to
+    # the live price just below), matching `implied_shares` computed above.
+    bvps_price_consistent, bvps_note = reconcile_book_value_to_price_basis(
+        fin.book_value_per_share, reported_shares, market_cap, current_price
+    )
+    if bvps_note is not None:
+        warnings.append(bvps_note)
 
     # --- mark market_cap to the live price basis ---
     # The provider market_cap rides a cached profile snapshot that can lag
@@ -306,9 +322,11 @@ def extract_financial_data(
             ev_ebitda=ev_ebitda,
             ev_ebitda_reported=ev_ebitda_reported,
             ev_revenue=ev_revenue,
-            # Reporting-currency per-share book value, carried for the cyclical comps
-            # P/B method (the target's pb_ratio is derived in build_xbrl_aligned_company).
-            book_value_per_share=fin.book_value_per_share,
+            # Per-ADR (price-consistent) per-share book value, carried for the cyclical
+            # comps P/B method (the target's pb_ratio is derived in
+            # build_xbrl_aligned_company from this bvps × the reconciled shares above,
+            # so it stays self-consistent = market_cap/book_equity).
+            book_value_per_share=bvps_price_consistent,
         ),
         # Carry the currency tags so a foreign target (TWD financials, USD
         # market_cap) can be FX-normalized in build_xbrl_aligned_company before
@@ -392,6 +410,17 @@ def extract_company_financials(fin: NormalizedFinancials) -> CompanyFinancials:
     ):
         pb_ratio = market_cap / (bvps * fin.shares_outstanding)
 
+    # pb_ratio above stays on the self-consistent RAW pair (bvps × shares =
+    # book_equity, so pb = market_cap/book_equity is byte-identical and correct even
+    # when the provider count is off the price basis). The CARRIED book value is
+    # separately re-expressed on the per-ADR price basis so a peer's displayed bvps is
+    # coherent with its price (no-op for US / price-consistent peers). Only the target
+    # row's bvps feeds comps_pb as an anchor, but keeping the peer's coherent avoids a
+    # latent per-ordinary figure leaking into any future consumer.
+    bvps_anchor, _bvps_note = reconcile_book_value_to_price_basis(
+        bvps, fin.shares_outstanding, market_cap, fin.current_price
+    )
+
     return CompanyFinancials(
         ticker=ticker,
         name=fin.company_name,
@@ -418,11 +447,12 @@ def extract_company_financials(fin: NormalizedFinancials) -> CompanyFinancials:
         # operating_margin × revenue once revenue may be XBRL-reconciled.
         operating_income=fin.operating_income,
         pe_ratio=fin.pe_ratio,
-        # P/B (cyclical comps multiple) + the per-share book value the target row's
-        # _comps_pb_method multiplies the peer median against. bvps is reporting-ccy
-        # (FX-scaled with the other reporting items in normalize_company_to_usd);
-        # pb_ratio is computed single-currency above so it's already dimensionless.
-        book_value_per_share=bvps,
+        # P/B (cyclical comps multiple) + the per-ADR per-share book value. bvps is
+        # reporting-ccy (FX-scaled with the other reporting items in
+        # normalize_company_to_usd); pb_ratio is computed single-currency above from
+        # the raw pair so it's already dimensionless and unaffected by the anchor's
+        # per-ADR rescale.
+        book_value_per_share=bvps_anchor,
         pb_ratio=pb_ratio,
         income_tax_expense=fin.income_tax_expense,
         reporting_currency=fin.reporting_currency,

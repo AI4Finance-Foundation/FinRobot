@@ -90,6 +90,29 @@ class TestDefects:
         assert _checks(f) == {("ttm_period", "ttm_quarters_incomplete", "review")}
 
 
+class TestSemiAnnualCadence:
+    def test_clean_two_half_years_no_finding(self):
+        # UL / RIO / BHP live: a semi-annual filer's TTM is 2 six-month periods
+        # (~184d apart). Must NOT flag "missing quarter" (184d gap) or "incomplete"
+        # (2 periods) — the cadence is read from the spacing.
+        ends = [date(2025, 12, 31), date(2025, 6, 30)]
+        assert audit_ttm_period(_fd(ends)) == []
+
+    def test_missing_half_year_incomplete_review(self):
+        # A lone half-year end → incomplete against the 2-period semi-annual cadence.
+        # (One end alone can't classify cadence → defaults to quarterly's expected 4,
+        # still incomplete → review; the point is it stays review, never blocked.)
+        ends = [date(2025, 12, 31)]
+        f = audit_ttm_period(_fd(ends))
+        assert all(sev == "review" for _, _, sev in _checks(f))
+
+    def test_three_half_years_excess_blocked(self):
+        # Three 6-month ends (~18 months) overstate the trailing twelve → excess.
+        ends = [date(2025, 12, 31), date(2025, 6, 30), date(2024, 12, 31)]
+        f = audit_ttm_period(_fd(ends))
+        assert ("ttm_period", "ttm_quarters_excess", "blocked_field") in _checks(f)
+
+
 class TestNoData:
     def test_empty_quarter_ends_no_finding(self):
         # yfinance / annual snapshots carry no per-quarter dates — nothing to audit.

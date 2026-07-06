@@ -6,7 +6,7 @@ import math
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import httpx
@@ -169,6 +169,47 @@ def _unavailable_detail(exc: Exception) -> str:
     if isinstance(exc, ProviderError):
         return str(exc)
     return type(exc).__name__
+
+
+def _period_end_months_apart(newer: str, older: str) -> int | None:
+    """Whole months between two ISO ``YYYY-MM-DD`` fiscal period-ends (newer − older).
+
+    None when either date is unparseable.
+    """
+    try:
+        n = date.fromisoformat(newer[:10])
+        o = date.fromisoformat(older[:10])
+    except (ValueError, TypeError):
+        return None
+    return (n.year - o.year) * 12 + (n.month - o.month)
+
+
+def _ttm_trailing_row_count(income_rows: list[dict[str, Any]]) -> int:
+    """How many leading ``period=quarter`` rows sum to a trailing 12 months.
+
+    FMP's ``period=quarter`` endpoint returns SEMI-ANNUAL (6-month) rows for issuers
+    that report half-yearly — UL and many UK / EU / Australian filers, labelled Q2/Q4.
+    Summing the default 4 of those double-counts to 24 months (UL TTM revenue landed
+    at ~127B vs a ~50B fiscal year). Size the window off the inter-period gap: 2 rows
+    when the fiscal period-ends are CONSISTENTLY ~6 months apart, else the quarterly 4.
+
+    Consistency (EVERY observed gap ~6m, needs ≥2 gaps) is required so a quarterly
+    issuer with ONE missing quarter — gaps like [3, 6, 3] — is never mistaken for a
+    semi-annual reporter and halved. Fewer than 3 dated rows falls back to the
+    quarterly 4-row window (the norm; and a lone pair of 6-month rows already sums to
+    12 months either way).
+    """
+    dates = [r["date"] for r in income_rows if isinstance(r.get("date"), str)]
+    if len(dates) < 3:
+        return 4
+    gaps = [
+        g
+        for i in range(len(dates) - 1)
+        if (g := _period_end_months_apart(dates[i], dates[i + 1])) is not None
+    ]
+    if len(gaps) >= 2 and all(5 <= g <= 7 for g in gaps):
+        return 2
+    return 4
 
 
 def _book_value_per_share(bal: dict[str, Any], shares: int | float | None) -> float | None:
@@ -750,6 +791,17 @@ class FMPProvider(DataProvider):
         """Build a current snapshot from the latest four quarterly rows."""
         if not income_rows:
             return cls._build_single_year_data({}, bal, prof, quote_shares=quote_shares)
+
+        # Trim `period=quarter` rows to a trailing-12-month window BEFORE any sum:
+        # FMP returns 6-month rows for semi-annual filers (UL and many UK/EU/AU), so
+        # the default sum-of-4 double-counts to 24 months. Slice income AND cash-flow
+        # to the same window (same filing cadence) so every TTM flow — revenue, EBITDA,
+        # OCF, capex, ttm_quarter_ends — is trailing-12-month. Balance-sheet lines read
+        # the single latest `bal` (a point-in-time stock), so they are untouched.
+        n_ttm = _ttm_trailing_row_count(income_rows)
+        income_rows = income_rows[:n_ttm]
+        if cashflow_rows:
+            cashflow_rows = cashflow_rows[:n_ttm]
 
         def _sum(rows: list[dict[str, Any]], key: str) -> float | None:
             values = [float(r[key]) for r in rows if isinstance(r.get(key), int | float)]

@@ -228,6 +228,30 @@ describe('CompactArtifactViewer — LBO reuses shared primitives', () => {
     expect(container.textContent ?? '').not.toMatch(/\d+ 字段/)
   })
 
+  it('badges the headline IRR when the deal does NOT self-finance (MU peak-EBITDA)', () => {
+    render(
+      <CompactArtifactViewer
+        artifact={artifact('lbo', { ...lbo, self_financing: false }, {
+          assumptions: { parameters: inputs },
+        } as Partial<ArtifactDetail>)}
+      />,
+    )
+    // The IRR still renders, but the not-self-financing caveat sits beside it so
+    // the exit-multiple artifact can't be read as an achievable return.
+    expect(screen.getByText('not self-financing')).toBeInTheDocument()
+  })
+
+  it('shows no self-financing badge when the flag is absent (self-financing / legacy)', () => {
+    render(
+      <CompactArtifactViewer
+        artifact={artifact('lbo', lbo, {
+          assumptions: { parameters: inputs },
+        } as Partial<ArtifactDetail>)}
+      />,
+    )
+    expect(screen.queryByText('not self-financing')).toBeNull()
+  })
+
   it('degrades gracefully when the LBO step did not resolve (no schedule)', () => {
     const { container } = render(
       <CompactArtifactViewer

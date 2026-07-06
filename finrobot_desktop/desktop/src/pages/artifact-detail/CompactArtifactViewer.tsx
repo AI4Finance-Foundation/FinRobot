@@ -20,6 +20,7 @@
 // types (earnings / ic_memo / ad_hoc) still degrade to a clean flattened grid —
 // but arrays are no longer truncated.
 
+import type { ReactNode } from 'react'
 import type { ArtifactDetail } from '../../hooks/useV5Artifacts'
 import { useI18n, type Locale } from '../../i18n'
 import { formatCurrency, formatPercent, formatDate, formatCompactNumber } from '../../utils/format'
@@ -67,9 +68,26 @@ interface CompactComputeVersion {
 interface HeadlineStat {
   label: string
   value: string
+  // Optional inline marker rendered next to the value (e.g. the LBO
+  // not-self-financing caveat, so a headline IRR can't be read as achievable).
+  badge?: ReactNode
 }
 
 const T = (locale: Locale, zh: string, en: string): string => (locale === 'zh' ? zh : en)
+
+// Inline caveat pill next to a headline number (LBO not-self-financing). Warning
+// tone, muted — a caliber caveat, not an error; the full explanation is on hover.
+const NOT_SELF_FINANCING_BADGE: React.CSSProperties = {
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  fontWeight: 500,
+  color: 'var(--warning)',
+  border: '1px solid var(--warning)',
+  borderRadius: 'var(--radius-sm)',
+  padding: '2px 7px',
+  cursor: 'help',
+  whiteSpace: 'nowrap',
+}
 
 function isPlainNumber(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v)
@@ -183,8 +201,26 @@ function deriveHeadline(
     }
     case 'lbo': {
       const stats: HeadlineStat[] = []
+      // self_financing === false: the levered FCF does NOT deleverage the
+      // acquisition debt (revolver funds the shortfall, net debt rises) → the
+      // IRR/MOIC are exit-multiple artifacts, not achievable returns and "must
+      // not headline" (backend LBOResult contract). Badge the IRR so it can't be
+      // read at face value. null (impossible structure / legacy artifact) → none.
+      const badge =
+        structured['self_financing'] === false ? (
+          <span
+            title={T(
+              locale,
+              '负债不自偿:经营现金流不足以去杠杆(靠循环贷补缺口、净债上升)—— IRR/MOIC 是退出倍数假象,非可实现回报。',
+              'Debt does not self-finance: operating cash flow cannot deleverage the acquisition debt (the revolver funds the shortfall, net debt rises) — IRR/MOIC are exit-multiple artifacts, not achievable returns.',
+            )}
+            style={NOT_SELF_FINANCING_BADGE}
+          >
+            {T(locale, '非自偿', 'not self-financing')}
+          </span>
+        ) : undefined
       const irr = num('irr')
-      if (irr !== undefined) stats.push({ label: 'IRR', value: formatPercent(irr, locale) })
+      if (irr !== undefined) stats.push({ label: 'IRR', value: formatPercent(irr, locale), badge })
       const moic = num('moic')
       if (moic !== undefined) stats.push({ label: 'MOIC', value: `${moic.toFixed(2)}×` })
       return stats
@@ -360,16 +396,19 @@ export function CompactArtifactViewer({
                 >
                   {h.label}
                 </div>
-                <div
-                  style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 28,
-                    fontWeight: 600,
-                    color: 'var(--accent)',
-                    lineHeight: 1,
-                  }}
-                >
-                  {h.value}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <div
+                    style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 28,
+                      fontWeight: 600,
+                      color: 'var(--accent)',
+                      lineHeight: 1,
+                    }}
+                  >
+                    {h.value}
+                  </div>
+                  {h.badge}
                 </div>
               </div>
             ))}

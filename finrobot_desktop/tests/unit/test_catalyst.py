@@ -637,3 +637,78 @@ class TestClusterNearDuplicates:
         b = _cat_event("Microsoft antitrust lawsuit over Activision deal", days_ago=10)
         clustered = cluster_near_duplicates([a, b])
         assert len(clustered) == 2
+
+
+class TestFreezeValidationRealBasket:
+    """2026-07-06 threshold freeze — locks false-merge == 0 on REAL headlines.
+
+    Fixtures are verbatim headlines from the hand-labeled freeze basket (real news
+    pulled live via fetch_news for TSLA/LLY/JPM/NVDA/AAPL; blind-labeled BEFORE
+    running the clusterer). The full confusion matrix (0 false-merge, 0.50 Jaccard
+    margin on the tightest distinct pair) is recorded in the freezing commit. These
+    cases are the tightest real stressors: two genuinely-distinct product events in
+    the same category + 3-day window (must NOT merge), and a verbatim wire re-run
+    (must merge). Headlines come from external news, not from the operator's own
+    logic, so a same-source bug can't make this pass spuriously.
+    """
+
+    def test_distinct_product_events_same_window_never_merge_tsla(self):
+        """TSLA Model Y L (product positioning) vs Robotaxi Miami launch — both map
+        to product_launch, both published the same day, different outlets/domains.
+        Genuinely distinct developments (Jaccard 0.06); the freeze MUST keep them
+        apart. This is the cardinal false-merge guard on real same-category events."""
+        model_y = _cat_event(
+            "Tesla Takes a Page From Ford, GM and Toyota's Playbook With the Model Y L",
+            category="product_launch",
+            days_ago=0,
+            url="https://www.benzinga.com/trading-ideas/long-ideas/tesla-model-y-l",
+        )
+        robotaxi = _cat_event(
+            "Tesla launches Robotaxi operations in Miami amid growing competition",
+            category="product_launch",
+            days_ago=0,
+            url="https://invezz.com/news/tesla-robotaxi-miami/",
+        )
+        clustered = cluster_near_duplicates([model_y, robotaxi])
+        assert len(clustered) == 2
+        assert all(e.source_count == 1 for e in clustered)
+
+    def test_distinct_product_reports_within_window_never_merge_aapl(self):
+        """AAPL iPhone-lineup report vs a separate foldable-iPhone report two days
+        apart — same category, inside the 3-day window, different domains. Distinct
+        reports on one ongoing storyline (Jaccard 0.10); MUST stay separate."""
+        lineup = _cat_event(
+            "Apple Is Reportedly Planning 5 New iPhones -- Including a $2,500 Foldable. "
+            "Here's What It Means for the Stock.",
+            category="product_launch",
+            days_ago=0,
+            url="https://www.fool.com/investing/apple-5-new-iphones/",
+        )
+        foldable_push = _cat_event(
+            "Apple's Foldable iPhone Push Gets Bigger",
+            category="product_launch",
+            days_ago=2,
+            url="https://www.gurufocus.com/news/apples-foldable-iphone-push/",
+        )
+        clustered = cluster_near_duplicates([lineup, foldable_push])
+        assert len(clustered) == 2
+
+    def test_verbatim_wire_rerun_still_merges_jpm(self):
+        """The true-merge path stays intact: the SAME Zacks commentary republished a
+        day later under an identical title (Jaccard 1.0) collapses to one catalyst.
+        Freezing for false-merge=0 must NOT have broken legitimate de-duplication."""
+        day1 = _cat_event(
+            "Q2 Earnings Season Nears Kickoff: Bank Earnings in Focus",
+            category="earnings",
+            days_ago=0,
+            url="https://www.zacks.com/commentary/2947431/q2-bank-earnings",
+        )
+        day2 = _cat_event(
+            "Q2 Earnings Season Nears Kickoff: Bank Earnings in Focus",
+            category="earnings",
+            days_ago=1,
+            url="https://www.zacks.com/commentary/2947430/q2-bank-earnings",
+        )
+        clustered = cluster_near_duplicates([day1, day2])
+        assert len(clustered) == 1
+        assert clustered[0].source_count == 2

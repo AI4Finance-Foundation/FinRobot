@@ -192,15 +192,24 @@ def extract_catalysts_from_news(
 # (If this ever feeds a multi-ticker list, an explicit entity key must be added
 # to the conjunction first — clustering across tickers without it WOULD false-merge.)
 
-# [金融待核] Calibration thresholds — conservative defaults chosen to drive
-# false-merge toward 0 at the cost of some under-merging. These must pass a
-# hand-labeled basket (target: false-merge == 0) and be FROZEN before any
-# production "freeze". Kept module-level + tunable so calibration is one edit.
+# Calibration thresholds — conservative defaults chosen to drive false-merge to 0
+# at the cost of some under-merging. FROZEN 2026-07-06 after a hand-labeled basket
+# of REAL multi-event news (TSLA/LLY/JPM/NVDA/AAPL, pulled live, blind-labeled
+# before clustering): pair-level confusion matrix = 0 false-merge, 12 missed-merge
+# (tolerated), and the tightest genuinely-distinct same-category+window pair sits at
+# Jaccard 0.10 vs the 0.60 gate (0.50 margin). Basket + matrix in the freezing
+# commit; regression lock in tests/unit/test_catalyst.py::TestFreezeValidationRealBasket.
+# Kept module-level + tunable so any future recalibration is a one-line edit that
+# must re-clear the same false-merge==0 gate.
 #   _DEDUP_JACCARD_MIN = 0.6 : two headlines must share >=60% of their (stopword-
 #       stripped) tokens. Different law-firm releases on the SAME suit share the
 #       company + action nouns (well above 0.6); two DIFFERENT same-category
 #       events (e.g. "EU antitrust probe" vs "DOJ data-privacy suit") share far
-#       fewer tokens and stay separate.
+#       fewer tokens and stay separate. Trade-off observed at freeze: heavily
+#       reworded cross-outlet coverage of one event (different domains, <60% shared
+#       tokens) is left UNMERGED — the operator reliably collapses only near-verbatim
+#       re-runs and same-domain-same-day wires, which is the deliberate conservative
+#       posture (false-merge is the cardinal sin; under-merge is acceptable).
 #   _DEDUP_WINDOW_DAYS = 3 : coverage of one event clusters within days; a 3-day
 #       window catches lagging re-reports without bridging to the next quarter's
 #       distinct event. Events with no publish date are NEVER merged (a missing

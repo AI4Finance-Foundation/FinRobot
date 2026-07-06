@@ -1,25 +1,40 @@
 """SOTP segment extractor — fetches SEC reportable segments and builds the floor.
 
-Batch 3B v1. The coordinator that owns the SOTP-floor data I/O: it consumes
-``DataLayer.fetch_segments`` (an explicit SEC augmentation route, NOT the priority
-chain), maps each reportable segment onto a deterministic comparable multiple, and
-hands the legs + market inputs to the pure ``compute_sotp_breakdown`` operator.
+Batch 3B (v1 floor + v2 caliber). The coordinator that owns the SOTP-floor data
+I/O: it consumes ``DataLayer.fetch_segments`` (an explicit SEC augmentation route,
+NOT the priority chain), maps each reportable segment onto a comparable EV/gross-
+profit multiple, and hands the legs + market inputs to the pure
+``compute_sotp_breakdown`` operator.
 
-Layering (spec §8#5): segment extraction = coordinator (consumes DataLayer);
-the arithmetic = pure operator (zero I/O). This module never touches XBRL parsing
-(that's the provider) nor does it author any forward assumption (v1 = floor +
-market-implied residual only).
+Layering (spec §8#5): segment extraction = coordinator (consumes DataLayer); the
+arithmetic = pure operator (zero I/O). This module never touches XBRL parsing
+(that's the provider) nor authors any forward assumption.
 
-Floor multiples (the F2 caliber): segment GROSS PROFIT × a conservative comparable
-EV/gross-profit. These are conservative CURRENT-multiple proxies (traditional auto
-OEM / storage-utility peers), NOT growth multiples — so the floor is a genuine
-cash-flow floor and the implied option residual is honestly LARGE for an
-option-value name. They are flagged ``[金融待核 F2]`` in the source string: a peer
-payload probe (Ford/GM/Toyota EV/GP for auto; Enphase/Fluence/utility for energy)
-should replace these proxies before any precise multiple claim ships. Using a
-growth multiple to force the residual into BofA's through-2040 ~64% band would
-fabricate the very forward optimism v1 forbids — so v1 reports the conservative
-floor and its (high) implied option share as the honest decomposition.
+Floor multiples (the F2 caliber, v2 correction 2026-07-06):
+
+  · ENERGY leg — a peer-derived median EV/gross-profit of the solar/storage comp
+    set (Enphase / Fluence / SolarEdge). These are pure-plays with NO captive
+    finance, so their EV/gross-profit is clean; the multiple is a peer-payload-
+    VERIFIED calibration (see ``_ENERGY_MULTIPLE_SOURCE`` for the per-peer values +
+    as-of). Computed on ANNUAL (latest-FY) gross profit to caliber-match TSLA's
+    annual segment gross profit — NOT TTM: applying a TTM peer multiple to an
+    annual segment metric would mix periods (T1). Point-in-time calibration.
+
+  · AUTO leg — kept a CONSERVATIVE PROXY on purpose. Ex-captive-finance industrial
+    EV/gross-profit is NOT computable from standardized financials: FMP consolidated
+    balance sheets carry no auto-vs-captive-finance debt split, and ``netReceivables``
+    is semantically inconsistent across peers (Ford's includes its finance book,
+    GM's does not), so captive debt cannot be stripped without fabricating the split.
+    The naive captive-INCLUSIVE peer EV/GP (~8.6× as of 2026-07-06) would RAISE the
+    floor anti-conservatively, shrinking the honestly-large implied option residual
+    an option-value name should show — so the low conservative proxy stays and the
+    limitation is disclosed in ``multiple_source``. (Graveyard: comps-peers-recall
+    2026-07-06.)
+
+Using a growth multiple to force the residual into a sell-side through-2040 band
+would fabricate the very forward optimism the floor forbids — the floor reports the
+conservative cash-flow value and its (high) implied option share as the honest
+decomposition.
 """
 
 from __future__ import annotations
@@ -30,25 +45,37 @@ from finrobot.engine.compute.operators.sotp import compute_sotp_breakdown, value
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.models.financial import SegmentValuation, SOTPBreakdown
 
-# Conservative comparable EV/gross-profit multiples (F2 — proxy pending peer probe).
-# Keyed by normalized segment member (see edgar_provider._normalize_segment_member).
-# Auto: traditional OEM peers trade ~6-8x EV/EBIT; gross-profit basis is more
-# conservative still. Energy/storage carries a higher comparable than legacy auto.
+# --- Energy floor multiple — solar/storage peer median EV/gross-profit ----------
+# Peer set ENPH / FLNC / SEDG (captive-finance-free pure-plays). Per-peer annual
+# EV/GP as of 2026-07-06 (EV = market_cap + total_debt − cash; GP = latest-FY gross
+# profit): ENPH 9.4× · FLNC 9.6× · SEDG 16.9× → median 9.6×. Peer-payload verified;
+# refresh the median (and the as-of below) when re-calibrating. ANNUAL caliber to
+# match TSLA's annual segment gross profit (not TTM).
+_ENERGY_EV_GROSS_PROFIT = 9.6
+_ENERGY_MULTIPLE_SOURCE = (
+    "solar/storage peer median EV/gross-profit 9.6× "
+    "[ENPH 9.4× · FLNC 9.6× · SEDG 16.9×, annual FY2025 EV/GP] as-of 2026-07-06 "
+    "(captive-finance-free, caliber-matched to annual segment GP)"
+)
+
+# --- Auto floor multiple — CONSERVATIVE PROXY by design (see module docstring) --
 _AUTO_EV_GROSS_PROFIT = 6.0
-_ENERGY_EV_GROSS_PROFIT = 10.0
 _DEFAULT_EV_GROSS_PROFIT = 6.0  # unmatched segment → conservative auto-class proxy
+_AUTO_SOURCE = (
+    "auto OEM conservative proxy EV/gross-profit 6.0× — ex-captive-finance "
+    "industrial multiple not computable from standardized financials (no "
+    "auto-vs-finance debt split; netReceivables inconsistent across peers: Ford "
+    "includes its finance book, GM does not); naive captive-inclusive peer EV/GP "
+    "(~8.6×) would raise the floor anti-conservatively [金融待核 F2]"
+)
 
 # Normalized-member → (display name, multiple, source caliber).
 _SEGMENT_MULTIPLES: dict[str, tuple[str, float, str]] = {
-    "Automotive": (
-        "Automotive",
-        _AUTO_EV_GROSS_PROFIT,
-        "auto OEM peer proxy EV/gross-profit (conservative; [金融待核 F2] pending peer probe)",
-    ),
+    "Automotive": ("Automotive", _AUTO_EV_GROSS_PROFIT, _AUTO_SOURCE),
     "EnergyGenerationAndStorage": (
         "Energy generation and storage",
         _ENERGY_EV_GROSS_PROFIT,
-        "storage/utility peer proxy EV/gross-profit (conservative; [金融待核 F2] pending peer probe)",
+        _ENERGY_MULTIPLE_SOURCE,
     ),
 }
 
@@ -78,7 +105,10 @@ async def build_sotp_breakdown(
 
     ``net_debt`` / ``shares_outstanding`` come from the name's own DCFInputs;
     ``current_price`` is the live price. ``option_ev_if_success`` is the optional
-    external sell-side ceiling (v1 default None → floor + implied_option_pct only).
+    external sell-side SUCCESS-state ceiling (default None → floor +
+    implied_option_pct only; a 12-month street target is NOT a robotaxi-success
+    ceiling, so the caller leaves it None — see equity_research / valuation-
+    synthesis-recall 2026-07-06).
     """
     if shares_outstanding <= 0 or current_price <= 0:
         return None
@@ -96,10 +126,10 @@ async def build_sotp_breakdown(
     warnings: list[str] = list(result.warnings)
     if currency and currency != "USD":
         # Floor multiples + market cap are USD; a non-USD reporter would mix
-        # currencies. v1 only ships USD reporters (TSLA); flag and drop otherwise.
+        # currencies. Only USD reporters ship (TSLA); flag and drop otherwise.
         warnings.append(
             f"segment reporting currency {currency} != USD; SOTP floor needs FX "
-            "normalization (not in v1 scope) — dropping SOTP channel"
+            "normalization (not in scope) — dropping SOTP channel"
         )
         return None
 
@@ -119,7 +149,8 @@ async def build_sotp_breakdown(
             (
                 seg.get("label") or key,
                 _DEFAULT_EV_GROSS_PROFIT,
-                "default conservative EV/gross-profit proxy ([金融待核 F2] no peer mapping)",
+                "default conservative EV/gross-profit proxy 6.0× "
+                "([金融待核 F2] no peer mapping)",
             ),
         )
         label = f"{period_label} segment gross profit".strip()

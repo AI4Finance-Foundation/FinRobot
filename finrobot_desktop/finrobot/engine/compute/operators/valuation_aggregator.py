@@ -88,12 +88,18 @@ def through_cycle_roe(
 ) -> float | None:
     """Mean annual ROE = net_income / shareholders_equity across the history window.
 
-    Both are raw currency amounts from the same year's statements (no share count), so
-    it survives a year whose market-derived share count is missing. Loss years are kept
-    (a negative-ROE year is a real part of the cycle); only a non-positive-equity year is
-    skipped (undefined ratio). Returns None when fewer than ``min_years`` valid years
-    exist — the caller then keeps the flat peer-median P/B. Used to normalize an
-    insurer's underwriting-cycle ROE swing for the comps_pb quality adjustment.
+    Both are raw currency amounts from the same year's statements — deliberately NOT
+    eps/book_value_per_share, which would divide a weighted-average-diluted share count
+    (eps) by a period-end one (bvps) and drift ROE 1-3% in a heavy-buyback year; the
+    raw NI/equity form carries no share count at all, so it is share-basis clean AND
+    survives a historical year whose market-derived share count is missing. Minor
+    caliber note (not a bug): net_income is bottom-line while shareholders_equity is
+    parent-only (totalStockholdersEquity excludes minority interest); the two align for a
+    low-NCI issuer and the residual is far below the underwriting-cycle swing this
+    normalizes. Loss years are kept (a negative-ROE year is a real part of the cycle);
+    only a non-positive-equity year is skipped (undefined ratio). Returns None when fewer
+    than ``min_years`` valid years exist — the caller then keeps the flat peer-median
+    P/B. Used to normalize an insurer's underwriting-cycle ROE swing for comps_pb.
     """
     roes = [
         n / e

@@ -741,3 +741,54 @@ def test_preferred_stock_listing_excluded_from_peer_set() -> None:
     # A common dual-class listing is a real comp — never swept up as "non-common".
     assert "BRK-B" not in result.dropped_non_common
     assert {"WFC", "MUFG", "TD", "BAC"}.issubset(set(result.tickers))
+
+
+def test_bare_symbol_preferred_baby_bonds_excluded_from_peer_set() -> None:
+    """Regression钉死 for the insurer preferred-median bug (2026-07-06): FMP lists
+    Aegon / Athene preferreds & baby-bonds under BARE symbols (AEB/AED/AEH/ATHS, no
+    ``-P`` marker) named after the parent plus an instrument descriptor. They fetch the
+    parent's balance sheet against a ~$25-par price → a garbage ~6x P/B that dragged the
+    HIG / AIG insurer P/B median to 2-4x true value. The ``-P`` ticker regex misses them;
+    the name-token / coupon-rate backstop must drop them — while the ACTUAL Aegon common
+    (AEG "Aegon Ltd.") and real insurer commons are kept.
+    """
+    payload = {
+        "profile": {
+            "company_name": "American International Group, Inc.",
+            "sector": "Financial Services",
+            "industry": "Insurance - Diversified",
+            "market_cap": 42_000_000_000,
+        },
+        "industry_screen": ["ACGL", "AEB", "AED", "AEH", "ATHS", "AEG", "HIG", "SLF"],
+        "stock_peers": [],
+        "sector_screen": [],
+        "names": {
+            "ACGL": "Arch Capital Group Ltd.",  # 'Capital' must NOT trip 'CAP SEC'
+            "AEB": "Aegon N.V. PERP CAP FLTG RT",
+            "AED": "Aegon N.V. PERP CAP SECS",
+            "AEH": "Aegon N.V. PRP CP SEC 6.375",
+            "ATHS": "Athene Holding Ltd. 7.250% Fixe",  # coupon-rate signature
+            "AEG": "Aegon Ltd.",  # the ACTUAL common — must survive
+            "HIG": "The Hartford Financial Services Group",
+            "SLF": "Sun Life Financial Inc.",
+        },
+        "quotes": {
+            "ACGL": {"market_cap": 34_000_000_000, "pe": 11.0},
+            "AEB": {"market_cap": 51_000_000_000, "pe": 8.0},  # parent-attributed cap
+            "AED": {"market_cap": 52_000_000_000, "pe": 8.0},
+            "AEH": {"market_cap": 52_000_000_000, "pe": 8.0},
+            "ATHS": {"market_cap": 19_000_000_000, "pe": 9.0},
+            "AEG": {"market_cap": 13_000_000_000, "pe": 7.0},
+            "HIG": {"market_cap": 38_000_000_000, "pe": 11.0},
+            "SLF": {"market_cap": 40_000_000_000, "pe": 12.0},
+        },
+    }
+
+    result = screen_peers(payload, "AIG")
+
+    for pref in ("AEB", "AED", "AEH", "ATHS"):
+        assert pref not in result.tickers, f"{pref} preferred leaked into peer set"
+        assert pref in result.dropped_non_common, f"{pref} not recorded as non-common"
+    # The actual Aegon common and real insurer commons are kept.
+    assert "AEG" not in result.dropped_non_common
+    assert {"ACGL", "AEG", "HIG", "SLF"}.issubset(set(result.tickers))

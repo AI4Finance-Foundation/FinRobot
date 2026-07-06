@@ -254,10 +254,33 @@ def _normalize_issuer_name(name: str) -> str:
 # only preferred uses), never a bare ``-A``/``-B`` class letter. Checked against the
 # base symbol (exchange suffix ``.TO`` stripped first).
 _PREFERRED_TICKER_RE: Final[re.Pattern[str]] = re.compile(r"-P[A-Z]{0,3}$")
-# Name-based backstop for any non-common listing whose ticker form is unusual (some
-# warrant/unit rows, or a provider that spells it out). FMP usually names a preferred
-# after its PARENT (no token), so the ticker form above is the primary catch.
-_NON_COMMON_NAME_TOKENS: Final[tuple[str, ...]] = ("PFD", "PREF", "PREFERRED", "WARRANT")
+# Name-based backstop for a non-common listing whose ticker carries NO ``-P`` marker
+# (a bare 3-letter symbol) — the case the ticker regex above misses entirely. FMP
+# lists a preferred / baby-bond under a plain symbol named after its PARENT plus an
+# instrument descriptor (AEB "Aegon N.V. PERP CAP FLTG RT", AED "PERP CAP SECS",
+# AEH "PRP CP SEC 6.375", ATHS "Athene Holding Ltd. 7.250% Fixe"): these fetch the
+# PARENT's balance sheet against a ~$25-par price → a garbage ~6x P/B that dragged
+# HIG's / AIG's insurer P/B median to 2-4x the true value (2026-07-06). The tokens
+# are the perpetual-capital / capital-securities / subordinated-note phrases specific
+# to preferreds — deliberately multi-word ("CAP SEC", not bare "CAP") so a real name
+# like "Arch Capital" / "Ares Capital" / "Aegon Ltd." (the actual common) is untouched.
+_NON_COMMON_NAME_TOKENS: Final[tuple[str, ...]] = (
+    "PFD",
+    "PREF",
+    "PREFERRED",
+    "WARRANT",
+    "PERP CAP",
+    "PRP CP",
+    "CAP SEC",
+    "CAP FLTG",
+    "CP SEC",
+    "SUBORDINAT",
+    "DEBENTURE",
+)
+# A coupon rate spelled into the name ("7.250%", "6.375%", "5.5%") is a preferred /
+# note / baby-bond signature — a common-equity name never carries a rate. The primary
+# general catch for the bare-symbol preferreds the token list can't enumerate.
+_COUPON_RATE_RE: Final[re.Pattern[str]] = re.compile(r"\d\.\d{1,3}\s*%")
 
 
 def _is_non_common_listing(ticker: str, raw_name: str) -> bool:
@@ -267,7 +290,9 @@ def _is_non_common_listing(ticker: str, raw_name: str) -> bool:
     if _PREFERRED_TICKER_RE.search(base):
         return True
     up = raw_name.upper()
-    return any(tok in up for tok in _NON_COMMON_NAME_TOKENS)
+    if any(tok in up for tok in _NON_COMMON_NAME_TOKENS):
+        return True
+    return _COUPON_RATE_RE.search(up) is not None
 
 
 def _base_symbol(ticker: str) -> str:

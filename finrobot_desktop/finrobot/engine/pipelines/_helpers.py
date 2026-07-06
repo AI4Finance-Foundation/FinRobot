@@ -281,8 +281,43 @@ async def _deterministic_select_peers(deps: FinRobotDeps, ticker: str) -> PeerSe
     return PeerSelection(tickers=screen.tickers, rationale=screen.rationale)
 
 
+def _forward_currency_signal(
+    *,
+    is_adr: bool | None,
+    quote_currency: str | None,
+    net_income_usd: float | None,
+    shares: float | None,
+) -> tuple[bool, float | None]:
+    """(usd_safe, trailing_eps_usd) for the forward FX-mismatch guard.
+
+    ``usd_safe`` = a non-ADR issuer quoting in USD. Both inputs SURVIVE the
+    canonical FX normalization (``is_adr`` is a structural flag; ``quote_currency``
+    is never overwritten — only ``reporting_currency`` is, to USD), so this is the
+    honest "is this issuer foreign?" signal, unlike the post-norm
+    ``reporting_currency == quote_currency`` (USD==USD for everyone, always True).
+
+    ``trailing_eps_usd`` = currency-clean USD trailing EPS = trailing net income /
+    canonical shares (market-cap-consistent = per ADR). None when net income /
+    shares are missing or non-positive (a loss-maker forms no clean EPS anchor —
+    the guard's revenue leg covers that case instead)."""
+    usd_safe = not (bool(is_adr) or (quote_currency or "USD").upper() != "USD")
+    trailing_eps_usd: float | None = None
+    if (
+        isinstance(net_income_usd, (int, float))
+        and net_income_usd > 0
+        and isinstance(shares, (int, float))
+        and shares > 0
+    ):
+        trailing_eps_usd = net_income_usd / shares
+    return usd_safe, trailing_eps_usd
+
+
 async def _enrich_company_forward(
-    company: CompanyFinancials, deps: FinRobotDeps, *, usd_safe: bool
+    company: CompanyFinancials,
+    deps: FinRobotDeps,
+    *,
+    usd_safe: bool,
+    trailing_eps_usd: float | None = None,
 ) -> None:
     """Populate forward_eps / forward_pe (FY1 consensus) on a comps row, best-effort.
 
@@ -293,23 +328,21 @@ async def _enrich_company_forward(
     target's forward EPS (it just fetched it down a separate path, so the driving
     number was never traceable on the target row).
 
-    Gated on ``usd_safe`` (computed by the caller BEFORE any USD normalization
-    mutates ``reporting_currency``): forward EPS is reporting-currency and the
-    comps math pairs it with a USD price, so a foreign-listed row leaves the
-    fields None and falls back to trailing rather than mix units. A fetch miss
-    is non-fatal — forward is an optional enrichment, never a drop reason.
-
-    The ``usd_safe`` gate is NECESSARY-BUT-NOT-SUFFICIENT: by the time a peer row
-    reaches here its canonical FINANCIALS has already been FX-normalized to USD
-    (``reporting_currency`` overwritten USD==USD), so an ADR like UMC passes the
-    gate even though the SEPARATE FMP /analyst-estimates payload is still native
-    TWD (no currency field to tell them apart). The magnitude guard inside
-    ``get_forward_financials`` — anchored on ``company.net_income``, the
-    currency-clean USD trailing figure — is the real catch: it abstains the
-    forward NI/EPS to None when consensus dwarfs trailing by an FX-sized ratio,
-    so the cross-currency forward P/E never lands on the row or in the median.
+    ``usd_safe`` (a non-ADR issuer quoting in USD — a signal that SURVIVES
+    normalization, unlike the post-FX-norm ``reporting_currency == quote_currency``
+    which is USD==USD for everything) marks a clean single-currency issuer taking
+    the fast path. A foreign issuer (``usd_safe`` False: an ADR or a non-USD quote)
+    is NOT hard-skipped — it is brought into the ``get_forward_financials``
+    FX-mismatch guard's scope WITH ``trailing_eps_usd``, a currency-clean USD
+    trailing EPS (= trailing net income / canonical shares). The guard's magnitude
+    legs then abstain a native-currency consensus (KOF's under-reported MXN
+    ``netIncomeAvg`` slips the NI/revenue legs but its native ``epsAvg`` trips the
+    EPS leg) while KEEPING a legitimately-USD one (TSM when FMP ships USD). Only a
+    foreign issuer with NO derivable eps anchor (shares missing) keeps the
+    conservative skip — the ni/rev legs alone can't see the under-reported-NI hole.
+    A fetch miss is non-fatal — forward is an optional enrichment, never a drop reason.
     """
-    if not usd_safe:
+    if not usd_safe and trailing_eps_usd is None:
         return
     try:
         _fwd_raw = await deps.data_layer.fetch_canonical(DataType.FORWARD_ESTIMATES, company.ticker)
@@ -319,6 +352,7 @@ async def _enrich_company_forward(
             fmp_analyst_estimates=_fwd_raw.payload(),
             trailing_net_income_usd=company.net_income,
             trailing_revenue_usd=company.revenue,
+            trailing_eps_usd=trailing_eps_usd,
         )
         company.forward_eps = _fwd.forward_eps
         if _fwd.forward_net_income and company.market_cap > 0:
@@ -386,15 +420,20 @@ async def execute_peer_analysis(
         try:
             _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, peer_ticker)
             company = extract_company_financials(_fin)
-            # Forward P/E = market_cap / forward_net_income is only currency-clean
-            # when market_cap (quote ccy) and the FMP consensus net income
-            # (reporting ccy) share a currency — i.e. US issuers. A foreign peer
-            # (TSM: TWD financials / USD cap) would need the same FX leg
-            # normalize_peer_to_usd applies to trailing; rather than fabricate a
-            # mixed-unit forward P/E we leave it None and that peer falls back to
-            # trailing in the comps median. Captured BEFORE normalization mutates
-            # reporting_currency.
-            forward_usd_safe = company.reporting_currency == company.quote_currency
+            # usd_safe + a currency-clean USD trailing-EPS anchor from signals that
+            # SURVIVE the canonical FX normalization (is_adr / quote_currency — the
+            # pre-norm reporting_currency is already overwritten to USD on _fin). A
+            # foreign peer (TSM, or KOF) is NOT skipped here anymore: it is handed to
+            # get_forward_financials' FX-mismatch guard with the eps anchor, so the
+            # guard's EPS leg abstains a native-currency consensus the NI/revenue legs
+            # miss (KOF's under-reported MXN netIncomeAvg → fwd P/E 8.7 = USD cap /
+            # MXN net income). company.net_income is already USD (canonical FX-norm).
+            forward_usd_safe, forward_trailing_eps = _forward_currency_signal(
+                is_adr=getattr(_fin, "is_adr", None),
+                quote_currency=getattr(_fin, "quote_currency", None),
+                net_income_usd=company.net_income,
+                shares=getattr(_fin, "shares_outstanding", None),
+            )
             # Normalize foreign-listed ADRs / local listings to canonical USD
             # BEFORE multiples are computed — otherwise TSM (TWD financials,
             # USD market_cap) collapses EV/EBITDA to 0.158x. A failed FX lookup
@@ -407,10 +446,12 @@ async def execute_peer_analysis(
             xbrl_result = await deps.data_layer.fetch(DataType.XBRL_FACTS, peer_ticker)
             company = override_company_with_xbrl(company, xbrl_result.data)
             # Forward enrichment (shared with the target in execute_peer_analysis).
-            # forward_usd_safe is captured BEFORE normalize_peer_to_usd above, which
-            # rewrites reporting_currency to USD and would otherwise let a foreign
-            # peer wrongly pass the single-currency gate.
-            await _enrich_company_forward(company, deps, usd_safe=forward_usd_safe)
+            # forward_usd_safe + forward_trailing_eps are captured above from _fin's
+            # normalization-surviving signals; the eps anchor lets the guard catch a
+            # foreign peer whose FMP forward is native currency (KOF).
+            await _enrich_company_forward(
+                company, deps, usd_safe=forward_usd_safe, trailing_eps_usd=forward_trailing_eps
+            )
             return company
         # TypeError is caught too: this is the per-peer "drop one, keep the set"
         # boundary, so a storm-time TypeError raised by a third-party lib
@@ -514,12 +555,22 @@ async def execute_peer_analysis(
         fmp_api_key=getattr(deps.settings, "fmp_api_key", None),
     )
     # Enrich the target with the SAME forward口径 as the peers (build_xbrl_aligned_company
-    # only does trailing). The single-currency gate uses target_fin's reported vs
-    # quote currency, captured here before any normalization — mirroring the comps_pe
-    # method's own gate. Closes the gap where the target row's forward_eps/forward_pe
-    # stayed None even though the comps_pe valuation consumes the target forward EPS.
-    target_usd_safe = target_fin.reporting_currency == target_fin.quote_currency
-    await _enrich_company_forward(target, deps, usd_safe=target_usd_safe)
+    # only does trailing). Mirror the peer path EXACTLY: derive usd_safe + the USD
+    # trailing-EPS anchor from signals that SURVIVE normalization (target_fin.market.is_adr
+    # / target_fin.quote_currency). The OLD gate ``reporting_currency == quote_currency``
+    # read target_fin AFTER canonical FX normalization overwrote reporting_currency to
+    # USD, so it was USD==USD == True for EVERY issuer — an ADR target (KOF) always passed
+    # and leaked a native-MXN forward P/E (8.7 = USD cap / MXN net income). With the eps
+    # anchor the guard's EPS leg now abstains that while keeping a legit-USD ADR (TSM/USD).
+    target_usd_safe, target_trailing_eps = _forward_currency_signal(
+        is_adr=target_fin.market.is_adr,
+        quote_currency=target_fin.quote_currency,
+        net_income_usd=target.net_income,
+        shares=target_fin.market.shares_outstanding,
+    )
+    await _enrich_company_forward(
+        target, deps, usd_safe=target_usd_safe, trailing_eps_usd=target_trailing_eps
+    )
 
     peer_comps = PeerComps(
         target=target,
@@ -603,17 +654,26 @@ async def execute_financial_data_step(
         # the shared slot every other seed entry (REST /dcf-seed, chat MC,
         # IC-memo) also fetches, so consensus presence can't diverge per surface.
         structured_context["forward_estimates_raw"] = _fwd_raw.payload()
-        # trailing_net_income_usd anchors the FX-mismatch guard: financial_data
-        # comes from the FX-normalized canonical snapshot, so income.net_income
-        # is currency-clean USD. /analyst-estimates carries no currency field and
-        # may be native (TWD for UMC), so without this anchor a foreign target's
-        # native-currency forward EPS would feed the forward-comps price target.
+        # trailing_* anchor the FX-mismatch guard: financial_data comes from the
+        # FX-normalized canonical snapshot, so income.net_income/revenue are
+        # currency-clean USD. /analyst-estimates carries no currency field and may
+        # be native (TWD for UMC), so without these anchors a foreign target's
+        # native-currency forward EPS would feed the forward-comps price target. The
+        # eps anchor (net income / canonical shares) covers the hole where FMP
+        # UNDER-reports netIncomeAvg (KOF) so the NI/revenue legs stay in-band.
+        _, _target_trailing_eps = _forward_currency_signal(
+            is_adr=financial_data.market.is_adr,
+            quote_currency=financial_data.quote_currency,
+            net_income_usd=financial_data.income.net_income,
+            shares=financial_data.market.shares_outstanding,
+        )
         structured_context["forward_financials"] = get_forward_financials(
             ticker=ticker,
             yf_info=None,
             fmp_analyst_estimates=_fwd_raw.payload(),
             trailing_net_income_usd=financial_data.income.net_income,
             trailing_revenue_usd=financial_data.income.revenue,
+            trailing_eps_usd=_target_trailing_eps,
         )
     except (ProviderError, ValueError, KeyError, TypeError) as _fwd_err:
         logger.debug("forward estimates unavailable for %s: %s", ticker, _fwd_err)

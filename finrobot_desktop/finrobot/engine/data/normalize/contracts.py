@@ -82,7 +82,17 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 # quotes (TWD/HKD/JPY) as USD, letting coverage/valuation compare native prices
 # against USD targets. Miss old canonicals so full PRICE refetches with an
 # explicit quote-currency tag or a visible unknown-currency degrade.
-CANONICAL_CONTRACT_VERSION = 9
+# v10 — 2026-07-06: FINANCIALS TTM now sizes its aggregation window to the filing
+# cadence. FMP returns 6-month rows on `period=quarter` for SEMI-ANNUAL filers (UL
+# and many UK/EU/AU issuers), which the old sum-of-4 double-counted to 24 months
+# (UL TTM revenue ~127B vs a ~50B fiscal year; every TTM flow + EV/EBITDA·P/E built
+# on it ~2×). Old canonical snapshots for those issuers carry the doubled TTM; the
+# canonical slot is read before the raw slot with a 24h TTL, so without this bump a
+# fresh-but-pre-fix snapshot keeps serving the 2× figure until expiry. Pairs with
+# the FINANCIALS raw-slot bump (cache._RAW_SLOT_VERSION) so the rebuild refetches
+# and re-aggregates on the cadence-aware window rather than re-normalizing the
+# stale doubled raw row. Quarterly issuers are byte-identical (window stays 4).
+CANONICAL_CONTRACT_VERSION = 10
 
 # Degradation markers carried in ``Provenance.degraded``. Surfaced to the UI so
 # a fallback is visible rather than silent.

@@ -108,13 +108,18 @@ def canonical_key(data_type: str | DataType, provider: str | None = None) -> str
 #   price v3 — 2026-07-01: full PRICE provider payloads now carry quote_currency.
 #   Legacy PRICE rows omit it and would normalize to UNKNOWN (or, pre-v9, USD),
 #   so they must miss and refetch instead of feeding mixed-currency comparisons.
+#   financials v4 — 2026-07-06: the TTM aggregation window is now cadence-aware
+#   (semi-annual filers sum 2 six-month rows, not 4). Legacy raw rows cached the
+#   doubled sum-of-4 aggregate (UL revenue ~127B vs a ~50B year), so they must miss
+#   and re-aggregate. Pairs with the CANONICAL_CONTRACT_VERSION v10 bump (the
+#   normalized slot, read ahead of this raw slot).
 _RAW_SLOT_VERSION: dict[str, int] = {
     DataType.PRICE.value: 3,
     DataType.PROXY_STATEMENT.value: 2,
     DataType.PEER_CANDIDATES.value: 2,
     DataType.SENTIMENT.value: 2,
     DataType.FORWARD_ESTIMATES.value: 2,
-    DataType.FINANCIALS.value: 3,
+    DataType.FINANCIALS.value: 4,
 }
 
 

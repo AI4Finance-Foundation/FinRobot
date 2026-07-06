@@ -119,6 +119,35 @@ FX-mismatch — UMC 7.58 (TWD), SONY 15.88 (JPY). 3.0 clears MU's 1.15 with marg
 yet sits far below the smallest FX case."""
 
 
+_FX_MISMATCH_EPS_RATIO = 6.0
+"""Forward-EPS(native) / USD-trailing-EPS ratio above which the FMP consensus is a
+CURRENCY MISMATCH — the THIRD guard leg, for the hole legs 1–2 can't see: a vendor
+that UNDER-reports ``netIncomeAvg``.
+
+Legs 1–2 assume "cross-currency ⇒ the native figure is BIG" (a native-TWD/JPY
+``netIncomeAvg`` dwarfs the USD trailing anchor). That assumption breaks when FMP's
+``netIncomeAvg`` is internally under-estimated: KOF's FY2026 row ships
+``netIncomeAvg`` 2.54B MXN against ``revenueAvg`` 308B MXN — a 0.8% implied net
+margin vs KOF's real ~8% (≈10× too low). So its ni_ratio is only 2.78 and rev_ratio
+0.20 — both in-band — and the native-MXN forward EPS (120.98, a fwd P/E 8.7 =
+USD market cap / MXN net income) leaks through. ``epsAvg`` is the reliable field on
+that same row (120.98 MXN × the ~210M canonical ADR share count = ~25B MXN, matching
+the real earnings), so comparing it against a currency-clean USD trailing EPS
+(``trailing_net_income_usd / shares``) exposes the un-converted FX the NI legs missed.
+
+Calibration (live FMP basket, 2026-07-06 — fwd_eps × canonical_shares / trailing_NI_USD):
+  clean USD-vs-USD — AAPL 1.05, KO 1.03, JPM 1.03 — all ≈ 1.0 (eps growth ≈ NI growth
+    for a currency-clean, share-stable issuer, so the widest legit value tracks the
+    NI leg's cyclical ceiling, MU 2.78).
+  FX-mismatch — KOF 27.8 (MXN, the case legs 1–2 miss), UMC 37.3 (TWD), TSM 43.1
+    (TWD — FMP flipped it back to native since the 2026-06-14 USD vintage).
+6.0 mirrors ``_FX_MISMATCH_NI_RATIO`` deliberately: a currency-clean forward-EPS/
+trailing-EPS ratio is bounded by the same earnings-growth logic as the NI ratio, so
+the 6.0 that clears MU's 2.78 cyclical jump applies here too, and it sits 4.6× below
+KOF's 27.8. Inert on a loss-maker (trailing EPS ≤ 0 forms no ratio — SONY, caught by
+the revenue leg instead) and when no clean USD-trailing-EPS anchor is supplied."""
+
+
 def get_forward_financials(
     *,
     ticker: str,
@@ -129,6 +158,7 @@ def get_forward_financials(
     as_of: date | None = None,
     trailing_net_income_usd: float | None = None,
     trailing_revenue_usd: float | None = None,
+    trailing_eps_usd: float | None = None,
 ) -> ForwardFinancials:
     """Resolve every forward financial number for one ticker.
 
@@ -160,6 +190,15 @@ def get_forward_financials(
             negative trailing NI forms no ratio). Net income can never exceed
             revenue, so a forward NI dwarfing trailing revenue is unambiguously
             cross-currency.
+        trailing_eps_usd: Currency-clean (USD-canonical) TTM/annual EPS — the THIRD
+            guard anchor (see ``_FX_MISMATCH_EPS_RATIO``). Callers derive it as
+            ``trailing_net_income_usd / shares_outstanding`` (canonical shares,
+            market-cap-consistent = per ADR). Needed because legs 1–2 read
+            ``netIncomeAvg``, which FMP sometimes UNDER-reports (KOF ~10× low) so its
+            NI/revenue ratios stay in-band while the native-currency ``epsAvg`` still
+            leaks; ``epsAvg`` against a clean USD trailing EPS exposes the mismatch.
+            None leaves the EPS leg inert (legacy callers, or a loss-making /
+            share-less issuer).
 
     Returns:
         ForwardFinancials with whatever could be filled and a Chinese-language
@@ -169,7 +208,9 @@ def get_forward_financials(
 
     if fmp_analyst_estimates is not None:
         fmp_result = _from_fmp(ticker, fmp_analyst_estimates, warnings, as_of or date.today())
-        fmp_result = _guard_fx_mismatch(fmp_result, trailing_net_income_usd, trailing_revenue_usd)
+        fmp_result = _guard_fx_mismatch(
+            fmp_result, trailing_net_income_usd, trailing_revenue_usd, trailing_eps_usd
+        )
         if fmp_result.confidence != "unavailable" or not yf_info:
             return fmp_result
         return _from_yfinance(
@@ -200,33 +241,41 @@ def _guard_fx_mismatch(
     result: ForwardFinancials,
     trailing_net_income_usd: float | None,
     trailing_revenue_usd: float | None,
+    trailing_eps_usd: float | None = None,
 ) -> ForwardFinancials:
     """Abstain FMP consensus that is a currency mismatch, not a real forecast.
 
     FMP /analyst-estimates ships ``netIncomeAvg`` / ``epsAvg`` in the issuer's
     native reporting currency with no currency field, and that currency is
     per-ticker inconsistent even among the same exchange's ADRs (UMC native TWD,
-    TSM already USD). Neither the ``reporting_currency == quote_currency`` gate
-    nor the ``fx_normalized`` marker can distinguish them (both fire for UMC and
-    TSM), so the magnitude jump against a currency-clean USD trailing anchor is
-    the only reliable signal. Two complementary legs:
+    TSM has flipped between USD and native TWD across vintages). Neither the
+    ``reporting_currency == quote_currency`` gate nor the ``fx_normalized`` marker
+    can distinguish them (both fire for UMC and TSM), so the magnitude jump against
+    a currency-clean USD trailing anchor is the only reliable signal. Three
+    complementary legs:
 
     1. forward NI / trailing NI > ``_FX_MISMATCH_NI_RATIO`` (needs trailing NI > 0).
     2. forward NI / trailing REVENUE > ``_FX_MISMATCH_REV_RATIO`` — net income can
        never exceed revenue, and revenue is always positive so this leg fires even
        for a loss-maker (SONY: negative trailing NI, native-JPY forward NI 16×
        USD revenue) that leg 1 alone would miss.
+    3. forward EPS / trailing EPS(USD) > ``_FX_MISMATCH_EPS_RATIO`` — for the hole
+       legs 1–2 leave when FMP UNDER-reports ``netIncomeAvg`` (KOF ~10× low, so its
+       NI/revenue ratios stay in-band) while ``epsAvg`` is still native. Uses the
+       reliable per-share figure against a clean USD trailing EPS.
 
     On a trip the FMP figures are abstained to None — never converted with a
     guessed rate (we don't know the native currency code) and never shipped as a
-    cross-currency forward P/E. Inert when no clean anchor is supplied."""
-    if result.forward_net_income is None:
-        return result
+    cross-currency forward P/E. Each leg is inert when its anchor is absent."""
     fwd_ni = result.forward_net_income
+    fwd_eps = result.forward_eps
+    if fwd_ni is None and fwd_eps is None:
+        return result
 
     ni_ratio: float | None = None
     if (
-        trailing_net_income_usd is not None
+        fwd_ni is not None
+        and trailing_net_income_usd is not None
         and math.isfinite(trailing_net_income_usd)
         and trailing_net_income_usd > 0
     ):
@@ -234,15 +283,26 @@ def _guard_fx_mismatch(
 
     rev_ratio: float | None = None
     if (
-        trailing_revenue_usd is not None
+        fwd_ni is not None
+        and trailing_revenue_usd is not None
         and math.isfinite(trailing_revenue_usd)
         and trailing_revenue_usd > 0
     ):
         rev_ratio = fwd_ni / trailing_revenue_usd
 
+    eps_ratio: float | None = None
+    if (
+        fwd_eps is not None
+        and trailing_eps_usd is not None
+        and math.isfinite(trailing_eps_usd)
+        and trailing_eps_usd > 0
+    ):
+        eps_ratio = fwd_eps / trailing_eps_usd
+
     ni_trips = ni_ratio is not None and ni_ratio > _FX_MISMATCH_NI_RATIO
     rev_trips = rev_ratio is not None and rev_ratio > _FX_MISMATCH_REV_RATIO
-    if not (ni_trips or rev_trips):
+    eps_trips = eps_ratio is not None and eps_ratio > _FX_MISMATCH_EPS_RATIO
+    if not (ni_trips or rev_trips or eps_trips):
         return result
 
     if ni_trips and ni_ratio is not None:
@@ -250,11 +310,20 @@ def _guard_fx_mismatch(
             f"is {ni_ratio:.0f}× trailing net income (USD) {trailing_net_income_usd / 1e9:.1f}B "  # type: ignore[operator]
             f"(>{_FX_MISMATCH_NI_RATIO:g}×)"
         )
-    else:
+    elif rev_trips and rev_ratio is not None:
         why = (
             f"is {rev_ratio:.1f}× trailing revenue (USD) {trailing_revenue_usd / 1e9:.1f}B "  # type: ignore[operator]
             f"(>{_FX_MISMATCH_REV_RATIO:g}×; net income cannot exceed revenue)"
         )
+    else:
+        why = (
+            f"implies forward EPS {result.forward_eps:.2f} vs trailing EPS (USD) "
+            f"{trailing_eps_usd:.2f} = {eps_ratio:.0f}× (>{_FX_MISMATCH_EPS_RATIO:g}×; "
+            f"native-currency EPS while netIncomeAvg was under-reported)"
+        )
+    # netIncomeAvg can be under-reported (the very hole the EPS leg covers) or
+    # absent, so lead the warning with net income only when it is present.
+    ni_phrase = f"implied net income {fwd_ni / 1e9:.1f}B " if fwd_ni is not None else ""
     return replace(
         result,
         forward_eps=None,
@@ -267,7 +336,7 @@ def _guard_fx_mismatch(
         confidence="unavailable",
         warnings=[
             *result.warnings,
-            f"forward NI/EPS abstained: FMP consensus implied net income {fwd_ni / 1e9:.1f}B {why}"
+            f"forward NI/EPS abstained: FMP consensus {ni_phrase}{why}"
             f" — /analyst-estimates carries no currency field, likely native reporting currency (non-USD); "
             f"cross-currency forward P/E rejected, set to None",
         ],

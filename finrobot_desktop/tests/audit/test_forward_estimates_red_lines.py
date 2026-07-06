@@ -470,3 +470,101 @@ class TestForwardFxMismatchGuard:
         )
         assert out.forward_net_income == 81_460_000_000.0
         assert out.forward_eps == 15.71
+
+    # Live KOF /analyst-estimates FY2026 row (probe 2026-07-06): native MXN. FMP
+    # UNDER-reports netIncomeAvg here — 2.54B MXN vs revenueAvg 308B = 0.8% implied
+    # net margin vs KOF's real ~8% (≈10× low) — so ni_ratio 2.78 and rev_ratio 0.20
+    # both stay IN-BAND while the native-MXN epsAvg 120.98 leaks a fwd P/E 8.7 (= USD
+    # market cap / MXN net income). Anchors are the canonical USD trailing figures.
+    _KOF_ROW = {"date": "2026-12-31", "epsAvg": 120.98476, "netIncomeAvg": 2_541_684_254.0}
+    _KOF_TRAIL_NI_USD = 913_425_199.02  # canonical net income (USD)
+    _KOF_TRAIL_REV_USD = 12_588_199_212.26  # canonical revenue (USD)
+    _KOF_TRAIL_EPS_USD = 4.34792  # 913_425_199.02 / 210_083_226 canonical ADR shares
+
+    def test_underreported_native_ni_abstained_by_eps_leg(self) -> None:
+        # KOF: ni_ratio 2.78 (< 6) and rev_ratio 0.20 (< 3) both pass — the two
+        # existing legs are blind to an UNDER-reported netIncomeAvg. The eps leg
+        # (native epsAvg 120.98 vs USD trailing EPS 4.35 = 27.8×) is the only catch.
+        out = get_forward_financials(
+            ticker="KOF",
+            yf_info=None,
+            fmp_analyst_estimates={"rows": [self._KOF_ROW]},
+            as_of=AS_OF,
+            trailing_net_income_usd=self._KOF_TRAIL_NI_USD,
+            trailing_revenue_usd=self._KOF_TRAIL_REV_USD,
+            trailing_eps_usd=self._KOF_TRAIL_EPS_USD,
+        )
+        assert out.forward_net_income is None
+        assert out.forward_eps is None
+        assert out.forward_ebitda is None
+        assert out.confidence == "unavailable"
+        assert any("EPS" in w for w in out.warnings)
+
+    def test_kof_ni_rev_legs_alone_leak_without_eps_anchor(self) -> None:
+        # The SAME KOF row WITHOUT the eps anchor: the ni/rev legs alone let the
+        # native-MXN consensus through (the bug this leg fixes). Pins that the eps
+        # leg is load-bearing, not redundant with legs 1–2.
+        out = get_forward_financials(
+            ticker="KOF",
+            yf_info=None,
+            fmp_analyst_estimates={"rows": [self._KOF_ROW]},
+            as_of=AS_OF,
+            trailing_net_income_usd=self._KOF_TRAIL_NI_USD,
+            trailing_revenue_usd=self._KOF_TRAIL_REV_USD,
+        )
+        assert out.forward_net_income == 2_541_684_254.0
+        assert out.forward_eps == 120.98476
+
+    def test_clean_us_issuer_eps_leg_in_band(self) -> None:
+        # AAPL FY2026 (probe 2026-07-06): epsAvg 8.755 vs USD trailing EPS 8.346
+        # (122.575B NI / 14.687B shares) = 1.05× — the eps leg must KEEP it. This is
+        # the false-positive boundary: eps growth ≈ NI growth for a clean issuer, so
+        # 6.0 (which clears MU's 2.78 cyclical NI jump) clears this comfortably too.
+        out = get_forward_financials(
+            ticker="AAPL",
+            yf_info=None,
+            fmp_analyst_estimates={
+                "rows": [{"date": "2026-09-27", "epsAvg": 8.755, "netIncomeAvg": 131_817_013_388.5}]
+            },
+            as_of=AS_OF,
+            trailing_net_income_usd=122_575_000_000.0,
+            trailing_revenue_usd=451_442_000_000.0,
+            trailing_eps_usd=8.345613737421493,
+        )
+        assert out.forward_net_income == 131_817_013_388.5
+        assert out.forward_eps == 8.755
+
+    def test_legit_usd_adr_eps_leg_in_band(self) -> None:
+        # TSM USD vintage + eps anchor: epsAvg 15.71 vs USD trailing EPS 11.80
+        # (61.17B NI / 5.186B ADR shares) = 1.33× — the eps leg keeps a legitimately
+        # USD-denominated ADR forward, so it does not false-trip when FMP ships USD.
+        out = get_forward_financials(
+            ticker="TSM",
+            yf_info=None,
+            fmp_analyst_estimates={
+                "rows": [{"date": "2026-12-31", "epsAvg": 15.71, "netIncomeAvg": 81_460_000_000.0}]
+            },
+            as_of=AS_OF,
+            trailing_net_income_usd=61_169_840_617.0,
+            trailing_revenue_usd=130_140_000_000.0,
+            trailing_eps_usd=11.7952,
+        )
+        assert out.forward_net_income == 81_460_000_000.0
+        assert out.forward_eps == 15.71
+
+    def test_eps_leg_inert_on_nonpositive_trailing_eps(self) -> None:
+        # A loss-maker (or a share-less snapshot) forms no clean trailing EPS, so a
+        # non-positive anchor leaves the eps leg inert — the revenue leg still covers
+        # the loss-maker case (SONY). Guards against dividing by a ≤0 denominator.
+        out = get_forward_financials(
+            ticker="SONY",
+            yf_info=None,
+            fmp_analyst_estimates={"rows": [self._SONY_ROW]},
+            as_of=AS_OF,
+            trailing_net_income_usd=self._SONY_TRAIL_NI_USD,
+            trailing_revenue_usd=self._SONY_TRAIL_REV_USD,
+            trailing_eps_usd=-0.36,  # negative trailing EPS → eps leg must not fire
+        )
+        # Still abstained, but via the REVENUE leg (not the eps leg on a ≤0 anchor).
+        assert out.forward_net_income is None
+        assert any("revenue" in w for w in out.warnings)

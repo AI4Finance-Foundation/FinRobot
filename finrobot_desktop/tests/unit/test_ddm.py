@@ -372,3 +372,57 @@ class TestDDMModels:
         assert inputs.return_on_equity is None
         assert inputs.tier1_ratio is None
         assert inputs.net_interest_margin is None
+
+
+class TestNonLifeInsurerDegradation:
+    """The standalone DDM degrades to relative valuation for a non-life insurer
+    (2026-07-06). Its underwriting-cycle ROE + buyback-driven low payout blow the DDM
+    to multiples of price even at through-cycle ROE (live: ALL DDM +530% / TRV +177%),
+    so ddm_params emits structured=None + a machine-readable P/B-comps routing before
+    any fetch — a traceable degradation, not a refusal. A life insurer / bank does NOT
+    hit this gate (covered by TestIsNonLifeInsurer)."""
+
+    def _insurer_fd(self, industry: str):
+        from datetime import datetime, timezone
+
+        from finrobot.engine.models.financial import (
+            BalanceSheet,
+            FinancialData,
+            IncomeStatement,
+            MarketData,
+            ValuationMetrics,
+        )
+
+        return FinancialData(
+            ticker="ALL",
+            income=IncomeStatement(revenue=6e10, ebitda=1e10, net_income=1e10),
+            balance=BalanceSheet(total_debt=8e9, total_cash=5e9),
+            market=MarketData(
+                current_price=250.0,
+                shares_outstanding=2.6e8,
+                market_cap=6.5e10,
+                industry=industry,
+                sector="Financial Services",
+            ),
+            valuation=ValuationMetrics(),
+            data_source="test",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+    async def test_ddm_seed_degrades_for_non_life_insurer(self) -> None:
+        from unittest.mock import MagicMock
+
+        from finrobot.engine.pipelines.ddm import _execute_ddm_calc, _execute_ddm_seed
+
+        fd = self._insurer_fd("Insurance - Property & Casualty")
+        ctx: dict[str, object] = {"historical_data": fd}
+        # Gate fires BEFORE any data-layer fetch, so deps is never touched.
+        seed = await _execute_ddm_seed(MagicMock(), MagicMock(), "", ctx, "ALL")
+        assert seed.structured is None
+        assert "not applicable" in seed.text.lower()
+        assert "p/b" in seed.text.lower() or "comps" in seed.text.lower()
+
+        # ddm_calc passes the degraded state through (no meaningless DDMResult).
+        ctx["ddm_params"] = seed.structured
+        calc = await _execute_ddm_calc(MagicMock(), MagicMock(), "", ctx, "ALL")
+        assert calc.structured is None

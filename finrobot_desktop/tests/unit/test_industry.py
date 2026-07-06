@@ -16,6 +16,7 @@ from finrobot.engine.primitives.industry import (
     is_balance_sheet_financial,
     is_bank,
     is_commodity_cyclical,
+    is_non_life_insurer,
     semiconductor_role,
 )
 
@@ -84,6 +85,41 @@ class TestIsBalanceSheetFinancial:
         assert is_balance_sheet_financial("Software") is False
         assert is_balance_sheet_financial(None) is False
         assert is_balance_sheet_financial("") is False
+
+
+class TestIsNonLifeInsurer:
+    """The DDM-degradation cohort (2026-07-06): a non-life insurer's underwriting-
+    cycle ROE + buyback-driven low payout blow its DDM to multiples of price even at
+    through-cycle ROE, so the standalone DDM degrades to relative valuation. Life
+    insurers (stable spread, high steady payout) keep the DDM; banks reach DDM via the
+    report path and must be untouched here."""
+
+    def test_non_life_insurers_true(self) -> None:
+        # P&C (ALL/TRV/CB/PGR), diversified (HIG/AIG), reinsurance, specialty.
+        assert is_non_life_insurer("Insurance - Property & Casualty") is True
+        assert is_non_life_insurer("Insurance—Diversified") is True
+        assert is_non_life_insurer("Insurance - Reinsurance") is True
+        assert is_non_life_insurer("Insurance - Specialty") is True
+
+    def test_life_insurers_kept_false(self) -> None:
+        # MET/PRU — legitimate steady-state DDM, NOT suppressed.
+        assert is_non_life_insurer("Insurance - Life") is False
+
+    def test_brokers_banks_non_financials_false(self) -> None:
+        assert is_non_life_insurer("Insurance - Brokers") is False  # asset-light fee
+        assert is_non_life_insurer("Banks - Diversified") is False  # bank DDM is legit
+        assert is_non_life_insurer("Asset Management") is False
+        assert is_non_life_insurer("Software") is False
+        assert is_non_life_insurer(None) is False
+        assert is_non_life_insurer("") is False
+
+    def test_stricter_than_balance_sheet_financial(self) -> None:
+        # is_non_life_insurer ⊂ is_balance_sheet_financial: every name it suppresses is
+        # a balance-sheet financial, but banks + life insurers are NOT in this cohort.
+        for label in ("Insurance - Property & Casualty", "Insurance—Diversified"):
+            assert is_non_life_insurer(label) and is_balance_sheet_financial(label)
+        for label in ("Banks - Diversified", "Insurance - Life"):
+            assert is_balance_sheet_financial(label) and not is_non_life_insurer(label)
 
 
 class TestIsCommodityCyclical:

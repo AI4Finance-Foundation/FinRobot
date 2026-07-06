@@ -462,6 +462,39 @@ def is_balance_sheet_financial(
     return False
 
 
+def is_non_life_insurer(
+    industry: str | None = None,
+    sector: str | None = None,  # noqa: ARG001 — caller symmetry; industry-driven like is_balance_sheet_financial
+) -> bool:
+    """True for a property-casualty / diversified / reinsurance / specialty insurer —
+    a risk-carrying insurer that is NOT a life insurer — whose standalone DDM is
+    structurally unreliable and must degrade to relative valuation.
+
+    Why the cohort: a non-life insurer's earnings are driven by the underwriting
+    cycle, so its trailing ROE swings to a hard-market peak (ALL 42.7% / TRV 24% live
+    2026-07-06) that ``g = ROE × (1 − payout)`` extrapolates as perpetual growth; and
+    it returns capital mostly via BUYBACK, so its low dividend payout drives a large
+    ``terminal_payout / trailing_payout`` step-up. Together these blow the DDM to
+    multiples of price even AFTER through-cycle ROE normalization (empirically: ALL
+    DDM +530% / TRV +177% / HIG +229% / CB +115% at through-cycle ROE — the residual
+    is the low-payout step-up). A LIFE insurer earns a stable spread on reserves and
+    pays a high, steady dividend (MET/PRU payout 46-56%, DDM within band at through-
+    cycle ROE), so its DDM is legitimate and kept. This is STRICTER than
+    ``is_balance_sheet_financial`` (which also suppresses cash-flow methods for banks
+    AND life insurers) — it targets ONLY the DDM-unreliable non-life cohort.
+
+    Insurers only reach a DDM via the standalone ``run_ddm_valuation`` tool; the
+    research pipeline routes DDM to banks only (``is_bank``), so this predicate is not
+    a football-field suppression — it degrades the standalone DDM artifact at source.
+    """
+    if not industry:
+        return False
+    low = industry.lower()
+    if "insurance" not in low or "broker" in low:
+        return False
+    return "life" not in low
+
+
 def bank_net_revenue(
     gross_revenue: float | None,
     interest_expense: float | None,

@@ -32,6 +32,7 @@ from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import DDMInputs, FinancialData, StepOutput
+from finrobot.engine.primitives.industry import is_non_life_insurer
 from finrobot.engine.pipelines.base import (
     Pipeline,
     PipelineStep,
@@ -80,6 +81,33 @@ async def _execute_ddm_seed(
         raise ValueError(
             "ddm_params requires FinancialData from the historical_data step "
             "but received: " + type(financial_data).__name__
+        )
+
+    # Non-life insurers (P&C / diversified / reinsurance / specialty) degrade the
+    # standalone DDM at source. Their underwriting-cycle ROE swings to a hard-market
+    # peak that g = ROE×(1−payout) extrapolates as perpetual growth, and their low
+    # (buyback-driven) dividend payout drives a large terminal-payout step-up — the
+    # two compound to value the dividend stream at multiples of price even after
+    # through-cycle ROE normalization (live 2026-07-06: ALL DDM +530% / TRV +177% /
+    # HIG +229% / CB +115% at through-cycle ROE, residual = the low-payout step-up).
+    # A LIFE insurer earns a stable spread and pays a high steady dividend, so its DDM
+    # is legitimate and NOT suppressed; a BANK (is_bank) reaches DDM via the report
+    # path, never here. Skip seeding, emit a machine-readable reason + P/B-comps
+    # routing (ddm_calc passes it through; build_ddm_artifact tolerates the None
+    # result) — a traceable degradation to relative valuation, not a refusal.
+    if is_non_life_insurer(
+        industry=financial_data.market.industry, sector=financial_data.market.sector
+    ):
+        logger.info("DDM not applicable for %s: non-life insurer (underwriting-cycle)", ticker)
+        return StepOutput(
+            text=(
+                f"DDM not applicable: {ticker} is a non-life (property-casualty / diversified / "
+                f"reinsurance) insurer. Its underwriting-cycle ROE and buyback-driven low dividend "
+                f"payout make the dividend-discount model structurally unreliable (cyclical-peak "
+                f"growth extrapolation + terminal-payout step-up). Value on P/B comps (ROE-adjusted) "
+                f"instead; the dividend stream alone understates a buyback-heavy insurer."
+            ),
+            structured=None,
         )
 
     _fin = await deps.data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
@@ -165,6 +193,14 @@ async def _execute_ddm_calc(
 ) -> StepOutput:
     """Deterministic DDM calculation from DDMInputs + sensitivity table."""
     inputs = structured_context.get("ddm_params")
+    if inputs is None:
+        # ddm_params degraded upstream (non-life insurer → DDM not applicable). Pass
+        # the not-applicable state through with structured=None; build_ddm_artifact
+        # tolerates the missing DDMResult and the report falls back to P/B comps.
+        return StepOutput(
+            text="DDM not applicable for this issuer — see the ddm_params step.",
+            structured=None,
+        )
     if not isinstance(inputs, DDMInputs):
         raise ValueError("ddm_params step must produce DDMInputs structured output")
 

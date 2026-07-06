@@ -81,11 +81,13 @@ scripts/.evolve_state.json
 scripts/evolve_raw.jsonl
 scripts/evolve.log
 
-# Desktop sidecar binaries — multi-hundred-MB PyInstaller output, regenerated
-# locally / in CI by desktop/src-tauri/sidecar/build.sh. The source (spec +
-# entry + build script under desktop/src-tauri/sidecar/) is tracked; the frozen
-# output is not.
-desktop/src-tauri/binaries/finrobot-server-*
+# Desktop sidecar binaries — multi-hundred-MB PyInstaller onedir output, frozen
+# locally / in CI by desktop/src-tauri/sidecar/build.sh into sidecar/dist/. The
+# source (spec + entry + build script under desktop/src-tauri/sidecar/) is
+# tracked; the frozen output is not. desktop/.gitignore's generic `dist/` already
+# catches this, but this explicit root rule is the backstop so the bundle can
+# never leak into git if that generic rule is ever narrowed.
+desktop/src-tauri/sidecar/dist/
 
 # understand-anything — local codebase-analysis tool cache (graph/batches/tmp).
 # Regenerated on demand; never part of the project source.

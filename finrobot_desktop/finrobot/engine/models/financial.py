@@ -26,11 +26,20 @@ class IncomeStatement(BaseModel):
     # /financials for Rivian. gross_margin ≥ operating_margin always (opex ≥ 0), so
     # the same -5 floor is provably crash-free while still catching a percentage/
     # decimal mixup (e.g. -50 meaning -50%).
+    #
+    # Upper bound is a small-epsilon cushion, NOT a hard 100% throw: a margin > 100%
+    # implies negative cost and is a SOFT rule (invariant-suite #5 — the sole
+    # legitimate breach, a supplier-rebate contra-cost, is a flag, never a crash). The
+    # real legitimacy exit is extractor._sanitize_margin, which WITHHOLDS (→ None) any
+    # >100% figure so a broken provider value (FMP's UL grossProfit ≥ revenue, GM
+    # 100.14% vs a real ~47%) shows N/A instead of crashing the whole report. le=1.02
+    # keeps this schema from hard-failing on residual rounding noise from any future
+    # un-sanitized constructor while still asserting against a gross percent/decimal mixup.
     gross_margin: float | None = Field(
-        default=None, ge=-5, le=1, description="Gross margin as decimal; None when unavailable"
+        default=None, ge=-5, le=1.02, description="Gross margin as decimal; None when unavailable"
     )
     operating_margin: float | None = Field(
-        default=None, ge=-5, le=1, description="Operating margin as decimal; None when unavailable"
+        default=None, ge=-5, le=1.02, description="Operating margin as decimal; None when unavailable"
     )
     # Absolute operating income (EBIT) in USD. Carried alongside the margin so the
     # comps target can hand calculate_core_pe a period-consistent EBIT instead of

@@ -89,6 +89,42 @@ esac
 
 echo "[release] version=$VERSION  triple=$TRIPLE  repo=$RELEASES_REPO  dry-run=$DRY_RUN"
 
+# ── 0. Release quality gate — RED ABORTS. No skip flag; runs even under --dry-run ─
+# Mirrors CI (.github/workflows/ci.yml) plus the pytest blocks each write session
+# runs locally. Serial by design: the pytest concurrency guard forbids two runs in
+# one rootdir, and a release must never race itself. This is the whole point of
+# gating HERE — before any version file is mutated or minutes are spent building —
+# so a red gate costs nothing and a green one is the release's audit record.
+# Python tools go through `uv run` so the gate works whether or not a venv is
+# activated (identical to CI); integration tests are auto-skipped by the
+# `-m 'not integration'` default in pyproject.toml (they hit the live network).
+REPO_ROOT="$(cd "$DESKTOP_DIR/.." && pwd)"
+_gate_ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
+_gate_run() {   # _gate_run "<label>" "<workdir>" <cmd> [args...]
+    local label="$1" workdir="$2"; shift 2
+    echo "[gate $(_gate_ts)] > $label"
+    if ! ( cd "$workdir" && "$@" ); then
+        echo >&2 ""
+        echo >&2 "[gate $(_gate_ts)] FAILED -- $label"
+        echo >&2 "[gate] RELEASE ABORTED: fix the failure above. A red gate never ships."
+        exit 1
+    fi
+    echo "[gate $(_gate_ts)] PASS -- $label"
+}
+
+echo "[gate $(_gate_ts)] ===== release quality gate: START (target v$VERSION) ====="
+# Backend (from repo root)
+_gate_run "ruff check finrobot/"                        "$REPO_ROOT" uv run ruff check finrobot/
+_gate_run "mypy finrobot/ --strict"                     "$REPO_ROOT" uv run mypy finrobot/ --strict
+_gate_run "pytest tests/unit"                           "$REPO_ROOT" uv run pytest tests/unit -q
+_gate_run "pytest routes+audit+artifact+engine+events"  "$REPO_ROOT" uv run pytest tests/routes tests/audit tests/artifact tests/engine tests/test_events.py -q
+# Frontend (from desktop/)
+_gate_run "npm run lint"          "$DESKTOP_DIR" npm run lint
+_gate_run "npm run format:check"  "$DESKTOP_DIR" npm run format:check
+_gate_run "npm test"              "$DESKTOP_DIR" npm test
+_gate_run "npm run build"         "$DESKTOP_DIR" npm run build
+echo "[gate $(_gate_ts)] ===== release quality gate: PASSED ====="
+
 # ── 1. Sync the version into tauri.conf.json (drives getVersion + updater compare)
 node -e '
   const fs = require("fs");

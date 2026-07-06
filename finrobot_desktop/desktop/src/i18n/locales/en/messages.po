@@ -1634,7 +1634,7 @@ msgstr "Copyright © AI4Finance Foundation"
 
 #. js-lingui-explicit-id
 msgid "shell.titlebar.aiAssistant"
-msgstr "AI Assistant (⌘L)"
+msgstr "AI Assistant"
 
 #. js-lingui-explicit-id
 msgid "shell.warning.collapse"

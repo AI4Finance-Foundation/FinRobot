@@ -281,7 +281,8 @@ describe('workspace dashboard contract (P3.2 — analyst dashboard)', () => {
     // Dual-zone dashboard: market data (left, always live) + AI zone (right).
     expect(screen.getByTestId('market-data-zone')).toBeInTheDocument()
     expect(screen.getByTestId('ai-zone')).toBeInTheDocument()
-    // AnchorNav is retired in favour of ⌘K.
+    // AnchorNav (the retired left-rail section nav) is not rendered — the app
+    // does no keyboard shortcuts, so there is no command-palette successor either.
     expect(screen.queryByTestId('anchor-nav')).not.toBeInTheDocument()
   })
 

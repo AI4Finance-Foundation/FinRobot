@@ -1301,6 +1301,55 @@ class FMPProvider(DataProvider):
             timestamp=datetime.now(tz=timezone.utc),
         )
 
+    async def fetch_price_target_consensus(self, ticker: str) -> DataResult:
+        """Analyst 12-month price-target DISTRIBUTION from stable /price-target-consensus.
+
+        Ships the street target distribution (low / consensus / median / high) under
+        ``data``, plus a recent-coverage analyst count from /price-target-summary
+        (``lastYearCount`` — targets published in the trailing year, the coverage
+        depth behind the current distribution). This is the SOTP scenario band's
+        STREET anchor (Batch 3B v2): the three legs are these 12-month targets — a
+        12-month target distribution, NOT a robotaxi-success valuation.
+
+        NOT on ``capabilities()``: an EXPLICIT augmentation route (like the EDGAR
+        ``fetch_annual_segments``) invoked only for option-value SOTP candidates, so
+        it never displaces the priority chain. Raises ``ProviderError`` on plan-gate
+        / fetch failure so ``DataLayer.fetch_price_target`` degrades to None. The
+        summary/count call is best-effort — its failure leaves ``analyst_count`` None
+        (the operator downgrades confidence but still forms the band).
+        """
+        with self._wrap_errors(ticker, "price-target-consensus fetch"):
+            resp = await self._get("/price-target-consensus", params={"symbol": ticker})
+        raw: Any = resp.json()
+        row = raw[0] if isinstance(raw, list) and raw and isinstance(raw[0], dict) else {}
+
+        analyst_count: int | None = None
+        try:
+            s_resp = await self._get("/price-target-summary", params={"symbol": ticker})
+            s_raw: Any = s_resp.json()
+            s_row = (
+                s_raw[0] if isinstance(s_raw, list) and s_raw and isinstance(s_raw[0], dict) else {}
+            )
+            cnt = s_row.get("lastYearCount")
+            analyst_count = int(cnt) if isinstance(cnt, (int, float)) and cnt else None
+        except (ProviderError, httpx.HTTPError, ValueError, TypeError, KeyError):
+            analyst_count = None
+
+        return DataResult(
+            data={
+                "low": row.get("targetLow"),
+                "consensus": row.get("targetConsensus"),
+                "median": row.get("targetMedian"),
+                "high": row.get("targetHigh"),
+                "analyst_count": analyst_count,
+                "source": "FMP /price-target-consensus (+summary lastYearCount)",
+            },
+            provider=self.name,
+            ticker=ticker,
+            data_type=DataType.FORWARD_ESTIMATES,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
     async def _fetch_dividends(self, ticker: str) -> DataResult:
         """Fetch the declared dividend history from stable /dividends.
 

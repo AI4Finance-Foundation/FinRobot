@@ -28,7 +28,11 @@ from __future__ import annotations
 import math
 from datetime import datetime, timezone
 
-from finrobot.engine.models.financial import SegmentValuation, SOTPBreakdown
+from finrobot.engine.models.financial import (
+    SegmentValuation,
+    SOTPBreakdown,
+    SOTPScenarioBand,
+)
 
 
 def value_segment(
@@ -59,6 +63,7 @@ def compute_sotp_breakdown(
     current_price: float,
     option_ev_if_success: float | None = None,
     option_anchor_source: str | None = None,
+    scenario_band: SOTPScenarioBand | None = None,
     as_of: datetime | None = None,
     warnings: list[str] | None = None,
 ) -> SOTPBreakdown:
@@ -132,5 +137,6 @@ def compute_sotp_breakdown(
         implied_success_probability=implied_success_probability,
         floor_exceeds_market=floor_exceeds_market,
         market_exceeds_success_ceiling=market_exceeds_success_ceiling,
+        scenario_band=scenario_band,
         warnings=warn,
     )

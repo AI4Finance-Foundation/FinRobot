@@ -1510,6 +1510,47 @@ class SegmentValuation(BaseModel):
     """metric_value × multiple — this segment's EV contribution to the floor."""
 
 
+class SOTPScenarioBand(BaseModel):
+    """Forward STREET-anchored scenario band for an option-value name (Batch 3B v2).
+
+    🔴 This is NOT a robotaxi-success valuation. The three legs are the 12-month
+    analyst price-target DISTRIBUTION (street low / consensus / high). The
+    ``range_position`` metric is where the live price sits WITHIN that street range
+    — an implied optimism vs the sell-side range — and MUST NEVER be surfaced as a
+    "robotaxi / optionality success probability" (that ceiling is un-sourceable; the
+    reverse-SOTP ``option_ev_if_success`` is kept None for exactly that reason).
+
+    The legs are 12-month FORWARD targets (not present values — the reverse-SOTP
+    cash-flow floor IS a present value; a consumer must label the two axes
+    distinctly). All fields COMPUTED + sourceable; confidence is inherently low
+    (street-anchored, forward, [金融待核 F2]).
+    """
+
+    bear: float
+    """Street LOW 12-month analyst target (the bearish-analyst leg)."""
+    base: float
+    """Street CONSENSUS 12-month analyst target (the central leg)."""
+    bull: float
+    """Street HIGH 12-month analyst target (the bullish-analyst leg)."""
+    median: float | None = None
+    """Street MEDIAN 12-month target (context; None if the source omits it)."""
+    current_price: float
+    range_position: float
+    """(current_price − bear) / (bull − bear): the live price's position within the
+    sell-side 12-month target range — implied optimism vs the STREET range, NEVER a
+    robotaxi-success probability. NOT clamped: < 0 (market below the most bearish
+    target) or > 1 (above the most bullish) is a legal, informative signal."""
+    analyst_count: int | None = None
+    """Recent-year count of analysts contributing targets (coverage depth); None
+    when the source omits it (confidence is then downgraded)."""
+    confidence: str = "low"
+    """"low" (street-anchored, forward) or "very_low" (thin analyst coverage)."""
+    source: str
+    """Sourceable provenance: the FMP price-target endpoints + as-of."""
+    as_of: datetime
+    warnings: list[str] = Field(default_factory=list)
+
+
 class SOTPBreakdown(BaseModel):
     """Reverse-SOTP market-implied decomposition for an option-value name.
 
@@ -1563,4 +1604,9 @@ class SOTPBreakdown(BaseModel):
     market_exceeds_success_ceiling: bool = False
     """implied_success_probability > 1 → live price exceeds even the full success
     SOTP ceiling — a stronger over-pricing signal than reverse-DCF unreachable."""
+    scenario_band: SOTPScenarioBand | None = None
+    """Forward STREET-anchored scenario band (12-month analyst target distribution).
+    A SEPARATE semantic block from the reverse-SOTP decomposition above: its
+    range_position is street positioning, NEVER a robotaxi-success probability (see
+    SOTPScenarioBand). None when analyst price targets are unavailable."""
     warnings: list[str] = Field(default_factory=list)

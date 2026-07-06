@@ -895,6 +895,42 @@ class DataLayer:
         await self._cache.set(DataType.FILINGS_10K, cache_key, result)
         return result
 
+    async def fetch_price_target(self, ticker: str) -> DataResult | None:
+        """Analyst 12-month price-target distribution from FMP, or None.
+
+        The SOTP scenario-band augmentation (Batch 3B v2): street low/consensus/
+        median/high 12-month targets routed EXPLICITLY to the FMP provider's
+        ``fetch_price_target_consensus`` — NOT the priority chain — so it never
+        displaces a primary source. Cached in the FORWARD_ESTIMATES slot family
+        (analyst-cadence, 1-day TTL) under a distinct ``:price_target`` suffix (key
+        folds only ``(type, ticker)``; cold-miss single-flight; cache success only).
+
+        Returns None (not raise) when FMP is absent / health-gated / the fetch
+        fails, so the scenario band cleanly drops (the reverse-SOTP floor still
+        ships). The street distribution is a 12-month target distribution, never a
+        robotaxi-success valuation — see ``compute_scenario_band``.
+        """
+        from finrobot.engine.data.providers.fmp_provider import FMPProvider
+
+        provider = next((p for p in self._providers if isinstance(p, FMPProvider)), None)
+        if provider is None:
+            return None
+        if self._health_gated(provider):
+            return None
+        cache_key = f"{ticker}:price_target"
+        cached = await self._cache.get(DataType.FORWARD_ESTIMATES, cache_key)
+        if cached is not None and not cached.is_stale:
+            return cached.data
+        try:
+            result = await provider.fetch_price_target_consensus(ticker)
+        except ProviderError as e:
+            self._record_provider_failure(provider.name, e)
+            logger.warning("price-target fetch failed for %s: %s", ticker, e)
+            return cached.data if cached is not None else None
+        self._health.record_success(provider.name)
+        await self._cache.set(DataType.FORWARD_ESTIMATES, cache_key, result)
+        return result
+
     async def fetch_quote(self, ticker: str) -> DataResult:
         """Lightweight current-price fetch that PROPAGATES provider failure.
 

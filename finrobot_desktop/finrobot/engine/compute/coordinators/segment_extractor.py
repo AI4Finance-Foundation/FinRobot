@@ -42,8 +42,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from finrobot.engine.compute.operators.sotp import compute_sotp_breakdown, value_segment
+from finrobot.engine.compute.operators.sotp_scenario import compute_scenario_band
 from finrobot.engine.data.layer import DataLayer
-from finrobot.engine.models.financial import SegmentValuation, SOTPBreakdown
+from finrobot.engine.models.financial import (
+    SegmentValuation,
+    SOTPBreakdown,
+    SOTPScenarioBand,
+)
 
 # --- Energy floor multiple — solar/storage peer median EV/gross-profit ----------
 # Peer set ENPH / FLNC / SEDG (captive-finance-free pure-plays). Per-peer annual
@@ -168,6 +173,25 @@ async def build_sotp_breakdown(
         # Single modelable segment → SOTP degenerates to ordinary valuation.
         return None
 
+    # Slice ② — the robotaxi-SUCCESS ceiling stays None. A 12-month analyst target
+    # is the wrong caliber for a full-success SOTP ceiling and no sourceable
+    # robotaxi-success valuation exists, so the implied success probability is
+    # WITHHELD with an explicit refusal (contract②: degrade + disclose, never
+    # fabricate a mislabeled number). Street positioning lives in the SEPARATE
+    # scenario band below (single-authority: two distinct semantics, two blocks).
+    if option_ev_if_success is None:
+        warnings.append(
+            "implied robotaxi-success probability withheld: no sourceable "
+            "full-success SOTP ceiling — a 12-month analyst target is a different "
+            "caliber (street positioning, not a robotaxi-success valuation) "
+            "[金融待核 F3]"
+        )
+
+    # Slice ③ — forward STREET-anchored scenario band (12-month analyst target
+    # distribution). Its range_position is street positioning, NEVER a robotaxi-
+    # success probability (see compute_scenario_band's guardrail).
+    scenario_band = await _build_scenario_band(data_layer, ticker, current_price, warnings)
+
     return compute_sotp_breakdown(
         ticker=ticker,
         modelable_segments=legs,
@@ -176,6 +200,48 @@ async def build_sotp_breakdown(
         current_price=current_price,
         option_ev_if_success=option_ev_if_success,
         option_anchor_source=option_anchor_source,
+        scenario_band=scenario_band,
         as_of=as_of,
         warnings=warnings,
     )
+
+
+async def _build_scenario_band(
+    data_layer: DataLayer,
+    ticker: str,
+    current_price: float,
+    warnings: list[str],
+) -> SOTPScenarioBand | None:
+    """Fetch the 12-month analyst target distribution and build the street band.
+
+    Returns None (band dropped; the reverse-SOTP floor still ships) when analyst
+    targets are unavailable or the distribution is incomplete/degenerate — with a
+    disclosure on ``warnings``. Never fabricates a bound.
+    """
+    pt = await data_layer.fetch_price_target(ticker)
+    if pt is None:
+        warnings.append(
+            "analyst price targets unavailable — forward street scenario band dropped"
+        )
+        return None
+    d = pt.data or {}
+    count = d.get("analyst_count")
+    source = (
+        f"{d.get('source') or 'FMP analyst price targets'}"
+        + (f" · {count} analysts (trailing year)" if count else "")
+        + " · street-anchored 12-month target distribution [金融待核 F2]"
+    )
+    band = compute_scenario_band(
+        bear=d.get("low"),
+        base=d.get("consensus"),
+        bull=d.get("high"),
+        median=d.get("median"),
+        current_price=current_price,
+        analyst_count=count,
+        source=source,
+    )
+    if band is None:
+        warnings.append(
+            "analyst target distribution incomplete/degenerate — scenario band dropped"
+        )
+    return band

@@ -19,13 +19,10 @@ EXTERNAL authoritative sources, not to the implementation:
 
 from __future__ import annotations
 
-import asyncio
 import math
-from types import SimpleNamespace
 
 import pytest
 
-from finrobot.engine.compute.coordinators.segment_extractor import build_sotp_breakdown
 from finrobot.engine.compute.operators.sotp import compute_sotp_breakdown, value_segment
 from finrobot.engine.data.providers.edgar_provider import (
     EdgarToolsProvider,
@@ -313,79 +310,7 @@ def test_single_segment_issuer_yields_no_floor() -> None:
     assert data["segments"] == {}
     assert any("single-segment" in w or "non-dimensioned" in w for w in warnings)
 
-
-# --- Coordinator (v2 caliber, 2026-07-06): energy peer multiple + auto disclosure -
-def _fake_segments_data_layer(
-    segments: dict[str, object], *, currency: str = "USD"
-) -> object:
-    """Minimal DataLayer stand-in exposing only ``fetch_segments`` (the sole I/O
-    ``build_sotp_breakdown`` performs — the energy multiple is now a dated peer-
-    derived constant, no live peer fetch)."""
-
-    async def fetch_segments(_ticker: str) -> SimpleNamespace:
-        return SimpleNamespace(
-            data={
-                "segments": segments,
-                "period": {"start": "2025-01-01", "end": "2025-12-31"},
-                "accession": "0001628280-26-003952",
-                "currency": currency,
-            },
-            warnings=[],
-        )
-
-    return SimpleNamespace(fetch_segments=fetch_segments)
-
-
-_TSLA_SEGMENTS = {
-    "Automotive": {"gross_profit": TSLA_AUTO_GP, "revenue": TSLA_AUTO_REV, "label": "Automotive"},
-    "EnergyGenerationAndStorage": {
-        "gross_profit": TSLA_ENERGY_GP,
-        "revenue": TSLA_ENERGY_REV,
-        "label": "Energy generation and storage",
-    },
-}
-
-
-def test_coordinator_energy_peer_multiple_and_auto_captive_disclosure() -> None:
-    # Slice ① (v2): energy leg carries the solar/storage peer-derived median EV/GP
-    # (9.6×, annual-caliber, peer-payload verified) with the set + as-of in
-    # provenance; auto leg stays the conservative 6.0× proxy but its source string
-    # DISCLOSES why ex-captive-finance can't be computed (the graveyard evidence:
-    # no auto-vs-finance debt split; netReceivables inconsistent across peers).
-    dl = _fake_segments_data_layer(_TSLA_SEGMENTS)
-    b = asyncio.run(
-        build_sotp_breakdown(
-            dl,  # type: ignore[arg-type]
-            "TSLA",
-            net_debt=-35.514e9,
-            shares_outstanding=3.756e9,
-            current_price=393.45,
-        )
-    )
-    assert b is not None
-    legs = {s.name: s for s in b.modelable_segments}
-    energy = legs["Energy generation and storage"]
-    assert energy.multiple == pytest.approx(9.6)
-    assert "solar/storage peer median" in energy.multiple_source
-    assert "ENPH" in energy.multiple_source and "as-of 2026-07-06" in energy.multiple_source
-    auto = legs["Automotive"]
-    assert auto.multiple == pytest.approx(6.0)
-    assert "netReceivables" in auto.multiple_source
-    assert "captive" in auto.multiple_source.lower()
-    assert "[金融待核 F2]" in auto.multiple_source
-
-
-def test_coordinator_drops_non_usd_reporter() -> None:
-    # A non-USD reporter would mix currencies (USD multiples/market cap vs native
-    # segment GP); the coordinator drops the channel rather than mix (T1).
-    dl = _fake_segments_data_layer(_TSLA_SEGMENTS, currency="JPY")
-    b = asyncio.run(
-        build_sotp_breakdown(
-            dl,  # type: ignore[arg-type]
-            "TM",
-            net_debt=0.0,
-            shares_outstanding=1e9,
-            current_price=100.0,
-        )
-    )
-    assert b is None
+# NB: build_sotp_breakdown coordinator integration (energy peer provenance, auto
+# captive disclosure, non-USD drop, street scenario band) lives in
+# test_segment_extractor.py — the single home for coordinator tests. This file is
+# operator (compute_sotp_breakdown / value_segment) + provider (extract_segment_facts).

@@ -572,6 +572,14 @@ export interface SegmentValuationShape {
 // is street positioning within that range — NEVER a robotaxi-success probability, and
 // the legs are 12-month FORWARD values (the reverse-SOTP floor above is a present value).
 export interface SOTPScenarioBandShape {
+  // C (4-point merge): the reverse-SOTP cash-flow floor rides as an INDEPENDENT
+  // present-value anchor beside the 12-month street cluster (bear/base/bull, forward).
+  // floor_coverage = cash_flow_floor / current_price is the ONLY floor-vs-price
+  // relation (same present-value caliber); a floor→street ratio is forbidden
+  // (cross-caliber) and never appears — do NOT place the price marker on a
+  // [floor, bull] axis.
+  cash_flow_floor?: number | null
+  floor_coverage?: number | null
   bear: number
   base: number
   bull: number

@@ -187,12 +187,9 @@ async def build_sotp_breakdown(
             "[金融待核 F3]"
         )
 
-    # Slice ③ — forward STREET-anchored scenario band (12-month analyst target
-    # distribution). Its range_position is street positioning, NEVER a robotaxi-
-    # success probability (see compute_scenario_band's guardrail).
-    scenario_band = await _build_scenario_band(data_layer, ticker, current_price, warnings)
-
-    return compute_sotp_breakdown(
+    # Build the reverse-SOTP breakdown FIRST so the scenario band can anchor on its
+    # cash-flow floor (a present value) beside the street cluster — C 4-point merge.
+    breakdown = compute_sotp_breakdown(
         ticker=ticker,
         modelable_segments=legs,
         net_debt=net_debt,
@@ -200,23 +197,37 @@ async def build_sotp_breakdown(
         current_price=current_price,
         option_ev_if_success=option_ev_if_success,
         option_anchor_source=option_anchor_source,
-        scenario_band=scenario_band,
+        scenario_band=None,
         as_of=as_of,
         warnings=warnings,
     )
+
+    # Slice ③ (C) — forward scenario band: the cash-flow FLOOR anchor (present value,
+    # robotaxi-fails) + the 12-month STREET cluster (forward analyst targets), each
+    # caliber distinct. range_position is the SAME-caliber street-range position;
+    # NO floor→street cross-caliber ratio (compute_scenario_band's hard rule). Its
+    # range_position is street positioning, NEVER a robotaxi-success probability.
+    breakdown.scenario_band = await _build_scenario_band(
+        data_layer, ticker, current_price, breakdown.price_floor, breakdown.warnings
+    )
+    return breakdown
 
 
 async def _build_scenario_band(
     data_layer: DataLayer,
     ticker: str,
     current_price: float,
+    cash_flow_floor: float,
     warnings: list[str],
 ) -> SOTPScenarioBand | None:
-    """Fetch the 12-month analyst target distribution and build the street band.
+    """Fetch the 12-month analyst target distribution and build the scenario band.
 
-    Returns None (band dropped; the reverse-SOTP floor still ships) when analyst
-    targets are unavailable or the distribution is incomplete/degenerate — with a
-    disclosure on ``warnings``. Never fabricates a bound.
+    ``cash_flow_floor`` (the reverse-SOTP per-share floor, a PRESENT value) rides
+    the band as an independent anchor beside the street cluster; the band exposes it
+    + ``floor_coverage`` (floor/price) only, never a floor→street cross-caliber
+    ratio (C hard rule). Returns None (band dropped; the reverse-SOTP floor still
+    ships) when analyst targets are unavailable or the distribution is incomplete/
+    degenerate — with a disclosure on ``warnings``. Never fabricates a bound.
     """
     pt = await data_layer.fetch_price_target(ticker)
     if pt is None:
@@ -239,6 +250,7 @@ async def _build_scenario_band(
         current_price=current_price,
         analyst_count=count,
         source=source,
+        cash_flow_floor=cash_flow_floor,
     )
     if band is None:
         warnings.append(

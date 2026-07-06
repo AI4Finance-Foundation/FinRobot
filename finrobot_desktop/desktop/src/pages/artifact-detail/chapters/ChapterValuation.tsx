@@ -752,7 +752,7 @@ function ScenarioBandBlock({
           marginBottom: 4,
         }}
       >
-        {en ? '12-Month Street Scenario Band' : '12 个月卖方情景带'}
+        {en ? 'Forward Scenario Band' : '前向情景带'}
       </div>
       <p
         style={{
@@ -764,9 +764,55 @@ function ScenarioBandBlock({
         }}
       >
         {en
-          ? 'Analyst 12-month price-target distribution (forward). The marker shows where the live price sits within the street range — street positioning, not the report price target and not a robotaxi-success probability.'
-          : '分析师 12 个月目标价分布(前瞻)。标记显示现价在卖方区间内的位置——卖方区间定位,既不是研报目标价,也不是 robotaxi 成功概率。'}
+          ? 'Two calibers, each labelled distinctly: the reverse-SOTP cash-flow floor (a present value, the robotaxi-fails downside) and the 12-month analyst target cluster (forward). The bar positions the live price within the street range — same-caliber street positioning, not the report price target and not a robotaxi-success probability.'
+          : '两种口径,各自分标:reverse-SOTP 现金流底(现值,robotaxi 失败态下行)与 12 个月分析师目标价簇(前瞻)。带内标记 = 现价在卖方区间内的位置(同口径卖方定位),既不是研报目标价,也不是 robotaxi 成功概率。'}
       </p>
+
+      {band.cash_flow_floor != null && (
+        <div style={{ marginBottom: 14 }}>
+          <div
+            style={{
+              fontFamily: 'var(--font-mono)',
+              fontSize: 9.5,
+              letterSpacing: '0.08em',
+              color: 'var(--text-dim)',
+              textTransform: 'uppercase',
+              marginBottom: 3,
+            }}
+          >
+            {en ? 'Cash-flow floor · present value' : '现金流底 · 现值'}
+          </div>
+          <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)' }}>
+            <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
+              {price(band.cash_flow_floor)}
+            </span>{' '}
+            <span>{en ? '· robotaxi-fails downside' : '· robotaxi 失败态下行'}</span>
+            {band.floor_coverage != null && (
+              <span>
+                {' '}
+                · {en ? 'covers' : '覆盖现价'}{' '}
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  {(band.floor_coverage * 100).toFixed(0)}%
+                </span>{' '}
+                {en ? 'of the live price' : ''}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 9.5,
+          letterSpacing: '0.08em',
+          color: 'var(--text-dim)',
+          textTransform: 'uppercase',
+          marginBottom: 8,
+        }}
+      >
+        {en ? '12-month analyst targets · forward' : '12 个月分析师目标价 · 前瞻'}
+      </div>
 
       {/* Range bar: track bear→bull, consensus tick, live-price (cyan) marker. */}
       <div style={{ position: 'relative', height: 34 }}>

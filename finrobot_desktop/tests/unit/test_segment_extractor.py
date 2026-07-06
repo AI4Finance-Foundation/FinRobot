@@ -201,6 +201,11 @@ class TestScenarioBandAndSuccessCeiling:
         assert band.range_position == pytest.approx((393.45 - 360.0) / (540.0 - 360.0))
         assert band.confidence == "low"
         assert band.analyst_count == 41
+        # C: the reverse-SOTP cash-flow floor rides as an independent present-value
+        # anchor (== the breakdown's price_floor) + the same-caliber floor/price
+        # coverage; NO floor→street cross-caliber ratio.
+        assert band.cash_flow_floor == pytest.approx(out.price_floor)
+        assert band.floor_coverage == pytest.approx(out.price_floor / 393.45)
 
     async def test_band_dropped_when_targets_unavailable(self):
         layer = _FakeLayer(_segments_result(_TWO_SEGMENTS))  # price_target=None

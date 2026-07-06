@@ -159,6 +159,49 @@ def test_central_leg_falls_back_to_median() -> None:
     assert b.base == pytest.approx(TSLA_MEDIAN)
 
 
+# --- C (4-point merge): floor anchor is present-value, NO cross-caliber ratio ---
+def test_c_floor_anchor_present_value_and_same_caliber_coverage() -> None:
+    floor = 40.41  # reverse-SOTP cash-flow floor (present value)
+    b = compute_scenario_band(
+        bear=TSLA_LOW,
+        base=TSLA_CONSENSUS,
+        bull=TSLA_HIGH,
+        median=TSLA_MEDIAN,
+        current_price=TSLA_PRICE,
+        analyst_count=TSLA_ANALYSTS,
+        source=_SRC,
+        cash_flow_floor=floor,
+    )
+    assert b is not None
+    # The floor rides as an INDEPENDENT present-value anchor + the ONLY allowed
+    # floor-vs-price relation: floor/price (same caliber, ~10.3%).
+    assert b.cash_flow_floor == pytest.approx(floor)
+    assert b.floor_coverage == pytest.approx(floor / TSLA_PRICE)
+    # 🔴 range_position stays the SAME-caliber street-range position (18.6%), NEVER
+    # the forbidden floor→bull cross-caliber ratio (~70.7%) — that number must
+    # appear on no field.
+    assert b.range_position == pytest.approx((TSLA_PRICE - TSLA_LOW) / (TSLA_HIGH - TSLA_LOW))
+    forbidden = (TSLA_PRICE - floor) / (TSLA_HIGH - floor)  # ≈ 0.707
+    assert forbidden not in (b.range_position, b.floor_coverage)
+    assert b.range_position != pytest.approx(forbidden, abs=0.02)
+
+
+def test_c_floor_absent_leaves_anchor_and_coverage_none() -> None:
+    b = compute_scenario_band(
+        bear=TSLA_LOW,
+        base=TSLA_CONSENSUS,
+        bull=TSLA_HIGH,
+        median=None,
+        current_price=TSLA_PRICE,
+        analyst_count=TSLA_ANALYSTS,
+        source=_SRC,  # no cash_flow_floor
+    )
+    assert b is not None
+    assert b.cash_flow_floor is None
+    assert b.floor_coverage is None
+    assert b.range_position == pytest.approx((TSLA_PRICE - TSLA_LOW) / (TSLA_HIGH - TSLA_LOW))
+
+
 # Coordinator wiring (band attached + robotaxi-success ceiling withheld) is tested
 # in test_segment_extractor.py::TestScenarioBandAndSuccessCeiling — the single home
 # for build_sotp_breakdown integration tests. This file stays operator-only.

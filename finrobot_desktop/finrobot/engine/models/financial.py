@@ -1511,21 +1511,40 @@ class SegmentValuation(BaseModel):
 
 
 class SOTPScenarioBand(BaseModel):
-    """Forward STREET-anchored scenario band for an option-value name (Batch 3B v2).
+    """Forward scenario band for an option-value name (Batch 3B v2 · C 4-point merge).
 
-    🔴 This is NOT a robotaxi-success valuation. The three legs are the 12-month
-    analyst price-target DISTRIBUTION (street low / consensus / high). The
-    ``range_position`` metric is where the live price sits WITHIN that street range
-    — an implied optimism vs the sell-side range — and MUST NEVER be surfaced as a
-    "robotaxi / optionality success probability" (that ceiling is un-sourceable; the
-    reverse-SOTP ``option_ev_if_success`` is kept None for exactly that reason).
+    TWO calibers, each COMPLETE and DISTINCTLY LABELLED — never blended (team-lead
+    2026-07-06, C):
 
-    The legs are 12-month FORWARD targets (not present values — the reverse-SOTP
-    cash-flow floor IS a present value; a consumer must label the two axes
-    distinctly). All fields COMPUTED + sourceable; confidence is inherently low
-    (street-anchored, forward, [金融待核 F2]).
+      1. ``cash_flow_floor`` — the reverse-SOTP cash-flow floor: a PRESENT value,
+         the robotaxi-fails downside. An INDEPENDENT anchor, not a leg of the street
+         range.
+      2. ``bear`` / ``base`` / ``bull`` — the 12-month analyst price-target
+         DISTRIBUTION (street low / consensus / high): FORWARD values.
+
+    🔴 HARD RULE — NO CROSS-CALIBER RATIO. ``range_position`` is the SAME-caliber
+    street-range position (price within [bear, bull], both 12-month forward). A
+    floor→street ratio (e.g. (price − floor)/(bull − floor)) mixes a present value
+    with a forward target across time bases and is FORBIDDEN on every surface — it
+    is never computed or stored, and a consumer must NOT place the live-price marker
+    on a [floor, bull] axis (that marker's position IS that forbidden ratio). The
+    floor's relation to price is expressed ONLY as ``floor_coverage`` (floor /
+    price — both present values, same caliber). And ``range_position`` MUST NEVER be
+    surfaced as a "robotaxi / optionality success probability" (that ceiling is
+    un-sourceable; the reverse-SOTP ``option_ev_if_success`` is kept None for it).
+
+    All fields COMPUTED + sourceable; confidence is inherently low (street-anchored,
+    forward, [金融待核 F2]).
     """
 
+    cash_flow_floor: float | None = None
+    """Reverse-SOTP cash-flow floor (per share, PRESENT value, robotaxi-fails
+    downside) — an independent anchor beside the street cluster, NOT a street leg.
+    None when the floor is unavailable."""
+    floor_coverage: float | None = None
+    """cash_flow_floor / current_price — the ONLY floor-vs-price relation allowed
+    (both present values, same caliber). e.g. 0.10 = the floor covers ~10% of the
+    live price. A floor→street-target ratio is forbidden (cross-caliber)."""
     bear: float
     """Street LOW 12-month analyst target (the bearish-analyst leg)."""
     base: float
@@ -1537,9 +1556,10 @@ class SOTPScenarioBand(BaseModel):
     current_price: float
     range_position: float
     """(current_price − bear) / (bull − bear): the live price's position within the
-    sell-side 12-month target range — implied optimism vs the STREET range, NEVER a
-    robotaxi-success probability. NOT clamped: < 0 (market below the most bearish
-    target) or > 1 (above the most bullish) is a legal, informative signal."""
+    12-month STREET range — SAME caliber (both forward). NEVER a floor→street ratio
+    (cross-caliber, forbidden) and NEVER a robotaxi-success probability. NOT clamped:
+    < 0 (market below the most bearish target) or > 1 (above the most bullish) is a
+    legal, informative signal."""
     analyst_count: int | None = None
     """Recent-year count of analysts contributing targets (coverage depth); None
     when the source omits it (confidence is then downgraded)."""

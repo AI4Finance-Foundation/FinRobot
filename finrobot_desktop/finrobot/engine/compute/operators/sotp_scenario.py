@@ -47,6 +47,7 @@ def compute_scenario_band(
     current_price: float,
     analyst_count: int | None,
     source: str,
+    cash_flow_floor: float | None = None,
     as_of: datetime | None = None,
     warnings: list[str] | None = None,
 ) -> SOTPScenarioBand | None:
@@ -100,7 +101,15 @@ def compute_scenario_band(
             "(market more bullish than the analyst high)"
         )
 
+    # floor_coverage = floor / price — the ONLY floor-vs-price relation allowed
+    # (both PRESENT values, same caliber; C hard rule). A floor→street ratio would
+    # mix present with 12-month forward and is forbidden — never computed here.
+    floor = cash_flow_floor if _finite_positive(cash_flow_floor) else None
+    floor_coverage = (floor / current_price) if floor is not None else None
+
     return SOTPScenarioBand(
+        cash_flow_floor=floor,
+        floor_coverage=floor_coverage,
         bear=bear,
         base=float(central),
         bull=bull,

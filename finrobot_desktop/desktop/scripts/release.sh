@@ -214,9 +214,14 @@ echo "[release] wrote $LATEST_JSON"
 # --mandatory release → raise the floor to THIS version, so every older install
 # is hard-blocked until it updates. The previous floor is read from the
 # currently-published file (default 0.0.0 on the very first release).
+# `|| true` (NOT `|| echo "0.0.0"`): the node reader already emits "0.0.0" for a
+# missing/unparseable manifest, and set -o pipefail makes the curl failure fail
+# the whole pipeline — so `|| echo` would fire IN ADDITION to node's output and
+# concatenate into "0.0.00.0.0" (a malformed floor on the very first release).
+# The `[[ -z ]]` line below is the real empty-guard.
 PREV_MIN="$(curl -fsSL "https://github.com/$RELEASES_REPO/releases/latest/download/min-version.json" 2>/dev/null \
     | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).min_version||"0.0.0"))}catch{process.stdout.write("0.0.0")}})' \
-    || echo "0.0.0")"
+    || true)"
 [[ -z "$PREV_MIN" ]] && PREV_MIN="0.0.0"
 if [[ "$MANDATORY" == 1 ]]; then MIN_VERSION="$VERSION"; else MIN_VERSION="$PREV_MIN"; fi
 MIN_JSON="$BUNDLE_DIR/min-version.json"

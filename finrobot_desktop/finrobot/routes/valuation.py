@@ -146,13 +146,16 @@ async def _forward_financials(
     # no currency field). Without the anchor the leaf can't tell a native-TWD
     # forward NI from a real one — _forward_to_usd alone is inert here because it
     # reads the post-normalization reporting_currency (already USD).
-    trailing_ni_usd, trailing_rev_usd = await _trailing_usd_anchors(ticker, data_layer)
+    trailing_ni_usd, trailing_rev_usd, trailing_eps_usd = await _trailing_usd_anchors(
+        ticker, data_layer
+    )
     forward = get_forward_financials(
         ticker=ticker,
         yf_info=None,
         fmp_analyst_estimates=payload,
         trailing_net_income_usd=trailing_ni_usd,
         trailing_revenue_usd=trailing_rev_usd,
+        trailing_eps_usd=trailing_eps_usd,
     )
     forward = await _forward_to_usd(forward, ticker, data_layer, fmp_api_key=fmp_api_key)
     if forward.fiscal_period is not None:
@@ -170,26 +173,37 @@ async def _forward_financials(
 
 async def _trailing_usd_anchors(
     ticker: str, data_layer: DataLayer | None
-) -> tuple[float | None, float | None]:
-    """Currency-clean trailing (net income, revenue) for the leaf's FX-mismatch guard.
+) -> tuple[float | None, float | None, float | None]:
+    """Currency-clean trailing (net income, revenue, EPS) for the leaf's FX-mismatch guard.
 
-    Reads ``net_income`` / ``revenue`` off the canonical FINANCIALS snapshot,
-    which the data layer has already FX-normalized to USD (``_apply_canonical_fx``)
-    — so both are USD anchors even for a foreign issuer. (None, None) on any fetch
-    failure (the guard then stays inert, never fails the forward fetch over a
-    missing anchor)."""
+    Reads ``net_income`` / ``revenue`` / ``shares_outstanding`` off the canonical
+    FINANCIALS snapshot, which the data layer has already FX-normalized to USD
+    (``_apply_canonical_fx``) — so all are USD anchors even for a foreign issuer.
+    The EPS anchor = net income / shares (canonical shares are market-cap-consistent
+    = per ADR); it covers the hole where FMP UNDER-reports ``netIncomeAvg`` (KOF)
+    so the NI/revenue legs stay in-band while the native ``epsAvg`` still leaks.
+    (None, None, None) on any fetch failure (the guard then stays inert, never
+    fails the forward fetch over a missing anchor)."""
     if data_layer is None:
-        return None, None
+        return None, None, None
     try:
         fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
     except (ProviderError, ValueError, KeyError) as exc:
         logger.info("forward guard: trailing anchor lookup failed for %s: %s", ticker, exc)
-        return None, None
+        return None, None, None
     ni = getattr(fin, "net_income", None)
     rev = getattr(fin, "revenue", None)
+    shares = getattr(fin, "shares_outstanding", None)
+    ni_f = float(ni) if isinstance(ni, (int, float)) else None
+    eps = (
+        ni_f / float(shares)
+        if (ni_f is not None and ni_f > 0 and isinstance(shares, (int, float)) and shares > 0)
+        else None
+    )
     return (
-        float(ni) if isinstance(ni, (int, float)) else None,
+        ni_f,
         float(rev) if isinstance(rev, (int, float)) else None,
+        eps,
     )
 
 

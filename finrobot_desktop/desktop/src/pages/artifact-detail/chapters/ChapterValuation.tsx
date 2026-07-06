@@ -13,6 +13,7 @@ import type {
   HistoricalBandShape,
   NumericAuditShape,
   SOTPBreakdownShape,
+  SOTPScenarioBandShape,
   ThesisShape,
   ValuationSynthesisShape,
 } from './types'
@@ -524,7 +525,9 @@ function SOTPBreakdownPanel({
   const optionPctLabel = `${(optionPctRaw * 100).toFixed(1)}%`
 
   return (
-    <SubChapter heading={t('chapter.valuation.sotp.heading')}>
+    <SubChapter
+      heading={locale === 'en' ? 'Sum-of-the-Parts · Option Value' : '分部加总 · 期权价值'}
+    >
       <p
         style={{
           fontFamily: 'var(--font-mono)',
@@ -534,7 +537,9 @@ function SOTPBreakdownPanel({
           marginBottom: 12,
         }}
       >
-        {t('chapter.valuation.sotp.intro')}
+        {locale === 'en'
+          ? 'Reverse-SOTP: the deterministic cash-flow floor (SEC-filed segments × comparable multiples) plus the market-implied option value above it — reverse-derived from the live price, never a fabricated target.'
+          : '反向 SOTP:确定性现金流底(SEC 申报分部 × 可比倍数)+ 其上市价隐含的期权价值——由现价反推,绝非编造的目标价。'}
       </p>
 
       {/* Stacked floor / option bar */}
@@ -562,7 +567,7 @@ function SOTPBreakdownPanel({
             whiteSpace: 'nowrap',
           }}
         >
-          {floorPct > 0.12 ? t('chapter.valuation.sotp.floorLabel') : ''}
+          {floorPct > 0.12 ? (locale === 'en' ? 'Cash-flow floor' : '现金流底') : ''}
         </div>
         <div
           style={{
@@ -577,7 +582,7 @@ function SOTPBreakdownPanel({
             whiteSpace: 'nowrap',
           }}
         >
-          {t('chapter.valuation.sotp.optionLabel')} {optionPctLabel}
+          {locale === 'en' ? 'Implied option' : '隐含期权'} {optionPctLabel}
         </div>
       </div>
 
@@ -604,11 +609,11 @@ function SOTPBreakdownPanel({
             value: formatCurrencyCompact(sotp.market_equity, quoteCurrency, locale),
           },
           {
-            label: t('chapter.valuation.sotp.impliedOptionEv'),
+            label: locale === 'en' ? 'Implied Option EV' : '隐含期权 EV',
             value: formatCurrencyCompact(sotp.implied_option_ev, quoteCurrency, locale),
           },
           {
-            label: t('chapter.valuation.sotp.impliedOptionPct'),
+            label: locale === 'en' ? 'Implied Option %' : '隐含期权占比',
             value: optionPctLabel,
           },
           ...(sotp.implied_success_probability != null
@@ -642,7 +647,7 @@ function SOTPBreakdownPanel({
                 {t('chapter.valuation.sotp.multiple')}
               </th>
               <th style={{ padding: '4px 8px', textAlign: 'right' }}>
-                {t('chapter.valuation.sotp.impliedEv')}
+                {locale === 'en' ? 'Implied EV' : '隐含 EV'}
               </th>
             </tr>
           </thead>
@@ -674,6 +679,10 @@ function SOTPBreakdownPanel({
         </table>
       </div>
 
+      {sotp.scenario_band && (
+        <ScenarioBandBlock band={sotp.scenario_band} quoteCurrency={quoteCurrency} />
+      )}
+
       {sotp.option_anchor_source && (
         <p
           style={{
@@ -704,5 +713,174 @@ function SOTPBreakdownPanel({
         </ul>
       )}
     </SubChapter>
+  )
+}
+
+/**
+ * Forward STREET scenario band (Batch 3B v2). A range bar over the 12-month analyst
+ * price-target distribution (bear/consensus/bull) with the live price marked. The
+ * range-position readout is STREET positioning within the sell-side range — labelled
+ * as such, NEVER a "robotaxi-success probability" and NEVER the report's price target
+ * (the legs are 12-month forward values; the reverse-SOTP floor above is present).
+ */
+function ScenarioBandBlock({
+  band,
+  quoteCurrency,
+}: {
+  band: SOTPScenarioBandShape
+  quoteCurrency: string
+}): React.ReactElement {
+  const { locale } = useI18n()
+  const en = locale === 'en'
+  const span = band.bull - band.bear
+  const posOf = (v: number) => (span > 0 ? ((v - band.bear) / span) * 100 : 0)
+  const basePos = Math.max(0, Math.min(100, posOf(band.base)))
+  // Marker is clamped to the track; the raw % (can be <0 / >100) rides the readout.
+  const currentPos = Math.max(0, Math.min(100, band.range_position * 100))
+  const price = (v: number) => formatCurrency(v, quoteCurrency, locale, 2)
+  const confColor = band.confidence === 'very_low' ? 'var(--danger)' : 'var(--warning)'
+
+  return (
+    <div style={{ marginTop: 18, paddingTop: 14, borderTop: '1px solid var(--border-soft)' }}>
+      <div
+        style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: 12,
+          letterSpacing: '1.5px',
+          color: 'var(--text-secondary)',
+          textTransform: 'uppercase',
+          marginBottom: 4,
+        }}
+      >
+        {en ? '12-Month Street Scenario Band' : '12 个月卖方情景带'}
+      </div>
+      <p
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10.5,
+          color: 'var(--text-muted)',
+          lineHeight: 1.6,
+          marginBottom: 14,
+        }}
+      >
+        {en
+          ? 'Analyst 12-month price-target distribution (forward). The marker shows where the live price sits within the street range — street positioning, not the report price target and not a robotaxi-success probability.'
+          : '分析师 12 个月目标价分布(前瞻)。标记显示现价在卖方区间内的位置——卖方区间定位,既不是研报目标价,也不是 robotaxi 成功概率。'}
+      </p>
+
+      {/* Range bar: track bear→bull, consensus tick, live-price (cyan) marker. */}
+      <div style={{ position: 'relative', height: 34 }}>
+        <div
+          style={{
+            position: 'absolute',
+            left: `${currentPos}%`,
+            top: 0,
+            transform: 'translateX(-50%)',
+            textAlign: 'center',
+          }}
+        >
+          <div
+            style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent-cyan)' }}
+          >
+            {price(band.current_price)}
+          </div>
+          <div
+            style={{ width: 2, height: 9, background: 'var(--accent-cyan)', margin: '2px auto 0' }}
+          />
+        </div>
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 6,
+            left: 0,
+            right: 0,
+            height: 8,
+            borderRadius: 'var(--radius-sm)',
+            background:
+              'linear-gradient(90deg, color-mix(in srgb, var(--primary) 40%, transparent), color-mix(in srgb, var(--secondary) 55%, transparent))',
+            border: '1px solid var(--border-soft)',
+          }}
+        />
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 4,
+            left: `${basePos}%`,
+            transform: 'translateX(-50%)',
+            width: 2,
+            height: 12,
+            background: 'var(--text-secondary)',
+          }}
+        />
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10.5,
+          marginTop: 2,
+        }}
+      >
+        <span style={{ color: 'var(--text-muted)' }}>
+          {en ? 'Bear' : '看空'} {price(band.bear)}
+        </span>
+        <span style={{ color: 'var(--text-secondary)' }}>
+          {en ? 'Consensus' : '共识'} {price(band.base)}
+        </span>
+        <span style={{ color: 'var(--text-muted)' }}>
+          {en ? 'Bull' : '看多'} {price(band.bull)}
+        </span>
+      </div>
+
+      <div
+        style={{
+          marginTop: 12,
+          display: 'flex',
+          gap: 12,
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10.5,
+          color: 'var(--text-muted)',
+        }}
+      >
+        <span>
+          {en ? 'Market at' : '现价位于'}{' '}
+          <span style={{ color: 'var(--accent-cyan)' }}>
+            {(band.range_position * 100).toFixed(1)}%
+          </span>{' '}
+          {en ? 'of the street range' : '卖方区间'}
+        </span>
+        <span
+          style={{
+            padding: '1px 7px',
+            borderRadius: 'var(--radius-sm)',
+            border: `1px solid ${confColor}`,
+            color: confColor,
+          }}
+        >
+          {en ? 'confidence' : '置信'}: {band.confidence}
+        </span>
+        {band.analyst_count != null && (
+          <span>
+            · {band.analyst_count} {en ? 'analysts' : '家分析师'}
+          </span>
+        )}
+      </div>
+
+      <p
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          color: 'var(--text-dim)',
+          marginTop: 8,
+          lineHeight: 1.5,
+        }}
+      >
+        {band.source}
+      </p>
+    </div>
   )
 }

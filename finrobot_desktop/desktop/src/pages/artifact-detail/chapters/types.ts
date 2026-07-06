@@ -560,6 +560,24 @@ export interface SegmentValuationShape {
   implied_ev: number
 }
 
+// Forward STREET-anchored scenario band (Batch 3B v2): the three legs are the
+// 12-month analyst price-target DISTRIBUTION (street low/consensus/high). range_position
+// is street positioning within that range — NEVER a robotaxi-success probability, and
+// the legs are 12-month FORWARD values (the reverse-SOTP floor above is a present value).
+export interface SOTPScenarioBandShape {
+  bear: number
+  base: number
+  bull: number
+  median?: number | null
+  current_price: number
+  range_position: number
+  analyst_count?: number | null
+  confidence: string
+  source: string
+  as_of: string
+  warnings?: string[]
+}
+
 export interface SOTPBreakdownShape {
   ticker: string
   as_of: string
@@ -578,6 +596,7 @@ export interface SOTPBreakdownShape {
   implied_success_probability?: number | null
   floor_exceeds_market?: boolean
   market_exceeds_success_ceiling?: boolean
+  scenario_band?: SOTPScenarioBandShape | null
   warnings?: string[]
 }
 

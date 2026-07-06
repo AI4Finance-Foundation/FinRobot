@@ -531,9 +531,16 @@ class TestClassifyNews:
         instructions = captured["instructions"]
         assert "TSLA" in instructions
         assert "Tesla, Inc." in instructions
-        # The rubric must steer tangential / market-wide items low.
-        assert "1-2" in instructions
+        # The rubric must steer tangential / market-wide items low: the anchored
+        # 1–5 scale bottoms out ("1 =" noise / "2 =" low-relevance) and calls out
+        # tangential coverage explicitly.
+        assert "1 =" in instructions and "2 =" in instructions
         assert "tangential" in instructions.lower()
+        # 5/5 must be framed as SCARCE (the anti-inflation calibration), not just
+        # "any company-specific event".
+        assert "SCARCE" in instructions
+        # pricing must be steered away from 'product' (repricing != new offering).
+        assert "PRICING" in instructions or "pricing" in instructions
 
     @pytest.mark.asyncio
     async def test_classify_news_wraps_untrusted_and_flattens_injection(self):

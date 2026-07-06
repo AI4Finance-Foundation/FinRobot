@@ -32,6 +32,7 @@ from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.data.types import DataType
 from finrobot.engine.deps import FinRobotDeps
 from finrobot.engine.models.financial import DDMInputs, FinancialData, StepOutput
+from finrobot.engine.primitives.book_value import reconcile_book_value_to_price_basis
 from finrobot.engine.primitives.industry import is_non_life_insurer
 from finrobot.engine.pipelines.base import (
     Pipeline,
@@ -150,6 +151,22 @@ async def _execute_ddm_seed(
                 "reporting_currency": "USD",
                 "quote_currency": "USD",
             }
+        )
+
+    # Book value per share on the quoted price's (per-ADR) basis before it seeds the
+    # DDM P/B distortion guard and the residual-income justified-P/B (both compare
+    # bvps against the per-ADR current_price / multiply it into a per-share value).
+    # The canonical keeps bvps on the provider's raw share basis (so the comps
+    # pb_ratio stays byte-identical); the DDM/RI seed needs the per-ADR figure, the
+    # same reconciliation extract_financial_data applies for the displayed snapshot.
+    # No-op for every current issuer (US, and the bank/insurer ADRs whose provider
+    # share count already matches market_cap/price); guards a future off-basis ADR.
+    reconciled_bvps, bvps_note = reconcile_book_value_to_price_basis(
+        _fin.book_value_per_share, _fin.shares_outstanding, _fin.market_cap, _fin.current_price
+    )
+    if bvps_note is not None:
+        _fin = _fin.model_copy(
+            update={"book_value_per_share": reconciled_bvps, "warnings": [*_fin.warnings, bvps_note]}
         )
 
     # Write the USD-normalized snapshot BACK so build_ddm_artifact's raw_data

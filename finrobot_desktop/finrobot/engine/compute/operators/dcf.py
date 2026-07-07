@@ -164,6 +164,7 @@ def calculate_dcf(
         projected_fcf=projected_fcf,
         terminal_value=terminal_value,
         pv_terminal=pv_terminal,
+        terminal_fcf=terminal_fcf,
         pv_fcf_total=pv_fcf_total,
         enterprise_value=enterprise_value,
         equity_value=equity_value,

@@ -509,6 +509,14 @@ msgid "chapter.sensitivity.assumptions.terminalGrowth"
 msgstr "terminal growth"
 
 #. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.terminalBase"
+msgstr "The Gordon terminal value capitalizes a normalized steady-state FCF of"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.terminalBaseNote"
+msgstr " — capex normalized to the maintenance level and working-capital build to the perpetual growth rate. It differs from the final explicit-year FCF, which still carries growth-phase reinvestment."
+
+#. js-lingui-explicit-id
 msgid "chapter.sensitivity.matrix.title"
 msgstr "WACC × Terminal Growth → Implied Price"
 

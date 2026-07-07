@@ -33,6 +33,10 @@ export interface DcfShape {
   projected_fcf?: number[]
   terminal_value?: number
   pv_terminal?: number
+  /** Steady-state Gordon perpetuity BASE (capex→maintenance anchor, ΔNWC→
+   * marginal ratio) — NOT projected_fcf[-1]; disclosed so the terminal value
+   * is reconstructible from printed inputs. Absent on legacy artifacts. */
+  terminal_fcf?: number | null
   pv_fcf_total?: number
   enterprise_value?: number
   equity_value?: number

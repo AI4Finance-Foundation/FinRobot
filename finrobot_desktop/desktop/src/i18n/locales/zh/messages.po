@@ -509,6 +509,14 @@ msgid "chapter.sensitivity.assumptions.terminalGrowth"
 msgstr "永续增长"
 
 #. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.terminalBase"
+msgstr "戈登终值资本化的是常态化稳态 FCF"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.terminalBaseNote"
+msgstr "——capex 归一到维护性水平、营运资本增量归一到永续增速；与仍背着成长期再投资的显式末年 FCF 不同。"
+
+#. js-lingui-explicit-id
 msgid "chapter.sensitivity.matrix.title"
 msgstr "WACC × 永续增长率 → 隐含价"
 

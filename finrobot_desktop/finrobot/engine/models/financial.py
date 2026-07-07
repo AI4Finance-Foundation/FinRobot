@@ -676,6 +676,12 @@ class DCFResult(BaseModel):
     # Terminal value
     terminal_value: float
     pv_terminal: float
+    # Steady-state perpetuity BASE (capex normalized to the maintenance anchor,
+    # ΔNWC to the marginal ratio — see operators/dcf._terminal_fcf). It is NOT
+    # projected_fcf[-1]: without disclosing it a reader reconstructing Gordon
+    # from the printed FCF path lands ~2x off and reads the gap as an error
+    # (KO external audit 2026-07-07). Optional for legacy-artifact read-compat.
+    terminal_fcf: float | None = None
 
     # Valuation
     pv_fcf_total: float

@@ -2,7 +2,7 @@ import SensitivityHeatmap from '../../../components/charts/SensitivityHeatmap'
 import { Chapter, SubChapter } from './ChapterBase'
 import type { DcfShape } from './types'
 import { useI18n } from '../../../i18n'
-import { formatCurrency } from '../../../utils/format'
+import { formatCurrency, formatCurrencyCompact } from '../../../utils/format'
 
 interface SensitivityTableShape {
   wacc_values?: number[]
@@ -41,11 +41,31 @@ interface AxisSwing {
   driver: 'wacc' | 'tg'
 }
 
+/** Index of the axis value closest to the DCF's own base value. The backend
+ * grid is built AROUND the base case but Gordon-floor pruning can DROP the
+ * upper terminal-growth cells (KO: tg axis [2.0, 2.5, 3.0] with base 3.0 in
+ * the LAST slot), so "the grid centre" is not where the base lives — the
+ * notes claimed "at base terminal growth" while reading the 2.5% column
+ * (external audit 2026-07-07). Fall back to the centre only when the base
+ * value is unavailable. */
+function nearestIndex(values: number[], base: number | undefined): number {
+  if (base === undefined || !Number.isFinite(base)) return Math.floor(values.length / 2)
+  let best = 0
+  for (let i = 1; i < values.length; i++) {
+    if (Math.abs(values[i] - base) < Math.abs(values[best] - base)) best = i
+  }
+  return best
+}
+
 // Derive how far implied price moves along each axis of the ACTUAL grid, so the
-// "notes" describe this DCF rather than a hardcoded boilerplate paragraph. The
-// base case sits at the grid centre, so we hold one axis at its middle index
-// and read the spread along the other.
-function computeAxisSwing(table: Record<string, unknown> | null | undefined): AxisSwing | null {
+// "notes" describe this DCF rather than a hardcoded boilerplate paragraph. Each
+// axis is held at the index nearest the BASE assumption (not the grid centre —
+// see nearestIndex) while the spread is read along the other.
+function computeAxisSwing(
+  table: Record<string, unknown> | null | undefined,
+  baseWacc: number | undefined,
+  baseTg: number | undefined,
+): AxisSwing | null {
   if (!table) return null
   const t = table as SensitivityTableShape
   const waccs = Array.isArray(t.wacc_values) ? t.wacc_values : []
@@ -54,8 +74,8 @@ function computeAxisSwing(table: Record<string, unknown> | null | undefined): Ax
   if (waccs.length < 2 || tgs.length < 2 || prices.length === 0) return null
 
   const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v > 0
-  const baseWaccRow = Math.floor(waccs.length / 2)
-  const baseTgCol = Math.floor(tgs.length / 2)
+  const baseWaccRow = nearestIndex(waccs, baseWacc)
+  const baseTgCol = nearestIndex(tgs, baseTg)
 
   // Vary WACC at base terminal growth = the base-TG column down all rows.
   const waccCol = prices
@@ -112,7 +132,7 @@ export function SensitivityBody({
   const table = dcf?.sensitivity_table ?? null
   const inputs = dcf?.inputs
   const heatmapRows = flattenSensitivity(table)
-  const swing = computeAxisSwing(table)
+  const swing = computeAxisSwing(table, dcf?.wacc, inputs?.terminal_growth_rate)
 
   // A balance-sheet financial has no DCF at all — the whole sensitivity chapter (which
   // sweeps WACC × terminal growth of the FCFF-DCF) does not apply. Lead with the reason
@@ -164,6 +184,20 @@ export function SensitivityBody({
                 {(inputs.terminal_growth_rate * 100).toFixed(2)}%
               </strong>
               .
+            </>
+          )}
+          {/* Gordon reconstruction disclosure: the perpetuity BASE is the
+              normalized steady-state FCF, not projected_fcf[-1] — without
+              this line a reader rebuilding TV from the printed FCF path
+              lands ~2x off and reads it as an error (KO audit 2026-07-07). */}
+          {typeof dcf?.terminal_fcf === 'number' && dcf.terminal_fcf > 0 && (
+            <>
+              {' '}
+              {t('chapter.sensitivity.assumptions.terminalBase')}{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>
+                {formatCurrencyCompact(dcf.terminal_fcf, quoteCurrency, locale)}
+              </strong>
+              {t('chapter.sensitivity.assumptions.terminalBaseNote')}
             </>
           )}
         </p>

@@ -762,3 +762,61 @@ class TestSuppressionReasonReachesHeadline:
             f" basis 只读 degradation_note 不读 vs.warnings = split-brain。\n"
             f"basis={thesis.basis!r}\nvs.warnings={vs.warnings!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Re-rating disclosure warnings (slice 2 plumbing, 2026-07-07). A multiples
+# method whose implied multiple sits far from the target's own current multiple
+# is betting on an unproven re-rating. Two deliberate surfaces, pinned here:
+#   1. the warning MUST reach vs.warnings (report warnings section) via
+#      build_valuation_synthesis's marker forwarding;
+#   2. the warning MUST NOT be folded into CanonicalThesis.basis — the cover
+#      prose stays lean (assumptions live on the football-field method row);
+#      only "method withheld" exit reasons belong in basis.
+# ---------------------------------------------------------------------------
+
+
+def _rerating_context() -> dict[str, object]:
+    """Forward comps path with a large implied re-rating: median_forward_pe=32
+    vs self forward P/E = 100.0 / 7.0 ≈ 14.3 → ratio ≈ 2.24 > 1.25 threshold."""
+    comps = _peer_comps()
+    comps.median_forward_pe = 32.0
+    comps.forward_pe_sample_n = 5
+    return {
+        "financial_modeling": _dcf(90.0),
+        "peer_analysis": comps,
+        "forward_financials": _forward(),
+        "data_collection": _financial_data(),
+    }
+
+
+class TestReratingDisclosureReachesWarnings:
+    def test_rerating_warning_forwarded_to_synthesis_warnings(self) -> None:
+        """re-rating 披露必须经 RERATING_WARNING_MARKER 转发进 vs.warnings
+        (报告 warnings 区);只进 REST agg.warnings = 外审读者看不见 = 白修。"""
+        from finrobot.engine.compute.operators.valuation_aggregator import (
+            RERATING_WARNING_MARKER,
+        )
+
+        vs = build_valuation_synthesis(_rerating_context(), current_price=100.0, ticker="X")
+        assert vs is not None
+        assert any("comps_pe" in m.name for m in vs.methods), "comps_pe 应正常出行(非退出)"
+        assert any(RERATING_WARNING_MARKER in w for w in vs.warnings), (
+            f"re-rating warning 未转发进 vs.warnings(报告面丢失): {vs.warnings!r}"
+        )
+
+    def test_rerating_warning_stays_out_of_canonical_basis(self) -> None:
+        """有意行为:re-rating 披露不是方法退出,basis 的 withheld-only 过滤不许
+        吸收它——封面保持克制,方法行 assumptions 已带同一信息。"""
+        from finrobot.engine.compute.operators.valuation_aggregator import (
+            RERATING_WARNING_MARKER,
+        )
+
+        vs = build_valuation_synthesis(_rerating_context(), current_price=100.0, ticker="X")
+        assert vs is not None
+        thesis = resolve_canonical_thesis(vs, "X")
+        assert thesis.basis is not None
+        assert RERATING_WARNING_MARKER not in thesis.basis, (
+            "re-rating 披露泄漏进封面 basis——它不是 method-withheld 退出原因,"
+            f"不属于 basis prose。basis={thesis.basis!r}"
+        )

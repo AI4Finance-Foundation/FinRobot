@@ -157,6 +157,14 @@ re-rating is large enough to also flag in the warnings section. Symmetric — fi
 upward re-rate (ratio > 1.25) and a downward de-rate (ratio < 0.75) alike. NOT a financial
 calibration; moving it re-rates no target and drops no row."""
 
+RERATING_WARNING_MARKER: Final[str] = (
+    "judge independently whether that multiple shift is warranted"
+)
+"""Stable tail every re-rating warning ends with. _helpers.build_valuation_synthesis
+matches on THIS constant to forward these warnings into ValuationSynthesis.warnings
+(the report's warnings section). Single source: reword the warning text only through
+this constant, or the forwarding silently breaks."""
+
 
 def _comps_median_refusal(
     median_val: float,
@@ -694,7 +702,7 @@ def _comps_pe_method(
                 f"comps_pe: pricing the target at the peer median implies its own "
                 f"{rerating_pe_kind} must {shift} from {self_multiple:.1f}× to {multiple:.1f}× "
                 f"({ratio:.2f}× the current multiple) — an unproven re-rating premise, not a "
-                f"modelled convergence; judge independently whether that multiple shift is warranted."
+                f"modelled convergence; {RERATING_WARNING_MARKER}."
             )
     return ValuationMethodRange(
         method="comps_pe",
@@ -1064,7 +1072,7 @@ def _ev_ebitda_method(
                     f"ev_ebitda: reverting the target to its own 5-year historical multiple "
                     f"implies its EV/EBITDA must {shift} from {current_implied:.1f}× to "
                     f"{band_mid:.1f}× ({ratio:.2f}× the current multiple) — an unproven "
-                    f"mean-reversion premise; judge independently whether that multiple shift is warranted."
+                    f"mean-reversion premise; {RERATING_WARNING_MARKER}."
                 )
     return ValuationMethodRange(
         method="ev_ebitda",

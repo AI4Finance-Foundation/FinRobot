@@ -29,6 +29,7 @@ from finrobot.engine.compute.operators.multiples import (
     calculate_peer_statistics,
 )
 from finrobot.engine.compute.operators.valuation_aggregator import (
+    RERATING_WARNING_MARKER,
     aggregate_valuation,
     through_cycle_roe,
 )
@@ -998,12 +999,22 @@ def build_valuation_synthesis(
         logger.warning("Failed to build ValuationSynthesis: %s", e)
         return None
 
-    # A method the guards sent off (comps_pe: thin median sample / multiple-
-    # mismatch premise) must say WHY in the artifact, not in a debug log — the
-    # synthesis basis says "only one method resolved" and the reader needs the
-    # other half of that sentence. Same diagnosability rule as the DCF degrade
-    # warning; the REST aggregate route already surfaces agg.warnings whole.
-    exit_reasons = [w for w in agg.warnings if "method withheld" in w]
-    if exit_reasons:
-        vs.warnings.extend(w for w in exit_reasons if w not in vs.warnings)
+    # Two warning families cross from the aggregate into the report artifact:
+    # 1) Method exit reasons ("method withheld") — a runnable method a guard sent
+    #    off must say WHY in the artifact, not in a debug log; downstream
+    #    resolve_canonical_thesis also folds THESE into the basis prose.
+    # 2) Re-rating disclosures (RERATING_WARNING_MARKER) — a multiples method
+    #    whose implied multiple sits far from the target's own current multiple
+    #    is betting on an unproven re-rating; the reader must see that premise in
+    #    the report's warnings section. Deliberately NOT "method withheld": the
+    #    method still prices, and basis's withheld-only filter must not absorb it
+    #    (cover prose stays lean; the football-field row carries assumptions).
+    # The REST aggregate route already surfaces agg.warnings whole.
+    forwarded = [
+        w
+        for w in agg.warnings
+        if "method withheld" in w or RERATING_WARNING_MARKER in w
+    ]
+    if forwarded:
+        vs.warnings.extend(w for w in forwarded if w not in vs.warnings)
     return vs

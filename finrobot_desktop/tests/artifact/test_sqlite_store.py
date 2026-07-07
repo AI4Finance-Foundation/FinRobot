@@ -21,7 +21,11 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 
-from finrobot.artifact.sqlite_store import SqliteArtifactStore
+from finrobot.artifact.sqlite_store import (
+    SUMMARY_PROJECTION_VERSION,
+    SqliteArtifactStore,
+    _headline_from_summary,
+)
 from tests.artifact.conftest import _make_artifact
 
 UTC = timezone.utc
@@ -745,3 +749,118 @@ async def test_get_unreadable_payload_self_archives_and_exists(
     # exists() splits the two miss cases.
     assert await store.exists("art_ghost") is True
     assert await store.exists("art_never_stored") is False
+
+
+# ── headline projection: no markdown-facade leak (external-review defect) ─────
+
+# A real multi-method equity_research summary_text — format_summary() output,
+# which opens with the generic markdown scaffolding a blind [:120] slice used to
+# leak into the headline column / exported-HTML timeline JSON.
+_POLLUTED_SUMMARY = (
+    "# FinRobot Analysis Report\n\n\n---\n\n## Data Collection\n\n"
+    "### Microsoft Corporation (MSFT) Financial and Price Data Summary\n\n"
+    "Microsoft reported revenue of $245.1B (TTM) with a 44% operating margin, "
+    "driven by Azure and Microsoft 365 Copilot adoption."
+)
+
+
+def test_headline_from_summary_skips_markdown_facade() -> None:
+    """The bug: a blind summary_text[:120] leaked "# FinRobot Analysis Report /
+    --- / ## Data Collection" scaffolding. The cleaned headline is the first
+    PROSE line — no heading hash, no rule, no scaffolding text."""
+    headline = _headline_from_summary(_POLLUTED_SUMMARY)
+    assert headline.startswith("Microsoft reported revenue of $245.1B")
+    assert "#" not in headline
+    assert "FinRobot Analysis Report" not in headline
+    assert "Data Collection" not in headline
+    assert len(headline) <= 120
+
+
+def test_headline_from_summary_strips_leading_bullet_and_inline_emphasis() -> None:
+    text = "## Header\n\n- **Revenue:** $245.1B up 12% YoY on `cloud` demand"
+    assert _headline_from_summary(text) == "Revenue: $245.1B up 12% YoY on cloud demand"
+
+
+def test_headline_from_summary_plain_prose_matches_legacy_slice() -> None:
+    """A plain-prose summary (no scaffolding) is unchanged from the old [:120]."""
+    prose = "DDM implies $319.89 per share (10.3% upside vs $290.00)."
+    assert _headline_from_summary(prose) == prose[:120] == prose
+
+
+def test_headline_from_summary_truncates_long_prose_to_120() -> None:
+    long_line = "Microsoft " + "x" * 300
+    out = _headline_from_summary(long_line)
+    assert len(out) == 120
+    assert out == long_line[:120]
+
+
+def test_headline_from_summary_all_scaffolding_falls_back_to_slice() -> None:
+    """Every line is heading/rule/blank → fall back to the raw [:120] so the
+    result is never emptier than the old behaviour (caller adds `or id`)."""
+    only_scaffold = "# FinRobot Analysis Report\n\n---\n\n## Data Collection"
+    assert _headline_from_summary(only_scaffold) == only_scaffold[:120]
+
+
+def test_headline_from_summary_empty_returns_empty() -> None:
+    """Empty in → empty out; call sites keep their `or artifact.id` guard."""
+    assert _headline_from_summary("") == ""
+
+
+@pytest.mark.asyncio
+async def test_save_projects_clean_headline_not_markdown_facade(
+    store: SqliteArtifactStore,
+) -> None:
+    """save() (_artifact_to_row) must store a prose headline preview, not the
+    leaked "# FinRobot Analysis Report / --- / ## Data Collection" scaffolding
+    the exported-HTML timeline JSON surfaces to external readers."""
+    art = _make_artifact(id="art_polluted", type="equity_research")
+    art.outputs.summary_text = _POLLUTED_SUMMARY
+    await store.save(art)
+
+    with sqlite3.connect(store._db_path) as conn:
+        (headline,) = conn.execute(
+            "SELECT headline FROM artifacts WHERE id = ?", ("art_polluted",)
+        ).fetchone()
+    assert headline.startswith("Microsoft reported revenue of $245.1B")
+    assert "# FinRobot Analysis Report" not in headline
+    assert not headline.lstrip().startswith("#")
+
+
+@pytest.mark.asyncio
+async def test_headline_backfills_via_startup_version_gate(
+    store: SqliteArtifactStore,
+) -> None:
+    """Migration story: a db stamped at the pre-fix projection version (4) with a
+    leaked-facade headline column gets the clean headline backfilled by the
+    startup gate (rebuild_summaries_if_outdated → rebuild_summaries), advancing
+    the recorded version — so shipped installs self-heal on next boot WITHOUT
+    the reprojection path re-writing the facade back (the third [:120] site).
+    """
+    art = _make_artifact(id="art_backfill", type="equity_research")
+    art.outputs.summary_text = _POLLUTED_SUMMARY
+    await store.save(art)
+
+    # Stamp the pre-fix state: old projection version + the blind-slice headline.
+    with sqlite3.connect(store._db_path) as conn:
+        conn.execute("PRAGMA user_version = 4")
+        conn.execute(
+            "UPDATE artifacts SET headline = ? WHERE id = ?",
+            (_POLLUTED_SUMMARY[:120], "art_backfill"),
+        )
+        conn.commit()
+        (stale,) = conn.execute(
+            "SELECT headline FROM artifacts WHERE id = ?", ("art_backfill",)
+        ).fetchone()
+    assert stale.startswith("# FinRobot Analysis Report")  # pre-condition: polluted
+
+    assert SUMMARY_PROJECTION_VERSION >= 5  # this fix bumped past the v4 baseline
+    updated = await store.rebuild_summaries_if_outdated()
+    assert updated == 1  # the pre-fix row was re-projected
+
+    summaries = await store.list_by_ticker(ticker="AAPL")
+    assert summaries[0].headline.startswith("Microsoft reported revenue of $245.1B")
+    assert "# FinRobot Analysis Report" not in summaries[0].headline
+
+    with sqlite3.connect(store._db_path) as conn:
+        (applied,) = conn.execute("PRAGMA user_version").fetchone()
+    assert applied == SUMMARY_PROJECTION_VERSION

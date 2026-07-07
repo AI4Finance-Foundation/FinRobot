@@ -124,7 +124,13 @@ _SUMMARY_COLUMNS = (
 # existing rows backfill the in-band point-target-withhold marker from their
 # stored payload (lets the version-timeline row render "Fairly Valued" rather
 # than a generic "WITHHELD").
-SUMMARY_PROJECTION_VERSION = 4
+# v5 — 2026-07-07: headline projection cleaned. It was a blind
+# ``summary_text[:120]`` that leaked the "# FinRobot Analysis Report\n---\n
+# ## Data Collection …" markdown scaffolding into the exported-HTML timeline
+# JSON (external-review defect). _headline_from_summary now skips the heading /
+# rule / blank scaffolding and previews the first prose line; bump so existing
+# rows re-project a clean headline instead of the leaked markdown facade.
+SUMMARY_PROJECTION_VERSION = 5
 
 
 def _now() -> datetime:
@@ -138,6 +144,63 @@ def _parse_dt(value: str | None) -> datetime | None:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+# Inline markdown emphasis chars stripped from a headline preview: ``*`` covers
+# both ``**bold**`` and ``*italic*``, backticks cover ``code`` spans. ``_``/``~``
+# are deliberately left alone — an underscore is far more often part of prose /
+# an identifier than an emphasis marker, and blanket-stripping it would mangle
+# real text.
+_INLINE_MD_CHARS = "*`"
+# A line made only of these (and ≥3 long) is a horizontal rule / thematic break
+# (``---`` / ``***`` / ``___`` and their space-separated forms) — decoration.
+_RULE_CHARS = frozenset("-*_ ")
+
+
+def _strip_inline_markdown(line: str) -> str:
+    """Strip leading block markers and inline emphasis from one line.
+
+    Deliberately lightweight (no markdown parser): drop leading blockquote / list
+    markers, then remove inline emphasis chars anywhere in the line.
+    """
+    line = line.lstrip(">+-* \t")
+    for ch in _INLINE_MD_CHARS:
+        line = line.replace(ch, "")
+    return line.strip()
+
+
+def _headline_from_summary(summary_text: str) -> str:
+    """Derive a plain-text summary preview from an artifact's ``summary_text``.
+
+    A multi-method equity_research report's ``summary_text`` is
+    ``format_summary()`` output (builders.py ``_summary_text``), which opens with
+    the generic ``# FinRobot Analysis Report`` / ``---`` / ``## Data Collection``
+    markdown scaffolding. A blind ``summary_text[:120]`` therefore projected that
+    markdown facade into the ``headline`` column — invisible in the app (the
+    version-timeline row prefers ``tagline``) but embedded verbatim in the
+    exported-HTML timeline JSON, where an external reviewer reads it as a
+    data-pipeline defect.
+
+    Skip the heading / horizontal-rule / blank scaffolding lines and preview the
+    first line carrying real prose, stripped of light inline markdown. Fall back
+    to the raw ``[:120]`` slice when every line is scaffolding, so the result is
+    never emptier than the old behaviour produced (the caller keeps its
+    ``or artifact.id`` guard for a genuinely empty summary).
+    """
+    for raw_line in summary_text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        # ATX heading: 1–6 leading '#' then a space (or a bare '######').
+        hashes = len(line) - len(line.lstrip("#"))
+        if 1 <= hashes <= 6 and (len(line) == hashes or line[hashes] == " "):
+            continue
+        if len(line) >= 3 and set(line) <= _RULE_CHARS:  # horizontal rule
+            continue
+        cleaned = _strip_inline_markdown(line)
+        if cleaned:
+            return cleaned[:120]
+    return summary_text[:120]
 
 
 def _row_to_summary(row: tuple[Any, ...]) -> ArtifactSummary:
@@ -193,7 +256,7 @@ def summary_from_artifact(artifact: Artifact) -> ArtifactSummary:
         cross_tickers=list(artifact.cross_tickers or []),
         type=artifact.type,
         created_at=artifact.meta.created_at,
-        headline=(artifact.outputs.summary_text[:120] or artifact.id)
+        headline=(_headline_from_summary(artifact.outputs.summary_text) or artifact.id)
         if artifact.outputs
         else artifact.id,
         source=artifact.meta.source,
@@ -213,7 +276,9 @@ def _artifact_to_row(artifact: Artifact) -> tuple[Any, ...]:
     target_price = extract_target_price(artifact)
     target_date = extract_target_date(artifact, target_price)
     headline = (
-        (artifact.outputs.summary_text[:120] or artifact.id) if artifact.outputs else artifact.id
+        (_headline_from_summary(artifact.outputs.summary_text) or artifact.id)
+        if artifact.outputs
+        else artifact.id
     )
     return (
         artifact.id,
@@ -573,7 +638,7 @@ class SqliteArtifactStore:
             target_price = extract_target_price(artifact)
             target_date = extract_target_date(artifact, target_price)
             headline = (
-                (artifact.outputs.summary_text[:120] or artifact.id)
+                (_headline_from_summary(artifact.outputs.summary_text) or artifact.id)
                 if artifact.outputs
                 else artifact.id
             )

@@ -442,7 +442,7 @@ msgstr "估值三角（足球场图）"
 
 #. js-lingui-explicit-id
 msgid "chapter.valuation.football.title"
-msgstr "DCF / 同业 / DDM / LBO 目标价区间"
+msgstr "分方法目标价区间"
 
 #. js-lingui-explicit-id
 msgid "chapter.valuation.forwardEstimates"

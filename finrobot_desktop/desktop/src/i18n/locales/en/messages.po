@@ -442,7 +442,7 @@ msgstr "Valuation Triangulation (Football Field)"
 
 #. js-lingui-explicit-id
 msgid "chapter.valuation.football.title"
-msgstr "DCF / Comps / DDM / LBO Target-Price Range"
+msgstr "Target-Price Range by Method"
 
 #. js-lingui-explicit-id
 msgid "chapter.valuation.forwardEstimates"

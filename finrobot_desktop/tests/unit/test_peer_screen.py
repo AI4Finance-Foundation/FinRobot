@@ -792,3 +792,213 @@ def test_bare_symbol_preferred_baby_bonds_excluded_from_peer_set() -> None:
     # The actual Aegon common and real insurer commons are kept.
     assert "AEG" not in result.dropped_non_common
     assert {"ACGL", "AEG", "HIG", "SLF"}.issubset(set(result.tickers))
+
+
+# ── Liveness (delisted / renamed) gate ────────────────────────────────────────
+# Field structure (quotes / names / the new ``active`` bool map) and the market caps
+# / names / isActivelyTrading values for VMW, SQ, XYZ are taken from the live FMP
+# /profile + /company-screener pull on 2026-07-07 (VMW isActivelyTrading=False, frozen
+# ~$61.5B cap; SQ isActivelyTrading=False, stale ~$51.7B; XYZ isActivelyTrading=True,
+# live ~$47.0B — SQ and XYZ both name "Block, Inc."). P/E values are round test
+# scaffolding (the liveness gate acts before the P/E gate), never copied from code.
+
+
+def test_delisted_candidate_dropped_and_recorded() -> None:
+    """A candidate the provider flags isActivelyTrading=False (VMware VMW, absorbed into
+    Broadcom in 2023 — frozen at $142.48 with a stale ~$61.5B cap) is not a live trading
+    comp: it is dropped, recorded in ``dropped_delisted``, and named in the auditable
+    rationale. It must not be mis-filed under another drop bucket."""
+    payload = {
+        "profile": {
+            "company_name": "Microsoft Corporation",
+            "sector": "Technology",
+            "industry": "Software - Infrastructure",
+            "market_cap": 3_000_000_000_000,
+            "description": "Cloud software and productivity services.",
+        },
+        "industry_screen": ["CRM", "ORCL", "VMW", "NOW"],
+        "stock_peers": [],
+        "sector_screen": [],
+        "quotes": {
+            "CRM": {"market_cap": 250_000_000_000, "pe": 40.0},
+            "ORCL": {"market_cap": 400_000_000_000, "pe": 30.0},
+            "VMW": {"market_cap": 61_521_441_480, "pe": 20.0},  # stale frozen cap
+            "NOW": {"market_cap": 190_000_000_000, "pe": 55.0},
+        },
+        "names": {
+            "CRM": "Salesforce, Inc.",
+            "ORCL": "Oracle Corporation",
+            "VMW": "VMware, Inc.",
+            "NOW": "ServiceNow, Inc.",
+        },
+        "active": {"CRM": True, "ORCL": True, "VMW": False, "NOW": True},
+    }
+
+    result = screen_peers(payload, "MSFT")
+
+    assert "VMW" not in result.tickers
+    assert "VMW" in result.dropped_delisted
+    # Not mis-attributed to another drop bucket.
+    assert "VMW" not in result.dropped_duplicate
+    assert "VMW" not in result.dropped_role
+    assert "VMW" not in result.dropped_nm
+    # The live peers are kept.
+    assert {"CRM", "ORCL", "NOW"}.issubset(set(result.tickers))
+    # Auditable: the delisted drop is named in the rationale trace.
+    assert "delisted/renamed" in result.rationale
+    assert "VMW" in result.rationale
+    # Deterministic.
+    assert result == screen_peers(payload, "MSFT")
+
+
+def test_same_issuer_keeps_live_listing_over_delisted_ticker() -> None:
+    """Old Block ``SQ`` (renamed to ``XYZ`` in 2025) and the live ``XYZ`` are ONE issuer
+    ("Block, Inc.") — same normalized name, market caps within the dedup band. The dead SQ
+    even carries the LARGER (stale, frozen) cap, so the ``-cap`` tiebreak alone would keep
+    SQ and drop the live XYZ (the pre-fix bug). The liveness key in ``_keep_rank`` makes the
+    LIVE listing win the same-issuer dedup."""
+    payload = {
+        "profile": {
+            "company_name": "Microsoft Corporation",
+            "sector": "Technology",
+            "industry": "Software - Infrastructure",
+            "market_cap": 3_000_000_000_000,
+            "description": "Cloud software and productivity services.",
+        },
+        "industry_screen": ["SQ", "XYZ", "CRM", "ORCL"],
+        "stock_peers": [],
+        "sector_screen": [],
+        "quotes": {
+            "SQ": {"market_cap": 51_729_675_689, "pe": 18.0},  # dead, stale LARGER cap
+            "XYZ": {"market_cap": 46_977_637_514, "pe": 18.0},  # live, smaller cap
+            "CRM": {"market_cap": 250_000_000_000, "pe": 40.0},
+            "ORCL": {"market_cap": 400_000_000_000, "pe": 30.0},
+        },
+        "names": {
+            "SQ": "Block, Inc.",
+            "XYZ": "Block, Inc.",
+            "CRM": "Salesforce, Inc.",
+            "ORCL": "Oracle Corporation",
+        },
+        "active": {"SQ": False, "XYZ": True, "CRM": True, "ORCL": True},
+    }
+
+    result = screen_peers(payload, "MSFT")
+
+    # The live listing is kept; the dead one is deduped out to the live issuer.
+    assert "XYZ" in result.tickers
+    assert "SQ" not in result.tickers
+    assert "SQ" in result.dropped_duplicate
+    # One row per issuer — Block counted exactly once.
+    _assert_one_row_per_issuer(result, payload)
+
+    # Control: WITHOUT the liveness signal the stale, larger-cap dead SQ wins the -cap
+    # tiebreak (the pre-fix behaviour), keeping the delisted ticker and dropping the live one.
+    stale_payload = {k: v for k, v in payload.items() if k != "active"}
+    stale = screen_peers(stale_payload, "MSFT")
+    assert "SQ" in stale.tickers
+    assert "XYZ" not in stale.tickers
+
+
+def test_protected_cohort_member_flagged_inactive_is_kept_and_disclosed() -> None:
+    """A curated/protected cohort member (MU's storage peer STX) that the provider flags
+    inactive is KEPT by the curation override — the override must beat every downstream gate
+    (the 2026-06-14 MU lesson) — and the override is DISCLOSED in the rationale, not silently
+    applied. A kept-by-override member must NOT appear in ``dropped_delisted``."""
+    payload = _mu_payload()
+    # Provider (hypothetically) flags Seagate inactive; the rest live.
+    payload["active"] = {
+        "WDC": True,
+        "STX": False,
+        "SNDK": True,
+        "NVDA": True,
+        "AVGO": True,
+        "AMD": True,
+        "ARM": True,
+        "TXN": True,
+        "AMAT": True,
+        "KLAC": True,
+        "LRCX": True,
+    }
+
+    result = screen_peers_with_cyclical(payload, "MU")
+
+    # Kept despite the inactive flag (curation override), and NOT recorded as delisted.
+    assert "STX" in result.tickers
+    assert "STX" not in result.dropped_delisted
+    # The override is disclosed in the rationale, naming STX.
+    assert "curation override" in result.rationale
+    assert "STX" in result.rationale
+    # The other curated members are unaffected.
+    assert {"WDC", "SNDK"}.issubset(set(result.tickers))
+
+
+def test_missing_active_key_never_drops_a_candidate_for_liveness() -> None:
+    """Back-compat: a stale pre-``active`` cached payload (no ``active`` key at all) has NO
+    liveness signal, so every candidate reads as UNKNOWN and NONE is dropped for liveness —
+    identical to the pre-gate behaviour. A delisted VMW here is NOT dropped, because there is
+    no signal that it is dead (exactly as the screen behaved before the liveness gate)."""
+    payload = {
+        "profile": {
+            "company_name": "Microsoft Corporation",
+            "sector": "Technology",
+            "industry": "Software - Infrastructure",
+            "market_cap": 3_000_000_000_000,
+            "description": "Cloud software and productivity services.",
+        },
+        "industry_screen": ["CRM", "ORCL", "VMW"],
+        "stock_peers": [],
+        "sector_screen": [],
+        "quotes": {
+            "CRM": {"market_cap": 250_000_000_000, "pe": 40.0},
+            "ORCL": {"market_cap": 400_000_000_000, "pe": 30.0},
+            "VMW": {"market_cap": 61_521_441_480, "pe": 20.0},
+        },
+        "names": {
+            "CRM": "Salesforce, Inc.",
+            "ORCL": "Oracle Corporation",
+            "VMW": "VMware, Inc.",
+        },
+        # NB: no "active" key — a pre-change cached payload.
+    }
+
+    result = screen_peers(payload, "MSFT")
+
+    assert result.dropped_delisted == []
+    # Unknown liveness never mis-kills — VMW stays in (pre-gate behaviour).
+    assert set(result.tickers) == {"CRM", "ORCL", "VMW"}
+
+
+def test_candidate_absent_from_active_map_is_unknown_not_dropped() -> None:
+    """UNKNOWN (a present ``active`` map that simply omits this candidate — e.g. a
+    stock-peers-only name whose /profile backfill failed) is not the same as dead: only an
+    EXPLICIT False drops. VMW here is absent from the map, so it is kept."""
+    payload = {
+        "profile": {
+            "company_name": "Microsoft Corporation",
+            "sector": "Technology",
+            "industry": "Software - Infrastructure",
+            "market_cap": 3_000_000_000_000,
+            "description": "Cloud software and productivity services.",
+        },
+        "industry_screen": ["CRM", "ORCL", "VMW"],
+        "stock_peers": [],
+        "sector_screen": [],
+        "quotes": {
+            "CRM": {"market_cap": 250_000_000_000, "pe": 40.0},
+            "ORCL": {"market_cap": 400_000_000_000, "pe": 30.0},
+            "VMW": {"market_cap": 61_521_441_480, "pe": 20.0},
+        },
+        "names": {
+            "CRM": "Salesforce, Inc.",
+            "ORCL": "Oracle Corporation",
+            "VMW": "VMware, Inc.",
+        },
+        # VMW deliberately absent from the map (unknown); CRM/ORCL known live.
+        "active": {"CRM": True, "ORCL": True},
+    }
+
+    result = screen_peers(payload, "MSFT")
+
+    assert result.dropped_delisted == []
+    assert "VMW" in result.tickers

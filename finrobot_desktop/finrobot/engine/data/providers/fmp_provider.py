@@ -1440,6 +1440,13 @@ class FMPProvider(DataProvider):
             # (RY.TO + RY = Royal Bank of Canada) to ONE row so its multiple does
             # not double-weight the peer median.
             name_by_sym: dict[str, str] = {}
+            # Liveness (isActivelyTrading) per candidate so the peer operator can drop a
+            # delisted / renamed listing (VMware VMW, old Block SQ — both frozen at their
+            # last price with a stale market cap). Screener rows carry the bool; /stock-peers
+            # rows do NOT, so a stock-peers-only candidate is backfilled from /profile below.
+            # ABSENT (unknown) != dead — the operator drops only an explicit False, so a
+            # missing entry never mis-kills a live peer.
+            active_by_sym: dict[str, bool] = {}
 
             stock_peers: list[str] = []
             peers_rows = (await self._get("/stock-peers", params={"symbol": ticker})).json()
@@ -1488,19 +1495,37 @@ class FMPProvider(DataProvider):
                         pass
                     if r.get("companyName"):
                         name_by_sym.setdefault(sym, str(r["companyName"]))
+                    iat = r.get("isActivelyTrading")
+                    if isinstance(iat, bool):
+                        active_by_sym.setdefault(sym, iat)
                 return out
 
             industry_screen: list[str] = []
             if industry:
                 industry_screen = await _screen(
-                    {"industry": industry, "marketCapMoreThan": 1_000_000_000, "limit": 50},
+                    {
+                        "industry": industry,
+                        "marketCapMoreThan": 1_000_000_000,
+                        "limit": 50,
+                        # Exclude delisted / acquired names at the source: VMW (VMware,
+                        # absorbed by Broadcom 2023) and old SQ (Block renamed to XYZ) both
+                        # return isActivelyTrading=false and are frozen at their last price /
+                        # a stale market cap. Verified 2026-07-07 the stable screener honours
+                        # this param (VMW + SQ drop out; every returned row is true).
+                        "isActivelyTrading": "true",
+                    },
                     "industry",
                 )
 
             sector_screen: list[str] = []
             if sector and target_mcap > 0:
                 sector_screen = await _screen(
-                    {"sector": sector, "marketCapMoreThan": int(target_mcap / 20), "limit": 50},
+                    {
+                        "sector": sector,
+                        "marketCapMoreThan": int(target_mcap / 20),
+                        "limit": 50,
+                        "isActivelyTrading": "true",
+                    },
                     "sector",
                 )
 
@@ -1566,7 +1591,8 @@ class FMPProvider(DataProvider):
             # "provider fetches" ⇔ "operator reads" can't drift). Skipping them
             # for non-semiconductor targets saves one request per candidate.
             profiles: dict[str, dict[str, str]] = {}
-            if semiconductor_role(profile) is not None:
+            is_semiconductor_target = semiconductor_role(profile) is not None
+            if is_semiconductor_target:
                 for sym in in_scope:
                     try:
                         rows = (await self._get("/profile", params={"symbol": sym})).json()
@@ -1581,6 +1607,37 @@ class FMPProvider(DataProvider):
                         "industry": str(row.get("industry") or ""),
                         "description": str(row.get("description") or ""),
                     }
+                    iat = row.get("isActivelyTrading")
+                    if isinstance(iat, bool):
+                        active_by_sym.setdefault(sym, iat)
+
+            # Liveness backfill for stock-peers-only candidates on a NON-semiconductor
+            # target. Both screeners are isActivelyTrading=true-filtered (so every
+            # screener-sourced candidate is already known-live), and for a SEMICONDUCTOR
+            # target the per-candidate profile loop above already read the flag from every
+            # in-scope profile — so the only candidates still UNKNOWN are those reachable
+            # SOLELY via /stock-peers (rows omit the flag) when no profile loop ran. Fetch
+            # /profile for just those so a delisted / renamed cross-recommendation is
+            # droppable downstream. Preserves the "non-semiconductor target pays no per-
+            # candidate profile cost" rule for the common case (stock_peers overlaps the
+            # screens → those candidates are already active-known → the loop below is a
+            # no-op); only a stock-peers-EXCLUSIVE name costs a request. Stable /profile
+            # has NO comma-batch (symbol=A,B,C returns []; verified 2026-07-07) → one
+            # request per symbol. A fetch failure or missing flag leaves the candidate
+            # UNKNOWN (never mis-killed).
+            if not is_semiconductor_target:
+                for sym in in_scope:
+                    if sym in active_by_sym:
+                        continue
+                    try:
+                        prof_rows = (await self._get("/profile", params={"symbol": sym})).json()
+                    except (httpx.HTTPError, ProviderError):
+                        continue
+                    prow = prof_rows[0] if isinstance(prof_rows, list) and prof_rows else None
+                    if isinstance(prow, dict):
+                        iat = prow.get("isActivelyTrading")
+                        if isinstance(iat, bool):
+                            active_by_sym[sym] = iat
 
         return DataResult(
             data={
@@ -1599,6 +1656,13 @@ class FMPProvider(DataProvider):
                 # Company name per in-scope candidate (from the pool rows above,
                 # no extra request) — the peer operator's same-issuer dedup key.
                 "names": {s: name_by_sym[s] for s in in_scope if s in name_by_sym},
+                # Liveness (isActivelyTrading) per in-scope candidate — the peer
+                # operator drops an explicit False (delisted VMW / renamed SQ) and, in
+                # same-issuer dedup, keeps the live listing over the dead one. Absent
+                # sym = UNKNOWN (never dropped). Screener rows are already
+                # isActivelyTrading=true-filtered; stock-peers-only candidates are
+                # backfilled from /profile.
+                "active": {s: active_by_sym[s] for s in in_scope if s in active_by_sym},
             },
             provider=self.name,
             ticker=ticker,

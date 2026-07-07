@@ -113,10 +113,17 @@ def canonical_key(data_type: str | DataType, provider: str | None = None) -> str
 #   doubled sum-of-4 aggregate (UL revenue ~127B vs a ~50B year), so they must miss
 #   and re-aggregate. Pairs with the CANONICAL_CONTRACT_VERSION v10 bump (the
 #   normalized slot, read ahead of this raw slot).
+#   peer_candidates v3 — 2026-07-07: the payload now carries a top-level ``active``
+#   map (isActivelyTrading per candidate) so the peer screen can drop a delisted /
+#   renamed listing (VMware VMW, old Block SQ). Legacy v2 rows have no ``active`` key,
+#   so every candidate reads as UNKNOWN and a dead ticker keeps shipping until the 1h
+#   TTL — they must miss + refetch to pick up the liveness signal. PEER_CANDIDATES is
+#   a RAW-only type (never fetched via fetch_canonical, see layer._CANONICAL_TYPES), so
+#   this is the ONLY layer to bump — CANONICAL_CONTRACT_VERSION must NOT move.
 _RAW_SLOT_VERSION: dict[str, int] = {
     DataType.PRICE.value: 3,
     DataType.PROXY_STATEMENT.value: 2,
-    DataType.PEER_CANDIDATES.value: 2,
+    DataType.PEER_CANDIDATES.value: 3,
     DataType.SENTIMENT.value: 2,
     DataType.FORWARD_ESTIMATES.value: 2,
     DataType.FINANCIALS.value: 4,

@@ -372,7 +372,11 @@ class TestRawSlotVersion:
         from finrobot.engine.data.types import DataType
 
         assert raw_slot_key(DataType.PROXY_STATEMENT) == "proxy_statement:v2"
-        assert raw_slot_key(DataType.PEER_CANDIDATES) == "peer_candidates:v2"
+        # PEER_CANDIDATES bumped to v3 (2026-07-07): the payload now carries a top-level
+        # ``active`` (isActivelyTrading) map so the peer screen can drop a delisted /
+        # renamed listing (VMW, old SQ); pre-bump rows lack it and must miss + refetch.
+        # (v2, 2026-06-05, added candidate profiles for the value-chain role gate.)
+        assert raw_slot_key(DataType.PEER_CANDIDATES) == "peer_candidates:v3"
         # FINANCIALS bumped to v4 (2026-07-06): TTM aggregation window is now
         # cadence-aware (semi-annual reporters sum 2 half-year rows, not 4 = two
         # fiscal years); pre-bump rows carry doubled TTM and must miss + refetch.

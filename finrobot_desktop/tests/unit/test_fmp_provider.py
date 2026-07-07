@@ -1435,6 +1435,7 @@ class TestFMPPeerCandidates:
                             "industry": "Semiconductors",
                             "sector": "Technology",
                             "description": "Develops microprocessors and GPUs.",
+                            "isActivelyTrading": True,
                         }
                     ]
                 )
@@ -1449,6 +1450,7 @@ class TestFMPPeerCandidates:
                             "description": (
                                 "Manufactures, packages, tests, and sells integrated circuits."
                             ),
+                            "isActivelyTrading": True,
                         }
                     ]
                 )
@@ -1471,6 +1473,9 @@ class TestFMPPeerCandidates:
         # Company name harvested from the pool rows (no extra request) — the
         # operator's same-issuer dedup key. AMD's name rides the /stock-peers row.
         assert result.data["names"]["AMD"] == "Advanced Micro Devices, Inc."
+        # A semiconductor target reads liveness (isActivelyTrading) from the same
+        # per-candidate /profile it already fetches — no separate backfill request.
+        assert result.data["active"] == {"AMD": True, "TSM": True}
 
     @pytest.mark.asyncio
     async def test_peer_candidates_skip_profiles_for_non_semiconductor_target(self, provider):
@@ -1498,11 +1503,19 @@ class TestFMPPeerCandidates:
                     ]
                 )
             if path == "/stock-peers":
+                # /stock-peers rows carry NO isActivelyTrading (live-verified 2026-07-07).
                 return _mock_response(
                     [{"symbol": "PEP", "companyName": "PepsiCo", "mktCap": 230_000_000_000}]
                 )
             if path == "/company-screener":
-                return _mock_response([{"symbol": "PEP", "marketCap": 230_000_000_000}])
+                # Screener rows DO carry isActivelyTrading (bool), and the request is
+                # filtered to isActivelyTrading=true, so every returned row is live.
+                assert params.get("isActivelyTrading") == "true", (
+                    f"screener must filter to active companies: {params!r}"
+                )
+                return _mock_response(
+                    [{"symbol": "PEP", "marketCap": 230_000_000_000, "isActivelyTrading": True}]
+                )
             if path == "/ratios-ttm":
                 return _mock_response([{"symbol": sym, "priceToEarningsRatioTTM": 22.0}])
             raise AssertionError(f"unexpected _get({path!r}, {params!r})")
@@ -1515,8 +1528,79 @@ class TestFMPPeerCandidates:
         # Names still ride along for a non-semiconductor target (dedup key comes
         # from the pool rows, not the skipped per-candidate profiles).
         assert result.data["names"] == {"PEP": "PepsiCo"}
-        # No per-candidate /profile call — only the target's own.
+        # Liveness rides the screener row for free — PEP is already known-live, so the
+        # stock-peers liveness backfill is a NO-OP: still only the target's own /profile.
+        assert result.data["active"] == {"PEP": True}
         assert [c for c in calls if c[0] == "/profile"] == [("/profile", "KO")]
+
+    @pytest.mark.asyncio
+    async def test_peer_candidates_backfill_flags_delisted_stock_peer(self, provider):
+        """A NON-semiconductor target's candidate reachable ONLY via /stock-peers (whose
+        rows carry no isActivelyTrading) has its liveness backfilled from /profile, so a
+        delisted / renamed cross-recommendation (DEADCO) is flagged inactive for the peer
+        operator to drop — while a screener-covered candidate, already known-live from the
+        isActivelyTrading=true-filtered screener row, costs NO backfill request.
+        """
+        profile_calls: list[str] = []
+
+        def _route(path, params=None):
+            params = params or {}
+            sym = params.get("symbol", "")
+            if path == "/profile":
+                profile_calls.append(sym)
+            if path == "/profile" and sym == "MSFT":
+                return _mock_response(
+                    [
+                        {
+                            "symbol": "MSFT",
+                            "companyName": "Microsoft Corporation",
+                            "industry": "Software - Infrastructure",
+                            "sector": "Technology",
+                            "marketCap": 3_000_000_000_000,
+                            "description": "Cloud software and productivity services.",
+                            "isActivelyTrading": True,
+                        }
+                    ]
+                )
+            if path == "/stock-peers":
+                # Cross-recommendations reachable ONLY here (not in any screener); rows
+                # carry no isActivelyTrading, so liveness must be backfilled from /profile.
+                return _mock_response(
+                    [
+                        {"symbol": "DEADCO", "companyName": "Delisted Co", "mktCap": 200_000_000_000},
+                        {"symbol": "LIVECO", "companyName": "Live Co", "mktCap": 250_000_000_000},
+                    ]
+                )
+            if path == "/company-screener":
+                assert params.get("isActivelyTrading") == "true", (
+                    f"screener must filter to active companies: {params!r}"
+                )
+                return _mock_response(
+                    [{"symbol": "SCREENED", "marketCap": 300_000_000_000, "isActivelyTrading": True}]
+                )
+            if path == "/ratios-ttm":
+                return _mock_response([{"symbol": sym, "priceToEarningsRatioTTM": 20.0}])
+            if path == "/profile" and sym == "DEADCO":
+                # Delisted / renamed — frozen at a stale cap, provider flags it inactive.
+                return _mock_response(
+                    [{"symbol": "DEADCO", "companyName": "Delisted Co", "isActivelyTrading": False}]
+                )
+            if path == "/profile" and sym == "LIVECO":
+                return _mock_response(
+                    [{"symbol": "LIVECO", "companyName": "Live Co", "isActivelyTrading": True}]
+                )
+            raise AssertionError(f"unexpected _get({path!r}, {params!r})")
+
+        with patch.object(provider, "_get", AsyncMock(side_effect=_route)):
+            result = await provider.fetch("MSFT", "peer_candidates")
+
+        # Liveness map: the screener candidate is live (from its row), the stock-peers-only
+        # DEADCO is inactive (backfilled), LIVECO is live (backfilled).
+        assert result.data["active"] == {"SCREENED": True, "DEADCO": False, "LIVECO": True}
+        # The backfill hit /profile only for the two stock-peers-only names, NOT for the
+        # screener-covered one (already active-known); the target's own /profile aside.
+        assert sorted(s for s in profile_calls if s != "MSFT") == ["DEADCO", "LIVECO"]
+        assert "SCREENED" not in profile_calls
 
     @pytest.mark.asyncio
     async def test_peer_scope_band_superset_of_operator_band(self):

@@ -192,6 +192,21 @@ class PeerScreenResult(BaseModel):
     slot and the freed slot is refilled from the pool.
     """
 
+    dropped_delisted: list[str] = []
+    """Candidates excluded as a delisted / renamed listing the provider flags
+    ``isActivelyTrading=False``.
+
+    A dead ticker freezes at its last trade with a stale market cap (VMware ``VMW``,
+    absorbed into Broadcom 2023, prints a ~$61B cap at a frozen $142.48; old Block
+    ``SQ``, renamed ``XYZ`` in 2025, prints a stale cap) — it is not a live trading
+    comp and pollutes the peer median / competitive landscape. Only an EXPLICIT
+    ``False`` lands here; a candidate whose liveness is UNKNOWN (absent from the
+    payload's ``active`` map — a stale pre-``active`` cache row, or a stock-peers-only
+    name whose profile fetch failed) is NOT dropped, so a missing signal never
+    mis-kills a live peer. A protected/curated cohort member flagged inactive is kept
+    (curation override) and disclosed in the rationale, not listed here.
+    """
+
     pool_median_pe: float | None
     """Median trailing P/E of the FULL eligible pool (pre-top-N). Baseline for
     the selection tripwire: a selected-set median far from the pool median
@@ -409,6 +424,17 @@ def screen_peers(
             pe = None
         quotes[str(sym).upper()] = (mcap, pe)
 
+    # Liveness (isActivelyTrading) per candidate. Only genuine booleans are kept:
+    # an absent sym is UNKNOWN, not dead, so an old pre-``active`` cache payload (no
+    # key at all) or a candidate the provider couldn't classify is never dropped for
+    # liveness. The gate below acts ONLY on an explicit ``active[sym] is False``.
+    active_raw = payload.get("active") or {}
+    active: dict[str, bool] = {}
+    if isinstance(active_raw, dict):
+        for sym, val in active_raw.items():
+            if isinstance(val, bool):
+                active[str(sym).upper()] = val
+
     profiles_raw = payload.get("profiles") or {}
     profiles: dict[str, dict[str, Any]] = (
         {str(sym).upper(): p for sym, p in profiles_raw.items() if isinstance(p, dict)}
@@ -505,12 +531,19 @@ def screen_peers(
             first_tier.setdefault(sym, tier_idx)
     band_ok = [s for s, t in first_tier.items() if in_band(quotes[s][0], t)]
 
-    def _keep_rank(sym: str) -> tuple[int, int, float, str]:
-        # Lower = kept. Prefer a curated/protected member, then the primary listing
-        # (no exchange suffix = US / target-market ticker), then the larger cap
-        # (more-liquid listing), ties broken alphabetically for determinism.
+    def _keep_rank(sym: str) -> tuple[int, int, int, float, str]:
+        # Lower = kept. Prefer a curated/protected member, then a LIVE listing over a
+        # delisted / renamed one, then the primary listing (no exchange suffix = US /
+        # target-market ticker), then the larger cap (more-liquid listing), ties broken
+        # alphabetically for determinism. The liveness key demotes ONLY an explicit
+        # isActivelyTrading=False — UNKNOWN ranks WITH live (``is not False``) so a pair
+        # whose liveness is unknown (RY / RY.TO) still resolves on the no-suffix key
+        # exactly as before. This is what keeps the live listing of a same-issuer pair:
+        # old Block SQ (False) loses to XYZ (True) even though SQ's stale frozen cap is
+        # the larger of the two (which would otherwise win the -cap tiebreak).
         return (
             0 if sym in protected else 1,
+            0 if active.get(sym) is not False else 1,
             1 if _has_exchange_suffix(sym) else 0,
             -quotes[sym][0],
             sym,
@@ -551,6 +584,8 @@ def screen_peers(
 
     dropped_nm: list[str] = []
     dropped_role: list[str] = []
+    dropped_delisted: list[str] = []
+    protected_inactive: list[str] = []  # curated members the provider flags inactive
     eligible: list[tuple[str, int, float]] = []  # (sym, first-seen tier, pe)
     seen_pool: set[str] = set()
     for tier_idx, tier_syms in enumerate(tiers, start=1):
@@ -564,11 +599,26 @@ def screen_peers(
             if sym in dup_drop:
                 # Redundant listing of an issuer kept elsewhere in the set (or the
                 # target itself under another ticker) — already in dropped_duplicate.
+                # (A dead listing of an issuer whose live listing is kept lands HERE,
+                # not in dropped_delisted: the same-issuer dedup already resolved the
+                # pair to the live one via _keep_rank's liveness key.)
                 continue
             if sym in non_common_drop:
                 # Preferred / warrant / non-common listing — already in
                 # dropped_non_common; not a common-equity trading comp.
                 continue
+            if active.get(sym) is False:
+                # Delisted (VMware VMW) or renamed-ticker (old Block SQ) — the provider
+                # flags it isActivelyTrading=False; it is frozen at a stale price / cap,
+                # not a live trading comp. A curated/protected cohort member is KEPT
+                # regardless (the curation override must beat every downstream gate — the
+                # 2026-06-14 MU lesson) and the override is disclosed in the rationale.
+                # UNKNOWN (absent) is not False, so it passes untouched.
+                if sym in protected:
+                    protected_inactive.append(sym)
+                else:
+                    dropped_delisted.append(sym)
+                    continue
             if not role_ok(sym):
                 dropped_role.append(sym)
                 continue
@@ -604,6 +654,9 @@ def screen_peers(
             and s not in seen
             and s not in dup_drop
             and s not in non_common_drop
+            # Delisted / renamed listing (isActivelyTrading=False) is not a live comp —
+            # mirror the eligibility gate. Protected/curated members override (kept).
+            and not (active.get(s) is False and s not in protected)
             and s in quotes
             and in_band(quotes[s][0], tier_idx)
             and role_ok(s)
@@ -641,11 +694,21 @@ def screen_peers(
         f"non-common (preferred/warrant) dropped {len(dropped_non_common)}"
         f"{': ' + ', '.join(dropped_non_common[:6]) if dropped_non_common else ''}; "
         f"same-issuer duplicate listing dropped {len(dropped_duplicate)}"
-        f"{': ' + ', '.join(dropped_duplicate[:6]) if dropped_duplicate else ''}); "
+        f"{': ' + ', '.join(dropped_duplicate[:6]) if dropped_duplicate else ''}; "
+        f"delisted/renamed (inactive) dropped {len(dropped_delisted)}"
+        f"{': ' + ', '.join(dropped_delisted[:6]) if dropped_delisted else ''}); "
         f"{sector_note} -> tiered by same-industry > mutual-rec > same-sector, "
         f"picking {len(chosen)} firms by within-tier size proximity: "
         f"{', '.join(trace_picks)}"
     )
+    if protected_inactive:
+        # Rare: a curated cohort member (e.g. a storage peer for MU) the provider flags
+        # inactive. It is kept by the curation override (it beat the liveness gate), so
+        # the analyst-facing trace must disclose the override rather than hide it.
+        rationale += (
+            f" [curation override: {', '.join(sorted(set(protected_inactive)))} flagged "
+            f"inactive by provider (isActivelyTrading=false) but kept as curated peer(s)]"
+        )
 
     return PeerScreenResult(
         tickers=chosen,
@@ -655,6 +718,7 @@ def screen_peers(
         dropped_role=dropped_role,
         dropped_non_common=dropped_non_common,
         dropped_duplicate=dropped_duplicate,
+        dropped_delisted=dropped_delisted,
         pool_median_pe=pool_median,
         selected_median_pe=selected_median,
     )

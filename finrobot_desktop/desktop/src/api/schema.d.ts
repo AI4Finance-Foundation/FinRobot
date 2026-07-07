@@ -571,7 +571,7 @@ export interface paths {
      * @description Cancel an in-flight run — the stop button for money-burning pipelines.
      *
      *     Works for every task registered in app.state.run_tasks (research/dcf/lbo
-     *     pipelines AND debate runs — debate.py registers there too). Cancellation
+     *     pipelines). Cancellation
      *     is asyncio-native: the task unwinds at its next await (LLM/provider calls
      *     are httpx awaits, so spend stops within one chunk), its CancelledError
      *     handler persists the ``cancelled`` terminal state, and the SSE stream
@@ -651,38 +651,18 @@ export interface paths {
      *     Args:
      *         ticker: The ticker symbol (e.g. "AAPL").
      *         limit: Maximum results to return. Default 50.
+     *         include_signals: When True (default) each summary's ``signal``
+     *             (hit/watching/failed) is computed against a LIVE quote per ticker
+     *             — a synchronous ``fetch_canonical(PRICE)`` that bolts market-data
+     *             latency onto what is otherwise a local-DB read. Surfaces that don't
+     *             render the lamp (the workspace report-history preview) pass False to
+     *             return the local history instantly; surfaces that do (the report
+     *             detail page's version rail) keep the default.
      *
      *     Returns:
      *         List of ArtifactSummary (all types) for the ticker, newest first.
      */
     get: operations['ticker_timeline_api_artifacts_by_ticker__ticker__timeline_get']
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  '/api/artifacts/studied-tickers': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /**
-     * Studied Tickers
-     * @description Return every ticker the user has ever run analysis on, with metadata.
-     *
-     *     Powers the /stocks landing's "我研究过的所有股票" table. Each row carries
-     *     the latest run's verdict, entry/target prices, and a list of all pipeline
-     *     types that have been run for that ticker (so the UI can show DCF / LBO /
-     *     research chips).
-     *
-     *     Sort: by latest_created_at descending — most recently touched on top.
-     */
-    get: operations['studied_tickers_api_artifacts_studied_tickers_get']
     put?: never
     post?: never
     delete?: never
@@ -1036,33 +1016,6 @@ export interface paths {
     patch?: never
     trace?: never
   }
-  '/api/search': {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /**
-     * Search
-     * @description Global cmd+K search.
-     *
-     *     Args:
-     *         q: Search query.
-     *         limit: Maximum number of results to return (1–100, default 20).
-     *
-     *     Returns:
-     *         ``SearchResponse`` with results sorted by descending score.
-     */
-    get: operations['search_api_search_get']
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
   '/api/valuation/aggregate/{ticker}': {
     parameters: {
       query?: never
@@ -1178,6 +1131,30 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  '/api/search/symbols': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Search Symbols
+     * @description Ticker autocomplete: ``ap`` -> AAPL / AMAT / APH … ranked by market cap.
+     *
+     *     Pure in-memory lookup over the local SEC symbol index. Empty / junk / unknown
+     *     queries return an empty list (HTTP 200), never an error — the index is warmed
+     *     in the background at startup and lazily on first use.
+     */
+    get: operations['search_symbols_api_search_symbols_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   '/chat': {
     parameters: {
       query?: never
@@ -1212,7 +1189,28 @@ export interface paths {
       path?: never
       cookie?: never
     }
-    /** Health */
+    /**
+     * Health
+     * @description Readiness probe for the Tauri shell's sidecar poll.
+     *
+     *     Stays auth-exempt (see ``finrobot.auth._EXEMPT_PATHS``) because the shell
+     *     polls it before the WebView — and hence the token — exists. It echoes the
+     *     per-launch capability token back so the readiness loop can prove the
+     *     backend answering on :8321 is *its own* spawned child, not a stale or
+     *     foreign process squatting the port. The probe does not require the caller
+     *     to present the token; this is an identity stamp, not an auth gate.
+     *
+     *     When no token is configured (browser dev loop, live-backend posture,
+     *     tests) the ``token`` field is omitted, keeping the response backward
+     *     compatible with callers that only read ``status``.
+     *
+     *     ``status`` is ``starting`` until the post-yield warmup wires the data layer
+     *     (``engine_ready``) — but the response is ALWAYS HTTP 200, so sidecar.rs (which
+     *     checks 200 + token, never the status string) shows the WebView immediately and
+     *     the frontend polls ``engine_ready`` / ``agents_ready`` to gate live-data and AI
+     *     UI. Both default True when unset (test harnesses without a lifespan), matching
+     *     routes/_ready.py, so the legacy ``status: ready`` contract holds for them.
+     */
     get: operations['health_health_get']
     put?: never
     post?: never
@@ -1474,6 +1472,12 @@ export interface components {
        * @description Data provider that fed this artifact (inputs.data_source), mirrored into a summary column at save time (门四溯源半) so the Library list shows the source without payload reads. None for the builders' 'unknown' placeholder and for rows written before the column existed (backfilled by the projection rebuild).
        */
       primary_provider?: string | null
+      /**
+       * Fairly Valued
+       * @description True when the point target was withheld BECAUSE the live price sits inside the cross-method fair-value band (a confident HOLD = 'fairly valued'), as opposed to a genuine withhold (M&A / single divergent method). Populated by summary_extractor.extract_fairly_valued at save time so the version-timeline row can render 'Fairly Valued' instead of a generic 'WITHHELD'. Defaults to False so legacy / un-backfilled rows (NULL column) deserialise cleanly as 'not fairly valued' — backfilled from the payload by the projection rebuild.
+       * @default false
+       */
+      fairly_valued: boolean
     }
     /**
      * Attribution
@@ -1622,14 +1626,18 @@ export interface components {
       sentiment: 'positive' | 'negative' | 'neutral'
       /** Impact Score */
       impact_score: number
-      /** Probability */
-      probability: number
       /** Reasoning */
       reasoning: string
       /** Published */
       published?: string | null
       /** Url */
       url?: string | null
+      /**
+       * Source Count
+       * @description How many near-duplicate news items collapsed into this one event after cluster_near_duplicates (1 = no dedup applied / singleton). The same regulatory lawsuit covered by 4 different law-firm press releases is ONE catalyst with source_count=4, not 4 events double-counted in net_sentiment / total_catalysts.
+       * @default 1
+       */
+      source_count: number
     }
     /**
      * ClearSecretRequest
@@ -1650,7 +1658,7 @@ export interface components {
        * Kind
        * @enum {string}
        */
-      kind: 'formula' | 'data_source' | 'period' | 'peer_set'
+      kind: 'formula' | 'data_source' | 'period' | 'peer_set' | 'method_set'
       /** Message Zh */
       message_zh: string
       /** Message En */
@@ -1916,7 +1924,7 @@ export interface components {
     DCFInputs: {
       /**
        * Revenue Base
-       * @description Base year revenue in USD
+       * @description Base-year revenue in USD (the current run-rate — TTM by default). Year 1 is projected off it. The consensus seed restates Year-1 growth to NTM caliber (growth from this TTM base to the FY1 estimate) so the FY-over-FY consensus rate does not double-count the current fiscal year's realized stub.
        */
       revenue_base: number
       /**
@@ -2081,7 +2089,7 @@ export interface components {
      * DcfEquivalenceLineRequest
      * @description Inputs for the (growth, horizon) equivalence line at a fixed WACC.
      *
-     *     Powers the IC-debate 'market-implied expectations' expert probe: for a fixed
+     *     Powers the 'market-implied expectations' reverse-DCF probe: for a fixed
      *     discount rate, every point on the line is a (constant growth, explicit-window
      *     length) pair that reprices the stock to ``target_price``. The line *is* the
      *     honest answer — the market price implies a family of (growth, horizon) combos,
@@ -2182,8 +2190,7 @@ export interface components {
        * @default true
        */
       converged: boolean
-      /** Message */
-      message?: string | null
+      reason_code?: components['schemas']['ReverseSolveReason'] | null
     }
     /**
      * DcfSeedRequest
@@ -2491,6 +2498,8 @@ export interface components {
       capital_expenditure?: number[]
       /** Change In Working Capital */
       change_in_working_capital?: number[]
+      /** Shareholders Equity */
+      shareholders_equity?: (number | null)[]
     }
     /**
      * HitRateBucket
@@ -2589,6 +2598,11 @@ export interface components {
        * @description LTM EBITDA at entry (USD)
        */
       ltm_ebitda: number
+      /**
+       * Entry Ebitda
+       * @description EBITDA the entry EV and acquisition debt are PRICED on (USD). None → price on ltm_ebitda (the non-cyclical case). For a commodity/deep-cyclical this is the NORMALIZED through-cycle EBITDA (revenue_base × through-cycle EBITDA margin) so entry leverage is underwritten against sustainable earnings, matching the projection caliber, not the current cycle-peak/trough LTM.
+       */
+      entry_ebitda?: number | null
       /**
        * Entry Ev Ebitda
        * @description Entry EV/EBITDA multiple
@@ -2702,7 +2716,7 @@ export interface components {
       irr?: number | null
       /**
        * Self Financing
-       * @description Whether the modeled levered FCF deleverages the acquisition debt over the hold (exit debt < entry debt). false = does NOT self-finance (operations burn cash, revolver funds the shortfall, net debt rises) → MOIC/IRR are exit-multiple artifacts, NOT achievable returns; must not headline. null = undefined (impossible structure, non-positive entry equity).
+       * @description Whether the modeled levered FCF deleverages the acquisition debt over the hold (exit debt < entry debt). False = the deal does NOT self-finance: projected operating cash flow is negative across the hold, the revolver funds the shortfall every year and net debt RISES instead of amortizing, so any positive exit equity is manufactured by exit-multiple expansion on a larger, debt-financed EBITDA base — NOT by operating deleveraging. MOIC / IRR are then exit-multiple-dependent, not returns a sponsor could underwrite at this structure, and must not headline as achievable. None = undefined (impossible structure: non-positive entry equity).
        */
       self_financing?: boolean | null
       /**
@@ -2819,6 +2833,8 @@ export interface components {
       sector?: string | null
       /** Country */
       country?: string | null
+      /** Is Adr */
+      is_adr?: boolean | null
       /** Beta */
       beta?: number | null
     }
@@ -3140,6 +3156,16 @@ export interface components {
       warmed: boolean
       /** Studied Ticker Count */
       studied_ticker_count: number
+      /**
+       * Engine Ready
+       * @default true
+       */
+      engine_ready: boolean
+      /**
+       * Agents Ready
+       * @default true
+       */
+      agents_ready: boolean
     }
     /** RecentResearchResponse */
     RecentResearchResponse: {
@@ -3215,6 +3241,40 @@ export interface components {
       /** Error */
       error?: string | null
     }
+    /**
+     * ReverseSolveReason
+     * @description Structured outcome code for the reverse-DCF solvers.
+     *
+     *     Contract ① — compute operators emit numbers + a machine code, never
+     *     human-readable prose. The reverse solvers used to return an English
+     *     ``message`` f-string that the desktop panel rendered raw, bypassing i18n.
+     *     They now return this code; the presentation layer (MarketImpliedPanel)
+     *     maps it to a localized sentence, interpolating the structured fields
+     *     (target_price / bracket / price_at_lo|hi / assumed_growth / wacc …) the
+     *     same result already carries. No number is recomputed for display.
+     *
+     *     Codes:
+     *         SOLVED              — a value was found (horizon success path; the
+     *                               growth/wacc solvers omit a code on success).
+     *         NOT_CONVERGED       — bisection hit max_iterations; the returned value
+     *                               is a coarse approximation, not an exact root.
+     *         TARGET_ABOVE_RANGE  — target price exceeds the highest reachable price
+     *                               in the solved axis' bracket → no solution.
+     *         TARGET_BELOW_RANGE  — target price sits below the lowest reachable
+     *                               price in the bracket → no solution.
+     *         OUT_OF_WACC_RANGE   — target price lies outside the WACC bracket's
+     *                               price span (implied WACC solver).
+     *         GORDON_UNDEFINED    — terminal growth ≥ WACC, so the Gordon perpetuity
+     *                               is undefined and no horizon can be solved.
+     * @enum {string}
+     */
+    ReverseSolveReason:
+      | 'solved'
+      | 'not_converged'
+      | 'target_above_range'
+      | 'target_below_range'
+      | 'out_of_wacc_range'
+      | 'gordon_undefined'
     /** RunDetail */
     RunDetail: {
       /** Run Id */
@@ -3287,38 +3347,6 @@ export interface components {
       /** Error */
       error?: string | null
     }
-    /** SearchResponse */
-    SearchResponse: {
-      /** Query */
-      query: string
-      /** Results */
-      results: components['schemas']['SearchResult'][]
-    }
-    /**
-     * SearchResult
-     * @description A single search suggestion item.
-     */
-    SearchResult: {
-      /**
-       * Kind
-       * @enum {string}
-       */
-      kind: 'ticker' | 'artifact'
-      /** Title */
-      title: string
-      /**
-       * Subtitle
-       * @default
-       */
-      subtitle: string
-      /** Action */
-      action: string
-      /**
-       * Score
-       * @default 0
-       */
-      score: number
-    }
     /** SecHoldingsStatus */
     SecHoldingsStatus: {
       /** Populated */
@@ -3360,6 +3388,11 @@ export interface components {
       drivers?: components['schemas']['DeltaItem'][]
       /** Comparability */
       comparability?: components['schemas']['ComparabilityFlag'][]
+      /**
+       * Material Change
+       * @default true
+       */
+      material_change: boolean
       data_footnote: components['schemas']['DataFootnote']
     }
     /**
@@ -3380,8 +3413,8 @@ export interface components {
        * Reason
        * @description Why `available` is False, so the UI never mislabels a transient hiccup as a missing API key:
        *       • 'unconfigured' — no Adanos key registered → show the 'add key' CTA.
-       *       • 'rate_limited' — upstream throttled us (HTTP 429); transient and self-healing → soft auto-retry notice, NOT a red outage / fabricated 5xx.
-       *       • 'provider_error' — key IS configured but the call genuinely failed (non-429) → show a retry affordance, NOT the config CTA.
+       *       • 'rate_limited' — upstream throttled us (HTTP 429); transient and self-healing → show a soft 'rate-limited, auto-retrying' notice, NOT a red outage error (and NEVER a fabricated '5xx': the call never reached a 5xx, it was throttled).
+       *       • 'provider_error' — key IS configured but the call genuinely failed (non-429 outage) → show a retry affordance, NOT the config CTA.
        *       • None — the snapshot is available (or success).
        */
       reason?: ('unconfigured' | 'provider_error' | 'rate_limited') | null
@@ -3598,42 +3631,23 @@ export interface components {
       /** Ticker */
       ticker: string
     }
-    /**
-     * StudiedTicker
-     * @description One row in /api/artifacts/studied-tickers — a ticker the user has run analysis on.
-     */
-    StudiedTicker: {
-      /** Ticker */
-      ticker: string
-      /** Run Count */
-      run_count: number
-      /**
-       * Latest Created At
-       * Format: date-time
-       */
-      latest_created_at: string
-      /** Latest Type */
-      latest_type: string
-      /** Latest Artifact Id */
-      latest_artifact_id: string
-      /** Latest Target Price */
-      latest_target_price: number | null
-      /** Latest Entry Price */
-      latest_entry_price: number | null
-      /** Latest Signal */
-      latest_signal: string | null
-      /** Types */
-      types: string[]
+    /** SymbolSearchResponse */
+    SymbolSearchResponse: {
+      /** Query */
+      query: string
+      /** Results */
+      results: components['schemas']['SymbolSuggestion'][]
     }
-    /** StudiedTickersResponse */
-    StudiedTickersResponse: {
-      /** Items */
-      items: components['schemas']['StudiedTicker'][]
-      /**
-       * Generated At
-       * Format: date-time
-       */
-      generated_at: string
+    /**
+     * SymbolSuggestion
+     * @description One autocomplete row: ticker + company name (the only fields the SEC
+     *     universe carries — no price/exchange, by design, to avoid fabricating data).
+     */
+    SymbolSuggestion: {
+      /** Symbol */
+      symbol: string
+      /** Name */
+      name: string
     }
     /**
      * TestDataProviderRequest
@@ -3736,7 +3750,15 @@ export interface components {
        * Method
        * @enum {string}
        */
-      method: 'dcf' | 'comps_pe' | 'comps_pb' | 'lbo' | 'ddm' | 'ev_ebitda' | 'p_fcf'
+      method:
+        | 'dcf'
+        | 'comps_pe'
+        | 'comps_pb'
+        | 'lbo'
+        | 'ddm'
+        | 'residual_income'
+        | 'ev_ebitda'
+        | 'p_fcf'
       /**
        * Method Type
        * @enum {string}
@@ -3760,9 +3782,14 @@ export interface components {
       source: string
       /**
        * Assumptions
-       * @description Short summary of the load-bearing assumptions behind `mid`, built at the source where the underlying result object is in scope. Propagated to ValuationMethod.assumptions and into the IC debate evidence.
+       * @description Short summary of the load-bearing assumptions behind `mid`, built at the source where the underlying result object is in scope. Propagated to ValuationMethod.assumptions so a price is never cited naked.
        */
       assumptions?: string | null
+      /**
+       * Rerating Ratio
+       * @description For a MULTIPLES method only: the multiple shift its premise implicitly bets on, as `method-implied multiple / the target's own current SAME-caliber multiple` (comps_pe: peer-median anchor vs self; ev_ebitda: own 5y band mid vs price-implied). 1.0 = prices the target exactly where it trades; 1.38 = assumes a +38% re-rate; 0.7 = a de-rate. Set ONLY where the two sides share one caliber (the mixed-caliber comps fallback stays None — 绝不混口径), by the same aggregator code that builds the re-rating disclosure. None for cash-flow/intrinsic methods (DCF/DDM/RI/LBO), which carry no re-rating premise. Structured twin of the assumptions-string disclosure so the confidence dial can GRADE re-rating dominance without parsing prose.
+       */
+      rerating_ratio?: number | null
       /** Warnings */
       warnings?: string[]
     }
@@ -4712,6 +4739,7 @@ export interface operations {
     parameters: {
       query?: {
         limit?: number
+        include_signals?: boolean
       }
       header?: never
       path: {
@@ -4728,38 +4756,6 @@ export interface operations {
         }
         content: {
           'application/json': components['schemas']['ArtifactSummary'][]
-        }
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
-      }
-    }
-  }
-  studied_tickers_api_artifacts_studied_tickers_get: {
-    parameters: {
-      query?: {
-        include_archived?: boolean
-        limit?: number
-      }
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['StudiedTickersResponse']
         }
       }
       /** @description Validation Error */
@@ -5185,38 +5181,6 @@ export interface operations {
       }
     }
   }
-  search_api_search_get: {
-    parameters: {
-      query: {
-        q: string
-        limit?: number
-      }
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Successful Response */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['SearchResponse']
-        }
-      }
-      /** @description Validation Error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          'application/json': components['schemas']['HTTPValidationError']
-        }
-      }
-    }
-  }
   aggregate_for_ticker_api_valuation_aggregate__ticker__get: {
     parameters: {
       query?: never
@@ -5355,6 +5319,39 @@ export interface operations {
       }
     }
   }
+  search_symbols_api_search_symbols_get: {
+    parameters: {
+      query?: {
+        /** @description Partial ticker symbol or company name. */
+        q?: string
+        limit?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['SymbolSearchResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
   chat_chat_post: {
     parameters: {
       query?: never
@@ -5391,7 +5388,7 @@ export interface operations {
         }
         content: {
           'application/json': {
-            [key: string]: string
+            [key: string]: unknown
           }
         }
       }

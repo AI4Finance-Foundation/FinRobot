@@ -1,10 +1,20 @@
 #!/usr/bin/env bash
-# Cut a FinRobot desktop release and publish it to the public "releases" repo.
+# Cut a FinRobot desktop release and publish it to the public MAIN repo.
 #
 # Path A (closed source, public binary distribution): the source repo stays
-# private; only the compiled .dmg + the Tauri updater artifacts are published to
-# a separate PUBLIC GitHub repo, from whose latest Release the app's in-app
-# updater reads latest.json (endpoint configured in src-tauri/tauri.conf.json).
+# private; only the compiled .dmg + the Tauri updater artifacts are published as
+# a Release on the org's public flagship repo (AI4Finance-Foundation/FinRobot),
+# from whose latest Release the app's in-app updater reads latest.json
+# (endpoint configured in src-tauri/tauri.conf.json). Downloads and stars stay
+# unified on one repo (leader's call, 2026-07-07; the separate finrobot-releases
+# repo was retired the same day).
+#
+# ⚠️ The updater reads `releases/latest` of this SHARED repo. Desktop releases
+# are tagged desktop-vX.Y.Z (the bare vX.Y.Z line belongs to the legacy
+# project). Any future NON-desktop release on the main repo MUST be marked
+# "pre-release", or it will shadow `releases/latest` and silently blind every
+# installed app. The post-publish guard at the bottom catches this at release
+# time.
 #
 # We build LOCALLY (this Mac already has the toolchain + the frozen sidecar)
 # rather than in CI, so a release costs $0 and burns no private-repo macOS
@@ -32,7 +42,7 @@ set -euo pipefail
 # ── Config ───────────────────────────────────────────────────────────────────
 # The PUBLIC repo that hosts releases. MUST match the owner baked into
 # src-tauri/tauri.conf.json → plugins.updater.endpoints. Override via env.
-RELEASES_REPO="${RELEASES_REPO:-AI4Finance-Foundation/finrobot-releases}"
+RELEASES_REPO="${RELEASES_REPO:-AI4Finance-Foundation/FinRobot}"
 # Private key that signs the update bundle (Tauri reads the file path or its
 # contents). Generated once via `npm run tauri -- signer generate`.
 : "${TAURI_SIGNING_PRIVATE_KEY:=$HOME/.tauri/finrobot-updater.key}"
@@ -87,7 +97,12 @@ case "$TRIPLE" in
     *) echo >&2 "ERROR: unsupported host triple $TRIPLE (this script targets macOS)"; exit 1 ;;
 esac
 
-echo "[release] version=$VERSION  triple=$TRIPLE  repo=$RELEASES_REPO  dry-run=$DRY_RUN"
+# Desktop releases live on the shared main repo under their own tag line —
+# desktop-vX.Y.Z — because the bare vX.Y.Z line is already taken by the legacy
+# project (v1.0.0 "Equity Research") and the two must never collide.
+TAG="desktop-v$VERSION"
+
+echo "[release] version=$VERSION  tag=$TAG  triple=$TRIPLE  repo=$RELEASES_REPO  dry-run=$DRY_RUN"
 
 # ── 0. Release quality gate — RED ABORTS. No skip flag; runs even under --dry-run ─
 # Mirrors CI (.github/workflows/ci.yml) plus the pytest blocks each write session
@@ -191,7 +206,7 @@ done
 SIGNATURE="$(cat "$APP_SIG")"
 TARBALL_NAME="$(basename "$APP_TARBALL")"
 PUB_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-DL_BASE="https://github.com/$RELEASES_REPO/releases/download/v$VERSION"
+DL_BASE="https://github.com/$RELEASES_REPO/releases/download/$TAG"
 
 # ── 5. Generate latest.json (the manifest the in-app updater polls) ───────────
 LATEST_JSON="$BUNDLE_DIR/latest.json"
@@ -245,11 +260,32 @@ fi
 # char (the … here) makes macOS bash fold the UTF-8 bytes into the variable name
 # → "RELEASES_REPO…: unbound variable" under set -u. Never butt a non-ASCII char
 # directly against a brace-less expansion in this script.
-echo "[release] creating release v$VERSION on ${RELEASES_REPO}…"
-gh release create "v$VERSION" \
+echo "[release] creating release $TAG on ${RELEASES_REPO}…"
+gh release create "$TAG" \
     --repo "$RELEASES_REPO" \
-    --title "FinRobot v$VERSION" \
-    --notes "${NOTES:-FinRobot v$VERSION}" \
+    --latest \
+    --title "FinRobot Desktop v$VERSION" \
+    --notes "${NOTES:-FinRobot Desktop v$VERSION}" \
     "$DMG" "$APP_TARBALL" "$APP_SIG" "$LATEST_JSON" "$MIN_JSON"
+
+# ── 7. Post-publish guard: is the updater endpoint actually serving us? ───────
+# The updater polls `releases/latest` of the SHARED main repo. If another
+# (non-desktop) release ever shadows "latest", or propagation lags, installed
+# apps go silently blind. Assert the live manifest serves exactly this version.
+LIVE=""
+for _ in 1 2 3 4 5; do
+    LIVE="$(curl -fsSL "https://github.com/$RELEASES_REPO/releases/latest/download/latest.json" 2>/dev/null \
+        | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).version||""))}catch{}})' \
+        || true)"
+    [[ "$LIVE" == "$VERSION" ]] && break
+    sleep 5
+done
+if [[ "$LIVE" != "$VERSION" ]]; then
+    echo >&2 "ERROR: updater endpoint serves '${LIVE:-nothing}' (expected $VERSION)."
+    echo >&2 "       releases/latest on $RELEASES_REPO is shadowed by another release"
+    echo >&2 "       (mark non-desktop releases as pre-release) or has not propagated."
+    exit 1
+fi
+echo "[release] updater endpoint verified: releases/latest serves v$VERSION"
 
 echo "[release] done. Installed apps will see v$VERSION on their next launch check."

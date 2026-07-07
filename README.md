@@ -25,6 +25,41 @@
 ![Visitors](https://api.visitorbadge.io/api/VisitorHit?user=AI4Finance-Foundation&repo=FinRobot&countColor=%23B17A)
 [![Discord](https://dcbadge.limes.pink/api/server/trsr8SXpW5?v=20260320)](https://discord.gg/trsr8SXpW5)
 
+## 🚀 FinRobot Desktop v0.1.0 Released
+
+We are excited to announce the first public release of **FinRobot Desktop** — an open-source desktop research and valuation cockpit for financial analysts.
+
+FinRobot Desktop brings AI-native financial research workflows into a native macOS application, including:
+
+- **Traceable valuation synthesis**: DCF, LBO, and comparable-company analysis
+- **Investment committee research reports**: structured, analyst-style outputs for decision support
+- **Live market data integration**: market-aware research workflows
+- **Full source lineage**: transparent evidence tracking across financial analysis
+- **Auto-updates**: installed apps can check the latest GitHub release and update automatically
+
+### Download
+
+👉 **Latest Release:** [FinRobot Desktop v0.1.0](https://github.com/AI4Finance-Foundation/FinRobot/releases/tag/desktop-v0.1.0)
+
+For macOS Apple Silicon users, download:
+
+```text
+FinRobot_0.1.0_aarch64.dmg
+```
+
+Then drag **FinRobot** into the **Applications** folder.
+
+### macOS First Launch Note
+
+FinRobot Desktop is not yet Apple-notarized. On first launch, macOS may report that the downloaded app is “damaged.” Run the following command once in Terminal, then open the app normally:
+
+```bash
+xattr -cr /Applications/FinRobot.app
+```
+
+### System Requirement
+
+FinRobot Desktop currently requires an **Apple Silicon Mac** — M1, M2, M3, or later. Intel Mac builds are not available in this release.
 ## 🎬 FinRobot Pro — Your Personal AI-Powered Equity Research Assistant
 🌐 https://finrobot.ai/
 

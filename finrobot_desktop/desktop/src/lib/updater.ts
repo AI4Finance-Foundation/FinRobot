@@ -42,7 +42,8 @@ export async function relaunchApp(): Promise<void> {
 // installed version is below it, the app blocks until updated (mandatory
 // update). Keep this base URL in sync with the updater endpoint in
 // src-tauri/tauri.conf.json → plugins.updater.endpoints.
-const RELEASES_LATEST_BASE = 'https://github.com/AI4Finance-Foundation/FinRobot/releases/latest/download'
+const RELEASES_LATEST_BASE =
+  'https://github.com/AI4Finance-Foundation/FinRobot/releases/latest/download'
 
 /** Minimum supported version published alongside the latest release. Returns
  *  null in the browser, or when the file is absent / unreadable / blocked — the

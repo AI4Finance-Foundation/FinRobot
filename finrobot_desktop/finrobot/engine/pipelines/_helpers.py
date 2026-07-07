@@ -505,11 +505,14 @@ async def execute_peer_analysis(
     # claimed 7 while the delivered table showed 6, breaking the 7→6 audit trail
     # (KO 2026-07-02: PRMB in the trace, absent from the table, no drop record).
     # Name each trimmed peer in peer_drops so the reconciliation surfaces.
+    # The reason string is READER-FACING (artifact warning → report "peers
+    # excluded" section) — financial language only; the over-select/fetch
+    # mechanics above stay in this comment (2026-07-07 external audit).
     for trimmed in survivors[_PEER_COMP_SET_MAX:]:
         peer_drops[trimmed.ticker] = (
-            f"trimmed as excess drop-insurance beyond the {_PEER_COMP_SET_MAX}-peer "
-            "comp-set cap (screen over-selects for fetch resilience; lowest-ranked "
-            "survivor dropped when the full set fetches cleanly)"
+            f"ranked below the {_PEER_COMP_SET_MAX}-peer comp-set cap on "
+            "comparability — less comparable than the retained peers; excluded "
+            "by ranking, not by data quality"
         )
     peers: list[CompanyFinancials] = survivors[:_PEER_COMP_SET_MAX]
 

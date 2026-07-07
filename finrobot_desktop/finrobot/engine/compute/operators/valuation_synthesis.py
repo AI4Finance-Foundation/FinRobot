@@ -15,6 +15,8 @@ from finrobot.engine.models.financial import ValuationMethod, ValuationSynthesis
 from finrobot.engine.models.valuation_thresholds import (
     MARKET_DIVERGENCE_RATIO_K,
     METHOD_CORROBORATION_SPAN_K,
+    RERATING_ANCHOR_DISPLACEMENT_M,
+    RERATING_GAP_RATIO_K,
     SINGLE_METHOD_DIVERGENCE_RATIO_K,
 )
 
@@ -71,8 +73,12 @@ _OUTLIER_THRESHOLD = 0.30
 # still ships from the market-implied read. Spread → tier is by method AGREEMENT,
 # not market distance (KO's two-methods-agree-but-rich stays high); market distance
 # only caps the tier when the model/market ratio leaves the [0.25x, 4x] calibration
-# band (the option-value regime). Thresholds calibrated against the full basket
-# (MU/AAPL/KO/NVDA/TSLA/RIVN/F) — see scripts/probe_review_map + dial validation.
+# band (the option-value regime). A corroborated blend is additionally capped at
+# medium when it is RE-RATING-LED — breaching multiples premises dragging it off
+# the DCF anchor (RERATING_GAP_RATIO_K / RERATING_ANCHOR_DISPLACEMENT_M; orthogonal
+# to market distance by construction — see the gate in the blend branch).
+# Thresholds calibrated against the full basket (MU/AAPL/KO/NVDA/TSLA/RIVN/F) —
+# see scripts/probe_review_map + dial validation.
 _DIAL_CORROBORATE_SPAN = 1.5  # max/min ≤ → methods agree → blend + high tier
 _DIAL_MILD_SPAN = 3.0  # max/min ≤ → mild divergence → medium; above → low
 _DIAL_SINGLE_BAND_FRAC = 0.25  # single-method (no cross-check) range half-width
@@ -243,6 +249,51 @@ def _confidence_dial(
         point = sum(m.mid * m.confidence for m in methods) / sum(m.confidence for m in methods)
         anchor_name = None
         note = None
+        # ── Re-rating dominance gate (P0-1.2, 2026-07-07) ─────────────────────
+        # comps_pe / self-band ev_ebitda price the target on the premise that its
+        # multiple CONVERGES to their anchor. When (a) ≥1 such premise requires a
+        # multiple shift beyond RERATING_GAP_RATIO_K, AND (b) those methods drag
+        # the blend more than RERATING_ANCHOR_DISPLACEMENT_M away from the
+        # cash-flow (DCF) anchor, "high confidence" would really be a bet on an
+        # unproven re-rating (MSFT 2026-07-07: 1.38×/1.64× premises, blend +18.4%
+        # off the $451 DCF, shipped as high-conf +38% BUY that slipped the span
+        # and bimodal gates by a hair). Cap the tier at medium and put the
+        # DCF-only anchor beside the blend — change no number, drop no method,
+        # never touch the verdict directly. Deliberately ORTHOGONAL to market
+        # distance (红线): a corroborated SELL/BUY where the methods AGREE has a
+        # near-zero blend-vs-DCF displacement and never trips condition (b), so
+        # "two methods both say rich = high-confidence SELL" stays intact. This
+        # GRADES the premise's size — it never classifies the gap's nature (the
+        # reverse-DCF owns that). No DCF in the set → no cash-flow reference to
+        # displace from → gate inert (the per-method re-rating warnings still
+        # disclose the premise). A bank without RI lands here with DCF
+        # suppressed, so it is inert there too.
+        rerating_breach = [
+            m
+            for m in methods
+            if m.rerating_ratio is not None
+            and (
+                m.rerating_ratio > RERATING_GAP_RATIO_K
+                or m.rerating_ratio < 1.0 / RERATING_GAP_RATIO_K
+            )
+        ]
+        dcf_anchor = next((m for m in methods if m.name == "dcf"), None)
+        if rerating_breach and dcf_anchor is not None and dcf_anchor.mid > 0:
+            displacement = point / dcf_anchor.mid - 1.0
+            if abs(displacement) > RERATING_ANCHOR_DISPLACEMENT_M:
+                tier = _floor_tier(tier, "medium")
+                premise_txt = "; ".join(
+                    f"{_method_label(m.name)} prices the target at {m.rerating_ratio:.2f}× "
+                    f"its current same-caliber multiple"
+                    for m in rerating_breach
+                )
+                note = (
+                    f"multiples-led blend: {premise_txt} — an unproven re-rating premise, "
+                    f"not a modelled convergence — and it pulls the blended point "
+                    f"${point:.0f} to {displacement:+.0%} from the cash-flow (DCF-only) "
+                    f"anchor ${dcf_anchor.mid:.0f}. Confidence capped at medium; read the "
+                    f"blend and the DCF anchor side by side."
+                )
     else:
         reanchored_from: ValuationMethod | None = None
         anchor: ValuationMethod | None

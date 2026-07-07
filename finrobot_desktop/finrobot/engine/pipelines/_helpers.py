@@ -983,6 +983,9 @@ def build_valuation_synthesis(
             confidence=r.confidence,
             source=r.source,
             assumptions=r.assumptions,
+            # Structured re-rating premise (multiples methods only) — the dial's
+            # re-rating dominance gate GRADES on this; None for intrinsic methods.
+            rerating_ratio=r.rerating_ratio,
         )
         for r in agg.methods
     ]

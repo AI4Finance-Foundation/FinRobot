@@ -989,6 +989,18 @@ class ValuationMethod(BaseModel):
             "downstream so a price is never cited naked."
         ),
     )
+    rerating_ratio: float | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Multiples methods only: implied multiple / the target's own current "
+            "same-caliber multiple (mirrored from ValuationMethodRange.rerating_ratio "
+            "by build_valuation_synthesis). The confidence dial reads it to GRADE "
+            "re-rating dominance (cap the tier when far-from-1 ratios drag the blend "
+            "off the cash-flow anchor); None for intrinsic methods and on the "
+            "mixed-caliber comps fallback."
+        ),
+    )
 
 
 class ValuationSynthesis(BaseModel):
@@ -1026,7 +1038,10 @@ class ValuationSynthesis(BaseModel):
             "Analytical confidence tier — derived from method count + cross-method "
             "agreement (max/min spread) + data-degradation + provenance, AND capped when "
             "the model/market ratio falls outside the [0.25x, 4x] calibration band "
-            "(option-value regime). Deliberately NOT a function of distance-to-market "
+            "(option-value regime) or when a corroborated blend is re-rating-led "
+            "(multiples premises beyond RERATING_GAP_RATIO_K dragging the blend past "
+            "RERATING_ANCHOR_DISPLACEMENT_M off the DCF anchor — a premise bet, not a "
+            "corroborated read). Deliberately NOT a function of distance-to-market "
             "within band: two methods that agree the stock is rich (KO) stay HIGH "
             "confidence. Drives band width + the asymmetric verdict thresholds; it is "
             "never a reason to withhold the directional call."
@@ -1449,6 +1464,22 @@ class ValuationMethodRange(BaseModel):
             "Short summary of the load-bearing assumptions behind `mid`, built at "
             "the source where the underlying result object is in scope. Propagated "
             "to ValuationMethod.assumptions so a price is never cited naked."
+        ),
+    )
+    rerating_ratio: float | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "For a MULTIPLES method only: the multiple shift its premise implicitly bets "
+            "on, as `method-implied multiple / the target's own current SAME-caliber "
+            "multiple` (comps_pe: peer-median anchor vs self; ev_ebitda: own 5y band mid "
+            "vs price-implied). 1.0 = prices the target exactly where it trades; 1.38 = "
+            "assumes a +38% re-rate; 0.7 = a de-rate. Set ONLY where the two sides share "
+            "one caliber (the mixed-caliber comps fallback stays None — 绝不混口径), by the "
+            "same aggregator code that builds the re-rating disclosure. None for "
+            "cash-flow/intrinsic methods (DCF/DDM/RI/LBO), which carry no re-rating "
+            "premise. Structured twin of the assumptions-string disclosure so the "
+            "confidence dial can GRADE re-rating dominance without parsing prose."
         ),
     )
     warnings: list[str] = Field(default_factory=list)

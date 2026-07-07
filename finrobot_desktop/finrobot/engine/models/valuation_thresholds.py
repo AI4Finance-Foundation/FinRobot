@@ -78,6 +78,41 @@ SINGLE_METHOD_DIVERGENCE_RATIO_K = 2.0
 # flag used to re-export this constant.)
 METHOD_CORROBORATION_SPAN_K = 2.0
 
+# ── Re-rating dominance gate (P0-1.2, 2026-07-07, lead-signed K/M) ───────────
+# A multiples method (comps_pe / self-band ev_ebitda) prices the target on the
+# premise that its own multiple CONVERGES to the anchor (peer median / own 5y
+# band). When that premise requires a large multiple shift AND those methods
+# drag the corroborated blend away from the cash-flow (DCF) anchor, the blend's
+# "high confidence" is really a bet on an unproven re-rating — the MSFT
+# 2026-07-07 external-review case: dcf $451 / comps_pe $534 (1.38x re-rate) /
+# ev_ebitda $632 (1.64x) slipped BOTH existing gates by a hair (span 1.40 vs
+# 1.5, DCF median-deviation 27.3% vs 30%) and blended into a high-confidence
+# +38% BUY whose own disclosures contradicted it. The gate caps confidence at
+# medium and shows the DCF-only anchor alongside — it changes NO number, drops
+# NO method, never withholds the point and never touches the verdict directly.
+#
+# 红线 (do NOT re-litigate): this is deliberately ORTHOGONAL to market distance.
+# Two methods that agree far BELOW market (a corroborated high-confidence SELL)
+# have a near-zero blend-vs-DCF displacement and MUST NOT be capped — the
+# displacement condition (M), not the market gap, is what discriminates.
+# Confidence-not-a-function-of-market-distance stays the standing principle.
+#
+# Calibration (EMPIRICAL VALIDATION replay over the stored basket, 2026-07-07):
+# only MSFT lives on the corroborated-blend branch — AAPL (bimodal), KO
+# (re-anchor), GOOGL/MU (divergent), JPM/BAC (RI band), TSM (single) are
+# structurally out of the gate's scope — and MSFT reads ratios 1.38x/1.64x with
+# an +18.4% blend displacement. K=1.3: a ±30% multiple shift is a broken
+# premise, comfortably above the 0.25 pure-disclosure threshold
+# (_RERATING_DISCLOSURE_THRESHOLD) and below the archetype's 1.38. M=0.15:
+# catches the +18.4% archetype with margin while the corroborated-SELL /
+# corroborated-deep-value red-line cases sit at |disp| ≈ 3-4%, an ~11pp buffer.
+RERATING_GAP_RATIO_K = 1.3
+
+# Blend-vs-cash-flow-anchor displacement (|blend/dcf − 1|) above which breaching
+# multiples methods count as DRAGGING the headline (condition (b) of the gate —
+# see RERATING_GAP_RATIO_K above for the full rationale and red line).
+RERATING_ANCHOR_DISPLACEMENT_M = 0.15
+
 # Sponsor equity-return hurdle, shared by the two LBO consumers that must speak
 # the same bar (a leaf for the same reason as the constants above — the
 # aggregator is forbidden to import compute/operators/lbo):

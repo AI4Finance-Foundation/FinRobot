@@ -692,6 +692,7 @@ def _comps_pe_method(
     # method's own implied upside). Always-on when disclosable; a warning is added only when
     # the shift is large. Changes NO mid/low/high/confidence — pure transparency, nothing is
     # gated on it. Skipped on the mixed-caliber fallback (rerating_pe_kind None) or no price.
+    rerating_ratio: float | None = None
     if (
         current_price is not None
         and current_price > 0
@@ -700,6 +701,7 @@ def _comps_pe_method(
     ):
         self_multiple = current_price * multiple / mid
         ratio = mid / current_price
+        rerating_ratio = ratio  # structured twin — the dial GRADES on this
         rerating = (
             f"implied re-rating {self_multiple:.1f}× → {multiple:.1f}× "
             f"{rerating_pe_kind} ({ratio:.2f}×)"
@@ -722,6 +724,7 @@ def _comps_pe_method(
         confidence=confidence,
         source=source,
         assumptions=assumptions,
+        rerating_ratio=rerating_ratio,
     )
 
 
@@ -1070,12 +1073,14 @@ def _ev_ebitda_method(
     # lifts EV. Skipped when the price is missing or the current EV is ≤ 0 (net cash exceeds
     # market cap). Changes NO mid/low/high/confidence — pure transparency, nothing gated.
     assumptions: str | None = None
+    rerating_ratio: float | None = None
     if current_price is not None and current_price > 0:
         current_ev = current_price * shares + current_net_debt
         if current_ev > 0:
             current_implied = current_ev / forward_ebitda
             band_mid = (p25 + p75) / 2
             ratio = band_mid / current_implied
+            rerating_ratio = ratio  # structured twin — the dial GRADES on this
             assumptions = (
                 f"implied re-rating: price-implied EV/forward-EBITDA {current_implied:.1f}× → "
                 f"own 5y trailing band mid {band_mid:.1f}× ({ratio:.2f}×)"
@@ -1102,6 +1107,7 @@ def _ev_ebitda_method(
         # separately via band_sample_n. Keep this label in sync if the default changes.
         source="self_5y_p25_p75 × forward_ebitda − current_net_debt",
         assumptions=assumptions,
+        rerating_ratio=rerating_ratio,
         warnings=method_warnings,
     )
 

@@ -1068,3 +1068,140 @@ class TestMnaTransitionGate:
         )
         assert vs.mna_transition is True and vs.valuation_withheld is True
         assert resolve_canonical_thesis(vs, "FITB").verdict == "HOLD"
+
+
+class TestReratingDominanceGate:
+    """P0-1.2 (2026-07-07, lead-signed K=1.3 / M=15%): a corroborated blend whose
+    multiples methods (a) bet on a multiple shift beyond RERATING_GAP_RATIO_K and
+    (b) drag the blend more than RERATING_ANCHOR_DISPLACEMENT_M off the DCF anchor
+    is re-rating-LED — cap confidence at medium and put the DCF-only anchor beside
+    the blend. Changes no number, drops no method, never touches the verdict
+    directly, and (红线) stays orthogonal to market distance: a corroborated
+    SELL/deep-value BUY has near-zero blend-vs-DCF displacement and never trips."""
+
+    @staticmethod
+    def _m(
+        name: str, mid: float, conf: float, rerating: float | None = None
+    ) -> ValuationMethod:
+        return ValuationMethod(
+            name=name,
+            low=mid * 0.9,
+            mid=mid,
+            high=mid * 1.1,
+            confidence=conf,
+            source=name,
+            rerating_ratio=rerating,
+        )
+
+    def _msft_shape(self) -> list[ValuationMethod]:
+        # The 2026-07-07 archetype (post-liveness artifact 64dda9): dcf $451.22 /
+        # comps_pe $534.23 (re-rate 1.38×) / ev_ebitda $632.34 (1.64×), price
+        # $386.74 — span 1.401 and DCF median-deviation 27.3% slip BOTH existing
+        # gates by a hair; the blend lands +18.4% off the DCF anchor.
+        return [
+            self._m("dcf", 451.22, 0.85),
+            self._m("comps_pe", 534.23, 0.80, rerating=1.38),
+            self._m("ev_ebitda", 632.34, 0.72, rerating=1.64),
+        ]
+
+    def test_rerating_led_blend_caps_confidence_shows_dcf_anchor_msft_2026_07_07(self):
+        vs = synthesize_valuations(self._msft_shape(), 386.74)
+        assert vs.confidence == "medium"  # capped from high
+        # The blend itself is untouched (gate re-grades, never re-prices) and the
+        # point still publishes — not a withhold.
+        assert vs.weighted_price == pytest.approx(534.27, abs=0.05)
+        assert vs.valuation_withheld is False
+        assert vs.anchor_method is None
+        note = vs.degradation_note or ""
+        assert "capped at medium" in note.lower()
+        assert "$451" in note  # the DCF-only anchor shown alongside (a method mid)
+        assert "re-rating" in note
+        # note must GRADE, never CLASSIFY the gap's nature (reverse-DCF owns that).
+        assert "option value" not in note.lower()
+        # Verdict ships from the medium bands: +38% ≥ 30% buy bar → still BUY.
+        thesis = resolve_canonical_thesis(vs, "MSFT")
+        assert thesis.verdict == "BUY"
+        assert thesis.confidence == "medium"
+        assert thesis.target == pytest.approx(vs.weighted_price, abs=0.01)
+        assert "capped at medium" in (thesis.basis or "").lower()
+
+    def test_corroborated_sell_with_derate_premise_is_not_capped(self):
+        # 红线 lock: dcf $60 + comps_pe $55 both far BELOW the $100 market — the
+        # comps de-rate premise breaches K (0.55 < 1/1.3) but the methods AGREE, so
+        # the blend sits ~4% off DCF and condition (b) never fires. Two methods
+        # both saying rich stays a HIGH-confidence SELL.
+        vs = synthesize_valuations(
+            [self._m("dcf", 60.0, 0.85), self._m("comps_pe", 55.0, 0.80, rerating=0.55)],
+            100.0,
+        )
+        assert vs.confidence == "high"
+        assert "capped" not in (vs.degradation_note or "").lower()
+        assert resolve_canonical_thesis(vs, "T").verdict == "SELL"
+
+    def test_corroborated_deep_value_buy_is_not_capped(self):
+        # Mirror red-line: both methods far ABOVE market, agreeing with each other.
+        vs = synthesize_valuations(
+            [self._m("dcf", 150.0, 0.85), self._m("comps_pe", 140.0, 0.80, rerating=1.40)],
+            100.0,
+        )
+        assert vs.confidence == "high"
+        assert "capped" not in (vs.degradation_note or "").lower()
+
+    def test_ratios_inside_gap_do_not_cap_even_with_displacement(self):
+        # Condition (a) independent: all premises within K=1.3 → the blend's
+        # displacement alone (here +23%) is corroborated method disagreement-of-
+        # degree, not a premise bet — stays high.
+        vs = synthesize_valuations(
+            [
+                self._m("dcf", 100.0, 0.85),
+                self._m("comps_pe", 129.0, 0.80, rerating=1.29),
+                self._m("ev_ebitda", 145.0, 0.72, rerating=1.29),
+            ],
+            100.0,
+        )
+        assert vs.confidence == "high"
+
+    def test_gate_inert_without_dcf_cash_flow_reference(self):
+        # No DCF in the set → no cash-flow anchor to displace from → inert (the
+        # per-method re-rating warnings still disclose the premise upstream).
+        vs = synthesize_valuations(
+            [
+                self._m("comps_pe", 140.0, 0.80, rerating=1.40),
+                self._m("ev_ebitda", 150.0, 0.72, rerating=1.50),
+            ],
+            100.0,
+        )
+        assert vs.confidence == "high"
+        assert "capped" not in (vs.degradation_note or "").lower()
+
+    def test_derate_dominant_blend_caps_symmetrically(self):
+        # Symmetric side: a breaching DE-rate premise (comps_pe 0.70× < 1/1.3)
+        # drags the blend −18% below a DCF that reads the name roughly fair — the
+        # bearish tilt rests on the premise, not on corroborated cash flow → cap.
+        # Geometry deliberately keeps DCF INSIDE the 30% median cluster (deviation
+        # 22%, span 1.43): a deeper de-rate would route to the bimodal branch
+        # first (DCF becomes the lone median-outlier), which already grades
+        # medium and anchors the cluster — the gate owns only the blend branch.
+        vs = synthesize_valuations(
+            [
+                self._m("dcf", 100.0, 0.60),
+                self._m("comps_pe", 70.0, 0.90, rerating=0.70),
+                self._m("ev_ebitda", 82.0, 0.90, rerating=0.82),
+            ],
+            100.0,
+        )
+        assert vs.confidence == "medium"
+        assert "capped at medium" in (vs.degradation_note or "").lower()
+
+    def test_displacement_below_m_with_breach_is_not_capped(self):
+        # Breach present but the blend hugs the DCF anchor (≤15%) → the premise
+        # is disclosed upstream yet does not LEAD the headline — stays high.
+        vs = synthesize_valuations(
+            [
+                self._m("dcf", 100.0, 0.85),
+                self._m("comps_pe", 112.0, 0.80, rerating=1.38),
+                self._m("ev_ebitda", 108.0, 0.72, rerating=1.35),
+            ],
+            100.0,
+        )
+        assert vs.confidence == "high"

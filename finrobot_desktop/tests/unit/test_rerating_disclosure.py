@@ -230,3 +230,42 @@ def test_rerating_disclosure_strings_have_no_dollar_or_ticker() -> None:
     for s in strings:
         assert "$" not in s, f"naked $ surfaces into scrubber-scrubbed prose: {s}"
         assert "MU" not in s, f"ticker leaks into a per-report disclosure string: {s}"
+
+
+class TestStructuredReratingRatio:
+    """P0-1.2 companion: the SAME code that builds the prose disclosure must set
+    the structured ``rerating_ratio`` (the confidence dial GRADES on it — no prose
+    parsing), and must leave it None exactly where the prose is omitted (mixed
+    caliber / no price). Prose and structure may never disagree."""
+
+    def test_comps_pe_forward_path_sets_structured_ratio(self) -> None:
+        pc = _pc(median_forward_pe=31.9, forward_pe_sample_n=5, target_forward_pe=19.8)
+        m = _comps_pe_method(pc, 10.0, 2.4e9, [], current_price=198.0)
+        assert m is not None
+        assert m.rerating_ratio == pytest.approx(319.0 / 198.0)
+        assert "(1.61×)" in (m.assumptions or "")  # prose twin agrees
+
+    def test_comps_pe_mixed_caliber_and_no_price_leave_ratio_none(self) -> None:
+        mixed = _comps_pe_method(
+            _pc(median_pe=25.0, pe_sample_n=5, target_pe=20.0), 10.0, 2.4e9, [],
+            current_price=150.0,
+        )
+        assert mixed is not None and mixed.rerating_ratio is None
+        noprice = _comps_pe_method(
+            _pc(median_forward_pe=31.9, forward_pe_sample_n=5, target_forward_pe=19.8),
+            10.0, 2.4e9, [], current_price=None,
+        )
+        assert noprice is not None and noprice.rerating_ratio is None
+
+    def test_ev_ebitda_sets_structured_ratio_and_none_without_price(self) -> None:
+        # current EV = 100×1e9 + 5e9 = 105e9 → price-implied 10.5×; band mid 15.0×
+        # → ratio 1.4286.
+        priced = _ev_ebitda_method(
+            10e9, (12.0, 18.0), 1e9, 5e9, warnings=[], current_price=100.0
+        )
+        assert priced is not None
+        assert priced.rerating_ratio == pytest.approx(15.0 / 10.5)
+        noprice = _ev_ebitda_method(
+            10e9, (12.0, 18.0), 1e9, 5e9, warnings=[], current_price=None
+        )
+        assert noprice is not None and noprice.rerating_ratio is None

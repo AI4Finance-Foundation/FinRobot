@@ -11,6 +11,38 @@ def _append_unique(target: list[str], items: list[str]) -> None:
             target.append(item)
 
 
+def _demote_step_headings(text: str) -> str:
+    """Re-level a step output's own markdown headings under the report scaffold.
+
+    ``format_summary`` nests every step under ``# FinRobot Analysis Report`` /
+    ``## {Step}``, but step outputs arrive with their own top-level ``# …``
+    headings — concatenated verbatim the document carried several competing
+    H1s and bare ``###`` marker lines (external review read that structure as
+    a pipeline defect). Demote in-step ATX headings two levels (capped at
+    ``######``) so the hierarchy nests, and drop marker-only heading lines
+    (decoration, never content). Fenced code blocks are left untouched.
+    """
+    out: list[str] = []
+    in_fence = False
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            out.append(line)
+            continue
+        if not in_fence:
+            hashes = len(stripped) - len(stripped.lstrip("#"))
+            if 1 <= hashes <= 6:
+                rest = stripped[hashes:]
+                if not rest.strip():
+                    continue  # bare '###' marker line — decoration, drop
+                if rest.startswith(" "):
+                    out.append("#" * min(6, hashes + 2) + rest)
+                    continue
+        out.append(line)
+    return "\n".join(out)
+
+
 class PipelineResult(BaseModel):
     steps: dict[str, str]
     structured_data: dict[str, object] = Field(default_factory=dict)
@@ -74,7 +106,7 @@ class PipelineResult(BaseModel):
             parts[0] += "\n".join(warning_lines)
         for step_name, output in self.steps.items():
             title = step_name.replace("_", " ").title()
-            parts.append(f"## {title}\n\n{output}")
+            parts.append(f"## {title}\n\n{_demote_step_headings(output)}")
 
         # Collect all warnings from structured data (cross-validation
         # discrepancies, missing-field defaults, etc.) and surface them.

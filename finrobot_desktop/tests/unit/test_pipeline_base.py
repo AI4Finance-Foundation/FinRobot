@@ -377,6 +377,26 @@ class TestPipelineResult:
         result = PipelineResult(steps={})
         assert result.format_summary() == ""
 
+    def test_format_summary_demotes_step_headings_and_drops_bare_markers(self):
+        """Step outputs carry their own top-level headings; concatenated verbatim
+        the document held competing H1s and bare '###' lines (external-review
+        defect). The scaffold's own H1/H2 must stay the only top levels."""
+        result = PipelineResult(
+            steps={
+                "data_collection": "# Microsoft Corporation\n\nprose\n###\n## Sub Section\nmore",
+            }
+        )
+        summary = result.format_summary()
+        lines = summary.splitlines()
+        # Document H1 is the scaffold's — the step's H1 is demoted below it.
+        assert lines[0] == "# FinRobot Analysis Report"
+        assert "### Microsoft Corporation" in lines
+        assert "#### Sub Section" in lines
+        assert "# Microsoft Corporation" not in lines
+        # Bare heading-marker line is dropped, real prose survives.
+        assert "###" not in [line.strip() for line in lines]
+        assert "prose" in summary and "more" in summary
+
     def test_format_summary_includes_data_source_notes(self):
         """Warnings from structured data appear in Data Source Notes section."""
 

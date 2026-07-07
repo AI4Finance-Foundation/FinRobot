@@ -1049,12 +1049,17 @@ def _ev_ebitda_method(
             f" − current net debt — degraded relative-valuation method; multiple taken from the target's own historical range, not from peers."
         )
     # Disclose the mean-reversion this method IMPLICITLY assumes: reverting the target to its
-    # own historical multiple mid presumes its CURRENT EV/EBITDA converges there. Both sides
-    # share the forward-EBITDA denominator (current EV = market cap + current net debt, over
-    # the same forward EBITDA), so the two multiples are one caliber. current_net_debt may be
-    # negative (net cash), which correctly lifts EV. Skipped when the price is missing or the
-    # current EV is ≤ 0 (net cash exceeds market cap). Changes NO mid/low/high/confidence —
-    # pure transparency, nothing is gated on it.
+    # own historical multiple mid presumes today's price-implied multiple converges there.
+    # Both sides are computed over the SAME forward-EBITDA denominator (current EV = market
+    # cap + current net debt), so the ratio is denominator-consistent — but the band itself
+    # is built from TRAILING-year multiples (fetch_reverse_multiple_band), so part of any
+    # gap vs the price-implied forward multiple is caliber (forward EBITDA > trailing ⇒
+    # forward-denominated multiples run structurally lower), not pure mean-reversion. The
+    # labels below say so explicitly: a blind "current EV/EBITDA" label collides with the
+    # data page's EV/TTM-EBITDA figure and reads as a same-metric double value (2026-07-07
+    # blind panoramic review). current_net_debt may be negative (net cash), which correctly
+    # lifts EV. Skipped when the price is missing or the current EV is ≤ 0 (net cash exceeds
+    # market cap). Changes NO mid/low/high/confidence — pure transparency, nothing gated.
     assumptions: str | None = None
     if current_price is not None and current_price > 0:
         current_ev = current_price * shares + current_net_debt
@@ -1063,16 +1068,18 @@ def _ev_ebitda_method(
             band_mid = (p25 + p75) / 2
             ratio = band_mid / current_implied
             assumptions = (
-                f"implied re-rating current EV/EBITDA {current_implied:.1f}× → "
-                f"own 5y band mid {band_mid:.1f}× ({ratio:.2f}×)"
+                f"implied re-rating: price-implied EV/forward-EBITDA {current_implied:.1f}× → "
+                f"own 5y trailing band mid {band_mid:.1f}× ({ratio:.2f}×)"
             )
             if abs(ratio - 1.0) > _RERATING_DISCLOSURE_THRESHOLD and warnings is not None:
                 shift = "expand" if ratio > 1.0 else "compress"
                 warnings.append(
                     f"ev_ebitda: reverting the target to its own 5-year historical multiple "
-                    f"implies its EV/EBITDA must {shift} from {current_implied:.1f}× to "
-                    f"{band_mid:.1f}× ({ratio:.2f}× the current multiple) — an unproven "
-                    f"mean-reversion premise; {RERATING_WARNING_MARKER}."
+                    f"implies its price-implied EV/forward-EBITDA must {shift} from "
+                    f"{current_implied:.1f}× to the trailing band mid {band_mid:.1f}× "
+                    f"({ratio:.2f}×) — an unproven mean-reversion premise, and part of the "
+                    f"gap is caliber (a trailing-year band applied to forward EBITDA); "
+                    f"{RERATING_WARNING_MARKER}."
                 )
     return ValuationMethodRange(
         method="ev_ebitda",

@@ -29,13 +29,17 @@ def _fd(
     ticker: str = "X",
     industry: str | None = None,
     net_income: float | None = 10e9,
+    operating_income: float | None = None,
+    revenue: float = 100e9,
     enterprise_value: float | None = None,
     ev_ebitda: float | None = None,
 ) -> FinancialData:
     return FinancialData(
         ticker=ticker,
         timestamp=datetime.now(tz=timezone.utc),
-        income=IncomeStatement(revenue=100e9, net_income=net_income),
+        income=IncomeStatement(
+            revenue=revenue, net_income=net_income, operating_income=operating_income
+        ),
         market=MarketData(
             market_cap=500e9, shares_outstanding=5e9, current_price=100.0, industry=industry
         ),
@@ -112,6 +116,42 @@ class TestFinancialSectorEvSuppression:
         # Nothing to suppress when EV was already withheld upstream.
         f = audit_sector_sign(_fd(ticker="JPM", industry="Banks - Diversified"))
         assert "financial_sector_ev_meaningless" not in _checks(f)
+
+
+class TestNetIncomeAboveOperating:
+    """GOOGL 2026-07 (external audit C1): $37.7B unrealized securities gains put
+    net margin (37.9%) ABOVE operating margin (32.7%); the narrative called the
+    headline P/E "cheap" while the core P/E said otherwise. Arithmetically
+    impossible for a taxpaying operator without non-operating inflation →
+    review-level disclosure next to the P/E."""
+
+    def test_googl_shape_flags_review(self):
+        f = audit_sector_sign(
+            _fd(ticker="GOOGL", revenue=422e9, net_income=160e9, operating_income=138e9)
+        )
+        hit = next(x for x in f if x.check == "net_income_exceeds_operating_income")
+        assert hit.severity == "review"
+        assert hit.field_key == "pe_ratio"
+        assert "non-operating" in hit.evidence
+
+    def test_normal_operator_no_finding(self):
+        f = audit_sector_sign(_fd(revenue=100e9, net_income=15e9, operating_income=20e9))
+        assert "net_income_exceeds_operating_income" not in _checks(f)
+
+    def test_small_excess_within_band_no_finding(self):
+        # 1% of revenue above operating — rounding / small recurring interest
+        # income, not a caliber distortion.
+        f = audit_sector_sign(_fd(revenue=100e9, net_income=21e9, operating_income=20e9))
+        assert "net_income_exceeds_operating_income" not in _checks(f)
+
+    def test_loss_maker_not_double_flagged(self):
+        # net ≤ 0 belongs to the NM rule, not this one.
+        f = audit_sector_sign(_fd(revenue=100e9, net_income=-2e9, operating_income=-10e9))
+        assert "net_income_exceeds_operating_income" not in _checks(f)
+
+    def test_missing_operating_income_no_finding(self):
+        f = audit_sector_sign(_fd(net_income=10e9, operating_income=None))
+        assert "net_income_exceeds_operating_income" not in _checks(f)
 
 
 class TestNonPositiveEarnings:

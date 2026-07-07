@@ -67,6 +67,41 @@ def audit_sector_sign(fin: FinancialData) -> list[Finding]:
                     )
                 )
 
+    # Net income ABOVE operating income is arithmetically impossible for a
+    # taxpaying operator unless non-operating items (unrealized investment
+    # gains, one-off disposals, equity-method income) inflate the bottom line —
+    # and every headline P/E built on that net income silently understates the
+    # operating multiple. GOOGL 2026-07: $37.7B of unrealized securities gains
+    # pushed net margin (37.9%) above operating margin (32.7%), the report
+    # narrated "cheap vs peers" off headline P/E 27.8x while its own core P/E
+    # said 39.1x (external audit C1). Disclose at ``review`` — a legitimate,
+    # explainable state, but one the reader must see next to the P/E. The 2%
+    # margin band absorbs rounding and small recurring interest income.
+    net_income_flag = fin.income.net_income
+    operating_income = fin.income.operating_income
+    revenue = fin.income.revenue
+    if (
+        net_income_flag is not None
+        and operating_income is not None
+        and revenue > 0
+        and net_income_flag > 0
+        and (net_income_flag - operating_income) / revenue > 0.02
+    ):
+        findings.append(
+            Finding(
+                field_key="pe_ratio",
+                check="net_income_exceeds_operating_income",
+                severity="review",
+                evidence=(
+                    f"{fin.ticker} net income ({net_income_flag:,.0f}) exceeds operating "
+                    f"income ({operating_income:,.0f}) — non-operating items (investment "
+                    f"gains, disposals, equity-method income) inflate headline earnings, so "
+                    f"the headline P/E understates the operating multiple. Judge valuation "
+                    f"on the core/NOPAT-based P/E."
+                ),
+            )
+        )
+
     net_income = fin.income.net_income
     if net_income is not None and net_income <= 0:
         findings.append(

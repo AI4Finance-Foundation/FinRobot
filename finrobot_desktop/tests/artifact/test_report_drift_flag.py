@@ -160,6 +160,51 @@ def test_approximation_of_a_real_leaf_is_kept_not_redacted() -> None:
     assert not [w for w in artifact.outputs.warnings if w.startswith("[REPORT-DRIFT/redacted]")]
 
 
+def test_frozen_session_change_amount_is_not_redacted() -> None:
+    """The data agent narrates a real derived figure — the day's price change
+    amount (last_close − prev_close) it is shown in the PRICE prompt summary. It is
+    NOT reconstructable from any other frozen field, so execute_financial_data_step
+    freezes it as a dedicated ``price_session`` leaf; the drift scan must then match
+    it and leave the narrative intact (MSFT 2026-07-07 orphan-redaction regression)."""
+    report = "# Report\n\nLatest Session Change: -$3.75 (-0.96%) into today's close."
+    result = PipelineResult(
+        steps={"data_collection": "ok", "report": report},
+        structured_data={
+            "data_collection": _financial_data(),
+            "price_session": {
+                "latest_session_change": -3.75,
+                "latest_session_change_pct": -0.9603,
+            },
+        },
+    )
+    artifact = build_equity_research_artifact(result, "AAPL", cast(Any, None))
+
+    assert "-$3.75" in artifact.outputs.summary_text
+    assert "[unverified amount redacted]" not in artifact.outputs.summary_text
+    # The frozen amount is a leaf now → the only $-amount matches → no drift block.
+    assert "report_drift" not in artifact.outputs.structured
+    # ...and it is frozen into the artifact for traceability (analyst can drill in).
+    assert artifact.outputs.structured["price_session"]["latest_session_change"] == -3.75
+
+
+def test_session_change_amount_without_freeze_is_redacted_as_orphan() -> None:
+    """Same narrative, but no ``price_session`` frozen (e.g. <2 price bars): the
+    behavior is exactly the pre-fix path — the amount matches no leaf and is
+    redacted. Pins that the fix is the FROZEN leaf, not a tolerance/regex loosening
+    (and that ``price × pct/100`` was never the mechanism — the exact amount is)."""
+    report = "# Report\n\nLatest Session Change: -$3.75 (-0.96%) into today's close."
+    result = PipelineResult(
+        steps={"data_collection": "ok", "report": report},
+        structured_data={"data_collection": _financial_data()},
+    )
+    artifact = build_equity_research_artifact(result, "AAPL", cast(Any, None))
+
+    drift = artifact.outputs.structured["report_drift"]
+    assert drift["redacted"] == ["-$3.75"]
+    assert "-$3.75" not in artifact.outputs.summary_text
+    assert "[unverified amount redacted]" in artifact.outputs.summary_text
+
+
 def test_mixed_approximation_survives_while_orphan_is_redacted() -> None:
     # $999.99 is near NOTHING the artifact computed → redacted; the 400B
     # approximation in the same narrative must survive the redaction pass.

@@ -676,6 +676,25 @@ async def execute_financial_data_step(
     # merged into FinancialData.warnings inside extract_financial_data — no
     # further merging needed here.
 
+    # Freeze the day-over-day session-change AMOUNT the data agent is shown in the
+    # PRICE prompt summary (NormalizedPrice.to_prompt_summary → latest_session_change
+    # = last_close − prev_close, in the quote currency) as a traceable artifact leaf.
+    # The report-drift audit builds its leaf registry from the FROZEN snapshot, and
+    # this amount is NOT reconstructable from any stored field — it is a difference of
+    # two closes, not price × a stored ratio (price × session_pct/100 has a relative
+    # error ≈ the day's move, redacting a real figure on any material move) — so a
+    # narrative that faithfully prints "Latest Session Change: -$3.75" traced to no
+    # leaf and was redacted as an orphan (MSFT 2026-07-07). None on <2 bars (no prior
+    # close to diff) → nothing frozen; the amount, if narrated, stays unmatched as
+    # before. Only build_equity_research_artifact consumes this today (its data
+    # narrative is the one that restates the snapshot).
+    _session_change, _session_change_pct = _price.latest_session_change()
+    if _session_change is not None:
+        structured_context["price_session"] = {
+            "latest_session_change": _session_change,
+            "latest_session_change_pct": _session_change_pct,
+        }
+
     # Target FY1 consensus (forward EPS) so build_valuation_synthesis can take
     # aggregate_valuation's forward comps path (peer forward median P/E × target
     # forward EPS) instead of the trailing fallback. Best-effort: a forward miss

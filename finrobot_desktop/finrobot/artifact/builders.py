@@ -1075,6 +1075,18 @@ def build_equity_research_artifact(
         "reporting_currency": str(raw_data.get("reporting_currency") or "USD"),
     }
 
+    # Freeze the day-over-day session change the data agent narrated (sourced from the
+    # PRICE canonical in execute_financial_data_step). The amount = last_close −
+    # prev_close is a real computed number the analyst sees ("Latest Session Change:
+    # -$3.75") but is NOT reconstructable from any other frozen field — not price × a
+    # stored ratio — so without freezing it the report-drift leaf registry had no match
+    # and redacted it as an orphan (MSFT 2026-07-07). Freezing makes it a natural leaf
+    # (picked up by collect_numeric_leaves below) AND a traceable artifact field.
+    # Absent (<2 price bars → no session to diff) → not frozen, prior behavior.
+    price_session = result.structured_data.get("price_session")
+    if isinstance(price_session, dict):
+        structured_out["price_session"] = price_session
+
     # Deterministic narrative fallback: fill any prose field the LLM left NULL from the
     # frozen structured data BEFORE mirroring, so no section renders empty and the
     # mirror below carries the filled values. Provenance flagged in the warnings.

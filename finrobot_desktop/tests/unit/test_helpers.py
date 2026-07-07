@@ -231,6 +231,81 @@ async def test_historical_metrics_injected_into_structured_context():
 
 
 @pytest.mark.asyncio
+async def test_session_change_amount_frozen_into_structured_context():
+    """The day-over-day session change AMOUNT (last_close − prev_close) the data
+    agent is shown in the PRICE prompt summary must be frozen into
+    structured_context so the report-drift audit has it as a leaf — it is not
+    reconstructable from any other frozen field (MSFT 2026-07-07 orphan-redaction)."""
+    norm_fin = normalize_financials(_financials_raw())
+    # Two dated bars → latest_session_change() returns a real (amount, pct); the
+    # one-bar _price_raw() fixture returns (None, None) and would freeze nothing.
+    norm_price = normalize_price(
+        DataResult(
+            data={
+                "current_price": 386.74,
+                "price_history": [
+                    {"date": "2026-07-03", "close": 390.49},
+                    {"date": "2026-07-07", "close": 386.74},
+                ],
+            },
+            provider="fmp",
+            ticker="TEST",
+            data_type="price",
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+    )
+    expected_change, expected_pct = norm_price.latest_session_change()
+    assert expected_change is not None and expected_change < 0  # a down session
+
+    mock_agent = MagicMock()
+    mock_agent_result = MagicMock()
+    mock_agent_result.output = "text"
+    mock_agent.run = AsyncMock(return_value=mock_agent_result)
+
+    mock_data_layer = MagicMock()
+    mock_data_layer.fetch_canonical = AsyncMock(side_effect=_canonical_router(norm_fin, norm_price))
+    mock_data_layer.fetch_historical = AsyncMock(return_value=[])
+
+    mock_deps = MagicMock()
+    mock_deps.data_layer = mock_data_layer
+
+    structured_context: dict[str, object] = {}
+    await execute_financial_data_step(mock_agent, mock_deps, "prompt", structured_context, "TEST")
+
+    session = structured_context.get("price_session")
+    assert isinstance(session, dict)
+    # Frozen value is the EXACT computed amount, not a price × pct reconstruction.
+    assert session["latest_session_change"] == expected_change
+    assert session["latest_session_change_pct"] == expected_pct
+    assert abs(session["latest_session_change"] - (-3.75)) < 1e-6
+
+
+@pytest.mark.asyncio
+async def test_session_change_not_frozen_when_single_bar():
+    """<2 bars → latest_session_change() is (None, None); nothing is frozen, so a
+    narrative amount (if any) stays unmatched exactly as before the fix."""
+    norm_fin = normalize_financials(_financials_raw())
+    norm_price = normalize_price(_price_raw())  # one bar
+
+    mock_agent = MagicMock()
+    mock_agent_result = MagicMock()
+    mock_agent_result.output = "text"
+    mock_agent.run = AsyncMock(return_value=mock_agent_result)
+
+    mock_data_layer = MagicMock()
+    mock_data_layer.fetch_canonical = AsyncMock(side_effect=_canonical_router(norm_fin, norm_price))
+    mock_data_layer.fetch_historical = AsyncMock(return_value=[])
+
+    mock_deps = MagicMock()
+    mock_deps.data_layer = mock_data_layer
+
+    structured_context: dict[str, object] = {}
+    await execute_financial_data_step(mock_agent, mock_deps, "prompt", structured_context, "TEST")
+
+    assert "price_session" not in structured_context
+
+
+@pytest.mark.asyncio
 async def test_no_duplicate_warnings_when_extractor_and_provider_share():
     """Warnings from canonical object and extractor must not be duplicated."""
     shared_warning = (

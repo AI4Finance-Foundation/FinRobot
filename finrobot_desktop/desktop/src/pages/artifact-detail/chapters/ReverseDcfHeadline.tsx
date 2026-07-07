@@ -150,11 +150,25 @@ export function ReverseDcfHeadline({
             {t('chapter.cover.reverseDcf.optionalityBody')}
           </span>
         ) : (
+          // Direction-aware: the old single sentence claimed the price "sits
+          // {x}× above the cash-flow floor … not a value entry" with x =
+          // market / DCF MID — at 0.9× the premium narrative was arithmetically
+          // upside-down and contradicted the cover's margin-of-safety line
+          // (external audit 2026-07-07). Branch on market vs central value.
           <span>
             <b style={{ color: 'var(--secondary)', fontWeight: 600 }}>
-              {t('chapter.cover.reverseDcf.withheldTitle')}
+              {multiple >= 1.05
+                ? t('chapter.cover.reverseDcf.withheldTitle')
+                : multiple <= 0.95
+                  ? t('chapter.cover.reverseDcf.belowValueTitle')
+                  : t('chapter.cover.reverseDcf.atValueTitle')}
             </b>{' '}
-            — {t('chapter.cover.reverseDcf.withheldBody', { multiple: multipleLabel })}
+            —{' '}
+            {multiple >= 1.05
+              ? t('chapter.cover.reverseDcf.withheldBody', { multiple: multipleLabel })
+              : multiple <= 0.95
+                ? t('chapter.cover.reverseDcf.belowValueBody', { multiple: multipleLabel })
+                : t('chapter.cover.reverseDcf.atValueBody')}
           </span>
         )}
       </div>

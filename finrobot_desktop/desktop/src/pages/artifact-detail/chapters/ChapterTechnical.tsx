@@ -74,12 +74,17 @@ export function ChapterTechnical({
       value: `${range52Position.toFixed(0)}%`,
       // Natural micro-encoding: where the price sits in its own 52-week band.
       ratio: range52Position / 100,
+      // Four tiers, not three: with a single 20–80 "mid-range" bucket a 22%
+      // print carried a mid-range caption — technically inside the bucket,
+      // but a reader sees "bottom quarter" (external audit 2026-07-07).
       sub:
         range52Position >= 80
           ? t('chapter.technical.position.nearHigh')
-          : range52Position <= 20
-            ? t('chapter.technical.position.nearLow')
-            : t('chapter.technical.position.midRange'),
+          : range52Position >= 50
+            ? t('chapter.technical.position.upperRange')
+            : range52Position > 20
+              ? t('chapter.technical.position.lowerRange')
+              : t('chapter.technical.position.nearLow'),
     },
     beta !== null && {
       label: t('chapter.technical.kv.beta5y'),

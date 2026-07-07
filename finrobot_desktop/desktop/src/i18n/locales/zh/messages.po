@@ -621,8 +621,12 @@ msgid "chapter.technical.position.nearLow"
 msgstr "接近低位"
 
 #. js-lingui-explicit-id
-msgid "chapter.technical.position.midRange"
-msgstr "区间中部"
+msgid "chapter.technical.position.upperRange"
+msgstr "区间上半"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.position.lowerRange"
+msgstr "区间下半"
 
 #. js-lingui-explicit-id
 msgid "chapter.technical.empty.price"
@@ -830,7 +834,7 @@ msgstr "前往设置 · SEC 13F"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.compensation"
-msgstr "DEF 14A 解析失败 · 该公司可能未发布最近代理声明"
+msgstr "CEO 薪酬不可用 · 本次运行未能从最新代理声明解析出薪酬数据"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.alerts"
@@ -846,7 +850,7 @@ msgstr "Form 4 数据不可用 · 该公司近 90 天内无内部人交易申报
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.insiders.fetch_error"
-msgstr "Form 4 数据不可用 · 获取 SEC 数据时出错，请稍后重跑"
+msgstr "Form 4 数据不可用 · 本次运行 SEC 取数失败，内部人交易未纳入"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.proxy.parse_failed"
@@ -1094,7 +1098,23 @@ msgstr "为增长定价"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.withheldBody"
-msgstr "现价比现金流底高出 {multiple} ;这部分溢价押的是隐含增长,不是价值买点。"
+msgstr "现价是模型现金流中枢价值的 {multiple} ;这部分溢价押的是隐含增长,不是价值买点。"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.belowValueTitle"
+msgstr "低于现金流价值"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.belowValueBody"
+msgstr "现价是模型现金流中枢价值的 {multiple} ——市场付的价低于现金流经济学隐含的水平；隐含增长路径是关键变量。"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.atValueTitle"
+msgstr "处于现金流价值"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.atValueBody"
+msgstr "现价与模型现金流中枢价值相当——按现金流经济学定价公允；隐含增长是关键变量。"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.fairValueBand"

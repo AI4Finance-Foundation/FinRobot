@@ -621,8 +621,12 @@ msgid "chapter.technical.position.nearLow"
 msgstr "near low"
 
 #. js-lingui-explicit-id
-msgid "chapter.technical.position.midRange"
-msgstr "mid-range"
+msgid "chapter.technical.position.upperRange"
+msgstr "upper half"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.position.lowerRange"
+msgstr "lower half"
 
 #. js-lingui-explicit-id
 msgid "chapter.technical.empty.price"
@@ -830,7 +834,7 @@ msgstr "Open Settings · SEC 13F"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.compensation"
-msgstr "DEF 14A parse failed — company may not have filed a recent proxy"
+msgstr "CEO compensation unavailable — the latest proxy statement could not be parsed for this run"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.alerts"
@@ -846,7 +850,7 @@ msgstr "Form 4 unavailable — no insider transactions filed in the past 90 days
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.insiders.fetch_error"
-msgstr "Form 4 unavailable — SEC fetch error; re-run to retry"
+msgstr "Form 4 unavailable — the SEC data request failed for this run; insider activity is omitted"
 
 #. js-lingui-explicit-id
 msgid "chapter.ownership.degraded.proxy.parse_failed"
@@ -1094,7 +1098,23 @@ msgstr "Priced for growth"
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.withheldBody"
-msgstr "the price sits {multiple} above the cash-flow floor; that premium is a bet on the implied growth, not a value entry."
+msgstr "the price is {multiple} the model's central cash-flow value; that premium is a bet on the implied growth, not a value entry."
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.belowValueTitle"
+msgstr "Below cash-flow value"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.belowValueBody"
+msgstr "the price is {multiple} the model's central cash-flow value — the market is paying less than the cash-flow economics imply; the implied growth path is the swing factor."
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.atValueTitle"
+msgstr "At cash-flow value"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.atValueBody"
+msgstr "the price sits at the model's central cash-flow value — fairly priced on cash-flow economics; the implied growth is the swing factor."
 
 #. js-lingui-explicit-id
 msgid "chapter.cover.reverseDcf.fairValueBand"

@@ -986,10 +986,13 @@ def _fill_narrative_fallbacks(
         filled.append("key_takeaways")
 
     if filled:
+        # Reader-facing disclosure (ships in the report's warnings section) —
+        # plain language, no bracketed engineering tag (external audit
+        # 2026-07-07 read "[NARRATIVE-FALLBACK]" as an internal marker leak).
         return [
-            f"[NARRATIVE-FALLBACK] The model omitted {len(filled)} narrative field(s) "
-            f"({', '.join(filled)}); filled deterministically from the frozen structured "
-            "data (traceable, not model-authored prose)."
+            f"Narrative note: {', '.join(filled)} were assembled directly from the "
+            "report's own computed figures rather than written by the model — every "
+            "statement traces to the structured data."
         ]
     return []
 

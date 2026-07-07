@@ -145,7 +145,7 @@ describe('ChapterOwnershipGovernance', () => {
     render(wrap(<ChapterOwnershipGovernance ownership={ownership} reportingCurrency="USD" />))
     expect(screen.queryByText('Chief Executive Officer')).not.toBeInTheDocument()
     expect(screen.queryByText(/\$416/)).not.toBeInTheDocument()
-    expect(screen.getByText(/DEF 14A parse failed/i)).toBeInTheDocument()
+    expect(screen.getByText(/CEO compensation unavailable/i)).toBeInTheDocument()
   })
 
   it('uses reason-specific message when backend supplies degraded_reasons', () => {

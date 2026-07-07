@@ -73,9 +73,11 @@ def test_null_fields_filled_deterministically_from_structured_data():
     # The one LLM-authored field is untouched.
     assert thesis["narrative"] == "The bank is well capitalized."
 
-    # Provenance flagged.
-    assert warnings and "[NARRATIVE-FALLBACK]" in warnings[0]
-    assert "6 narrative field" in warnings[0]
+    # Provenance flagged — reader-facing wording, no bracketed engineering tag
+    # (external audit 2026-07-07), naming every deterministically-filled field.
+    assert warnings and warnings[0].startswith("Narrative note:")
+    assert "[" not in warnings[0]
+    assert "tagline" in warnings[0] and "key_takeaways" in warnings[0]
 
 
 def test_present_fields_not_overwritten_and_no_warning():

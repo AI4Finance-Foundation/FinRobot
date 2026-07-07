@@ -477,7 +477,16 @@ def _dcf_assumptions(dcf: DCFResult) -> str:
     tg = dcf.inputs.terminal_growth_rate
     if rates:
         g0 = rates[0]
-        growth = f"{len(rates)}yr growth {g0:.0%}→{tg:.1%}"
+        peak = max(rates)
+        # A first-year dip below the path's peak (e.g. a slow FY1 consensus year
+        # before the growth ramp) makes the two-point "g0→terminal" projection lie
+        # about the curve: MSFT's [3.2%, 18.2%, …decay…, 3%] rendered as "3%→3.0%",
+        # hiding the 18% peak entirely (2026-07-07 blind panoramic review). Show the
+        # peak whenever it sits meaningfully above the first year.
+        if peak - g0 > 0.01:
+            growth = f"{len(rates)}yr growth {g0:.0%}↗{peak:.0%}→{tg:.1%}"
+        else:
+            growth = f"{len(rates)}yr growth {g0:.0%}→{tg:.1%}"
     else:
         growth = f"terminal growth {tg:.1%}"
     return f"WACC {dcf.wacc:.1%} · {growth} · β{dcf.inputs.beta:.2f}"

@@ -590,6 +590,23 @@ class TestAggregatorContract:
         # fixture: wacc 0.082, growth [0.10,0.08,0.06], terminal 0.025, beta 1.2
         assert row.assumptions == "WACC 8.2% · 3yr growth 10%→2.5% · β1.20"
 
+    def test_dcf_assumptions_surface_peak_when_first_year_dips(self) -> None:
+        """A slow-FY1 growth path ([3.2%, 18.2%, …decay…, 3%]) rendered as the
+        two-point "3%→3.0%" hides the 18% peak entirely — the reader reads a
+        flat-3% Microsoft worth +17% and calls the model broken (2026-07-07
+        blind panoramic review). The peak must show whenever it sits >1pp above
+        the first year."""
+        dcf = _dcf(implied_price=451.22)
+        dcf.inputs.revenue_growth_rates = [0.032, 0.182, 0.14, 0.09, 0.03]
+        agg = aggregate_valuation(
+            ticker="MSFT",
+            current_price=386.74,
+            dcf=dcf,
+            as_of=AS_OF,
+        )
+        row = next(m for m in agg.methods if m.method == "dcf")
+        assert row.assumptions == "WACC 8.2% · 5yr growth 3%↗18%→2.5% · β1.20"
+
     def test_comps_pe_row_carries_caliber_assumption(self) -> None:
         """comps_pe's load-bearing bet is 'NVDA deserves the peer median P/E' on a
         named EPS caliber — the assumption that put NVDA at $341 on inflated EPS."""

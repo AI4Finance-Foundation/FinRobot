@@ -40,13 +40,28 @@ questions, so AMD can be a peer AND have its 156x trailing print excluded from
 the median while its 62.5x FORWARD print drives ``median_forward_pe``.
 
 then rank by |log(mcap / target_mcap)| ascending (ties: alphabetical), filling
-``top_n`` slots tier by tier.
+``top_n`` slots tier by tier — with one re-ordering rule for the high-affinity
+tiers (the mega-cap tier fix, 2026-07-07): a Tier-1/Tier-2 candidate whose size
+gap vs the target exceeds ``PEER_SCREEN_SIZE_GAP_DEMOTE`` is DEMOTED behind both
+near tiers into a single "far" pool ranked globally by size proximity. Tier
+priority is a proxy for business affinity, but for a $2.9T target a same-industry
+label 30x away carries less comp information than a cross-recommended mega-cap
+1.5x away: MSFT's Software-Infrastructure Tier 1 fields 20 mid-caps that ate all
+7 slots by same-tier size proximity while FMP's own stock_peers cross-
+recommendations (AAPL/GOOGL/NVDA, ~1.6x) never got a slot — pricing MSFT off a
+PLTR/PANW-median forward P/E (a +61% re-rating premise, 2026-07-07 external
+review). Candidates within the gap keep exact tier order, so a small/mid-cap
+target whose Tier 1 is size-adjacent is untouched; a curated/protected cohort
+member is NEVER demoted (curation must beat every downstream gate — the
+2026-06-14 MU lesson: WDC/STX sit >5x from MU and are precisely the members the
+demotion would otherwise evict).
 """
 
 from __future__ import annotations
 
 import math
 import re
+from collections.abc import Iterable
 from typing import Any, Final
 
 from finrobot.engine.primitives.industry import semiconductor_role
@@ -80,6 +95,25 @@ used. With ≥3 genuine same-industry / cross-recommended comps a sheet stands o
 its own; padding it with same-sector-different-industry names (retail for an
 automaker) only dilutes the median. Below 3, sector breadth fill is the lesser
 evil (some comp signal beats none) — the original mega-cap-thin-industry net."""
+
+PEER_SCREEN_SIZE_GAP_DEMOTE: Final[float] = 5.0
+"""Size-gap ratio (max/min vs the target) beyond which a HIGH-affinity candidate
+(Tier 1 same-industry or Tier 2 stock_peers) loses its tier priority and is
+demoted into the shared "far" pool drained AFTER both near tiers, ranked
+globally by size proximity. Within the gap, tier order is untouched.
+
+Calibration (2026-07-07, lead-signed, probed at G ∈ {3, 5, 7} on the
+MSFT/AAPL/GOOGL/NVDA/AMZN/KO/JPM/MU/TSLA basket): 7/9 tickers keep an
+identical set across the whole G range (their high-affinity candidates are
+size-adjacent, or the far pool refills in the same proximity order), so the
+value is structurally insensitive; G=5 is the robust midpoint. What it fixes:
+a mega-cap whose same-industry tier holds only names 7–90x smaller (MSFT,
+GOOGL) now leads with its cross-recommended true peers (~1.5x) instead of
+letting Tier-1 label priority anchor the comps median on mid-caps. Ordinary
+leader premia over genuine same-size peers (2–3x gaps) are untouched. NOT a
+financial calibration of any multiple — it re-orders selection priority only;
+eligibility (band / role / P/E member gates) and the sector-tier rule are
+unchanged, and a protected/curated member is never demoted."""
 
 PEER_ISSUER_MCAP_RATIO_TOL: Final[float] = 3.0
 """Same-issuer dedup guard: two candidates are only collapsed as ONE issuer when
@@ -363,6 +397,7 @@ def screen_peers(
     high_affinity_floor_band: float = PEER_SCREEN_HIGH_AFFINITY_FLOOR_BAND,
     min_affinity_for_sector: int = PEER_SCREEN_MIN_AFFINITY_FOR_SECTOR,
     protected_peers: frozenset[str] = frozenset(),
+    size_gap_demote: float = PEER_SCREEN_SIZE_GAP_DEMOTE,
 ) -> PeerScreenResult:
     """Screen the raw PEER_CANDIDATES payload into a deterministic peer set.
 
@@ -638,19 +673,10 @@ def screen_peers(
     tier_of: dict[str, int] = {}
     trace_picks: list[str] = []
     seen: set[str] = set()
-    for tier_idx, tier_syms in enumerate(tiers, start=1):
-        if len(chosen) >= top_n:
-            break
-        if tier_idx >= 3 and not use_sector:
-            continue
-        # Sort key pins the curated cohort to the FRONT of the tier (0 < 1) so a
-        # human-verified true comp can't be evicted from the top-N by a giant
-        # logic-semi winning the size-proximity race; within each group, size
-        # proximity then ties broken alphabetically (sym) keep determinism.
-        ranked = sorted(
-            (0 if s in protected else 1, abs(math.log(quotes[s][0] / target_mcap)), s)
-            for s in sorted(set(tier_syms))
-            if s != target
+
+    def _eligible(s: str, tier_idx: int) -> bool:
+        return (
+            s != target
             and s not in seen
             and s not in dup_drop
             and s not in non_common_drop
@@ -662,13 +688,72 @@ def screen_peers(
             and role_ok(s)
             and meaningful(quotes[s][1])
         )
+
+    def _near(s: str) -> bool:
+        # Within the size-gap band → keeps its tier priority. A protected/curated
+        # member is NEVER demoted: WDC/STX sit >5x from MU and are exactly the
+        # members the curation exists to keep (2026-06-14 lesson — curation must
+        # beat every downstream gate, and demotion is a downstream gate).
+        if s in protected:
+            return True
+        mcap = quotes[s][0]
+        return max(mcap, target_mcap) / min(mcap, target_mcap) <= size_gap_demote
+
+    def _fill(ranked: list[tuple[int, float, str]], origin: dict[str, int] | int, far: bool) -> None:
         for _protected_rank, dist, sym in ranked:
             if len(chosen) >= top_n:
-                break
+                return
+            t = origin[sym] if isinstance(origin, dict) else origin
             chosen.append(sym)
             seen.add(sym)
-            tier_of[sym] = tier_idx
-            trace_picks.append(f"{sym}(T{tier_idx}, {math.exp(dist):.2g}x size)")
+            tier_of[sym] = t
+            trace_picks.append(f"{sym}(T{t}{'→far' if far else ''}, {math.exp(dist):.2g}x size)")
+
+    # Sort key pins the curated cohort to the FRONT of its group (0 < 1) so a
+    # human-verified true comp can't be evicted from the top-N by a giant
+    # logic-semi winning the size-proximity race; within each group, size
+    # proximity then ties broken alphabetically (sym) keep determinism.
+    def _ranked(
+        syms: Iterable[str], tier_idx: int, *, near: bool | None
+    ) -> list[tuple[int, float, str]]:
+        # ``near=True`` keeps only candidates inside the size-gap band (the near
+        # high-affinity stages); ``near=None`` applies no gap filter at all (the
+        # sector tier — its own strict band already caps at 20x and the demotion
+        # rule deliberately does not touch it).
+        return sorted(
+            (0 if s in protected else 1, abs(math.log(quotes[s][0] / target_mcap)), s)
+            for s in syms
+            if _eligible(s, tier_idx) and (near is None or _near(s) == near)
+        )
+
+    # Demoted far pool: high-affinity (Tier 1 + Tier 2) candidates beyond the size
+    # gap, keyed by first-seen tier (a sym listed in both keeps the T1 label).
+    # Drained AFTER both near tiers, ranked GLOBALLY by size proximity — past the
+    # gap, tier labels are weak affinity proxies and a cross-recommended 7x name
+    # should beat a same-industry 30x one (and vice versa).
+    far_origin: dict[str, int] = {}
+    for tier_idx, tier_syms in enumerate(tiers[:2], start=1):
+        for s in sorted(set(tier_syms)):
+            if s not in far_origin and _eligible(s, tier_idx) and not _near(s):
+                far_origin[s] = tier_idx
+
+    # Near high-affinity tiers first, exact tier order — unchanged behaviour for a
+    # size-adjacent tier (the small/mid-cap common case, and every protected member).
+    for tier_idx, tier_syms in enumerate(tiers[:2], start=1):
+        if len(chosen) >= top_n:
+            break
+        _fill(_ranked(sorted(set(tier_syms)), tier_idx, near=True), tier_idx, far=False)
+    if len(chosen) < top_n and far_origin:
+        far_ranked = sorted(
+            (0 if s in protected else 1, abs(math.log(quotes[s][0] / target_mcap)), s)
+            for s, t in far_origin.items()
+            if _eligible(s, t)
+        )
+        _fill(far_ranked, far_origin, far=True)
+    # Sector breadth fill of last resort — untouched by the demotion rule (its own
+    # strict band already excludes anything beyond 20x).
+    if len(chosen) < top_n and use_sector:
+        _fill(_ranked(sorted(set(tiers[2])), 3, near=None), 3, far=False)
 
     selected_pes = [quotes[s][1] for s in chosen]
     selected_median = _median([p for p in selected_pes if p is not None])
@@ -681,6 +766,17 @@ def screen_peers(
         else f"high-affinity tier only {high_affinity_count} firms < {min_affinity_for_sector}, "
         f"enabling the same-sector tier to top up (strict band [{1 / mcap_band:.2g}x, {mcap_band:.0f}x])"
     )
+    if far_origin:
+        # Demotion is a re-ordering, not a drop — but the trace must still say who
+        # was demoted and why, or the tier labels in the picks read as contradictory
+        # (a T2 pick ahead of T1 names). Mirrors the cap-trim naming lesson
+        # (2026-07-03): every silently re-ranked candidate is a broken audit trail.
+        sector_note += (
+            f"; {len(far_origin)} high-affinity candidate(s) beyond the {size_gap_demote:.0f}x "
+            f"size gap demoted behind the near tiers into a global size-proximity pool "
+            f"(mega-cap tier fix: tier priority is an affinity proxy and stops outranking "
+            f"size past that gap)"
+        )
     rationale = (
         f"Deterministic screen: candidate pool {len(seen_pool)} firms -> high-affinity market-cap band "
         f"[{1 / high_affinity_floor_band:.3g}x, {mcap_band:.0f}x] (genuine same-industry / mutual-rec "

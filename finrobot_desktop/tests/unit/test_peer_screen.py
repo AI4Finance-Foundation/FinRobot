@@ -1002,3 +1002,196 @@ def test_candidate_absent_from_active_map_is_unknown_not_dropped() -> None:
 
     assert result.dropped_delisted == []
     assert "VMW" in result.tickers
+
+
+# ── Mega-cap tier fix: size-gap demotion of far high-affinity candidates ──────
+# (2026-07-07, lead-signed G=5.) Shapes modeled on the LIVE MSFT peer_candidates
+# payload (target $2.87T; Software-Infrastructure Tier 1 all 6.9–90x smaller;
+# FMP stock_peers cross-recommending the ~1.5x mega-caps) — the regime where
+# same-tier size proximity anchored the comps median on PLTR/PANW-class
+# mid-caps while AAPL/GOOGL/NVDA never got a slot.
+
+
+def _megacap_software_payload() -> dict:
+    return {
+        "profile": {
+            "company_name": "Bigsoft Corporation",
+            "sector": "Technology",
+            "industry": "Software - Infrastructure",
+            "market_cap": 2_870_000_000_000,
+            "description": "Cloud software and productivity services.",
+        },
+        # Tier 1: same industry, ALL beyond the 5x gap (6.9x … 34x).
+        "industry_screen": ["ORC", "PLT", "PAN", "FTN", "SNP"],
+        # Tier 2: cross-recommendations — three ~1.5x mega-caps + one far (24x).
+        "stock_peers": ["MEGA1", "MEGA2", "MEGA3", "FTN"],
+        "sector_screen": [],
+        "quotes": {
+            "ORC": {"market_cap": 414_000_000_000, "pe": 24.2},
+            "PLT": {"market_cap": 304_000_000_000, "pe": 138.1},
+            "PAN": {"market_cap": 243_000_000_000, "pe": 300.4},
+            "FTN": {"market_cap": 119_000_000_000, "pe": 62.4},
+            "SNP": {"market_cap": 85_000_000_000, "pe": 100.1},
+            "MEGA1": {"market_cap": 4_590_000_000_000, "pe": 37.7},
+            "MEGA2": {"market_cap": 4_430_000_000_000, "pe": 27.7},
+            "MEGA3": {"market_cap": 4_740_000_000_000, "pe": 29.8},
+        },
+        "names": {
+            "ORC": "Oracle-like Corp",
+            "PLT": "Palantir-like Inc",
+            "PAN": "Firewall-like Inc",
+            "FTN": "Fortinet-like Inc",
+            "SNP": "Synopsys-like Inc",
+            "MEGA1": "Fruit Devices Inc",
+            "MEGA2": "Search Giant Inc",
+            "MEGA3": "GPU Giant Inc",
+        },
+    }
+
+
+def test_megacap_target_demotes_far_industry_tier_behind_cross_recommended_megacaps() -> None:
+    """The 2026-07-07 MSFT regime: every Tier-1 name is >5x smaller, the true
+    ~1.5x peers sit in Tier 2. The near Tier-2 mega-caps must lead the set, and
+    the demoted far pool must refill by GLOBAL size proximity (ORC 6.9x before
+    FTN 24x, regardless of FTN's Tier-2 label)."""
+    result = screen_peers(_megacap_software_payload(), "BIGS", top_n=7)
+
+    # Near mega-caps first (Tier-2, within the gap), by size proximity.
+    assert result.tickers[:3] == ["MEGA2", "MEGA1", "MEGA3"]
+    # Far pool refills globally by proximity: ORC (6.9x) … SNP (34x); FTN's
+    # Tier-2 membership gives it no priority once it is beyond the gap.
+    assert result.tickers[3:] == ["ORC", "PLT", "PAN", "FTN"]
+    # tier_of keeps the ORIGIN tier label (a demoted T1 pick is still T1).
+    assert result.tier_of["MEGA1"] == 2
+    assert result.tier_of["ORC"] == 1
+    assert result.tier_of["FTN"] == 1  # first-seen tier: industry list
+    # The audit trail must say who was demoted and mark far picks.
+    assert "demoted behind the near tiers" in result.rationale
+    assert "ORC(T1→far" in result.rationale
+
+
+def test_size_adjacent_tier_unchanged_by_demotion() -> None:
+    """A small/mid-cap whose Tier 1 is size-adjacent (all within 5x) must select
+    byte-identically with the demotion rule on or off — the mega-cap fix must
+    not touch the common case."""
+    payload = {
+        "profile": {
+            "company_name": "Midcap Widgets Inc",
+            "sector": "Industrials",
+            "industry": "Widgets",
+            "market_cap": 20_000_000_000,
+            "description": "Widget maker.",
+        },
+        "industry_screen": ["WID1", "WID2", "WID3"],
+        "stock_peers": ["WID4"],
+        "sector_screen": [],
+        "quotes": {
+            "WID1": {"market_cap": 30_000_000_000, "pe": 18.0},
+            "WID2": {"market_cap": 12_000_000_000, "pe": 15.0},
+            "WID3": {"market_cap": 55_000_000_000, "pe": 22.0},
+            "WID4": {"market_cap": 21_000_000_000, "pe": 17.0},
+        },
+        "names": {
+            "WID1": "Widget One",
+            "WID2": "Widget Two",
+            "WID3": "Widget Three",
+            "WID4": "Widget Four",
+        },
+    }
+    with_demotion = screen_peers(payload, "MIDW")
+    without = screen_peers(payload, "MIDW", size_gap_demote=float("inf"))
+    # Tier order preserved exactly: T1 by size proximity, then the T2 name.
+    assert with_demotion.tickers == without.tickers == ["WID1", "WID2", "WID3", "WID4"]
+    assert "demoted" not in with_demotion.rationale
+
+
+def test_protected_cohort_member_beyond_gap_is_never_demoted() -> None:
+    """A curated/protected member sits >5x from the target (WDC/STX vs MU) and is
+    exactly what the curation exists to keep: it must stay PINNED at the front of
+    Tier 1, not fall into the far pool — while an unprotected name at the same
+    gap does demote."""
+    payload = {
+        "profile": {
+            "company_name": "Memory Giant Inc",
+            "sector": "Technology",
+            "industry": "Semiconductors",
+            "market_cap": 1_100_000_000_000,
+            "description": "Memory and storage semiconductors.",
+        },
+        # STOR = curated storage comp at 5.6x (would demote without protection);
+        # LOGIC1/LOGIC2 = near logic semis; FARL = unprotected 5.6x name.
+        "industry_screen": ["STOR", "LOGIC1", "LOGIC2", "FARL"],
+        "stock_peers": [],
+        "sector_screen": [],
+        "quotes": {
+            "STOR": {"market_cap": 196_000_000_000, "pe": 31.0},
+            "LOGIC1": {"market_cap": 900_000_000_000, "pe": 179.0},
+            "LOGIC2": {"market_cap": 1_780_000_000_000, "pe": 60.0},
+            "FARL": {"market_cap": 196_000_000_000, "pe": 25.0},
+        },
+        "names": {
+            "STOR": "Storage Maker Inc",
+            "LOGIC1": "Logic Semi One",
+            "LOGIC2": "Logic Semi Two",
+            "FARL": "Far Logic Inc",
+        },
+        # Logic-semi candidates carry design-role profiles (the live MU payload
+        # ships profiles for a semiconductor target, so the role gate has text to
+        # read). STOR deliberately has NO profile — a pure storage maker's
+        # description carries no semiconductor token, so the role gate would
+        # reject it; protection overrides, mirroring the production MU/WDC/STX path.
+        "profiles": {
+            "LOGIC1": {
+                "company_name": "Logic Semi One",
+                "description": "designs and sells logic semiconductor chips",
+            },
+            "LOGIC2": {
+                "company_name": "Logic Semi Two",
+                "description": "designs and sells logic semiconductor chips",
+            },
+            "FARL": {
+                "company_name": "Far Logic Inc",
+                "description": "designs and sells logic semiconductor chips",
+            },
+        },
+    }
+    result = screen_peers(payload, "MEMG", protected_peers=frozenset({"STOR"}), top_n=4)
+
+    # Protected member pinned FIRST despite its 5.6x gap; near names follow by
+    # proximity; the unprotected same-gap name comes last via the far pool.
+    assert result.tickers == ["STOR", "LOGIC1", "LOGIC2", "FARL"]
+    assert "STOR(T1," in result.rationale  # pinned near — NOT marked →far
+    assert "FARL(T1→far" in result.rationale
+
+
+def test_sector_tier_is_not_gap_filtered() -> None:
+    """The demotion rule applies to the high-affinity tiers only. A sector-tier
+    candidate at 8x (inside the strict 20x band) must still be selectable when
+    the sector tier is enabled (thin high-affinity pool)."""
+    payload = {
+        "profile": {
+            "company_name": "Lonely Leader Inc",
+            "sector": "Industrials",
+            "industry": "Niche Machines",
+            "market_cap": 100_000_000_000,
+            "description": "Niche machine maker.",
+        },
+        "industry_screen": ["NICHE1"],
+        "stock_peers": [],
+        "sector_screen": ["SECT1", "SECT2"],
+        "quotes": {
+            "NICHE1": {"market_cap": 40_000_000_000, "pe": 14.0},
+            "SECT1": {"market_cap": 12_500_000_000, "pe": 16.0},  # 8x — beyond G, in band
+            "SECT2": {"market_cap": 90_000_000_000, "pe": 19.0},
+        },
+        "names": {
+            "NICHE1": "Niche One",
+            "SECT1": "Sector Eight X",
+            "SECT2": "Sector Near",
+        },
+    }
+    result = screen_peers(payload, "LONE")
+
+    # High-affinity pool is 1 (<3) → sector enabled; the 8x sector name is kept.
+    assert "SECT1" in result.tickers
+    assert result.tier_of["SECT1"] == 3

@@ -241,7 +241,11 @@ if [[ "$DRY_RUN" == 1 ]]; then
 fi
 
 # ── 6. Publish the GitHub Release on the PUBLIC repo ──────────────────────────
-echo "[release] creating release v$VERSION on $RELEASES_REPO…"
+# ${...} braces are load-bearing: a bare $RELEASES_REPO followed by a multibyte
+# char (the … here) makes macOS bash fold the UTF-8 bytes into the variable name
+# → "RELEASES_REPO…: unbound variable" under set -u. Never butt a non-ASCII char
+# directly against a brace-less expansion in this script.
+echo "[release] creating release v$VERSION on ${RELEASES_REPO}…"
 gh release create "v$VERSION" \
     --repo "$RELEASES_REPO" \
     --title "FinRobot v$VERSION" \

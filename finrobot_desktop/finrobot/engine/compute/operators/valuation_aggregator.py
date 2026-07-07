@@ -149,6 +149,14 @@ a number with no information content and poisons the synthesis spread.
 Ordinary leader premia run 2–3x (AMD 63.6x vs semis 33x = 1.9x; MU 15.7x vs
 37.3x = 2.4x — both must keep pricing), so 10x only trips the absurd."""
 
+_RERATING_DISCLOSURE_THRESHOLD: Final[float] = 0.25
+"""|implied-multiple-ratio − 1| beyond which a multiples method ALSO appends a re-rating
+WARNING (on top of the always-on assumptions line). Pure DISCLOSURE reminder threshold: it
+changes no mid/low/high/confidence and gates no method — it only decides when the implied
+re-rating is large enough to also flag in the warnings section. Symmetric — fires for an
+upward re-rate (ratio > 1.25) and a downward de-rate (ratio < 0.75) alike. NOT a financial
+calibration; moving it re-rates no target and drops no row."""
+
 
 def _comps_median_refusal(
     median_val: float,
@@ -290,7 +298,12 @@ def aggregate_valuation(
 
     if (
         m := _comps_pe_method(
-            peer_comps, forward_eps, shares_outstanding, warnings, cyclical=cyclical
+            peer_comps,
+            forward_eps,
+            shares_outstanding,
+            warnings,
+            cyclical=cyclical,
+            current_price=current_price,
         )
     ) is not None:
         methods.append(m)
@@ -374,6 +387,7 @@ def aggregate_valuation(
             current_net_debt,
             band_sample_n=historical_ev_ebitda_sample_n,
             warnings=warnings,
+            current_price=current_price,
         )
     ) is not None:
         methods.append(m)
@@ -484,6 +498,7 @@ def _comps_pe_method(
     warnings: list[str] | None = None,
     *,
     cyclical: bool = False,
+    current_price: float | None = None,
 ) -> ValuationMethodRange | None:
     if peer_comps is None:
         return None
@@ -526,6 +541,12 @@ def _comps_pe_method(
     caliber = ""
     confidence = 0.55
     used_sample_n = 0  # peers behind the CHOSEN median → thin-sample confidence penalty
+    # Short caliber tag for the re-rating disclosure, set ONLY on paths where the peer
+    # anchor multiple and the target's own multiple sit on ONE earnings caliber (so a
+    # "self × → peer ×" comparison is apples-to-apples). Left None on the degraded
+    # fallback that applies a TRAILING peer median to a FORWARD EPS — mixing calibers
+    # there would misstate the re-rating, so that path discloses nothing (绝不混口径).
+    rerating_pe_kind: str | None = None
 
     if used_forward:
         # Forward EPS is analyst consensus — a normalised forward number. Prefer a
@@ -554,6 +575,7 @@ def _comps_pe_method(
             caliber = "forward EPS (peer forward P/E, same caliber)"
             confidence = 0.80
             used_sample_n = peer_comps.forward_pe_sample_n
+            rerating_pe_kind = "forward P/E"  # peer FORWARD median vs self forward P/E — one caliber
         elif peer_comps.median_pe is not None and peer_comps.median_pe > 0:
             refusal = _comps_median_refusal(
                 peer_comps.median_pe,
@@ -578,6 +600,9 @@ def _comps_pe_method(
             caliber = "forward EPS (as-reported peer P/E)"
             confidence = 0.78
             used_sample_n = peer_comps.pe_sample_n
+            # rerating_pe_kind stays None: this applies a TRAILING peer median to a
+            # FORWARD EPS, so the peer anchor and a self forward P/E are different
+            # calibers — no honest same-caliber re-rating disclosure exists here.
     else:
         # Trailing path: use the NOPAT core caliber so the target EPS and the
         # peer median P/E share ONE earnings definition — stripping the
@@ -610,6 +635,7 @@ def _comps_pe_method(
             caliber = "NOPAT core-earnings EPS"
             confidence = 0.55
             used_sample_n = peer_comps.core_pe_sample_n
+            rerating_pe_kind = "core P/E"  # peer core median vs self core P/E — one caliber
         elif peer_comps.median_pe is not None and peer_comps.median_pe > 0 and has_shares:
             # Fallback: core caliber unavailable (provider omitted operating
             # margin / tax) — keep the as-reported trailing path rather than
@@ -631,6 +657,7 @@ def _comps_pe_method(
                 caliber = "trailing EPS"
                 confidence = 0.55
                 used_sample_n = peer_comps.pe_sample_n
+                rerating_pe_kind = "P/E"  # peer trailing median vs self trailing P/E — one caliber
 
     if mid is None or mid <= 0:
         return None
@@ -640,6 +667,35 @@ def _comps_pe_method(
     assumptions = (
         f"anchored to peer median P/E {multiple:.1f}× × {caliber}" if multiple is not None else None
     )
+    # Disclose the re-rating this method IMPLICITLY assumes: pricing the target AT the peer
+    # median multiple presumes its OWN multiple converges from where it trades today to that
+    # anchor. self_multiple = current_price / earnings-used, and earnings-used = mid / multiple,
+    # so self_multiple is the target's own P/E on the SAME caliber as the peer anchor
+    # (`multiple`) — apples-to-apples, and multiple / self_multiple ≡ mid / current_price (the
+    # method's own implied upside). Always-on when disclosable; a warning is added only when
+    # the shift is large. Changes NO mid/low/high/confidence — pure transparency, nothing is
+    # gated on it. Skipped on the mixed-caliber fallback (rerating_pe_kind None) or no price.
+    if (
+        current_price is not None
+        and current_price > 0
+        and multiple is not None
+        and rerating_pe_kind is not None
+    ):
+        self_multiple = current_price * multiple / mid
+        ratio = mid / current_price
+        rerating = (
+            f"implied re-rating {self_multiple:.1f}× → {multiple:.1f}× "
+            f"{rerating_pe_kind} ({ratio:.2f}×)"
+        )
+        assumptions = f"{assumptions}; {rerating}" if assumptions else rerating
+        if abs(ratio - 1.0) > _RERATING_DISCLOSURE_THRESHOLD:
+            shift = "expand" if ratio > 1.0 else "compress"
+            _warn(
+                f"comps_pe: pricing the target at the peer median implies its own "
+                f"{rerating_pe_kind} must {shift} from {self_multiple:.1f}× to {multiple:.1f}× "
+                f"({ratio:.2f}× the current multiple) — an unproven re-rating premise, not a "
+                f"modelled convergence; judge independently whether that multiple shift is warranted."
+            )
     return ValuationMethodRange(
         method="comps_pe",
         method_type="valuation",
@@ -919,6 +975,7 @@ def _ev_ebitda_method(
     *,
     band_sample_n: int | None = None,
     warnings: list[str] | None = None,
+    current_price: float | None = None,
 ) -> ValuationMethodRange | None:
     if (
         forward_ebitda is None
@@ -983,6 +1040,32 @@ def _ev_ebitda_method(
             f"ev_ebitda: own historical EV/EBITDA percentile band ({band_sample_n} samples) × forward EBITDA"
             f" − current net debt — degraded relative-valuation method; multiple taken from the target's own historical range, not from peers."
         )
+    # Disclose the mean-reversion this method IMPLICITLY assumes: reverting the target to its
+    # own historical multiple mid presumes its CURRENT EV/EBITDA converges there. Both sides
+    # share the forward-EBITDA denominator (current EV = market cap + current net debt, over
+    # the same forward EBITDA), so the two multiples are one caliber. current_net_debt may be
+    # negative (net cash), which correctly lifts EV. Skipped when the price is missing or the
+    # current EV is ≤ 0 (net cash exceeds market cap). Changes NO mid/low/high/confidence —
+    # pure transparency, nothing is gated on it.
+    assumptions: str | None = None
+    if current_price is not None and current_price > 0:
+        current_ev = current_price * shares + current_net_debt
+        if current_ev > 0:
+            current_implied = current_ev / forward_ebitda
+            band_mid = (p25 + p75) / 2
+            ratio = band_mid / current_implied
+            assumptions = (
+                f"implied re-rating current EV/EBITDA {current_implied:.1f}× → "
+                f"own 5y band mid {band_mid:.1f}× ({ratio:.2f}×)"
+            )
+            if abs(ratio - 1.0) > _RERATING_DISCLOSURE_THRESHOLD and warnings is not None:
+                shift = "expand" if ratio > 1.0 else "compress"
+                warnings.append(
+                    f"ev_ebitda: reverting the target to its own 5-year historical multiple "
+                    f"implies its EV/EBITDA must {shift} from {current_implied:.1f}× to "
+                    f"{band_mid:.1f}× ({ratio:.2f}× the current multiple) — an unproven "
+                    f"mean-reversion premise; judge independently whether that multiple shift is warranted."
+                )
     return ValuationMethodRange(
         method="ev_ebitda",
         method_type="multiple",
@@ -994,6 +1077,7 @@ def _ev_ebitda_method(
         # window (all callers use that default); actual sample depth is disclosed
         # separately via band_sample_n. Keep this label in sync if the default changes.
         source="self_5y_p25_p75 × forward_ebitda − current_net_debt",
+        assumptions=assumptions,
         warnings=method_warnings,
     )
 

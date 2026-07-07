@@ -334,51 +334,6 @@ pip install -e .
 5) lmm_agent_opt_smacross.ipynb
 ```
 
-## Demos
-### 1. Market Forecaster Agent (Predict Stock Movements Direction)
-Takes a company's ticker symbol, recent basic financials, and market news as input and predicts its stock movements.
-
-1. Import 
-```python
-import autogen
-from finrobot.utils import get_current_date, register_keys_from_json
-from finrobot.agents.workflow import SingleAssistant
-```
-2. Config
-```python
-# Read OpenAI API keys from a JSON file
-llm_config = {
-    "config_list": autogen.config_list_from_json(
-        "../OAI_CONFIG_LIST",
-        filter_dict={"model": ["gpt-4-0125-preview"]},
-    ),
-    "timeout": 120,
-    "temperature": 0,
-}
-
-# Register FINNHUB API keys
-register_keys_from_json("../config_api_keys")
-```
-3. Run
-```python
-company = "NVDA"
-
-assitant = SingleAssistant(
-    "Market_Analyst",
-    llm_config,
-    # set to "ALWAYS" if you want to chat instead of simply receiving the prediciton
-    human_input_mode="NEVER",
-)
-assitant.chat(
-    f"Use all the tools provided to retrieve information available for {company} upon {get_current_date()}. Analyze the positive developments and potential concerns of {company} "
-    "with 2-4 most important factors respectively and keep them concise. Most factors should be inferred from company related news. "
-    f"Then make a rough prediction (e.g. up/down by 2-3%) of the {company} stock price movement for next week. Provide a summary analysis to support your prediction."
-)
-```
-
-### 2. Personal AI Equity Research Assistant (Equity Research Report)
-### 3. Trade Strategist Agent with multimodal capabilities
-
 
 ## AI Agent Papers
 

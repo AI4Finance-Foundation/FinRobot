@@ -101,30 +101,17 @@ Numbers are code-calculated.
 Narratives are LLM-assisted.
 Every output is provenance-tracked.
 ```
-
 ### Codebase Snapshot
 
-| Metric | Count |
-|---|---:|
-| **Total codebase** | **~184k lines** |
-| Python backend | 56,634 lines |
-| TypeScript / React frontend | 54,729 lines |
-| Rust / Tauri shell | 452 lines |
-| Tests | 72,773 lines |
-| **Agents** | **9 total** |
-| Lead Agent / orchestrator | 1 |
-| Sub-agents | 5: data, analysis, modeling, synthesis, report |
-| Debate agents | 3: bull, bear, judge |
-| Agent instruction files | 8 |
-| **Lead Agent tools** | **15 total** |
-| Hand-written tools | 8 |
-| Pipeline-generated tools | 7 |
-| **Pipelines** | **7** |
-| Compute operators | 30 |
-| Compute coordinators | 7 |
-| Data providers | 7: FMP, Finnhub, yfinance, EDGAR, Adanos, NewsAggregator, FX |
-| Skills / templates | 56 |
-| **Tech stack** | PydanticAI, FastAPI, SQLite, React 19, Vite 6, Zustand, Tauri/Rust, Recharts |
+| Layer | What It Includes |
+|---|---|
+| **Full-stack system** | ~184k lines across Python backend, React/Tauri desktop frontend, Rust shell, and tests |
+| **Agent runtime** | 9 agents: lead orchestrator, 5 role-based pipeline agents, and 3 debate agents |
+| **Research pipelines** | 7 pipelines covering company research, DCF, comps, LBO, DDM, earnings, and IC memo generation |
+| **Deterministic compute** | 30 pure-Python operators and 7 coordinators for valuation, WACC, Monte Carlo, and financial modeling |
+| **Data infrastructure** | 7 providers with failover, including FMP, Finnhub, yfinance, SEC EDGAR, Adanos, NewsAggregator, and FX |
+| **Product stack** | PydanticAI, FastAPI, SQLite, React 19, Vite 6, Zustand, Tauri/Rust, and Recharts |
+
 
 ## 🎬 FinRobot Pro — Your Personal AI-Powered Equity Research Assistant
 🌐 https://finrobot.ai/

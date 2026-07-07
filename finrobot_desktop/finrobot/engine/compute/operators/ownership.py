@@ -209,6 +209,7 @@ def _summary_table_ceo_comp_from_text(text: str) -> tuple[str | None, float | No
         for pattern in (row_pattern_role_first, row_pattern_role_after):
             for match in pattern.finditer(search_window):
                 name = _strip_leading_sct_header_words(match.group("name").strip())
+                name = _strip_leading_name_verbs(name)
                 total = float(match.group("total").replace(",", ""))
                 if len(name.split()) < 2 or _is_blacklisted_name(name):
                     continue
@@ -503,16 +504,82 @@ def _extract_ceo_pay_ratio(text: str) -> int | None:
     return None
 
 
+# Generational suffixes legitimately end with a period inside a personal name.
+_NAME_SUFFIX_TOKENS: frozenset[str] = frozenset({"jr.", "sr.", "ii.", "iii.", "iv."})
+
+# Corporate-entity and compensation-document vocabulary. A real personal name
+# never contains these, so ANY occurrence poisons the candidate — unlike the
+# title-word list, which only rejects when it covers EVERY token ("CEO Pay
+# Ratio" and "Acme Corp" both sailed past that all-token gate via the weak
+# post-anchor scan). Compared with trailing punctuation stripped.
+_NON_PERSON_TOKENS: frozenset[str] = frozenset(
+    {
+        "corp",
+        "corporation",
+        "inc",
+        "incorporated",
+        "llc",
+        "ltd",
+        "plc",
+        "holdings",
+        "company",
+        "companies",
+        "pay",
+        "ratio",
+        "compensation",
+        "committee",
+        "proxy",
+        "statement",
+        "table",
+        "summary",
+        "annual",
+        "fiscal",
+        "report",
+        "shareholder",
+        "shareholders",
+        "stockholder",
+        "stockholders",
+        # pay-ratio prose ("Median Employee") and tenure qualifiers ("Former
+        # Chairman") that the full-basket cache sweep caught leaking through
+        # the weaker strategies (GOOGL / MU, 2026-07-07).
+        "median",
+        "employee",
+        "employees",
+        "former",
+        "interim",
+    }
+)
+
+
+def _is_sentence_boundary_token(token: str) -> bool:
+    """A token ending '.' that is neither an initial ("B.") nor a suffix ("Jr.").
+
+    A name run containing one straddles a sentence boundary — it was stitched
+    from prose, not read from a name cell. MSFT 2026-07-07: the CD&A sentence
+    "…$6,254,433 for Mr. Smith." followed by the "CEO Pay Ratio" heading let
+    the name-above-title strategy emit "Mr. Smith." as the CEO and hang the
+    $96.5M SCT total on the Vice Chair's honorific. Real name cells never
+    carry a full-stop token, so this is a subsystem-wide reject (every
+    extractor funnels through _is_blacklisted_name).
+    """
+    return token.endswith(".") and len(token) > 2 and token.lower() not in _NAME_SUFFIX_TOKENS
+
+
 def _is_blacklisted_name(candidate: str) -> bool:
     """Return True when the candidate is not a plausible personal name.
 
-    Two reject paths:
+    Three reject paths:
       (a) every token is a title/role word ("Chief Executive Officer") —
           the regex matched a job description rather than a name; or
       (b) any token is an English function word ("Us", "All", "The") —
           a regex with `\\s+` between tokens stitched a sentence fragment
           across a paragraph break into a fake multi-token name. Real
-          personal names never contain pronouns/articles/conjunctions.
+          personal names never contain pronouns/articles/conjunctions; or
+      (c) any token is a sentence-boundary full stop ("Smith." / "Mr.") —
+          the run straddles prose punctuation instead of naming one person
+          (see _is_sentence_boundary_token); or
+      (d) any token is corporate/compensation-document vocabulary ("Acme
+          Corp", "CEO Pay Ratio") — a company or heading, not a person.
     """
     tokens = candidate.split()
     if not tokens:
@@ -525,6 +592,13 @@ def _is_blacklisted_name(candidate: str) -> bool:
     ):
         return True
     if any(t.lower() in _CEO_NAME_STOPWORDS for t in tokens):
+        return True
+    if any(_is_sentence_boundary_token(t) for t in tokens):
+        return True
+    if any(t.lower().strip(".,") in _NON_PERSON_TOKENS for t in tokens):
+        return True
+    # A possessive token ("Micron's") is issuer prose, never a name part.
+    if any(t.lower().rstrip(".,").endswith(("'s", "’s")) for t in tokens):
         return True
     return False
 
@@ -637,11 +711,26 @@ def _extract_ceo_name(text: str) -> str | None:
     # bare single word, and the single-word form let section headings
     # ("Compensation Discussion and Analysis\n\nCEO …") leak through as
     # a fake one-token name "Analysis" (NVDA proxy 2026-05-28).
+    # The title line is either bare "CEO …" or the full canonical form the
+    # signature/letter layout uses ("Satya Nadella\n\nChairman and Chief
+    # Executive Officer" — MSFT 2025 proxy, missed while the bare-CEO branch
+    # false-matched a "CEO Pay Ratio" heading). The full-title branch must END
+    # the title claim there: "Chief Executive Officer, Acme" / "… of Acme" is a
+    # DIRECTOR's outside role, not this issuer's CEO — reject via lookahead.
     prev_line_pattern = re.compile(
-        r"([A-Z][A-Za-z.'-]+(?:[ \t\xa0]+[A-Z][A-Za-z.'-]+){1,3})" r"\s*\n\s*CEO\b",
+        r"([A-Z][A-Za-z.'-]+(?:[ \t\xa0]+[A-Z][A-Za-z.'-]+){1,3})"
+        r"\s*\n\s*"
+        r"(?:CEO\b|"
+        r"(?:(?:Chairman|Vice[ \t\xa0]+Chair(?:man)?|President)[ \t\xa0]+and[ \t\xa0]+){0,2}"
+        r"Chief[ \t\xa0]+Executive[ \t\xa0]+Officer\b(?![ \t\xa0]*[,–—-])(?![ \t\xa0]+of\b))",
     )
     for m in prev_line_pattern.finditer(text):
-        candidate = m.group(1).strip()
+        # Same hygiene as the appositive path: strip leading honorifics/action
+        # verbs ("Mr Smith" → "Smith") and require a Firstname-Lastname run —
+        # a single residual token is a prose fragment, not a name cell.
+        candidate = _strip_leading_name_verbs(m.group(1).strip())
+        if len(candidate.split()) < 2:
+            continue
         if not _is_blacklisted_name(candidate):
             return candidate
 

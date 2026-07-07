@@ -606,6 +606,59 @@ def test_extract_ceo_name_keeps_honorific_pattern() -> None:
     assert _extract_ceo_name(text) == "Cook"
 
 
+# --- T7#8 (4th recurrence, MSFT 2026-07-07): a CD&A prose sentence ending
+#     "… for Mr. Smith." right above the "CEO Pay Ratio" heading was emitted as
+#     CEO name "Mr. Smith." — a sentence fragment, not a name cell — and the
+#     $96.5M SCT total got hung on the Vice Chair's honorific. Subsystem-wide
+#     invariant: no extractor may emit a name containing a sentence-boundary
+#     full-stop token (_is_blacklisted_name path c).
+
+
+def test_extract_ceo_name_msft_prose_fragment_does_not_bind_honorific_fragment() -> None:
+    """The false strategy-0 hit ("Mr. Smith.\\n\\nCEO Pay Ratio") must lose to
+    the real signature layout ("Satya Nadella\\n\\nChairman and Chief Executive
+    Officer") that the bare-CEO branch used to miss entirely."""
+    from finrobot.engine.compute.operators.ownership import _extract_ceo_name
+
+    text = (
+        "Satya Nadella\n\nChairman and Chief Executive Officer\n\n"
+        "Letter from our Chairman\n\n"
+        "…total value associated with retirement-based stock vesting of SAs: "
+        "$6,254,433 for Mr. Smith.\n\nCEO Pay Ratio\n\n"
+        "For fiscal year 2025, the annual total compensation of our CEO was $96,496,790."
+    )
+    assert _extract_ceo_name(text) == "Satya Nadella"
+
+
+def test_extract_ceo_name_prose_fragment_alone_abstains() -> None:
+    """With no trustworthy layout elsewhere, the fragment must yield None —
+    never "Mr. Smith."."""
+    from finrobot.engine.compute.operators.ownership import _extract_ceo_name
+
+    text = "stock vesting of SAs: $6,254,433 for Mr. Smith.\n\nCEO Pay Ratio\n\n"
+    assert _extract_ceo_name(text) is None
+
+
+def test_extract_ceo_name_does_not_bind_directors_outside_ceo_role() -> None:
+    """A director's OUTSIDE 'Chief Executive Officer, Acme Corp' line is not
+    this issuer's CEO — the full-title branch must reject ', <Company>'."""
+    from finrobot.engine.compute.operators.ownership import _extract_ceo_name
+
+    text = "Jane Roe\nChief Executive Officer, Acme Corp\n"
+    assert _extract_ceo_name(text) is None
+
+
+def test_is_blacklisted_name_rejects_sentence_boundary_tokens() -> None:
+    """Initials ("B.") and suffixes ("Jr.") are legitimate; a full-stop token
+    like "Smith." / "Mr." marks a prose boundary and poisons the whole run."""
+    from finrobot.engine.compute.operators.ownership import _is_blacklisted_name
+
+    assert _is_blacklisted_name("Mr. Smith.")
+    assert _is_blacklisted_name("Smith. Satya")
+    assert not _is_blacklisted_name("Jane B. Doe")
+    assert not _is_blacklisted_name("Sammy Davis Jr.")
+
+
 # --- T7#8 (3rd recurrence): the no-Form-4 DEF 14A prose fallback must never
 #     emit a wrong PERSON. A director/successor surname sitting near a CEO
 #     anchor that belongs to someone else must NOT win; None beats a wrong CEO.

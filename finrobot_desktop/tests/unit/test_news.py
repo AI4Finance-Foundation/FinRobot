@@ -22,6 +22,7 @@ from finrobot.engine.compute.coordinators.news import (
     sanitize_untrusted_text,
 )
 from finrobot.engine.analysis.news_classifier import (
+    _MAX_CLASSIFY_ATTEMPTS,
     ClassifiedNewsBatch,
     NewsClassification,
     classify_news,
@@ -495,6 +496,133 @@ class TestClassifyNews:
         assert len(result) == 1
         assert result[0].title == "Second"
         assert result[0].category == "analyst"
+
+    @pytest.mark.asyncio
+    async def test_classify_news_recovers_under_returned_items_via_retry(self):
+        """A structured-output batch where the model classifies only SOME
+        indices on the first pass (a known LLM fragility — 2026-07-06 QA: AAPL
+        20 raw → 10 classified) must recover the omitted items by re-classifying
+        just the missing indices, not silently drop half the basket and leave
+        the catalyst section incomplete. The re-run is scoped to the gaps."""
+        raw_items = [
+            RawNewsItem(
+                title=f"Item {i}",
+                source="Src",
+                published=datetime(2024, 1, 1 + i, tzinfo=timezone.utc),
+                url=f"https://example.com/{i}",
+            )
+            for i in range(3)
+        ]
+        # First pass classifies only index 0; the retry returns the missing 1, 2.
+        first = MagicMock()
+        first.output = ClassifiedNewsBatch(
+            items=[
+                NewsClassification(
+                    index=0,
+                    category="earnings",
+                    sentiment="positive",
+                    importance=4,
+                    summary="First item.",
+                ),
+            ]
+        )
+        second = MagicMock()
+        second.output = ClassifiedNewsBatch(
+            items=[
+                NewsClassification(
+                    index=1,
+                    category="product",
+                    sentiment="neutral",
+                    importance=3,
+                    summary="Second item.",
+                ),
+                NewsClassification(
+                    index=2,
+                    category="analyst",
+                    sentiment="negative",
+                    importance=2,
+                    summary="Third item.",
+                ),
+            ]
+        )
+        captured_prompts: list[str] = []
+
+        mock_deps = MagicMock()
+        mock_deps.settings.model_name = "test-model"
+
+        with patch("finrobot.engine.analysis.news_classifier.PydanticAgent") as MockAgent:
+            mock_agent_instance = AsyncMock()
+            outputs = [first, second]
+
+            async def _run(prompt, **_kwargs):
+                captured_prompts.append(prompt)
+                return outputs[len(captured_prompts) - 1]
+
+            mock_agent_instance.run.side_effect = _run
+            MockAgent.return_value = mock_agent_instance
+
+            result = await classify_news(raw_items, mock_deps, ticker="AAPL")
+
+        # All three recovered — none silently dropped.
+        assert len(result) == 3
+        assert [r.title for r in result] == ["Item 0", "Item 1", "Item 2"]
+        assert [r.category for r in result] == ["earnings", "product", "analyst"]
+        # Exactly one retry, scoped to the missing indices (not a full re-run):
+        # the second prompt carries items 1 and 2 but NOT the already-done 0.
+        assert len(captured_prompts) == 2
+        assert "[1]" in captured_prompts[1] and "[2]" in captured_prompts[1]
+        assert "[0]" not in captured_prompts[1]
+
+    @pytest.mark.asyncio
+    async def test_classify_news_drops_after_exhausting_retries_never_fabricates(self):
+        """When the model persistently omits an index across every retry, that
+        item is finally dropped — we never fabricate a classification — and the
+        shortfall is logged (not silent) so an incomplete basket is observable."""
+        raw_items = [
+            RawNewsItem(
+                title=f"Item {i}",
+                source="Src",
+                published=datetime(2024, 1, 1 + i, tzinfo=timezone.utc),
+                url=f"https://example.com/{i}",
+            )
+            for i in range(2)
+        ]
+        # Every call returns only index 0; index 1 is never classified.
+        only_first = MagicMock()
+        only_first.output = ClassifiedNewsBatch(
+            items=[
+                NewsClassification(
+                    index=0,
+                    category="earnings",
+                    sentiment="positive",
+                    importance=4,
+                    summary="First item.",
+                ),
+            ]
+        )
+
+        mock_deps = MagicMock()
+        mock_deps.settings.model_name = "test-model"
+
+        with (
+            patch(
+                "finrobot.engine.analysis.news_classifier.PydanticAgent"
+            ) as MockAgent,
+            patch("finrobot.engine.analysis.news_classifier.logger") as mock_logger,
+        ):
+            mock_agent_instance = AsyncMock()
+            mock_agent_instance.run.return_value = only_first
+            MockAgent.return_value = mock_agent_instance
+
+            result = await classify_news(raw_items, mock_deps, ticker="AAPL")
+
+        # Index 1 stays dropped (never fabricated); index 0 survives.
+        assert len(result) == 1
+        assert result[0].title == "Item 0"
+        # The unrecoverable shortfall is logged, not swallowed silently.
+        assert mock_logger.warning.called
+        # Bounded retries: the first pass plus a fixed retry cap, no infinite loop.
+        assert mock_agent_instance.run.call_count == _MAX_CLASSIFY_ATTEMPTS
 
     @pytest.mark.asyncio
     async def test_classify_news_instructions_are_ticker_aware(self):

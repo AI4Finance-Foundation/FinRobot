@@ -383,16 +383,24 @@ def _outlier_warnings(comps: PeerComps) -> list[str]:
     with the outlier peer present (it will have been excluded from the median by
     the sanity floor in ``calculate_multiples``). The warning surfaces the
     situation so the analyst can investigate.
+
+    The deviation baseline is the PUBLISHED median (comps.median_*) whenever it
+    exists — the same number the peer table prints. Re-deriving a median here
+    (over all peers, outlier included) printed a SECOND "peer median" that
+    contradicted the table (MSFT: footnote 33.60x vs table 28.77x, external
+    audit 2026-07-07); the published NM-capped median is also the better
+    baseline, since the outlier no longer drags its own yardstick.
     """
     warnings: list[str] = []
 
     def _check(
         label: str,
         vals: list[tuple[str, float]],
+        published_median: float | None,
     ) -> None:
         if len(vals) < 2:
             return
-        med = _median(v for _, v in vals)
+        med = published_median if published_median else _median(v for _, v in vals)
         if med == 0:
             return
         for ticker, v in vals:
@@ -403,13 +411,13 @@ def _outlier_warnings(comps: PeerComps) -> list[str]:
                 )
 
     ev_ebitda_vals = [(p.ticker, p.ev_ebitda) for p in comps.peers if p.ev_ebitda is not None]
-    _check("EV/EBITDA", ev_ebitda_vals)
+    _check("EV/EBITDA", ev_ebitda_vals, comps.median_ev_ebitda)
 
     pe_vals = [(p.ticker, p.pe_ratio) for p in comps.peers if p.pe_ratio is not None]
-    _check("P/E", pe_vals)
+    _check("P/E", pe_vals, comps.median_pe)
 
     ev_rev_vals = [(p.ticker, p.ev_revenue) for p in comps.peers if p.ev_revenue is not None]
-    _check("EV/Revenue", ev_rev_vals)
+    _check("EV/Revenue", ev_rev_vals, comps.median_ev_revenue)
 
     return warnings
 

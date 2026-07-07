@@ -619,6 +619,38 @@ class TestCatalystEvent:
                 reasoning="x",
             )
 
+    def test_probability_is_excluded_from_serialization(self):
+        # exclude=True keeps the internal net-sentiment weight off EVERY model_dump
+        # surface (artifact export bundle, /catalysts response) — a past event's
+        # "probability" is fake precision (the frontend already dropped its column).
+        # The live ATTRIBUTE is untouched, so ranking (_expected_impact reads it
+        # directly) stays byte-identical.
+        eightk = CatalystEvent(
+            category="regulatory",
+            headline="SEC 8-K",
+            sentiment="neutral",
+            impact_score=3,
+            probability=1.0,  # primary-source 8-K weight
+            reasoning="x",
+        )
+        assert eightk.probability == 1.0  # attribute intact for the ranking math
+        assert "probability" not in eightk.model_dump(mode="json")  # ...never serialized
+
+    def test_probability_roundtrips_on_the_news_only_route(self):
+        # The /catalysts route dumps then model_validates (routes/data.py). That route
+        # is news-only (weight 0.7), and default=0.7 reconstructs it losslessly from the
+        # probability-less dump — otherwise the required field would 500 on revalidate.
+        news = CatalystEvent(
+            category="market",
+            headline="News item",
+            sentiment="positive",
+            impact_score=4,
+            probability=0.7,
+            reasoning="x",
+        )
+        restored = CatalystEvent.model_validate(news.model_dump(mode="json"))
+        assert restored.probability == 0.7
+
 
 class TestValuationSynthesis:
     def test_valid_synthesis(self):

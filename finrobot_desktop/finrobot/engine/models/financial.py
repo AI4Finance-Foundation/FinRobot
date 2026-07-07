@@ -908,14 +908,22 @@ class CatalystEvent(BaseModel):
     sentiment: Literal["positive", "negative", "neutral"]
     impact_score: int = Field(ge=1, le=5)
     probability: float = Field(
+        default=0.7,
         ge=0,
         le=1,
+        exclude=True,
         description=(
-            "Internal weight in the expected-impact aggregate (net_sentiment), "
-            "NOT a displayed forecast: news events are weighted 0.7, primary-"
-            "source 8-Ks 1.0. It is never surfaced to the reader — these are "
-            "PAST events, so a shown probability would be fake precision. The "
-            "report displays impact_score and sentiment direction only."
+            "Internal weight in the expected-impact aggregate (net_sentiment), NOT a "
+            "displayed forecast: news events are weighted 0.7, primary-source 8-Ks 1.0. "
+            "``exclude=True`` keeps it off EVERY serialization surface (the artifact "
+            "export bundle, the /catalysts response) — these are PAST events, so a shown "
+            "probability is fake precision, and the frontend already dropped its column "
+            "(ChapterCatalysts/ChapterNews). The number-crunching that consumes it "
+            "(_expected_impact, cluster rep selection, net_sentiment) reads the live "
+            "ATTRIBUTE, which ``exclude`` does not touch, so ranking is byte-identical. "
+            "``default`` is only for the /catalysts dump→model_validate round-trip (that "
+            "route is news-only → weight 0.7, so reconstruction is lossless); the two "
+            "real producers always pass it explicitly, so the default never authors a value."
         ),
     )
     reasoning: str

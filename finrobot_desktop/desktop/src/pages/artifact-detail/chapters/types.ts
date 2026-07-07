@@ -177,7 +177,11 @@ export interface CatalystEventShape {
   headline: string
   sentiment: 'positive' | 'negative' | 'neutral'
   impact_score: number
-  probability: number
+  // Internal net-sentiment weight (news 0.7 / 8-K 1.0), never rendered — the
+  // Catalysts/News chapters dropped its column as fake precision. The backend now
+  // excludes it from serialization (exclude=True), so it appears only on pre-fix
+  // artifacts; optional and ignored everywhere.
+  probability?: number
   reasoning?: string
   // Source provenance for the chronological news feed (ChapterNews). `published`
   // is an ISO date (null when the source didn't carry one → sorts last); `url`

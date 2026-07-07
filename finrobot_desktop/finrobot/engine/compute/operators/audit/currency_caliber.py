@@ -41,19 +41,24 @@ def audit_foreign_issuer_usd_tags(fin: FinancialData) -> list[Finding]:
       reporting≠quote snapshot to single-currency and rewrote the tag — that
       double-USD is constructed, not suspicious.
     - country missing/blank: "unknown" is not "foreign"; never guess.
-    - ``is_adr`` True: a confirmed ADR (FMP /profile isAdr) files in USD
-      legitimately, so a USD/USD foreign-issuer snapshot is expected, not a
-      mis-tag — no banner. ``is_adr`` None (yfinance path / unknown) or False
-      still fires: only a confirmed-True suppresses, so a genuinely mis-tagged
-      home-currency reporter is never silently waved through.
+    - ``is_adr`` not None (True OR False): a CONFIRMED ADR status comes ONLY from
+      the FMP /profile ``isAdr`` field (the yfinance path hardcodes None), and
+      FMP's ``reportedCurrency`` is empirically reliable (2026-07-06 20-ticker
+      live pull, 0 mis-tags). True = a confirmed ADR files in USD legitimately;
+      False = a confirmed non-ADR direct lister / foreign private issuer
+      (LULU/SHOP/NVS/FERG/RIO/WCN class) that genuinely reports in USD. Either
+      way the USD/USD tag is trustworthy, not a mis-tag — no banner. ``is_adr``
+      None still fires: the yfinance path leaves it None and its
+      ``financialCurrency`` can falsely read USD for a home-currency reporter, so
+      the unknown case is exactly where a genuine mis-tag hides — keep the net.
     """
     if fin.reporting_currency != "USD" or fin.quote_currency != "USD":
         return []  # mixed tags are audit_currency_caliber's jurisdiction
     degraded = fin.provenance.degraded if fin.provenance is not None else []
     if DEGRADED_FX_NORMALIZED in degraded:
         return []
-    if fin.market.is_adr is True:
-        return []
+    if fin.market.is_adr is not None:
+        return []  # confirmed ADR status (True/False) from the reliable FMP profile
     country = (fin.market.country or "").strip()
     if not country or country.upper() in _US_COUNTRY_TOKENS:
         return []

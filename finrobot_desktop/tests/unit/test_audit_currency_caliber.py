@@ -170,15 +170,21 @@ class TestForeignIssuerUsdTags:
         assert audit_foreign_issuer_usd_tags(_fd(country="TW", is_adr=True)) == []
 
     def test_is_adr_none_still_fires(self):
-        # None = "unknown" (yfinance path has no isAdr): only a confirmed True
-        # suppresses, so a possibly mis-tagged home-currency reporter is never
-        # silently waved through. This is the constructed-dirty-sample case.
+        # None = "unknown" — the yfinance path hardcodes is_adr=None and its
+        # financialCurrency is unreliable (can read USD for a home-currency
+        # reporter). This is the genuine mis-tag risk path, so None still fires:
+        # a possibly mis-tagged home-currency reporter is never waved through.
         f = audit_foreign_issuer_usd_tags(_fd(country="JP", is_adr=None))
         assert _checks(f) == {("reporting_currency", "foreign_issuer_usd_tags", "review")}
 
-    def test_is_adr_false_still_fires(self):
-        # isAdr=False (LULU: Canadian-incorporated USD reporter, direct NASDAQ
-        # listing — FMP returns False, NOT an ADR) keeps the banner: a genuine
-        # non-ADR foreign USD reporter still deserves an analyst's currency check.
-        f = audit_foreign_issuer_usd_tags(_fd(country="CA", is_adr=False))
-        assert _checks(f) == {("reporting_currency", "foreign_issuer_usd_tags", "review")}
+    def test_is_adr_false_suppressed(self):
+        # isAdr=False comes ONLY from FMP /profile (yfinance hardcodes is_adr=None),
+        # and FMP's reportedCurrency is empirically reliable (2026-07-06 20-ticker
+        # live pull, 0 mis-tags). A confirmed non-ADR foreign USD reporter
+        # (LULU/SHOP/NVS/FERG/RIO/WCN: direct listings / foreign private issuers
+        # genuinely filing in USD) is legit, not a mis-tag — no banner. The
+        # mis-tag risk lives on the yfinance path (is_adr=None), which still fires
+        # above. Only a CONFIRMED ADR status (True or False) from the reliable FMP
+        # profile suppresses; unknown (None) keeps the net.
+        assert audit_foreign_issuer_usd_tags(_fd(country="CA", is_adr=False)) == []
+        assert audit_foreign_issuer_usd_tags(_fd(country="GB", is_adr=False)) == []

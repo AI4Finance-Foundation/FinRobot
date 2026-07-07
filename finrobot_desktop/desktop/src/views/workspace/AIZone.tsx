@@ -156,9 +156,6 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
     (a) => !(VALUATION_TYPES as readonly string[]).includes(a.type),
   )
   const isRunning = runState?.status === 'running'
-  // Only a research run takes over the whole column (top panel + hero). An
-  // instrument run renders in place, so the tools-row must survive it.
-  const researchRunning = isRunning && runState?.pipelineType === 'research'
 
   // ── Auto-advance into the report on a watched completion (UX-002) ─────────
   // The first wow is "search → read a 13-chapter report"; making the user hunt
@@ -461,9 +458,11 @@ export function AIZone({ ticker }: AIZoneProps): React.ReactElement {
       {/* Standalone valuation launcher + model-artifact list — paired SIDE BY
           SIDE per the design (left = run a single method, right = artifacts this
           ticker already has). When only the launcher shows (cold ticker, no
-          artifacts) it spans full width. Both hide mid-run (the progress panel
-          takes over the column). */}
-      {!researchRunning && (reportHistoryResolved || sideArtifacts.length > 0) && (
+          artifacts) it spans full width. Stays mounted during a research run —
+          the flagship progress panel appears ABOVE, and the instruments lock
+          their launch buttons themselves (ValuationInstruments lockOthers)
+          while keeping the latest readings visible. */}
+      {(reportHistoryResolved || sideArtifacts.length > 0) && (
         <div
           data-testid="ai-zone-tools-row"
           style={{

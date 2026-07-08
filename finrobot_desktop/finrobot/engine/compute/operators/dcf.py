@@ -222,6 +222,48 @@ def calculate_sensitivity(
     }
 
 
+# The terminal value capitalizes the steady-state EBITDA margin and is 70-80%
+# of enterprise value, so a small margin move dominates the DCF — yet the
+# WACC × terminal-growth grid holds the margin fixed and never shows it. 2pp is
+# the routine year-to-year noise band on a mature operating margin, so a ±2pp
+# swing is the honest "how load-bearing is the margin assumption?" disclosure.
+_MARGIN_SWING_PP = 0.02
+
+
+def margin_swing(inputs: DCFInputs) -> tuple[float | None, float | None] | None:
+    """Implied price when the EBITDA margin is shifted ±2pp from its seeded base,
+    holding WACC, terminal growth and every other input fixed.
+
+    Returns ``(price_at_-2pp, price_at_+2pp)`` — low→high, since implied price
+    rises monotonically with the margin. An end is ``None`` when its shifted
+    margin leaves the valid [0, 1] band or the DCF degrades (the same Gordon /
+    non-positive-terminal / negative-equity refusals ``calculate_dcf`` raises);
+    the whole result is ``None`` when neither end yields a price. Never raises —
+    a swing that blows up degrades gracefully instead of crashing the pipeline
+    it only annotates.
+    """
+
+    def _price_at(margin: float) -> float | None:
+        # The margin flows into BOTH the explicit-window EBITDA and the Gordon
+        # terminal base (_terminal_fcf reads inputs.ebitda_margin) — surfacing the
+        # terminal-margin sensitivity is exactly the point. model_copy does not
+        # re-validate, so guard the [0, 1] band here (>100% margin ⇒ negative cost).
+        if not 0.0 <= margin <= 1.0:
+            return None
+        try:
+            return calculate_dcf(
+                inputs.model_copy(update={"ebitda_margin": margin})
+            ).implied_price
+        except (ValueError, ArithmeticError):
+            return None
+
+    low = _price_at(inputs.ebitda_margin - _MARGIN_SWING_PP)
+    high = _price_at(inputs.ebitda_margin + _MARGIN_SWING_PP)
+    if low is None and high is None:
+        return None
+    return (low, high)
+
+
 def _project_full(
     inputs: DCFInputs,
     growth_rates_override: list[float] | None = None,

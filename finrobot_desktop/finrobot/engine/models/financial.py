@@ -555,6 +555,17 @@ class DCFInputs(BaseModel):
         description="Maps assumption field names to their reasoning/source",
     )
 
+    nwc_clamped: bool = Field(
+        default=False,
+        description=(
+            "True when the explicit-window ΔNWC/revenue median sat outside the "
+            "±10% modelling band and was clamped to it. A structured signal — "
+            "independent of the nwc_pct_revenue provenance STRING — that drives the "
+            "⚠ on the report's model-vs-current reconciliation ΔNWC row. False for "
+            "direct/legacy construction (read-compat)."
+        ),
+    )
+
     inputs_fetched_at: datetime | None = Field(
         default=None,
         description=(
@@ -698,6 +709,24 @@ class DCFResult(BaseModel):
 
     # Sensitivity
     sensitivity_table: dict[str, Any] | None = None
+
+    # ±2pp EBITDA-margin swing on the base case (operators.dcf.margin_swing):
+    # (implied_price_at_-2pp, implied_price_at_+2pp), low→high. Either end None
+    # when that shifted margin degrades (out of [0, 1], Gordon guard, non-positive
+    # terminal FCF / equity); the whole field None when neither end is valid or the
+    # caller didn't run it. The terminal value capitalizes the steady-state margin
+    # (70-80% of EV), so this is the load-bearing sensitivity the WACC×TG grid
+    # never surfaces. Absent on legacy artifacts.
+    margin_swing: tuple[float | None, float | None] | None = None
+
+    # Latest single-year actuals for the four DCF drivers, keyed
+    # revenue_growth / ebitda_margin / capex_pct_revenue / nwc_pct_revenue — the
+    # SAME annual caliber and sign convention as the trailing-median seed, so the
+    # report reconciles the model's smoothed assumptions against the most recent
+    # reality (operators.dcf_seed.dcf_current_actuals). Per-driver None when
+    # history lacks a usable latest point (never fabricated); the whole field None
+    # when the caller didn't compute it (legacy / direct construction).
+    assumption_current_actuals: dict[str, float | None] | None = None
 
     # Reverse-DCF reality check (what the market price implies). None when the
     # caller didn't run it (e.g. no current price available).

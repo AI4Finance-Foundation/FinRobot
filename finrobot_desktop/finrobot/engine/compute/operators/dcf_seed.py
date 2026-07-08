@@ -989,6 +989,16 @@ def seed_dcf_inputs(
     _disclose_construction_clamp(prov, "da_pct_revenue", da_pct, 0.005, 0.40)
     _disclose_construction_clamp(prov, "debt_ratio", debt_ratio, 0.0, 0.80)
 
+    # Structured signal for the report's model-vs-current reconciliation ⚠:
+    # whether the explicit-window ΔNWC/revenue median sat outside the ±10%
+    # modelling band (and was therefore clamped — or, post the marginal-ratio
+    # degradation, re-derived from marginal × growth). Re-derived here (rather
+    # than captured in the nwc_pct block above) so it stays INDEPENDENT of the
+    # nwc_pct_revenue provenance STRING — the ⚠ never has to parse prose, and
+    # this add-only field never collides with a clamp-disclosure edit there.
+    _nwc_raw = _median_ratio(historical.change_in_working_capital, historical.revenue)
+    nwc_clamped = _nwc_raw is not None and not (-0.10 <= -_nwc_raw[0] <= 0.10)
+
     # ----- Final clamp + construct -----------------------------------------
     # Pydantic Field validators enforce ranges; clamp first to avoid raising
     # when industry fallback edge-cases approach the bounds.
@@ -999,6 +1009,7 @@ def seed_dcf_inputs(
         capex_pct_revenue=max(0.005, min(0.45, capex_pct)),
         nwc_pct_revenue=nwc_pct,
         terminal_nwc_pct_revenue=terminal_nwc_pct,
+        nwc_clamped=nwc_clamped,
         da_pct_revenue=max(0.005, min(0.40, da_pct)),
         # Already clamped to [DCF_TAX_RATE_FLOOR, DCF_TAX_RATE_CAP] above, where the
         # clamp is disclosed in provenance; this is an idempotent safety net.
@@ -1030,6 +1041,40 @@ def seed_dcf_inputs(
         # from the snapshot, never a wall-clock call.
         inputs_fetched_at=financials.timestamp,
     )
+
+
+def dcf_current_actuals(historical: HistoricalMetrics) -> dict[str, float | None]:
+    """Latest single-year actuals for the four DCF drivers, in the SAME annual
+    caliber and sign convention as the trailing-median seed, so the report's
+    model-vs-current reconciliation compares like with like.
+
+    Keys ``revenue_growth`` (latest YoY), ``ebitda_margin``, ``capex_pct_revenue``
+    and ``nwc_pct_revenue`` (negated ΔNWC/revenue — positive = cash absorbed, the
+    seed convention). Each value is the ticker's OWN most recent year — never the
+    industry fallback the seed may have picked when history was thin — or ``None``
+    when the series lacks a usable latest point (never fabricated). The ΔNWC /
+    capex ratios reuse ``_median_ratio`` at a one-year window so they inherit its
+    NaN / zero-row / zero-denominator hygiene, and the year-pairing the seed's own
+    median uses.
+    """
+
+    def _latest_ratio(num: list[float], den: list[float]) -> float | None:
+        r = _median_ratio(num, den, window=1, min_samples=1)
+        return r[0] if r is not None else None
+
+    def _latest_finite(series: list[float | None]) -> float | None:
+        if not series:
+            return None
+        v = series[-1]
+        return v if v is not None and math.isfinite(v) else None
+
+    nwc_raw = _latest_ratio(historical.change_in_working_capital, historical.revenue)
+    return {
+        "revenue_growth": _latest_finite(historical.revenue_growth_yoy),
+        "ebitda_margin": _latest_finite(historical.ebitda_margin),
+        "capex_pct_revenue": _latest_ratio(historical.capital_expenditure, historical.revenue),
+        "nwc_pct_revenue": None if nwc_raw is None else -nwc_raw,
+    }
 
 
 # ---------------------------------------------------------------------------

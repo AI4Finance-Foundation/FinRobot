@@ -815,7 +815,8 @@ async def _execute_financial_modeling(
             "sensitivity_table": sensitivity,
             "market_implied": market_implied,
             "margin_swing": margin_swing(dcf_inputs),
-            "assumption_current_actuals": dcf_current_actuals(historical),
+            "assumption_current_actuals": dcf_current_actuals(financial_data, historical),
+            "assumption_current_actuals_fy": (historical.years[-1] if historical.years else None),
         }
     )
 

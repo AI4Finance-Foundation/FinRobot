@@ -160,28 +160,29 @@ def test_margin_swing_zero_denominator_shares_is_structurally_guarded():
 # ── dcf_current_actuals ──────────────────────────────────────────────────────
 
 
-def test_current_actuals_latest_year_values_and_sign():
-    """Each driver reads the latest year in the seed's caliber/sign convention."""
-    actuals = dcf_current_actuals(_hist())
-    assert actuals["revenue_growth"] == 0.1111
-    assert actuals["ebitda_margin"] == 0.55
-    assert math.isclose(actuals["capex_pct_revenue"], 30.0 / 100.0)
+def test_current_actuals_margin_is_ttm_others_latest_fy():
+    """EBITDA margin = TTM (income.ebitda/revenue, 60.5%) — NOT historical's latest
+    annual 55%; the other three = latest fiscal year in the seed's caliber/sign."""
+    actuals = dcf_current_actuals(_fd(), _hist())
+    assert actuals["ebitda_margin"] == 0.605  # TTM from financial_data, not hist 0.55
+    assert actuals["revenue_growth"] == 0.1111  # latest FY YoY
+    assert math.isclose(actuals["capex_pct_revenue"], 30.0 / 100.0)  # latest FY
     # ΔNWC is negated: raw −1.9 / 100 = −0.019 → +0.019 (positive = cash absorbed).
-    assert math.isclose(actuals["nwc_pct_revenue"], 0.019)
+    assert math.isclose(actuals["nwc_pct_revenue"], 0.019)  # latest FY
 
 
 def test_current_actuals_missing_series_is_none_never_fabricated():
     """Empty cash-flow series → those drivers are None (not 0.0)."""
-    actuals = dcf_current_actuals(_hist(capital_expenditure=[], change_in_working_capital=[]))
+    actuals = dcf_current_actuals(_fd(), _hist(capital_expenditure=[], change_in_working_capital=[]))
     assert actuals["capex_pct_revenue"] is None
     assert actuals["nwc_pct_revenue"] is None
-    # The income-statement drivers still resolve.
-    assert actuals["ebitda_margin"] == 0.55
+    # The TTM margin still resolves from the income snapshot.
+    assert actuals["ebitda_margin"] == 0.605
 
 
-def test_current_actuals_latest_none_entry_degrades():
-    """A None latest margin/growth entry → None, not a crash."""
-    actuals = dcf_current_actuals(_hist(ebitda_margin=[0.50, 0.53, None]))
+def test_current_actuals_ttm_margin_none_when_ebitda_missing():
+    """No TTM EBITDA in the snapshot → margin None (not 0), never fabricated."""
+    actuals = dcf_current_actuals(_fd(ebitda=None), _hist())
     assert actuals["ebitda_margin"] is None
 
 
@@ -192,14 +193,16 @@ def test_nwc_clamped_defaults_false_on_direct_construction():
     assert _make_inputs().nwc_clamped is False
 
 
-def _fd() -> FinancialData:
+def _fd(ebitda: float | None = 60_500_000_000) -> FinancialData:
+    # TTM EBITDA margin = ebitda / 100B (default 60.5% — deliberately DISTINCT from
+    # _hist()'s latest annual 55%, so the margin test proves the TTM source).
     return FinancialData(
         ticker="TEST",
         company_name="Test Co",
         timestamp=datetime.now(tz=timezone.utc),
         income=IncomeStatement(
             revenue=100_000_000_000,
-            ebitda=55_000_000_000,
+            ebitda=ebitda,
             net_income=28_000_000_000,
             operating_margin=0.48,
             depreciation_amortization=3_000_000_000,

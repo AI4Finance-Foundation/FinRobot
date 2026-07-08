@@ -1043,19 +1043,27 @@ def seed_dcf_inputs(
     )
 
 
-def dcf_current_actuals(historical: HistoricalMetrics) -> dict[str, float | None]:
-    """Latest single-year actuals for the four DCF drivers, in the SAME annual
-    caliber and sign convention as the trailing-median seed, so the report's
-    model-vs-current reconciliation compares like with like.
+def dcf_current_actuals(
+    financial_data: FinancialData, historical: HistoricalMetrics
+) -> dict[str, float | None]:
+    """Current-reality actuals for the four DCF drivers, for the report's
+    model-vs-current reconciliation. Calibers are MIXED and disclosed per cell by
+    the report (the reconciliation is a driver-by-driver comparison, not a
+    cross-row one):
 
-    Keys ``revenue_growth`` (latest YoY), ``ebitda_margin``, ``capex_pct_revenue``
-    and ``nwc_pct_revenue`` (negated ΔNWC/revenue — positive = cash absorbed, the
-    seed convention). Each value is the ticker's OWN most recent year — never the
-    industry fallback the seed may have picked when history was thin — or ``None``
-    when the series lacks a usable latest point (never fabricated). The ΔNWC /
-    capex ratios reuse ``_median_ratio`` at a one-year window so they inherit its
-    NaN / zero-row / zero-denominator hygiene, and the year-pairing the seed's own
-    median uses.
+    * ``ebitda_margin`` — the **TTM** ratio ``income.ebitda / income.revenue`` from
+      the canonical snapshot (the freshest 12-month margin). A ratio, so it is
+      FX-invariant — the pipeline's USD normalization doesn't shift it.
+    * ``revenue_growth`` / ``capex_pct_revenue`` / ``nwc_pct_revenue`` — the
+      ticker's **latest fiscal year** from ``HistoricalMetrics`` (no TTM source for
+      capex / ΔNWC exists in the canonical snapshot, and we do not fabricate one).
+      ``nwc`` negates ΔNWC/revenue (positive = cash absorbed, the seed convention).
+
+    Every value is the ticker's OWN figure — never the industry fallback the seed
+    may have picked when history was thin — or ``None`` when the source lacks a
+    usable point (never fabricated). The ΔNWC / capex ratios reuse ``_median_ratio``
+    at a one-year window so they inherit its NaN / zero-row / zero-denominator
+    hygiene and the seed's own year-pairing.
     """
 
     def _latest_ratio(num: list[float], den: list[float]) -> float | None:
@@ -1068,10 +1076,22 @@ def dcf_current_actuals(historical: HistoricalMetrics) -> dict[str, float | None
         v = series[-1]
         return v if v is not None and math.isfinite(v) else None
 
+    # TTM EBITDA margin from the canonical snapshot (income is TTM). income.revenue
+    # is a required float; guard 0 / non-finite / missing EBITDA → None (never 0).
+    inc = financial_data.income
+    ttm_margin: float | None = None
+    if (
+        inc.ebitda is not None
+        and math.isfinite(inc.ebitda)
+        and inc.revenue
+        and math.isfinite(inc.revenue)
+    ):
+        ttm_margin = inc.ebitda / inc.revenue
+
     nwc_raw = _latest_ratio(historical.change_in_working_capital, historical.revenue)
     return {
         "revenue_growth": _latest_finite(historical.revenue_growth_yoy),
-        "ebitda_margin": _latest_finite(historical.ebitda_margin),
+        "ebitda_margin": ttm_margin,
         "capex_pct_revenue": _latest_ratio(historical.capital_expenditure, historical.revenue),
         "nwc_pct_revenue": None if nwc_raw is None else -nwc_raw,
     }

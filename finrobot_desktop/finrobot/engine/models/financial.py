@@ -719,14 +719,20 @@ class DCFResult(BaseModel):
     # never surfaces. Absent on legacy artifacts.
     margin_swing: tuple[float | None, float | None] | None = None
 
-    # Latest single-year actuals for the four DCF drivers, keyed
+    # Current-reality actuals for the four DCF drivers, keyed
     # revenue_growth / ebitda_margin / capex_pct_revenue / nwc_pct_revenue — the
-    # SAME annual caliber and sign convention as the trailing-median seed, so the
-    # report reconciles the model's smoothed assumptions against the most recent
-    # reality (operators.dcf_seed.dcf_current_actuals). Per-driver None when
-    # history lacks a usable latest point (never fabricated); the whole field None
-    # when the caller didn't compute it (legacy / direct construction).
+    # "Current" column of the report's model-vs-current reconciliation
+    # (operators.dcf_seed.dcf_current_actuals). Calibers are MIXED and disclosed
+    # per cell: ebitda_margin is TTM (income.ebitda/revenue, the freshest 12-month
+    # figure); the other three are the latest fiscal year (no TTM source for
+    # capex/ΔNWC in the canonical snapshot). Per-driver None when the source lacks a
+    # usable point (never fabricated); whole field None when not computed (legacy).
     assumption_current_actuals: dict[str, float | None] | None = None
+
+    # Fiscal year of the latest-FY current actuals (capex / ΔNWC / growth) — lets
+    # the report label those cells "FY<year>" beside the TTM-labelled margin cell.
+    # None when history was empty or the caller didn't compute it.
+    assumption_current_actuals_fy: int | None = None
 
     # Reverse-DCF reality check (what the market price implies). None when the
     # caller didn't run it (e.g. no current price available).

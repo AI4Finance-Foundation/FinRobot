@@ -2002,6 +2002,12 @@ export interface components {
         [key: string]: string
       }
       /**
+       * Nwc Clamped
+       * @description True when the explicit-window ΔNWC/revenue median sat outside the ±10% modelling band and was clamped to it. A structured signal — independent of the nwc_pct_revenue provenance STRING — that drives the ⚠ on the report's model-vs-current reconciliation ΔNWC row. False for direct/legacy construction (read-compat).
+       * @default false
+       */
+      nwc_clamped: boolean
+      /**
        * Inputs Fetched At
        * @description Wall-clock time the market/financial inputs behind this seed were fetched (= FinancialData.timestamp, the canonical fetch time). Stamped by seed_dcf_inputs so every surface that prints a DCF/WACC (REST /dcf-seed, chat Monte-Carlo, artifacts via DCFResult.inputs) can show 'inputs as of X' — 门四溯源半. None for direct construction (user-supplied REST bodies have no fetch time; never fabricate a now()) and for JSON-round-tripped legacy artifacts (read-compat, ttm_quarter_ends precedent).
        */
@@ -2028,6 +2034,8 @@ export interface components {
       terminal_value: number
       /** Pv Terminal */
       pv_terminal: number
+      /** Terminal Fcf */
+      terminal_fcf?: number | null
       /** Pv Fcf Total */
       pv_fcf_total: number
       /** Enterprise Value */
@@ -2045,6 +2053,14 @@ export interface components {
       sensitivity_table?: {
         [key: string]: unknown
       } | null
+      /** Margin Swing */
+      margin_swing?: [number | null, number | null] | null
+      /** Assumption Current Actuals */
+      assumption_current_actuals?: {
+        [key: string]: number | null
+      } | null
+      /** Assumption Current Actuals Fy */
+      assumption_current_actuals_fy?: number | null
       market_implied?: components['schemas']['MarketImpliedCheck'] | null
       inputs: components['schemas']['DCFInputs']
     }

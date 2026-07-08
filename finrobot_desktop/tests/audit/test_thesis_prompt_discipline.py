@@ -13,7 +13,7 @@ Red-line guards:
 from __future__ import annotations
 
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -178,6 +178,11 @@ async def _capture_thesis_prompt(structured_context: dict[str, object]) -> str:
 
     fake_deps = MagicMock()
     fake_deps.settings.create_model.return_value = MagicMock()
+    # _execute_thesis awaits data_layer.fetch_price_target (street-range
+    # disclosure, 729ac8bb); a bare MagicMock is not awaitable. None = fetch
+    # miss → the disclosure is silently dropped, which is the degrade path
+    # these prompt-discipline tests want (no street band in the prompt).
+    fake_deps.data_layer.fetch_price_target = AsyncMock(return_value=None)
     fake_skill = MagicMock()
     fake_skill.return_value = None
     fake_deps.skill_runtime = None
@@ -512,6 +517,9 @@ async def test_thesis_prompt_and_instructions_are_language_neutral() -> None:
 
     fake_deps = MagicMock()
     fake_deps.settings.create_model.return_value = MagicMock()
+    # See the twin fixture above: fetch_price_target is awaited by
+    # _execute_thesis; None = fetch miss → street disclosure silently dropped.
+    fake_deps.data_layer.fetch_price_target = AsyncMock(return_value=None)
     fake_deps.skill_runtime = None
 
     original_agent = _mod.Agent

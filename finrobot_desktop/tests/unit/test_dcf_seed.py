@@ -367,6 +367,12 @@ class TestSeedDcfInputsAapl:
         inputs = seed_dcf_inputs(levered, self.historical)
         # raw debt_ratio = 900 / (900 + 100) = 0.90, capped to 0.80
         assert inputs.debt_ratio == pytest.approx(0.80)
+        # BUG-023: a bound construction clamp must lead with the value the DCF
+        # uses (80%) and disclose the pre-clamp raw ratio + the bound it hit —
+        # never leave provenance leading with the raw 90% the model discarded.
+        prov = inputs.assumption_provenance["debt_ratio"]
+        assert prov.startswith("80.0%")
+        assert "raw 90.0% clamped to the 80% model cap" in prov
 
 
 class TestSeedDcfInputsIndustryFallback:
@@ -956,9 +962,11 @@ class TestTerminalNwcPct:
         # median = 0.1409 → × 3% = 0.42%
         result = _terminal_nwc_pct([0.0, -1.0, -2.0], [100.0, 110.0, 121.0], 0.03)
         assert result is not None
-        marginal, terminal = result
+        marginal, terminal, raw_marginal = result
         assert abs(marginal - 0.14091) < 1e-4
         assert abs(terminal - 0.0042273) < 1e-6
+        # Not clamped: raw median == the returned marginal.
+        assert raw_marginal == marginal
 
     def test_declining_revenue_years_skipped_and_all_declining_returns_none(self):
         # Δrev ≤ 0 everywhere → no usable marginal ratio → honest None
@@ -967,7 +975,7 @@ class TestTerminalNwcPct:
     def test_nan_rows_filtered(self):
         result = _terminal_nwc_pct([0.0, float("nan"), -2.0], [100.0, 110.0, 121.0], 0.03)
         assert result is not None
-        marginal, _ = result
+        marginal, _terminal, _raw = result
         assert abs(marginal - (2.0 / 11.0)) < 1e-9
 
     def test_zero_cwc_treated_as_missing_row(self):
@@ -980,18 +988,21 @@ class TestTerminalNwcPct:
         # → terminal = 0.6 × 3% = 1.8%
         result = _terminal_nwc_pct([0.0, -50.0], [100.0, 110.0], 0.03)
         assert result is not None
-        marginal, terminal = result
+        marginal, terminal, raw_marginal = result
         assert marginal == 0.60
         assert abs(terminal - 0.018) < 1e-12
+        # Raw median (5.0) is exposed un-clamped so the caller can disclose it.
+        assert raw_marginal == pytest.approx(5.0)
 
     def test_cash_source_negative_ratio_clamped_symmetrically(self):
         # Positive cwc = NWC released cash (payables float). Extreme release
         # clamps at −0.6 → terminal −1.8%: the RIVN perpetual-subsidy ceiling.
         result = _terminal_nwc_pct([0.0, 50.0], [100.0, 110.0], 0.03)
         assert result is not None
-        marginal, terminal = result
+        marginal, terminal, raw_marginal = result
         assert marginal == -0.60
         assert abs(terminal - (-0.018)) < 1e-12
+        assert raw_marginal == pytest.approx(-5.0)
 
 
 class TestSeedTerminalNwc:
@@ -1012,6 +1023,43 @@ class TestSeedTerminalNwc:
         assert inputs.terminal_nwc_pct_revenue is None
         prov = inputs.assumption_provenance["terminal_nwc_pct_revenue"]
         assert "reuses" in prov
+
+
+class TestClampProvenanceDisclosure:
+    """BUG-023 clamp-then-disclose: whenever a modelling clamp binds, provenance
+    must lead with the value the DCF uses and disclose the pre-clamp raw figure —
+    never imply the band value IS the underlying computation (KO's 13.2% NWC
+    median was printed as '10.0% (…median…)')."""
+
+    def test_nwc_pct_clamp_discloses_pre_clamp_median(self):
+        hist = _aapl_historical()
+        # ΔNWC/revenue = -15% every year → -median = +15% → clamped to +10%.
+        hist.change_in_working_capital = [-0.15 * r for r in hist.revenue]
+        inputs = seed_dcf_inputs(_aapl_financials(), hist)
+        prov = inputs.assumption_provenance["nwc_pct_revenue"]
+        assert inputs.nwc_pct_revenue == pytest.approx(0.10)
+        assert prov.startswith("10.0% (clamped from trailing")
+        assert "median 15.0%" in prov
+        assert "positive = cash absorbed" in prov
+
+    def test_nwc_pct_in_band_is_byte_identical(self):
+        """The common in-band case must keep the original string verbatim —
+        no 'clamped from', no format drift."""
+        inputs = seed_dcf_inputs(_aapl_financials(), _aapl_historical())
+        prov = inputs.assumption_provenance["nwc_pct_revenue"]
+        assert "clamped" not in prov
+        assert "trailing" in prov and "ΔNWC / revenue median; positive = cash absorbed)" in prov
+
+    def test_terminal_marginal_ratio_clamp_disclosed(self):
+        hist = _aapl_historical()
+        # Growing revenue (+10B/yr) with an 8B NWC build each year → marginal
+        # ratio 80%, above the ±60% band → clamped, raw median disclosed.
+        hist.revenue = [100e9, 110e9, 120e9, 130e9]
+        hist.change_in_working_capital = [0.0, -8e9, -8e9, -8e9]
+        inputs = seed_dcf_inputs(_aapl_financials(), hist)
+        prov = inputs.assumption_provenance["terminal_nwc_pct_revenue"]
+        assert "80.0% clamped to 60.0%" in prov
+        assert "marginal NWC ratio median(ΔNWC/Δrevenue)" in prov
 
 
 # ---------------------------------------------------------------------------

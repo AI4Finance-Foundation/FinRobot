@@ -336,6 +336,51 @@ def test_lbo_tax_rate_in_band_no_clamp_note(monkeypatch: pytest.MonkeyPatch) -> 
     assert "clamped" not in prov
 
 
+def _historical_with_nwc(cwc: list[float], revenue: list[float]) -> HistoricalMetrics:
+    """Minimal history carrying only revenue + ΔNWC — every other series stays
+    empty so the corresponding assumption falls through to industry, isolating
+    the NWC clamp path."""
+    hist = _empty_historical()
+    hist.revenue = revenue
+    hist.change_in_working_capital = cwc
+    return hist
+
+
+def test_lbo_nwc_clamp_discloses_pre_clamp_median() -> None:
+    """Mirror of the dcf_seed NWC fix: a bound ±10% band must lead with the
+    clamped value AND disclose the pre-clamp trailing median (BUG-023)."""
+    # ΔNWC/revenue = -15% every year → -median = +15% → clamped to +10%.
+    hist = _historical_with_nwc([-1.5e9, -1.5e9, -1.5e9], [1e10, 1e10, 1e10])
+    inputs = seed_lbo_inputs(_minimal_financials(), hist)
+    prov = inputs.assumption_provenance["nwc_change_pct_revenue"]
+    assert inputs.nwc_change_pct_revenue == pytest.approx(0.10)
+    assert prov.startswith("10.0% (clamped from trailing")
+    assert "median 15.0%" in prov
+
+
+def test_lbo_nwc_in_band_is_byte_identical() -> None:
+    """In-band ΔNWC keeps the original provenance string verbatim."""
+    hist = _historical_with_nwc([-5e8, -5e8, -5e8], [1e10, 1e10, 1e10])  # -5% → no clamp
+    inputs = seed_lbo_inputs(_minimal_financials(), hist)
+    prov = inputs.assumption_provenance["nwc_change_pct_revenue"]
+    assert "clamped" not in prov
+    assert prov.endswith("ΔNWC / revenue median; positive = cash absorbed)")
+
+
+def test_lbo_interest_rate_cap_disclosed() -> None:
+    """cost-of-debt + 2% above the 15% ceiling: the LBO uses 15% AND provenance
+    discloses the pre-cap arithmetic, so 'cost + 2%' can never imply a rate above
+    the ceiling the model uses (BUG-023)."""
+    fin = _minimal_financials()
+    fin.income.interest_expense = 1.4e8  # 14% cost of debt on 1e9 total debt
+    inputs = seed_lbo_inputs(fin, _empty_historical())
+    prov = inputs.assumption_provenance["interest_rate"]
+    assert inputs.interest_rate == pytest.approx(0.15)
+    assert prov.startswith("15.0%")
+    assert "= 16.0%" in prov
+    assert "capped at the 15% LBO-debt ceiling" in prov
+
+
 def test_lbo_missing_ebitda_falls_back_to_industry_estimate():
     """income.ebitda None (provider omitted EBITDA) must route to the same
     industry-implied fallback as a non-positive EBITDA — never crash on a None

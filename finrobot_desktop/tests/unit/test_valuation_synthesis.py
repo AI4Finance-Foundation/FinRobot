@@ -1213,6 +1213,7 @@ class TestStreetRangeDisclosure:
 
     def test_below_entire_range_discloses_with_analyst_count(self):
         from finrobot.engine.compute.operators.valuation_synthesis import (
+            STREET_CONTEXT_MARKER,
             street_range_disclosure,
         )
 
@@ -1223,6 +1224,9 @@ class TestStreetRangeDisclosure:
         assert "42 analysts" in note
         # Disclosure, not degradation — the sentence itself must say so.
         assert "does not alter the verdict or confidence" in note
+        # Stable marker the frontend routes on (relocates this line from the ⚠
+        # pile to the valuation box). Reword only through STREET_CONTEXT_MARKER.
+        assert note.startswith(STREET_CONTEXT_MARKER)
 
     def test_above_entire_range_discloses(self):
         from finrobot.engine.compute.operators.valuation_synthesis import (

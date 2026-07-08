@@ -642,6 +642,17 @@ _VERDICT_BANDS: dict[str, tuple[float, float]] = {
 }
 
 
+STREET_CONTEXT_MARKER: Final[str] = "Street context:"
+"""Stable leading label every street-range disclosure begins with. The report's
+compute-warnings layering (frontend ``reportData.layerComputeWarnings``) matches on
+THIS token to route the disclosure OUT of the ⚠ caveat pile and into the valuation
+box beside the cover target — a re-location, not a suppression: the disclosure rule
+is unchanged (out-of-band → disclose, no threshold). Single source: reword the
+disclosure prose only through this constant, or the frontend routing silently breaks.
+Mirrors the ``RERATING_WARNING_MARKER`` pattern in ``valuation_aggregator.py``.
+The frontend copy lives in ``reportData.ts`` (STREET_CONTEXT_MARKER) — keep in sync."""
+
+
 def street_range_disclosure(
     target: float | None,
     street_low: float | None,
@@ -677,8 +688,8 @@ def street_range_disclosure(
     direction = "below" if target < street_low else "above"
     analysts = f", {analyst_count} analysts" if analyst_count else ""
     return (
-        f"Street context: the 12-month target ${target:.2f} sits {direction} the "
-        f"entire sell-side target range (${street_low:.2f}–${street_high:.2f}"
+        f"{STREET_CONTEXT_MARKER} the 12-month target ${target:.2f} sits {direction} "
+        f"the entire sell-side target range (${street_low:.2f}–${street_high:.2f}"
         f"{analysts}) — an out-of-consensus call, disclosed for context; it does "
         f"not alter the verdict or confidence."
     )

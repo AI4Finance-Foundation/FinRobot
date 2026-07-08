@@ -218,6 +218,7 @@ export function SensitivityBody({
         <AssumptionReconciliation
           provenance={inputs?.assumption_provenance}
           actuals={dcf?.assumption_current_actuals}
+          actualsFy={dcf?.assumption_current_actuals_fy}
           nwcClamped={inputs?.nwc_clamped ?? false}
         />
       )}
@@ -293,14 +294,18 @@ function readMarginSwing(
 
 // The four DCF explicit-period drivers, in report order. `provKey` reads the
 // verbatim "Model uses" prose from DCFInputs.assumption_provenance; `actualKey`
-// reads the latest-year "Current" figure from DcfShape.assumption_current_actuals
-// (the growth keys differ — provenance is keyed on the input field name, the
-// actuals on the driver). `signed` prints a leading + on positive growth / ΔNWC
-// (their sign is load-bearing); `nwc` carries the clamp ⚠.
+// reads the "Current" figure from DcfShape.assumption_current_actuals (the growth
+// keys differ — provenance is keyed on the input field name, the actuals on the
+// driver). `caliber` is the period the Current figure covers ('ttm' for the
+// margin, 'fy' = latest fiscal year for the rest — the backend has no TTM source
+// for capex/ΔNWC), disclosed per cell so mixed calibers never mislead. `signed`
+// prints a leading + on positive growth / ΔNWC (their sign is load-bearing); `nwc`
+// carries the clamp ⚠.
 const RECON_ROWS: {
   labelKey: string
   provKey: string
   actualKey: string
+  caliber: 'ttm' | 'fy'
   signed: boolean
   nwc?: boolean
 }[] = [
@@ -308,24 +313,28 @@ const RECON_ROWS: {
     labelKey: 'chapter.sensitivity.reconciliation.driver.growth',
     provKey: 'revenue_growth_rates',
     actualKey: 'revenue_growth',
+    caliber: 'fy',
     signed: true,
   },
   {
     labelKey: 'chapter.sensitivity.reconciliation.driver.margin',
     provKey: 'ebitda_margin',
     actualKey: 'ebitda_margin',
+    caliber: 'ttm',
     signed: false,
   },
   {
     labelKey: 'chapter.sensitivity.reconciliation.driver.capex',
     provKey: 'capex_pct_revenue',
     actualKey: 'capex_pct_revenue',
+    caliber: 'fy',
     signed: false,
   },
   {
     labelKey: 'chapter.sensitivity.reconciliation.driver.nwc',
     provKey: 'nwc_pct_revenue',
     actualKey: 'nwc_pct_revenue',
+    caliber: 'fy',
     signed: true,
     nwc: true,
   },
@@ -341,10 +350,12 @@ const RECON_ROWS: {
 function AssumptionReconciliation({
   provenance,
   actuals,
+  actualsFy,
   nwcClamped,
 }: {
   provenance: Record<string, string> | undefined
   actuals: Record<string, number | null> | null | undefined
+  actualsFy: number | null | undefined
   nwcClamped: boolean
 }): React.ReactElement | null {
   const { t } = useI18n()
@@ -352,13 +363,22 @@ function AssumptionReconciliation({
   const rows = RECON_ROWS.filter((r) => provenance[r.provKey])
   if (rows.length === 0) return null
 
+  const isPresent = (v: number | null | undefined): v is number =>
+    v !== null && v !== undefined && Number.isFinite(v)
+
   const fmtActual = (v: number | null | undefined, signed: boolean): string => {
-    if (v === null || v === undefined || !Number.isFinite(v)) {
-      return t('chapter.sensitivity.reconciliation.na')
-    }
+    if (!isPresent(v)) return t('chapter.sensitivity.reconciliation.na')
     const pct = v * 100
     const body = `${pct.toFixed(1)}%`
     return signed && pct > 0 ? `+${body}` : body
+  }
+
+  // Per-cell caliber tag: 'ttm' → "TTM"; 'fy' → "FY<year>" (omitted when the year
+  // is unknown). "TTM" / "FY2024" are fixed financial tokens (i18n-exempt), so
+  // they render as literals in either locale.
+  const caliberTag = (caliber: 'ttm' | 'fy'): string | null => {
+    if (caliber === 'ttm') return 'TTM'
+    return actualsFy != null ? `FY${actualsFy}` : null
   }
 
   return (
@@ -397,9 +417,15 @@ function AssumptionReconciliation({
                     textAlign: 'right',
                     color: 'var(--text-primary)',
                     fontVariantNumeric: 'tabular-nums',
+                    whiteSpace: 'nowrap',
                   }}
                 >
-                  {fmtActual(actuals?.[r.actualKey], r.signed)}
+                  <span>{fmtActual(actuals?.[r.actualKey], r.signed)}</span>
+                  {isPresent(actuals?.[r.actualKey]) && caliberTag(r.caliber) && (
+                    <span style={{ color: 'var(--text-dim)', marginLeft: 5, fontSize: 10.5 }}>
+                      {caliberTag(r.caliber)}
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}

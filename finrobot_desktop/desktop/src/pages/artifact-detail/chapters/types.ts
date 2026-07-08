@@ -47,13 +47,17 @@ export interface DcfShape {
   // Gordon guard); the whole field null when neither end is valid. Backend-
   // computed — never re-derived in the client. Absent on legacy artifacts.
   margin_swing?: [number | null, number | null] | null
-  // Latest single-year actuals for the four DCF drivers (keys revenue_growth /
-  // ebitda_margin / capex_pct_revenue / nwc_pct_revenue), the SAME annual caliber
-  // as the trailing-median seed — the "Current" column of the model-vs-current
-  // assumptions reconciliation. Per-driver null when history lacks a usable latest
+  // Current-reality actuals for the four DCF drivers (keys revenue_growth /
+  // ebitda_margin / capex_pct_revenue / nwc_pct_revenue) — the "Current" column of
+  // the model-vs-current reconciliation. Calibers are MIXED (disclosed per cell):
+  // ebitda_margin is TTM, the other three are the latest fiscal year (see
+  // assumption_current_actuals_fy). Per-driver null when the source lacks a usable
   // point; whole field null on legacy artifacts. Deterministic (backend); the
   // client renders it verbatim, never re-computing a driver.
   assumption_current_actuals?: Record<string, number | null> | null
+  // Fiscal year of the latest-FY current actuals (capex / ΔNWC / growth) — labels
+  // those cells "FY<year>" beside the TTM-labelled margin cell. null on legacy.
+  assumption_current_actuals_fy?: number | null
   // Reverse-DCF reality check: what growth/WACC the CURRENT market price implies.
   // growth_unreachable=true ⇒ no plausible growth reaches the price (option-value
   // stock); ceiling_price is the most the DCF can reach at growth_ceiling.

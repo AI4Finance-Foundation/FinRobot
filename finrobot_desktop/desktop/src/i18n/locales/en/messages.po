@@ -566,7 +566,7 @@ msgstr "Model uses (basis)"
 
 #. js-lingui-explicit-id
 msgid "chapter.sensitivity.reconciliation.currentActual"
-msgstr "Latest FY"
+msgstr "Current actual"
 
 #. js-lingui-explicit-id
 msgid "chapter.sensitivity.reconciliation.driver.growth"

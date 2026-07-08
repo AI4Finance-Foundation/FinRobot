@@ -566,7 +566,7 @@ msgstr "模型取值(依据)"
 
 #. js-lingui-explicit-id
 msgid "chapter.sensitivity.reconciliation.currentActual"
-msgstr "最近财年"
+msgstr "当下实际"
 
 #. js-lingui-explicit-id
 msgid "chapter.sensitivity.reconciliation.driver.growth"

@@ -33,6 +33,7 @@ function dcf(over: Partial<DcfShape> = {}): DcfShape {
       capex_pct_revenue: 0.305,
       nwc_pct_revenue: 0.019,
     },
+    assumption_current_actuals_fy: 2024,
     margin_swing: [453.0, 531.0],
     ...over,
   }
@@ -57,12 +58,28 @@ describe('ChapterSensitivity — assumptions reconciliation', () => {
     expect(screen.getByText('Capex / revenue')).toBeInTheDocument()
   })
 
-  it('renders the latest actuals in "Current", signed for growth/ΔNWC', () => {
+  it('renders the current actuals, signed for growth/ΔNWC', () => {
     renderChapter(dcf())
-    expect(screen.getByText('60.5%')).toBeInTheDocument() // ebitda margin, unsigned
+    expect(screen.getByText('60.5%')).toBeInTheDocument() // ebitda margin (TTM), unsigned
     expect(screen.getByText('30.5%')).toBeInTheDocument() // capex, unsigned
     expect(screen.getByText('+8.4%')).toBeInTheDocument() // growth, signed +
     expect(screen.getByText('+1.9%')).toBeInTheDocument() // ΔNWC, signed +
+  })
+
+  it('discloses mixed calibers per cell: margin TTM, the rest FY<year>', () => {
+    renderChapter(dcf())
+    // Neutral column header (not "Latest FY") since calibers differ per cell.
+    expect(screen.getByText('Current actual')).toBeInTheDocument()
+    // Margin is the freshest TTM figure; the three latest-FY drivers carry FY2024.
+    expect(screen.getByText('TTM')).toBeInTheDocument()
+    expect(screen.getAllByText('FY2024').length).toBe(3)
+  })
+
+  it('omits the FY caliber tag when the fiscal year is unknown (legacy)', () => {
+    renderChapter(dcf({ assumption_current_actuals_fy: null }))
+    expect(screen.queryByText('FY2024')).not.toBeInTheDocument()
+    // Margin still carries TTM (it has no dependence on the fiscal year).
+    expect(screen.getByText('TTM')).toBeInTheDocument()
   })
 
   it('shows the ⚠ clamp marker on ΔNWC only when nwc_clamped is true', () => {

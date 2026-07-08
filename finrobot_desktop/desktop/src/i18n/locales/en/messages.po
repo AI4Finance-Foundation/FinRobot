@@ -170,19 +170,19 @@ msgstr "SELL"
 
 #. js-lingui-explicit-id
 msgid "confidence.high"
-msgstr "DATA QUALITY · HIGH"
+msgstr "MODEL CONFIDENCE · HIGH"
 
 #. js-lingui-explicit-id
 msgid "confidence.medium"
-msgstr "DATA QUALITY · MEDIUM"
+msgstr "MODEL CONFIDENCE · MEDIUM"
 
 #. js-lingui-explicit-id
 msgid "confidence.low"
-msgstr "DATA QUALITY · LOW"
+msgstr "MODEL CONFIDENCE · LOW"
 
 #. js-lingui-explicit-id
 msgid "confidence.veryLow"
-msgstr "DATA QUALITY · SPARSE"
+msgstr "MODEL CONFIDENCE · SPARSE"
 
 #. js-lingui-explicit-id
 msgid "targetRange.label"

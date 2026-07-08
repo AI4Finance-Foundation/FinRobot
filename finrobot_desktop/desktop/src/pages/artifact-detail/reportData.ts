@@ -157,6 +157,136 @@ export function readerFacingComputeWarnings(warnings: string[]): string[] {
     .filter((w) => !NON_READER_WARNING_PREFIXES.some((p) => w.startsWith(p)))
 }
 
+// Stable leading label every out-of-consensus street-range disclosure begins with.
+// MIRRORS the Python constant `STREET_CONTEXT_MARKER` in
+// engine/compute/operators/valuation_synthesis.py — reword that constant and this
+// copy together, or the routing below silently stops firing. Used to lift the
+// disclosure OUT of the ⚠ caveat pile into the valuation box (cover, beside the
+// target). Not a suppression: the backend disclosure rule (out-of-band → disclose,
+// no threshold) is untouched; this only relocates where the sentence renders.
+export const STREET_CONTEXT_MARKER = 'Street context:'
+
+/** The compute-warnings section, layered so the reader sees signal over boilerplate.
+ * On MSFT/GOOGL the raw list runs 12–15 flat lines — roughly half of it template
+ * noise that fires on nearly every report. NOTHING is dropped: boilerplate is sunk
+ * into a default-collapsed "Methodology notes" section (fully expandable), and the
+ * street-range disclosure is routed to the valuation box. */
+export interface LayeredComputeWarnings {
+  /** Genuine analyst caveats — method dispersion, re-rating premise, share-class /
+   *  currency consistency, M&A. Rendered prominently in the ⚠ section. No hard cap:
+   *  if a report genuinely carries >5 caveats they all show. */
+  caveats: string[]
+  /** Template lines that fire on nearly every report — TTM derived-quarter notes,
+   *  plus merged SEC-timeout / peer-count / non-meaningful-outlier lines. Sunk into
+   *  a default-collapsed section; merges preserve every identifying token (endpoint
+   *  names, peer counts, excluded tickers) so nothing material is lost. */
+  methodologyNotes: string[]
+  /** The out-of-consensus street-range disclosure (STREET_CONTEXT_MARKER), routed
+   *  to the valuation box beside the target instead of buried in ⚠. null when the
+   *  target sits inside the street band (the backend emits nothing). */
+  streetContext: string | null
+}
+
+const TTM_DERIVED_RE = /^Trailing-twelve-month\b/
+const SEC_TIMEOUT_RE = /^SEC\s+(\S+)\s+fetch exceeded\b/
+const PEER_COUNT_RE = /^(.+?) based on (\d+) of (\d+) peers\b/
+const NM_OUTLIER_RE =
+  /^(\S+)\s+(.+?)\s+([\d.]+x)\s+deviates\s+(>[\d.]+x)\s+from peer median\s+([\d.]+x)/
+
+/** Classify the reader-facing compute warnings into caveats / collapsed methodology
+ * notes / the relocated street-range line. Single source of truth so ReportChapters,
+ * the compact viewer and the standalone HTML export layer identically — never each
+ * re-implementing the buckets (the drift this consolidation prevents). */
+export function layerComputeWarnings(warnings: string[]): LayeredComputeWarnings {
+  const reader = readerFacingComputeWarnings(warnings)
+
+  let streetContext: string | null = null
+  const ttm: string[] = []
+  const secEndpoints: string[] = []
+  const peerCounts: string[] = []
+  const nmOutliers: string[] = []
+  const otherBoilerplate: string[] = [] // drop-insurance trims, narrative fallbacks
+  const caveats: string[] = []
+
+  for (const w of reader) {
+    if (w.startsWith(STREET_CONTEXT_MARKER)) {
+      // Only one is ever emitted; if a legacy artifact somehow carried two, keep
+      // the first and let the rest fall through to caveats (never dropped).
+      if (streetContext === null) {
+        streetContext = w
+        continue
+      }
+    }
+    if (TTM_DERIVED_RE.test(w)) {
+      ttm.push(w)
+      continue
+    }
+    const sec = SEC_TIMEOUT_RE.exec(w)
+    if (sec) {
+      secEndpoints.push(sec[1])
+      continue
+    }
+    if (PEER_COUNT_RE.test(w)) {
+      peerCounts.push(w)
+      continue
+    }
+    if (NM_OUTLIER_RE.test(w)) {
+      nmOutliers.push(w)
+      continue
+    }
+    if (w.startsWith('Peers excluded from the comp set') || w.startsWith('[NARRATIVE-FALLBACK]')) {
+      otherBoilerplate.push(w)
+      continue
+    }
+    caveats.push(w)
+  }
+
+  const methodologyNotes: string[] = []
+  if (secEndpoints.length > 0) {
+    const n = secEndpoints.length
+    methodologyNotes.push(
+      `SEC EDGAR slow — ${n} endpoint${n > 1 ? 's' : ''} skipped: ${secEndpoints.join(', ')}`,
+    )
+  }
+  methodologyNotes.push(...ttm)
+  if (peerCounts.length > 0) methodologyNotes.push(mergePeerCounts(peerCounts))
+  methodologyNotes.push(...otherBoilerplate)
+  if (nmOutliers.length > 0) methodologyNotes.push(mergeNmOutliers(nmOutliers))
+
+  return { caveats, methodologyNotes, streetContext }
+}
+
+/** Merge the per-multiple "X based on N of M peers" template lines into one, keeping
+ * each multiple's count. Any line that doesn't parse is kept verbatim (no loss). */
+function mergePeerCounts(lines: string[]): string {
+  const parts: string[] = []
+  const unparsed: string[] = []
+  for (const line of lines) {
+    const m = PEER_COUNT_RE.exec(line)
+    if (m) parts.push(`${m[1].trim()} ${m[2]} of ${m[3]}`)
+    else unparsed.push(line)
+  }
+  if (parts.length === 0) return unparsed.join(' ')
+  const head = `Peer multiples computed on a subset — ${parts.join(' · ')} (non-meaningful / non-USD peers kept in the table, out of the median).`
+  return unparsed.length > 0 ? `${head} ${unparsed.join(' ')}` : head
+}
+
+/** Merge the per-peer "TICKER MULT Xx deviates >Kx from peer median Mx" outlier lines
+ * into one that names each excluded peer with its multiple, deviation and the median
+ * — a lossless reformat. Unparseable lines are kept verbatim. */
+function mergeNmOutliers(lines: string[]): string {
+  const parts: string[] = []
+  const unparsed: string[] = []
+  for (const line of lines) {
+    const m = NM_OUTLIER_RE.exec(line)
+    if (m) parts.push(`${m[1]} (${m[2]} ${m[3]}, ${m[4]} the median ${m[5]})`)
+    else unparsed.push(line)
+  }
+  if (parts.length === 0) return unparsed.join(' ')
+  const head = `Excluded from the peer median as non-meaningful outliers: ${parts.join(', ')}.`
+  return unparsed.length > 0 ? `${head} ${unparsed.join(' ')}` : head
+}
+
 export function deriveReportData(
   artifact: ArtifactDetail,
   timeline: ArtifactSummaryV5[],

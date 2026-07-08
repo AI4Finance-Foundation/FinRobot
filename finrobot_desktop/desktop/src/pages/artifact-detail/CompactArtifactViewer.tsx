@@ -25,7 +25,8 @@ import type { ArtifactDetail } from '../../hooks/useV5Artifacts'
 import { useI18n, type Locale } from '../../i18n'
 import { formatCurrency, formatPercent, formatDate, formatCompactNumber } from '../../utils/format'
 import { MarkdownLite } from '../../components/MarkdownLite'
-import { readerFacingComputeWarnings, parseSurfacedContractFindings } from './reportData'
+import { layerComputeWarnings, parseSurfacedContractFindings } from './reportData'
+import { ComputeWarningsPanel } from './ComputeWarningsPanel'
 import {
   ChapterAuditBanner,
   ValuationBody,
@@ -329,14 +330,16 @@ export function CompactArtifactViewer({
   const currency = toolCurrency(structured)
   const numericAudit = (structured.numeric_audit as NumericAuditShape | undefined) ?? null
 
-  // Same reader-facing filter as the full report — drop machine-tagged audit / QA
-  // lines ([NUMERIC-AUDIT/], [CONTRACT/], [REPORT-DRIFT/]); they live in the
-  // structured payload for triage / the audit banner, not the analyst caveat list.
+  // Same reader-facing filter + layering as the full report — machine-tagged audit /
+  // QA lines dropped, template boilerplate sunk into a collapsed section. The compact
+  // artifacts (dcf/ddm/lbo/comps) never emit a street-range disclosure, but if a
+  // legacy one somehow carried it, fold it into the caveats so it is never lost
+  // (this viewer has no cover/target box to relocate it to).
   const contractFindings = parseSurfacedContractFindings(outputs.warnings ?? [])
-  const warnings = [
-    ...readerFacingComputeWarnings(outputs.warnings ?? []),
-    ...(cv?.formula_warnings ?? []),
-  ]
+  const layered = layerComputeWarnings(outputs.warnings ?? [])
+  const compactCaveats = layered.streetContext
+    ? [...layered.caveats, layered.streetContext]
+    : layered.caveats
   const summaryText = (outputs.summary_text ?? '').trim()
 
   // Assumption-provenance trail (key → analyst prose). DCF / DDM stash it under
@@ -440,38 +443,11 @@ export function CompactArtifactViewer({
         </Section>
       )}
 
-      {warnings.length > 0 && (
-        <section
-          data-testid="compact-warnings"
-          style={{
-            margin: '24px 0',
-            padding: '14px 18px',
-            background: 'color-mix(in srgb, var(--warning) 6%, transparent)',
-            border: '1px solid color-mix(in srgb, var(--warning) 32%, transparent)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: 12,
-            color: 'var(--warning)',
-          }}
-        >
-          <div
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10.5,
-              letterSpacing: '0.08em',
-              marginBottom: 6,
-            }}
-          >
-            ⚠ {T(locale, '计算警告', 'Compute Warnings')}
-          </div>
-          <ul style={{ margin: 0, paddingLeft: 18 }}>
-            {warnings.map((w, i) => (
-              <li key={i} style={{ marginBottom: 4 }}>
-                {w}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <ComputeWarningsPanel
+        caveats={compactCaveats}
+        methodologyNotes={layered.methodologyNotes}
+        formulaWarnings={cv?.formula_warnings ?? []}
+      />
 
       {/* Audit / provenance trail */}
       <Section title={T(locale, '审计溯源', 'Audit & Provenance')}>

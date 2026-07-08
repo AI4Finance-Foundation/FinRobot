@@ -10,11 +10,8 @@
 import type { ArtifactDetail } from '../../hooks/useV5Artifacts'
 import type { ArtifactSummaryV5 } from '../../types/v5'
 import { useI18n } from '../../i18n'
-import {
-  deriveReportData,
-  parseSurfacedContractFindings,
-  readerFacingComputeWarnings,
-} from './reportData'
+import { deriveReportData, parseSurfacedContractFindings, layerComputeWarnings } from './reportData'
+import { ComputeWarningsPanel } from './ComputeWarningsPanel'
 import {
   ChapterAuditBanner,
   ChapterCover,
@@ -53,7 +50,11 @@ export function ReportChapters({
   // banner, the last is a builder-only signal. Single source of truth in reportData
   // so the compact viewer agrees (readerFacingComputeWarnings).
   const allWarnings = d.outputs.warnings ?? []
-  const computeWarnings = readerFacingComputeWarnings(allWarnings)
+  // Layer the reader-facing warnings: genuine caveats (⚠) vs always-fires template
+  // boilerplate (collapsed "Methodology notes") vs the out-of-consensus street-range
+  // disclosure (routed to the valuation box on the cover). Single source of truth in
+  // reportData so the compact viewer + standalone export layer identically.
+  const layered = layerComputeWarnings(allWarnings)
   // Analyst-facing hard-clause contract evidence ("[CONTRACT/C1] …"). Internal
   // invariants (C7's no-resurrection scrub) and the "/note" / "/withheld" variants
   // are excluded — only per-clause analyst-facing evidence drives the cover withhold
@@ -125,6 +126,9 @@ export function ReportChapters({
         // price-target-basis readout (replaces the raw dev string on the cover).
         methods={d.valuationSynthesis?.methods ?? []}
         outlierMethods={d.valuationSynthesis?.outlier_methods ?? []}
+        // Out-of-consensus street-range disclosure, relocated here from the ⚠ pile
+        // (beside the target it qualifies). null when the target sits in-band.
+        streetContext={layered.streetContext}
       />
       {/* Rating / target / conviction / band live ONCE on the cover above — the
           thesis chapter is the full ARGUMENT: narrative + takeaways → bull/bear
@@ -202,44 +206,11 @@ export function ReportChapters({
         computeVersion={d.computeVersionStr}
       />
 
-      {computeWarnings.length > 0 ||
-      (d.compute_version?.formula_warnings && d.compute_version.formula_warnings.length > 0) ? (
-        <section
-          data-testid="report-warnings"
-          style={{
-            margin: '32px 0',
-            padding: '14px 18px',
-            background: 'color-mix(in srgb, var(--warning) 6%, transparent)',
-            border: '1px solid color-mix(in srgb, var(--warning) 32%, transparent)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: 12,
-            color: 'var(--warning)',
-          }}
-        >
-          <div
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10.5,
-              letterSpacing: '0.08em',
-              marginBottom: 6,
-            }}
-          >
-            ⚠ {t('report.computeWarnings')}
-          </div>
-          <ul style={{ margin: 0, paddingLeft: 18 }}>
-            {computeWarnings.map((w, i) => (
-              <li key={`o-${i}`} style={{ marginBottom: 4 }}>
-                {w}
-              </li>
-            ))}
-            {(d.compute_version?.formula_warnings ?? []).map((w, i) => (
-              <li key={`f-${i}`} style={{ marginBottom: 4 }}>
-                {w}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      <ComputeWarningsPanel
+        caveats={layered.caveats}
+        methodologyNotes={layered.methodologyNotes}
+        formulaWarnings={d.compute_version?.formula_warnings ?? []}
+      />
     </main>
   )
 }

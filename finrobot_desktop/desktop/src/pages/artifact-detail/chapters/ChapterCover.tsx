@@ -48,6 +48,11 @@ interface ChapterCoverProps {
   /** Method names the engine flagged as cross-method outliers (>30% from the
    * median). Consumed verbatim — the cover NEVER recomputes dispersion. */
   outlierMethods?: string[]
+  /** Out-of-consensus street-range disclosure (the backend's street_range_disclosure
+   * sentence), relocated here from the ⚠ compute-warnings pile to sit beside the
+   * target it qualifies. null when the target is inside the street band (nothing
+   * emitted) — a re-location of an existing disclosure, not a new gate or number. */
+  streetContext?: string | null
 }
 
 export function ChapterCover({
@@ -69,6 +74,7 @@ export function ChapterCover({
   anchorMethod = null,
   methods = [],
   outlierMethods = [],
+  streetContext = null,
 }: ChapterCoverProps): React.ReactElement {
   const { locale, t } = useI18n()
   const verdict = (thesis?.recommendation ?? '').toUpperCase()
@@ -232,6 +238,28 @@ export function ChapterCover({
             </p>
           </div>
         ))}
+
+      {/* Out-of-consensus street-range disclosure, beside the target it qualifies —
+          relocated from the ⚠ compute-warnings pile (batch 1a). Calm / muted, NOT
+          amber: it is context on an already-disclosed fact, not a defect. The prose
+          is self-labelling ("Street context: …") and carries no new number. */}
+      {streetContext && (
+        <p
+          data-testid="cover-street-context"
+          style={{
+            margin: '12px 0 0',
+            maxWidth: 760,
+            paddingLeft: 11,
+            borderLeft: '2px solid var(--border-soft)',
+            fontFamily: 'var(--font-body)',
+            fontSize: 12,
+            lineHeight: 1.55,
+            color: 'var(--text-muted)',
+          }}
+        >
+          {streetContext}
+        </p>
+      )}
 
       {targetWithheld && withheldReason && (
         <a

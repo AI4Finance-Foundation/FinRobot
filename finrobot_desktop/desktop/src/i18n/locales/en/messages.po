@@ -289,6 +289,10 @@ msgid "report.computeWarnings"
 msgstr "COMPUTE WARNINGS"
 
 #. js-lingui-explicit-id
+msgid "report.methodologyNotes"
+msgstr "Methodology notes"
+
+#. js-lingui-explicit-id
 msgid "report.audit.status.caveated"
 msgstr "Data Caveats"
 

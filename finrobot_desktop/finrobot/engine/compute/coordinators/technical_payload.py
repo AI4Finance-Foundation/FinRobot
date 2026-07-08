@@ -36,6 +36,7 @@ from finrobot.engine.compute.operators.sniper import (
     calculate_sniper_points,
 )
 from finrobot.engine.data.historical_loaders import (
+    REPORT_BAND_WINDOW_YEARS,
     BandClassification,
     classify_band,
     compute_bands_via_data_layer,
@@ -84,6 +85,16 @@ class HistoricalBandSnapshot(BaseModel):
     classification: BandClassification = Field(
         description="UI hint: current vs p75/p90 (spec §6.6)."
     )
+    window_years: int | None = Field(
+        default=None,
+        description=(
+            "Trailing window (years) the percentiles were computed over — the "
+            "report's REPORT_BAND_WINDOW_YEARS. Lets the front end label the band "
+            "(e.g. '5y') and, with the valuation-method band on the same window, "
+            "makes it explicit the two bands are one window. None on artifacts "
+            "written before this field existed."
+        ),
+    )
     warnings: list[str] = Field(default_factory=list)
 
 
@@ -104,7 +115,10 @@ class TechnicalAnalysis(BaseModel):
     )
     historical_bands: HistoricalBandSnapshot | None = Field(
         default=None,
-        description="3-year EV/EBITDA timeline + cheap/fair/expensive classifier.",
+        description=(
+            "Trailing EV/EBITDA timeline (REPORT_BAND_WINDOW_YEARS window, carried "
+            "on the snapshot's window_years) + cheap/fair/expensive classifier."
+        ),
     )
     warnings: list[str] = Field(
         default_factory=list,
@@ -118,7 +132,7 @@ async def build_technical_analysis(
     dcf_target: float,
     current_price: float,
     data_layer: DataLayer,
-    band_years: int = 3,
+    band_years: int = REPORT_BAND_WINDOW_YEARS,
     *,
     has_anchor_target: bool = True,
     current_ev_ebitda: float | None = None,
@@ -262,10 +276,10 @@ async def _safe_historical_bands(
         else:
             warnings.append("historical_bands skipped: no valid samples")
         return None
-    return _snapshot_from_band(band)
+    return _snapshot_from_band(band, window_years=years)
 
 
-def _snapshot_from_band(band: HistoricalBand) -> HistoricalBandSnapshot:
+def _snapshot_from_band(band: HistoricalBand, *, window_years: int) -> HistoricalBandSnapshot:
     return HistoricalBandSnapshot(
         metric=band.metric,
         current=band.current,
@@ -276,6 +290,7 @@ def _snapshot_from_band(band: HistoricalBand) -> HistoricalBandSnapshot:
         timeline=[(_iso(d), v) for d, v in band.timeline],
         sample_count=band.sample_count,
         classification=classify_band(band),
+        window_years=window_years,
         warnings=list(band.warnings),
     )
 

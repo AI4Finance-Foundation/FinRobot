@@ -33,6 +33,23 @@ logger = logging.getLogger(__name__)
 BandClassification = Literal["expensive", "fair", "cheap", "unknown"]
 
 
+# The single trailing window an equity-research report uses for EV/EBITDA (and
+# P/FCF) historical bands. Both band surfaces inside one report must share it, or
+# the report shows two windows for the "same" band and their cheap/fair/expensive
+# verdicts silently disagree:
+#   - the valuation-method band (fetch_reverse_multiple_band → _ev_ebitda_method /
+#     _p_fcf_method, labelled "self_5y_…"), and
+#   - the technical chapter's band snapshot (build_technical_analysis → this
+#     module's compute_bands_via_data_layer).
+# Before this constant the two relied on independent literal defaults (5 vs 3) and
+# GOOGL's report printed a 3y technical band (P25 16.9 / med 19.0 / P75 23.1)
+# against a 5y method band (mid 17.6) — the drift this pins shut. The standalone
+# GET /api/valuation/historical-bands route deliberately does NOT use this: it
+# exposes its own user-chosen `years` query param (default 3, range 1-10) for the
+# live band card, a separate surface from the report.
+REPORT_BAND_WINDOW_YEARS = 5
+
+
 @dataclass(frozen=True)
 class HistoricalFx:
     """Resolved FX context for per-year FINANCIALS history.
@@ -280,7 +297,7 @@ async def fetch_reverse_multiple_band(
     metric: HistoricalMetricName,
     data_layer: DataLayer | None,
     *,
-    years: int = 5,
+    years: int = REPORT_BAND_WINDOW_YEARS,
     current_override: float | None = None,
 ) -> HistoricalBandSpread | None:
     """Resolve the (p25, p75) historical-multiple band for a reverse method.

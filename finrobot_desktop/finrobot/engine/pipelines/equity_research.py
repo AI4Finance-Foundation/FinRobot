@@ -54,7 +54,10 @@ from finrobot.engine.compute.operators.valuation_synthesis import (
 )
 from finrobot.engine.compute.coordinators.extractor import normalize_financials_to_usd
 from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
-from finrobot.engine.data.historical_loaders import fetch_reverse_multiple_band
+from finrobot.engine.data.historical_loaders import (
+    REPORT_BAND_WINDOW_YEARS,
+    fetch_reverse_multiple_band,
+)
 from finrobot.engine.data.providers.fx import fetch_fx_rate_to_usd
 from finrobot.engine.compute.operators.ownership import compute_ownership_governance
 from finrobot.engine.compute.coordinators.technical_payload import (
@@ -1003,12 +1006,19 @@ async def _execute_technical_analysis(
     price_fx = structured_context.get("price_fx_to_usd")
     price_fx_to_usd = float(price_fx) if isinstance(price_fx, (int, float)) else 1.0
 
+    # Unify the report's two EV/EBITDA bands on ONE trailing window: the technical
+    # chapter used to default to 3y while the valuation-method band
+    # (fetch_reverse_multiple_band, labelled "self_5y_…") ran 5y, so the same report
+    # showed two windows whose cheap/fair/expensive verdicts could disagree (GOOGL:
+    # 3y P25/med/P75 16.9/19.0/23.1 vs 5y method mid 17.6). Both now read
+    # REPORT_BAND_WINDOW_YEARS.
     payload = await build_technical_analysis(
         ticker=ticker,
         dcf_inputs=dcf.inputs,
         dcf_target=dcf.implied_price,
         current_price=current_price,
         data_layer=deps.data_layer,
+        band_years=REPORT_BAND_WINDOW_YEARS,
         has_anchor_target=has_anchor_target,
         current_ev_ebitda=current_ev_ebitda_value,
         price_fx_to_usd=price_fx_to_usd,

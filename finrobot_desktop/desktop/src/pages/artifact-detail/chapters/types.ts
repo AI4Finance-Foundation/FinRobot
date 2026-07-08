@@ -288,6 +288,10 @@ export interface HistoricalBandShape {
   timeline?: Array<[string, number]>
   sample_count?: number
   classification?: 'expensive' | 'fair' | 'cheap' | 'unknown'
+  // Trailing window (years) the percentiles were computed over — the report's
+  // unified band window, matching the valuation-method band. Lets the panel
+  // label the band (e.g. "5y"). Absent on artifacts written before the field.
+  window_years?: number | null
   warnings?: string[]
 }
 

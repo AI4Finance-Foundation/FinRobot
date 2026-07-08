@@ -38,10 +38,11 @@ from finrobot.engine.compute.operators.dcf import (
     calculate_dcf,
     calculate_sensitivity,
     classify_market_implied_nature,
+    margin_swing,
     market_implied_check,
 )
 from finrobot.engine.compute.coordinators.segment_extractor import build_sotp_breakdown
-from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
+from finrobot.engine.compute.operators.dcf_seed import dcf_current_actuals, seed_dcf_inputs
 from finrobot.engine.compute.operators.forward_estimates import (
     ForwardFinancials,
     get_forward_revenue_growth,
@@ -805,8 +806,17 @@ async def _execute_financial_modeling(
         if current_price > 0
         else None
     )
+    # ±2pp EBITDA-margin swing (the load-bearing terminal-margin sensitivity the
+    # WACC×TG grid never shows) and the latest-year driver actuals (the "current"
+    # column of the report's model-vs-current assumptions reconciliation). Both
+    # deterministic, both degrade to None per-end / per-driver — never crash.
     dcf_result = dcf_result.model_copy(
-        update={"sensitivity_table": sensitivity, "market_implied": market_implied}
+        update={
+            "sensitivity_table": sensitivity,
+            "market_implied": market_implied,
+            "margin_swing": margin_swing(dcf_inputs),
+            "assumption_current_actuals": dcf_current_actuals(historical),
+        }
     )
 
     valid_prices = [

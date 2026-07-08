@@ -24,8 +24,12 @@ from typing import Any
 
 from pydantic_ai import Agent
 
-from finrobot.engine.compute.operators.dcf import calculate_dcf, calculate_sensitivity
-from finrobot.engine.compute.operators.dcf_seed import seed_dcf_inputs
+from finrobot.engine.compute.operators.dcf import (
+    calculate_dcf,
+    calculate_sensitivity,
+    margin_swing,
+)
+from finrobot.engine.compute.operators.dcf_seed import dcf_current_actuals, seed_dcf_inputs
 from finrobot.engine.compute.operators.forward_estimates import get_forward_revenue_growth
 from finrobot.engine.compute.coordinators.extractor import normalize_financials_to_usd
 from finrobot.engine.compute.operators.wacc import calculate_wacc
@@ -182,7 +186,16 @@ async def _execute_dcf_calc(
         dcf_result.wacc, dcf_result.inputs.terminal_growth_rate
     )
     sensitivity = calculate_sensitivity(dcf_inputs, wacc_range=wacc_range, tg_range=tg_range)
-    dcf_result = dcf_result.model_copy(update={"sensitivity_table": sensitivity})
+    # Symmetric with the equity_research report path: the ±2pp margin swing and the
+    # latest-year driver actuals feed the same reconciliation table + swing note the
+    # tool page reuses via SensitivityBody. Both degrade gracefully to None.
+    dcf_result = dcf_result.model_copy(
+        update={
+            "sensitivity_table": sensitivity,
+            "margin_swing": margin_swing(dcf_inputs),
+            "assumption_current_actuals": dcf_current_actuals(historical),
+        }
+    )
 
     valid_prices = [
         p for row in sensitivity["implied_prices"] for p in row if p is not None and p > 0

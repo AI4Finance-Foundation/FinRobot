@@ -50,6 +50,7 @@ from finrobot.engine.compute.operators.multiples import current_ev_ebitda
 from finrobot.engine.compute.operators.valuation_synthesis import (
     CanonicalThesis,
     resolve_canonical_thesis,
+    street_range_disclosure,
 )
 from finrobot.engine.compute.coordinators.extractor import normalize_financials_to_usd
 from finrobot.engine.compute.coordinators.historical_extractor import fetch_historical_metrics
@@ -1407,6 +1408,25 @@ async def _execute_thesis(
     canonical = resolve_canonical_thesis(vs, ticker)
     thesis_prompt = build_thesis_prompt(prompt, structured_context, canonical)
 
+    # Humility disclosure (boss-approved 2026-07-08): when the canonical
+    # 12-month target sits ENTIRELY outside the sell-side target range, say so —
+    # a pure factual anchor on the step's warnings (→ artifact warnings → the
+    # report's compute-warnings section), never a gate: verdict / confidence /
+    # numbers stay untouched, and a fetch miss silently drops the disclosure
+    # (the explicit augmentation route raises ProviderError → fetch_price_target
+    # returns None; a missing street band must not degrade the thesis step).
+    street_note: str | None = None
+    if canonical.target is not None and canonical.target > 0:
+        pt = await deps.data_layer.fetch_price_target(ticker)
+        d = pt.data if pt is not None and isinstance(pt.data, dict) else {}
+        low, high, cnt = d.get("low"), d.get("high"), d.get("analyst_count")
+        street_note = street_range_disclosure(
+            canonical.target,
+            float(low) if isinstance(low, (int, float)) else None,
+            float(high) if isinstance(high, (int, float)) else None,
+            int(cnt) if isinstance(cnt, (int, float)) else None,
+        )
+
     synthesis_agent = Agent(
         deps.settings.create_model(),
         output_type=ThesisResult,
@@ -1441,7 +1461,11 @@ async def _execute_thesis(
         f"Catalysts: {', '.join(thesis.catalysts[:2])}. "
         f"Risks: {', '.join(thesis.risks[:2])}."
     )
-    return StepOutput(text=narrative, structured=thesis)
+    return StepOutput(
+        text=narrative,
+        structured=thesis,
+        warnings=[street_note] if street_note else [],
+    )
 
 
 def create_equity_research_pipeline(agents: dict[str, Agent]) -> Pipeline:

@@ -642,6 +642,48 @@ _VERDICT_BANDS: dict[str, tuple[float, float]] = {
 }
 
 
+def street_range_disclosure(
+    target: float | None,
+    street_low: float | None,
+    street_high: float | None,
+    analyst_count: int | None = None,
+) -> str | None:
+    """Humility disclosure when OUR 12-month target sits entirely outside the
+    sell-side target range (boss-approved 2026-07-08, disclosure NOT gate).
+
+    An out-of-consensus call is legitimate — the contract says confidence never
+    looks at market distance — but a professional reader handed a target below
+    the most bearish street number deserves to be told so (GOOGL: our SELL sat
+    24% under the lowest sell-side target with a 69-Buy street; the blind audit
+    read the silence as "the system doesn't know the consensus"). Pure fact,
+    verdict/confidence/numbers untouched.
+
+    Caliber note: both sides are 12-month FORWARD targets (ours = the report's
+    12-month target; FMP /price-target-consensus = sell-side 12-month targets),
+    so the comparison shares one axis — this is street RANGE POSITIONING, never
+    a success probability (the LBO FV/PV mixed-axis family does not apply).
+
+    Returns None when the target sits inside the band (inclusive), when either
+    bound is missing/non-positive, or when the band is degenerate (low > high).
+    """
+    if target is None or target <= 0:
+        return None
+    if street_low is None or street_high is None or street_low <= 0 or street_high <= 0:
+        return None
+    if street_low > street_high:
+        return None
+    if street_low <= target <= street_high:
+        return None
+    direction = "below" if target < street_low else "above"
+    analysts = f", {analyst_count} analysts" if analyst_count else ""
+    return (
+        f"Street context: the 12-month target ${target:.2f} sits {direction} the "
+        f"entire sell-side target range (${street_low:.2f}–${street_high:.2f}"
+        f"{analysts}) — an out-of-consensus call, disclosed for context; it does "
+        f"not alter the verdict or confidence."
+    )
+
+
 def verdict_from_upside(upside: float, confidence: str = "high") -> str:
     """Deterministic Buy/Hold/Sell from synthesis upside vs current price.
 

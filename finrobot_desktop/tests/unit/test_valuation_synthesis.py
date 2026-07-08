@@ -1205,3 +1205,57 @@ class TestReratingDominanceGate:
             100.0,
         )
         assert vs.confidence == "high"
+
+
+class TestStreetRangeDisclosure:
+    """Humility disclosure (boss-approved 2026-07-08): pure fact when OUR
+    12-month target sits entirely outside the sell-side range — never a gate."""
+
+    def test_below_entire_range_discloses_with_analyst_count(self):
+        from finrobot.engine.compute.operators.valuation_synthesis import (
+            street_range_disclosure,
+        )
+
+        note = street_range_disclosure(274.32, 360.0, 480.0, analyst_count=42)
+        assert note is not None
+        assert "below" in note
+        assert "$274.32" in note and "$360.00" in note and "$480.00" in note
+        assert "42 analysts" in note
+        # Disclosure, not degradation — the sentence itself must say so.
+        assert "does not alter the verdict or confidence" in note
+
+    def test_above_entire_range_discloses(self):
+        from finrobot.engine.compute.operators.valuation_synthesis import (
+            street_range_disclosure,
+        )
+
+        note = street_range_disclosure(500.0, 360.0, 480.0)
+        assert note is not None and "above" in note
+        assert "analysts" not in note  # count unavailable → omitted, not fabricated
+
+    def test_inside_range_inclusive_bounds_silent(self):
+        from finrobot.engine.compute.operators.valuation_synthesis import (
+            street_range_disclosure,
+        )
+
+        assert street_range_disclosure(400.0, 360.0, 480.0) is None
+        assert street_range_disclosure(360.0, 360.0, 480.0) is None  # on low bound
+        assert street_range_disclosure(480.0, 360.0, 480.0) is None  # on high bound
+
+    def test_missing_or_nonpositive_inputs_silent(self):
+        from finrobot.engine.compute.operators.valuation_synthesis import (
+            street_range_disclosure,
+        )
+
+        assert street_range_disclosure(None, 360.0, 480.0) is None
+        assert street_range_disclosure(274.0, None, 480.0) is None
+        assert street_range_disclosure(274.0, 360.0, None) is None
+        assert street_range_disclosure(274.0, 0.0, 480.0) is None
+        assert street_range_disclosure(-5.0, 360.0, 480.0) is None
+
+    def test_degenerate_band_silent(self):
+        from finrobot.engine.compute.operators.valuation_synthesis import (
+            street_range_disclosure,
+        )
+
+        assert street_range_disclosure(274.0, 480.0, 360.0) is None  # low > high

@@ -286,6 +286,9 @@ class TestPipelineExecution:
 def mock_deps():
     deps = MagicMock()
     deps.data_layer = MagicMock()
+    # The thesis step's street-context disclosure awaits this (best-effort);
+    # None = street band unavailable → no disclosure, step unaffected.
+    deps.data_layer.fetch_price_target = AsyncMock(return_value=None)
     deps.skill_runtime = None
     deps.settings = MagicMock()
     deps.settings.model_name = "test"
@@ -923,6 +926,106 @@ async def test_thesis_overrides_llm_target_with_valuation_synthesis(mock_deps):
     actual_prompt = mock_agent_instance.run.call_args[0][0]
     assert "AUTHORITATIVE PRICE TARGET" in actual_prompt
     assert f"${expected:.2f}" in actual_prompt
+
+
+def _street_thesis_fixtures():
+    """A cooperative LLM thesis + a two-method synthesis whose canonical target
+    lands at the weighted price (≈38.95) — reused by the street-context tests."""
+    from finrobot.engine.models.financial import (
+        ThesisResult,
+        ValuationMethod,
+        ValuationSynthesis,
+    )
+
+    thesis = ThesisResult(
+        recommendation="Sell",
+        price_target=38.95,
+        price_target_basis="synthesis",
+        catalysts=["Catalyst A"],
+        risks=["Risk A"],
+        narrative="Some narrative.",
+    )
+    vs = ValuationSynthesis(
+        methods=[
+            ValuationMethod(name="dcf", low=20.0, mid=25.37, high=30.4, confidence=0.7, source="s"),
+            ValuationMethod(
+                name="ev_ebitda", low=49.3, mid=57.96, high=66.7, confidence=0.5, source="s"
+            ),
+        ],
+        weighted_price=(25.37 * 0.7 + 57.96 * 0.5) / 1.2,  # ≈ 38.95
+        current_price=426.01,
+        upside_downside=-0.91,
+    )
+    return thesis, vs
+
+
+@pytest.mark.asyncio
+async def test_thesis_discloses_street_context_when_target_out_of_band(mock_deps):
+    """Humility disclosure (2026-07-08): canonical target entirely below the
+    sell-side range → a street-context line rides the step's warnings (→ report
+    compute-warnings section). Verdict/target untouched — disclosure, not gate."""
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
+    from finrobot.engine.models.financial import StepOutput
+
+    thesis, vs = _street_thesis_fixtures()
+    mock_thesis_result = MagicMock()
+    mock_thesis_result.output = thesis
+    mock_agent_instance = MagicMock()
+    mock_agent_instance.run = AsyncMock(return_value=mock_thesis_result)
+
+    street = MagicMock()
+    street.data = {"low": 360.0, "high": 480.0, "analyst_count": 42}
+    mock_deps.data_layer.fetch_price_target = AsyncMock(return_value=street)
+
+    with patch(
+        "finrobot.engine.pipelines.equity_research.Agent",
+        return_value=mock_agent_instance,
+    ):
+        output = await _execute_thesis(
+            mock_agent_instance, mock_deps, "base prompt", {"valuation_synthesis": vs}, "GOOGL"
+        )
+
+    assert isinstance(output, StepOutput)
+    blob = " ".join(output.warnings)
+    assert "Street context" in blob and "below" in blob and "42 analysts" in blob
+    # Pure disclosure: the canonical target is still the weighted synthesis.
+    assert output.structured.price_target == round(vs.weighted_price, 2)
+
+
+@pytest.mark.asyncio
+async def test_thesis_street_context_silent_when_in_band_or_unavailable(mock_deps):
+    """In-band target or a failed street fetch → no disclosure, step unaffected."""
+    from finrobot.engine.pipelines.equity_research import _execute_thesis
+
+    thesis, vs = _street_thesis_fixtures()
+    mock_thesis_result = MagicMock()
+    mock_thesis_result.output = thesis
+    mock_agent_instance = MagicMock()
+    mock_agent_instance.run = AsyncMock(return_value=mock_thesis_result)
+
+    # In-band: canonical ≈38.95 sits inside the street range.
+    street = MagicMock()
+    street.data = {"low": 20.0, "high": 60.0, "analyst_count": 10}
+    mock_deps.data_layer.fetch_price_target = AsyncMock(return_value=street)
+    with patch(
+        "finrobot.engine.pipelines.equity_research.Agent",
+        return_value=mock_agent_instance,
+    ):
+        output = await _execute_thesis(
+            mock_agent_instance, mock_deps, "base prompt", {"valuation_synthesis": vs}, "GOOGL"
+        )
+    assert not any("Street context" in w for w in output.warnings)
+
+    # Unavailable (fetch → None, the augmentation route's degrade contract).
+    mock_deps.data_layer.fetch_price_target = AsyncMock(return_value=None)
+    with patch(
+        "finrobot.engine.pipelines.equity_research.Agent",
+        return_value=mock_agent_instance,
+    ):
+        output = await _execute_thesis(
+            mock_agent_instance, mock_deps, "base prompt", {"valuation_synthesis": vs}, "GOOGL"
+        )
+    assert not any("Street context" in w for w in output.warnings)
 
 
 @pytest.mark.asyncio

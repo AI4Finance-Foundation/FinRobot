@@ -527,7 +527,16 @@ function ToolBody({
             <DcfForecastTable dcf={dcf} reportingCurrency={currency} />
           </Section>
           <Section title={T(locale, '敏感性', 'Sensitivity')}>
-            <SensitivityBody dcf={dcf} financialSector={false} quoteCurrency={currency} />
+            {/* showReconciliation={false}: this page already renders a full
+                ProvenanceList below, so the reconciliation's "Model uses" column
+                would double-list the same strings (同源双列). The margin swing note
+                still renders — it duplicates nothing. */}
+            <SensitivityBody
+              dcf={dcf}
+              financialSector={false}
+              quoteCurrency={currency}
+              showReconciliation={false}
+            />
           </Section>
         </>
       )

@@ -549,6 +549,54 @@ msgid "chapter.sensitivity.driver.tg"
 msgstr "terminal growth"
 
 #. js-lingui-explicit-id
+msgid "chapter.sensitivity.notes.margin"
+msgstr "Holding WACC and terminal growth at base, a ±2pp EBITDA-margin shift moves implied price across"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.title"
+msgstr "Explicit-Period Assumptions · Model vs Current"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver"
+msgstr "Driver"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.modelUses"
+msgstr "Model uses (basis)"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.currentActual"
+msgstr "Latest FY"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver.growth"
+msgstr "Revenue growth"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver.margin"
+msgstr "EBITDA margin"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver.capex"
+msgstr "Capex / revenue"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver.nwc"
+msgstr "ΔNWC / revenue"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.na"
+msgstr "N/A"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.clampedTooltip"
+msgstr "The ΔNWC/revenue median fell outside the ±10% modelling band and was clamped to it."
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.footnote"
+msgstr "Assumptions are trailing-median based and do not incorporate announced structural changes."
+
+#. js-lingui-explicit-id
 msgid "chart.sensitivity.legend.lower"
 msgstr "Lower implied value"
 

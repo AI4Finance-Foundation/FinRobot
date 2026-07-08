@@ -1,5 +1,5 @@
 import SensitivityHeatmap from '../../../components/charts/SensitivityHeatmap'
-import { Chapter, SubChapter } from './ChapterBase'
+import { Chapter, SubChapter, tableStyle, TableScroll } from './ChapterBase'
 import type { DcfShape } from './types'
 import { useI18n } from '../../../i18n'
 import { formatCurrency, formatCurrencyCompact } from '../../../utils/format'
@@ -126,13 +126,24 @@ export function SensitivityBody({
   financialSector,
   // Sensitivity-grid implied prices are per-share → quote currency (BUG-030).
   quoteCurrency,
-}: ChapterSensitivityProps): React.ReactElement {
+  // The model-vs-current reconciliation renders the assumption_provenance strings
+  // in its "Model uses" column. The standalone DCF tool page (CompactArtifactViewer)
+  // ALSO renders a full ProvenanceList of the same strings, so it passes false to
+  // avoid double-listing (the 同源双列 the frontend contract forbids); the research
+  // report has no competing trail, so it keeps the default true. The margin swing
+  // note is unaffected — it duplicates nothing.
+  showReconciliation = true,
+}: ChapterSensitivityProps & { showReconciliation?: boolean }): React.ReactElement {
   const { t, locale } = useI18n()
   const fmtPrice = (v: number): string => formatCurrency(v, quoteCurrency, locale, v >= 100 ? 0 : 2)
   const table = dcf?.sensitivity_table ?? null
   const inputs = dcf?.inputs
   const heatmapRows = flattenSensitivity(table)
   const swing = computeAxisSwing(table, dcf?.wacc, inputs?.terminal_growth_rate)
+  // ±2pp EBITDA-margin swing note: render only when BOTH ends resolved to a
+  // finite price (a half-range would read as a broken figure). The backend
+  // computed it; the client never re-derives a DCF.
+  const marginSwing = readMarginSwing(dcf?.margin_swing)
 
   // A balance-sheet financial has no DCF at all — the whole sensitivity chapter (which
   // sweeps WACC × terminal growth of the FCFF-DCF) does not apply. Lead with the reason
@@ -203,6 +214,14 @@ export function SensitivityBody({
         </p>
       </SubChapter>
 
+      {showReconciliation && (
+        <AssumptionReconciliation
+          provenance={inputs?.assumption_provenance}
+          actuals={dcf?.assumption_current_actuals}
+          nwcClamped={inputs?.nwc_clamped ?? false}
+        />
+      )}
+
       <SubChapter heading={t('chapter.sensitivity.subheading.matrix')}>
         {heatmapRows.length > 0 ? (
           <SensitivityHeatmap data={heatmapRows} title={t('chapter.sensitivity.matrix.title')} />
@@ -211,25 +230,43 @@ export function SensitivityBody({
         )}
       </SubChapter>
 
-      {swing && (
+      {(swing || marginSwing) && (
         <SubChapter heading={t('chapter.sensitivity.subheading.notes')}>
-          <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
-            {t('chapter.sensitivity.notes.wacc')}{' '}
-            <strong style={{ color: 'var(--text-primary)' }}>
-              {fmtPrice(swing.waccLow)}–{fmtPrice(swing.waccHigh)}
-            </strong>{' '}
-            (Δ{fmtPrice(swing.waccSwing)}). {t('chapter.sensitivity.notes.tg')}{' '}
-            <strong style={{ color: 'var(--text-primary)' }}>
-              {fmtPrice(swing.tgLow)}–{fmtPrice(swing.tgHigh)}
-            </strong>{' '}
-            (Δ{fmtPrice(swing.tgSwing)}).{' '}
-            {t('chapter.sensitivity.notes.mostSensitive', {
-              driver:
-                swing.driver === 'wacc'
-                  ? t('chapter.sensitivity.driver.wacc')
-                  : t('chapter.sensitivity.driver.tg'),
-            })}
-          </p>
+          {swing && (
+            <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
+              {t('chapter.sensitivity.notes.wacc')}{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>
+                {fmtPrice(swing.waccLow)}–{fmtPrice(swing.waccHigh)}
+              </strong>{' '}
+              (Δ{fmtPrice(swing.waccSwing)}). {t('chapter.sensitivity.notes.tg')}{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>
+                {fmtPrice(swing.tgLow)}–{fmtPrice(swing.tgHigh)}
+              </strong>{' '}
+              (Δ{fmtPrice(swing.tgSwing)}).{' '}
+              {t('chapter.sensitivity.notes.mostSensitive', {
+                driver:
+                  swing.driver === 'wacc'
+                    ? t('chapter.sensitivity.driver.wacc')
+                    : t('chapter.sensitivity.driver.tg'),
+              })}
+            </p>
+          )}
+          {marginSwing && (
+            <p
+              style={{
+                fontSize: 13,
+                lineHeight: 1.7,
+                color: 'var(--text-secondary)',
+                marginTop: swing ? 8 : 0,
+              }}
+            >
+              {t('chapter.sensitivity.notes.margin')}{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>
+                {fmtPrice(marginSwing[0])}–{fmtPrice(marginSwing[1])}
+              </strong>
+              .
+            </p>
+          )}
         </SubChapter>
       )}
     </>
@@ -239,6 +276,167 @@ export function SensitivityBody({
 function meanArray(arr: number[]): number {
   if (arr.length === 0) return 0
   return arr.reduce((a, b) => a + b, 0) / arr.length
+}
+
+/** Narrow the backend margin_swing ([low, high], either end nullable) to a
+ * finite [low, high] pair — the note only renders a clean range when BOTH ends
+ * resolved. Null otherwise (one/both ends degraded, or field absent). */
+function readMarginSwing(
+  raw: [number | null, number | null] | null | undefined,
+): [number, number] | null {
+  if (!Array.isArray(raw)) return null
+  const [lo, hi] = raw
+  if (typeof lo !== 'number' || !Number.isFinite(lo)) return null
+  if (typeof hi !== 'number' || !Number.isFinite(hi)) return null
+  return [lo, hi]
+}
+
+// The four DCF explicit-period drivers, in report order. `provKey` reads the
+// verbatim "Model uses" prose from DCFInputs.assumption_provenance; `actualKey`
+// reads the latest-year "Current" figure from DcfShape.assumption_current_actuals
+// (the growth keys differ — provenance is keyed on the input field name, the
+// actuals on the driver). `signed` prints a leading + on positive growth / ΔNWC
+// (their sign is load-bearing); `nwc` carries the clamp ⚠.
+const RECON_ROWS: {
+  labelKey: string
+  provKey: string
+  actualKey: string
+  signed: boolean
+  nwc?: boolean
+}[] = [
+  {
+    labelKey: 'chapter.sensitivity.reconciliation.driver.growth',
+    provKey: 'revenue_growth_rates',
+    actualKey: 'revenue_growth',
+    signed: true,
+  },
+  {
+    labelKey: 'chapter.sensitivity.reconciliation.driver.margin',
+    provKey: 'ebitda_margin',
+    actualKey: 'ebitda_margin',
+    signed: false,
+  },
+  {
+    labelKey: 'chapter.sensitivity.reconciliation.driver.capex',
+    provKey: 'capex_pct_revenue',
+    actualKey: 'capex_pct_revenue',
+    signed: false,
+  },
+  {
+    labelKey: 'chapter.sensitivity.reconciliation.driver.nwc',
+    provKey: 'nwc_pct_revenue',
+    actualKey: 'nwc_pct_revenue',
+    signed: true,
+    nwc: true,
+  },
+]
+
+/** The "model vs current" reconciliation the external audit asked for: the DCF's
+ * trailing-median explicit-period drivers beside their latest actual, so a reader
+ * sees where the smoothed assumptions diverge from recent reality. The "Model
+ * uses" column renders the backend provenance prose VERBATIM (never reformatted —
+ * frontend contract); the "Current" column is the backend-computed latest actual
+ * (never re-derived here). Renders nothing when no provenance exists (legacy /
+ * degraded artifacts). */
+function AssumptionReconciliation({
+  provenance,
+  actuals,
+  nwcClamped,
+}: {
+  provenance: Record<string, string> | undefined
+  actuals: Record<string, number | null> | null | undefined
+  nwcClamped: boolean
+}): React.ReactElement | null {
+  const { t } = useI18n()
+  if (!provenance) return null
+  const rows = RECON_ROWS.filter((r) => provenance[r.provKey])
+  if (rows.length === 0) return null
+
+  const fmtActual = (v: number | null | undefined, signed: boolean): string => {
+    if (v === null || v === undefined || !Number.isFinite(v)) {
+      return t('chapter.sensitivity.reconciliation.na')
+    }
+    const pct = v * 100
+    const body = `${pct.toFixed(1)}%`
+    return signed && pct > 0 ? `+${body}` : body
+  }
+
+  return (
+    <SubChapter heading={t('chapter.sensitivity.reconciliation.title')}>
+      <TableScroll>
+        <table style={tableStyle}>
+          <thead>
+            <tr>
+              <th style={reconThStyle}>{t('chapter.sensitivity.reconciliation.driver')}</th>
+              <th style={reconThStyle}>{t('chapter.sensitivity.reconciliation.modelUses')}</th>
+              <th style={{ ...reconThStyle, textAlign: 'right' }}>
+                {t('chapter.sensitivity.reconciliation.currentActual')}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.provKey}>
+                <td style={{ ...reconTdStyle, color: 'var(--text-primary)', fontWeight: 500 }}>
+                  {t(r.labelKey)}
+                </td>
+                <td style={reconTdStyle}>
+                  {provenance[r.provKey]}
+                  {r.nwc && nwcClamped && (
+                    <span
+                      title={t('chapter.sensitivity.reconciliation.clampedTooltip')}
+                      style={{ color: 'var(--warning)', marginLeft: 6 }}
+                    >
+                      ⚠
+                    </span>
+                  )}
+                </td>
+                <td
+                  style={{
+                    ...reconTdStyle,
+                    textAlign: 'right',
+                    color: 'var(--text-primary)',
+                    fontVariantNumeric: 'tabular-nums',
+                  }}
+                >
+                  {fmtActual(actuals?.[r.actualKey], r.signed)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableScroll>
+      <p
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10.5,
+          color: 'var(--text-dim)',
+          marginTop: 8,
+          lineHeight: 1.6,
+        }}
+      >
+        {t('chapter.sensitivity.reconciliation.footnote')}
+      </p>
+    </SubChapter>
+  )
+}
+
+const reconThStyle: React.CSSProperties = {
+  padding: '10px 14px',
+  textAlign: 'left',
+  fontWeight: 500,
+  fontSize: 10.5,
+  color: 'var(--secondary)',
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  borderBottom: '1px solid var(--border-soft)',
+}
+
+const reconTdStyle: React.CSSProperties = {
+  padding: '9px 14px',
+  borderBottom: '1px solid var(--border-faint)',
+  color: 'var(--text-secondary)',
+  verticalAlign: 'top',
 }
 
 const mutedNote: React.CSSProperties = {

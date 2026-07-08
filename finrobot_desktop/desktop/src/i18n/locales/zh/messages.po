@@ -549,6 +549,54 @@ msgid "chapter.sensitivity.driver.tg"
 msgstr "永续增长率"
 
 #. js-lingui-explicit-id
+msgid "chapter.sensitivity.notes.margin"
+msgstr "在 WACC 与永续增长率保持基准的前提下,EBITDA margin ±2pp 的变动使隐含价在"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.title"
+msgstr "显式期假设 · 模型 vs 当下"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver"
+msgstr "驱动项"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.modelUses"
+msgstr "模型取值(依据)"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.currentActual"
+msgstr "最近财年"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver.growth"
+msgstr "营收增速"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver.margin"
+msgstr "EBITDA margin"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver.capex"
+msgstr "资本开支 / 营收"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver.nwc"
+msgstr "ΔNWC / 营收"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.na"
+msgstr "N/A"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.clampedTooltip"
+msgstr "ΔNWC/营收 中位数落在 ±10% 建模区间之外,已夹取至区间边界。"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.footnote"
+msgstr "假设基于历史中位数,未纳入已公告的结构性变化。"
+
+#. js-lingui-explicit-id
 msgid "chart.sensitivity.legend.lower"
 msgstr "隐含价值更低"
 

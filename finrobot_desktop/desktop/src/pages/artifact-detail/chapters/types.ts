@@ -42,6 +42,18 @@ export interface DcfShape {
   equity_value?: number
   implied_price?: number
   sensitivity_table?: Record<string, unknown> | null
+  // ±2pp EBITDA-margin swing: [implied_price_at_-2pp, implied_price_at_+2pp],
+  // low→high. Either end null when that shifted margin degrades (out of band /
+  // Gordon guard); the whole field null when neither end is valid. Backend-
+  // computed — never re-derived in the client. Absent on legacy artifacts.
+  margin_swing?: [number | null, number | null] | null
+  // Latest single-year actuals for the four DCF drivers (keys revenue_growth /
+  // ebitda_margin / capex_pct_revenue / nwc_pct_revenue), the SAME annual caliber
+  // as the trailing-median seed — the "Current" column of the model-vs-current
+  // assumptions reconciliation. Per-driver null when history lacks a usable latest
+  // point; whole field null on legacy artifacts. Deterministic (backend); the
+  // client renders it verbatim, never re-computing a driver.
+  assumption_current_actuals?: Record<string, number | null> | null
   // Reverse-DCF reality check: what growth/WACC the CURRENT market price implies.
   // growth_unreachable=true ⇒ no plausible growth reaches the price (option-value
   // stock); ceiling_price is the most the DCF can reach at growth_ceiling.
@@ -62,6 +74,15 @@ export interface DcfShape {
     beta?: number
     risk_free_rate?: number
     debt_ratio?: number
+    // key → analyst-prose sourcing string ("35.0% (trailing 3yr median)"). The
+    // "Model uses" column of the reconciliation — rendered VERBATIM, never
+    // reformatted (the value already carries its own unit; BUG-030 / frontend
+    // contract). Absent on legacy artifacts.
+    assumption_provenance?: Record<string, string>
+    // True when the explicit-window ΔNWC/revenue median was clamped into the
+    // ±10% modelling band — drives the ⚠ on the ΔNWC reconciliation row. A
+    // structured boolean so the ⚠ never parses the provenance prose.
+    nwc_clamped?: boolean
   }
 }
 

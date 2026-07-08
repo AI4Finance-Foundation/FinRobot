@@ -692,21 +692,69 @@ def seed_dcf_inputs(
     # = cash consumed. Negate so nwc_pct_revenue means "NWC build as % of revenue,
     # positive = cash drag" — the same convention as capex (stored absolute) — so
     # the FCF formula `- ΔNWC` reduces FCF when working capital grows.
+    #
+    # The marginal NWC ratio (shared with the terminal value below) is derived
+    # first because it is the degradation target when the trailing median blows
+    # past the ±10% modelling band. A |median| > 10% is not real NWC economics —
+    # a mature staple does not absorb a tenth of revenue into working capital
+    # every year — but a trailing window polluted by non-core one-off swings
+    # (KO's FY24/25 otherWorkingCapital, −6.2B/−7.2B, dragged the 3y median to
+    # 13.2%). The ±10% clamp merely TRUNCATES that pollution and would then hold
+    # 10% flat across the whole explicit window. Degrading instead to
+    # marginal-ratio × growth — the SAME functional form the terminal value uses,
+    # but with the explicit-window average growth rather than terminal growth —
+    # re-derives the drag from clean per-year NWC-build economics (KO 13.2% →
+    # ~1.4%, back near the ~1.9% TTM actual). A genuine high-NWC grower is
+    # protected: its marginal ratio is stable and high, so marginal × its high
+    # growth stays a correctly large drag rather than being reduced.
+    terminal_nwc = _terminal_nwc_pct(
+        historical.change_in_working_capital, historical.revenue, terminal_growth_rate
+    )
     nwc_result = _median_ratio(historical.change_in_working_capital, historical.revenue)
     if nwc_result is not None:
         nwc_median, nwc_n = nwc_result
         raw_nwc = -nwc_median
-        nwc_pct = max(-0.10, min(0.10, raw_nwc))
-        if nwc_pct != raw_nwc:
-            # Clamp bound: lead with the ±10% value the model uses and disclose
-            # the pre-clamp median, so provenance never implies the band value
-            # IS the trailing median (BUG-023 — KO's 13.2% median was printed as
-            # "10.0% (…median…)", implying the median itself was 10%).
+        clamped_median = max(-0.10, min(0.10, raw_nwc))
+        if clamped_median != raw_nwc and terminal_nwc is not None:
+            # Clamp binds AND a marginal ratio is derivable → treat the clamp hit
+            # as a pathology signal and degrade to the marginal-ratio route.
+            # Explicit-window average growth (mean of the projected schedule)
+            # takes the place of terminal growth in the same marginal × g form;
+            # re-clamp to the ±10% band so a genuine high-NWC hyper-grower (high
+            # marginal × high growth) is capped, not reduced. Scalar by design —
+            # a per-year NWC sequence is deliberately out of scope here.
+            marginal_ratio, _terminal_pct, raw_marginal = terminal_nwc
+            avg_growth = statistics.mean(growth_schedule)
+            degraded = marginal_ratio * avg_growth
+            nwc_pct = max(-0.10, min(0.10, degraded))
+            marginal_note = (
+                f"{marginal_ratio:.1%} (clamped from {raw_marginal:.1%})"
+                if marginal_ratio != raw_marginal
+                else f"{marginal_ratio:.1%}"
+            )
+            reclamp_note = (
+                f" = {degraded:.1%}, re-clamped to the ±10% band"
+                if nwc_pct != degraded
+                else ""
+            )
+            prov["nwc_pct_revenue"] = (
+                f"{nwc_pct:.1%} (trailing {nwc_n}yr ΔNWC / revenue median {raw_nwc:.1%} "
+                f"exceeds the ±10% modelling band — degraded to marginal NWC ratio "
+                f"{marginal_note} × avg explicit-window growth {avg_growth:.1%}"
+                f"{reclamp_note}; positive = cash absorbed)"
+            )
+        elif clamped_median != raw_nwc:
+            # Clamp binds but no revenue-growth year to derive a marginal ratio
+            # (declining / flat history) → honest fallback: keep the clamped
+            # median and disclose the pre-clamp value, so provenance never implies
+            # the band value IS the trailing median (batch-0 BUG-023 disclosure).
+            nwc_pct = clamped_median
             prov["nwc_pct_revenue"] = (
                 f"{nwc_pct:.1%} (clamped from trailing {nwc_n}yr ΔNWC / revenue median "
                 f"{raw_nwc:.1%}; positive = cash absorbed)"
             )
         else:
+            nwc_pct = clamped_median
             prov["nwc_pct_revenue"] = (
                 f"{nwc_pct:.1%} (trailing {nwc_n}yr ΔNWC / revenue median; positive = cash absorbed)"
             )
@@ -721,12 +769,10 @@ def seed_dcf_inputs(
     # and, mirrored, props up cash burners on a perpetual NWC subsidy (RIVN:
     # −10% forever printed a 1.57x-market fair value). Steady state re-derives
     # it from the marginal ratio: median(ΔNWC_build / Δrevenue) over revenue-
-    # GROWTH years × terminal growth. No usable growth years → None, and
-    # _terminal_fcf falls back to the explicit-window value (honest: don't
-    # pretend to have computed a scaling the data can't support).
-    terminal_nwc = _terminal_nwc_pct(
-        historical.change_in_working_capital, historical.revenue, terminal_growth_rate
-    )
+    # GROWTH years × terminal growth (terminal_nwc computed above). No usable
+    # growth years → None, and _terminal_fcf falls back to the explicit-window
+    # value (honest: don't pretend to have computed a scaling the data can't
+    # support).
     if terminal_nwc is not None:
         marginal_ratio, terminal_nwc_pct, raw_marginal = terminal_nwc
         if marginal_ratio != raw_marginal:

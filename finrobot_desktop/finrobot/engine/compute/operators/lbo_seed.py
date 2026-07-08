@@ -32,6 +32,7 @@ from finrobot.engine.compute.operators.dcf_seed import (
     _median_ratio,
     _median_recent,
     _pick_with_provenance,
+    _terminal_nwc_pct,
     _ticker_median_with_label,
 )
 from finrobot.engine.data.industry_defaults import (
@@ -192,19 +193,54 @@ def seed_lbo_inputs(
     # FMP changeInWorkingCapital carries the cash-flow sign (negative = NWC grew =
     # cash consumed). Negate so nwc_change_pct_revenue is positive when working
     # capital grows with revenue, matching the LBO FCF formula `- ΔNWC`.
+    #
+    # Mirror of the dcf_seed fix: a trailing |median| > 10% is a pollution signal
+    # (KO's non-core otherWorkingCapital swings), not real NWC economics. When the
+    # ±10% clamp binds and a marginal ratio is derivable, degrade to marginal
+    # ratio × the LBO's single steady-state revenue growth — the same marginal × g
+    # form dcf_seed uses, with the LBO's constant growth rate in place of the DCF
+    # explicit-window schedule (the model's holding period is level-growth). No
+    # revenue-growth year → honest fallback to the clamped median.
+    nwc_marginal = _terminal_nwc_pct(
+        historical.change_in_working_capital, historical.revenue, revenue_growth_rate
+    )
     nwc_result = _median_ratio(historical.change_in_working_capital, historical.revenue)
     if nwc_result is not None:
         nwc_median, nwc_n = nwc_result
         raw_nwc = -nwc_median
-        nwc_pct = max(-0.10, min(0.10, raw_nwc))
-        if nwc_pct != raw_nwc:
-            # Clamp bound: disclose the pre-clamp median (BUG-023 — mirror of the
-            # dcf_seed nwc fix; never imply the ±10% band value IS the median).
+        clamped_median = max(-0.10, min(0.10, raw_nwc))
+        if clamped_median != raw_nwc and nwc_marginal is not None:
+            marginal_ratio, _terminal_pct, raw_marginal = nwc_marginal
+            degraded = marginal_ratio * revenue_growth_rate
+            nwc_pct = max(-0.10, min(0.10, degraded))
+            marginal_note = (
+                f"{marginal_ratio:.1%} (clamped from {raw_marginal:.1%})"
+                if marginal_ratio != raw_marginal
+                else f"{marginal_ratio:.1%}"
+            )
+            reclamp_note = (
+                f" = {degraded:.1%}, re-clamped to the ±10% band"
+                if nwc_pct != degraded
+                else ""
+            )
+            prov["nwc_change_pct_revenue"] = (
+                f"{nwc_pct:.1%} (trailing {nwc_n}yr ΔNWC / revenue median {raw_nwc:.1%} "
+                f"exceeds the ±10% modelling band — degraded to marginal NWC ratio "
+                f"{marginal_note} × steady-state revenue growth {revenue_growth_rate:.1%}"
+                f"{reclamp_note}; positive = cash absorbed)"
+            )
+        elif clamped_median != raw_nwc:
+            # Clamp binds but no revenue-growth year to derive a marginal ratio →
+            # honest fallback: keep the clamped median and disclose the pre-clamp
+            # value (batch-0 BUG-023 disclosure; never imply the band value IS the
+            # median).
+            nwc_pct = clamped_median
             prov["nwc_change_pct_revenue"] = (
                 f"{nwc_pct:.1%} (clamped from trailing {nwc_n}yr ΔNWC / revenue median "
                 f"{raw_nwc:.1%}; positive = cash absorbed)"
             )
         else:
+            nwc_pct = clamped_median
             prov["nwc_change_pct_revenue"] = (
                 f"{nwc_pct:.1%} (trailing {nwc_n}yr ΔNWC / revenue median; positive = cash absorbed)"
             )

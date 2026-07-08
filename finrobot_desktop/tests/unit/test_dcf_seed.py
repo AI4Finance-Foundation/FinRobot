@@ -1031,15 +1031,22 @@ class TestClampProvenanceDisclosure:
     never imply the band value IS the underlying computation (KO's 13.2% NWC
     median was printed as '10.0% (…median…)')."""
 
-    def test_nwc_pct_clamp_discloses_pre_clamp_median(self):
+    def test_nwc_pct_clamp_degrades_to_marginal_ratio(self):
+        """Batch-3: a trailing ΔNWC/revenue median outside the ±10% band is a
+        pollution signal, degraded to marginal ratio × avg explicit growth. The
+        pre-clamp median is still disclosed (batch-0 BUG-023 never regresses)."""
         hist = _aapl_historical()
-        # ΔNWC/revenue = -15% every year → -median = +15% → clamped to +10%.
+        # ΔNWC = -15% of the revenue LEVEL every year → -median = +15% → exceeds
+        # the band. AAPL revenue grows (FY22, FY24) so a marginal ratio exists,
+        # and build/Δrev ≫ 60% → marginal clamps to 60%. Schedule flat at the 2.2%
+        # trailing CAGR (below terminal) → avg growth 2.2%, degraded = 60% × 2.2%.
         hist.change_in_working_capital = [-0.15 * r for r in hist.revenue]
+        hist.cagr_revenue = 0.022
         inputs = seed_dcf_inputs(_aapl_financials(), hist)
         prov = inputs.assumption_provenance["nwc_pct_revenue"]
-        assert inputs.nwc_pct_revenue == pytest.approx(0.10)
-        assert prov.startswith("10.0% (clamped from trailing")
-        assert "median 15.0%" in prov
+        assert inputs.nwc_pct_revenue == pytest.approx(0.60 * 0.022)
+        assert "median 15.0% exceeds the ±10% modelling band" in prov
+        assert "degraded to marginal NWC ratio 60.0%" in prov
         assert "positive = cash absorbed" in prov
 
     def test_nwc_pct_in_band_is_byte_identical(self):
@@ -1060,6 +1067,95 @@ class TestClampProvenanceDisclosure:
         prov = inputs.assumption_provenance["terminal_nwc_pct_revenue"]
         assert "80.0% clamped to 60.0%" in prov
         assert "marginal NWC ratio median(ΔNWC/Δrevenue)" in prov
+
+
+def _nwc_history(revenue: list[float], cwc: list[float], cagr: float | None) -> HistoricalMetrics:
+    """AAPL-shaped history with revenue / ΔNWC / trailing CAGR overridden to
+    isolate the nwc_pct_revenue degradation path. The revenue series drives the
+    marginal ratio (build/Δrev over growth years); cagr_revenue independently
+    drives the explicit growth schedule the degraded drag scales by."""
+    hist = _aapl_historical()
+    hist.revenue = revenue
+    hist.change_in_working_capital = cwc
+    hist.cagr_revenue = cagr
+    return hist
+
+
+class TestNwcClampDegradation:
+    """Batch-3: a trailing ΔNWC/revenue median past the ±10% band is a pollution
+    signal (KO's non-core otherWorkingCapital), so the explicit-window drag
+    degrades to marginal ratio × avg explicit growth — the same marginal × g form
+    the terminal value uses. The pre-clamp median stays disclosed."""
+
+    def test_degrades_to_marginal_ratio_when_marginal_in_band(self):
+        # Revenue doubles each year → Δrev = the prior level, so build/Δrev is 2×
+        # build/level. Build = 13% of the LEVEL → per-year ΔNWC/revenue median 13%
+        # (clamps the band) but marginal ratio 26% (inside ±60%). Schedule held
+        # flat at 2% (cagr < 3% terminal) → avg growth 2%. Degraded = 26% × 2%.
+        hist = _nwc_history([100e9, 200e9, 400e9, 800e9], [-13e9, -26e9, -52e9, -104e9], 0.02)
+        inputs = seed_dcf_inputs(_aapl_financials(), hist)
+        assert inputs.nwc_pct_revenue == pytest.approx(0.26 * 0.02)
+        prov = inputs.assumption_provenance["nwc_pct_revenue"]
+        assert "median 13.0% exceeds the ±10% modelling band" in prov
+        assert "degraded to marginal NWC ratio 26.0% × avg explicit-window growth 2.0%" in prov
+        assert "clamped from" not in prov  # marginal in band → no clamp note
+        assert "positive = cash absorbed" in prov
+
+    def test_degrades_with_marginal_ratio_clamped_and_discloses_raw(self):
+        # KO-like: 3%/yr revenue with a NWC build ~13% of the LEVEL → per-year
+        # median 13.2% (clamps band) AND build/Δrev ≈ 4.67 (blows past ±60%) →
+        # marginal clamps to 60%, raw disclosed. avg growth 2.5% → 60% × 2.5%.
+        hist = _nwc_history([100e9, 103e9, 106e9, 109e9], [-14e9, -14e9, -14e9, -14e9], 0.025)
+        inputs = seed_dcf_inputs(_aapl_financials(), hist)
+        assert inputs.nwc_pct_revenue == pytest.approx(0.60 * 0.025)
+        prov = inputs.assumption_provenance["nwc_pct_revenue"]
+        assert "marginal NWC ratio 60.0% (clamped from 466.7%)" in prov
+        assert "avg explicit-window growth 2.5%" in prov
+
+    def test_no_growth_year_falls_back_to_clamped_median(self):
+        # Flat revenue → Δrev = 0 every year → no marginal ratio → honest fallback
+        # to the clamped median with the batch-0 pre-clamp disclosure.
+        hist = _nwc_history([500e9, 500e9, 500e9, 500e9], [-75e9, -75e9, -75e9, -75e9], 0.02)
+        inputs = seed_dcf_inputs(_aapl_financials(), hist)
+        assert inputs.nwc_pct_revenue == pytest.approx(0.10)
+        prov = inputs.assumption_provenance["nwc_pct_revenue"]
+        assert prov.startswith("10.0% (clamped from trailing")
+        assert "median 15.0%" in prov
+        assert "degraded" not in prov
+
+    def test_negative_explicit_growth_flips_drag_to_release(self):
+        # Historically-growing revenue (marginal 26%) but a declining forward
+        # projection (cagr −10%, held flat) → degraded drag flips to a cash
+        # RELEASE: 26% × −10% = −2.6%. Still inside the schema band.
+        hist = _nwc_history([100e9, 200e9, 400e9, 800e9], [-13e9, -26e9, -52e9, -104e9], -0.10)
+        inputs = seed_dcf_inputs(_aapl_financials(), hist)
+        assert inputs.nwc_pct_revenue == pytest.approx(0.26 * -0.10)
+        prov = inputs.assumption_provenance["nwc_pct_revenue"]
+        assert "avg explicit-window growth -10.0%" in prov
+
+    def test_median_exactly_at_band_is_not_degraded(self):
+        # ΔNWC/revenue = −10% exactly → +10% sits ON the band, not OUTSIDE it →
+        # no clamp, no degradation even though growth years exist (revenue
+        # doubles) — the original in-band string verbatim.
+        hist = _nwc_history([100e9, 200e9, 400e9, 800e9], [-10e9, -20e9, -40e9, -80e9], 0.02)
+        inputs = seed_dcf_inputs(_aapl_financials(), hist)
+        assert inputs.nwc_pct_revenue == pytest.approx(0.10)
+        prov = inputs.assumption_provenance["nwc_pct_revenue"]
+        assert "clamped" not in prov
+        assert "degraded" not in prov
+        assert prov.endswith("ΔNWC / revenue median; positive = cash absorbed)")
+
+    def test_reclamp_when_marginal_times_growth_exceeds_band(self):
+        # Genuine high-NWC hyper-grower: build = 35% of the LEVEL on doubling
+        # revenue → marginal build/Δrev 70% (clamps to 60%). base cagr 37% decays
+        # linearly to the 3% terminal → mean 20%. 60% × 20% = 12% → re-clamped to
+        # the +10% band, and the pre-clamp product disclosed. NOT reduced.
+        hist = _nwc_history([100e9, 200e9, 400e9, 800e9], [-35e9, -70e9, -140e9, -280e9], 0.37)
+        inputs = seed_dcf_inputs(_aapl_financials(), hist)
+        assert inputs.nwc_pct_revenue == pytest.approx(0.10)
+        prov = inputs.assumption_provenance["nwc_pct_revenue"]
+        assert "marginal NWC ratio 60.0% (clamped from 70.0%)" in prov
+        assert "re-clamped to the ±10% band" in prov
 
 
 # ---------------------------------------------------------------------------

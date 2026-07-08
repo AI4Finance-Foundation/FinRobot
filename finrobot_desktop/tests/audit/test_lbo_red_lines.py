@@ -346,16 +346,37 @@ def _historical_with_nwc(cwc: list[float], revenue: list[float]) -> HistoricalMe
     return hist
 
 
-def test_lbo_nwc_clamp_discloses_pre_clamp_median() -> None:
-    """Mirror of the dcf_seed NWC fix: a bound ±10% band must lead with the
-    clamped value AND disclose the pre-clamp trailing median (BUG-023)."""
-    # ΔNWC/revenue = -15% every year → -median = +15% → clamped to +10%.
+def test_lbo_nwc_clamp_no_growth_year_falls_back_to_clamped_median() -> None:
+    """Batch-3 fallback path: FLAT revenue → no revenue-growth year → no marginal
+    ratio is derivable, so a bound ±10% band keeps the clamped value AND discloses
+    the pre-clamp trailing median (batch-0 BUG-023 disclosure, unchanged)."""
+    # ΔNWC/revenue = -15% every year, revenue flat → -median = +15% → clamped to
+    # +10%; Δrev = 0 blocks the marginal ratio → honest fallback.
     hist = _historical_with_nwc([-1.5e9, -1.5e9, -1.5e9], [1e10, 1e10, 1e10])
     inputs = seed_lbo_inputs(_minimal_financials(), hist)
     prov = inputs.assumption_provenance["nwc_change_pct_revenue"]
     assert inputs.nwc_change_pct_revenue == pytest.approx(0.10)
     assert prov.startswith("10.0% (clamped from trailing")
     assert "median 15.0%" in prov
+    assert "degraded" not in prov
+
+
+def test_lbo_nwc_clamp_degrades_to_marginal_ratio() -> None:
+    """Batch-3 mirror of the dcf_seed fix: when the ±10% band binds and revenue
+    grew (a marginal ratio is derivable), the LBO degrades to marginal ratio × its
+    single steady-state revenue growth instead of holding the clamped median flat.
+    """
+    # 3%/yr revenue with a NWC build ~13% of the LEVEL → per-year median 13.2%
+    # (clamps band) and build/Δrev ≈ 4.67 (clamps marginal to 60%). LBO steady-
+    # state growth = trailing CAGR 3% → degraded = 60% × 3% = 1.8%.
+    hist = _historical_with_nwc([-14e9, -14e9, -14e9, -14e9], [100e9, 103e9, 106e9, 109e9])
+    hist.cagr_revenue = 0.03
+    inputs = seed_lbo_inputs(_minimal_financials(), hist)
+    prov = inputs.assumption_provenance["nwc_change_pct_revenue"]
+    assert inputs.nwc_change_pct_revenue == pytest.approx(0.60 * 0.03)
+    assert "median 13.2% exceeds the ±10% modelling band" in prov
+    assert "marginal NWC ratio 60.0% (clamped from" in prov
+    assert "steady-state revenue growth 3.0%" in prov
 
 
 def test_lbo_nwc_in_band_is_byte_identical() -> None:

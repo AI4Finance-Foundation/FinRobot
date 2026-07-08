@@ -28,6 +28,7 @@ from typing import Final
 
 from finrobot.engine.compute.operators.dcf_seed import (
     _cost_of_debt,
+    _disclose_construction_clamp,
     _median_ratio,
     _median_recent,
     _pick_with_provenance,
@@ -194,10 +195,19 @@ def seed_lbo_inputs(
     nwc_result = _median_ratio(historical.change_in_working_capital, historical.revenue)
     if nwc_result is not None:
         nwc_median, nwc_n = nwc_result
-        nwc_pct = max(-0.10, min(0.10, -nwc_median))
-        prov["nwc_change_pct_revenue"] = (
-            f"{nwc_pct:.1%} (trailing {nwc_n}yr ΔNWC / revenue median; positive = cash absorbed)"
-        )
+        raw_nwc = -nwc_median
+        nwc_pct = max(-0.10, min(0.10, raw_nwc))
+        if nwc_pct != raw_nwc:
+            # Clamp bound: disclose the pre-clamp median (BUG-023 — mirror of the
+            # dcf_seed nwc fix; never imply the ±10% band value IS the median).
+            prov["nwc_change_pct_revenue"] = (
+                f"{nwc_pct:.1%} (clamped from trailing {nwc_n}yr ΔNWC / revenue median "
+                f"{raw_nwc:.1%}; positive = cash absorbed)"
+            )
+        else:
+            prov["nwc_change_pct_revenue"] = (
+                f"{nwc_pct:.1%} (trailing {nwc_n}yr ΔNWC / revenue median; positive = cash absorbed)"
+            )
     else:
         nwc_pct = DEFAULT_NWC_PCT_REVENUE
         prov["nwc_change_pct_revenue"] = (
@@ -235,10 +245,19 @@ def seed_lbo_inputs(
     if cod is not None:
         # Pad slightly — LBO debt is typically more expensive than the
         # company's current investment-grade or hybrid mix.
-        interest_rate = min(0.15, cod + 0.02)
-        prov["interest_rate"] = (
-            f"{interest_rate:.1%} (company's current actual cost {cod:.1%} + LBO risk premium 2%)"
-        )
+        raw_interest = cod + 0.02
+        interest_rate = min(0.15, raw_interest)
+        if interest_rate != raw_interest:
+            # Cap bound: disclose so the "cost + 2%" arithmetic in provenance
+            # cannot imply a rate above the 15% ceiling the model uses (BUG-023).
+            prov["interest_rate"] = (
+                f"{interest_rate:.1%} (company's current actual cost {cod:.1%} + LBO risk "
+                f"premium 2% = {raw_interest:.1%}, capped at the 15% LBO-debt ceiling)"
+            )
+        else:
+            prov["interest_rate"] = (
+                f"{interest_rate:.1%} (company's current actual cost {cod:.1%} + LBO risk premium 2%)"
+            )
     else:
         interest_rate = DEFAULT_INTEREST_RATE
         prov["interest_rate"] = (
@@ -312,6 +331,16 @@ def seed_lbo_inputs(
             f"{entry_ev_ebitda:.1f}× × ${entry_ebitda / 1e9:.1f}B = ${entry_ev_ability / 1e9:.0f}B"
             f"{market_clause}."
         )
+
+    # Disclose any construction-time clamp that binds (BUG-023 — mirror of the
+    # dcf_seed post-pass). Pure provenance side-effect; the field values
+    # constructed below are unchanged. nwc_change/interest/leverage are omitted:
+    # nwc_pct + interest_rate are already clamped tighter upstream (their [-0.2,
+    # 0.3] / [0, 0.5] construction bands never bind), and leverage_multiple is a
+    # deal-structure convention arg (default 5.0×), not a computed caliber.
+    _disclose_construction_clamp(prov, "ebitda_margin", ebitda_margin, 0.01, 0.95)
+    _disclose_construction_clamp(prov, "da_pct_revenue", da_pct, 0.0, 0.3)
+    _disclose_construction_clamp(prov, "capex_pct_revenue", capex_pct, 0.0, 0.5)
 
     return LBOInputs(
         ticker=financials.ticker,

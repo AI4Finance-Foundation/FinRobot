@@ -254,7 +254,7 @@ class TestAggregatorContract:
             peer_comps=_peer_comps(median_pe=12.0),
             shares_outstanding=2.9e9,
             forward_eps=15.0,
-            forward_ebitda=120e9,
+            ttm_ebitda=120e9,
             historical_ev_ebitda_band=(8.0, 12.0),
             historical_ev_ebitda_sample_n=8,
             financial_sector=True,
@@ -374,14 +374,14 @@ class TestAggregatorContract:
             dcf=_dcf(),
             shares_outstanding=2.4e9,
             current_net_debt=30e9,
-            forward_ebitda=40e9,
+            ttm_ebitda=40e9,
             historical_ev_ebitda_band=(20.0, 30.0),
             as_of=AS_OF,
         )
         row = next(m for m in agg.methods if m.method == "ev_ebitda")
         assert row.method_type == "multiple"
         assert row.confidence == 0.72
-        # Exact bridge: (p × forward_ebitda − current_net_debt) / shares.
+        # Exact bridge: (p × ttm_ebitda − current_net_debt) / shares.
         assert row.low == (20.0 * 40e9 - 30e9) / 2.4e9
         assert row.high == (30.0 * 40e9 - 30e9) / 2.4e9
         assert "current_net_debt" in row.source
@@ -393,7 +393,7 @@ class TestAggregatorContract:
             ticker="NVDA",
             current_price=876.42,
             shares_outstanding=2.4e9,
-            forward_ebitda=40e9,
+            ttm_ebitda=40e9,
             historical_ev_ebitda_band=(20.0, 30.0),
             as_of=AS_OF,
         )
@@ -412,7 +412,7 @@ class TestAggregatorContract:
             ticker="AAPL",
             current_price=200.0,
             shares_outstanding=2.4e9,
-            forward_ebitda=40e9,
+            ttm_ebitda=40e9,
             historical_ev_ebitda_band=(20.0, 30.0),
             as_of=AS_OF,
         )
@@ -430,7 +430,7 @@ class TestAggregatorContract:
             ticker="NVDA",
             current_price=876.42,
             shares_outstanding=2.4e9,
-            forward_ebitda=40e9,
+            ttm_ebitda=40e9,
             historical_ev_ebitda_band=(20.0, 30.0),
             current_net_debt=None,
             as_of=AS_OF,
@@ -448,7 +448,7 @@ class TestAggregatorContract:
             current_price=876.42,
             lbo=_lbo_with_grid(),
             shares_outstanding=2.4e9,
-            forward_ebitda=40e9,
+            ttm_ebitda=40e9,
             historical_ev_ebitda_band=(20.0, 30.0),
             current_net_debt=None,
             as_of=AS_OF,

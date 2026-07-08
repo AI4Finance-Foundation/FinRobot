@@ -547,9 +547,13 @@ class TestEvEbitdaBandRevivesMethod:
         assert vs is not None
         assert "ev_ebitda" not in [m.name for m in vs.methods]
 
-    def test_ev_ebitda_withheld_on_currency_mismatch_not_fabricated(self) -> None:
-        """A native-currency forward EBITDA must NOT mix with a USD net-debt bridge.
-        reporting ≠ quote → forward_ebitda gated out → row drops (no fabrication)."""
+    def test_ev_ebitda_shows_on_currency_mismatch_off_canonical_ttm(self) -> None:
+        """batch2: the ev leg is DECOUPLED from the forward FX guard — it prices off the
+        canonical TTM operating EBITDA (income.ebitda), not the native forward consensus.
+        income.ebitda, the net-debt bridge and shares all come from ONE canonical snapshot
+        (same currency) and the band is a unitless ratio, so no cross-currency mix is
+        possible. A reporting ≠ quote issuer (TSM/SAP-class) therefore now SHOWS the row
+        instead of dropping it — the intentional ADR behavior change."""
         structured_context: dict[str, object] = {
             "financial_modeling": _dcf(150.0),
             "data_collection": _financial_data(reporting="TWD", quote="USD"),
@@ -563,7 +567,10 @@ class TestEvEbitdaBandRevivesMethod:
             historical_ev_ebitda_sample_n=900,
         )
         assert vs is not None
-        assert "ev_ebitda" not in [m.name for m in vs.methods]
+        ev = next((m for m in vs.methods if m.name == "ev_ebitda"), None)
+        assert ev is not None, "ev leg must show — canonical TTM EBITDA carries no FX mix"
+        # priced off TTM operating EBITDA (income.ebitda), single-caliber label, never forward.
+        assert "ttm_ebitda" in ev.source and "forward" not in ev.source.lower()
 
     def test_degradation_recorded_on_emitted_row(self) -> None:
         """The band's sample depth must surface on the row's warnings so the dial
@@ -573,22 +580,26 @@ class TestEvEbitdaBandRevivesMethod:
         assert any("120 samples" in w and "historical" in w for w in row.warnings)
 
     def test_no_degradation_warning_when_sample_n_unknown(self) -> None:
-        """band_sample_n=None (hand-built / legacy caller) → no fabricated count."""
+        """band_sample_n=None (hand-built / legacy caller) → no fabricated sample count.
+        The unconditional no-growth-credit disclosure (batch2 condition ii) is still
+        present — only the sample-depth line is gated on band_sample_n."""
         row = _ev_ebitda_method(40e9, (20.0, 30.0), 2.4e9, 30e9, band_sample_n=None)
         assert row is not None
-        assert row.warnings == []
+        assert not any("samples" in w for w in row.warnings)  # no fabricated count
+        # the trailing-earnings / no-growth-credit conservatism disclosure is structural
+        assert any("systematically conservative" in w for w in row.warnings)
 
     def test_negative_equity_diagnosed_with_marker_not_misreported(self) -> None:
         """Step3 兄弟漏洞:净债 > 即便 p75 乐观倍数下的隐含 EV → 隐含股权全程 ≤ 0,方法 drop。
         此前 aggregate 的 elif 链落到 else,误报「historical valuation band ... unavailable」
-        (band/forward 其实在场)。修后:_ev_ebitda_method 记带 marker 的负权益拒因,
+        (band/TTM EBITDA 其实在场)。修后:_ev_ebitda_method 记带 marker 的负权益拒因,
         aggregate 不再误诊。直测 aggregate_valuation(端到端 band 穿线另需 financial_data
         plumbing,此处直给输入更确定)。"""
         agg = aggregate_valuation(
             ticker="X",
             current_price=100.0,
-            forward_ebitda=10e9,
-            historical_ev_ebitda_band=(5.0, 8.0),  # p75 × forward = 80e9
+            ttm_ebitda=10e9,
+            historical_ev_ebitda_band=(5.0, 8.0),  # p75 × ttm = 80e9
             shares_outstanding=2e9,
             current_net_debt=200e9,  # > 80e9 → implied equity ≤ 0 across the whole band
         )

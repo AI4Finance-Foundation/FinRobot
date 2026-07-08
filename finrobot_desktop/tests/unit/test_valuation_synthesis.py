@@ -1094,14 +1094,19 @@ class TestReratingDominanceGate:
         )
 
     def _msft_shape(self) -> list[ValuationMethod]:
-        # The 2026-07-07 archetype (post-liveness artifact 64dda9): dcf $451.22 /
-        # comps_pe $534.23 (re-rate 1.38×) / ev_ebitda $632.34 (1.64×), price
-        # $386.74 — span 1.401 and DCF median-deviation 27.3% slip BOTH existing
-        # gates by a hair; the blend lands +18.4% off the DCF anchor.
+        # The 2026-07-07 archetype (post-liveness artifact 64dda9), re-based to the
+        # batch2 TTM denominator: dcf $451.22 / comps_pe $534.23 (re-rate 1.38×) /
+        # ev_ebitda $605.15 (1.57×). The ev row WAS $632.34/1.64× on the old FMP
+        # forward denominator; folding it back to TTM operating EBITDA scales both the
+        # mid and the re-rating ratio by MSFT's measured ~0.957 trailing/forward EBITDA
+        # ratio (632.34×0.957≈605.15, 1.64×0.957≈1.57 — live-probed 2026-07-08). The
+        # gate is about the GEOMETRY, not the exact old value: span 1.34 and a DCF still
+        # inside the median cluster slip BOTH existing gates, and the blend lands +16.6%
+        # off the DCF anchor → the re-rating-dominance gate caps confidence to medium.
         return [
             self._m("dcf", 451.22, 0.85),
             self._m("comps_pe", 534.23, 0.80, rerating=1.38),
-            self._m("ev_ebitda", 632.34, 0.72, rerating=1.64),
+            self._m("ev_ebitda", 605.15, 0.72, rerating=1.57),
         ]
 
     def test_rerating_led_blend_caps_confidence_shows_dcf_anchor_msft_2026_07_07(self):
@@ -1109,7 +1114,7 @@ class TestReratingDominanceGate:
         assert vs.confidence == "medium"  # capped from high
         # The blend itself is untouched (gate re-grades, never re-prices) and the
         # point still publishes — not a withhold.
-        assert vs.weighted_price == pytest.approx(534.27, abs=0.05)
+        assert vs.weighted_price == pytest.approx(526.00, abs=0.05)
         assert vs.valuation_withheld is False
         assert vs.anchor_method is None
         note = vs.degradation_note or ""

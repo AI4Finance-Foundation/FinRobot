@@ -11,16 +11,20 @@ We reuse the entry × exit IRR/MOIC grid the LBO pipeline already saved on
 single 5×5 division loop. Running ``calculate_lbo`` once per (entry, exit) cell
 would 25× the cost of the endpoint with zero accuracy benefit.
 
-EV/EBITDA and P/FCF rows are *multiple* methods — they reverse-engineer a
-band from the company's own multi-year multiple distribution (P25/P75) times a
-forward profit number. Forward profit comes from FMP analyst estimates
-(compute/forward_estimates.py); the historical-band input is fetched by both
-callers via ``historical_loaders.fetch_reverse_multiple_band`` and threaded in
-as ``historical_ev_ebitda_band``. EV/EBITDA fires whenever that band + a forward
-EBITDA + current net debt are all present (net debt stays None≠0-gated — a
-missing figure hides the row rather than fabricating a debt-free bridge). P/FCF
-stays omitted: FMP /analyst-estimates carries no free-cash-flow figure, so
-``forward_fcf`` is always None and band-wiring alone cannot honestly revive it.
+EV/EBITDA and P/FCF rows are *multiple* methods — they reverse-engineer a band
+from the company's own multi-year multiple distribution (P25/P75) times a profit
+number. EV/EBITDA is a single-caliber RE-RATING ANCHOR: the band (own 5y trailing
+EV/EBITDA multiples, ``historical_loaders.fetch_reverse_multiple_band``, threaded
+in as ``historical_ev_ebitda_band``) is applied to the target's CURRENT TTM
+operating EBITDA (``FinancialData.income.ebitda`` = OI + D&A — the SAME caliber the
+trailing band is built on, so no forward/trailing caliber mix; the row no longer
+rides on the FMP forward consensus). It fires whenever that band + a TTM EBITDA +
+current net debt are all present (net debt stays None≠0-gated — a missing figure
+hides the row rather than fabricating a debt-free bridge). The anchor gives no
+forward-growth credit and is therefore conservative for a growth name — disclosed
+on the method row. P/FCF stays omitted: FMP /analyst-estimates carries no
+free-cash-flow figure, so ``forward_fcf`` is always None and band-wiring alone
+cannot honestly revive it.
 """
 
 from __future__ import annotations
@@ -235,7 +239,7 @@ def aggregate_valuation(
     shares_outstanding: float | None = None,
     current_net_debt: float | None = None,
     forward_eps: float | None = None,
-    forward_ebitda: float | None = None,
+    ttm_ebitda: float | None = None,
     forward_fcf: float | None = None,
     forward_fiscal_period: str | None = None,
     forward_confidence: str | None = None,
@@ -372,8 +376,8 @@ def aggregate_valuation(
         )
 
     ev_inputs_present = (
-        forward_ebitda is not None
-        and forward_ebitda > 0
+        ttm_ebitda is not None
+        and ttm_ebitda > 0
         and historical_ev_ebitda_band is not None
         and shares_outstanding is not None
         and shares_outstanding > 0
@@ -389,7 +393,7 @@ def aggregate_valuation(
         )
     elif (
         m := _ev_ebitda_method(
-            forward_ebitda,
+            ttm_ebitda,
             historical_ev_ebitda_band,
             shares_outstanding,
             current_net_debt,
@@ -400,9 +404,9 @@ def aggregate_valuation(
     ) is not None:
         methods.append(m)
     elif not ev_inputs_present:
-        # Genuine input absence (band / forward EBITDA / shares missing) — row hidden.
+        # Genuine input absence (band / TTM EBITDA / shares missing) — row hidden.
         warnings.append(
-            "ev_ebitda: historical valuation band (PR3 not wired) or forward EBITDA unavailable — multiple row degraded and hidden"
+            "ev_ebitda: historical valuation band (PR3 not wired) or TTM EBITDA unavailable — multiple row degraded and hidden"
         )
     elif current_net_debt is None:
         # Inputs all present EXCEPT current net debt — refuse to bridge EV→equity on a
@@ -988,7 +992,7 @@ def _lbo_target_grid(
 
 
 def _ev_ebitda_method(
-    forward_ebitda: float | None,
+    ttm_ebitda: float | None,
     band: tuple[float, float] | None,
     shares: float | None,
     current_net_debt: float | None,
@@ -998,8 +1002,8 @@ def _ev_ebitda_method(
     current_price: float | None = None,
 ) -> ValuationMethodRange | None:
     if (
-        forward_ebitda is None
-        or forward_ebitda <= 0
+        ttm_ebitda is None
+        or ttm_ebitda <= 0
         or band is None
         or shares is None
         or shares <= 0
@@ -1027,8 +1031,8 @@ def _ev_ebitda_method(
                 "no valid historical range for the multiple, this row is hidden — method withheld"
             )
         return None
-    raw_low = (p25 * forward_ebitda - current_net_debt) / shares
-    raw_high = (p75 * forward_ebitda - current_net_debt) / shares
+    raw_low = (p25 * ttm_ebitda - current_net_debt) / shares
+    raw_high = (p75 * ttm_ebitda - current_net_debt) / shares
     # Debt exceeds the implied EV even at the OPTIMISTIC p75 multiple (p75 ≥ p25 ⇒
     # raw_high ≥ raw_low): implied equity is negative across the whole band, so
     # EV/EBITDA equity is undefined. Drop the row — mirroring the LBO grid's
@@ -1049,50 +1053,61 @@ def _ev_ebitda_method(
     low = max(0.01, raw_low)
     high = max(low, raw_high)
     mid = (low + high) / 2
-    # Disclose the depth of the historical-multiple distribution behind the band so
-    # the analyst (and the confidence dial reading method spread) can tell a band
-    # built on a full multi-year multiple history from a thin one — the band is a
-    # real degraded proxy (own历史倍数 × forward EBITDA − net debt, every input a
-    # reported figure), not a corroborated point, and the provenance must say so.
+    # Method self-description (condition i): frame this row for what it now is — a
+    # RE-RATING ANCHOR (own 5y trailing band × current TTM operating EBITDA − net debt),
+    # single-caliber (a trailing-year band applied to a trailing-earnings denominator, so
+    # NO caliber gap) and carrying NO forward-growth credit. band_sample_n lets the analyst
+    # (and the confidence dial reading method spread) tell a band built on a full multi-year
+    # history from a thin one; every input is a reported figure, not a corroborated point.
     method_warnings: list[str] = []
     if band_sample_n is not None:
         method_warnings.append(
-            f"ev_ebitda: own historical EV/EBITDA percentile band ({band_sample_n} samples) × forward EBITDA"
-            f" − current net debt — degraded relative-valuation method; multiple taken from the target's own historical range, not from peers."
+            f"ev_ebitda: own 5-year trailing EV/EBITDA percentile band ({band_sample_n} samples) × "
+            f"current TTM operating EBITDA − current net debt — a re-rating anchor to the target's "
+            f"own historical multiple (not peers), single-caliber and carrying NO forward-growth "
+            f"credit; a degraded relative-valuation method."
         )
-    # Disclose the mean-reversion this method IMPLICITLY assumes: reverting the target to its
-    # own historical multiple mid presumes today's price-implied multiple converges there.
-    # Both sides are computed over the SAME forward-EBITDA denominator (current EV = market
-    # cap + current net debt), so the ratio is denominator-consistent — but the band itself
-    # is built from TRAILING-year multiples (fetch_reverse_multiple_band), so part of any
-    # gap vs the price-implied forward multiple is caliber (forward EBITDA > trailing ⇒
-    # forward-denominated multiples run structurally lower), not pure mean-reversion. The
-    # labels below say so explicitly: a blind "current EV/EBITDA" label collides with the
-    # data page's EV/TTM-EBITDA figure and reads as a same-metric double value (2026-07-07
-    # blind panoramic review). current_net_debt may be negative (net cash), which correctly
-    # lifts EV. Skipped when the price is missing or the current EV is ≤ 0 (net cash exceeds
-    # market cap). Changes NO mid/low/high/confidence — pure transparency, nothing gated.
+    # Symmetric disclosure of this anchor's directional bias (condition ii, 对称披露向下偏差):
+    # the denominator is trailing TTM earnings, NOT the next-twelve-months consensus, so the
+    # anchor gives no credit for expected earnings growth. For a fast-growing issuer whose
+    # forward EBITDA runs materially above trailing, it is therefore systematically CONSERVATIVE
+    # (biased low). Stated qualitatively — no $ / no ticker — so it is narrative-scrubber-safe and
+    # never fabricates the omitted growth. This is the method's own (non-basis) face.
+    method_warnings.append(
+        "ev_ebitda: this re-rating anchor prices trailing TTM earnings only — for a growth issuer "
+        "whose next-twelve-month EBITDA exceeds trailing, it excludes forward growth and is "
+        "systematically conservative (biased low)."
+    )
+    # Disclose the mean-reversion this method IMPLICITLY assumes: reverting the target to its own
+    # historical multiple mid presumes today's price-implied multiple converges there. Both the
+    # band and the denominator are now the SAME caliber — the band is trailing-year multiples
+    # (fetch_reverse_multiple_band) and the denominator is TTM operating EBITDA (income.ebitda,
+    # OI + D&A) — so the whole comparison is single-caliber and the price-implied EV/TTM-EBITDA
+    # label matches the data page's EV/TTM-EBITDA figure exactly (no same-metric double value).
+    # The gap is pure mean-reversion, not caliber. current_net_debt may be negative (net cash),
+    # which correctly lifts EV. Skipped when the price is missing or the current EV is ≤ 0 (net
+    # cash exceeds market cap). Changes NO mid/low/high/confidence — pure transparency, nothing gated.
     assumptions: str | None = None
     rerating_ratio: float | None = None
     if current_price is not None and current_price > 0:
         current_ev = current_price * shares + current_net_debt
         if current_ev > 0:
-            current_implied = current_ev / forward_ebitda
+            current_implied = current_ev / ttm_ebitda
             band_mid = (p25 + p75) / 2
             ratio = band_mid / current_implied
             rerating_ratio = ratio  # structured twin — the dial GRADES on this
             assumptions = (
-                f"implied re-rating: price-implied EV/forward-EBITDA {current_implied:.1f}× → "
+                f"implied re-rating: price-implied EV/TTM-EBITDA {current_implied:.1f}× → "
                 f"own 5y trailing band mid {band_mid:.1f}× ({ratio:.2f}×)"
             )
             if abs(ratio - 1.0) > _RERATING_DISCLOSURE_THRESHOLD and warnings is not None:
                 shift = "expand" if ratio > 1.0 else "compress"
                 warnings.append(
                     f"ev_ebitda: reverting the target to its own 5-year historical multiple "
-                    f"implies its price-implied EV/forward-EBITDA must {shift} from "
+                    f"implies its price-implied EV/TTM-EBITDA must {shift} from "
                     f"{current_implied:.1f}× to the trailing band mid {band_mid:.1f}× "
-                    f"({ratio:.2f}×) — an unproven mean-reversion premise, and part of the "
-                    f"gap is caliber (a trailing-year band applied to forward EBITDA); "
+                    f"({ratio:.2f}×) — an unproven mean-reversion premise (band and denominator "
+                    f"are the same trailing caliber, so the gap is not a caliber artifact); "
                     f"{RERATING_WARNING_MARKER}."
                 )
     return ValuationMethodRange(
@@ -1105,7 +1120,7 @@ def _ev_ebitda_method(
         # Window mirrors fetch_reverse_multiple_band(years=5) — the requested band
         # window (all callers use that default); actual sample depth is disclosed
         # separately via band_sample_n. Keep this label in sync if the default changes.
-        source="self_5y_p25_p75 × forward_ebitda − current_net_debt",
+        source="self_5y_p25_p75 × ttm_ebitda − current_net_debt",
         assumptions=assumptions,
         rerating_ratio=rerating_ratio,
         warnings=method_warnings,

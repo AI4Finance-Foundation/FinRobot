@@ -433,11 +433,13 @@ async def test_aggregate_endpoint_degrades_to_trailing_without_estimates(
     assert r.status_code == 200
     body = r.json()
     comps = next(m for m in body["methods"] if m["method"] == "comps_pe")
-    # comps_pe is labeled trailing (not a forward multiple passed off as valid),
-    # and the forward EV/EBITDA + P/FCF rows drop out with explicit warnings.
+    # comps_pe is labeled trailing (not a forward multiple passed off as valid), and the
+    # EV/EBITDA + P/FCF rows drop out with explicit warnings (no historical band in this
+    # fixture; batch2 also decoupled ev_ebitda from forward estimates → its warning now
+    # names the TTM denominator, not the forward one).
     assert "trailing" in comps["source"]
     assert "forward unavailable" in comps["source"]
-    assert any("forward EBITDA" in w for w in body["warnings"])
+    assert any("TTM EBITDA" in w for w in body["warnings"])
 
 
 @pytest.mark.asyncio

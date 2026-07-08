@@ -158,7 +158,7 @@ class TestEvEbitdaReratingDisclosure:
         assert m.mid == pytest.approx(300.0)  # (250 + 350) / 2 — the price band is unchanged
         assert m.assumptions is not None
         assert (
-            "implied re-rating: price-implied EV/forward-EBITDA 20.0× → own 5y trailing band mid 30.0× (1.50×)"
+            "implied re-rating: price-implied EV/TTM-EBITDA 20.0× → own 5y trailing band mid 30.0× (1.50×)"
             in m.assumptions
         )
         rr = [w for w in warnings if _WARN_TAIL in w]
@@ -171,7 +171,7 @@ class TestEvEbitdaReratingDisclosure:
         m = _ev_ebitda_method(10e9, (25.0, 35.0), 1e9, 0.0, warnings=warnings, current_price=280.0)
         assert m is not None
         assert m.assumptions is not None
-        assert "price-implied EV/forward-EBITDA 28.0× → own 5y trailing band mid 30.0× (1.07×)" in m.assumptions
+        assert "price-implied EV/TTM-EBITDA 28.0× → own 5y trailing band mid 30.0× (1.07×)" in m.assumptions
         assert not any(_WARN_TAIL in w for w in warnings)
 
     def test_symmetric_on_de_rating(self) -> None:
@@ -182,7 +182,7 @@ class TestEvEbitdaReratingDisclosure:
         assert m is not None
         assert m.assumptions is not None
         assert (
-            "implied re-rating: price-implied EV/forward-EBITDA 30.0× → own 5y trailing band mid 21.0× (0.70×)"
+            "implied re-rating: price-implied EV/TTM-EBITDA 30.0× → own 5y trailing band mid 21.0× (0.70×)"
             in m.assumptions
         )
         rr = [w for w in warnings if _WARN_TAIL in w]
@@ -269,3 +269,46 @@ class TestStructuredReratingRatio:
             10e9, (12.0, 18.0), 1e9, 5e9, warnings=[], current_price=None
         )
         assert noprice is not None and noprice.rerating_ratio is None
+
+
+class TestEvEbitdaSingleCaliberContract:
+    """batch2 lock: the ev_ebitda row is now SINGLE-CALIBER — its band (own 5y trailing
+    EV/EBITDA multiples) multiplies the target's CURRENT TTM operating EBITDA
+    (income.ebitda = OI + D&A), NOT the FMP forward consensus. A trailing band on a
+    forward denominator hid an upward bias (forward EBITDA > trailing ⇒ a higher target);
+    these pins RED if anyone re-wires the denominator back to forward — the口径 label /
+    prose would drift back to "forward" and the caliber gap would return.
+    """
+
+    def test_denominator_is_the_value_passed_first_no_forward_rescale(self) -> None:
+        # Structural: mid = ((p25+p75)/2 × denom − net_debt) / shares with denom = the
+        # first positional arg (now the TTM EBITDA the caller passes), no forward re-scale.
+        ttm, shares, nd = 20e9, 2e9, 4e9
+        m = _ev_ebitda_method(ttm, (10.0, 14.0), shares, nd, warnings=[], current_price=None)
+        assert m is not None
+        assert m.low == pytest.approx((10.0 * ttm - nd) / shares)
+        assert m.high == pytest.approx((14.0 * ttm - nd) / shares)
+
+    def test_source_and_prose_pin_ttm_caliber_never_forward(self) -> None:
+        warnings: list[str] = []
+        m = _ev_ebitda_method(
+            10e9, (25.0, 35.0), 1e9, 0.0, band_sample_n=500, warnings=warnings,
+            current_price=200.0,
+        )
+        assert m is not None
+        # 口径 label pins the TTM denominator, never "forward".
+        assert "ttm_ebitda" in m.source
+        assert "forward" not in m.source.lower()
+        # Re-rating prose compares two SAME-caliber multiples (both trailing/TTM).
+        assert m.assumptions is not None and "EV/TTM-EBITDA" in m.assumptions
+        assert "forward" not in m.assumptions.lower()
+        # Method self-description: TTM operating EBITDA + explicit no-growth-credit bias
+        # disclosure (condition ii), and no stale "forward EBITDA" caliber label.
+        joined = " ".join(m.warnings)
+        assert "TTM operating EBITDA" in joined
+        assert "forward-growth credit" in joined
+        assert "forward EBITDA" not in joined
+        # The large-gap re-rating WARNING no longer carries the old caliber tail
+        # ("a trailing-year band applied to forward EBITDA") — same caliber now.
+        rr = [w for w in warnings if _WARN_TAIL in w]
+        assert len(rr) == 1 and "forward" not in rr[0].lower()

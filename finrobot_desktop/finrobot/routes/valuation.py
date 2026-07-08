@@ -34,6 +34,7 @@ from finrobot.engine.data.types import DataType
 from finrobot.engine.models.financial import (
     DCFResult,
     DDMResult,
+    FinancialData,
     LBOResult,
     PeerComps,
     ValuationAggregate,
@@ -67,11 +68,14 @@ async def aggregate_for_ticker(ticker: str, request: Request) -> ValuationAggreg
     shares = _shares_outstanding(dcf, lbo)
     current_net_debt = _current_net_debt(dcf)
     forward = await _forward_financials(ticker, data_layer, fmp_api_key=_fmp_api_key(request))
-    # industry/sector for the financial-sector (cash-flow suppression) + cyclical gates.
+    # Canonical FinancialData: industry/sector for the financial-sector (cash-flow
+    # suppression) + cyclical gates, AND the EV/EBITDA TTM denominator (income.ebitda).
     # Was the path-split bug: this route never passed financial_sector, so a bank/insurer
     # got its category-error DCF/EV plotted here even though the report path suppressed
     # them — same ticker, two different football fields (2026-06-24).
-    industry, sector = await _industry_sector(ticker, data_layer)
+    fd = await _financial_data(ticker, data_layer)
+    industry = fd.market.industry if fd else None
+    sector = fd.market.sector if fd else None
     as_of = datetime.now(tz=timezone.utc)
 
     # Self historical EV/EBITDA band (P25/P75) → revives the EV/EBITDA reverse row
@@ -92,7 +96,13 @@ async def aggregate_for_ticker(ticker: str, request: Request) -> ValuationAggreg
         shares_outstanding=shares,
         current_net_debt=current_net_debt,
         forward_eps=forward.forward_eps,
-        forward_ebitda=forward.forward_ebitda,
+        # EV/EBITDA denominator = canonical TTM operating EBITDA (income.ebitda), the
+        # same caliber as the trailing band — a single-caliber re-rating anchor (batch2).
+        # Decoupled from ``forward.forward_ebitda`` (still fetched+FX-scaled for the
+        # forward provenance / logging bundle, but no longer the ev denominator): the ev
+        # leg reads all inputs from one canonical snapshot, so no cross-currency mix and
+        # the row shows for foreign issuers whose native forward EBITDA the guard abstained.
+        ttm_ebitda=fd.income.ebitda if fd else None,
         forward_fcf=forward.forward_fcf,
         forward_fiscal_period=forward.fiscal_period,
         forward_confidence=forward.confidence,
@@ -207,23 +217,24 @@ async def _trailing_usd_anchors(
     )
 
 
-async def _industry_sector(
-    ticker: str, data_layer: DataLayer | None
-) -> tuple[str | None, str | None]:
-    """(industry, sector) off the canonical FINANCIALS snapshot, for the
-    financial-sector (cash-flow suppression) + cyclical gates in aggregate_for_ticker.
-    (None, None) on any failure → both gates default off (no suppression), never an
+async def _financial_data(ticker: str, data_layer: DataLayer | None) -> FinancialData | None:
+    """The canonical FinancialData snapshot, for the aggregate route's gates AND the
+    EV/EBITDA TTM denominator.
+
+    Supplies industry/sector (financial-sector cash-flow suppression + cyclical gates)
+    and ``income.ebitda`` (the batch2 EV/EBITDA denominator — current TTM operating
+    EBITDA, canonical-currency, single-caliber with the trailing band). None on any
+    failure → gates default off + the ev row hides (no fabricated denominator), never an
     error. Cache-hot: the snapshot was already fetched by the forward/anchor helpers."""
     if data_layer is None:
-        return None, None
+        return None
     try:
         fin = await data_layer.fetch_canonical(DataType.FINANCIALS, ticker)
         price = await data_layer.fetch_canonical(DataType.PRICE, ticker)
-        fd = extract_financial_data(fin, price)
+        return extract_financial_data(fin, price)
     except (ProviderError, ValueError, KeyError, TypeError) as exc:
-        logger.info("aggregate: industry/sector lookup failed for %s: %s", ticker, exc)
-        return None, None
-    return fd.market.industry, fd.market.sector
+        logger.info("aggregate: financial-data lookup failed for %s: %s", ticker, exc)
+        return None
 
 
 async def _forward_to_usd(

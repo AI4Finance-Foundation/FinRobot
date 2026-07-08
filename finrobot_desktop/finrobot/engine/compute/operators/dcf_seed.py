@@ -695,10 +695,21 @@ def seed_dcf_inputs(
     nwc_result = _median_ratio(historical.change_in_working_capital, historical.revenue)
     if nwc_result is not None:
         nwc_median, nwc_n = nwc_result
-        nwc_pct = max(-0.10, min(0.10, -nwc_median))
-        prov["nwc_pct_revenue"] = (
-            f"{nwc_pct:.1%} (trailing {nwc_n}yr ΔNWC / revenue median; positive = cash absorbed)"
-        )
+        raw_nwc = -nwc_median
+        nwc_pct = max(-0.10, min(0.10, raw_nwc))
+        if nwc_pct != raw_nwc:
+            # Clamp bound: lead with the ±10% value the model uses and disclose
+            # the pre-clamp median, so provenance never implies the band value
+            # IS the trailing median (BUG-023 — KO's 13.2% median was printed as
+            # "10.0% (…median…)", implying the median itself was 10%).
+            prov["nwc_pct_revenue"] = (
+                f"{nwc_pct:.1%} (clamped from trailing {nwc_n}yr ΔNWC / revenue median "
+                f"{raw_nwc:.1%}; positive = cash absorbed)"
+            )
+        else:
+            prov["nwc_pct_revenue"] = (
+                f"{nwc_pct:.1%} (trailing {nwc_n}yr ΔNWC / revenue median; positive = cash absorbed)"
+            )
     else:
         nwc_pct = 0.01
         prov["nwc_pct_revenue"] = "1.0% (history unavailable; generic benchmark applied)"
@@ -717,11 +728,21 @@ def seed_dcf_inputs(
         historical.change_in_working_capital, historical.revenue, terminal_growth_rate
     )
     if terminal_nwc is not None:
-        marginal_ratio, terminal_nwc_pct = terminal_nwc
-        prov["terminal_nwc_pct_revenue"] = (
-            f"{terminal_nwc_pct:.2%} (marginal NWC ratio median(ΔNWC/Δrevenue) "
-            f"{marginal_ratio:.1%} × terminal growth {terminal_growth_rate:.1%})"
-        )
+        marginal_ratio, terminal_nwc_pct, raw_marginal = terminal_nwc
+        if marginal_ratio != raw_marginal:
+            # Marginal-ratio clamp bound: disclose the raw median so provenance
+            # never implies the ±60% band value IS the median (BUG-023 — same
+            # family as the explicit-window nwc clamp above).
+            prov["terminal_nwc_pct_revenue"] = (
+                f"{terminal_nwc_pct:.2%} (marginal NWC ratio median(ΔNWC/Δrevenue) "
+                f"{raw_marginal:.1%} clamped to {marginal_ratio:.1%} × terminal growth "
+                f"{terminal_growth_rate:.1%})"
+            )
+        else:
+            prov["terminal_nwc_pct_revenue"] = (
+                f"{terminal_nwc_pct:.2%} (marginal NWC ratio median(ΔNWC/Δrevenue) "
+                f"{marginal_ratio:.1%} × terminal growth {terminal_growth_rate:.1%})"
+            )
     else:
         terminal_nwc_pct = None
         prov["terminal_nwc_pct_revenue"] = (
@@ -912,6 +933,16 @@ def seed_dcf_inputs(
             f"(total debt − cash = {nd_debt / 1e9:.1f}B − {nd_cash / 1e9:.1f}B)"
         )
 
+    # Disclose any construction-time modelling clamp that binds, so provenance
+    # never leads with a value the DCF did not use (BUG-023). These bands are
+    # TIGHTER than the DCFInputs Field validators (e.g. capex 45% vs le=1), so a
+    # bind is a real caliber substitution, not just NaN protection. Pure
+    # provenance side-effect — the field values constructed below are unchanged.
+    _disclose_construction_clamp(prov, "ebitda_margin", ebitda_margin, 0.01, 0.95)
+    _disclose_construction_clamp(prov, "capex_pct_revenue", capex_pct, 0.005, 0.45)
+    _disclose_construction_clamp(prov, "da_pct_revenue", da_pct, 0.005, 0.40)
+    _disclose_construction_clamp(prov, "debt_ratio", debt_ratio, 0.0, 0.80)
+
     # ----- Final clamp + construct -----------------------------------------
     # Pydantic Field validators enforce ranges; clamp first to avoid raising
     # when industry fallback edge-cases approach the bounds.
@@ -958,6 +989,43 @@ def seed_dcf_inputs(
 # ---------------------------------------------------------------------------
 # Small helpers — last so they stay near caller sites
 # ---------------------------------------------------------------------------
+
+
+def _pct_bound(bound: float) -> str:
+    """Format a clamp bound as a percent without trailing zeros: 0.80→'80%',
+    0.005→'0.5%'. Used only inside clamp-disclosure provenance."""
+    return f"{bound * 100:.1f}".rstrip("0").rstrip(".") + "%"
+
+
+def _disclose_construction_clamp(
+    prov: dict[str, str], key: str, raw: float, lo: float, hi: float
+) -> None:
+    """Rewrite ``prov[key]`` to lead with the clamped model value when the
+    construction-time clamp ``max(lo, min(hi, raw))`` binds, disclosing the
+    pre-clamp raw value + the bound it hit (BUG-023 clamp-then-disclose:
+    displayed == the value the model uses). No-op when the clamp does not bind,
+    so provenance is byte-identical for the common in-band case.
+
+    The existing string always leads with ``f'{raw:.1%}'`` and closes with ')'
+    (asserted); the model value replaces that lead and the disclosure is
+    inserted just inside the closing paren, so the original source clause is
+    preserved verbatim.
+    """
+    clamped = max(lo, min(hi, raw))
+    if clamped == raw:
+        return
+    lead = f"{raw:.1%}"
+    existing = prov[key]
+    assert existing.startswith(lead) and existing.endswith(")"), (
+        f"clamp-disclose expects provenance[{key!r}] to lead with {lead!r} and end "
+        f"with ')'; got {existing!r}"
+    )
+    which, bound = ("cap", hi) if raw > hi else ("floor", lo)
+    source_clause = existing[len(lead) : -1]  # " (…original source…"
+    prov[key] = (
+        f"{clamped:.1%}{source_clause}, raw {raw:.1%} clamped to the "
+        f"{_pct_bound(bound)} model {which})"
+    )
 
 
 def _median_recent(
@@ -1164,7 +1232,7 @@ def _terminal_nwc_pct(
     change_in_working_capital: list[float],
     revenue: list[float],
     terminal_growth: float,
-) -> tuple[float, float] | None:
+) -> tuple[float, float, float] | None:
     """Steady-state ΔNWC as % of revenue: median(ΔNWC_build/Δrevenue) × tg.
 
     The marginal ratio is taken over revenue-GROWTH years only — ΔNWC/Δrev is
@@ -1173,10 +1241,13 @@ def _terminal_nwc_pct(
     cash-flow sign (negative = NWC grew = cash consumed), so build = −value,
     matching the nwc_pct_revenue convention above.
 
-    Returns ``(marginal_ratio, terminal_pct)`` for provenance, or None when no
-    usable growth year exists (declining/flat revenue history, NaN-polluted
-    rows) — the caller then leaves terminal_nwc_pct_revenue unset and the
-    perpetuity falls back to the explicit-window ΔNWC ratio.
+    Returns ``(marginal_ratio, terminal_pct, raw_marginal_median)`` for
+    provenance — ``marginal_ratio`` is clamped to ±_MARGINAL_NWC_RATIO_CLAMP,
+    ``raw_marginal_median`` is the un-clamped median so the caller can disclose
+    when the clamp bound (BUG-023) — or None when no usable growth year exists
+    (declining/flat revenue history, NaN-polluted rows), in which case the
+    caller leaves terminal_nwc_pct_revenue unset and the perpetuity falls back
+    to the explicit-window ΔNWC ratio.
     """
     ratios: list[float] = []
     for i in range(1, min(len(change_in_working_capital), len(revenue))):
@@ -1189,8 +1260,7 @@ def _terminal_nwc_pct(
         ratios.append(-cwc / d_rev)
     if not ratios:
         return None
-    marginal = max(
-        -_MARGINAL_NWC_RATIO_CLAMP, min(_MARGINAL_NWC_RATIO_CLAMP, statistics.median(ratios))
-    )
+    raw_marginal = statistics.median(ratios)
+    marginal = max(-_MARGINAL_NWC_RATIO_CLAMP, min(_MARGINAL_NWC_RATIO_CLAMP, raw_marginal))
     terminal = max(-_TERMINAL_NWC_CLAMP, min(_TERMINAL_NWC_CLAMP, marginal * terminal_growth))
-    return marginal, terminal
+    return marginal, terminal, raw_marginal

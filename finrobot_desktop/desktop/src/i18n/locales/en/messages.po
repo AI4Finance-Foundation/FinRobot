@@ -2494,7 +2494,7 @@ msgstr "Mid"
 
 #. js-lingui-explicit-id
 msgid "chart.footballField.history.title"
-msgstr "{metric} · now vs own 3-yr range"
+msgstr "{metric} · now vs own {window} range"
 
 #. js-lingui-explicit-id
 msgid "chart.footballField.history.cheap"

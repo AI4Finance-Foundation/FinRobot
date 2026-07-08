@@ -77,7 +77,11 @@ export function compsPeLabel(
   return { label: METHOD_LABEL.comps_pe, sublabel: null }
 }
 
-const FORWARD_METHODS = new Set(['ev_ebitda', 'p_fcf'])
+// Methods whose bar is priced on a FORWARD profit number and so carries the
+// `forward · FY…` tag. ev_ebitda left this set when its denominator moved to
+// TTM operating EBITDA (批2, single-caliber re-rating anchor) — labelling it
+// forward again would misstate the caliber the bar is actually computed on.
+const FORWARD_METHODS = new Set(['p_fcf'])
 
 export default function FootballField({
   data,
@@ -98,7 +102,9 @@ export default function FootballField({
           const fyTag =
             FORWARD_METHODS.has(method) && forwardFiscalPeriod
               ? `forward · ${formatFiscalPeriod(forwardFiscalPeriod)}`
-              : null
+              : method === 'ev_ebitda'
+                ? 'trailing band × TTM EBITDA'
+                : null
           return {
             method,
             label: comps?.label ?? METHOD_LABEL[method] ?? method.toUpperCase(),
@@ -611,7 +617,13 @@ function HistoryRail({
             color: 'var(--text-secondary)',
           }}
         >
-          {t('chart.footballField.history.title', { metric: label })}
+          {t('chart.footballField.history.title', {
+            metric: label,
+            // window_years rides the unified band snapshot (REPORT_BAND_WINDOW_YEARS);
+            // artifacts written before the field render the window-agnostic fallback
+            // instead of a hardcoded "3-yr" that batch-1c's 5y unification made false.
+            window: band?.window_years ? `${band.window_years}-yr` : 'trailing',
+          })}
         </span>
         <span
           style={{

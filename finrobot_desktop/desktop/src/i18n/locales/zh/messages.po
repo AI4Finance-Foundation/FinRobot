@@ -2494,7 +2494,7 @@ msgstr "中值"
 
 #. js-lingui-explicit-id
 msgid "chart.footballField.history.title"
-msgstr "{metric} · 当前 vs 自身 3 年区间"
+msgstr "{metric} · 当前 vs 自身 {window} 区间"
 
 #. js-lingui-explicit-id
 msgid "chart.footballField.history.cheap"

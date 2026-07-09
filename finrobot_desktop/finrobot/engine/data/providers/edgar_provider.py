@@ -1180,26 +1180,51 @@ def _build_sec_yearly_financials(facts: dict[str, Any], max_years: int) -> list[
 
 
 # ---------------------------------------------------------------------------
-# Reportable-segment extraction (SOTP floor — Batch 3B v1)
+# Reportable-segment extraction (SOTP floor — Batch 3B v1; light company-
+# overview augmentation — BACKLOG A4, 2026-07-09)
 # ---------------------------------------------------------------------------
 #
-# ASC 280 reportable-segment revenue + gross profit from the ORIGINAL 10-K
-# (``amendments=False`` — the latched .latest() pitfall: a 10-K/A's XBRL is
+# ASC 280 reportable-segment revenue + a profitability metric from the ORIGINAL
+# 10-K (``amendments=False`` — the latched .latest() pitfall: a 10-K/A's XBRL is
 # incomplete and the dimensioned segment query comes back empty, §8#1).
 #
-# The join is the load-bearing subtlety: segment GROSS PROFIT is dimensioned on
-# ``us-gaap:StatementBusinessSegmentsAxis`` (members like AutomotiveSegmentMember)
-# while segment REVENUE is dimensioned on ``srt:ProductOrServiceAxis`` (members
-# like AutomotiveRevenuesMember). They are matched by a normalized member key
-# (strip ticker prefix + Member/Segment/Revenues suffixes), NOT by label string —
-# label strings differ ("Automotive segment" vs "Automotive Revenues"). The
-# segment axis (gross profit) is authoritative for which legs ARE reportable
-# segments; revenue is attached only where a member normalizes onto one.
+# Two issuer SHAPES, probe-verified 2026-07-09 (TSLA vs MSFT 10-K XBRL):
+#
+#   · GROSS-PROFIT-anchored (TSLA-style): segment GROSS PROFIT is dimensioned on
+#     ``us-gaap:StatementBusinessSegmentsAxis`` (members like
+#     AutomotiveSegmentMember) while segment REVENUE is dimensioned on a
+#     SEPARATE axis, ``srt:ProductOrServiceAxis`` (members like
+#     AutomotiveRevenuesMember). They are matched by a normalized member key
+#     (strip ticker prefix + Member/Segment/Revenues suffixes), NOT by label
+#     string — label strings differ ("Automotive segment" vs "Automotive
+#     Revenues"). The segment axis (gross profit) is authoritative for which
+#     legs ARE reportable segments; revenue is attached only where a member
+#     normalizes onto one.
+#
+#   · OPERATING-INCOME-anchored (MSFT-style): MSFT-type issuers report ZERO
+#     dimensioned ``GrossProfit`` facts (no segment-level gross profit
+#     disclosure at all) — instead ``OperatingIncomeLoss`` is dimensioned on
+#     ``us-gaap:StatementBusinessSegmentsAxis``, AND segment revenue is ALSO
+#     reported directly on that SAME axis (not on a separate ProductOrService
+#     axis at the segment granularity — MSFT's ProductOrServiceAxis revenue is a
+#     FINER product breakdown, e.g. "Windows"/"Gaming"/"LinkedIn", that does NOT
+#     1:1 map onto the 3 reportable segments, so cross-axis joining it here
+#     would silently attach the wrong child-product revenue onto a parent
+#     segment). So the OI-anchor path queries revenue on the SAME axis as the
+#     OI anchor and matches members directly — no cross-axis join needed or
+#     safe. This is a FALLBACK used only when the GP-anchor path finds nothing,
+#     so it never changes TSLA-style extraction (SOTP-consumed field stays
+#     ``gross_profit``; MSFT-style segments carry ``operating_income`` instead,
+#     ``gross_profit`` stays None — SOTP's ``seg.get("gross_profit")`` degrades
+#     those legs cleanly, unchanged behavior).
 
 # XBRL concepts (mirror the TTM/latest lists' first entries; segment dimensioning
 # rides the same revenue concept post-ASC-606).
 _SEG_REVENUE_CONCEPT = "RevenueFromContractWithCustomerExcludingAssessedTax"
 _SEG_GROSS_PROFIT_CONCEPT = "GrossProfit"
+# MSFT-type fallback anchor (probe-verified 2026-07-09: MSFT reports segment
+# OperatingIncomeLoss, never segment GrossProfit — see module docstring above).
+_SEG_OPERATING_INCOME_CONCEPT = "OperatingIncomeLoss"
 _SEG_AXIS_TOKEN = "BusinessSegmentsAxis"
 _SEG_PRODUCT_AXIS_TOKEN = "ProductOrServiceAxis"
 
@@ -1251,13 +1276,29 @@ def _segment_period(facts: list[dict[str, Any]]) -> tuple[str, str] | None:
 
 
 def extract_segment_facts(xbrl: Any) -> tuple[dict[str, Any], list[str]]:
-    """Reportable-segment revenue + gross profit from a parsed 10-K XBRL.
+    """Reportable-segment revenue + a profitability metric from a parsed 10-K XBRL.
 
-    Returns a ``{"segments": {canonical: {revenue, gross_profit, label}}, "period",
-    "currency"}`` dict and a warnings list. Missing metrics stay None — never 0
-    (§T2#4). Pure given the parsed ``xbrl`` object (the network fetch is the
-    caller's). Raises nothing: a no-segment filing yields an empty segments dict
-    + a warning, so a single-segment issuer degrades cleanly (SOTP gating drops it).
+    Returns a ``{"segments": {canonical: {revenue, gross_profit, operating_income,
+    label}}, "period", "currency", "primary_metric"}`` dict and a warnings list.
+    Missing metrics stay None — never 0 (§T2#4). Pure given the parsed ``xbrl``
+    object (the network fetch is the caller's). Raises nothing: a no-segment
+    filing yields an empty segments dict + a warning, so a single-segment issuer
+    degrades cleanly (SOTP gating drops it; the light company-overview path
+    degrades to the FMP fallback or, if that's also empty, drops the panel).
+
+    Anchor priority (module docstring has the full probe evidence):
+      1. GrossProfit on the business-segment axis (TSLA-style) — authoritative
+         for which legs ARE reportable segments; ``gross_profit`` populated,
+         ``operating_income`` stays None. Revenue is attached via a SEPARATE
+         ProductOrServiceAxis member normalizing onto the GP-defined key.
+      2. OperatingIncomeLoss on the SAME axis (MSFT-style fallback, used only
+         when (1) finds nothing) — ``operating_income`` populated,
+         ``gross_profit`` stays None. Revenue is queried on the SAME axis and
+         matched by member directly (no cross-axis join — see module docstring
+         for why joining MSFT's finer ProductOrServiceAxis breakdown here would
+         be wrong).
+    Neither anchor found (a genuinely single-segment issuer, or non-dimensioned
+    XBRL) → empty segments + warning, ``primary_metric`` absent.
     """
     warnings: list[str] = []
 
@@ -1280,22 +1321,32 @@ def extract_segment_facts(xbrl: Any) -> tuple[dict[str, Any], list[str]]:
         return out
 
     gp_facts = _seg_facts(_SEG_GROSS_PROFIT_CONCEPT, _SEG_AXIS_TOKEN)
-    if not gp_facts:
+    primary_metric = "gross_profit"
+    anchor_facts = gp_facts
+    if not anchor_facts:
+        # MSFT-type issuers report segment OPERATING INCOME, never segment gross
+        # profit — fall back to the same business-segment axis, different concept.
+        oi_facts = _seg_facts(_SEG_OPERATING_INCOME_CONCEPT, _SEG_AXIS_TOKEN)
+        if oi_facts:
+            primary_metric = "operating_income"
+            anchor_facts = oi_facts
+
+    if not anchor_facts:
         warnings.append(
-            "no segment-axis gross-profit facts (single-segment issuer or "
-            "non-dimensioned XBRL); SOTP floor not derivable"
+            "no segment-axis gross-profit or operating-income facts (single-segment "
+            "issuer or non-dimensioned XBRL); segment breakdown not derivable"
         )
         return {"segments": {}, "period": None, "currency": None}, warnings
 
-    period = _segment_period(gp_facts)
+    period = _segment_period(anchor_facts)
     if period is None:
         warnings.append("could not resolve a segment reporting period")
         return {"segments": {}, "period": None, "currency": None}, warnings
 
-    # Gross profit defines the reportable segments (authoritative leg).
+    # The anchor metric defines the reportable segments (authoritative leg).
     segments: dict[str, dict[str, Any]] = {}
     currency: str | None = None
-    for x in gp_facts:
+    for x in anchor_facts:
         if (x.get("period_start"), x.get("period_end")) != period:
             continue
         key = _normalize_segment_member(x.get("member"))
@@ -1304,12 +1355,24 @@ def extract_segment_facts(xbrl: Any) -> tuple[dict[str, Any], list[str]]:
         currency = currency or _seg_unit_currency(x)
         segments[key] = {
             "label": x.get("dimension_member_label") or x.get("label") or key,
-            "gross_profit": x.get("numeric_value"),
+            "gross_profit": x.get("numeric_value") if primary_metric == "gross_profit" else None,
+            "operating_income": (
+                x.get("numeric_value") if primary_metric == "operating_income" else None
+            ),
             "revenue": None,
         }
 
-    # Attach revenue where a ProductOrService member normalizes onto a segment.
-    rev_facts = _seg_facts(_SEG_REVENUE_CONCEPT, _SEG_PRODUCT_AXIS_TOKEN)
+    if primary_metric == "gross_profit":
+        # TSLA-style: revenue lives on a SEPARATE ProductOrServiceAxis, matched
+        # onto the GP-defined segment keys by normalized member.
+        rev_facts = _seg_facts(_SEG_REVENUE_CONCEPT, _SEG_PRODUCT_AXIS_TOKEN)
+        rev_source = "ProductOrService"
+    else:
+        # MSFT-style: revenue is reported directly on the SAME business-segment
+        # axis as operating income (see module docstring for why a cross-axis
+        # join to ProductOrServiceAxis would be wrong here).
+        rev_facts = _seg_facts(_SEG_REVENUE_CONCEPT, _SEG_AXIS_TOKEN)
+        rev_source = "business-segment"
     for x in rev_facts:
         if (x.get("period_start"), x.get("period_end")) != period:
             continue
@@ -1319,12 +1382,13 @@ def extract_segment_facts(xbrl: Any) -> tuple[dict[str, Any], list[str]]:
 
     for key, seg in segments.items():
         if seg["revenue"] is None:
-            warnings.append(f"segment {key!r}: no matching ProductOrService revenue member")
+            warnings.append(f"segment {key!r}: no matching {rev_source} revenue member")
 
     return {
         "segments": segments,
         "period": {"start": period[0], "end": period[1]},
         "currency": currency,
+        "primary_metric": primary_metric,
     }, warnings
 
 

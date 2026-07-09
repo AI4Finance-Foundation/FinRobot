@@ -300,15 +300,132 @@ def test_segment_route_not_in_capabilities(monkeypatch: pytest.MonkeyPatch) -> N
 
 # --- Guard: single-segment issuer degenerates (extract yields <2, no value) ---
 def test_single_segment_issuer_yields_no_floor() -> None:
-    # A non-dimensioned / single-segment XBRL → no segment-axis gross profit → the
-    # extractor returns an empty segments dict + a warning (the coordinator then
-    # drops the SOTP channel; SOTP degenerates to ordinary valuation).
+    # A non-dimensioned / single-segment XBRL → no segment-axis gross profit OR
+    # operating income → the extractor returns an empty segments dict + a
+    # warning (the coordinator then drops the SOTP channel; SOTP degenerates to
+    # ordinary valuation).
     empty = _FakeXBRL(
-        {"GrossProfit": [], "RevenueFromContractWithCustomerExcludingAssessedTax": []}
+        {
+            "GrossProfit": [],
+            "OperatingIncomeLoss": [],
+            "RevenueFromContractWithCustomerExcludingAssessedTax": [],
+        }
     )
     data, warnings = extract_segment_facts(empty)
     assert data["segments"] == {}
     assert any("single-segment" in w or "non-dimensioned" in w for w in warnings)
+
+
+# --- MSFT-shaped fixture (operating-income anchor, BACKLOG A4 2026-07-09) -----
+# External anchors: MSFT FY2025 10-K (accession 0000950170-25-100235, filed
+# 2025-07-30) — XBRL segment facts probe-verified LIVE against data.sec.gov
+# 2026-07-09. MSFT reports segment OperatingIncomeLoss, NEVER segment
+# GrossProfit (the GP-anchor query returns zero dimensioned facts), and segment
+# revenue rides the SAME ``StatementBusinessSegmentsAxis`` as operating income —
+# NOT a separate ProductOrServiceAxis (that axis carries a FINER, non-1:1
+# product breakdown for MSFT, e.g. "Windows"/"Gaming"/"LinkedIn Corporation",
+# that must NOT be cross-axis-joined onto the 3 reportable segments). Segment
+# revenue sums to $281.724B ≈ MSFT FY2025 total revenue; segment operating
+# income sums to $128.528B — both external-benchmark-consistent.
+MSFT_PBP_REV = 120.810e9
+MSFT_PBP_OI = 69.773e9
+MSFT_IC_REV = 106.265e9
+MSFT_IC_OI = 44.589e9
+MSFT_MPC_REV = 54.649e9
+MSFT_MPC_OI = 14.166e9
+
+
+def _msft_xbrl() -> _FakeXBRL:
+    """MSFT FY2025 segment fixture: revenue AND operating income BOTH on the
+    SAME BusinessSegmentsAxis, zero segment-level GrossProfit disclosure."""
+    period = {"period_start": "2024-07-01", "period_end": "2025-06-30"}
+    segments = [
+        (
+            "msft:ProductivityAndBusinessProcessesMember",
+            "Productivity and Business Processes",
+            MSFT_PBP_REV,
+            MSFT_PBP_OI,
+        ),
+        ("msft:IntelligentCloudMember", "Intelligent Cloud", MSFT_IC_REV, MSFT_IC_OI),
+        (
+            "msft:MorePersonalComputingMember",
+            "More Personal Computing",
+            MSFT_MPC_REV,
+            MSFT_MPC_OI,
+        ),
+    ]
+    return _FakeXBRL(
+        {
+            "GrossProfit": [],  # MSFT discloses ZERO segment-level gross profit
+            "OperatingIncomeLoss": [
+                {
+                    **period,
+                    "is_dimensioned": True,
+                    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+                    "member": member,
+                    "dimension_member_label": label,
+                    "numeric_value": oi,
+                    "unit_ref": "usd",
+                }
+                for member, label, _rev, oi in segments
+            ],
+            "RevenueFromContractWithCustomerExcludingAssessedTax": [
+                {
+                    **period,
+                    "is_dimensioned": True,
+                    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+                    "member": member,
+                    "dimension_member_label": label,
+                    "numeric_value": rev,
+                    "unit_ref": "usd",
+                }
+                for member, label, rev, _oi in segments
+            ],
+        }
+    )
+
+
+def test_msft_operating_income_anchor_extraction_matches_sec_anchors() -> None:
+    # MSFT-type issuer (no segment gross profit) falls back to the
+    # OperatingIncomeLoss anchor on the SAME axis as revenue — no cross-axis join.
+    data, warnings = extract_segment_facts(_msft_xbrl())
+    assert data["primary_metric"] == "operating_income"
+    segs = data["segments"]
+    assert set(segs) == {
+        "ProductivityAndBusinessProcesses",
+        "IntelligentCloud",
+        "MorePersonalComputing",
+    }
+    assert segs["ProductivityAndBusinessProcesses"]["revenue"] == pytest.approx(MSFT_PBP_REV)
+    assert segs["ProductivityAndBusinessProcesses"]["operating_income"] == pytest.approx(
+        MSFT_PBP_OI
+    )
+    assert segs["IntelligentCloud"]["revenue"] == pytest.approx(MSFT_IC_REV)
+    assert segs["IntelligentCloud"]["operating_income"] == pytest.approx(MSFT_IC_OI)
+    assert segs["MorePersonalComputing"]["revenue"] == pytest.approx(MSFT_MPC_REV)
+    assert segs["MorePersonalComputing"]["operating_income"] == pytest.approx(MSFT_MPC_OI)
+    assert data["currency"] == "USD"
+    assert data["period"] == {"start": "2024-07-01", "end": "2025-06-30"}
+    assert warnings == []  # every segment matched a same-axis revenue member
+
+
+def test_msft_shaped_segments_never_populate_gross_profit_sotp_field() -> None:
+    # SOTP's consumer reads seg.get("gross_profit") (segment_extractor.py) — an
+    # OI-anchored issuer must degrade cleanly there (gross_profit stays None for
+    # every leg), NEVER silently repurpose operating_income as gross profit.
+    data, _ = extract_segment_facts(_msft_xbrl())
+    for seg in data["segments"].values():
+        assert seg["gross_profit"] is None
+
+
+def test_gp_anchor_path_still_populates_gross_profit_not_operating_income() -> None:
+    # TSLA-style (GP-anchor, unchanged path) must leave operating_income None —
+    # the new field is additive, never populated on the pre-existing branch.
+    data, _ = extract_segment_facts(_tsla_xbrl())
+    assert data["primary_metric"] == "gross_profit"
+    for seg in data["segments"].values():
+        assert seg["operating_income"] is None
+
 
 # NB: build_sotp_breakdown coordinator integration (energy peer provenance, auto
 # captive disclosure, non-USD drop, street scenario band) lives in

@@ -15,9 +15,11 @@ from __future__ import annotations
 from finrobot.engine.models.financial import (
     CatalystAnalysis,
     DCFResult,
+    FinancialData,
     PeerComps,
     ValuationSynthesis,
 )
+from finrobot.engine.compute.operators.audit import compute_momentum_context, is_momentum_divergent
 from finrobot.engine.compute.operators.valuation_synthesis import CanonicalThesis
 from finrobot.engine.compute.coordinators.news import sanitize_untrusted_text
 from finrobot.engine.pipelines._helpers import fmt_market_cap, fmt_multiple
@@ -233,6 +235,55 @@ def build_thesis_prompt(
             f"{market_implied_line}"
         )
 
+    # ── Momentum context (BACKLOG A2/P1-1) ─────────────────────────────────────
+    # Grounds the narrative in the stock's OWN recent price action — deterministic,
+    # computed by compute_momentum_context (the SAME function the post-run audit
+    # backstop in equity_research._execute_thesis calls, so the divergence check
+    # here and there can never drift apart). Injected regardless of the
+    # withheld/target branch above; degrades silently to nothing when
+    # data_collection is absent or the price series is too short (never fabricate
+    # a momentum read — 绝不编数字).
+    fd_for_momentum = structured_context.get("data_collection")
+    momentum_ctx = compute_momentum_context(
+        fd_for_momentum if isinstance(fd_for_momentum, FinancialData) else None
+    )
+    _momentum_lines: list[str] = []
+    if momentum_ctx.one_year_return_pct is not None:
+        _momentum_lines.append(f"  - 1-year price return: {momentum_ctx.one_year_return_pct:+.1f}%")
+    if momentum_ctx.range_position_52w is not None:
+        _momentum_lines.append(
+            f"  - 52-week range position: {momentum_ctx.range_position_52w:.0%} "
+            "(0% = 52-week low, 100% = 52-week high)"
+        )
+    if momentum_ctx.drawdown_from_52w_high_pct is not None:
+        _momentum_lines.append(
+            f"  - Drawdown from 52-week high: {momentum_ctx.drawdown_from_52w_high_pct:.1f}%"
+        )
+    if _momentum_lines:
+        thesis_prompt = (
+            f"{thesis_prompt}\n\n"
+            "AUTHORITATIVE MOMENTUM CONTEXT (computed, cite verbatim, do not invent) — "
+            "the stock's OWN recent price action, independent of your valuation call:\n"
+            + "\n".join(_momentum_lines)
+        )
+    if is_momentum_divergent(canonical_verdict, momentum_ctx.one_year_return_pct):
+        _one_year_return = momentum_ctx.one_year_return_pct
+        assert _one_year_return is not None  # narrowed by is_momentum_divergent above
+        thesis_prompt = (
+            f"{thesis_prompt}\n\n"
+            f"MOMENTUM DIVERGENCE — MANDATORY HEDGE PARAGRAPH: your recommendation "
+            f"({canonical_verdict}) strongly disagrees with this stock's own trailing "
+            f"1-year price return ({_one_year_return:+.1f}%). You MUST fill the "
+            "`momentum_divergence_note` field with 2-4 sentences that (a) state "
+            "concretely what the market's recent price action is pricing in, and (b) "
+            "explain WHY this call differs from that read. This is an ENHANCEMENT of "
+            "the narrative explanation ONLY — it must NOT change your `recommendation`, "
+            "`price_target`, or confidence, which remain governed by the authoritative "
+            "fields above. Cite only numbers already whitelisted below (the momentum "
+            "context above, the valuation methods, peer multiples) — never invent a new "
+            "figure to justify the divergence."
+        )
+
     # ── Numeric discipline whitelist ──────────────────────────────────────────
     # Append AFTER any canonical-target block so it always lands last and is
     # the most prominent constraint in the prompt window.
@@ -249,6 +300,21 @@ def build_thesis_prompt(
         "is a violation and MUST be flagged as a hallucination by the prompt-fidelity "
         "evaluation:",
     ]
+    # Momentum context (BACKLOG A2/P1-1) — whitelisted so momentum_divergence_note
+    # (and any other narrative field) can legitimately cite these computed reads.
+    if momentum_ctx.one_year_return_pct is not None:
+        _whitelist_parts.append(
+            f"  - momentum_context.one_year_return_pct: {momentum_ctx.one_year_return_pct:+.1f}%"
+        )
+    if momentum_ctx.range_position_52w is not None:
+        _whitelist_parts.append(
+            f"  - momentum_context.range_position_52w: {momentum_ctx.range_position_52w:.0%}"
+        )
+    if momentum_ctx.drawdown_from_52w_high_pct is not None:
+        _whitelist_parts.append(
+            "  - momentum_context.drawdown_from_52w_high_pct: "
+            f"{momentum_ctx.drawdown_from_52w_high_pct:.1f}%"
+        )
     if isinstance(vs_for_prompt, ValuationSynthesis):
         # The current market price is the reference every upside/downside is
         # measured against — whitelist it so the narrative cites the REAL price

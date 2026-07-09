@@ -7,11 +7,16 @@ strict-numeric-discipline whitelist, the segment-grounding constant, and the
 untrusted-news-headline wrapping of injected catalyst text.
 """
 
+from datetime import datetime, timezone
+
 from finrobot.engine.models.financial import (
     CatalystAnalysis,
     CatalystEvent,
     DCFInputs,
     DCFResult,
+    FinancialData,
+    IncomeStatement,
+    MarketData,
     MarketImpliedCheck,
     ValuationMethod,
 )
@@ -20,6 +25,28 @@ from finrobot.engine.compute.operators.valuation_synthesis import (
     synthesize_valuations,
 )
 from finrobot.engine.pipelines._thesis_prompt import build_thesis_prompt
+
+
+def _financial_data(
+    *,
+    current_price: float,
+    high_52w: float | None = None,
+    low_52w: float | None = None,
+    trailing_1y_return_pct: float | None = None,
+) -> FinancialData:
+    return FinancialData(
+        ticker="TEST",
+        timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        income=IncomeStatement(revenue=1.0),
+        market=MarketData(
+            market_cap=1.0,
+            shares_outstanding=1.0,
+            current_price=current_price,
+            price_52w_high=high_52w,
+            price_52w_low=low_52w,
+            trailing_1y_return_pct=trailing_1y_return_pct,
+        ),
+    )
 
 
 def _build(methods, current_price, ticker="AAPL", extra_context=None):
@@ -360,3 +387,116 @@ class TestBuildThesisPrompt:
         assert "implies ~28.1%/yr" in prompt
         assert "COMMODITY-CYCLICAL" not in prompt
         assert "PERPETUAL steady state" not in prompt
+
+
+class TestMomentumContext:
+    """BACKLOG A2/P1-1: momentum context injection + whitelist + the mandatory
+    hedge-paragraph instruction on strong verdict-vs-momentum divergence."""
+
+    # Two tightly-clustered methods well above current_price → comfortably past
+    # even the widest ("very_low", 50%) BUY band regardless of how the synthesis
+    # grades confidence — the test only needs a robust BUY, not a specific tier.
+    _BUY_METHODS = [
+        ValuationMethod(name="DCF", low=280, mid=320, high=360, confidence=0.7, source="DCF"),
+        ValuationMethod(name="Comps", low=300, mid=330, high=360, confidence=0.6, source="Comps"),
+    ]
+    # Symmetric SELL setup: methods well below current_price.
+    _SELL_METHODS = [
+        ValuationMethod(name="DCF", low=150, mid=180, high=210, confidence=0.6, source="DCF"),
+        ValuationMethod(name="Comps", low=160, mid=190, high=220, confidence=0.5, source="Comps"),
+    ]
+
+    def test_momentum_context_injected_and_whitelisted(self):
+        methods = [
+            ValuationMethod(name="DCF", low=210, mid=245, high=290, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="EV/EBITDA", low=220, mid=250, high=280, confidence=0.3, source="Comps"
+            ),
+        ]
+        fd = _financial_data(
+            current_price=80.0, high_52w=120.0, low_52w=70.0, trailing_1y_return_pct=-20.5
+        )
+        prompt = _build(methods, current_price=230.0, extra_context={"data_collection": fd})
+
+        assert "AUTHORITATIVE MOMENTUM CONTEXT" in prompt
+        assert "1-year price return: -20.5%" in prompt
+        assert "52-week range position: 20%" in prompt  # (80-70)/(120-70)
+        assert "Drawdown from 52-week high: -33.3%" in prompt  # (80-120)/120
+
+        discipline = prompt[prompt.find("STRICT NUMERIC DISCIPLINE") :]
+        assert "momentum_context.one_year_return_pct: -20.5%" in discipline
+        assert "momentum_context.range_position_52w: 20%" in discipline
+        assert "momentum_context.drawdown_from_52w_high_pct: -33.3%" in discipline
+
+    def test_no_momentum_block_when_data_collection_absent(self):
+        methods = [
+            ValuationMethod(name="DCF", low=210, mid=245, high=290, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="EV/EBITDA", low=220, mid=250, high=280, confidence=0.3, source="Comps"
+            ),
+        ]
+        prompt = _build(methods, current_price=230.0)
+        assert "AUTHORITATIVE MOMENTUM CONTEXT" not in prompt
+        assert "MOMENTUM DIVERGENCE" not in prompt
+
+    def test_no_momentum_lines_when_price_history_too_short(self):
+        """A FinancialData with no 52w bounds / no 1y return (short history)
+        degrades to zero momentum lines — never fabricates a partial read."""
+        methods = [
+            ValuationMethod(name="DCF", low=210, mid=245, high=290, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="EV/EBITDA", low=220, mid=250, high=280, confidence=0.3, source="Comps"
+            ),
+        ]
+        fd = _financial_data(current_price=230.0)
+        prompt = _build(methods, current_price=230.0, extra_context={"data_collection": fd})
+        assert "AUTHORITATIVE MOMENTUM CONTEXT" not in prompt
+
+    def test_buy_with_strong_pullback_gets_mandatory_hedge_instruction(self):
+        fd = _financial_data(current_price=200.0, trailing_1y_return_pct=-20.0)
+        prompt = _build(
+            self._BUY_METHODS,
+            current_price=200.0,
+            ticker="MU",
+            extra_context={"data_collection": fd},
+        )
+        # Sanity: this setup really does resolve to a BUY.
+        assert "AUTHORITATIVE RECOMMENDATION (do not deviate): BUY" in prompt
+        assert "MOMENTUM DIVERGENCE — MANDATORY HEDGE PARAGRAPH" in prompt
+        assert "momentum_divergence_note" in prompt
+        # The instruction explicitly forbids touching the numbers already set.
+        assert "must NOT change your `recommendation`, `price_target`, or confidence" in prompt
+
+    def test_buy_with_mild_pullback_gets_no_hedge_instruction(self):
+        """+5%/-5% momentum is ordinary — no divergence, no mandatory paragraph."""
+        fd = _financial_data(current_price=200.0, trailing_1y_return_pct=-5.0)
+        prompt = _build(
+            self._BUY_METHODS,
+            current_price=200.0,
+            ticker="MU",
+            extra_context={"data_collection": fd},
+        )
+        assert "AUTHORITATIVE RECOMMENDATION (do not deviate): BUY" in prompt
+        assert "MOMENTUM DIVERGENCE" not in prompt
+
+    def test_sell_with_strong_rally_gets_mandatory_hedge_instruction(self):
+        fd = _financial_data(current_price=400.0, trailing_1y_return_pct=45.0)
+        prompt = _build(
+            self._SELL_METHODS,
+            current_price=400.0,
+            ticker="XYZ",
+            extra_context={"data_collection": fd},
+        )
+        assert "AUTHORITATIVE RECOMMENDATION (do not deviate): SELL" in prompt
+        assert "MOMENTUM DIVERGENCE — MANDATORY HEDGE PARAGRAPH" in prompt
+
+    def test_sell_with_mild_rally_gets_no_hedge_instruction(self):
+        fd = _financial_data(current_price=400.0, trailing_1y_return_pct=10.0)
+        prompt = _build(
+            self._SELL_METHODS,
+            current_price=400.0,
+            ticker="XYZ",
+            extra_context={"data_collection": fd},
+        )
+        assert "AUTHORITATIVE RECOMMENDATION (do not deviate): SELL" in prompt
+        assert "MOMENTUM DIVERGENCE" not in prompt

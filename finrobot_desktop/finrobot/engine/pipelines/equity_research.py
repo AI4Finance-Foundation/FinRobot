@@ -26,6 +26,10 @@ from finrobot.engine.models.financial import (
     ValuationSynthesis,
 )
 from finrobot.engine.compute.operators.residual_income import calculate_residual_income
+from finrobot.engine.compute.operators.audit import (
+    audit_momentum_narrative_hedge,
+    compute_momentum_context,
+)
 from finrobot.engine.models.reconcile_tolerances import NARRATIVE_DRIFT_TOLERANCE
 from finrobot.engine.compute.operators.catalyst import (
     extract_catalysts_from_news,
@@ -1246,6 +1250,7 @@ def _reconcile_narrative_targets(
         "valuation_overview",
         "competitor_analysis",
         "news_summary",
+        "momentum_divergence_note",
     )
     for field_name in _STRING_NARRATIVE_FIELDS:
         original = getattr(thesis, field_name)
@@ -1484,6 +1489,24 @@ async def _execute_thesis(
     # inputs always produce the same numbers — see apply_canonical_override.
     thesis = apply_canonical_override(thesis, canonical, vs)
 
+    # Momentum-vs-verdict narrative backstop (BACKLOG A2/P1-1): the prompt above
+    # (build_thesis_prompt) MANDATES a momentum_divergence_note whenever the
+    # verdict strongly disagrees with the stock's own trailing-1y price action —
+    # this is the deterministic check that catches a non-cooperative LLM that
+    # skipped it. compute_momentum_context is the SAME function build_thesis_prompt
+    # called, so this reads the identical numbers the prompt instructed on. Never
+    # gates verdict/target/confidence — a missing hedge paragraph degrades the
+    # READ, not the call (core contract②), and routes through the same plain-string
+    # StepOutput.warnings channel as the street-range disclosure below (never a new
+    # machine code).
+    fd_for_momentum = structured_context.get("data_collection")
+    momentum_ctx = compute_momentum_context(
+        fd_for_momentum if isinstance(fd_for_momentum, FinancialData) else None
+    )
+    momentum_warning = audit_momentum_narrative_hedge(
+        canonical.verdict, momentum_ctx.one_year_return_pct, thesis.momentum_divergence_note
+    )
+
     target_str = (
         f"${thesis.price_target:.2f}" if thesis.price_target is not None else "N/A (under review)"
     )
@@ -1496,7 +1519,7 @@ async def _execute_thesis(
     return StepOutput(
         text=narrative,
         structured=thesis,
-        warnings=[street_note] if street_note else [],
+        warnings=[w for w in (street_note, momentum_warning) if w],
     )
 
 

@@ -727,21 +727,34 @@ def seed_dcf_inputs(
             avg_growth = statistics.mean(growth_schedule)
             degraded = marginal_ratio * avg_growth
             nwc_pct = max(-0.10, min(0.10, degraded))
+            # Analyst-facing prose (BACKLOG A6⑤): every number below is the same
+            # one the dev-jargon version carried (nwc_n / raw_nwc / marginal_ratio
+            # / raw_marginal / avg_growth / degraded / nwc_pct) — only the wording
+            # changed, from engineering vocabulary ("modelling band", "degraded
+            # to", "re-clamped") to plain description of what the model did and
+            # why, so a buy-side reader can follow the substitution without
+            # knowing FinRobot's internals. The structured `nwc_clamped` flag
+            # (below) is what actually drives the report's ⚠ — this string is
+            # never parsed, only displayed verbatim as a tooltip.
             marginal_note = (
-                f"{marginal_ratio:.1%} (clamped from {raw_marginal:.1%})"
+                f"{marginal_ratio:.1%} of each new revenue dollar (capped down from a raw "
+                f"{raw_marginal:.1%}, most likely skewed by one-off items)"
                 if marginal_ratio != raw_marginal
-                else f"{marginal_ratio:.1%}"
+                else f"{marginal_ratio:.1%} of each new revenue dollar"
             )
             reclamp_note = (
-                f" = {degraded:.1%}, re-clamped to the ±10% band"
+                f", which came to {degraded:.1%} and was capped again into the model's "
+                f"±10% range"
                 if nwc_pct != degraded
                 else ""
             )
             prov["nwc_pct_revenue"] = (
-                f"{nwc_pct:.1%} (trailing {nwc_n}yr ΔNWC / revenue median {raw_nwc:.1%} "
-                f"exceeds the ±10% modelling band — degraded to marginal NWC ratio "
-                f"{marginal_note} × avg explicit-window growth {avg_growth:.1%}"
-                f"{reclamp_note}; positive = cash absorbed)"
+                f"{nwc_pct:.1%} of revenue (re-derived: the trailing {nwc_n}-year average "
+                f"change in working capital ran {raw_nwc:.1%} of revenue — too high to be a "
+                f"sustainable, ongoing drag, so the model instead ties the assumption to the "
+                f"marginal NWC ratio, {marginal_note}, applied to the {avg_growth:.1%} average "
+                f"growth rate projected over the explicit forecast period{reclamp_note}; a "
+                f"positive figure means working capital is absorbing cash)"
             )
         elif clamped_median != raw_nwc:
             # Clamp binds but no revenue-growth year to derive a marginal ratio
@@ -750,17 +763,23 @@ def seed_dcf_inputs(
             # the band value IS the trailing median (batch-0 BUG-023 disclosure).
             nwc_pct = clamped_median
             prov["nwc_pct_revenue"] = (
-                f"{nwc_pct:.1%} (clamped from trailing {nwc_n}yr ΔNWC / revenue median "
-                f"{raw_nwc:.1%}; positive = cash absorbed)"
+                f"{nwc_pct:.1%} of revenue (capped from a trailing {nwc_n}-year average of "
+                f"{raw_nwc:.1%} of revenue — too high to be a sustainable, ongoing drag; a "
+                f"positive figure means working capital is absorbing cash)"
             )
         else:
             nwc_pct = clamped_median
             prov["nwc_pct_revenue"] = (
-                f"{nwc_pct:.1%} (trailing {nwc_n}yr ΔNWC / revenue median; positive = cash absorbed)"
+                f"{nwc_pct:.1%} of revenue (trailing {nwc_n}-year average change in working "
+                f"capital as % of revenue; a positive figure means working capital is "
+                f"absorbing cash)"
             )
     else:
         nwc_pct = 0.01
-        prov["nwc_pct_revenue"] = "1.0% (history unavailable; generic benchmark applied)"
+        prov["nwc_pct_revenue"] = (
+            "1.0% of revenue (no working-capital history available; generic industry "
+            "benchmark applied)"
+        )
 
     # ----- terminal_nwc_pct_revenue ------------------------------------------
     # The explicit-window ΔNWC/revenue median embeds the HISTORICAL growth rate
@@ -778,21 +797,26 @@ def seed_dcf_inputs(
         if marginal_ratio != raw_marginal:
             # Marginal-ratio clamp bound: disclose the raw median so provenance
             # never implies the ±60% band value IS the median (BUG-023 — same
-            # family as the explicit-window nwc clamp above).
+            # family as the explicit-window nwc clamp above). Wording is
+            # analyst-facing (BACKLOG A6⑤) — numbers unchanged.
             prov["terminal_nwc_pct_revenue"] = (
-                f"{terminal_nwc_pct:.2%} (marginal NWC ratio median(ΔNWC/Δrevenue) "
-                f"{raw_marginal:.1%} clamped to {marginal_ratio:.1%} × terminal growth "
-                f"{terminal_growth_rate:.1%})"
+                f"{terminal_nwc_pct:.2%} of revenue at steady state (marginal NWC ratio of "
+                f"{marginal_ratio:.1%} of each new revenue dollar — capped down from a raw "
+                f"{raw_marginal:.1%}, most likely skewed by one-off items — applied to the "
+                f"{terminal_growth_rate:.1%} terminal growth rate)"
             )
         else:
             prov["terminal_nwc_pct_revenue"] = (
-                f"{terminal_nwc_pct:.2%} (marginal NWC ratio median(ΔNWC/Δrevenue) "
-                f"{marginal_ratio:.1%} × terminal growth {terminal_growth_rate:.1%})"
+                f"{terminal_nwc_pct:.2%} of revenue at steady state (marginal NWC ratio of "
+                f"{marginal_ratio:.1%} of each new revenue dollar applied to the "
+                f"{terminal_growth_rate:.1%} terminal growth rate)"
             )
     else:
         terminal_nwc_pct = None
         prov["terminal_nwc_pct_revenue"] = (
-            f"reuses {nwc_pct:.1%} (no revenue-growth year available to derive the marginal NWC ratio)"
+            f"reuses the explicit-window figure of {nwc_pct:.1%} of revenue (no year of "
+            f"revenue growth in the trailing history to derive a steady-state marginal NWC "
+            f"ratio)"
         )
 
     # ----- tax_rate ---------------------------------------------------------

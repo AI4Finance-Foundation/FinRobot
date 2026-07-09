@@ -356,9 +356,11 @@ def test_lbo_nwc_clamp_no_growth_year_falls_back_to_clamped_median() -> None:
     inputs = seed_lbo_inputs(_minimal_financials(), hist)
     prov = inputs.assumption_provenance["nwc_change_pct_revenue"]
     assert inputs.nwc_change_pct_revenue == pytest.approx(0.10)
-    assert prov.startswith("10.0% (clamped from trailing")
-    assert "median 15.0%" in prov
-    assert "degraded" not in prov
+    # BACKLOG A6⑤: wording reads analyst prose, not dev jargon — every number
+    # (10.0% used / 15.0% pre-clamp trailing average) is unchanged.
+    assert prov.startswith("10.0% of revenue (capped from a trailing")
+    assert "average of 15.0% of revenue" in prov
+    assert "marginal NWC ratio" not in prov
 
 
 def test_lbo_nwc_clamp_degrades_to_marginal_ratio() -> None:
@@ -374,18 +376,27 @@ def test_lbo_nwc_clamp_degrades_to_marginal_ratio() -> None:
     inputs = seed_lbo_inputs(_minimal_financials(), hist)
     prov = inputs.assumption_provenance["nwc_change_pct_revenue"]
     assert inputs.nwc_change_pct_revenue == pytest.approx(0.60 * 0.03)
-    assert "median 13.2% exceeds the ±10% modelling band" in prov
-    assert "marginal NWC ratio 60.0% (clamped from" in prov
-    assert "steady-state revenue growth 3.0%" in prov
+    # BACKLOG A6⑤: wording reads analyst prose, not dev jargon — every number
+    # (13.2% pre-clamp trailing average / 60.0% marginal ratio used / raw
+    # marginal it was capped down from / 3.0% steady-state growth) unchanged.
+    assert "ran 13.2% of revenue" in prov
+    assert "too high to be a sustainable, ongoing drag" in prov
+    assert "marginal NWC ratio, 60.0% of each new revenue dollar (capped down from a raw" in prov
+    assert "applied to the 3.0% steady-state revenue growth rate" in prov
 
 
 def test_lbo_nwc_in_band_is_byte_identical() -> None:
-    """In-band ΔNWC keeps the original provenance string verbatim."""
+    """In-band ΔNWC never carries a clamp/degradation disclosure (BACKLOG A6⑤
+    reworded the prose to analyst language; this pins the invariant)."""
     hist = _historical_with_nwc([-5e8, -5e8, -5e8], [1e10, 1e10, 1e10])  # -5% → no clamp
     inputs = seed_lbo_inputs(_minimal_financials(), hist)
     prov = inputs.assumption_provenance["nwc_change_pct_revenue"]
-    assert "clamped" not in prov
-    assert prov.endswith("ΔNWC / revenue median; positive = cash absorbed)")
+    assert "capped" not in prov
+    assert "marginal NWC ratio" not in prov
+    assert prov.endswith(
+        "average change in working capital as % of revenue; a positive figure means "
+        "working capital is absorbing cash)"
+    )
 
 
 def test_lbo_interest_rate_cap_disclosed() -> None:

@@ -213,21 +213,29 @@ def seed_lbo_inputs(
             marginal_ratio, _terminal_pct, raw_marginal = nwc_marginal
             degraded = marginal_ratio * revenue_growth_rate
             nwc_pct = max(-0.10, min(0.10, degraded))
+            # Analyst-facing prose (BACKLOG A6⑤, mirrors dcf_seed) — every
+            # number is unchanged, only the wording. The structured
+            # `nwc_clamped` flag drives the report's ⚠; this string is only
+            # ever displayed verbatim, never parsed.
             marginal_note = (
-                f"{marginal_ratio:.1%} (clamped from {raw_marginal:.1%})"
+                f"{marginal_ratio:.1%} of each new revenue dollar (capped down from a raw "
+                f"{raw_marginal:.1%}, most likely skewed by one-off items)"
                 if marginal_ratio != raw_marginal
-                else f"{marginal_ratio:.1%}"
+                else f"{marginal_ratio:.1%} of each new revenue dollar"
             )
             reclamp_note = (
-                f" = {degraded:.1%}, re-clamped to the ±10% band"
+                f", which came to {degraded:.1%} and was capped again into the model's "
+                f"±10% range"
                 if nwc_pct != degraded
                 else ""
             )
             prov["nwc_change_pct_revenue"] = (
-                f"{nwc_pct:.1%} (trailing {nwc_n}yr ΔNWC / revenue median {raw_nwc:.1%} "
-                f"exceeds the ±10% modelling band — degraded to marginal NWC ratio "
-                f"{marginal_note} × steady-state revenue growth {revenue_growth_rate:.1%}"
-                f"{reclamp_note}; positive = cash absorbed)"
+                f"{nwc_pct:.1%} of revenue (re-derived: the trailing {nwc_n}-year average "
+                f"change in working capital ran {raw_nwc:.1%} of revenue — too high to be a "
+                f"sustainable, ongoing drag, so the model instead ties the assumption to the "
+                f"marginal NWC ratio, {marginal_note}, applied to the "
+                f"{revenue_growth_rate:.1%} steady-state revenue growth rate{reclamp_note}; a "
+                f"positive figure means working capital is absorbing cash)"
             )
         elif clamped_median != raw_nwc:
             # Clamp binds but no revenue-growth year to derive a marginal ratio →
@@ -236,18 +244,22 @@ def seed_lbo_inputs(
             # median).
             nwc_pct = clamped_median
             prov["nwc_change_pct_revenue"] = (
-                f"{nwc_pct:.1%} (clamped from trailing {nwc_n}yr ΔNWC / revenue median "
-                f"{raw_nwc:.1%}; positive = cash absorbed)"
+                f"{nwc_pct:.1%} of revenue (capped from a trailing {nwc_n}-year average of "
+                f"{raw_nwc:.1%} of revenue — too high to be a sustainable, ongoing drag; a "
+                f"positive figure means working capital is absorbing cash)"
             )
         else:
             nwc_pct = clamped_median
             prov["nwc_change_pct_revenue"] = (
-                f"{nwc_pct:.1%} (trailing {nwc_n}yr ΔNWC / revenue median; positive = cash absorbed)"
+                f"{nwc_pct:.1%} of revenue (trailing {nwc_n}-year average change in working "
+                f"capital as % of revenue; a positive figure means working capital is "
+                f"absorbing cash)"
             )
     else:
         nwc_pct = DEFAULT_NWC_PCT_REVENUE
         prov["nwc_change_pct_revenue"] = (
-            f"{nwc_pct:.1%} (historical unavailable; PE underwriting benchmark)"
+            f"{nwc_pct:.1%} of revenue (no working-capital history available; PE "
+            f"underwriting benchmark applied)"
         )
 
     # ----- tax_rate ---------------------------------------------------------

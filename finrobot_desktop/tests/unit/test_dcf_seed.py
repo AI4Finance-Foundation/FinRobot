@@ -717,7 +717,9 @@ class TestMedianWindowBug026:
         assert "trailing 3yr CapEx" in prov["capex_pct_revenue"]
         assert "trailing 3yr D&A" in prov["da_pct_revenue"]
         assert "trailing 3yr EBITDA" in prov["ebitda_margin"]
-        assert "trailing 3yr ΔNWC" in prov["nwc_pct_revenue"]
+        # nwc_pct_revenue reads analyst prose (BACKLOG A6⑤), not "Nyr" shorthand
+        # like the sibling fields above — same dynamic-sample-count invariant.
+        assert "trailing 3-year" in prov["nwc_pct_revenue"]
 
     def test_two_year_history_works_and_provenance_says_two_years(self):
         """Only 2 years of data: median still computed (count 2) and the label
@@ -729,10 +731,11 @@ class TestMedianWindowBug026:
         assert "trailing 2yr CapEx" in prov["capex_pct_revenue"]
         assert "trailing 2yr D&A" in prov["da_pct_revenue"]
         assert "trailing 2yr EBITDA" in prov["ebitda_margin"]
-        assert "trailing 2yr ΔNWC" in prov["nwc_pct_revenue"]
+        assert "trailing 2-year" in prov["nwc_pct_revenue"]
         # Must NOT claim 3 years of history it doesn't have.
         assert "trailing 3yr" not in prov["capex_pct_revenue"]
         assert "trailing 3yr" not in prov["ebitda_margin"]
+        assert "trailing 3-year" not in prov["nwc_pct_revenue"]
 
 
 class TestForwardGrowthSeed:
@@ -1045,17 +1048,25 @@ class TestClampProvenanceDisclosure:
         inputs = seed_dcf_inputs(_aapl_financials(), hist)
         prov = inputs.assumption_provenance["nwc_pct_revenue"]
         assert inputs.nwc_pct_revenue == pytest.approx(0.60 * 0.022)
-        assert "median 15.0% exceeds the ±10% modelling band" in prov
-        assert "degraded to marginal NWC ratio 60.0%" in prov
-        assert "positive = cash absorbed" in prov
+        assert "ran 15.0% of revenue" in prov
+        assert "too high to be a sustainable, ongoing drag" in prov
+        assert "marginal NWC ratio, 60.0% of each new revenue dollar" in prov
+        assert "positive figure means working capital is absorbing cash" in prov
 
     def test_nwc_pct_in_band_is_byte_identical(self):
-        """The common in-band case must keep the original string verbatim —
-        no 'clamped from', no format drift."""
+        """The common in-band case must never carry a clamp/degradation
+        disclosure — no 'capped from', no 'marginal NWC ratio' substitution
+        note, no format drift (BACKLOG A6⑤ reworded the prose to analyst
+        language; this pins the invariant the wording change must preserve)."""
         inputs = seed_dcf_inputs(_aapl_financials(), _aapl_historical())
         prov = inputs.assumption_provenance["nwc_pct_revenue"]
-        assert "clamped" not in prov
-        assert "trailing" in prov and "ΔNWC / revenue median; positive = cash absorbed)" in prov
+        assert "capped" not in prov
+        assert "marginal NWC ratio" not in prov
+        assert "trailing" in prov
+        assert prov.endswith(
+            "average change in working capital as % of revenue; a positive figure means "
+            "working capital is absorbing cash)"
+        )
 
     def test_terminal_marginal_ratio_clamp_disclosed(self):
         hist = _aapl_historical()
@@ -1065,8 +1076,8 @@ class TestClampProvenanceDisclosure:
         hist.change_in_working_capital = [0.0, -8e9, -8e9, -8e9]
         inputs = seed_dcf_inputs(_aapl_financials(), hist)
         prov = inputs.assumption_provenance["terminal_nwc_pct_revenue"]
-        assert "80.0% clamped to 60.0%" in prov
-        assert "marginal NWC ratio median(ΔNWC/Δrevenue)" in prov
+        assert "capped down from a raw 80.0%" in prov
+        assert "marginal NWC ratio of 60.0% of each new revenue dollar" in prov
 
 
 def _nwc_history(revenue: list[float], cwc: list[float], cagr: float | None) -> HistoricalMetrics:
@@ -1096,10 +1107,11 @@ class TestNwcClampDegradation:
         inputs = seed_dcf_inputs(_aapl_financials(), hist)
         assert inputs.nwc_pct_revenue == pytest.approx(0.26 * 0.02)
         prov = inputs.assumption_provenance["nwc_pct_revenue"]
-        assert "median 13.0% exceeds the ±10% modelling band" in prov
-        assert "degraded to marginal NWC ratio 26.0% × avg explicit-window growth 2.0%" in prov
-        assert "clamped from" not in prov  # marginal in band → no clamp note
-        assert "positive = cash absorbed" in prov
+        assert "ran 13.0% of revenue" in prov
+        assert "too high to be a sustainable, ongoing drag" in prov
+        assert "marginal NWC ratio, 26.0% of each new revenue dollar, applied to the 2.0% average growth rate" in prov
+        assert "capped down from a raw" not in prov  # marginal in band → no clamp note
+        assert "positive figure means working capital is absorbing cash" in prov
 
     def test_degrades_with_marginal_ratio_clamped_and_discloses_raw(self):
         # KO-like: 3%/yr revenue with a NWC build ~13% of the LEVEL → per-year
@@ -1109,8 +1121,11 @@ class TestNwcClampDegradation:
         inputs = seed_dcf_inputs(_aapl_financials(), hist)
         assert inputs.nwc_pct_revenue == pytest.approx(0.60 * 0.025)
         prov = inputs.assumption_provenance["nwc_pct_revenue"]
-        assert "marginal NWC ratio 60.0% (clamped from 466.7%)" in prov
-        assert "avg explicit-window growth 2.5%" in prov
+        assert (
+            "marginal NWC ratio, 60.0% of each new revenue dollar (capped down from a raw "
+            "466.7%, most likely skewed by one-off items)" in prov
+        )
+        assert "applied to the 2.5% average growth rate" in prov
 
     def test_no_growth_year_falls_back_to_clamped_median(self):
         # Flat revenue → Δrev = 0 every year → no marginal ratio → honest fallback
@@ -1119,9 +1134,9 @@ class TestNwcClampDegradation:
         inputs = seed_dcf_inputs(_aapl_financials(), hist)
         assert inputs.nwc_pct_revenue == pytest.approx(0.10)
         prov = inputs.assumption_provenance["nwc_pct_revenue"]
-        assert prov.startswith("10.0% (clamped from trailing")
-        assert "median 15.0%" in prov
-        assert "degraded" not in prov
+        assert prov.startswith("10.0% of revenue (capped from a trailing")
+        assert "average of 15.0% of revenue" in prov
+        assert "marginal NWC ratio" not in prov
 
     def test_negative_explicit_growth_flips_drag_to_release(self):
         # Historically-growing revenue (marginal 26%) but a declining forward
@@ -1131,7 +1146,7 @@ class TestNwcClampDegradation:
         inputs = seed_dcf_inputs(_aapl_financials(), hist)
         assert inputs.nwc_pct_revenue == pytest.approx(0.26 * -0.10)
         prov = inputs.assumption_provenance["nwc_pct_revenue"]
-        assert "avg explicit-window growth -10.0%" in prov
+        assert "applied to the -10.0% average growth rate" in prov
 
     def test_median_exactly_at_band_is_not_degraded(self):
         # ΔNWC/revenue = −10% exactly → +10% sits ON the band, not OUTSIDE it →
@@ -1141,9 +1156,12 @@ class TestNwcClampDegradation:
         inputs = seed_dcf_inputs(_aapl_financials(), hist)
         assert inputs.nwc_pct_revenue == pytest.approx(0.10)
         prov = inputs.assumption_provenance["nwc_pct_revenue"]
-        assert "clamped" not in prov
-        assert "degraded" not in prov
-        assert prov.endswith("ΔNWC / revenue median; positive = cash absorbed)")
+        assert "capped" not in prov
+        assert "marginal NWC ratio" not in prov
+        assert prov.endswith(
+            "average change in working capital as % of revenue; a positive figure means "
+            "working capital is absorbing cash)"
+        )
 
     def test_reclamp_when_marginal_times_growth_exceeds_band(self):
         # Genuine high-NWC hyper-grower: build = 35% of the LEVEL on doubling
@@ -1154,8 +1172,11 @@ class TestNwcClampDegradation:
         inputs = seed_dcf_inputs(_aapl_financials(), hist)
         assert inputs.nwc_pct_revenue == pytest.approx(0.10)
         prov = inputs.assumption_provenance["nwc_pct_revenue"]
-        assert "marginal NWC ratio 60.0% (clamped from 70.0%)" in prov
-        assert "re-clamped to the ±10% band" in prov
+        assert (
+            "marginal NWC ratio, 60.0% of each new revenue dollar (capped down from a raw "
+            "70.0%, most likely skewed by one-off items)" in prov
+        )
+        assert "capped again into the model's ±10% range" in prov
 
 
 # ---------------------------------------------------------------------------

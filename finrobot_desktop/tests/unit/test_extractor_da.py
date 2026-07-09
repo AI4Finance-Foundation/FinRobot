@@ -58,6 +58,25 @@ def test_extract_da_none_from_yfinance():
     assert result.income.depreciation_amortization is None
 
 
+def test_extract_capex_from_canonical():
+    """When the canonical snapshot supplies capital_expenditure (TTM sum-of-4-
+    quarters cash-flow-statement capex on the FMP path, or the
+    operatingCashflow−freeCashflow derivation on yfinance), it appears in
+    FinancialData.income — the field extract_financial_data was missing, which
+    left dcf_current_actuals with no TTM capex source (falling back to latest-FY
+    unconditionally) even though NormalizedFinancials has carried this field
+    since the v2 canonical contract."""
+    result = extract_financial_data(_make_fin(capital_expenditure=9.5e9), _make_price())
+    assert result.income.capital_expenditure == 9.5e9
+
+
+def test_extract_capex_none_when_cashflow_statement_unavailable():
+    """When the provider's cash-flow statement never resolved a capex figure for
+    this ticker, the field stays None (not fabricated as 0)."""
+    result = extract_financial_data(_make_fin(), _make_price())
+    assert result.income.capital_expenditure is None
+
+
 def test_extract_rd_sga_interest():
     result = extract_financial_data(
         _make_fin(rd_expense=30e9, sga_expense=28e9, interest_expense=4e9),

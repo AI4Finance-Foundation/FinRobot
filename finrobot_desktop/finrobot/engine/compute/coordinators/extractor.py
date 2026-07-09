@@ -333,6 +333,7 @@ def extract_financial_data(
             ),
             operating_income=fin.operating_income,
             depreciation_amortization=fin.depreciation_amortization,
+            capital_expenditure=fin.capital_expenditure,
             rd_expense=fin.rd_expense,
             sga_expense=fin.sga_expense,
             interest_expense=fin.interest_expense,

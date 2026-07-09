@@ -46,6 +46,18 @@ class IncomeStatement(BaseModel):
     # operating_margin × a possibly XBRL-overridden revenue (BUG-017).
     operating_income: float | None = None
     depreciation_amortization: float | None = None
+    # Capital expenditure in USD, positive magnitude (outflow). Caliber matches the
+    # snapshot's period_basis — TTM sum-of-4-quarters cash-flow-statement capex when
+    # the canonical fetch built a TTM snapshot (FMP's default single-snapshot path,
+    # or yfinance's operatingCashflow−freeCashflow derivation), latest-fiscal-year on
+    # the annual multi-year history path. Projected from NormalizedFinancials.
+    # capital_expenditure (already part of the canonical contract since v2 — this is
+    # only a new downstream projection field, not a canonical-cache schema change, so
+    # no cache version bump). None ≠ 0: a provider that omits the cash-flow statement
+    # stays None so dcf_current_actuals withholds/falls back rather than fabricating
+    # a $0 capex. Optional → read-compatible with pre-existing serialized artifacts
+    # (ttm_quarter_ends / is_adr precedent), so no schema migration needed.
+    capital_expenditure: float | None = None
     rd_expense: float | None = None
     sga_expense: float | None = None
     interest_expense: float | None = None
@@ -723,16 +735,32 @@ class DCFResult(BaseModel):
     # revenue_growth / ebitda_margin / capex_pct_revenue / nwc_pct_revenue — the
     # "Current" column of the report's model-vs-current reconciliation
     # (operators.dcf_seed.dcf_current_actuals). Calibers are MIXED and disclosed
-    # per cell: ebitda_margin is TTM (income.ebitda/revenue, the freshest 12-month
-    # figure); the other three are the latest fiscal year (no TTM source for
-    # capex/ΔNWC in the canonical snapshot). Per-driver None when the source lacks a
-    # usable point (never fabricated); whole field None when not computed (legacy).
+    # per cell: ebitda_margin is always TTM (income.ebitda/revenue, the freshest
+    # 12-month figure); capex_pct_revenue is TTM when the canonical snapshot carries
+    # a TTM capex figure (see assumption_current_actuals_capex_ttm — the ONLY driver
+    # whose caliber varies per ticker/run) and otherwise falls back to latest fiscal
+    # year; revenue_growth / nwc_pct_revenue are always the latest fiscal year (no
+    # TTM source for ΔNWC in the canonical snapshot). Per-driver None when the source
+    # lacks a usable point (never fabricated); whole field None when not computed
+    # (legacy).
     assumption_current_actuals: dict[str, float | None] | None = None
 
-    # Fiscal year of the latest-FY current actuals (capex / ΔNWC / growth) — lets
-    # the report label those cells "FY<year>" beside the TTM-labelled margin cell.
-    # None when history was empty or the caller didn't compute it.
+    # Fiscal year of the latest-FY current actuals (ΔNWC / growth, and capex on the
+    # fallback path) — lets the report label those cells "FY<year>" beside the
+    # TTM-labelled cells. None when history was empty or the caller didn't compute it.
     assumption_current_actuals_fy: int | None = None
+
+    # True when assumption_current_actuals["capex_pct_revenue"] is TTM-caliber
+    # (income.capital_expenditure / income.revenue from the canonical snapshot);
+    # False when dcf_seed.dcf_current_actuals fell back to the latest-FY ratio (the
+    # canonical snapshot's cash-flow statement was thin/unavailable for this ticker
+    # even though other TTM fields resolved — margin's TTM source is the income
+    # statement, capex's is the cash-flow statement, so the two can diverge); None
+    # when assumption_current_actuals itself wasn't computed (legacy). The report's
+    # reconciliation table reads this to pick the capex row's caliber tag dynamically
+    # ("TTM" vs "FY<year>") instead of a static label — a static tag would mislabel
+    # the fallback case (BUG-023 displayed==actual family).
+    assumption_current_actuals_capex_ttm: bool | None = None
 
     # Reverse-DCF reality check (what the market price implies). None when the
     # caller didn't run it (e.g. no current price available).

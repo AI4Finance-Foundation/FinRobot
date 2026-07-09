@@ -709,11 +709,11 @@ def street_range_disclosure(
         return fact
 
     direction = "below" if target < street_low else "above"
-    analysts_paren = f", {analyst_count} analysts" if analyst_count else ""
+    # The fact segment already stated the band + count; the appended clause carries
+    # only the out-of-consensus interpretation, not a second copy of the numbers.
     return (
-        f"{fact} — the 12-month target ${target:.2f} sits {direction} "
-        f"the entire sell-side target range (${street_low:.2f}–${street_high:.2f}"
-        f"{analysts_paren}) — an out-of-consensus call, disclosed for context; it does "
+        f"{fact} — the 12-month target ${target:.2f} sits {direction} the entire "
+        f"sell-side range, an out-of-consensus call disclosed for context; it does "
         f"not alter the verdict or confidence."
     )
 

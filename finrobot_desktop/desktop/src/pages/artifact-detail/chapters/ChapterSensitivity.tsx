@@ -219,6 +219,7 @@ export function SensitivityBody({
           provenance={inputs?.assumption_provenance}
           actuals={dcf?.assumption_current_actuals}
           actualsFy={dcf?.assumption_current_actuals_fy}
+          capexIsTtm={dcf?.assumption_current_actuals_capex_ttm}
           nwcClamped={inputs?.nwc_clamped ?? false}
         />
       )}
@@ -296,11 +297,15 @@ function readMarginSwing(
 // verbatim "Model uses" prose from DCFInputs.assumption_provenance; `actualKey`
 // reads the "Current" figure from DcfShape.assumption_current_actuals (the growth
 // keys differ — provenance is keyed on the input field name, the actuals on the
-// driver). `caliber` is the period the Current figure covers ('ttm' for the
-// margin, 'fy' = latest fiscal year for the rest — the backend has no TTM source
-// for capex/ΔNWC), disclosed per cell so mixed calibers never mislead. `signed`
-// prints a leading + on positive growth / ΔNWC (their sign is load-bearing); `nwc`
-// carries the clamp ⚠.
+// driver). `caliber` is the period the Current figure covers for the STATIC rows
+// ('ttm' for the margin, 'fy' = latest fiscal year for growth/ΔNWC — the backend
+// has no TTM source for ΔNWC), disclosed per cell so mixed calibers never
+// mislead. Capex is the one driver whose caliber varies per ticker/run (TTM when
+// the canonical snapshot resolved one, else the latest-FY fallback) — its `caliber`
+// here is just the common-case default; the render loop overrides it per-row from
+// `assumption_current_actuals_capex_ttm` so the tag never claims a caliber the
+// value doesn't back up (BUG-023 displayed==actual). `signed` prints a leading +
+// on positive growth / ΔNWC (their sign is load-bearing); `nwc` carries the clamp ⚠.
 const RECON_ROWS: {
   labelKey: string
   provKey: string
@@ -327,7 +332,7 @@ const RECON_ROWS: {
     labelKey: 'chapter.sensitivity.reconciliation.driver.capex',
     provKey: 'capex_pct_revenue',
     actualKey: 'capex_pct_revenue',
-    caliber: 'fy',
+    caliber: 'ttm',
     signed: false,
   },
   {
@@ -351,11 +356,17 @@ function AssumptionReconciliation({
   provenance,
   actuals,
   actualsFy,
+  capexIsTtm,
   nwcClamped,
 }: {
   provenance: Record<string, string> | undefined
   actuals: Record<string, number | null> | null | undefined
   actualsFy: number | null | undefined
+  // True ⇒ capex's Current figure is TTM; false/null/undefined ⇒ it fell back to
+  // (or, on a legacy artifact predating this field, always was) the latest-FY
+  // ratio. Only the capex row's caliber reads this — the other three rows'
+  // caliber is fixed (see RECON_ROWS comment).
+  capexIsTtm: boolean | null | undefined
   nwcClamped: boolean
 }): React.ReactElement | null {
   const { t } = useI18n()
@@ -380,6 +391,13 @@ function AssumptionReconciliation({
     if (caliber === 'ttm') return 'TTM'
     return actualsFy != null ? `FY${actualsFy}` : null
   }
+
+  // The capex row's caliber is the one that varies per ticker/run — resolve it
+  // from capexIsTtm rather than trusting RECON_ROWS' static default, so a
+  // fallback-to-FY (or a legacy artifact predating this field, which was always
+  // FY end to end) never renders a "TTM" tag on an FY value.
+  const rowCaliber = (r: (typeof RECON_ROWS)[number]): 'ttm' | 'fy' =>
+    r.actualKey === 'capex_pct_revenue' ? (capexIsTtm ? 'ttm' : 'fy') : r.caliber
 
   return (
     <SubChapter heading={t('chapter.sensitivity.reconciliation.title')}>
@@ -421,9 +439,9 @@ function AssumptionReconciliation({
                   }}
                 >
                   <span>{fmtActual(actuals?.[r.actualKey], r.signed)}</span>
-                  {isPresent(actuals?.[r.actualKey]) && caliberTag(r.caliber) && (
+                  {isPresent(actuals?.[r.actualKey]) && caliberTag(rowCaliber(r)) && (
                     <span style={{ color: 'var(--text-dim)', marginLeft: 5, fontSize: 10.5 }}>
-                      {caliberTag(r.caliber)}
+                      {caliberTag(rowCaliber(r))}
                     </span>
                   )}
                 </td>

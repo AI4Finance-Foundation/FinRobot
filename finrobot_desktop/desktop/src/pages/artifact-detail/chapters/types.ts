@@ -50,14 +50,25 @@ export interface DcfShape {
   // Current-reality actuals for the four DCF drivers (keys revenue_growth /
   // ebitda_margin / capex_pct_revenue / nwc_pct_revenue) — the "Current" column of
   // the model-vs-current reconciliation. Calibers are MIXED (disclosed per cell):
-  // ebitda_margin is TTM, the other three are the latest fiscal year (see
+  // ebitda_margin is always TTM; capex_pct_revenue is TTM when the canonical
+  // snapshot resolved one (see assumption_current_actuals_capex_ttm — the only
+  // driver whose caliber varies per ticker/run) and otherwise the latest fiscal
+  // year; revenue_growth / nwc_pct_revenue are always the latest fiscal year (see
   // assumption_current_actuals_fy). Per-driver null when the source lacks a usable
   // point; whole field null on legacy artifacts. Deterministic (backend); the
   // client renders it verbatim, never re-computing a driver.
   assumption_current_actuals?: Record<string, number | null> | null
-  // Fiscal year of the latest-FY current actuals (capex / ΔNWC / growth) — labels
-  // those cells "FY<year>" beside the TTM-labelled margin cell. null on legacy.
+  // Fiscal year of the latest-FY current actuals (ΔNWC / growth, and capex on the
+  // fallback path) — labels those cells "FY<year>" beside the TTM-labelled cells.
+  // null on legacy.
   assumption_current_actuals_fy?: number | null
+  // True when assumption_current_actuals.capex_pct_revenue is TTM-caliber; false
+  // when it fell back to the latest fiscal year (the canonical snapshot's cash-
+  // flow statement was thin/unavailable for this ticker); null/undefined on legacy
+  // artifacts (predates this field) or when the actuals were never computed — the
+  // reconciliation table then falls back to the FY label so it never claims a
+  // caliber it can't back up (BUG-023 displayed==actual family).
+  assumption_current_actuals_capex_ttm?: boolean | null
   // Reverse-DCF reality check: what growth/WACC the CURRENT market price implies.
   // growth_unreachable=true ⇒ no plausible growth reaches the price (option-value
   // stock); ceiling_price is the most the DCF can reach at growth_ceiling.

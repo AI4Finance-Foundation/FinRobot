@@ -34,6 +34,7 @@ function dcf(over: Partial<DcfShape> = {}): DcfShape {
       nwc_pct_revenue: 0.019,
     },
     assumption_current_actuals_fy: 2024,
+    assumption_current_actuals_capex_ttm: true,
     margin_swing: [453.0, 531.0],
     ...over,
   }
@@ -66,20 +67,36 @@ describe('ChapterSensitivity — assumptions reconciliation', () => {
     expect(screen.getByText('+1.9%')).toBeInTheDocument() // ΔNWC, signed +
   })
 
-  it('discloses mixed calibers per cell: margin TTM, the rest FY<year>', () => {
+  it('discloses mixed calibers per cell: margin+capex TTM, growth+ΔNWC FY<year>', () => {
     renderChapter(dcf())
     // Neutral column header (not "Latest FY") since calibers differ per cell.
     expect(screen.getByText('Current actual')).toBeInTheDocument()
-    // Margin is the freshest TTM figure; the three latest-FY drivers carry FY2024.
-    expect(screen.getByText('TTM')).toBeInTheDocument()
-    expect(screen.getAllByText('FY2024').length).toBe(3)
+    // Margin and capex are both TTM figures (assumption_current_actuals_capex_ttm
+    // true in the fixture); growth + ΔNWC are the two latest-FY drivers.
+    expect(screen.getAllByText('TTM').length).toBe(2)
+    expect(screen.getAllByText('FY2024').length).toBe(2)
   })
 
   it('omits the FY caliber tag when the fiscal year is unknown (legacy)', () => {
     renderChapter(dcf({ assumption_current_actuals_fy: null }))
     expect(screen.queryByText('FY2024')).not.toBeInTheDocument()
-    // Margin still carries TTM (it has no dependence on the fiscal year).
-    expect(screen.getByText('TTM')).toBeInTheDocument()
+    // Margin + capex still carry TTM (neither depends on the fiscal year).
+    expect(screen.getAllByText('TTM').length).toBe(2)
+  })
+
+  it('labels capex FY<year>, not TTM, when the TTM capex figure was unavailable', () => {
+    renderChapter(dcf({ assumption_current_actuals_capex_ttm: false }))
+    // Only the margin row is TTM now; capex joins growth/ΔNWC at FY2024.
+    expect(screen.getAllByText('TTM').length).toBe(1)
+    expect(screen.getAllByText('FY2024').length).toBe(3)
+  })
+
+  it('labels capex FY<year> on a legacy artifact predating the capex-TTM field', () => {
+    renderChapter(dcf({ assumption_current_actuals_capex_ttm: undefined }))
+    // Legacy artifacts never had a TTM capex source — undefined must resolve to
+    // the FY label, not silently claim TTM.
+    expect(screen.getAllByText('TTM').length).toBe(1)
+    expect(screen.getAllByText('FY2024').length).toBe(3)
   })
 
   it('shows the ⚠ clamp marker on ΔNWC only when nwc_clamped is true', () => {

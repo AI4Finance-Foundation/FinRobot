@@ -256,14 +256,20 @@ const XBRL_SEGMENT_OVERVIEW: SegmentOverviewShape = {
   warnings: [],
 }
 
-const FMP_SEGMENT_OVERVIEW: SegmentOverviewShape = {
-  ticker: 'MSFT',
+// TSLA-shaped: gross-profit anchor instead of operating income.
+const GROSS_PROFIT_SEGMENT_OVERVIEW: SegmentOverviewShape = {
+  ticker: 'TSLA',
   as_of: '2026-07-09T00:00:00Z',
-  source: 'fmp_product_segmentation',
-  period_label: 'FY2025',
+  source: 'sec_xbrl_business_segment',
+  period_label: 'FY ending 2025-12-31',
   segments: [
-    { name: 'Windows', revenue: 17.314e9, revenue_share: 0.42 },
-    { name: 'Gaming', revenue: 23.455e9, revenue_share: 0.58 },
+    { name: 'Automotive', revenue: 69.526e9, revenue_share: 0.845, gross_profit: 13.292e9 },
+    {
+      name: 'Energy generation and storage',
+      revenue: 12.771e9,
+      revenue_share: 0.155,
+      gross_profit: 3.802e9,
+    },
   ],
   warnings: [],
 }
@@ -297,7 +303,7 @@ describe('ChapterCompanyOverview — segment overview table (BACKLOG A4)', () =>
     expect(screen.getByText('37.7%')).toBeInTheDocument()
   })
 
-  it('labels the FMP fallback distinctly and omits the profit column (revenue only)', () => {
+  it('renders the gross-profit column for a TSLA-style gross-profit-anchored breakdown', () => {
     render(
       <ChapterCompanyOverview
         thesis={thesis({ company_overview: 'x' })}
@@ -306,16 +312,14 @@ describe('ChapterCompanyOverview — segment overview table (BACKLOG A4)', () =>
         quoteCurrency="USD"
         dataSource="fmp"
         fetchedAt="2026-06-11T18:24:24.154643Z"
-        segmentOverview={FMP_SEGMENT_OVERVIEW}
+        segmentOverview={GROSS_PROFIT_SEGMENT_OVERVIEW}
         reportingCurrency="USD"
       />,
     )
-    expect(screen.getByText(/FMP product mix \(not a GAAP reportable segment/)).toBeInTheDocument()
-    expect(screen.getByText('Windows')).toBeInTheDocument()
-    expect(screen.getByText('Gaming')).toBeInTheDocument()
-    // FMP never supplies a profitability metric — no profit column at all.
+    expect(screen.getByText('Automotive')).toBeInTheDocument()
+    // Gross-profit anchor → the gross-profit column header, NOT operating income.
+    expect(screen.getByText('Segment Gross Profit')).toBeInTheDocument()
     expect(screen.queryByText('Segment Operating Income')).not.toBeInTheDocument()
-    expect(screen.queryByText('Segment Gross Profit')).not.toBeInTheDocument()
   })
 
   it('renders no table when segmentOverview is null', () => {

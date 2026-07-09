@@ -652,15 +652,14 @@ export interface SOTPScenarioBandShape {
   warnings?: string[]
 }
 
-// Lightweight, display-only segment/business-line revenue mix (BACKLOG A4,
+// Lightweight, display-only reportable-segment revenue mix (BACKLOG A4,
 // 2026-07-09) — the Company Overview chapter's non-SOTP sibling. Populated for
 // tickers the SOTP option-value gate did NOT fire for (see SOTPBreakdownShape
-// below for that heavier reverse-decomposition channel). Two independent,
-// DIFFERENTLY-CALIBERED sources — never rendered as if they were the same
-// taxonomy: "sec_xbrl_business_segment" is the audited ASC-280 reportable
-// segment breakdown; "fmp_product_segmentation" is FMP's own finer, unaudited
-// product-category mix, used ONLY when XBRL had nothing (revenue only, no
-// profitability metric).
+// below for that heavier reverse-decomposition channel). SEC XBRL ASC-280
+// reportable segments ONLY (an FMP product-mix fallback was tried and removed
+// the same day — different, unaudited caliber + demonstrably unreliable, KO
+// live). An issuer with no cleanly-anchorable XBRL segment breakdown ships NO
+// SegmentOverview (honest "not available"), never a substitute.
 export interface SegmentShareShape {
   name: string
   revenue?: number | null
@@ -675,7 +674,7 @@ export interface SegmentShareShape {
 export interface SegmentOverviewShape {
   ticker: string
   as_of: string
-  source: 'sec_xbrl_business_segment' | 'fmp_product_segmentation'
+  source: 'sec_xbrl_business_segment'
   period_label: string
   segments: SegmentShareShape[]
   warnings?: string[]

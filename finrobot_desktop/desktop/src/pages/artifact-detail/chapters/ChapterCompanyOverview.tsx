@@ -1,11 +1,12 @@
 // Chapter 02 — Company Overview: BUSINESS · SEGMENTS · GEOGRAPHY · MOAT. The
 // pipeline carries the company_overview narrative (the 8th synthesis slot,
 // populated by synthesis_agent as of 2026-05-23) plus, since BACKLOG A4
-// (2026-07-09), a real segment revenue mix (segmentOverview — SEC XBRL
-// reportable segments, or FMP's product mix when XBRL has nothing; null for a
-// single-segment issuer or when neither source has anything, in which case the
-// narrative degrades to its own honest "unavailable" line — we still never
-// fabricate a figure). Geography remains narrative-only (no geographic fetch is
+// (2026-07-09), a real segment revenue mix (segmentOverview — SEC XBRL ASC-280
+// reportable segments ONLY; null for a single-segment issuer, an unwired SEC,
+// or an issuer whose XBRL has no cleanly-anchorable segment breakdown (e.g.
+// KO), in which case the narrative degrades to its own honest "unavailable"
+// line — we still never fabricate a figure or substitute a different-caliber
+// FMP product mix). Geography remains narrative-only (no geographic fetch is
 // wired). What the artifact ALSO carries, and no other chapter surfaces at this
 // point in the scroll, is the company's identity (sector / industry / country)
 // + headline scale (market cap, revenue CAGR, gross margin, beta). We render
@@ -138,9 +139,9 @@ function buildSnapshot(
 // Which profitability metric the breakdown actually carries — MSFT-style
 // issuers (extract_segment_facts' OperatingIncomeLoss anchor) populate
 // operating_income; TSLA-style issuers (the GrossProfit anchor) populate
-// gross_profit; FMP's product-mix fallback populates neither (revenue only —
-// FMP does not break out profitability per product category). Never both for
-// the same breakdown (see the backend's extract_segment_facts docstring).
+// gross_profit; some issuers disclose neither at segment level (revenue-only) →
+// no profit column. Never both for the same breakdown (see the backend's
+// extract_segment_facts docstring).
 function deriveProfitMetricKind(
   segments: SegmentShareShape[],
 ): 'operating_income' | 'gross_profit' | null {
@@ -163,14 +164,13 @@ function SegmentOverviewTable({
 }): React.ReactElement {
   const { locale } = useI18n()
   const profitKind = deriveProfitMetricKind(segmentOverview.segments)
-  const sourceLabel =
-    segmentOverview.source === 'sec_xbrl_business_segment'
-      ? tr('SEC XBRL 可报告分部(ASC 280)', 'SEC XBRL reportable segments (ASC 280)', locale)
-      : tr(
-          'FMP 产品线拆分(非 GAAP 分部,XBRL 无分部数据时的补充口径)',
-          'FMP product mix (not a GAAP reportable segment — used because XBRL had no segment data)',
-          locale,
-        )
+  // XBRL-only (BACKLOG A4): source is always the audited ASC-280 reportable
+  // segment breakdown — an issuer without one ships no SegmentOverview at all.
+  const sourceLabel = tr(
+    'SEC XBRL 可报告分部(ASC 280)',
+    'SEC XBRL reportable segments (ASC 280)',
+    locale,
+  )
   const profitHeader =
     profitKind === 'operating_income'
       ? tr('分部营业利润', 'Segment Operating Income', locale)
@@ -303,7 +303,8 @@ export function ChapterCompanyOverview({
   fetchedAt: string | null
   // BACKLOG A4 (2026-07-09): display-only segment revenue mix. null when the
   // SOTP option-value gate fired instead (that ticker's segments render in
-  // ChapterValuation's SOTPBreakdownPanel) or neither SEC XBRL nor FMP had data.
+  // ChapterValuation's SOTPBreakdownPanel) or SEC XBRL had no cleanly-anchorable
+  // reportable-segment breakdown (honest "not available", no substitute).
   segmentOverview: SegmentOverviewShape | null
   reportingCurrency: string
 }): React.ReactElement {

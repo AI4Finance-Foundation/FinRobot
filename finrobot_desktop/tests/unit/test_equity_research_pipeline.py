@@ -961,8 +961,9 @@ def _street_thesis_fixtures():
 
 @pytest.mark.asyncio
 async def test_thesis_discloses_street_context_when_target_out_of_band(mock_deps):
-    """Humility disclosure (2026-07-08): canonical target entirely below the
-    sell-side range → a street-context line rides the step's warnings (→ report
+    """Standing street-context line (2026-07-08, widened 2026-07-09 — BACKLOG
+    A9/B1): canonical target entirely below the sell-side range → the fact line
+    PLUS the out-of-consensus clause rides the step's warnings (→ report
     compute-warnings section). Verdict/target untouched — disclosure, not gate."""
     from finrobot.engine.pipelines.equity_research import _execute_thesis
     from finrobot.engine.models.financial import StepOutput
@@ -974,7 +975,7 @@ async def test_thesis_discloses_street_context_when_target_out_of_band(mock_deps
     mock_agent_instance.run = AsyncMock(return_value=mock_thesis_result)
 
     street = MagicMock()
-    street.data = {"low": 360.0, "high": 480.0, "analyst_count": 42}
+    street.data = {"low": 360.0, "high": 480.0, "analyst_count": 42, "consensus": 420.0}
     mock_deps.data_layer.fetch_price_target = AsyncMock(return_value=street)
 
     with patch(
@@ -988,13 +989,15 @@ async def test_thesis_discloses_street_context_when_target_out_of_band(mock_deps
     assert isinstance(output, StepOutput)
     blob = " ".join(output.warnings)
     assert "Street context" in blob and "below" in blob and "42 analysts" in blob
+    assert "consensus $420.00" in blob
     # Pure disclosure: the canonical target is still the weighted synthesis.
     assert output.structured.price_target == round(vs.weighted_price, 2)
 
 
 @pytest.mark.asyncio
-async def test_thesis_street_context_silent_when_in_band_or_unavailable(mock_deps):
-    """In-band target or a failed street fetch → no disclosure, step unaffected."""
+async def test_thesis_street_context_always_on_in_band_silent_when_unavailable(mock_deps):
+    """In-band target still shows the standing fact line (no judgment words, no
+    out-of-consensus clause); only a failed street fetch stays silent."""
     from finrobot.engine.pipelines.equity_research import _execute_thesis
 
     thesis, vs = _street_thesis_fixtures()
@@ -1003,9 +1006,10 @@ async def test_thesis_street_context_silent_when_in_band_or_unavailable(mock_dep
     mock_agent_instance = MagicMock()
     mock_agent_instance.run = AsyncMock(return_value=mock_thesis_result)
 
-    # In-band: canonical ≈38.95 sits inside the street range.
+    # In-band: canonical ≈38.95 sits inside the street range → fact line still
+    # renders, but with no directional/out-of-consensus language.
     street = MagicMock()
-    street.data = {"low": 20.0, "high": 60.0, "analyst_count": 10}
+    street.data = {"low": 20.0, "high": 60.0, "analyst_count": 10, "consensus": 40.0}
     mock_deps.data_layer.fetch_price_target = AsyncMock(return_value=street)
     with patch(
         "finrobot.engine.pipelines.equity_research.Agent",
@@ -1014,7 +1018,9 @@ async def test_thesis_street_context_silent_when_in_band_or_unavailable(mock_dep
         output = await _execute_thesis(
             mock_agent_instance, mock_deps, "base prompt", {"valuation_synthesis": vs}, "GOOGL"
         )
-    assert not any("Street context" in w for w in output.warnings)
+    blob = " ".join(output.warnings)
+    assert "Street context" in blob and "10 analysts" in blob and "consensus $40.00" in blob
+    assert "out-of-consensus" not in blob
 
     # Unavailable (fetch → None, the augmentation route's degrade contract).
     mock_deps.data_layer.fetch_price_target = AsyncMock(return_value=None)

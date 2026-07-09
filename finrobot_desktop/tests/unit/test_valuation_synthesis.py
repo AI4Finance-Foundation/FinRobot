@@ -1213,16 +1213,34 @@ class TestReratingDominanceGate:
 
 
 class TestStreetRangeDisclosure:
-    """Humility disclosure (boss-approved 2026-07-08): pure fact when OUR
-    12-month target sits entirely outside the sell-side range — never a gate."""
+    """Standing street-context fact line (boss-approved 2026-07-08, widened
+    2026-07-09 — BACKLOG A9/B1): pure fact whenever the sell-side distribution is
+    available; the out-of-consensus clause only APPENDS when OUR 12-month target
+    sits entirely outside the sell-side range — never a gate."""
 
-    def test_below_entire_range_discloses_with_analyst_count(self):
+    def test_in_band_shows_pure_fact_line_no_judgment(self):
         from finrobot.engine.compute.operators.valuation_synthesis import (
             STREET_CONTEXT_MARKER,
             street_range_disclosure,
         )
 
-        note = street_range_disclosure(274.32, 360.0, 480.0, analyst_count=42)
+        note = street_range_disclosure(400.0, 360.0, 480.0, analyst_count=45, consensus=420.0)
+        assert note is not None
+        assert note.startswith(STREET_CONTEXT_MARKER)
+        assert "$360.00" in note and "$480.00" in note
+        assert "$420.00" in note and "45 analysts" in note
+        # Pure fact — no judgment words, no out-of-consensus clause.
+        assert "below" not in note and "above" not in note
+        assert "out-of-consensus" not in note
+        assert "does not alter the verdict or confidence" not in note
+
+    def test_below_entire_range_appends_out_of_consensus_clause(self):
+        from finrobot.engine.compute.operators.valuation_synthesis import (
+            STREET_CONTEXT_MARKER,
+            street_range_disclosure,
+        )
+
+        note = street_range_disclosure(274.32, 360.0, 480.0, analyst_count=42, consensus=420.0)
         assert note is not None
         assert "below" in note
         assert "$274.32" in note and "$360.00" in note and "$480.00" in note
@@ -1233,25 +1251,18 @@ class TestStreetRangeDisclosure:
         # pile to the valuation box). Reword only through STREET_CONTEXT_MARKER.
         assert note.startswith(STREET_CONTEXT_MARKER)
 
-    def test_above_entire_range_discloses(self):
+    def test_above_entire_range_appends_out_of_consensus_clause(self):
         from finrobot.engine.compute.operators.valuation_synthesis import (
             street_range_disclosure,
         )
 
         note = street_range_disclosure(500.0, 360.0, 480.0)
         assert note is not None and "above" in note
+        assert "does not alter the verdict or confidence" in note
         assert "analysts" not in note  # count unavailable → omitted, not fabricated
+        assert "consensus $" not in note  # consensus unavailable → omitted, not fabricated
 
-    def test_inside_range_inclusive_bounds_silent(self):
-        from finrobot.engine.compute.operators.valuation_synthesis import (
-            street_range_disclosure,
-        )
-
-        assert street_range_disclosure(400.0, 360.0, 480.0) is None
-        assert street_range_disclosure(360.0, 360.0, 480.0) is None  # on low bound
-        assert street_range_disclosure(480.0, 360.0, 480.0) is None  # on high bound
-
-    def test_missing_or_nonpositive_inputs_silent(self):
+    def test_missing_or_nonpositive_inputs_return_none(self):
         from finrobot.engine.compute.operators.valuation_synthesis import (
             street_range_disclosure,
         )
@@ -1262,7 +1273,7 @@ class TestStreetRangeDisclosure:
         assert street_range_disclosure(274.0, 0.0, 480.0) is None
         assert street_range_disclosure(-5.0, 360.0, 480.0) is None
 
-    def test_degenerate_band_silent(self):
+    def test_degenerate_band_returns_none(self):
         from finrobot.engine.compute.operators.valuation_synthesis import (
             street_range_disclosure,
         )

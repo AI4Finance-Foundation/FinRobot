@@ -1350,71 +1350,18 @@ class FMPProvider(DataProvider):
             timestamp=datetime.now(tz=timezone.utc),
         )
 
-    async def fetch_revenue_segmentation(self, ticker: str) -> DataResult:
-        """Latest-FY product-category revenue mix from stable /revenue-product-segmentation.
-
-        This is FMP's OWN product taxonomy (probe-verified 2026-07-09, MSFT:
-        "Windows" / "Gaming" / "LinkedIn Corporation" / "Server Products And
-        Cloud Services" / … — 10 categories) — NOT the SEC XBRL ASC-280
-        REPORTABLE SEGMENT breakdown (``edgar_provider.extract_segment_facts``,
-        MSFT: 3 audited segments). The two calibers are DIFFERENT and must never
-        be merged into one table under shared keys: XBRL reportable segments are
-        the audited disclosure unit management runs the business by; FMP's
-        product mix is a finer, unaudited third-party categorization of the SAME
-        consolidated revenue. Revenue ONLY — FMP does not break out a
-        profitability metric per product category, so this can never populate
-        ``operating_income``/``gross_profit``.
-
-        This is the ``segment_overview`` coordinator's XBRL-EMPTY fallback ONLY
-        (called by ``DataLayer.fetch_segment_revenue_fmp``) — never invoked when
-        XBRL segments are available, so FMP never displaces the audited SEC
-        breakdown when both exist.
-
-        NOT on ``capabilities()``: an EXPLICIT augmentation route (like
-        ``fetch_price_target_consensus`` / EDGAR's ``fetch_annual_segments``).
-        Raises ``ProviderError`` on plan-gate / fetch failure so the caller
-        degrades to no segment overview — never fabricates a breakdown.
-        """
-        with self._wrap_errors(ticker, "revenue-product-segmentation fetch"):
-            resp = await self._get(
-                "/revenue-product-segmentation",
-                params={"symbol": ticker, "structure": "flat"},
-            )
-        raw: Any = resp.json()
-        rows = raw if isinstance(raw, list) else []
-        dated_rows = [r for r in rows if isinstance(r, dict) and r.get("date")]
-        if not dated_rows:
-            return DataResult(
-                data={"segments": {}, "period_label": None, "currency": None},
-                provider=self.name,
-                ticker=ticker,
-                data_type=DataType.FILINGS_10K,
-                timestamp=datetime.now(tz=timezone.utc),
-                warnings=["FMP revenue-product-segmentation returned no dated rows"],
-            )
-        # Newest fiscal period by report DATE — never trust undocumented row
-        # ordering (the FMP-provider-recall lesson: verify, don't assume).
-        latest = max(dated_rows, key=lambda r: str(r["date"]))
-        segments_raw = latest.get("data")
-        segments: dict[str, float] = {}
-        if isinstance(segments_raw, dict):
-            for name, value in segments_raw.items():
-                if isinstance(value, (int, float)) and not isinstance(value, bool):
-                    segments[str(name)] = float(value)
-        fiscal_year = latest.get("fiscalYear")
-        period_label = f"FY{fiscal_year}" if fiscal_year else str(latest.get("date"))
-        return DataResult(
-            data={
-                "segments": segments,
-                "period_label": period_label,
-                "date": latest.get("date"),
-                "currency": latest.get("reportedCurrency"),
-            },
-            provider=self.name,
-            ticker=ticker,
-            data_type=DataType.FILINGS_10K,
-            timestamp=datetime.now(tz=timezone.utc),
-        )
+    # NOTE (BACKLOG A4, 2026-07-09): a ``fetch_revenue_segmentation`` route to
+    # FMP's ``/revenue-product-segmentation`` was added then REMOVED the same
+    # day. FMP's payload is its OWN unaudited PRODUCT-CATEGORY taxonomy (MSFT:
+    # 10 product lines like "Windows"/"Gaming"), a fundamentally different
+    # caliber from the SEC XBRL ASC-280 REPORTABLE SEGMENT breakdown the segment
+    # overview needs — and it was demonstrably unreliable (KO live: 2 truncated,
+    # mislabeled rows summing to ~79% of revenue). Presenting product categories
+    # as "segment revenue" misrepresents; no completeness gate fixes the caliber
+    # mismatch. The segment overview is now XBRL-only: an issuer without a
+    # cleanly-anchorable XBRL segment breakdown degrades to an honest
+    # "segment breakdown not available", never an FMP substitute. Do not
+    # re-add an FMP segment route for the overview without re-litigating this.
 
     async def _fetch_dividends(self, ticker: str) -> DataResult:
         """Fetch the declared dividend history from stable /dividends.

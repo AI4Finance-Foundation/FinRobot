@@ -895,45 +895,6 @@ class DataLayer:
         await self._cache.set(DataType.FILINGS_10K, cache_key, result)
         return result
 
-    async def fetch_segment_revenue_fmp(self, ticker: str) -> DataResult | None:
-        """FMP's product-category revenue mix, or None.
-
-        The ``segment_overview`` coordinator's XBRL-EMPTY fallback (BACKLOG A4,
-        2026-07-09): FMP's OWN product taxonomy — a DIFFERENT, finer, unaudited
-        caliber than the SEC XBRL ASC-280 reportable-segment breakdown
-        ``fetch_segments`` returns (see ``FMPProvider.fetch_revenue_segmentation``
-        docstring). Routed EXPLICITLY to FMP's ``fetch_revenue_segmentation`` —
-        NOT the priority chain — so FMP never displaces the audited SEC segment
-        breakdown when both exist; the coordinator only calls this when
-        ``fetch_segments`` returned None or an empty segments dict. Cached in the
-        FILINGS_10K slot family (SEC-segment-cadence, 7-day TTL) under a distinct
-        ``:fmp_segments`` suffix (key folds only ``(type, ticker)``; cold-miss
-        single-flight; cache success only).
-
-        Returns None (not raise) when FMP is absent / health-gated / the fetch
-        fails, so the light company-overview panel cleanly drops.
-        """
-        from finrobot.engine.data.providers.fmp_provider import FMPProvider
-
-        provider = next((p for p in self._providers if isinstance(p, FMPProvider)), None)
-        if provider is None:
-            return None
-        if self._health_gated(provider):
-            return None
-        cache_key = f"{ticker}:fmp_segments"
-        cached = await self._cache.get(DataType.FILINGS_10K, cache_key)
-        if cached is not None and not cached.is_stale:
-            return cached.data
-        try:
-            result = await provider.fetch_revenue_segmentation(ticker)
-        except ProviderError as e:
-            self._record_provider_failure(provider.name, e)
-            logger.warning("FMP segment revenue fetch failed for %s: %s", ticker, e)
-            return cached.data if cached is not None else None
-        self._health.record_success(provider.name)
-        await self._cache.set(DataType.FILINGS_10K, cache_key, result)
-        return result
-
     async def fetch_price_target(self, ticker: str) -> DataResult | None:
         """Analyst 12-month price-target distribution from FMP, or None.
 

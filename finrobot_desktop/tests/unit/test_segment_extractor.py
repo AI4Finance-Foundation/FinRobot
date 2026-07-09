@@ -34,13 +34,10 @@ class _FakeLayer:
         result: _SegResult | None = None,
         *,
         price_target: dict[str, Any] | None = None,
-        fmp_segments_result: _SegResult | None = None,
     ) -> None:
         self._result = result
         self._price_target = price_target
-        self._fmp_segments_result = fmp_segments_result
         self.calls = 0
-        self.fmp_calls = 0
 
     async def fetch_segments(self, ticker: str) -> _SegResult | None:
         self.calls += 1
@@ -49,11 +46,6 @@ class _FakeLayer:
     async def fetch_price_target(self, ticker: str) -> _SegResult | None:
         # Batch 3B v2 street scenario band source; None → band drops (floor still ships).
         return _SegResult(self._price_target) if self._price_target is not None else None
-
-    async def fetch_segment_revenue_fmp(self, ticker: str) -> _SegResult | None:
-        # BACKLOG A4 (2026-07-09): XBRL-empty fallback for build_segment_overview.
-        self.fmp_calls += 1
-        return self._fmp_segments_result
 
 
 def _segments_result(
@@ -280,8 +272,6 @@ class TestBuildSegmentOverviewXbrlPath:
         assert pbp.revenue_share == pytest.approx(120.810e9 / total)
         assert pbp.operating_income == pytest.approx(69.773e9)
         assert pbp.gross_profit is None
-        # FMP never touched — XBRL had data.
-        assert layer.fmp_calls == 0
         # Reconciliation caveat always present (elimination/corporate honesty).
         assert any("not consolidated total revenue" in w for w in out.warnings)
 
@@ -328,65 +318,24 @@ class TestBuildSegmentOverviewXbrlPath:
         assert seg_a.revenue_share == pytest.approx(1.0)
 
 
-class TestBuildSegmentOverviewFmpFallback:
-    async def test_empty_xbrl_falls_back_to_fmp_product_mix(self):
-        layer = _FakeLayer(
-            _segments_result({}),  # XBRL: single-segment issuer, nothing dimensioned
-            fmp_segments_result=_SegResult(
-                data={
-                    "segments": {"Windows": 17.314e9, "Gaming": 23.455e9},
-                    "period_label": "FY2025",
-                    "currency": "USD",
-                }
-            ),
-        )
-        out = await build_segment_overview(cast(DataLayer, layer), "MSFT")
-        assert isinstance(out, SegmentOverview)
-        assert out.source == "fmp_product_segmentation"
-        assert out.period_label == "FY2025"
-        assert layer.calls == 1  # XBRL tried first
-        assert layer.fmp_calls == 1
-        names = {s.name for s in out.segments}
-        assert names == {"Windows", "Gaming"}
-        # FMP never supplies a profitability metric.
-        for s in out.segments:
-            assert s.operating_income is None
-            assert s.gross_profit is None
-        assert any("NOT SEC" in w for w in out.warnings)
+class TestBuildSegmentOverviewXbrlOnly:
+    """BACKLOG A4 (2026-07-09): XBRL-only — the FMP product-mix fallback was
+    removed the same day (KO live: FMP returned 2 truncated, mislabeled rows
+    summing to ~79% of revenue; different caliber from GAAP reportable
+    segments). An issuer with no cleanly-anchorable XBRL segment breakdown
+    degrades to None (honest "not available"), NEVER an FMP substitute."""
 
-    async def test_xbrl_present_never_calls_fmp(self):
-        # XBRL segments non-empty → FMP fallback must NOT be invoked at all —
-        # FMP never displaces the audited SEC breakdown when both exist.
-        layer = _FakeLayer(
-            _segments_result(_MSFT_XBRL_SEGMENTS),
-            fmp_segments_result=_SegResult(data={"segments": {"Windows": 17.314e9}}),
-        )
-        out = await build_segment_overview(cast(DataLayer, layer), "MSFT")
-        assert out is not None
-        assert out.source == "sec_xbrl_business_segment"
-        assert layer.fmp_calls == 0
-
-    async def test_both_sources_empty_returns_none(self):
-        layer = _FakeLayer(
-            _segments_result({}),
-            fmp_segments_result=_SegResult(data={"segments": {}}),
-        )
-        out = await build_segment_overview(cast(DataLayer, layer), "SINGLESEG")
+    async def test_empty_xbrl_returns_none_no_fmp_substitute(self):
+        # KO-shaped: extract_segment_facts found no anchorable reportable-segment
+        # breakdown → empty segments → None (honest "not available"). There is no
+        # FMP fallback — never a truncated/mislabeled product-mix substitute.
+        layer = _FakeLayer(_segments_result({}))
+        out = await build_segment_overview(cast(DataLayer, layer), "KO")
         assert out is None
+        assert layer.calls == 1  # only XBRL is consulted
 
-    async def test_xbrl_none_falls_back_to_fmp(self):
-        # fetch_segments returning None (SEC unwired) must still try FMP.
-        layer = _FakeLayer(
-            None,
-            fmp_segments_result=_SegResult(
-                data={"segments": {"Widgets": 5e9}, "period_label": "FY2025"}
-            ),
-        )
-        out = await build_segment_overview(cast(DataLayer, layer), "X")
-        assert out is not None
-        assert out.source == "fmp_product_segmentation"
-
-    async def test_fmp_none_returns_none(self):
-        layer = _FakeLayer(_segments_result({}), fmp_segments_result=None)
+    async def test_xbrl_none_returns_none(self):
+        # fetch_segments returning None (SEC unwired) → None, no substitute.
+        layer = _FakeLayer(None)
         out = await build_segment_overview(cast(DataLayer, layer), "X")
         assert out is None

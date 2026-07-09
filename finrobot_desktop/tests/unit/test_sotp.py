@@ -316,6 +316,67 @@ def test_single_segment_issuer_yields_no_floor() -> None:
     assert any("single-segment" in w or "non-dimensioned" in w for w in warnings)
 
 
+# --- Guard: KO-shaped facts on the WRONG axis yield NOTHING (never mis-extract) --
+def test_ko_shaped_operating_segments_on_consolidation_axis_yields_empty() -> None:
+    # KO (live 2026-02-20 10-K): segment OperatingIncomeLoss rides
+    # srt:ConsolidationItemsAxis where EVERY reportable segment collapses onto the
+    # SAME ``us-gaap:OperatingSegmentsMember`` label (the per-segment identity is
+    # on a crossed second axis, unrecoverable single-axis), and there is NO
+    # BusinessSegmentsAxis. The extractor filters strictly on BusinessSegmentsAxis,
+    # so it matches NOTHING → empty (head invariant: anchor to a unique
+    # authoritative label or return None; NEVER emit 5 rows all keyed
+    # "OperatingSegments"). build_segment_overview then degrades to honest
+    # "not available" (no FMP substitute).
+    ko = _FakeXBRL(
+        {
+            "GrossProfit": [],
+            "OperatingIncomeLoss": [
+                {
+                    "period_start": "2025-01-01",
+                    "period_end": "2025-12-31",
+                    "is_dimensioned": True,
+                    "dimension": "srt:ConsolidationItemsAxis",
+                    "member": "us-gaap:OperatingSegmentsMember",
+                    "dimension_member_label": "Operating Segments",
+                    "numeric_value": 11513000000.0,
+                    "unit_ref": "usd",
+                },
+                {
+                    "period_start": "2025-01-01",
+                    "period_end": "2025-12-31",
+                    "is_dimensioned": True,
+                    "dimension": "srt:ConsolidationItemsAxis",
+                    "member": "us-gaap:OperatingSegmentsMember",
+                    "dimension_member_label": "Operating Segments",
+                    "numeric_value": 6334000000.0,
+                    "unit_ref": "usd",
+                },
+            ],
+            "RevenueFromContractWithCustomerExcludingAssessedTax": [],
+        }
+    )
+    data, warnings = extract_segment_facts(ko)
+    assert data["segments"] == {}
+    assert any("not derivable" in w for w in warnings)
+
+
+# --- Guard: a query that RAISES (edgartools shape quirk) degrades silently -------
+def test_segment_query_attributeerror_degrades_without_reader_warning() -> None:
+    # KO live surfaced AttributeError from edgartools' query on some filings. The
+    # miss must degrade to empty WITHOUT polluting the reader-facing warnings with
+    # "segment query failed: AttributeError" (it's logged to the app log instead).
+    class _RaisingXBRL:
+        def query(self):  # noqa: ANN202
+            raise AttributeError("edgartools query shape mismatch")
+
+    data, warnings = extract_segment_facts(_RaisingXBRL())
+    assert data["segments"] == {}
+    # The terminal "not derivable" summary is fine; the per-concept AttributeError
+    # noise must NOT be surfaced to the reader.
+    assert not any("AttributeError" in w for w in warnings)
+    assert not any("query failed" in w for w in warnings)
+
+
 # --- MSFT-shaped fixture (operating-income anchor, BACKLOG A4 2026-07-09) -----
 # External anchors: MSFT FY2025 10-K (accession 0000950170-25-100235, filed
 # 2025-07-30) — XBRL segment facts probe-verified LIVE against data.sec.gov

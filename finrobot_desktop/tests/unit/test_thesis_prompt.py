@@ -473,13 +473,13 @@ class TestSegmentOverviewGrounding:
         ),
     ]
 
-    def _overview(self, source="sec_xbrl_business_segment"):
+    def _overview(self):
         from finrobot.engine.models.financial import SegmentOverview, SegmentShare
 
         return SegmentOverview(
             ticker="AAPL",
             as_of=datetime(2026, 7, 9, tzinfo=timezone.utc),
-            source=source,
+            source="sec_xbrl_business_segment",
             period_label="FY ending 2025-06-30",
             segments=[
                 SegmentShare(
@@ -526,14 +526,6 @@ class TestSegmentOverviewGrounding:
         assert "No segment-level revenue breakdown was sourceable" not in prompt
         # Reconciliation caveat instruction (never claim share of TOTAL company revenue).
         assert "as a share of the company's TOTAL consolidated revenue" in prompt
-
-    def test_fmp_fallback_source_labeled_distinctly(self):
-        prompt = _build(
-            self._METHODS,
-            current_price=230.0,
-            extra_context={"segment_overview": self._overview(source="fmp_product_segmentation")},
-        )
-        assert "segment_overview (fmp_product_segmentation, FY ending 2025-06-30)" in prompt
 
     def test_empty_segments_list_falls_back_to_unavailable_branch(self):
         """A SegmentOverview with zero rows (shouldn't happen upstream, but the

@@ -1303,22 +1303,34 @@ def extract_segment_facts(xbrl: Any) -> tuple[dict[str, Any], list[str]]:
     warnings: list[str] = []
 
     def _seg_facts(concept: str, axis_token: str) -> list[dict[str, Any]]:
+        # The whole body (query + row iteration) is guarded: edgartools' query
+        # shape varies per filing — .execute() AND the row .get() access have both
+        # been observed to raise AttributeError on issuers whose XBRL doesn't
+        # expose the assumed structure (KO 2026-02-20 10-K, live). A segment-query
+        # miss is a BENIGN, expected outcome for the light company-overview path
+        # (most issuers won't match the queried shape), so it degrades to "no
+        # segments" — NEVER a reader-facing error string in the artifact Disclaimer.
+        # Logged (app log, debuggable) instead, so an unexpected shape stays
+        # visible to us without alarming an analyst.
         try:
             rows = xbrl.query().by_concept(concept).execute()
-        except _ADAPTER_CATCH as e:  # pragma: no cover — defensive
-            # Type only, not str(e): an httpx error embeds the request URL, and this
-            # warning rides DataResult.warnings → the report Disclaimer (reader-facing).
-            warnings.append(f"segment query failed for {concept}: {type(e).__name__}")
+            out = []
+            for x in rows:
+                if not x.get("is_dimensioned"):
+                    continue
+                dim = x.get("dimension") or ""
+                if axis_token not in dim:
+                    continue
+                out.append(x)
+            return out
+        except _ADAPTER_CATCH as e:
+            logger.warning(
+                "segment query for concept %s on axis %s degraded (no facts): %s",
+                concept,
+                axis_token,
+                type(e).__name__,
+            )
             return []
-        out = []
-        for x in rows:
-            if not x.get("is_dimensioned"):
-                continue
-            dim = x.get("dimension") or ""
-            if axis_token not in dim:
-                continue
-            out.append(x)
-        return out
 
     gp_facts = _seg_facts(_SEG_GROSS_PROFIT_CONCEPT, _SEG_AXIS_TOKEN)
     primary_metric = "gross_profit"

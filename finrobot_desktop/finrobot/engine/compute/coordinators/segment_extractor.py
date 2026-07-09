@@ -351,34 +351,8 @@ def _segment_overview_from_xbrl(ticker: str, result: DataResult) -> SegmentOverv
     )
 
 
-def _segment_overview_from_fmp(ticker: str, result: DataResult) -> SegmentOverview | None:
-    """Build a display-only overview from FMP's product-category fallback payload."""
-    raw_segments: dict[str, Any] = result.data.get("segments") or {}
-    if not raw_segments:
-        return None
-    rows: list[tuple[str, float | None, float | None, float | None]] = [
-        (str(name), _num_or_none(revenue), None, None) for name, revenue in raw_segments.items()
-    ]
-    period_label = str(result.data.get("period_label") or "FY (period unresolved)")
-    warnings = [
-        *result.warnings,
-        "segment breakdown sourced from FMP's product-category taxonomy, NOT SEC "
-        "XBRL reportable segments (SEC XBRL segment data unavailable for this issuer) "
-        "— revenue only, no profitability metric per category",
-        _SEGMENT_RECONCILIATION_CAVEAT,
-    ]
-    return SegmentOverview(
-        ticker=ticker,
-        as_of=datetime.now(tz=timezone.utc),
-        source="fmp_product_segmentation",
-        period_label=period_label,
-        segments=_segment_shares(rows),
-        warnings=warnings,
-    )
-
-
 async def build_segment_overview(data_layer: DataLayer, ticker: str) -> SegmentOverview | None:
-    """Lightweight, display-only segment/business-line revenue mix, or None.
+    """Lightweight, display-only reportable-segment revenue mix, or None.
 
     For tickers that are NOT SOTP option-value candidates (the caller gates on
     that — see ``equity_research._execute_financial_modeling``). No valuation
@@ -387,26 +361,23 @@ async def build_segment_overview(data_layer: DataLayer, ticker: str) -> SegmentO
     replace the "segment data unavailable" placeholder in the Company Overview
     chapter with a real (small, sourced) breakdown.
 
-    Source priority:
-      1. SEC XBRL reportable segments (``DataLayer.fetch_segments`` — the SAME
-         route SOTP uses, unchanged). Preferred: audited, GAAP-defined.
-      2. FMP's product-category breakdown (``DataLayer.fetch_segment_revenue_fmp``)
-         — used ONLY when (1) is unavailable or empty (single-segment issuer, SEC
-         unwired, or the 10-K genuinely has no dimensioned segment facts).
+    SEC XBRL ONLY (BACKLOG A4, 2026-07-09): ``DataLayer.fetch_segments`` — the
+    SAME route SOTP uses, unchanged; audited, GAAP-defined reportable segments.
+    An FMP product-category fallback was tried and REMOVED the same day: FMP's
+    payload is a different, unaudited PRODUCT taxonomy (not GAAP reportable
+    segments) and was demonstrably unreliable (KO live: 2 truncated, mislabeled
+    rows summing to ~79% of revenue). Presenting that as "segment revenue"
+    misrepresents — 绝不让残缺/错标数据进 artifact (contract②: honest degrade,
+    never fabricate).
 
-    Returns None when NEITHER source has anything — the chapter then keeps its
-    existing empty-state narrative gate; no fabricated panel.
+    Returns None when XBRL has no cleanly-anchorable reportable-segment
+    breakdown (single-segment issuer; SEC unwired; or the reportable segments
+    collapse onto a non-uniquely-labelled axis, e.g. KO). The chapter then keeps
+    its existing empty-state narrative gate; no fabricated panel.
     """
     xbrl_result = await data_layer.fetch_segments(ticker)
     if xbrl_result is not None:
         overview = _segment_overview_from_xbrl(ticker, xbrl_result)
         if overview is not None:
             return overview
-
-    fmp_result = await data_layer.fetch_segment_revenue_fmp(ticker)
-    if fmp_result is not None:
-        overview = _segment_overview_from_fmp(ticker, fmp_result)
-        if overview is not None:
-            return overview
-
     return None

@@ -358,6 +358,9 @@ def extract_financial_data(
             pe_ratio=pe_ratio,
             price_52w_high=high_52w,
             price_52w_low=low_52w,
+            # Same canonical PRICE object the 52w high/low above derive from —
+            # single source, self-consistent (thesis-prompt momentum context).
+            trailing_1y_return_pct=price.trailing_1y_return_pct(),
             industry=fin.industry,
             sector=fin.sector,
             country=fin.country,

@@ -105,6 +105,17 @@ class MarketData(BaseModel):
     pe_ratio: float | None = None
     price_52w_high: float | None = None
     price_52w_low: float | None = None
+    # Trailing-52-week PRICE return (NOT total return — dividends excluded), in
+    # PERCENT units (e.g. -20.5 means -20.5%). Mirrors
+    # ``NormalizedPrice.trailing_1y_return_pct()`` verbatim — same bars, same
+    # earliest-close-to-latest-close convention — so it agrees with the
+    # price_52w_high/low above (all three derive from the SAME canonical PRICE
+    # snapshot). A pure ratio: untouched by fx_normalize's USD conversion (the
+    # quote-currency scaling cancels out of a percentage change), so this field
+    # reads identically whether ``financial_data`` is the native-quote extractor
+    # output or the USD-normalized copy every later pipeline step consumes. None
+    # when the price series has fewer than 2 bars (insufficient history).
+    trailing_1y_return_pct: float | None = None
     # Industry / sector strings as reported by the data provider. Used by
     # dcf_seed to look up Damodaran industry medians when ticker-level data
     # is missing. None when provider didn't expose it.
@@ -863,6 +874,22 @@ class ThesisResult(BaseModel):
     news_summary: str | None = Field(
         default=None,
         description="3-5 sentence overall-sentiment narrative of the last 30 days of key news.",
+    )
+    momentum_divergence_note: str | None = Field(
+        default=None,
+        description=(
+            "2-4 sentence explanation of what the market's OWN recent price action is "
+            "pricing in, and why this recommendation differs from it. ONLY fill this "
+            "field when the recommendation strongly disagrees with the stock's trailing "
+            "1-year price return — a BUY on a stock down more than 15% over the past "
+            "year, or a SELL on a stock up more than 30%. The thesis prompt injects an "
+            "explicit MANDATORY instruction when that condition holds; leave this null "
+            "otherwise (do not write it for an ordinary, non-divergent call). Do not "
+            "restate the general bull/bear case here — this is specifically about the "
+            "market's price action vs the call — and cite only numbers from the "
+            "numeric-discipline whitelist (never invent a new figure to justify the "
+            "divergence)."
+        ),
     )
 
 

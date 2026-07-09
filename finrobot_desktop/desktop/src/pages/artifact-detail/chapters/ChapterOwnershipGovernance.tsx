@@ -526,42 +526,42 @@ function InstitutionTable({
           {sorted.map((r, i) => {
             const classLabel = showClassBadge ? shareClassLabel(r.title_of_class, t) : null
             return (
-            <tr key={`${r.holder_name}-${r.period_end}-${r.shares}-${i}`}>
-              <td style={tdStyle}>
-                <ProvenanceLink prov={r.provenance} locale={locale} t={t}>
-                  {r.holder_name}
-                </ProvenanceLink>
-                {classLabel && <span style={shareClassBadgeStyle}>{classLabel}</span>}
-              </td>
-              <td style={{ ...tdStyle, textAlign: 'right' }}>
-                {formatCompactNumber(r.shares, locale)}
-              </td>
-              <td style={{ ...tdStyle, textAlign: 'right' }}>
-                {/* 13F value_usd — the field is USD by definition. */}
-                {formatCurrencyCompact(r.value_usd, 'USD', locale)}
-              </td>
-              <td
-                style={{
-                  ...tdStyle,
-                  textAlign: 'right',
-                  color:
-                    r.shares_change_pct === null || r.shares_change_pct === undefined
-                      ? 'var(--text-muted)'
-                      : r.shares_change_pct > 0
-                        ? 'var(--success)'
-                        : r.shares_change_pct < 0
-                          ? 'var(--danger)'
-                          : 'var(--text-muted)',
-                }}
-              >
-                {r.shares_change_pct === null || r.shares_change_pct === undefined
-                  ? '—'
-                  : `${r.shares_change_pct > 0 ? '+' : ''}${formatPercent(r.shares_change_pct, locale, 1, true)}`}
-              </td>
-              <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>
-                {formatDate(r.period_end, locale)}
-              </td>
-            </tr>
+              <tr key={`${r.holder_name}-${r.period_end}-${r.shares}-${i}`}>
+                <td style={tdStyle}>
+                  <ProvenanceLink prov={r.provenance} locale={locale} t={t}>
+                    {r.holder_name}
+                  </ProvenanceLink>
+                  {classLabel && <span style={shareClassBadgeStyle}>{classLabel}</span>}
+                </td>
+                <td style={{ ...tdStyle, textAlign: 'right' }}>
+                  {formatCompactNumber(r.shares, locale)}
+                </td>
+                <td style={{ ...tdStyle, textAlign: 'right' }}>
+                  {/* 13F value_usd — the field is USD by definition. */}
+                  {formatCurrencyCompact(r.value_usd, 'USD', locale)}
+                </td>
+                <td
+                  style={{
+                    ...tdStyle,
+                    textAlign: 'right',
+                    color:
+                      r.shares_change_pct === null || r.shares_change_pct === undefined
+                        ? 'var(--text-muted)'
+                        : r.shares_change_pct > 0
+                          ? 'var(--success)'
+                          : r.shares_change_pct < 0
+                            ? 'var(--danger)'
+                            : 'var(--text-muted)',
+                  }}
+                >
+                  {r.shares_change_pct === null || r.shares_change_pct === undefined
+                    ? '—'
+                    : `${r.shares_change_pct > 0 ? '+' : ''}${formatPercent(r.shares_change_pct, locale, 1, true)}`}
+                </td>
+                <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>
+                  {formatDate(r.period_end, locale)}
+                </td>
+              </tr>
             )
           })}
         </tbody>
@@ -589,6 +589,10 @@ function CompensationGrid({
     {
       label: t('chapter.ownership.kv.ceoName'),
       value: comp.ceo_name ?? '—',
+      // When the NAME was overridden by a fresher authority than this proxy (a
+      // succession the annual DEF 14A hasn't caught), show where it came from so
+      // the reader can trace it — e.g. "per 10-Q cert · Apr 30, 2026".
+      sub: ceoNameSourceLabel(comp, locale),
     },
     {
       label: t('chapter.ownership.kv.ceoComp'),
@@ -639,6 +643,23 @@ function makeProvenance(comp: ProxyCompensationShape): FilingProvenanceShape {
     filing_date: comp.filing_date,
     accession_no: comp.accession_no,
   }
+}
+
+// Sub-label for the CEO name cell when the name came from a fresher authority
+// than this DEF 14A. The comp figures are always DEF 14A (panel footer); only
+// the NAME can be overridden — by the SOX-302 cert (Ex-31.1 signer of the latest
+// 10-Q/10-K, the current CEO by law) or a Form-4 officer title.
+function ceoNameSourceLabel(comp: ProxyCompensationShape, locale: 'zh' | 'en'): string | undefined {
+  const source = comp.ceo_name_source
+  const prov = comp.ceo_name_provenance
+  if (!source || source === 'def14a' || !prov) return undefined
+  const date = formatDate(prov.filing_date, locale)
+  if (source === 'sox302_cert') {
+    const form = prov.form || (locale === 'en' ? '10-Q' : '10-Q')
+    return locale === 'en' ? `per ${form} cert · ${date}` : `据 ${form} 认证 · ${date}`
+  }
+  // form4
+  return locale === 'en' ? `per Form 4 · ${date}` : `据 Form 4 · ${date}`
 }
 
 // ---------------------------------------------------------------------------

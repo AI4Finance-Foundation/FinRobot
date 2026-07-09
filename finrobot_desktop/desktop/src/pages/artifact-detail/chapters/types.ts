@@ -416,6 +416,13 @@ export interface ProxyCompensationShape {
   filing_date: string
   accession_no: string
   ceo_name?: string | null
+  // Where ceo_name came from. The comp figures always come from this DEF 14A,
+  // but the NAME may be overridden by a fresher authority after a succession:
+  // 'form4' = Form-4 officer title; 'sox302_cert' = the Ex-31.1 signer of the
+  // latest 10-Q/10-K (the current principal executive officer by law).
+  ceo_name_source?: 'def14a' | 'form4' | 'sox302_cert' | null
+  // Filing the name was read from, when source !== 'def14a'.
+  ceo_name_provenance?: FilingProvenanceShape | null
   ceo_total_compensation?: number | null
   ceo_yoy_change_pct?: number | null
   ceo_pay_ratio?: number | null

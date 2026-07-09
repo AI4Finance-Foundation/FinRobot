@@ -643,13 +643,12 @@ _VERDICT_BANDS: dict[str, tuple[float, float]] = {
 
 
 STREET_CONTEXT_MARKER: Final[str] = "Street context:"
-"""Stable leading label every street-range disclosure begins with. The report's
+"""Stable leading label every street-context line begins with. The report's
 compute-warnings layering (frontend ``reportData.layerComputeWarnings``) matches on
-THIS token to route the disclosure OUT of the ⚠ caveat pile and into the valuation
-box beside the cover target — a re-location, not a suppression: the disclosure rule
-is unchanged (out-of-band → disclose, no threshold). Single source: reword the
-disclosure prose only through this constant, or the frontend routing silently breaks.
-Mirrors the ``RERATING_WARNING_MARKER`` pattern in ``valuation_aggregator.py``.
+THIS token to route the line OUT of the ⚠ caveat pile and into the valuation box
+beside the cover target — a re-location, not a suppression. Single source: reword
+the disclosure prose only through this constant, or the frontend routing silently
+breaks. Mirrors the ``RERATING_WARNING_MARKER`` pattern in ``valuation_aggregator.py``.
 The frontend copy lives in ``reportData.ts`` (STREET_CONTEXT_MARKER) — keep in sync."""
 
 
@@ -658,24 +657,38 @@ def street_range_disclosure(
     street_low: float | None,
     street_high: float | None,
     analyst_count: int | None = None,
+    consensus: float | None = None,
 ) -> str | None:
-    """Humility disclosure when OUR 12-month target sits entirely outside the
-    sell-side target range (boss-approved 2026-07-08, disclosure NOT gate).
+    """Standing street-context fact line beside the cover target, whenever the
+    sell-side distribution is available (boss-approved 2026-07-08 disclosure,
+    widened 2026-07-09 to an always-on fact line — BACKLOG A9/B1). Eliminates the
+    "when does the street get shown" edge: the reader used to see nothing at all
+    UNLESS our target fell entirely outside the sell-side band, so an in-band call
+    that was nonetheless deep inside a lopsided street distribution (MSFT: our
+    target sat within the sell-side band but far below its mean) rendered with the
+    same silence as "no coverage exists" — a blind audit read that silence as "the
+    system doesn't know the consensus". Now the low/high/consensus/analyst-count
+    facts render every time they are available; verdict/confidence/target numbers
+    are never touched by this function — pure disclosure, never a gate.
 
-    An out-of-consensus call is legitimate — the contract says confidence never
-    looks at market distance — but a professional reader handed a target below
-    the most bearish street number deserves to be told so (GOOGL: our SELL sat
-    24% under the lowest sell-side target with a 69-Buy street; the blind audit
-    read the silence as "the system doesn't know the consensus"). Pure fact,
-    verdict/confidence/numbers untouched.
+    Out-of-band (our target sits entirely outside [street_low, street_high]): the
+    SAME fact line, with the pre-existing out-of-consensus sentence appended on the
+    one marker line (single frontend route) — an out-of-consensus call is legitimate
+    (the contract says confidence never looks at market distance), but a reader
+    handed a target below the most bearish street number deserves to be told so.
 
     Caliber note: both sides are 12-month FORWARD targets (ours = the report's
     12-month target; FMP /price-target-consensus = sell-side 12-month targets),
     so the comparison shares one axis — this is street RANGE POSITIONING, never
     a success probability (the LBO FV/PV mixed-axis family does not apply).
 
-    Returns None when the target sits inside the band (inclusive), when either
-    bound is missing/non-positive, or when the band is degenerate (low > high).
+    Returns None when the target is missing/non-positive, when either bound is
+    missing/non-positive, or when the band is degenerate (low > high) — a fetch
+    miss or a malformed distribution must never degrade the thesis step (never
+    raises). ``consensus`` and ``analyst_count`` are each independently optional:
+    a missing consensus (or a non-positive one) drops only that segment of the
+    fact line rather than withholding the whole line — the low/high band alone is
+    still useful context.
     """
     if target is None or target <= 0:
         return None
@@ -683,14 +696,24 @@ def street_range_disclosure(
         return None
     if street_low > street_high:
         return None
+
+    consensus_part = (
+        f" · consensus ${consensus:.2f}" if consensus is not None and consensus > 0 else ""
+    )
+    analysts_part = f" · {analyst_count} analysts" if analyst_count else ""
+    fact = (
+        f"{STREET_CONTEXT_MARKER} sell-side ${street_low:.2f}–${street_high:.2f}"
+        f"{consensus_part}{analysts_part}"
+    )
     if street_low <= target <= street_high:
-        return None
+        return fact
+
     direction = "below" if target < street_low else "above"
-    analysts = f", {analyst_count} analysts" if analyst_count else ""
+    analysts_paren = f", {analyst_count} analysts" if analyst_count else ""
     return (
-        f"{STREET_CONTEXT_MARKER} the 12-month target ${target:.2f} sits {direction} "
+        f"{fact} — the 12-month target ${target:.2f} sits {direction} "
         f"the entire sell-side target range (${street_low:.2f}–${street_high:.2f}"
-        f"{analysts}) — an out-of-consensus call, disclosed for context; it does "
+        f"{analysts_paren}) — an out-of-consensus call, disclosed for context; it does "
         f"not alter the verdict or confidence."
     )
 

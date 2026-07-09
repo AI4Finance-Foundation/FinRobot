@@ -1429,23 +1429,28 @@ async def _execute_thesis(
     canonical = resolve_canonical_thesis(vs, ticker)
     thesis_prompt = build_thesis_prompt(prompt, structured_context, canonical)
 
-    # Humility disclosure (boss-approved 2026-07-08): when the canonical
-    # 12-month target sits ENTIRELY outside the sell-side target range, say so —
-    # a pure factual anchor on the step's warnings (→ artifact warnings → the
-    # report's compute-warnings section), never a gate: verdict / confidence /
-    # numbers stay untouched, and a fetch miss silently drops the disclosure
-    # (the explicit augmentation route raises ProviderError → fetch_price_target
-    # returns None; a missing street band must not degrade the thesis step).
+    # Standing street-context fact line (boss-approved 2026-07-08, widened
+    # 2026-07-09 — BACKLOG A9/B1): whenever the sell-side 12-month target
+    # distribution is available, say so on the step's warnings (→ artifact
+    # warnings → the report's compute-warnings section, routed by the frontend
+    # into the cover valuation box). When the canonical target sits ENTIRELY
+    # outside the sell-side range, the humility clause rides the SAME marker
+    # line. Never a gate: verdict / confidence / numbers stay untouched, and a
+    # fetch miss silently drops the line (the explicit augmentation route
+    # raises ProviderError → fetch_price_target returns None; a missing street
+    # band must not degrade the thesis step).
     street_note: str | None = None
     if canonical.target is not None and canonical.target > 0:
         pt = await deps.data_layer.fetch_price_target(ticker)
         d = pt.data if pt is not None and isinstance(pt.data, dict) else {}
         low, high, cnt = d.get("low"), d.get("high"), d.get("analyst_count")
+        consensus = d.get("consensus")
         street_note = street_range_disclosure(
             canonical.target,
             float(low) if isinstance(low, (int, float)) else None,
             float(high) if isinstance(high, (int, float)) else None,
             int(cnt) if isinstance(cnt, (int, float)) else None,
+            float(consensus) if isinstance(consensus, (int, float)) else None,
         )
 
     synthesis_agent = Agent(

@@ -228,9 +228,16 @@ async def test_segment_fabrication_guard_present() -> None:
     """Segment fabrication guard must be injected when xbrl has no segment data."""
     ctx = _make_structured_context(xbrl_facts_snapshot={})
     prompt = await _capture_thesis_prompt(ctx)
-    assert "SEC XBRL does not currently expose structured revenue" in prompt, (
+    # BACKLOG A4 (2026-07-09) replaced the blanket stale "SEC XBRL does not expose
+    # segments" line with a CONDITIONAL guard: when no segment_overview was sourced
+    # (XBRL or FMP), the prompt must still forbid fabricating segment shares. Assert
+    # the anti-fabrication SEMANTICS, not a brittle exact sentence.
+    assert "No segment-level revenue breakdown was sourceable" in prompt, (
         "Company-overview segment fabrication guard missing from prompt. "
         "Without this guard the LLM invents segment splits like 'products 80%'."
+    )
+    assert "Do NOT cite any specific segment-share figure" in prompt, (
+        "Segment guard present but missing the explicit no-fabrication prohibition."
     )
 
 
@@ -470,7 +477,9 @@ async def test_empty_structured_context_still_produces_discipline_block() -> Non
     ctx: dict[str, object] = {}
     prompt = await _capture_thesis_prompt(ctx)
     assert "STRICT NUMERIC DISCIPLINE" in prompt
-    assert "SEC XBRL does not currently expose structured revenue" in prompt
+    # A4 conditional segment guard (see test_segment_fabrication_guard_present).
+    assert "No segment-level revenue breakdown was sourceable" in prompt
+    assert "Do NOT cite any specific segment-share figure" in prompt
 
 
 @pytest.mark.asyncio

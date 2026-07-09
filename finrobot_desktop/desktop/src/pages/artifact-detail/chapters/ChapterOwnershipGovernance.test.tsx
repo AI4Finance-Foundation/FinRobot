@@ -95,6 +95,71 @@ describe('ChapterOwnershipGovernance', () => {
     expect(rows[2].textContent).toContain('Small Fund')
   })
 
+  it('labels institutional rows by 13F share class when the same holder files multiple classes (GOOGL/GOOG)', () => {
+    const classA: InstitutionalHoldingShape = {
+      holder_name: 'BlackRock, Inc.',
+      cusip: '02079K305',
+      name_of_issuer: 'ALPHABET INC',
+      title_of_class: 'CAP STK CL A',
+      shares: 446_980_992,
+      value_usd: 80_000_000_000,
+      period_end: '2026-03-31',
+      provenance: baseProv('13F-HR'),
+    }
+    const classC: InstitutionalHoldingShape = {
+      holder_name: 'BlackRock, Inc.',
+      cusip: '02079K107',
+      name_of_issuer: 'ALPHABET INC',
+      title_of_class: 'CAP STK CL C',
+      shares: 364_758_302,
+      value_usd: 65_000_000_000,
+      period_end: '2026-03-31',
+      provenance: baseProv('13F-HR'),
+    }
+    const ownership: OwnershipGovernanceShape = {
+      institutional_holdings: [classA, classC],
+      generated_at: '2026-05-27T09:00:00Z',
+      degraded_sections: [],
+    }
+    render(wrap(<ChapterOwnershipGovernance ownership={ownership} reportingCurrency="USD" />))
+    // Both rows keep the same holder name (real, distinct 13F filings —
+    // never merged) but each carries a distinct, SEC-sourced class badge so
+    // the two "BlackRock, Inc." rows don't read as a duplicate-data bug.
+    expect(screen.getAllByText('BlackRock, Inc.')).toHaveLength(2)
+    expect(screen.getByText('Class A')).toBeInTheDocument()
+    expect(screen.getByText('Class C')).toBeInTheDocument()
+  })
+
+  it('omits the share-class badge when every row shares the same class (single-class ticker)', () => {
+    const rowA: InstitutionalHoldingShape = {
+      holder_name: 'Vanguard',
+      cusip: '037833100',
+      name_of_issuer: 'APPLE INC',
+      title_of_class: 'COM',
+      shares: 1_000_000,
+      value_usd: 200_000_000,
+      period_end: '2026-03-31',
+      provenance: baseProv('13F-HR'),
+    }
+    const rowB: InstitutionalHoldingShape = {
+      holder_name: 'BlackRock',
+      cusip: '037833100',
+      name_of_issuer: 'APPLE INC',
+      title_of_class: 'COM',
+      shares: 900_000,
+      value_usd: 180_000_000,
+      period_end: '2026-03-31',
+      provenance: baseProv('13F-HR'),
+    }
+    const ownership: OwnershipGovernanceShape = {
+      institutional_holdings: [rowA, rowB],
+      generated_at: '2026-05-27T09:00:00Z',
+      degraded_sections: [],
+    }
+    render(wrap(<ChapterOwnershipGovernance ownership={ownership} reportingCurrency="USD" />))
+    expect(screen.queryByText('Class', { exact: false })).not.toBeInTheDocument()
+  })
+
   it('renders cold-state placeholder for degraded sub-section', () => {
     const ownership: OwnershipGovernanceShape = {
       institutional_holdings: [],

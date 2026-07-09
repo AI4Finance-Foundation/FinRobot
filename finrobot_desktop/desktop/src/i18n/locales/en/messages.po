@@ -945,6 +945,10 @@ msgid "chapter.ownership.col.periodEnd"
 msgstr "Period End"
 
 #. js-lingui-explicit-id
+msgid "chapter.ownership.shareClass"
+msgstr "Class {letter}"
+
+#. js-lingui-explicit-id
 msgid "chapter.ownership.kv.ceoName"
 msgstr "CEO"
 
@@ -1955,6 +1959,14 @@ msgstr "Reported {v}"
 #. js-lingui-explicit-id
 msgid "workspace.market.evEbitdaCaliber"
 msgstr "Primary = operating EV/EBITDA (EBITDA = EBIT + D&A). EV is net of cash, so interest income is excluded. Reported = net income + tax + interest + D&A, includes interest income — the caliber most retail aggregators quote, not analyst consensus."
+
+#. js-lingui-explicit-id
+msgid "workspace.market.betaCaliber"
+msgstr "Raw regression"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.betaCaliberDetail"
+msgstr "This is the data provider's raw 5-year regression beta, unadjusted. The DCF/WACC valuation in the AI report uses this same beta after an asymmetric Blume adjustment: β>1 shrinks 2/3·β+1/3·1.0 toward the market (high-β estimates are noisier and mean-revert); β≤1 — a genuine low-β defensive — is kept as-is, unadjusted. The two figures can legitimately differ; that is a caliber difference, not a data error."
 
 #. js-lingui-explicit-id
 msgid "workspace.market.ebitdaCaliber"

@@ -466,6 +466,34 @@ function transactionLabel(typ: string, t: Translator): string {
 // Sub-block: Institutional Holdings
 // ---------------------------------------------------------------------------
 
+// A holder can legitimately file separate 13F lines for the SAME issuer when
+// the issuer has multiple registered share classes (BUG report: GOOGL/GOOG —
+// BlackRock/Vanguard each carry a Class A (02079K305) AND a Class C
+// (02079K107) line). That is correct SEC data, not a duplicate — but two
+// identically-labelled "BlackRock, Inc." rows read as a bug to an analyst.
+// We label rather than merge: each row already carries its own `cusip` +
+// `ProvenanceLink` to a specific 13F filing, and merging would (a) fabricate
+// a combined-class total no single filing reports and (b) silently drop the
+// real signal that share-class composition carries (a fund overweighting the
+// voting Class A vs the non-voting Class C is itself informative). Class
+// labels come straight from the filer's own `title_of_class` (SEC-sourced,
+// e.g. "CAP STK CL A") — never an invented ticker guess. Gated on the
+// rendered set actually containing >1 distinct class so a single-class
+// ticker's table (title_of_class uniformly "COM") never sprouts redundant
+// badges.
+function shareClassLabel(titleOfClass: string | undefined, t: Translator): string | null {
+  if (!titleOfClass) return null
+  const trimmed = titleOfClass.trim()
+  if (!trimmed) return null
+  const m = /\bCL\.?\s*([A-Z0-9]+)\b/i.exec(trimmed)
+  if (m) return t('chapter.ownership.shareClass', { letter: m[1].toUpperCase() })
+  // Some filers report a generic label ("COMMON" / "CMN") even when the CUSIP
+  // is class-specific — that ambiguity is in the SEC filing itself, not
+  // something FinRobot can resolve without guessing; show it verbatim (still
+  // sourced, never fabricated) rather than inventing a class letter.
+  return trimmed
+}
+
 function InstitutionTable({
   rows,
   locale,
@@ -476,6 +504,10 @@ function InstitutionTable({
   t: Translator
 }): React.ReactElement {
   const sorted = [...rows].sort((a, b) => b.value_usd - a.value_usd).slice(0, 12)
+  const distinctClasses = new Set(
+    sorted.map((r) => (r.title_of_class ?? '').trim()).filter((c) => c.length > 0),
+  )
+  const showClassBadge = distinctClasses.size > 1
   return (
     <TableScroll>
       <table style={tableStyle}>
@@ -491,12 +523,15 @@ function InstitutionTable({
           </tr>
         </thead>
         <tbody>
-          {sorted.map((r, i) => (
+          {sorted.map((r, i) => {
+            const classLabel = showClassBadge ? shareClassLabel(r.title_of_class, t) : null
+            return (
             <tr key={`${r.holder_name}-${r.period_end}-${r.shares}-${i}`}>
               <td style={tdStyle}>
                 <ProvenanceLink prov={r.provenance} locale={locale} t={t}>
                   {r.holder_name}
                 </ProvenanceLink>
+                {classLabel && <span style={shareClassBadgeStyle}>{classLabel}</span>}
               </td>
               <td style={{ ...tdStyle, textAlign: 'right' }}>
                 {formatCompactNumber(r.shares, locale)}
@@ -527,7 +562,8 @@ function InstitutionTable({
                 {formatDate(r.period_end, locale)}
               </td>
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </table>
     </TableScroll>
@@ -799,6 +835,18 @@ const tdStyle: CSSProperties = {
   fontSize: 12,
   color: 'var(--text-secondary)',
   borderBottom: '1px solid var(--border-hairline)',
+}
+
+const shareClassBadgeStyle: CSSProperties = {
+  marginLeft: 7,
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  letterSpacing: '0.02em',
+  color: 'var(--text-muted)',
+  border: '1px solid var(--border-soft)',
+  borderRadius: 3,
+  padding: '1px 5px',
+  whiteSpace: 'nowrap',
 }
 
 const emptyChapterCallout: CSSProperties = {

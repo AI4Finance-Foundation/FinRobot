@@ -945,6 +945,10 @@ msgid "chapter.ownership.col.periodEnd"
 msgstr "期末"
 
 #. js-lingui-explicit-id
+msgid "chapter.ownership.shareClass"
+msgstr "{letter} 类股"
+
+#. js-lingui-explicit-id
 msgid "chapter.ownership.kv.ceoName"
 msgstr "CEO"
 
@@ -1955,6 +1959,14 @@ msgstr "报告口径 {v}"
 #. js-lingui-explicit-id
 msgid "workspace.market.evEbitdaCaliber"
 msgstr "主显=营业口径 EV/EBITDA（EBITDA=EBIT+D&A）。EV 已扣现金，故不计利息收入。报告口径=净利+税+利息+D&A，含利息收入，多数零售聚合站用这个——不是卖方一致预期。"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.betaCaliber"
+msgstr "原始回归值"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.betaCaliberDetail"
+msgstr "此为数据源原始 5 年回归 β，未经调整。AI 研报中 DCF/WACC 估值用的是同一个 β 经 Blume 非对称调整后的值：β>1 按 2/3·β+1/3·1.0 向大盘收敛（高 β 估计噪声更大、更易均值回归）；β≤1（真实低 β 防御股）则保持原值不调整。两个数字并列出现且不同是正常的口径差异，不是数据错误。"
 
 #. js-lingui-explicit-id
 msgid "workspace.market.ebitdaCaliber"

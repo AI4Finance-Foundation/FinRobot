@@ -189,12 +189,14 @@ async def _execute_dcf_calc(
     # Symmetric with the equity_research report path: the ±2pp margin swing and the
     # latest-year driver actuals feed the same reconciliation table + swing note the
     # tool page reuses via SensitivityBody. Both degrade gracefully to None.
+    current_actuals, capex_is_ttm = dcf_current_actuals(financial_data, historical)
     dcf_result = dcf_result.model_copy(
         update={
             "sensitivity_table": sensitivity,
             "margin_swing": margin_swing(dcf_inputs),
-            "assumption_current_actuals": dcf_current_actuals(financial_data, historical),
+            "assumption_current_actuals": current_actuals,
             "assumption_current_actuals_fy": (historical.years[-1] if historical.years else None),
+            "assumption_current_actuals_capex_ttm": capex_is_ttm,
         }
     )
 

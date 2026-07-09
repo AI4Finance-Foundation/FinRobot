@@ -1045,25 +1045,40 @@ def seed_dcf_inputs(
 
 def dcf_current_actuals(
     financial_data: FinancialData, historical: HistoricalMetrics
-) -> dict[str, float | None]:
+) -> tuple[dict[str, float | None], bool]:
     """Current-reality actuals for the four DCF drivers, for the report's
     model-vs-current reconciliation. Calibers are MIXED and disclosed per cell by
     the report (the reconciliation is a driver-by-driver comparison, not a
-    cross-row one):
+    cross-row one). Returns ``(actuals, capex_is_ttm)``.
 
     * ``ebitda_margin`` — the **TTM** ratio ``income.ebitda / income.revenue`` from
       the canonical snapshot (the freshest 12-month margin). A ratio, so it is
       FX-invariant — the pipeline's USD normalization doesn't shift it.
-    * ``revenue_growth`` / ``capex_pct_revenue`` / ``nwc_pct_revenue`` — the
-      ticker's **latest fiscal year** from ``HistoricalMetrics`` (no TTM source for
-      capex / ΔNWC exists in the canonical snapshot, and we do not fabricate one).
-      ``nwc`` negates ΔNWC/revenue (positive = cash absorbed, the seed convention).
+    * ``capex_pct_revenue`` — the **TTM** ratio ``income.capital_expenditure /
+      income.revenue`` from the canonical snapshot when that field resolved (FMP's
+      cash-flow-summed TTM path, or yfinance's operatingCashflow−freeCashflow
+      derivation — see ``IncomeStatement.capital_expenditure``). Falls back to the
+      ticker's **latest fiscal year** from ``HistoricalMetrics`` when the canonical
+      snapshot lacks a usable TTM capex figure (thin/unavailable cash-flow
+      statement for that ticker — margin's TTM source is the income statement,
+      capex's is the cash-flow statement, so the two can resolve independently).
+      Never fabricated either way. The second return value, ``capex_is_ttm``, is
+      True exactly when the TTM figure was used; the report reads it so the
+      "Current" cell's caliber tag never claims TTM for a fallback FY value
+      (BUG-023 displayed==actual family) — this is a *display*-caliber upgrade
+      only, it does NOT touch the DCF's own seeded explicit-period assumptions
+      (batch 4b, 2026-07-09: re-anchoring the model itself was explicitly rejected;
+      the reconciliation table's full disclosure is the sanctioned alternative).
+    * ``revenue_growth`` / ``nwc_pct_revenue`` — the ticker's **latest fiscal
+      year** from ``HistoricalMetrics`` (no TTM source for ΔNWC exists in the
+      canonical snapshot, and we do not fabricate one). ``nwc`` negates ΔNWC/
+      revenue (positive = cash absorbed, the seed convention).
 
     Every value is the ticker's OWN figure — never the industry fallback the seed
     may have picked when history was thin — or ``None`` when the source lacks a
-    usable point (never fabricated). The ΔNWC / capex ratios reuse ``_median_ratio``
-    at a one-year window so they inherit its NaN / zero-row / zero-denominator
-    hygiene and the seed's own year-pairing.
+    usable point (never fabricated). The ΔNWC / fallback-capex ratios reuse
+    ``_median_ratio`` at a one-year window so they inherit its NaN / zero-row /
+    zero-denominator hygiene and the seed's own year-pairing.
     """
 
     def _latest_ratio(num: list[float], den: list[float]) -> float | None:
@@ -1088,13 +1103,34 @@ def dcf_current_actuals(
     ):
         ttm_margin = inc.ebitda / inc.revenue
 
+    # TTM capex ratio from the same canonical snapshot, same finiteness/zero-denom
+    # guard as the margin above. None when the snapshot's cash-flow statement never
+    # resolved a capex figure for this ticker (never fabricated) — fall back to the
+    # latest-FY ratio, exactly the pre-existing behavior when TTM is unavailable.
+    ttm_capex_pct: float | None = None
+    if (
+        inc.capital_expenditure is not None
+        and math.isfinite(inc.capital_expenditure)
+        and inc.revenue
+        and math.isfinite(inc.revenue)
+    ):
+        ttm_capex_pct = inc.capital_expenditure / inc.revenue
+
+    capex_is_ttm = ttm_capex_pct is not None
+    capex_pct = (
+        ttm_capex_pct
+        if capex_is_ttm
+        else _latest_ratio(historical.capital_expenditure, historical.revenue)
+    )
+
     nwc_raw = _latest_ratio(historical.change_in_working_capital, historical.revenue)
-    return {
+    actuals: dict[str, float | None] = {
         "revenue_growth": _latest_finite(historical.revenue_growth_yoy),
         "ebitda_margin": ttm_margin,
-        "capex_pct_revenue": _latest_ratio(historical.capital_expenditure, historical.revenue),
+        "capex_pct_revenue": capex_pct,
         "nwc_pct_revenue": None if nwc_raw is None else -nwc_raw,
     }
+    return actuals, capex_is_ttm
 
 
 # ---------------------------------------------------------------------------

@@ -160,21 +160,43 @@ def test_margin_swing_zero_denominator_shares_is_structurally_guarded():
 # ── dcf_current_actuals ──────────────────────────────────────────────────────
 
 
-def test_current_actuals_margin_is_ttm_others_latest_fy():
-    """EBITDA margin = TTM (income.ebitda/revenue, 60.5%) — NOT historical's latest
-    annual 55%; the other three = latest fiscal year in the seed's caliber/sign."""
-    actuals = dcf_current_actuals(_fd(), _hist())
+def test_current_actuals_margin_and_capex_are_ttm_growth_and_nwc_latest_fy():
+    """EBITDA margin AND capex = TTM (income.ebitda/revenue 60.5%,
+    income.capital_expenditure/revenue 35%) — NOT historical's latest annual
+    (55% margin, 30% capex); growth/ΔNWC = latest fiscal year in the seed's
+    caliber/sign. ``capex_is_ttm`` reports True so the report's caliber tag can
+    say "TTM" truthfully."""
+    actuals, capex_is_ttm = dcf_current_actuals(_fd(), _hist())
     assert actuals["ebitda_margin"] == 0.605  # TTM from financial_data, not hist 0.55
+    assert math.isclose(actuals["capex_pct_revenue"], 0.35)  # TTM, not hist 30/100=0.30
+    assert capex_is_ttm is True
     assert actuals["revenue_growth"] == 0.1111  # latest FY YoY
-    assert math.isclose(actuals["capex_pct_revenue"], 30.0 / 100.0)  # latest FY
     # ΔNWC is negated: raw −1.9 / 100 = −0.019 → +0.019 (positive = cash absorbed).
     assert math.isclose(actuals["nwc_pct_revenue"], 0.019)  # latest FY
 
 
+def test_current_actuals_capex_falls_back_to_latest_fy_when_ttm_unavailable():
+    """No TTM capex in the canonical snapshot (thin/unavailable cash-flow
+    statement for this ticker) → falls back to the latest-FY ratio from
+    HistoricalMetrics, exactly the pre-TTM behavior — never fabricated, and
+    ``capex_is_ttm`` reports False so the report never mislabels the fallback
+    as TTM (BUG-023 displayed==actual)."""
+    actuals, capex_is_ttm = dcf_current_actuals(_fd(capital_expenditure=None), _hist())
+    assert math.isclose(actuals["capex_pct_revenue"], 30.0 / 100.0)  # latest FY
+    assert capex_is_ttm is False
+    # Margin is unaffected — it has its own independent TTM source.
+    assert actuals["ebitda_margin"] == 0.605
+
+
 def test_current_actuals_missing_series_is_none_never_fabricated():
-    """Empty cash-flow series → those drivers are None (not 0.0)."""
-    actuals = dcf_current_actuals(_fd(), _hist(capital_expenditure=[], change_in_working_capital=[]))
+    """No TTM capex AND empty cash-flow series → capex is None (not 0.0); empty
+    ΔNWC series → nwc is None too."""
+    actuals, capex_is_ttm = dcf_current_actuals(
+        _fd(capital_expenditure=None),
+        _hist(capital_expenditure=[], change_in_working_capital=[]),
+    )
     assert actuals["capex_pct_revenue"] is None
+    assert capex_is_ttm is False
     assert actuals["nwc_pct_revenue"] is None
     # The TTM margin still resolves from the income snapshot.
     assert actuals["ebitda_margin"] == 0.605
@@ -182,8 +204,22 @@ def test_current_actuals_missing_series_is_none_never_fabricated():
 
 def test_current_actuals_ttm_margin_none_when_ebitda_missing():
     """No TTM EBITDA in the snapshot → margin None (not 0), never fabricated."""
-    actuals = dcf_current_actuals(_fd(ebitda=None), _hist())
+    actuals, _capex_is_ttm = dcf_current_actuals(_fd(ebitda=None), _hist())
     assert actuals["ebitda_margin"] is None
+
+
+def test_current_actuals_ttm_capex_zero_revenue_guarded_not_crash():
+    """TTM capex present but revenue is 0/non-finite → ttm ratio guarded to None,
+    falls back to the (also revenue-gated) latest-FY ratio rather than a
+    ZeroDivisionError. Exercised via a zero-revenue FinancialData built directly
+    (revenue is a required field so it can't be omitted, only zeroed)."""
+    fd = _fd(capital_expenditure=35_000_000_000)
+    fd.income.revenue = 0.0
+    actuals, capex_is_ttm = dcf_current_actuals(fd, _hist())
+    assert capex_is_ttm is False
+    # historical.revenue's latest year (100.0) is non-zero, so the FY fallback
+    # still resolves — the guard degrades gracefully, it doesn't cascade to None.
+    assert math.isclose(actuals["capex_pct_revenue"], 30.0 / 100.0)
 
 
 # ── nwc_clamped (via DCFInputs default + seed_dcf_inputs end-to-end) ──────────
@@ -193,9 +229,14 @@ def test_nwc_clamped_defaults_false_on_direct_construction():
     assert _make_inputs().nwc_clamped is False
 
 
-def _fd(ebitda: float | None = 60_500_000_000) -> FinancialData:
-    # TTM EBITDA margin = ebitda / 100B (default 60.5% — deliberately DISTINCT from
-    # _hist()'s latest annual 55%, so the margin test proves the TTM source).
+def _fd(
+    ebitda: float | None = 60_500_000_000,
+    capital_expenditure: float | None = 35_000_000_000,
+) -> FinancialData:
+    # TTM EBITDA margin = ebitda / 100B (default 60.5%) and TTM capex ratio =
+    # capital_expenditure / 100B (default 35%) — both deliberately DISTINCT from
+    # _hist()'s latest annual (margin 55%, capex 30%), so the tests prove the TTM
+    # source (not the historical fallback) is what's used.
     return FinancialData(
         ticker="TEST",
         company_name="Test Co",
@@ -207,6 +248,7 @@ def _fd(ebitda: float | None = 60_500_000_000) -> FinancialData:
             operating_margin=0.48,
             depreciation_amortization=3_000_000_000,
             interest_expense=1_000_000_000,
+            capital_expenditure=capital_expenditure,
         ),
         balance=BalanceSheet(total_debt=20_000_000_000, total_cash=10_000_000_000),
         market=MarketData(

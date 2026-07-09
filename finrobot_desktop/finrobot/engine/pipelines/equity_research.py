@@ -810,13 +810,15 @@ async def _execute_financial_modeling(
     # WACC×TG grid never shows) and the latest-year driver actuals (the "current"
     # column of the report's model-vs-current assumptions reconciliation). Both
     # deterministic, both degrade to None per-end / per-driver — never crash.
+    current_actuals, capex_is_ttm = dcf_current_actuals(financial_data, historical)
     dcf_result = dcf_result.model_copy(
         update={
             "sensitivity_table": sensitivity,
             "market_implied": market_implied,
             "margin_swing": margin_swing(dcf_inputs),
-            "assumption_current_actuals": dcf_current_actuals(financial_data, historical),
+            "assumption_current_actuals": current_actuals,
             "assumption_current_actuals_fy": (historical.years[-1] if historical.years else None),
+            "assumption_current_actuals_capex_ttm": capex_is_ttm,
         }
     )
 

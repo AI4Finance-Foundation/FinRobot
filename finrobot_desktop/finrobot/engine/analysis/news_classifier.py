@@ -73,7 +73,7 @@ async def classify_news(
     """Classify raw news items using LLM with structured output.
 
     What this does that raw LLM text cannot: forces each news item into
-    a typed NewsItem with constrained category (7 options), sentiment
+    a typed NewsItem with constrained category (8 options), sentiment
     (3 options), and importance (1-5) via PydanticAI output_type validation.
     Invalid LLM output is rejected by Pydantic, not silently accepted.
 
@@ -125,6 +125,12 @@ async def classify_news(
             "    regulatory = government/court/agency actions — approvals (e.g. FDA), "
             "rulings, fines, probes/investigations, antitrust, litigation outcomes, "
             "compliance or legal settlements.\n"
+            "    acquisition = M&A — mergers, acquisitions, buyouts, tender offers, "
+            "divestitures, and strategic partnerships/investments where the company is "
+            "the acquirer, target, or divesting party. A confirmed or rumored deal that "
+            "changes corporate structure or ownership; a shareholder LAWSUIT or "
+            "investigation ABOUT a deal is 'regulatory', not 'acquisition' — this "
+            "category is for the deal itself.\n"
             "    management = executive/board changes — C-suite appointments or departures, "
             "succession outcomes, reorganizations.\n"
             "    analyst    = third-party sell-side actions ON the stock — rating changes, "
@@ -134,8 +140,9 @@ async def classify_news(
             "only as one of many — rates, inflation, tariffs, index/sector moves, broad "
             "policy.\n"
             "    other      = company-specific developments that fit none of the above — "
-            "M&A/partnerships/strategic deals, PRICING changes, market-share or "
-            "competitive-dynamics moves, investor stakes.\n"
+            "PRICING changes, market-share or competitive-dynamics moves, and investor "
+            "stake changes that are NOT part of an M&A deal (activist accumulation, "
+            "passive 13F/13G stake moves).\n"
             "- sentiment: positive/negative/neutral\n"
             f"- importance: 1-5, scored by DIRECT impact on {ticker}'s fundamentals, "
             "valuation, or stock — NOT general newsworthiness. 5 is SCARCE. Anchor each "

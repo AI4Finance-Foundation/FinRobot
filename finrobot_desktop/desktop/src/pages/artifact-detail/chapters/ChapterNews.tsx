@@ -227,6 +227,7 @@ function SourceChip({
 const CATEGORY_ACCENT: Record<string, string> = {
   management: 'var(--secondary)',
   product_launch: 'var(--accent-cyan)',
+  acquisition: 'var(--accent-cyan)',
   market: 'var(--primary)',
   regulatory: 'var(--accent-amber)',
   legal: 'var(--accent-amber)',

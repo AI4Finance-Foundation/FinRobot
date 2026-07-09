@@ -140,8 +140,22 @@ def render_news_for_prompt(result: DataResult) -> str:
 # The category/sentiment vocabularies are shared between the typed news item
 # and the LLM's per-item judgment (news_classifier.NewsClassification), so they
 # live here in the leaf layer as the single source of truth.
+#
+# "acquisition" (BACKLOG A8, 2026-07-09): M&A/partnership/strategic-deal news had
+# no dedicated bucket and fell into "other" -> catalyst "market", indistinguishable
+# from generic competitive-dynamics noise. classify_catalyst_type below now routes
+# it to the catalyst taxonomy's existing "acquisition" category (which already
+# existed there — CATALYST_CATEGORIES / _sec_8k_to_catalyst — just unreachable from
+# news classification).
 NewsCategory = Literal[
-    "earnings", "product", "regulatory", "macro", "analyst", "management", "other"
+    "earnings",
+    "product",
+    "regulatory",
+    "acquisition",
+    "management",
+    "analyst",
+    "macro",
+    "other",
 ]
 NewsSentiment = Literal["positive", "negative", "neutral"]
 

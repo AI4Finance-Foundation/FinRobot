@@ -17,6 +17,7 @@ import type {
   ThesisShape,
   ValuationSynthesisShape,
   SOTPBreakdownShape,
+  SegmentOverviewShape,
 } from './chapters'
 import type { HistoricalMetrics } from '../../types/finance'
 import { formatDate } from '../../utils/format'
@@ -73,6 +74,11 @@ export interface DerivedReportData {
   // valuation chapter renders the floor / implied-option-premium panel. null for
   // every non-option-value name (the deterministic gate didn't fire).
   sotpBreakdown: SOTPBreakdownShape | null
+  // Display-only segment/business-line revenue mix (BACKLOG A4, 2026-07-09) for
+  // every ticker the SOTP option-value gate above did NOT fire for — the
+  // Company Overview chapter's segment table. null when neither SEC XBRL nor
+  // FMP had a sourceable breakdown (single-segment issuer, or SEC unwired).
+  segmentOverview: SegmentOverviewShape | null
   catalysts: CatalystAnalysisShape | null
   technical: TechnicalAnalysisShape | null
   ownership: OwnershipGovernanceShape | null
@@ -310,6 +316,9 @@ export function deriveReportData(
   const forwardEstimates =
     (structured.forward_estimates as ForwardEstimatesShape | undefined) ?? null
   const sotpBreakdown = (structured.sotp_breakdown as SOTPBreakdownShape | undefined) ?? null
+  // BACKLOG A4 (2026-07-09): display-only segment revenue mix for tickers the
+  // SOTP gate above did NOT fire for.
+  const segmentOverview = (structured.segment_overview as SegmentOverviewShape | undefined) ?? null
   const catalysts = (structured.catalyst_analysis as CatalystAnalysisShape | undefined) ?? null
   const technical = (structured.technical_analysis as TechnicalAnalysisShape | undefined) ?? null
   const ownership =
@@ -387,6 +396,7 @@ export function deriveReportData(
     valuationSynthesis,
     forwardEstimates,
     sotpBreakdown,
+    segmentOverview,
     catalysts,
     technical,
     ownership,

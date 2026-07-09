@@ -148,6 +148,10 @@ export function ReportChapters({
         quoteCurrency={d.quoteCurrency}
         dataSource={d.inputs.data_source ?? null}
         fetchedAt={d.inputs.data_fetched_at ?? null}
+        // BACKLOG A4 (2026-07-09): segment revenue mix table. Segment metrics
+        // are REPORTING currency (mirrors SOTPBreakdownPanel in ChapterValuation).
+        segmentOverview={d.segmentOverview}
+        reportingCurrency={d.reportingCurrency}
       />
       {/* Competitive landscape precedes the financial build-up: the moat / peer
           context frames how to read the numbers (analyst reading order). */}

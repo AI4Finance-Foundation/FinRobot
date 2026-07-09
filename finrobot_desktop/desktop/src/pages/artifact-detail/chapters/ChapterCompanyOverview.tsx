@@ -1,12 +1,16 @@
-// Chapter 02 — Company Overview. The header promises BUSINESS · SEGMENTS ·
-// GEOGRAPHY · MOAT, but the only structured datum the pipeline carries here is
-// the company_overview narrative (the 8th synthesis slot, populated by
-// synthesis_agent as of 2026-05-23). Segments/geography data does NOT exist in
-// the artifact — we do NOT fabricate it. What the artifact DOES carry, and no
-// other chapter surfaces at this point in the scroll, is the company's identity
-// (sector / industry / country) + headline scale (market cap, revenue CAGR,
-// gross margin, beta). We render that as a compact, sourced snapshot strip above
-// the narrative so the chapter delivers structure, not just a text wall.
+// Chapter 02 — Company Overview: BUSINESS · SEGMENTS · GEOGRAPHY · MOAT. The
+// pipeline carries the company_overview narrative (the 8th synthesis slot,
+// populated by synthesis_agent as of 2026-05-23) plus, since BACKLOG A4
+// (2026-07-09), a real segment revenue mix (segmentOverview — SEC XBRL
+// reportable segments, or FMP's product mix when XBRL has nothing; null for a
+// single-segment issuer or when neither source has anything, in which case the
+// narrative degrades to its own honest "unavailable" line — we still never
+// fabricate a figure). Geography remains narrative-only (no geographic fetch is
+// wired). What the artifact ALSO carries, and no other chapter surfaces at this
+// point in the scroll, is the company's identity (sector / industry / country)
+// + headline scale (market cap, revenue CAGR, gross margin, beta). We render
+// that as a compact, sourced snapshot strip above the narrative + segment table
+// so the chapter delivers structure, not just a text wall.
 //
 // Provenance MIRRORS ChapterFinancialData: numeric cells wrap in SourcedNumber
 // (provider from raw_data.provenance ?? dataSource, fetched_at), identity
@@ -15,13 +19,15 @@
 // (0.479 = 47.9%) → formatPercent. Every cell is omitted when its value is
 // null/absent, so the strip degrades to "narrative only" (and the narrative to
 // the empty-state) without ever blanking, crashing, or printing NaN/undefined.
+// Segment metrics (revenue / operating income / gross profit) are REPORTING
+// currency (mirrors ChapterValuation's SOTPBreakdownPanel).
 
 import type { NumberSource } from '../../../components/SourcedNumber'
 import type { HistoricalMetrics } from '../../../types/finance'
 import { Chapter, Narrative } from './ChapterBase'
 import { MarkdownLite } from '../../../components/MarkdownLite'
 import { CompanySnapshot, type SnapshotIdentity, type SnapshotMetric } from './CompanySnapshot'
-import type { ThesisShape } from './types'
+import type { SegmentOverviewShape, SegmentShareShape, ThesisShape } from './types'
 import { formatCurrencyCompact, formatNumber, formatPercent } from '../../../utils/format'
 import { useI18n, type Locale } from '../../../i18n'
 
@@ -129,6 +135,155 @@ function buildSnapshot(
   return { identity, metrics }
 }
 
+// Which profitability metric the breakdown actually carries — MSFT-style
+// issuers (extract_segment_facts' OperatingIncomeLoss anchor) populate
+// operating_income; TSLA-style issuers (the GrossProfit anchor) populate
+// gross_profit; FMP's product-mix fallback populates neither (revenue only —
+// FMP does not break out profitability per product category). Never both for
+// the same breakdown (see the backend's extract_segment_facts docstring).
+function deriveProfitMetricKind(
+  segments: SegmentShareShape[],
+): 'operating_income' | 'gross_profit' | null {
+  if (segments.some((s) => typeof s.operating_income === 'number')) return 'operating_income'
+  if (segments.some((s) => typeof s.gross_profit === 'number')) return 'gross_profit'
+  return null
+}
+
+/** Segment revenue mix table (BACKLOG A4, 2026-07-09) — the deterministic,
+ *  sourced complement to the company_overview prose (which cites the SAME
+ *  segmentOverview data via the thesis prompt's numeric whitelist, never
+ *  narrating a figure not in this table). Renders nothing when segments is
+ *  empty (the caller already gates on that). */
+function SegmentOverviewTable({
+  segmentOverview,
+  reportingCurrency,
+}: {
+  segmentOverview: SegmentOverviewShape
+  reportingCurrency: string
+}): React.ReactElement {
+  const { locale } = useI18n()
+  const profitKind = deriveProfitMetricKind(segmentOverview.segments)
+  const sourceLabel =
+    segmentOverview.source === 'sec_xbrl_business_segment'
+      ? tr('SEC XBRL 可报告分部(ASC 280)', 'SEC XBRL reportable segments (ASC 280)', locale)
+      : tr(
+          'FMP 产品线拆分(非 GAAP 分部,XBRL 无分部数据时的补充口径)',
+          'FMP product mix (not a GAAP reportable segment — used because XBRL had no segment data)',
+          locale,
+        )
+  const profitHeader =
+    profitKind === 'operating_income'
+      ? tr('分部营业利润', 'Segment Operating Income', locale)
+      : profitKind === 'gross_profit'
+        ? tr('分部毛利', 'Segment Gross Profit', locale)
+        : null
+
+  return (
+    <div style={{ marginTop: 20 }}>
+      <div
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 11,
+          color: 'var(--text-muted)',
+          marginBottom: 8,
+        }}
+      >
+        {sourceLabel} · {segmentOverview.period_label}
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table
+          style={{
+            width: '100%',
+            borderCollapse: 'collapse',
+            fontFamily: 'var(--font-mono)',
+            fontSize: 11,
+          }}
+        >
+          <thead>
+            <tr style={{ color: 'var(--text-muted)', textAlign: 'left' }}>
+              <th style={{ padding: '4px 8px' }}>{tr('分部', 'Segment', locale)}</th>
+              <th style={{ padding: '4px 8px', textAlign: 'right' }}>
+                {tr('营收', 'Revenue', locale)}
+              </th>
+              <th style={{ padding: '4px 8px', textAlign: 'right' }}>
+                {tr('营收占比', 'Revenue Share', locale)}
+              </th>
+              {profitHeader && (
+                <th style={{ padding: '4px 8px', textAlign: 'right' }}>{profitHeader}</th>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {segmentOverview.segments.map((s) => {
+              const profitValue =
+                profitKind === 'operating_income'
+                  ? s.operating_income
+                  : profitKind === 'gross_profit'
+                    ? s.gross_profit
+                    : null
+              return (
+                <tr key={s.name} style={{ borderTop: '1px solid var(--border-grid)' }}>
+                  <td style={{ padding: '4px 8px', color: 'var(--text-primary)' }}>{s.name}</td>
+                  <td
+                    style={{
+                      padding: '4px 8px',
+                      textAlign: 'right',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    {typeof s.revenue === 'number'
+                      ? formatCurrencyCompact(s.revenue, reportingCurrency, locale)
+                      : '—'}
+                  </td>
+                  <td
+                    style={{
+                      padding: '4px 8px',
+                      textAlign: 'right',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    {typeof s.revenue_share === 'number'
+                      ? formatPercent(s.revenue_share, locale)
+                      : '—'}
+                  </td>
+                  {profitHeader && (
+                    <td
+                      style={{
+                        padding: '4px 8px',
+                        textAlign: 'right',
+                        color: 'var(--accent-cyan)',
+                      }}
+                    >
+                      {typeof profitValue === 'number'
+                        ? formatCurrencyCompact(profitValue, reportingCurrency, locale)
+                        : '—'}
+                    </td>
+                  )}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p
+        style={{
+          fontFamily: 'var(--font-mono)',
+          fontSize: 10,
+          color: 'var(--text-dim)',
+          marginTop: 6,
+          lineHeight: 1.5,
+        }}
+      >
+        {tr(
+          '营收占比按本表分部合计计算,可能因公司/抵销项(部分发行人不单独披露)而与合并总收入存在差异。',
+          'Revenue share is computed against the sum of segments shown here — corporate / eliminations items, where an issuer has them, are not broken out and may keep this from summing exactly to consolidated total revenue.',
+          locale,
+        )}
+      </p>
+    </div>
+  )
+}
+
 export function ChapterCompanyOverview({
   thesis,
   rawData,
@@ -136,6 +291,8 @@ export function ChapterCompanyOverview({
   quoteCurrency,
   dataSource,
   fetchedAt,
+  segmentOverview,
+  reportingCurrency,
 }: {
   thesis: ThesisShape | null
   rawData: Record<string, unknown> | null
@@ -144,6 +301,11 @@ export function ChapterCompanyOverview({
   quoteCurrency: string
   dataSource: string | null
   fetchedAt: string | null
+  // BACKLOG A4 (2026-07-09): display-only segment revenue mix. null when the
+  // SOTP option-value gate fired instead (that ticker's segments render in
+  // ChapterValuation's SOTPBreakdownPanel) or neither SEC XBRL nor FMP had data.
+  segmentOverview: SegmentOverviewShape | null
+  reportingCurrency: string
 }): React.ReactElement {
   const { t, locale } = useI18n()
   const overview = thesis?.company_overview ?? null
@@ -205,6 +367,13 @@ export function ChapterCompanyOverview({
         >
           {t('chapter.companyOverview.empty')}
         </div>
+      )}
+
+      {segmentOverview && segmentOverview.segments.length > 0 && (
+        <SegmentOverviewTable
+          segmentOverview={segmentOverview}
+          reportingCurrency={reportingCurrency}
+        />
       )}
     </Chapter>
   )

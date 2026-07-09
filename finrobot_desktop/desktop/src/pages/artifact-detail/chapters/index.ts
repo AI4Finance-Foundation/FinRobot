@@ -27,6 +27,8 @@ export type {
   ValuationSynthesisShape,
   SOTPBreakdownShape,
   SegmentValuationShape,
+  SegmentOverviewShape,
+  SegmentShareShape,
   ForwardEstimatesShape,
   CatalystAnalysisShape,
   CatalystEventShape,

@@ -8,6 +8,11 @@
 // provenance, and every degradation path (missing field / no rawData / no
 // narrative) stays graceful — no blank, NaN, or undefined.
 //
+// BACKLOG A4 (2026-07-09) added segmentOverview: a real segment revenue mix
+// table, rendered below the narrative, for tickers the SOTP option-value gate
+// did NOT fire for. Guarded separately below (source labeling, revenue/share/
+// profit-metric cells, and the null/empty no-render path).
+//
 // test-setup.ts pins the i18n store to locale='en', so the real useI18n yields
 // English labels here (no i18n mock needed — mirrors ChapterCover.test).
 
@@ -15,7 +20,7 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 
 import { ChapterCompanyOverview } from './ChapterCompanyOverview'
-import type { ThesisShape } from './types'
+import type { SegmentOverviewShape, ThesisShape } from './types'
 import type { HistoricalMetrics } from '../../../types/finance'
 
 // A real AAPL artifact slice (verified via curl 2026-06-16):
@@ -54,6 +59,8 @@ describe('ChapterCompanyOverview — sourced snapshot strip', () => {
         quoteCurrency="USD"
         dataSource="fmp"
         fetchedAt="2026-06-11T18:24:24.154643Z"
+        segmentOverview={null}
+        reportingCurrency="USD"
       />,
     )
     // Identity strings render plain.
@@ -92,6 +99,8 @@ describe('ChapterCompanyOverview — sourced snapshot strip', () => {
         quoteCurrency="USD"
         dataSource="fmp"
         fetchedAt="2026-06-11T18:24:24.154643Z"
+        segmentOverview={null}
+        reportingCurrency="USD"
       />,
     )
     // operating_margin is a real backend field (IncomeStatement.operating_margin),
@@ -110,6 +119,8 @@ describe('ChapterCompanyOverview — sourced snapshot strip', () => {
         quoteCurrency="USD"
         dataSource="fmp"
         fetchedAt={null}
+        segmentOverview={null}
+        reportingCurrency="USD"
       />,
     )
     expect(screen.getByText('Operating Margin')).toBeInTheDocument()
@@ -127,6 +138,8 @@ describe('ChapterCompanyOverview — sourced snapshot strip', () => {
         quoteCurrency="USD"
         dataSource="fmp"
         fetchedAt="2026-06-11T18:24:24.154643Z"
+        segmentOverview={null}
+        reportingCurrency="USD"
       />,
     )
     // SourcedNumber gives provider-sourced numbers a role="button" trigger with a
@@ -147,6 +160,8 @@ describe('ChapterCompanyOverview — sourced snapshot strip', () => {
         quoteCurrency="USD"
         dataSource="fmp"
         fetchedAt={null}
+        segmentOverview={null}
+        reportingCurrency="USD"
       />,
     )
     expect(screen.getByText('Sector')).toBeInTheDocument()
@@ -171,6 +186,8 @@ describe('ChapterCompanyOverview — sourced snapshot strip', () => {
         quoteCurrency="USD"
         dataSource={null}
         fetchedAt={null}
+        segmentOverview={null}
+        reportingCurrency="USD"
       />,
     )
     expect(screen.getByText('just the prose, no data snapshot')).toBeInTheDocument()
@@ -188,6 +205,8 @@ describe('ChapterCompanyOverview — sourced snapshot strip', () => {
         quoteCurrency="USD"
         dataSource="fmp"
         fetchedAt="2026-06-11T18:24:24.154643Z"
+        segmentOverview={null}
+        reportingCurrency="USD"
       />,
     )
     // Snapshot still renders.
@@ -206,8 +225,128 @@ describe('ChapterCompanyOverview — sourced snapshot strip', () => {
         quoteCurrency="USD"
         dataSource={null}
         fetchedAt={null}
+        segmentOverview={null}
+        reportingCurrency="USD"
       />,
     )
     expect(screen.getByText(/This report has no company-overview narrative/)).toBeInTheDocument()
+  })
+})
+
+// BACKLOG A4 (2026-07-09): segment revenue mix table.
+const XBRL_SEGMENT_OVERVIEW: SegmentOverviewShape = {
+  ticker: 'MSFT',
+  as_of: '2026-07-09T00:00:00Z',
+  source: 'sec_xbrl_business_segment',
+  period_label: 'FY ending 2025-06-30',
+  segments: [
+    {
+      name: 'Productivity and Business Processes',
+      revenue: 120.81e9,
+      revenue_share: 0.4288,
+      operating_income: 69.773e9,
+    },
+    {
+      name: 'Intelligent Cloud',
+      revenue: 106.265e9,
+      revenue_share: 0.3772,
+      operating_income: 44.589e9,
+    },
+  ],
+  warnings: [],
+}
+
+const FMP_SEGMENT_OVERVIEW: SegmentOverviewShape = {
+  ticker: 'MSFT',
+  as_of: '2026-07-09T00:00:00Z',
+  source: 'fmp_product_segmentation',
+  period_label: 'FY2025',
+  segments: [
+    { name: 'Windows', revenue: 17.314e9, revenue_share: 0.42 },
+    { name: 'Gaming', revenue: 23.455e9, revenue_share: 0.58 },
+  ],
+  warnings: [],
+}
+
+describe('ChapterCompanyOverview — segment overview table (BACKLOG A4)', () => {
+  it('renders segment rows with revenue, share, and the OI-anchored profit column', () => {
+    render(
+      <ChapterCompanyOverview
+        thesis={thesis({ company_overview: 'x' })}
+        rawData={RAW_DATA}
+        historicalMetrics={HISTORICAL}
+        quoteCurrency="USD"
+        dataSource="fmp"
+        fetchedAt="2026-06-11T18:24:24.154643Z"
+        segmentOverview={XBRL_SEGMENT_OVERVIEW}
+        reportingCurrency="USD"
+      />,
+    )
+    // Source + period render as one line (sibling text nodes in the same div).
+    expect(
+      screen.getByText('SEC XBRL reportable segments (ASC 280) · FY ending 2025-06-30'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Productivity and Business Processes')).toBeInTheDocument()
+    expect(screen.getByText('Intelligent Cloud')).toBeInTheDocument()
+    // MSFT-style breakdown → the operating-income column header, NOT gross profit.
+    expect(screen.getByText('Segment Operating Income')).toBeInTheDocument()
+    expect(screen.queryByText('Segment Gross Profit')).not.toBeInTheDocument()
+    // Compact currency + percent cells render (exact formatting is format.ts's
+    // concern; this just proves the numbers reach the table, not '—').
+    expect(screen.getByText('42.9%')).toBeInTheDocument()
+    expect(screen.getByText('37.7%')).toBeInTheDocument()
+  })
+
+  it('labels the FMP fallback distinctly and omits the profit column (revenue only)', () => {
+    render(
+      <ChapterCompanyOverview
+        thesis={thesis({ company_overview: 'x' })}
+        rawData={RAW_DATA}
+        historicalMetrics={HISTORICAL}
+        quoteCurrency="USD"
+        dataSource="fmp"
+        fetchedAt="2026-06-11T18:24:24.154643Z"
+        segmentOverview={FMP_SEGMENT_OVERVIEW}
+        reportingCurrency="USD"
+      />,
+    )
+    expect(screen.getByText(/FMP product mix \(not a GAAP reportable segment/)).toBeInTheDocument()
+    expect(screen.getByText('Windows')).toBeInTheDocument()
+    expect(screen.getByText('Gaming')).toBeInTheDocument()
+    // FMP never supplies a profitability metric — no profit column at all.
+    expect(screen.queryByText('Segment Operating Income')).not.toBeInTheDocument()
+    expect(screen.queryByText('Segment Gross Profit')).not.toBeInTheDocument()
+  })
+
+  it('renders no table when segmentOverview is null', () => {
+    render(
+      <ChapterCompanyOverview
+        thesis={thesis({ company_overview: 'x' })}
+        rawData={RAW_DATA}
+        historicalMetrics={HISTORICAL}
+        quoteCurrency="USD"
+        dataSource="fmp"
+        fetchedAt="2026-06-11T18:24:24.154643Z"
+        segmentOverview={null}
+        reportingCurrency="USD"
+      />,
+    )
+    expect(screen.queryByText('Revenue Share')).not.toBeInTheDocument()
+  })
+
+  it('renders no table when segmentOverview has zero segments (defensive, matches backend contract)', () => {
+    render(
+      <ChapterCompanyOverview
+        thesis={thesis({ company_overview: 'x' })}
+        rawData={RAW_DATA}
+        historicalMetrics={HISTORICAL}
+        quoteCurrency="USD"
+        dataSource="fmp"
+        fetchedAt="2026-06-11T18:24:24.154643Z"
+        segmentOverview={{ ...XBRL_SEGMENT_OVERVIEW, segments: [] }}
+        reportingCurrency="USD"
+      />,
+    )
+    expect(screen.queryByText('Revenue Share')).not.toBeInTheDocument()
   })
 })

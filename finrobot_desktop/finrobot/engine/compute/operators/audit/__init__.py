@@ -19,6 +19,9 @@ from finrobot.engine.compute.operators.audit.narrative_divergence import (
     compute_momentum_context,
     is_momentum_divergent,
 )
+from finrobot.engine.compute.operators.audit.narrative_numeric_grounding import (
+    audit_narrative_numeric_grounding,
+)
 from finrobot.engine.compute.operators.audit.sector_sign import audit_sector_sign
 from finrobot.engine.compute.operators.audit.ttm_period import audit_ttm_period
 from finrobot.engine.models.financial import FinancialData
@@ -32,6 +35,7 @@ __all__ = [
     "audit_ev_bridge",
     "audit_foreign_issuer_usd_tags",
     "audit_momentum_narrative_hedge",
+    "audit_narrative_numeric_grounding",
     "audit_sector_sign",
     "audit_ttm_period",
     "compute_momentum_context",

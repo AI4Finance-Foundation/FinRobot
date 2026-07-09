@@ -28,6 +28,7 @@ from finrobot.engine.models.financial import (
 from finrobot.engine.compute.operators.residual_income import calculate_residual_income
 from finrobot.engine.compute.operators.audit import (
     audit_momentum_narrative_hedge,
+    audit_narrative_numeric_grounding,
     compute_momentum_context,
 )
 from finrobot.engine.models.reconcile_tolerances import NARRATIVE_DRIFT_TOLERANCE
@@ -1519,6 +1520,15 @@ async def _execute_thesis(
         canonical.verdict, momentum_ctx.one_year_return_pct, thesis.momentum_divergence_note
     )
 
+    # Numeric-grounding narrative backstop (BACKLOG A3/P1-2): the prompt's
+    # NARRATIVE ARGUMENT RULE (build_thesis_prompt) instructs the LLM that every
+    # narrative paragraph and every catalysts/risks entry must cite a whitelisted
+    # number; this is the deterministic check that catches a non-cooperative LLM
+    # that shipped templated, verdict-only rhetoric instead (the GOOGL/MSFT/KO
+    # blind-audit finding). Same non-blocking StepOutput.warnings channel as the
+    # momentum hedge above — never gates verdict/target/confidence (contract②).
+    numeric_grounding_warning = audit_narrative_numeric_grounding(thesis)
+
     target_str = (
         f"${thesis.price_target:.2f}" if thesis.price_target is not None else "N/A (under review)"
     )
@@ -1531,7 +1541,7 @@ async def _execute_thesis(
     return StepOutput(
         text=narrative,
         structured=thesis,
-        warnings=[w for w in (street_note, momentum_warning) if w],
+        warnings=[w for w in (street_note, momentum_warning, numeric_grounding_warning) if w],
     )
 
 

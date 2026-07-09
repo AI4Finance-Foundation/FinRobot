@@ -48,10 +48,11 @@ interface ChapterCoverProps {
   /** Method names the engine flagged as cross-method outliers (>30% from the
    * median). Consumed verbatim — the cover NEVER recomputes dispersion. */
   outlierMethods?: string[]
-  /** Out-of-consensus street-range disclosure (the backend's street_range_disclosure
-   * sentence), relocated here from the ⚠ compute-warnings pile to sit beside the
-   * target it qualifies. null when the target is inside the street band (nothing
-   * emitted) — a re-location of an existing disclosure, not a new gate or number. */
+  /** Standing street-context line (the backend's street_range_disclosure fact
+   * line), relocated here from the ⚠ compute-warnings pile to sit beside the
+   * target it qualifies. Renders whenever the sell-side distribution was fetched;
+   * the out-of-consensus clause rides the same line when the target sits entirely
+   * outside the band. null only when the sell-side fetch failed / no data exists. */
   streetContext?: string | null
 }
 
@@ -239,10 +240,12 @@ export function ChapterCover({
           </div>
         ))}
 
-      {/* Out-of-consensus street-range disclosure, beside the target it qualifies —
-          relocated from the ⚠ compute-warnings pile (batch 1a). Calm / muted, NOT
-          amber: it is context on an already-disclosed fact, not a defect. The prose
-          is self-labelling ("Street context: …") and carries no new number. */}
+      {/* Standing street-context line, beside the target it qualifies — relocated
+          from the ⚠ compute-warnings pile (batch 1a), widened 2026-07-09 (BACKLOG
+          A9/B1) from an out-of-band-only disclosure to always render whenever the
+          sell-side distribution is available. Calm / muted, NOT amber: it is
+          context on an already-disclosed fact, not a defect. The prose is
+          self-labelling ("Street context: …") and carries no new number. */}
       {streetContext && (
         <p
           data-testid="cover-street-context"

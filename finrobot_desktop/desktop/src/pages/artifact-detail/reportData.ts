@@ -157,20 +157,21 @@ export function readerFacingComputeWarnings(warnings: string[]): string[] {
     .filter((w) => !NON_READER_WARNING_PREFIXES.some((p) => w.startsWith(p)))
 }
 
-// Stable leading label every out-of-consensus street-range disclosure begins with.
-// MIRRORS the Python constant `STREET_CONTEXT_MARKER` in
-// engine/compute/operators/valuation_synthesis.py — reword that constant and this
-// copy together, or the routing below silently stops firing. Used to lift the
-// disclosure OUT of the ⚠ caveat pile into the valuation box (cover, beside the
-// target). Not a suppression: the backend disclosure rule (out-of-band → disclose,
-// no threshold) is untouched; this only relocates where the sentence renders.
+// Stable leading label every street-context line begins with (BACKLOG A9/B1,
+// 2026-07-09: widened from an out-of-band-only disclosure to a standing fact line
+// whenever the sell-side distribution is available). MIRRORS the Python constant
+// `STREET_CONTEXT_MARKER` in engine/compute/operators/valuation_synthesis.py —
+// reword that constant and this copy together, or the routing below silently
+// stops firing. Used to lift the line OUT of the ⚠ caveat pile into the valuation
+// box (cover, beside the target). Not a suppression: the backend disclosure rule
+// is untouched; this only relocates where the sentence renders.
 export const STREET_CONTEXT_MARKER = 'Street context:'
 
 /** The compute-warnings section, layered so the reader sees signal over boilerplate.
  * On MSFT/GOOGL the raw list runs 12–15 flat lines — roughly half of it template
  * noise that fires on nearly every report. NOTHING is dropped: boilerplate is sunk
  * into a default-collapsed "Methodology notes" section (fully expandable), and the
- * street-range disclosure is routed to the valuation box. */
+ * street-context line is routed to the valuation box. */
 export interface LayeredComputeWarnings {
   /** Genuine analyst caveats — method dispersion, re-rating premise, share-class /
    *  currency consistency, M&A. Rendered prominently in the ⚠ section. No hard cap:
@@ -181,9 +182,11 @@ export interface LayeredComputeWarnings {
    *  a default-collapsed section; merges preserve every identifying token (endpoint
    *  names, peer counts, excluded tickers) so nothing material is lost. */
   methodologyNotes: string[]
-  /** The out-of-consensus street-range disclosure (STREET_CONTEXT_MARKER), routed
-   *  to the valuation box beside the target instead of buried in ⚠. null when the
-   *  target sits inside the street band (the backend emits nothing). */
+  /** The standing street-context line (STREET_CONTEXT_MARKER), routed to the
+   *  valuation box beside the target instead of buried in ⚠. Renders whenever the
+   *  sell-side distribution was fetched (low/high/consensus/analyst-count); the
+   *  out-of-consensus clause rides the SAME line when the target sits entirely
+   *  outside the band. null only when the fetch failed / no distribution exists. */
   streetContext: string | null
 }
 

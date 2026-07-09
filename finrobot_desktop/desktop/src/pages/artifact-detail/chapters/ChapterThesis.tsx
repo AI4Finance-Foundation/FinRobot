@@ -83,6 +83,22 @@ export function ChapterThesis({
         </Narrative>
       )}
 
+      {/* Momentum-divergence hedge (BACKLOG A2/P1-1) — only present when the
+          verdict strongly disagreed with the stock's own trailing-1y price
+          action (BUY on a >15% pullback / SELL on a >30% rally); null on an
+          ordinary, non-divergent call, so this section simply does not render
+          for most theses. Same Narrative/MarkdownLite register as the primary
+          narrative above — this is a continuation of the argument, not a
+          separate data panel. */}
+      {thesis.momentum_divergence_note && (
+        <>
+          <h4 style={heading}>{tr('市场逆向信号', 'What the Market Is Pricing In', locale)}</h4>
+          <Narrative>
+            <MarkdownLite text={thesis.momentum_divergence_note} />
+          </Narrative>
+        </>
+      )}
+
       {takeaways.length > 0 && (
         <>
           <h4 style={heading}>{t('chapter.thesis.keyTakeaways')}</h4>

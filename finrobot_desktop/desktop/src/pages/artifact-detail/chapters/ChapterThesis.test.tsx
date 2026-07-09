@@ -181,6 +181,40 @@ describe('ChapterThesis — full argument surface', () => {
     expect(screen.queryByTestId('reverse-dcf-headline')).toBeNull()
   })
 
+  it('renders the momentum-divergence hedge note when present (BACKLOG A2/P1-1)', () => {
+    render(
+      <ChapterThesis
+        thesis={thesis({
+          recommendation: 'BUY',
+          price_target: 130,
+          narrative: 'The setup is compelling despite the pullback.',
+          momentum_divergence_note:
+            'The market is pricing in a demand air-pocket; we see a temporary inventory correction.',
+        })}
+        valuationSynthesis={null}
+        dcf={null}
+        quoteCurrency="USD"
+      />,
+    )
+    expect(screen.getByText(/pricing in a demand air-pocket/)).toBeInTheDocument()
+  })
+
+  it('does NOT render a momentum-divergence section when the note is null (ordinary, non-divergent call)', () => {
+    render(
+      <ChapterThesis
+        thesis={thesis({
+          recommendation: 'HOLD',
+          narrative: 'Fairly valued at current levels.',
+          momentum_divergence_note: null,
+        })}
+        valuationSynthesis={null}
+        dcf={null}
+        quoteCurrency="USD"
+      />,
+    )
+    expect(screen.queryByText(/pricing in/i)).toBeNull()
+  })
+
   it('degrades gracefully — no bridge, no market-implied, no crash — when synthesis and dcf are absent', () => {
     render(
       <ChapterThesis

@@ -22,6 +22,10 @@ export interface ThesisShape {
   valuation_overview?: string | null
   competitor_analysis?: string | null
   news_summary?: string | null
+  /** LLM-authored only when the verdict strongly disagrees with the stock's own
+   * trailing-1y price action (BACKLOG A2/P1-1) — what the market's recent move is
+   * pricing in and why the call differs. null on an ordinary, non-divergent call. */
+  momentum_divergence_note?: string | null
 }
 
 export interface DcfShape {

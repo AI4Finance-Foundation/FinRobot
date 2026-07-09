@@ -267,9 +267,7 @@ describe('MarketDataZone — valuation band card', () => {
 // analysts flagged the two numbers as "disagreeing". Pins the caliber note.
 describe('MarketDataZone — beta caliber reconcile', () => {
   it('labels Beta (5Y) as the raw regression value with an explanatory hover', () => {
-    vi.mocked(useTickerFinancials).mockReturnValue(
-      settled({ market: { beta: 1.13 } }) as never,
-    )
+    vi.mocked(useTickerFinancials).mockReturnValue(settled({ market: { beta: 1.13 } }) as never)
     renderZone()
     expect(screen.getByText('1.13')).toBeInTheDocument()
     expect(screen.getByText('Raw regression')).toBeInTheDocument()

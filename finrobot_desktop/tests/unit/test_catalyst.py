@@ -131,6 +131,15 @@ class TestClassifyCatalystType:
         assert classify_catalyst_type("other") == "market"
         assert classify_catalyst_type("unknown") == "market"  # fallback
 
+    def test_acquisition_news_category_routes_to_acquisition_catalyst(self):
+        """BACKLOG A8: news had no M&A bucket, so M&A stories fell into 'other'
+        -> catalyst 'market', indistinguishable from generic competitive noise.
+        The new 'acquisition' news category must route to the catalyst
+        taxonomy's PRE-EXISTING 'acquisition' category (already reachable from
+        8-K items 1.01/1.02/2.01 via _sec_8k_to_catalyst — just unreachable
+        from news classification before this fix)."""
+        assert classify_catalyst_type("acquisition") == "acquisition"
+
 
 class TestExtractCatalystsFromNews:
     def test_filters_by_importance(self):
@@ -197,6 +206,100 @@ class TestExtractCatalystsFromNews:
         assert len(events) == 1
         assert events[0].published == pub
         assert events[0].url == "https://reuters.com/aapl-q1"
+
+
+class TestSourceAuthorityWeighting:
+    """BACKLOG A5.2: news-derived catalysts get a flat probability=0.7 weight
+    UNLESS the source is objectively primary (SEC) or a plaintiff-solicitation
+    law-firm PR pattern — no hand-curated 'authoritative outlet' whitelist."""
+
+    def test_standard_source_keeps_prior_default_weight(self):
+        """Regression: ordinary journalism (mainstream OR generic/unclassified
+        alike) must NOT change from the pre-A5.2 flat 0.7 baseline."""
+        item = NewsItem(
+            title="Microsoft posts record cloud revenue in Q4",
+            source="Reuters",
+            published=datetime.now(tz=timezone.utc),
+            url="https://reuters.com/msft-q4",
+            category="earnings",
+            sentiment="positive",
+            importance=5,
+            summary="Beat estimates",
+        )
+        events = extract_catalysts_from_news([item], min_importance=3)
+        assert events[0].probability == 0.7
+
+    def test_sec_domain_gets_primary_weight(self):
+        """A news item that cites back to an SEC filing URL gets the same
+        primary-source standing as an 8-K-derived catalyst (1.0)."""
+        item = NewsItem(
+            title="Microsoft files 8-K on executive transition",
+            source="SEC EDGAR",
+            published=datetime.now(tz=timezone.utc),
+            url="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany",
+            category="management",
+            sentiment="neutral",
+            importance=4,
+            summary="Filed 8-K",
+        )
+        events = extract_catalysts_from_news([item], min_importance=3)
+        assert events[0].probability == 1.0
+
+    def test_law_firm_solicitation_headline_downweighted(self):
+        """The plaintiff-recruitment boilerplate pattern law firms use to
+        solicit class members — must be downweighted regardless of firm name
+        (structural pattern, not a name list)."""
+        item = NewsItem(
+            title=(
+                "Rosen Law Firm Encourages Microsoft Corporation Investors to "
+                "Inquire About Securities Class Action Investigation - MSFT"
+            ),
+            source="GlobeNewswire",
+            published=datetime.now(tz=timezone.utc),
+            url="https://globenewswire.com/news-release/rosen-msft",
+            category="regulatory",
+            sentiment="negative",
+            importance=3,
+            summary="Law firm investigation announcement",
+        )
+        events = extract_catalysts_from_news([item], min_importance=3)
+        assert events[0].probability == 0.25
+
+    def test_law_firm_solicitation_downweights_any_firm_name(self):
+        """A DIFFERENT firm, same solicitation pattern -- proves this is a
+        structural detector, not a hard-coded roster of firm names."""
+        item = NewsItem(
+            title=(
+                "Pomerantz LLP Announces Investigation of Microsoft Corporation "
+                "Regarding Possible Securities Fraud"
+            ),
+            source="PRNewswire",
+            published=datetime.now(tz=timezone.utc),
+            url="https://prnewswire.com/pomerantz-msft",
+            category="regulatory",
+            sentiment="negative",
+            importance=3,
+            summary="Law firm investigation announcement",
+        )
+        events = extract_catalysts_from_news([item], min_importance=3)
+        assert events[0].probability == 0.25
+
+    def test_bare_llp_mention_without_solicitation_language_not_downweighted(self):
+        """A law firm named in ORDINARY M&A-advisory coverage (no investor-
+        solicitation phrasing) must NOT be downgraded -- a bare 'LLP' mention
+        alone is not evidence of a plaintiff-recruitment press release."""
+        item = NewsItem(
+            title="Skadden Arps LLP advises Microsoft on $2B acquisition of startup",
+            source="Bloomberg",
+            published=datetime.now(tz=timezone.utc),
+            url="https://bloomberg.com/msft-deal",
+            category="acquisition",
+            sentiment="positive",
+            importance=4,
+            summary="Advisory role on acquisition",
+        )
+        events = extract_catalysts_from_news([item], min_importance=3)
+        assert events[0].probability == 0.7
 
 
 class TestComputeExpectedImpact:
@@ -434,6 +537,7 @@ def _cat_event(
     probability: float = 0.7,
     days_ago: int = 0,
     url: str | None = None,
+    reasoning: str | None = None,
 ) -> CatalystEvent:
     pub = datetime.now(tz=timezone.utc) - timedelta(days=days_ago)
     return CatalystEvent(
@@ -442,10 +546,54 @@ def _cat_event(
         sentiment=sentiment,  # type: ignore[arg-type]
         impact_score=impact_score,
         probability=probability,
-        reasoning=headline,
+        reasoning=reasoning if reasoning is not None else headline,
         published=pub,
         url=url,
     )
+
+
+def _msft_distractor_events(n: int = 4) -> list[CatalystEvent]:
+    """N unrelated Microsoft-only catalyst events — different categories, no
+    shared story-specific entity, far outside any 3-day window.
+
+    cluster_near_duplicates is ALWAYS invoked on the full per-ticker catalyst
+    list in production (never an isolated pair) — a real run typically has
+    a dozen-plus events across earnings/product/regulatory/management/etc.
+    That basket size is what lets the entity-fingerprint signal's basket-wide
+    majority vote (_strip_dominant_entities in catalyst.py) correctly single
+    out "Microsoft" as the dominant/company token while a story-specific
+    entity (e.g. "Activision", "Copilot", "Xbox") stays a MINORITY of the
+    basket and is left alone. Tests that isolate just the near-duplicate pair
+    with nothing else in the basket are testing an unrealistically small
+    input for that mechanism, so they mix in this pool.
+    """
+    pool = [
+        _cat_event(
+            "Microsoft posts record cloud revenue in Q4 results",
+            category="earnings",
+            sentiment="positive",
+            days_ago=20,
+        ),
+        _cat_event(
+            "Microsoft unveils new Surface laptop lineup",
+            category="product_launch",
+            sentiment="positive",
+            days_ago=21,
+        ),
+        _cat_event(
+            "Microsoft names new chief financial officer",
+            category="management",
+            sentiment="neutral",
+            days_ago=22,
+        ),
+        _cat_event(
+            "Microsoft completes acquisition of AI startup",
+            category="acquisition",
+            sentiment="positive",
+            days_ago=23,
+        ),
+    ]
+    return pool[:n]
 
 
 class TestClusterNearDuplicates:
@@ -637,6 +785,234 @@ class TestClusterNearDuplicates:
         b = _cat_event("Microsoft antitrust lawsuit over Activision deal", days_ago=10)
         clustered = cluster_near_duplicates([a, b])
         assert len(clustered) == 2
+
+
+class TestCrossMediaEventFingerprintSignal:
+    """BACKLOG A5.1: MSFT M3 target case — cross-media rewrites of ONE real
+    event fall below the 0.6 title-Jaccard bar (unlike the boilerplate
+    same-lawsuit law-firm re-wording TestClusterNearDuplicates already
+    covers), so they escaped clustering entirely: a Copilot-related
+    investigation counted 3x, an Xbox layoffs story counted 2x."""
+
+    def test_msft_copilot_investigation_three_law_firms_low_jaccard_still_merges(self):
+        """Three different law firms' headlines about ONE Copilot-related
+        investigation, deliberately phrased so title Jaccard stays BELOW 0.6
+        (unlike the verbatim-boilerplate case already covered) — the
+        event-type-bucket + shared-entity signal must still collapse them."""
+        events = [
+            _cat_event(
+                "Rosen Law Firm Investigates Microsoft Corporation on Behalf of "
+                "Investors Following Copilot Concerns",
+                category="regulatory",
+                days_ago=0,
+                url="https://globenewswire.com/rosen-msft",
+            ),
+            _cat_event(
+                "Pomerantz LLP Announces Investigation of Microsoft Regarding "
+                "Possible Securities Fraud Tied to Copilot",
+                category="regulatory",
+                days_ago=1,
+                url="https://prnewswire.com/pomerantz-msft",
+            ),
+            _cat_event(
+                "Bragar Eagel & Squire Encourages Microsoft Investors With Losses "
+                "to Contact the Firm Amid Copilot Probe",
+                category="regulatory",
+                days_ago=2,
+                url="https://accesswire.com/bragar-msft",
+            ),
+        ]
+        # Sanity: confirm this fixture is genuinely a hard case for the OLD
+        # signals alone (title Jaccard < 0.6, different domains/days) — if
+        # this assertion ever fails the fixture stopped being a real test of
+        # the NEW signal and must be reworded harder.
+        from finrobot.engine.compute.operators.catalyst import _DEDUP_JACCARD_MIN, _jaccard, _title_tokens
+
+        assert (
+            _jaccard(_title_tokens(events[0].headline), _title_tokens(events[1].headline))
+            < _DEDUP_JACCARD_MIN
+        )
+        # Mixed into a realistic-size basket (see _msft_distractor_events) so
+        # the basket-wide majority vote correctly treats "Microsoft" as the
+        # dominant/company token while "Copilot" (present in only 3/7 events)
+        # stays a minority and is NOT stripped.
+        basket = events + _msft_distractor_events(4)
+        clustered = cluster_near_duplicates(basket)
+        assert len(clustered) == 5  # 1 merged Copilot cluster + 4 distractors
+        merged = next(e for e in clustered if e.category == "regulatory")
+        assert merged.source_count == 3
+
+    def test_xbox_layoffs_two_outlets_different_wording_still_merges(self):
+        """Two outlets independently reporting ONE Xbox layoffs story with
+        substantially different headlines (real cross-media rewrite, not a
+        wire re-run) must collapse to one catalyst, not double-count."""
+        events = [
+            _cat_event(
+                "Microsoft plans job cuts in Xbox division amid broader "
+                "restructuring, Bloomberg reports",
+                category="market",
+                sentiment="negative",
+                days_ago=0,
+                url="https://bloomberg.com/msft-xbox-cuts",
+            ),
+            _cat_event(
+                "Microsoft layoffs hit Xbox unit amid gaming reorganization",
+                category="market",
+                sentiment="negative",
+                days_ago=1,
+                url="https://theverge.com/msft-xbox-layoffs",
+            ),
+        ]
+        basket = events + _msft_distractor_events(3)
+        clustered = cluster_near_duplicates(basket)
+        assert len(clustered) == 4  # 1 merged Xbox pair + 3 distractors
+        merged = next(e for e in clustered if e.category == "market")
+        assert merged.source_count == 2
+
+    def test_same_bucket_different_subject_still_not_merged(self):
+        """Two DIFFERENT layoffs stories at two DIFFERENT units, same window
+        and category — same event-type bucket ('layoffs') alone must NOT be
+        enough; they share no subject entity beyond the company name, so this
+        is the false-merge guard for the new signal specifically."""
+        events = [
+            _cat_event(
+                "Microsoft cuts jobs in Xbox division amid restructuring",
+                category="market",
+                days_ago=0,
+                url="https://a.example.com/xbox",
+            ),
+            _cat_event(
+                "Microsoft announces layoffs in Azure cloud unit",
+                category="market",
+                days_ago=1,
+                url="https://b.example.com/azure",
+            ),
+        ]
+        clustered = cluster_near_duplicates(events)
+        assert len(clustered) == 2
+
+
+class TestDisagreementDisclosure:
+    """BACKLOG A5.3: merged sources may report conflicting numbers or wildly
+    different importance scores — the representative must disclose that, not
+    silently keep only the strongest signal's number."""
+
+    def test_conflicting_dollar_figures_disclosed_not_hidden(self):
+        a = _cat_event(
+            "Microsoft settles antitrust lawsuit over Activision deal",
+            category="regulatory",
+            days_ago=0,
+            url="https://reuters.com/msft-settle",
+            reasoning="Settlement reported at $700 million",
+        )
+        b = _cat_event(
+            "Microsoft reaches settlement in Activision antitrust lawsuit",
+            category="regulatory",
+            days_ago=1,
+            url="https://bloomberg.com/msft-settle",
+            reasoning="Sources say the settlement totals $500 million",
+        )
+        # Realistic-size basket (see _msft_distractor_events docstring) so the
+        # basket-wide majority vote leaves "Activision" (2/6 events) unstripped
+        # while correctly treating "Microsoft" (6/6) as the dominant token.
+        basket = [a, b, *_msft_distractor_events(4)]
+        clustered = cluster_near_duplicates(basket)
+        merged = next(e for e in clustered if e.category == "regulatory")
+        assert merged.source_count == 2
+        note = merged.reasoning
+        assert "differing figures" in note
+        assert "$700 million" in note
+        assert "$500 million" in note
+
+    def test_synonymous_dollar_phrasing_is_not_a_false_conflict(self):
+        """'$700 million' and '$700M' are the SAME value in different units —
+        must NOT be flagged as a conflict (data-lineage lesson: a detector
+        with a high false-positive rate on synonymous phrasing is worse than
+        useless — see data-lineage-recall on false-positive audit guards)."""
+        a = _cat_event(
+            "Microsoft settles antitrust lawsuit over Activision deal",
+            category="regulatory",
+            days_ago=0,
+            url="https://reuters.com/msft-settle",
+            reasoning="Settlement reported at $700 million",
+        )
+        b = _cat_event(
+            "Microsoft reaches settlement in Activision antitrust lawsuit",
+            category="regulatory",
+            days_ago=1,
+            url="https://bloomberg.com/msft-settle",
+            reasoning="Sources say the settlement totals $700M",
+        )
+        basket = [a, b, *_msft_distractor_events(4)]
+        clustered = cluster_near_duplicates(basket)
+        merged = next(e for e in clustered if e.category == "regulatory")
+        assert merged.source_count == 2
+        assert "differing figures" not in merged.reasoning
+
+    def test_rounding_noise_within_tolerance_is_not_a_false_conflict(self):
+        """'$1.2 billion' vs '$1.18 billion' is rounding noise (<5% relative
+        difference), not a real reported disagreement."""
+        a = _cat_event(
+            "Microsoft settles antitrust lawsuit over Activision deal",
+            category="regulatory",
+            days_ago=0,
+            url="https://reuters.com/msft-settle",
+            reasoning="Settlement reported at $1.2 billion",
+        )
+        b = _cat_event(
+            "Microsoft reaches settlement in Activision antitrust lawsuit",
+            category="regulatory",
+            days_ago=1,
+            url="https://bloomberg.com/msft-settle",
+            reasoning="Sources say the settlement totals $1.18 billion",
+        )
+        basket = [a, b, *_msft_distractor_events(4)]
+        clustered = cluster_near_duplicates(basket)
+        merged = next(e for e in clustered if e.category == "regulatory")
+        assert merged.source_count == 2
+        assert "differing figures" not in merged.reasoning
+
+    def test_wide_importance_score_spread_disclosed(self):
+        a = _cat_event(
+            "Microsoft hit with shareholder antitrust lawsuit over Activision deal",
+            category="regulatory",
+            impact_score=5,
+            days_ago=0,
+            url="https://lawfirm-a.com/msft",
+        )
+        b = _cat_event(
+            "Microsoft faces shareholder antitrust lawsuit over Activision deal",
+            category="regulatory",
+            impact_score=2,
+            days_ago=1,
+            url="https://lawfirm-b.com/msft",
+        )
+        clustered = cluster_near_duplicates([a, b])
+        assert len(clustered) == 1
+        note = clustered[0].reasoning
+        assert "Source disagreement" in note
+        assert "importance scored 2-5" in note
+
+    def test_narrow_importance_score_spread_not_flagged(self):
+        """A 1-point spread is normal LLM classifier jitter across
+        independently-classified sources, not real disagreement."""
+        a = _cat_event(
+            "Microsoft hit with shareholder antitrust lawsuit over Activision deal",
+            category="regulatory",
+            impact_score=4,
+            days_ago=0,
+            url="https://lawfirm-a.com/msft",
+        )
+        b = _cat_event(
+            "Microsoft faces shareholder antitrust lawsuit over Activision deal",
+            category="regulatory",
+            impact_score=3,
+            days_ago=1,
+            url="https://lawfirm-b.com/msft",
+        )
+        clustered = cluster_near_duplicates([a, b])
+        assert len(clustered) == 1
+        assert "Source disagreement" not in clustered[0].reasoning
 
 
 class TestFreezeValidationRealBasket:

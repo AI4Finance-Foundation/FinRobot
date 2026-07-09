@@ -1443,6 +1443,57 @@ def test_issuer_token_strips_legal_suffixes() -> None:
     assert token("The Vanguard Group, Inc.") == "vanguard"
 
 
+def test_ceo_cert_attachment_rank_matches_ceo_leg_variants() -> None:
+    """The CEO Section-302 cert (Exhibit 31.1) leg — real naming variants probed
+    2026-07-09: "EX-31.1" (most), "EX-31.01" (GOOGL, leading zero), "EX-31.A"
+    (DIS, letter suffix + explicit officer description)."""
+    from finrobot.engine.data.providers.edgar_provider import _ceo_cert_attachment_rank
+
+    # Numeric ".1", zero-padded ".01", filename fallback, and letter ".A".
+    assert _ceo_cert_attachment_rank("EX-31.1", "EX-31.1", "a-ex-311.htm") is not None
+    assert _ceo_cert_attachment_rank("EX-31.01", "EX-31.01", "googexhibit3101.htm") is not None
+    assert _ceo_cert_attachment_rank("", "", "wferb-ex311.htm") is not None
+    # Description explicitly names the CEO → best rank (0), beats a bare ".1".
+    ceo_desc = _ceo_cert_attachment_rank(
+        "EX-31.A", "SECTION 302 CERTIFICATION OF CHIEF EXECUTIVE OFFICER", "ex31a.htm"
+    )
+    assert ceo_desc == 0
+    assert _ceo_cert_attachment_rank("EX-31.1", "EX-31.1", "a-ex-311.htm") > ceo_desc
+
+
+def test_ceo_cert_attachment_rank_rejects_cfo_and_906() -> None:
+    """Must NEVER select the CFO leg (Ex-31.2/.02/.B) or a Section-906 cert
+    (Ex-32.x, which may be a single COMBINED CEO+CFO document) — a wrong signer
+    is worse than falling back."""
+    from finrobot.engine.data.providers.edgar_provider import _ceo_cert_attachment_rank
+
+    # CFO leg of the 302 cert.
+    assert _ceo_cert_attachment_rank("EX-31.2", "EX-31.2", "a-ex-312.htm") is None
+    assert _ceo_cert_attachment_rank("EX-31.02", "EX-31.02", "googexhibit3102.htm") is None
+    assert (
+        _ceo_cert_attachment_rank(
+            "EX-31.B", "SECTION 302 CERTIFICATION OF CHIEF FINANCIAL OFFICER", "ex31b.htm"
+        )
+        is None
+    )
+    # A ".1" leg whose description says CFO is still rejected (description wins).
+    assert (
+        _ceo_cert_attachment_rank("EX-31.1", "CERTIFICATION OF CHIEF FINANCIAL OFFICER", "x.htm")
+        is None
+    )
+    # Section-906 certs (Ex-32.x) — excluded even when the description says CEO.
+    assert _ceo_cert_attachment_rank("EX-32.1", "EX-32.1", "a-ex-321.htm") is None
+    assert (
+        _ceo_cert_attachment_rank(
+            "EX-32.A", "SECTION 906 CERTIFICATION OF CHIEF EXECUTIVE OFFICER", "ex32a.htm"
+        )
+        is None
+    )
+    # Unrelated exhibits.
+    assert _ceo_cert_attachment_rank("EX-10.1", "EX-10.1", "ex-101.htm") is None
+    assert _ceo_cert_attachment_rank("10-Q", "10-Q", "ko-20260403.htm") is None
+
+
 def _mock_sched13_filing(form: str, fdate: date, acc: str, filer: str, cik: str | None, text: str):
     f = MagicMock()
     f.form = form

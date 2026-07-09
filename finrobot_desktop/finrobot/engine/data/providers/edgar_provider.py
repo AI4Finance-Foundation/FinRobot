@@ -146,6 +146,7 @@ _SUPPORTED: list[DataType] = [
     DataType.INSTITUTIONAL_HOLDINGS,
     DataType.PROXY_STATEMENT,
     DataType.SCHEDULE_13,
+    DataType.CEO_CERTIFICATION,
     DataType.RAG_10K,  # legacy alias
     DataType.FILINGS,  # legacy alias for 10-K
 ]
@@ -1336,6 +1337,61 @@ def _seg_unit_currency(fact: dict[str, Any]) -> str | None:
     return token if len(token) == 3 and token.isalpha() else None
 
 
+# SOX-302 CEO certification (Exhibit 31.1) attachment matcher.
+#
+# Section-302 certs are ALWAYS filed as two separate documents — the CEO's
+# (Ex-31.1 / .01 / .A) and the CFO's (Ex-31.2 / .02 / .B). We must pick the
+# CEO's and NEVER the CFO's (a wrong signer is worse than falling back). Issuer
+# naming varies (probed 2026-07-09 across the mega-cap basket): KO/AAPL/MSFT/
+# JPM/NVDA/XOM/AMZN/META = "EX-31.1"; GOOGL = "EX-31.01" (leading zero); DIS =
+# "EX-31.A" with description "SECTION 302 CERTIFICATION OF CHIEF EXECUTIVE
+# OFFICER". Section-906 certs (Ex-32.x) are EXCLUDED — an issuer may file a
+# single COMBINED 906 cert signed by BOTH officers, so a name off that document
+# is ambiguous.
+_EX31_ATTACHMENT_RE = re.compile(r"^EX[-\s]?0*31(?:[.\-_ ]0*([0-9]+|[A-Za-z]))?$", re.I)
+
+
+def _ceo_cert_attachment_rank(document_type: str, description: str, document: str) -> int | None:
+    """Priority (lower = better) if the attachment is the CEO's Section-302 cert.
+
+    ``None`` → not the CEO 302 cert (or it is the CFO's / a 906 cert). Only
+    Exhibit-31 family documents qualify; sub-index .1/.A marks the CEO leg and
+    .2/.B the CFO leg. An explicit description ("...CHIEF EXECUTIVE OFFICER" /
+    "...CHIEF FINANCIAL OFFICER") is honoured over the numbering when present.
+    """
+    desc = (description or "").upper()
+    dtype = (document_type or "").strip()
+    doc = (document or "").lower()
+
+    # Restrict to the Exhibit-31 (Section-302) family — by document_type, or by
+    # filename when the type is blank/odd. 906 (Ex-32) never reaches here.
+    m = _EX31_ATTACHMENT_RE.match(dtype)
+    fam = re.search(r"ex[-_]?31[._]?0*([0-9a-z])?", doc) if m is None else None
+    if m is None and fam is None:
+        return None
+
+    sub = m.group(1) if m else (fam.group(1) if fam else None)
+    sub_is_first = sub_is_second = False
+    if sub is None:
+        sub_is_first = True  # bare "EX-31" — treat as the CEO leg (desc-guarded)
+    elif sub.isdigit():
+        sub_is_first, sub_is_second = int(sub) == 1, int(sub) == 2
+    else:
+        sub_is_first, sub_is_second = sub.upper() == "A", sub.upper() == "B"
+
+    if "FINANCIAL OFFICER" in desc:
+        return None  # CFO cert — reject outright
+    desc_is_ceo = "EXECUTIVE OFFICER" in desc
+
+    if sub_is_second and not desc_is_ceo:
+        return None  # CFO leg (.2 / .B)
+    if desc_is_ceo and sub_is_first:
+        return 0
+    if sub_is_first:
+        return 2
+    return None
+
+
 class EdgarToolsProvider(DataProvider):
     """SEC EDGAR data provider backed by edgartools 5.31.
 
@@ -1536,6 +1592,8 @@ class EdgarToolsProvider(DataProvider):
             return self._fetch_proxy(c)
         if data_type == DataType.SCHEDULE_13:
             return self._fetch_schedule13(c, limit=kwargs.get("limit", 8))
+        if data_type == DataType.CEO_CERTIFICATION:
+            return self._fetch_ceo_certification(c)
         raise ProviderError(f"unreachable data_type: {data_type}")
 
     # ------------------------------------------------------------------
@@ -1950,6 +2008,79 @@ class EdgarToolsProvider(DataProvider):
             "accession_no": proxy_filing.accession_no,
             "text": _slice_proxy_text(text),
             "source_url": getattr(proxy_filing, "homepage_url", None),
+        }, []
+
+    # ------------------------------------------------------------------
+    # SOX-302 CEO certification (Exhibit 31.1 of the latest 10-Q/10-K)
+    # ------------------------------------------------------------------
+
+    def _fetch_ceo_certification(self, c: Company) -> tuple[dict[str, Any], list[str]]:
+        """Exhibit-31.1 (CEO) certification text from the latest periodic report.
+
+        The signer of the Section-302 certification is, by law, the CURRENT
+        principal executive officer, and it is re-filed every quarter — a far
+        fresher and less ambiguous CEO-identity signal than the annual DEF 14A
+        prose. We pick the 10-Q OR 10-K with the more recent filing_date, locate
+        the CEO's Ex-31.1 attachment (never the CFO's Ex-31.2), and return its
+        raw text for the deterministic name extractor in ``ownership.py``. On
+        any miss we return ``cert_available: False`` so the consumer falls back
+        to the proxy scrape — a miss is safe, a wrong signer is not.
+        """
+        filing = c.get_filings(form=["10-Q", "10-K"]).latest(1)
+        if filing is None:
+            return {"cert_available": False}, ["No 10-Q/10-K filing found"]
+        if isinstance(filing, list):
+            filing = filing[0] if filing else None
+        if filing is None:
+            return {"cert_available": False}, ["No 10-Q/10-K filing found"]
+
+        best_att: Any = None
+        best_rank = 1_000
+        try:
+            attachments = list(filing.attachments)
+        except _ADAPTER_CATCH:
+            attachments = []
+        for att in attachments:
+            rank = _ceo_cert_attachment_rank(
+                str(getattr(att, "document_type", "") or ""),
+                str(getattr(att, "description", "") or ""),
+                str(getattr(att, "document", "") or ""),
+            )
+            if rank is not None and rank < best_rank:
+                best_att, best_rank = att, rank
+
+        if best_att is None:
+            return (
+                {
+                    "cert_available": False,
+                    "form": filing.form,
+                    "filing_date": str(filing.filing_date),
+                    "accession_no": filing.accession_no,
+                },
+                [f"No Exhibit 31.1 CEO certification in latest {filing.form}"],
+            )
+
+        try:
+            cert_text = best_att.text() or ""
+        except _ADAPTER_CATCH as e:
+            return (
+                {
+                    "cert_available": False,
+                    "form": filing.form,
+                    "filing_date": str(filing.filing_date),
+                    "accession_no": filing.accession_no,
+                },
+                [f"Ex-31.1 text() failed: {type(e).__name__}"],
+            )
+
+        return {
+            "cert_available": bool(cert_text),
+            "cert_text": cert_text,
+            "form": filing.form,
+            "filing_date": str(filing.filing_date),
+            "accession_no": filing.accession_no,
+            "exhibit": str(getattr(best_att, "document_type", "") or ""),
+            "source_url": getattr(filing, "homepage_url", None),
         }, []
 
     # ------------------------------------------------------------------

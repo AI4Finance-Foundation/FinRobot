@@ -60,6 +60,12 @@ class DataType(StrEnum):
     INSTITUTIONAL_HOLDINGS = "institutional_holdings"  # 13F — via local cache (no reverse API)
     PROXY_STATEMENT = "proxy_statement"  # DEF 14A — executive compensation / governance
     SCHEDULE_13 = "schedule_13"  # SC 13D (activist) / SC 13G (passive) — 5%+ holders
+    # SOX-302 CEO certification (Exhibit 31.1) text from the latest 10-Q/10-K.
+    # The signer is, by law, the CURRENT principal executive officer — a
+    # quarterly-refreshed authority for "who is CEO now" that outranks the
+    # annual DEF 14A prose (which goes stale the moment a succession lands,
+    # e.g. KO Quincey→Braun 2026-03-31, DIS Iger→D'Amaro 2026-03-18).
+    CEO_CERTIFICATION = "ceo_certification"
     # Analyst consensus forward estimates (FMP stable /analyst-estimates). Feeds the
     # one-true forward EPS / EBITDA / FCF leaf (compute/forward_estimates.py) so
     # the Football Field forward-multiple rows stop degrading to trailing.

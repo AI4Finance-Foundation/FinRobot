@@ -168,6 +168,10 @@ _TTL_SECONDS: dict[str, int] = {
     DataType.INSTITUTIONAL_HOLDINGS: 86400,
     # DEF 14A: annual; 7 days
     DataType.PROXY_STATEMENT: 604800,
+    # SOX-302 CEO cert: tracks the latest 10-Q/10-K, so a new quarter (or a
+    # mid-quarter succession 8-K + next periodic filing) must surface within a
+    # day — match the 10-Q cadence rather than the 7-day proxy window.
+    DataType.CEO_CERTIFICATION: 86400,
     # Route-level cache for yfinance-only deep financial data. Update cadence
     # is quarterly so a 24h freshness window is ample.
     DataType.HISTORICAL: 86400,

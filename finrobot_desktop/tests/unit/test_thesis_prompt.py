@@ -200,7 +200,10 @@ class TestBuildThesisPrompt:
         assert "DATA-HEALTH GATE TRIPPED" not in prompt
 
     def test_always_contains_numeric_discipline_and_segment_sections(self):
-        """The whitelist + segment-grounding constants land regardless of branch."""
+        """The whitelist + segment/geography-grounding constants land regardless
+        of branch (BACKLOG A4, 2026-07-09: the combined "SEGMENT / GEOGRAPHIC
+        REVENUE" header split into two independently-gated sections — segment
+        conditional on segment_overview, geography still unconditional)."""
         methods = [
             ValuationMethod(name="DCF", low=210, mid=245, high=290, confidence=0.5, source="DCF"),
             ValuationMethod(
@@ -209,7 +212,8 @@ class TestBuildThesisPrompt:
         ]
         prompt = _build(methods, current_price=230.0)
         assert "STRICT NUMERIC DISCIPLINE" in prompt
-        assert "SEGMENT / GEOGRAPHIC REVENUE" in prompt
+        assert "SEGMENT REVENUE" in prompt
+        assert "GEOGRAPHIC REVENUE" in prompt
 
     def test_narrative_argument_rule_always_present(self):
         """BACKLOG A3/P1-2: every thesis prompt requires narrative/catalysts/risks
@@ -453,6 +457,113 @@ class TestBuildThesisPrompt:
         assert "implies ~28.1%/yr" in prompt
         assert "COMMODITY-CYCLICAL" not in prompt
         assert "PERPETUAL steady state" not in prompt
+
+
+class TestSegmentOverviewGrounding:
+    """BACKLOG A4 (2026-07-09): the stale "SEC XBRL does not currently expose
+    segment data" assertion (2026-05-28) was disproven by the SOTP segment
+    fetch (2026-07-06). segment_overview now injects a deterministic whitelist
+    entry when landed, and the company-overview instruction is conditional on
+    whether it did — never a blanket "unavailable" any more."""
+
+    _METHODS = [
+        ValuationMethod(name="DCF", low=210, mid=245, high=290, confidence=0.5, source="DCF"),
+        ValuationMethod(
+            name="EV/EBITDA", low=220, mid=250, high=280, confidence=0.3, source="Comps"
+        ),
+    ]
+
+    def _overview(self, source="sec_xbrl_business_segment"):
+        from finrobot.engine.models.financial import SegmentOverview, SegmentShare
+
+        return SegmentOverview(
+            ticker="AAPL",
+            as_of=datetime(2026, 7, 9, tzinfo=timezone.utc),
+            source=source,
+            period_label="FY ending 2025-06-30",
+            segments=[
+                SegmentShare(
+                    name="Productivity and Business Processes",
+                    revenue=120.81e9,
+                    revenue_share=0.4288,
+                    operating_income=69.773e9,
+                ),
+                SegmentShare(
+                    name="Intelligent Cloud", revenue=106.265e9, revenue_share=0.3772
+                ),
+            ],
+            warnings=["segment revenue shares are computed against the sum of segments shown"],
+        )
+
+    def test_stale_always_unavailable_assertion_is_gone(self):
+        """The old blanket claim must never appear again, present or absent."""
+        prompt_without = _build(self._METHODS, current_price=230.0)
+        assert "does not currently expose structured revenue" not in prompt_without
+        prompt_with = _build(
+            self._METHODS,
+            current_price=230.0,
+            extra_context={"segment_overview": self._overview()},
+        )
+        assert "does not currently expose structured revenue" not in prompt_with
+
+    def test_segment_overview_absent_keeps_honest_unavailable_instruction(self):
+        prompt = _build(self._METHODS, current_price=230.0)
+        assert "No segment-level revenue breakdown was sourceable" in prompt
+        assert "segment_overview (" not in prompt  # no whitelist entry injected
+
+    def test_segment_overview_present_injects_whitelist_and_citation_rule(self):
+        prompt = _build(
+            self._METHODS,
+            current_price=230.0,
+            extra_context={"segment_overview": self._overview()},
+        )
+        # Deterministic whitelist entry — the ONLY legal source of segment %s.
+        assert "segment_overview (sec_xbrl_business_segment, FY ending 2025-06-30)" in prompt
+        assert "Productivity and Business Processes: revenue $120.81B, 42.9% of segment total" in prompt
+        assert "Intelligent Cloud: revenue $106.27B, 37.7% of segment total" in prompt
+        # Citation rule present, unavailable branch NOT present.
+        assert "A real segment/business-line revenue breakdown was fetched" in prompt
+        assert "No segment-level revenue breakdown was sourceable" not in prompt
+        # Reconciliation caveat instruction (never claim share of TOTAL company revenue).
+        assert "as a share of the company's TOTAL consolidated revenue" in prompt
+
+    def test_fmp_fallback_source_labeled_distinctly(self):
+        prompt = _build(
+            self._METHODS,
+            current_price=230.0,
+            extra_context={"segment_overview": self._overview(source="fmp_product_segmentation")},
+        )
+        assert "segment_overview (fmp_product_segmentation, FY ending 2025-06-30)" in prompt
+
+    def test_empty_segments_list_falls_back_to_unavailable_branch(self):
+        """A SegmentOverview with zero rows (shouldn't happen upstream, but the
+        prompt must degrade honestly rather than injecting an empty whitelist
+        header) is treated the same as segment_overview being absent."""
+        from finrobot.engine.models.financial import SegmentOverview
+
+        empty = SegmentOverview(
+            ticker="AAPL",
+            as_of=datetime(2026, 7, 9, tzinfo=timezone.utc),
+            source="sec_xbrl_business_segment",
+            period_label="FY ending 2025-06-30",
+            segments=[],
+        )
+        prompt = _build(
+            self._METHODS, current_price=230.0, extra_context={"segment_overview": empty}
+        )
+        assert "No segment-level revenue breakdown was sourceable" in prompt
+        assert "segment_overview (" not in prompt
+
+    def test_geography_instruction_unconditional_and_unchanged(self):
+        """Geography stays out of scope for BACKLOG A4 — always the honest
+        "unavailable" instruction, segment_overview present or not."""
+        prompt = _build(
+            self._METHODS,
+            current_price=230.0,
+            extra_context={"segment_overview": self._overview()},
+        )
+        assert "GEOGRAPHIC REVENUE (SEC XBRL verification)" in prompt
+        assert "geographic revenue breakdown was not available" in prompt
 
 
 class TestMomentumContext:

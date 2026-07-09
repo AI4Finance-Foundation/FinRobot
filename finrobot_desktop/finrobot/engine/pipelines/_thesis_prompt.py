@@ -17,6 +17,7 @@ from finrobot.engine.models.financial import (
     DCFResult,
     FinancialData,
     PeerComps,
+    SegmentOverview,
     ValuationSynthesis,
 )
 from finrobot.engine.compute.operators.audit import compute_momentum_context, is_momentum_divergent
@@ -467,6 +468,25 @@ def build_thesis_prompt(
                 )
     if xbrl_snap:
         _whitelist_parts.append("  - xbrl_facts_snapshot.*: (injected above in structured data)")
+    # Segment revenue mix (BACKLOG A4, 2026-07-09) — deterministic injection, the
+    # ONLY way segment figures may enter the narrative (see the SEGMENT REVENUE
+    # instruction block below). Labels come from the filer's own XBRL taxonomy /
+    # FMP's product categories — external text, so sanitized before hitting the
+    # prompt window (BUG-087 discipline) even though segment names carry far
+    # lower injection risk than adversarial news headlines.
+    segment_overview = structured_context.get("segment_overview")
+    if isinstance(segment_overview, SegmentOverview) and segment_overview.segments:
+        _whitelist_parts.append(
+            f"  - segment_overview ({segment_overview.source}, "
+            f"{segment_overview.period_label}):"
+        )
+        for seg in segment_overview.segments:
+            label = sanitize_untrusted_text(seg.name, max_len=80)
+            share_str = f"{seg.revenue_share:.1%}" if seg.revenue_share is not None else "n/a"
+            rev_str = f"${seg.revenue / 1e9:.2f}B" if seg.revenue is not None else "n/a"
+            _whitelist_parts.append(
+                f"      · {label}: revenue {rev_str}, {share_str} of segment total"
+            )
     _whitelist_parts += [
         "FORBIDDEN: any P/E, PEG, PB, yield, market cap, or growth rate you 'remember' — "
         "these MUST come from the fields above.",
@@ -478,23 +498,54 @@ def build_thesis_prompt(
     thesis_prompt = thesis_prompt + "\n".join(_whitelist_parts)
 
     # ── Company Overview: segment / geography grounding ───────────────────────
-    # edgartools EntityFacts does not expose a segment getter (verified 2026-05-28).
-    # We cannot inject XBRL-sourced segment splits. Prompt discipline is the only
-    # guard: prohibit fabrication and require the LLM to label absence explicitly.
-    _co_context = (
-        "\n\n**SEGMENT / GEOGRAPHIC REVENUE (SEC XBRL verification):**\n"
-        "SEC XBRL does not currently expose structured revenue broken down by segment or "
-        "geographic region.\n"
-        "Therefore:\n"
-        "  1. Do NOT cite any specific segment-share figure (e.g. 'Products are 80%') or "
-        "geographic-split figure (e.g. 'Greater China is 20%') unless that number appears "
-        "in the injected xbrl_facts_snapshot above.\n"
-        "  2. If xbrl_facts_snapshot has no segment data, state explicitly in "
-        "company_overview: 'Segment revenue breakdown was not available in SEC XBRL "
-        "structured data; see the latest annual report for the exact proportions.'\n"
-        "  3. You may describe business lines qualitatively (e.g. 'centered on consumer "
-        "electronics devices and a services ecosystem'), but do NOT give a percentage "
-        "that has no data backing.\n"
+    # Segment revenue (BACKLOG A4, 2026-07-09): the 2026-05-28 assertion below
+    # ("SEC XBRL does not currently expose segment data") was disproven by the
+    # SOTP segment fetch shipped 2026-07-06 — SOTP has been reading real ASC-280
+    # reportable-segment facts all along. segment_overview (above) now wires that
+    # SAME fetch (+ an FMP fallback) into this prompt for every ticker, so the
+    # instruction below is conditional on whether it actually landed, not a
+    # blanket "unavailable" for every report.
+    segment_overview_present = isinstance(segment_overview, SegmentOverview) and bool(
+        segment_overview.segments
+    )
+    if segment_overview_present:
+        _co_context = (
+            "\n\n**SEGMENT REVENUE (SEC XBRL / FMP — see segment_overview above):**\n"
+            "A real segment/business-line revenue breakdown was fetched for this "
+            "issuer. Cite ONLY the segment names and revenue-share percentages "
+            "listed in the segment_overview whitelist entry above — do NOT invent a "
+            "segment name or percentage not in that list, and do NOT describe a "
+            "revenue_share as a share of the company's TOTAL consolidated revenue: "
+            "it is each segment's share of the segment total shown (corporate / "
+            "eliminations items, where an issuer has them, are not broken out here — "
+            "see the entry's own caveat on segment_overview.warnings).\n"
+        )
+    else:
+        _co_context = (
+            "\n\n**SEGMENT REVENUE (SEC XBRL / FMP verification):**\n"
+            "No segment-level revenue breakdown was sourceable from SEC XBRL or FMP "
+            "for this issuer (single-segment issuer, or the data was not available).\n"
+            "Therefore:\n"
+            "  1. Do NOT cite any specific segment-share figure (e.g. 'Products are "
+            "80%') unless that number appears in a whitelist entry above.\n"
+            "  2. State explicitly in company_overview: 'A segment revenue breakdown "
+            "was not available for this issuer; see the latest annual report for "
+            "business-line detail.'\n"
+            "  3. You may describe business lines qualitatively (e.g. 'centered on "
+            "consumer electronics devices and a services ecosystem'), but do NOT give "
+            "a percentage that has no data backing.\n"
+        )
+    # Geography stays unconditionally "unavailable" — no geographic XBRL/FMP fetch
+    # is wired into this prompt (out of scope for BACKLOG A4, which is segment
+    # revenue only; xbrl_facts_snapshot carries company-level facts, never a
+    # geographic breakdown — see xbrl_concept_snapshot).
+    _co_context += (
+        "\n**GEOGRAPHIC REVENUE (SEC XBRL verification):**\n"
+        "SEC XBRL geographic revenue is not injected into this prompt. Do NOT cite "
+        "any specific geographic-split figure (e.g. 'Greater China is 20%') unless it "
+        "appears in xbrl_facts_snapshot above; otherwise state explicitly in "
+        "company_overview that geographic revenue breakdown was not available and do "
+        "NOT fabricate a percentage.\n"
     )
     thesis_prompt = thesis_prompt + _co_context
 

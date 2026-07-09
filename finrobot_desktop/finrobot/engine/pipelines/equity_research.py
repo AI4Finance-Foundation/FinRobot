@@ -46,7 +46,10 @@ from finrobot.engine.compute.operators.dcf import (
     margin_swing,
     market_implied_check,
 )
-from finrobot.engine.compute.coordinators.segment_extractor import build_sotp_breakdown
+from finrobot.engine.compute.coordinators.segment_extractor import (
+    build_segment_overview,
+    build_sotp_breakdown,
+)
 from finrobot.engine.compute.operators.dcf_seed import dcf_current_actuals, seed_dcf_inputs
 from finrobot.engine.compute.operators.forward_estimates import (
     ForwardFinancials,
@@ -905,6 +908,35 @@ async def _execute_financial_modeling(
                 sotp = None
             if sotp is not None:
                 structured_context["sotp_breakdown"] = sotp
+        else:
+            # Light non-SOTP segment overview (BACKLOG A4, 2026-07-09): for every
+            # OTHER ticker (the SOTP gate above did NOT fire — no reverse-decomp
+            # valuation channel for it), fetch the SAME SEC XBRL reportable
+            # segments SOTP uses (falling back to FMP's product mix when XBRL has
+            # nothing) and hand a display-only breakdown to the Company Overview
+            # chapter + the thesis prompt's numeric whitelist. This is the fetch
+            # that replaces the stale "SEC XBRL does not currently expose segment
+            # data" prompt instruction — that assertion (2026-05-28) was disproven
+            # by SOTP's own segment fetch (2026-07-06); this wires the SAME data
+            # into the path that was still telling the LLM it doesn't exist.
+            try:
+                segment_overview = await build_segment_overview(deps.data_layer, ticker)
+            except (
+                ProviderError,
+                ValidationError,
+                ValueError,
+                KeyError,
+                TypeError,
+                AttributeError,
+                RuntimeError,
+                OSError,
+            ) as e:
+                # Augmentation; never crash the seed. Concrete types only (red
+                # line D1) — CancelledError must propagate.
+                logger.warning("Segment overview failed for %s: %s", ticker, e)
+                segment_overview = None
+            if segment_overview is not None:
+                structured_context["segment_overview"] = segment_overview
 
     # Build ValuationSynthesis from all available methods for the football field
     # chart. current_price was resolved above for the reverse-DCF check.
@@ -1411,11 +1443,13 @@ _SYNTHESIS_AGENT_INSTRUCTIONS = (
     "  - company_overview:  200-300 word Company Overview (8th synthesis slot). "
     "Cover (a) the core business model and what the firm sells, (b) the reportable "
     "segments — but ONLY cite segment revenue percentages that appear in the injected "
-    "xbrl_facts_snapshot; if absent, state explicitly that segment data is "
-    "unavailable in XBRL and do NOT fabricate figures, (c) geographic exposure — "
-    "same rule: cite only data present in xbrl_facts_snapshot or state it is "
-    "unavailable, and (d) the durable competitive moat. Investment-bank tone — write "
-    "as if introducing the issuer in an initiating-coverage report.\n"
+    "segment_overview whitelist entry below; if segment_overview was NOT supplied "
+    "(single-segment issuer, or no segment data sourceable from SEC XBRL or FMP for "
+    "this ticker), state explicitly that a segment breakdown is unavailable and do "
+    "NOT fabricate figures, (c) geographic exposure — same rule: cite only data "
+    "present in xbrl_facts_snapshot or state it is unavailable, and (d) the durable "
+    "competitive moat. Investment-bank tone — write as if introducing the issuer in "
+    "an initiating-coverage report.\n"
     "  - valuation_overview: 150-200 word explanation — why DCF vs Comps vs DDM give the "
     "implied prices they do, and how the weighted target was reached. "
     "Only cite numbers present in the whitelist injected in the prompt.\n"

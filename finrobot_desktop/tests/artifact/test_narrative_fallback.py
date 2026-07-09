@@ -80,6 +80,44 @@ def test_null_fields_filled_deterministically_from_structured_data():
     assert "tagline" in warnings[0] and "key_takeaways" in warnings[0]
 
 
+def test_company_overview_fallback_cites_segment_overview_when_present():
+    """BACKLOG A4 (2026-07-09): when segment_overview landed (SEC XBRL or FMP),
+    the deterministic company_overview fallback cites the largest real segments
+    instead of the generic "not available" line — still zero fabrication, every
+    figure traces to the frozen segment_overview block."""
+    structured = _structured()
+    structured["segment_overview"] = {
+        "ticker": "JPM",
+        "source": "sec_xbrl_business_segment",
+        "period_label": "FY ending 2025-12-31",
+        "segments": [
+            {"name": "Consumer & Community Banking", "revenue": 6.5e10, "revenue_share": 0.55},
+            {"name": "Corporate & Investment Bank", "revenue": 5.0e10, "revenue_share": 0.42},
+            {"name": "Asset & Wealth Management", "revenue": 0.5e10, "revenue_share": 0.03},
+        ],
+    }
+    warnings = _fill_narrative_fallbacks(structured, _raw_data(), "JPM")
+    overview = structured["thesis"]["company_overview"]
+    assert "Segment revenue breakdown was not available" not in overview
+    # Cites the top-2 by revenue_share (largest first), not the 3rd/smallest.
+    assert "Consumer & Community Banking" in overview
+    assert "55%" in overview
+    assert "Corporate & Investment Bank" in overview
+    assert "42%" in overview
+    assert "Asset & Wealth Management" not in overview
+    assert warnings and "company_overview" in warnings[0]
+
+
+def test_company_overview_fallback_ignores_empty_segment_overview():
+    """An empty/absent segment_overview keeps the honest "unavailable" line —
+    no crash on malformed/partial structured data either."""
+    structured = _structured()
+    structured["segment_overview"] = {"segments": []}
+    warnings = _fill_narrative_fallbacks(structured, _raw_data(), "JPM")
+    assert "Segment revenue breakdown was not available" in structured["thesis"]["company_overview"]
+    assert warnings
+
+
 def test_present_fields_not_overwritten_and_no_warning():
     structured = _structured()
     # LLM wrote everything this time.

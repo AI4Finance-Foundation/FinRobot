@@ -1781,3 +1781,73 @@ class SOTPBreakdown(BaseModel):
     range_position is street positioning, NEVER a robotaxi-success probability (see
     SOTPScenarioBand). None when analyst price targets are unavailable."""
     warnings: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Lightweight segment overview — non-SOTP display for the Company Overview
+# chapter (BACKLOG A4, 2026-07-09).
+# ---------------------------------------------------------------------------
+#
+# SOTP (above) is a heavy reverse-decomposition VALUATION channel, gated on
+# ``classify_market_implied_nature().kind == "option_value"`` — it never fires
+# for an ordinary name. This is the opposite: a DISPLAY-only breakdown (no
+# multiples, no implied EV, no market residual) for every OTHER ticker, so the
+# Company Overview chapter can show real segment revenue mix instead of the
+# hardcoded "segment data unavailable" line that was stale the moment SOTP
+# proved SEC XBRL segment facts ARE fetchable (2026-05-28 assertion, disproven
+# by the SOTP fetch shipped 2026-07-06).
+#
+# Two independent, DIFFERENTLY-CALIBERED sources, never merged into one row
+# under a shared key:
+#   - "sec_xbrl_business_segment": ASC-280 reportable segments from the 10-K
+#     XBRL (extract_segment_facts) — the audited disclosure unit management
+#     runs the business by (MSFT: 3 segments). Revenue + EITHER gross_profit
+#     (TSLA-style: segment-level gross profit disclosed) OR operating_income
+#     (MSFT-style: segment-level operating income disclosed, no segment gross
+#     profit) — never both for the same issuer.
+#   - "fmp_product_segmentation": FMP's own finer, UNAUDITED product-category
+#     breakdown of the SAME consolidated revenue (MSFT: 10 product lines under
+#     FMP's taxonomy vs 3 GAAP segments) — revenue ONLY, no profitability
+#     metric. Used ONLY when the XBRL fetch is empty (single-segment issuer, or
+#     SEC unwired) — a genuinely different caliber from a GAAP segment, so it
+#     is never silently blended into the same breakdown as XBRL segments.
+class SegmentShare(BaseModel):
+    """One segment/product-line's revenue (+ optional profitability) row.
+
+    ``revenue_share`` is the segment's share of the SUM of segment revenues in
+    THIS SAME breakdown — not a share of the company's consolidated total
+    revenue (which may not reconcile exactly due to corporate/eliminations
+    items ASC 280 lets an issuer omit from the segment table; see
+    ``SegmentOverview`` caveat). None when revenue itself is unavailable for
+    this segment, or when no segment in the breakdown has any revenue.
+    """
+
+    name: str
+    revenue: float | None = None
+    revenue_share: float | None = None
+    operating_income: float | None = None
+    """MSFT-style segment profitability metric. None for a gross-profit-anchored
+    breakdown (TSLA-style) or an FMP revenue-only breakdown."""
+    gross_profit: float | None = None
+    """TSLA-style segment profitability metric. None for an operating-income-
+    anchored breakdown (MSFT-style) or an FMP revenue-only breakdown."""
+
+
+class SegmentOverview(BaseModel):
+    """Lightweight, display-only segment/business-line revenue mix.
+
+    Populated for tickers that are NOT SOTP option-value candidates (SOTP owns
+    the heavier reverse-decomposition valuation for those). No valuation math —
+    the synthesis LLM cites ``segments[].revenue_share`` in ``company_overview``
+    prose (deterministic whitelist injection, never free narration) and the
+    Company Overview chapter renders the same rows as a table. All fields
+    COMPUTED/fetched, zero LLM involvement in the numbers themselves.
+    """
+
+    ticker: str
+    as_of: datetime
+    source: Literal["sec_xbrl_business_segment", "fmp_product_segmentation"]
+    period_label: str
+    """e.g. "FY ending 2025-06-30" (XBRL) or "FY2025" (FMP)."""
+    segments: list[SegmentShare]
+    warnings: list[str] = Field(default_factory=list)

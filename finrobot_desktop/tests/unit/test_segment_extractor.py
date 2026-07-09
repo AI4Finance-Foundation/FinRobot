@@ -12,9 +12,12 @@ from typing import Any, cast
 
 import pytest
 
-from finrobot.engine.compute.coordinators.segment_extractor import build_sotp_breakdown
+from finrobot.engine.compute.coordinators.segment_extractor import (
+    build_segment_overview,
+    build_sotp_breakdown,
+)
 from finrobot.engine.data.layer import DataLayer
-from finrobot.engine.models.financial import SOTPBreakdown
+from finrobot.engine.models.financial import SegmentOverview, SOTPBreakdown
 
 
 class _SegResult:
@@ -27,11 +30,17 @@ class _SegResult:
 
 class _FakeLayer:
     def __init__(
-        self, result: _SegResult | None = None, *, price_target: dict[str, Any] | None = None
+        self,
+        result: _SegResult | None = None,
+        *,
+        price_target: dict[str, Any] | None = None,
+        fmp_segments_result: _SegResult | None = None,
     ) -> None:
         self._result = result
         self._price_target = price_target
+        self._fmp_segments_result = fmp_segments_result
         self.calls = 0
+        self.fmp_calls = 0
 
     async def fetch_segments(self, ticker: str) -> _SegResult | None:
         self.calls += 1
@@ -40,6 +49,11 @@ class _FakeLayer:
     async def fetch_price_target(self, ticker: str) -> _SegResult | None:
         # Batch 3B v2 street scenario band source; None → band drops (floor still ships).
         return _SegResult(self._price_target) if self._price_target is not None else None
+
+    async def fetch_segment_revenue_fmp(self, ticker: str) -> _SegResult | None:
+        # BACKLOG A4 (2026-07-09): XBRL-empty fallback for build_segment_overview.
+        self.fmp_calls += 1
+        return self._fmp_segments_result
 
 
 def _segments_result(
@@ -215,3 +229,164 @@ class TestScenarioBandAndSuccessCeiling:
         assert out.scenario_band is None
         assert any("scenario band dropped" in w for w in out.warnings)
         assert out.price_floor > 0
+
+
+# ---------------------------------------------------------------------------
+# build_segment_overview — lightweight non-SOTP display path (BACKLOG A4,
+# 2026-07-09). Reuses fetch_segments (the SAME route SOTP uses above) and
+# falls back to fetch_segment_revenue_fmp ONLY when XBRL is empty.
+# ---------------------------------------------------------------------------
+
+# MSFT-shaped XBRL segments (operating-income anchor — extract_segment_facts'
+# output shape for an issuer with no segment-level gross profit disclosure).
+_MSFT_XBRL_SEGMENTS = {
+    "ProductivityAndBusinessProcesses": {
+        "label": "Productivity and Business Processes",
+        "revenue": 120.810e9,
+        "gross_profit": None,
+        "operating_income": 69.773e9,
+    },
+    "IntelligentCloud": {
+        "label": "Intelligent Cloud",
+        "revenue": 106.265e9,
+        "gross_profit": None,
+        "operating_income": 44.589e9,
+    },
+    "MorePersonalComputing": {
+        "label": "More Personal Computing",
+        "revenue": 54.649e9,
+        "gross_profit": None,
+        "operating_income": 14.166e9,
+    },
+}
+
+
+class TestBuildSegmentOverviewXbrlPath:
+    async def test_xbrl_segments_build_overview_with_revenue_share(self):
+        layer = _FakeLayer(_segments_result(_MSFT_XBRL_SEGMENTS, end="2025-06-30"))
+        out = await build_segment_overview(cast(DataLayer, layer), "MSFT")
+        assert isinstance(out, SegmentOverview)
+        assert out.source == "sec_xbrl_business_segment"
+        assert out.period_label == "FY ending 2025-06-30"
+        # Largest segment first (sorted by revenue descending).
+        assert [s.name for s in out.segments] == [
+            "Productivity and Business Processes",
+            "Intelligent Cloud",
+            "More Personal Computing",
+        ]
+        total = 120.810e9 + 106.265e9 + 54.649e9
+        pbp = out.segments[0]
+        assert pbp.revenue == pytest.approx(120.810e9)
+        assert pbp.revenue_share == pytest.approx(120.810e9 / total)
+        assert pbp.operating_income == pytest.approx(69.773e9)
+        assert pbp.gross_profit is None
+        # FMP never touched — XBRL had data.
+        assert layer.fmp_calls == 0
+        # Reconciliation caveat always present (elimination/corporate honesty).
+        assert any("not consolidated total revenue" in w for w in out.warnings)
+
+    async def test_gross_profit_anchored_xbrl_also_builds_overview(self):
+        # TSLA-shaped (gross-profit anchor) XBRL segments — the OTHER
+        # extract_segment_facts shape must build cleanly too.
+        segments = {
+            "Automotive": {
+                "label": "Automotive",
+                "revenue": 69.526e9,
+                "gross_profit": 13.292e9,
+                "operating_income": None,
+            },
+            "EnergyGenerationAndStorage": {
+                "label": "Energy generation and storage",
+                "revenue": 12.771e9,
+                "gross_profit": 3.802e9,
+                "operating_income": None,
+            },
+        }
+        layer = _FakeLayer(_segments_result(segments, end="2025-12-31"))
+        out = await build_segment_overview(cast(DataLayer, layer), "TSLA")
+        assert isinstance(out, SegmentOverview)
+        assert out.source == "sec_xbrl_business_segment"
+        auto = next(s for s in out.segments if s.name == "Automotive")
+        assert auto.gross_profit == pytest.approx(13.292e9)
+        assert auto.operating_income is None
+
+    async def test_missing_revenue_yields_none_share_not_zero(self):
+        # A segment with no matched revenue must NOT get a fabricated share.
+        segments = {
+            "SegA": {"label": "Seg A", "revenue": 100e9, "gross_profit": 10e9},
+            "SegB": {"label": "Seg B", "revenue": None, "gross_profit": 5e9},
+        }
+        layer = _FakeLayer(_segments_result(segments))
+        out = await build_segment_overview(cast(DataLayer, layer), "X")
+        assert out is not None
+        seg_b = next(s for s in out.segments if s.name == "Seg B")
+        assert seg_b.revenue is None
+        assert seg_b.revenue_share is None  # never fabricated
+        seg_a = next(s for s in out.segments if s.name == "Seg A")
+        # SegA is the only revenue in the pool → its own 100% share, not diluted
+        # by SegB's absent revenue.
+        assert seg_a.revenue_share == pytest.approx(1.0)
+
+
+class TestBuildSegmentOverviewFmpFallback:
+    async def test_empty_xbrl_falls_back_to_fmp_product_mix(self):
+        layer = _FakeLayer(
+            _segments_result({}),  # XBRL: single-segment issuer, nothing dimensioned
+            fmp_segments_result=_SegResult(
+                data={
+                    "segments": {"Windows": 17.314e9, "Gaming": 23.455e9},
+                    "period_label": "FY2025",
+                    "currency": "USD",
+                }
+            ),
+        )
+        out = await build_segment_overview(cast(DataLayer, layer), "MSFT")
+        assert isinstance(out, SegmentOverview)
+        assert out.source == "fmp_product_segmentation"
+        assert out.period_label == "FY2025"
+        assert layer.calls == 1  # XBRL tried first
+        assert layer.fmp_calls == 1
+        names = {s.name for s in out.segments}
+        assert names == {"Windows", "Gaming"}
+        # FMP never supplies a profitability metric.
+        for s in out.segments:
+            assert s.operating_income is None
+            assert s.gross_profit is None
+        assert any("NOT SEC" in w for w in out.warnings)
+
+    async def test_xbrl_present_never_calls_fmp(self):
+        # XBRL segments non-empty → FMP fallback must NOT be invoked at all —
+        # FMP never displaces the audited SEC breakdown when both exist.
+        layer = _FakeLayer(
+            _segments_result(_MSFT_XBRL_SEGMENTS),
+            fmp_segments_result=_SegResult(data={"segments": {"Windows": 17.314e9}}),
+        )
+        out = await build_segment_overview(cast(DataLayer, layer), "MSFT")
+        assert out is not None
+        assert out.source == "sec_xbrl_business_segment"
+        assert layer.fmp_calls == 0
+
+    async def test_both_sources_empty_returns_none(self):
+        layer = _FakeLayer(
+            _segments_result({}),
+            fmp_segments_result=_SegResult(data={"segments": {}}),
+        )
+        out = await build_segment_overview(cast(DataLayer, layer), "SINGLESEG")
+        assert out is None
+
+    async def test_xbrl_none_falls_back_to_fmp(self):
+        # fetch_segments returning None (SEC unwired) must still try FMP.
+        layer = _FakeLayer(
+            None,
+            fmp_segments_result=_SegResult(
+                data={"segments": {"Widgets": 5e9}, "period_label": "FY2025"}
+            ),
+        )
+        out = await build_segment_overview(cast(DataLayer, layer), "X")
+        assert out is not None
+        assert out.source == "fmp_product_segmentation"
+
+    async def test_fmp_none_returns_none(self):
+        layer = _FakeLayer(_segments_result({}), fmp_segments_result=None)
+        out = await build_segment_overview(cast(DataLayer, layer), "X")
+        assert out is None

@@ -918,10 +918,34 @@ def _fill_narrative_fallbacks(
             parts.append(
                 f"Market capitalization is approximately {_fmt_usd_humanized(market['market_cap'])}."
             )
-        parts.append(
-            "Segment revenue breakdown was not available in SEC XBRL structured data; "
-            "see the latest annual report for the exact proportions."
-        )
+        # Segment revenue mix (BACKLOG A4, 2026-07-09): cite the largest reported
+        # segments from the frozen segment_overview when it landed (SEC XBRL, or
+        # FMP's product mix when XBRL had nothing); otherwise the honest
+        # "unavailable" line — never a fabricated proportion either way.
+        segment_overview = structured_out.get("segment_overview")
+        segment_overview = segment_overview if isinstance(segment_overview, dict) else {}
+        seg_rows = segment_overview.get("segments")
+        seg_rows = seg_rows if isinstance(seg_rows, list) else []
+        ranked_segments = sorted(
+            (
+                s
+                for s in seg_rows
+                if isinstance(s, dict) and isinstance(s.get("revenue_share"), (int, float))
+            ),
+            key=lambda s: s["revenue_share"],
+            reverse=True,
+        )[:2]
+        if ranked_segments:
+            seg_desc = "; ".join(
+                f"{s.get('name') or 'segment'} ({s['revenue_share']:.0%} of segment revenue)"
+                for s in ranked_segments
+            )
+            parts.append(f"The largest reported segments are {seg_desc}.")
+        else:
+            parts.append(
+                "Segment revenue breakdown was not available for this issuer; "
+                "see the latest annual report for business-line detail."
+            )
         thesis["company_overview"] = " ".join(parts)
         filled.append("company_overview")
 
@@ -1033,6 +1057,13 @@ def build_equity_research_artifact(
         # it must persist on its own key for the valuation chapter to render the
         # floor / implied-option-premium panel.
         "sotp_breakdown",
+        # Lightweight non-SOTP segment/business-line revenue mix (BACKLOG A4,
+        # 2026-07-09): display-only, populated for tickers the SOTP gate above
+        # did NOT fire for. Independent key — never merged into sotp_breakdown
+        # (different calibers: one is a reverse-decomposition valuation, this is
+        # a sourced revenue-mix table) so the Company Overview chapter can render
+        # its segment table without touching the Valuation chapter's SOTP panel.
+        "segment_overview",
         "thesis",
         "catalyst_analysis",
         "technical_analysis",

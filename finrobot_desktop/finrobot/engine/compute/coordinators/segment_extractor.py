@@ -1,10 +1,19 @@
-"""SOTP segment extractor — fetches SEC reportable segments and builds the floor.
+"""Segment extractor — fetches SEC reportable segments and builds the SOTP floor
+(+ a lightweight non-SOTP segment overview for ordinary tickers).
 
 Batch 3B (v1 floor + v2 caliber). The coordinator that owns the SOTP-floor data
 I/O: it consumes ``DataLayer.fetch_segments`` (an explicit SEC augmentation route,
 NOT the priority chain), maps each reportable segment onto a comparable EV/gross-
 profit multiple, and hands the legs + market inputs to the pure
 ``compute_sotp_breakdown`` operator.
+
+BACKLOG A4 (2026-07-09) added ``build_segment_overview``: a DISPLAY-only sibling
+for every ticker that is NOT an SOTP option-value candidate — no multiples, no
+implied EV, no market residual, just the segment/product revenue mix for the
+Company Overview chapter. It reuses the SAME ``fetch_segments`` XBRL route
+(unchanged, still SOTP's primary source too) and falls back to FMP's product-
+category breakdown only when XBRL has nothing. The SOTP gate in
+``build_sotp_breakdown`` above is NOT touched by this addition.
 
 Layering (spec §8#5): segment extraction = coordinator (consumes DataLayer); the
 arithmetic = pure operator (zero I/O). This module never touches XBRL parsing
@@ -40,14 +49,30 @@ decomposition.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 
 from finrobot.engine.compute.operators.sotp import compute_sotp_breakdown, value_segment
 from finrobot.engine.compute.operators.sotp_scenario import compute_scenario_band
+from finrobot.engine.data.interface import DataResult
 from finrobot.engine.data.layer import DataLayer
 from finrobot.engine.models.financial import (
+    SegmentOverview,
+    SegmentShare,
     SegmentValuation,
     SOTPBreakdown,
     SOTPScenarioBand,
+)
+
+# Standing caveat on every SegmentOverview: ASC 280 lets an issuer omit
+# corporate/eliminations items from its segment table, so segment revenues can
+# legitimately not sum exactly to consolidated total revenue. revenue_share is
+# deliberately computed as a share of THIS breakdown's own segment total (never
+# claimed to be a share of consolidated revenue) — this warning makes that
+# explicit rather than letting a reader assume an exact reconciliation.
+_SEGMENT_RECONCILIATION_CAVEAT = (
+    "segment revenue shares are computed against the sum of segments shown here, "
+    "not consolidated total revenue — corporate/eliminations items outside the "
+    "reportable segments (if any) are not broken out"
 )
 
 # --- Energy floor multiple — solar/storage peer median EV/gross-profit ----------
@@ -257,3 +282,131 @@ async def _build_scenario_band(
             "analyst target distribution incomplete/degenerate — scenario band dropped"
         )
     return band
+
+
+# ---------------------------------------------------------------------------
+# Lightweight segment overview (BACKLOG A4, 2026-07-09) — non-SOTP display path
+# ---------------------------------------------------------------------------
+
+
+def _num_or_none(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _segment_shares(
+    rows: list[tuple[str, float | None, float | None, float | None]],
+) -> list[SegmentShare]:
+    """Build ``SegmentShare`` rows with revenue_share = revenue / Σ(revenue shown).
+
+    ``rows`` is ``(name, revenue, gross_profit, operating_income)``. Rows are
+    sorted by revenue descending (None-revenue rows last) so the largest segment
+    reads first — a display convenience, not a data transform.
+    """
+    total_revenue = sum(r[1] for r in rows if r[1] is not None)
+    shares: list[SegmentShare] = []
+    for name, revenue, gross_profit, operating_income in rows:
+        share = revenue / total_revenue if revenue is not None and total_revenue > 0 else None
+        shares.append(
+            SegmentShare(
+                name=name,
+                revenue=revenue,
+                revenue_share=share,
+                gross_profit=gross_profit,
+                operating_income=operating_income,
+            )
+        )
+    shares.sort(key=lambda s: (s.revenue is None, -(s.revenue or 0.0)))
+    return shares
+
+
+def _segment_overview_from_xbrl(ticker: str, result: DataResult) -> SegmentOverview | None:
+    """Build a display-only overview from the SEC XBRL ``fetch_segments`` payload."""
+    raw_segments: dict[str, dict[str, Any]] = result.data.get("segments") or {}
+    if not raw_segments:
+        return None
+    period = result.data.get("period")
+    end = period.get("end") if isinstance(period, dict) else None
+    period_label = f"FY ending {end}" if end else "FY (period unresolved)"
+    rows = [
+        (
+            str(seg.get("label") or key),
+            _num_or_none(seg.get("revenue")),
+            _num_or_none(seg.get("gross_profit")),
+            _num_or_none(seg.get("operating_income")),
+        )
+        for key, seg in raw_segments.items()
+    ]
+    warnings = [*result.warnings, _SEGMENT_RECONCILIATION_CAVEAT]
+    return SegmentOverview(
+        ticker=ticker,
+        as_of=datetime.now(tz=timezone.utc),
+        source="sec_xbrl_business_segment",
+        period_label=period_label,
+        segments=_segment_shares(rows),
+        warnings=warnings,
+    )
+
+
+def _segment_overview_from_fmp(ticker: str, result: DataResult) -> SegmentOverview | None:
+    """Build a display-only overview from FMP's product-category fallback payload."""
+    raw_segments: dict[str, Any] = result.data.get("segments") or {}
+    if not raw_segments:
+        return None
+    rows: list[tuple[str, float | None, float | None, float | None]] = [
+        (str(name), _num_or_none(revenue), None, None) for name, revenue in raw_segments.items()
+    ]
+    period_label = str(result.data.get("period_label") or "FY (period unresolved)")
+    warnings = [
+        *result.warnings,
+        "segment breakdown sourced from FMP's product-category taxonomy, NOT SEC "
+        "XBRL reportable segments (SEC XBRL segment data unavailable for this issuer) "
+        "— revenue only, no profitability metric per category",
+        _SEGMENT_RECONCILIATION_CAVEAT,
+    ]
+    return SegmentOverview(
+        ticker=ticker,
+        as_of=datetime.now(tz=timezone.utc),
+        source="fmp_product_segmentation",
+        period_label=period_label,
+        segments=_segment_shares(rows),
+        warnings=warnings,
+    )
+
+
+async def build_segment_overview(data_layer: DataLayer, ticker: str) -> SegmentOverview | None:
+    """Lightweight, display-only segment/business-line revenue mix, or None.
+
+    For tickers that are NOT SOTP option-value candidates (the caller gates on
+    that — see ``equity_research._execute_financial_modeling``). No valuation
+    math: unlike ``build_sotp_breakdown``, this never touches
+    ``compute_sotp_breakdown`` / multiples / implied EV — it exists purely to
+    replace the "segment data unavailable" placeholder in the Company Overview
+    chapter with a real (small, sourced) breakdown.
+
+    Source priority:
+      1. SEC XBRL reportable segments (``DataLayer.fetch_segments`` — the SAME
+         route SOTP uses, unchanged). Preferred: audited, GAAP-defined.
+      2. FMP's product-category breakdown (``DataLayer.fetch_segment_revenue_fmp``)
+         — used ONLY when (1) is unavailable or empty (single-segment issuer, SEC
+         unwired, or the 10-K genuinely has no dimensioned segment facts).
+
+    Returns None when NEITHER source has anything — the chapter then keeps its
+    existing empty-state narrative gate; no fabricated panel.
+    """
+    xbrl_result = await data_layer.fetch_segments(ticker)
+    if xbrl_result is not None:
+        overview = _segment_overview_from_xbrl(ticker, xbrl_result)
+        if overview is not None:
+            return overview
+
+    fmp_result = await data_layer.fetch_segment_revenue_fmp(ticker)
+    if fmp_result is not None:
+        overview = _segment_overview_from_fmp(ticker, fmp_result)
+        if overview is not None:
+            return overview
+
+    return None

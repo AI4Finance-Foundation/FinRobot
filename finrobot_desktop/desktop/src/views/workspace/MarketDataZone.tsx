@@ -124,6 +124,15 @@ export function MarketDataZone({ ticker }: MarketDataZoneProps): React.ReactElem
                 {
                   label: 'Beta (5Y)',
                   value: fmt(fin?.market?.beta, 2),
+                  // Reconcile against the DCF/WACC beta shown in the AI report
+                  // (right column, same workspace): this is the vendor's raw
+                  // 5Y regression beta. The valuation chapter's β is this same
+                  // figure after an asymmetric Blume adjustment (β>1 shrinks
+                  // toward 1.0 for a steadier forward estimate; β≤1 — genuine
+                  // low-β defensives — is kept as-is), so the two numbers can
+                  // legitimately differ side by side without one being wrong.
+                  sub: t('workspace.market.betaCaliber'),
+                  subTitle: t('workspace.market.betaCaliberDetail'),
                 },
                 { label: '52W Low', value: fmtPrice(fin?.market?.price_52w_low) },
                 { label: '52W High', value: fmtPrice(fin?.market?.price_52w_high) },

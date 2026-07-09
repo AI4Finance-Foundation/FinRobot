@@ -12,6 +12,7 @@
 import { Chapter, SubChapter } from './ChapterBase'
 import { MetricModule, type MetricCell } from './MetricModule'
 import { useI18n } from '../../../i18n'
+import { TermTip } from '../../../components/TermTip'
 import { formatCurrency } from '../../../utils/format'
 import type {
   HistoricalBandShape,
@@ -87,7 +88,12 @@ export function ChapterTechnical({
               : t('chapter.technical.position.nearLow'),
     },
     beta !== null && {
-      label: t('chapter.technical.kv.beta5y'),
+      // Reconciled against the DCF/WACC β in the Valuation chapter via the
+      // shared "β" glossary term (TermTip): this is the raw provider 5Y
+      // regression beta; the valuation chapter's β is this same figure after
+      // an asymmetric Blume adjustment (see the glossary hover), so the two
+      // can legitimately differ without one being wrong.
+      label: <TermTip term="β">{t('chapter.technical.kv.beta5y')}</TermTip>,
       value: beta.toFixed(2),
       sub: t('chapter.technical.kv.vsSpx'),
     },

@@ -299,6 +299,19 @@ def build_thesis_prompt(
         "(including a P/E, market cap, or growth rate you 'remember' from training data) "
         "is a violation and MUST be flagged as a hallucination by the prompt-fidelity "
         "evaluation:",
+        # BACKLOG A3/P1-2 — a blind audit found GOOGL/MSFT/KO narrative fields
+        # shipping templated, verdict-only rhetoric with zero supporting figures
+        # (GOOGL: "attractively valued" off a bloated headline P/E, dropping its own
+        # core P/E; MSFT: generic "strong moat"/"well-positioned" bull case with no
+        # number; KO: catalysts with no dates or magnitudes). The whitelist above
+        # constrains WHICH numbers may be cited; this rule requires that a number
+        # from it actually IS cited in every argument field — closing the loophole
+        # where a field just cites zero numbers and states an unsupported verdict.
+        "NARRATIVE ARGUMENT RULE: every paragraph of `narrative`, and every entry in "
+        "`catalysts` / `risks`, MUST cite at least one number from this whitelist. A "
+        "verdict-only sentence with no backing figure — 'attractively valued', 'a "
+        "resilient moat', 'well-positioned for growth' — is a violation exactly like "
+        "citing an unlisted number: it is unsupported rhetoric, not analysis.",
     ]
     # Momentum context (BACKLOG A2/P1-1) — whitelisted so momentum_divergence_note
     # (and any other narrative field) can legitimately cite these computed reads.
@@ -315,6 +328,35 @@ def build_thesis_prompt(
             "  - momentum_context.drawdown_from_52w_high_pct: "
             f"{momentum_ctx.drawdown_from_52w_high_pct:.1f}%"
         )
+    # ── Catalyst grounding (BACKLOG A3/P1-2) ────────────────────────────────
+    # `catalysts` facts must come from the deterministic catalyst pipeline (core
+    # contract①: catalyst events are computed by extract_catalysts_from_news, the
+    # LLM narrates them, never invents one). The events themselves are already
+    # injected verbatim — sanitized + wrapped as <untrusted_news_headline> — in the
+    # "Catalyst Analysis:" section built above (top_positive/top_negative with
+    # impact/category); re-listing them here would double the untrusted-text
+    # injection surface and the prompt token cost for zero benefit, so this rule
+    # only states the constraint and points back at that section. Present
+    # UNCONDITIONALLY (not gated on catalyst_data being set) because the degrade
+    # branch — "no events supplied → ground in a whitelisted number instead,
+    # never fabricate a substitute event" — must always be stated, per core
+    # contract② (a thin catalyst feed degrades the grounding source, it never
+    # licenses invention).
+    _whitelist_parts.append(
+        "  - CATALYST GROUNDING RULE: every entry in your `catalysts` field must "
+        "either (a) correspond to one of the events under 'Key positive catalysts' "
+        "in the Catalyst Analysis section above (paraphrase is fine, invention is "
+        "not), or (b) cite a number from elsewhere in this whitelist (a valuation "
+        "method, peer multiple, or momentum figure) as the upside driver. Do NOT "
+        "invent a discrete forward-looking event — a product launch, FDA approval, "
+        "M&A rumor, contract win, etc. — that was not supplied above; catalyst "
+        "facts come from the deterministic catalyst pipeline, never from what you "
+        "'know' about the company from training data. If no 'Key positive "
+        "catalysts' were supplied (the catalyst feed was thin or empty for this "
+        "ticker), ground every `catalysts` entry in a whitelisted valuation/peer/"
+        "momentum number instead — never fabricate a substitute event to fill the "
+        "slot."
+    )
     if isinstance(vs_for_prompt, ValuationSynthesis):
         # The current market price is the reference every upside/downside is
         # measured against — whitelist it so the narrative cites the REAL price

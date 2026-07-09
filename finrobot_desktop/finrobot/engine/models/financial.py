@@ -811,14 +811,27 @@ class ThesisResult(BaseModel):
             "3-5 UPSIDE drivers ONLY (reasons the stock could rise) — rendered under a "
             "green 'Bull Case' heading. Never place a downside item here: investigations, "
             "lawsuits, antitrust probes, regulatory penalties, margin pressure and "
-            "demand/backlash concerns are `risks`, not catalysts."
+            "demand/backlash concerns are `risks`, not catalysts. Each entry must either "
+            "(a) correspond to a real event from the injected catalyst-analysis "
+            "'Key positive catalysts' list (paraphrase, don't invent), or (b) cite a "
+            "number from the numeric-discipline whitelist (a valuation method, peer "
+            "multiple, or momentum figure) as the driver — never a discrete "
+            "forward-looking event (product launch, FDA approval, M&A, contract win) "
+            "that was not supplied, and never an unquantified claim with no number "
+            "behind it. If no catalyst events were supplied, ground every entry in a "
+            "whitelisted number instead of fabricating a substitute event."
         ),
     )
     risks: list[str] = Field(
         min_length=1,
         description=(
             "3-5 DOWNSIDE scenarios ONLY (reasons the stock could fall) — rendered under "
-            "a red 'Bear Case' heading."
+            "a red 'Bear Case' heading. Each entry must cite at least one number from "
+            "the numeric-discipline whitelist (a valuation range, peer multiple, "
+            "momentum drawdown, market-implied growth, etc.) or reference a specific "
+            "negative catalyst from the injected 'Key negative catalysts' list — avoid "
+            "unquantified verdict language ('faces headwinds', 'competitive pressure') "
+            "with no supporting figure."
         ),
     )
     narrative: str = Field(
@@ -828,7 +841,10 @@ class ThesisResult(BaseModel):
             "prose only: no markdown headers, no ** bold **, no bullet syntax — the "
             "Company Overview / Valuation Overview / Competitor Analysis sections each "
             "have their own dedicated fields, so do not duplicate them as a mini-report "
-            "inside the narrative."
+            "inside the narrative. Every paragraph must cite at least one number from "
+            "the prompt's numeric-discipline whitelist — a verdict-only sentence with "
+            "no backing figure (e.g. 'attractively valued' or 'a resilient moat' with "
+            "no number behind it) is not acceptable analyst prose."
         ),
     )
 

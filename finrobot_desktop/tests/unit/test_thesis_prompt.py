@@ -211,6 +211,72 @@ class TestBuildThesisPrompt:
         assert "STRICT NUMERIC DISCIPLINE" in prompt
         assert "SEGMENT / GEOGRAPHIC REVENUE" in prompt
 
+    def test_narrative_argument_rule_always_present(self):
+        """BACKLOG A3/P1-2: every thesis prompt requires narrative/catalysts/risks
+        to cite a whitelisted number — closing the loophole where a field cites
+        zero numbers and just states an unsupported verdict."""
+        methods = [
+            ValuationMethod(name="DCF", low=210, mid=245, high=290, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="EV/EBITDA", low=220, mid=250, high=280, confidence=0.3, source="Comps"
+            ),
+        ]
+        prompt = _build(methods, current_price=230.0)
+        assert "NARRATIVE ARGUMENT RULE" in prompt
+        assert "attractively valued" in prompt
+
+    def test_catalyst_grounding_rule_present_even_without_catalyst_data(self):
+        """BACKLOG A3/P1-2: the CATALYST GROUNDING RULE (and its no-events
+        degrade instruction) must be present UNCONDITIONALLY — a ticker with no
+        structured catalyst events must be told to ground bullets in a
+        whitelisted number, never to fabricate a substitute event."""
+        methods = [
+            ValuationMethod(name="DCF", low=210, mid=245, high=290, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="EV/EBITDA", low=220, mid=250, high=280, confidence=0.3, source="Comps"
+            ),
+        ]
+        prompt = _build(methods, current_price=230.0)  # no catalyst_analysis in context
+        assert "CATALYST GROUNDING RULE" in prompt
+        assert "never fabricate a substitute event" in prompt
+
+    def test_catalyst_grounding_rule_references_key_positive_catalysts(self):
+        """When catalyst events ARE supplied, the rule points the LLM at the
+        already-injected 'Key positive catalysts' list instead of re-emitting
+        the (untrusted) headlines a second time."""
+        methods = [
+            ValuationMethod(name="DCF", low=210, mid=245, high=290, confidence=0.5, source="DCF"),
+            ValuationMethod(
+                name="EV/EBITDA", low=220, mid=250, high=280, confidence=0.3, source="Comps"
+            ),
+        ]
+        catalyst = CatalystAnalysis(
+            events=[],
+            overall_sentiment="bullish",
+            key_catalysts=["New product cycle"],
+            net_sentiment=1.5,
+            top_positive=[
+                CatalystEvent(
+                    category="product_launch",
+                    headline="Company unveils next-gen chip",
+                    sentiment="positive",
+                    impact_score=4,
+                    probability=0.7,
+                    reasoning="Strong demand signal",
+                )
+            ],
+        )
+        prompt = _build(
+            methods,
+            current_price=230.0,
+            extra_context={"catalyst_analysis": catalyst},
+        )
+        assert "CATALYST GROUNDING RULE" in prompt
+        assert "Key positive catalysts" in prompt
+        # The headline is injected once (in the Catalyst Analysis section), not
+        # duplicated a second time inside the whitelist/rule text.
+        assert prompt.count("Company unveils next-gen chip") == 1
+
     def test_catalyst_section_wraps_headlines_as_untrusted(self):
         """Injected catalyst headlines are wrapped in an untrusted-news block."""
         methods = [

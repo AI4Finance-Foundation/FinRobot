@@ -178,6 +178,18 @@ class ProxyCompensation(BaseModel):
     filing_date: date
     accession_no: str
     ceo_name: str | None = None
+    # Where ceo_name came from. The COMP figures always come from this DEF 14A,
+    # but the NAME may be overridden by a fresher, higher-authority source when a
+    # succession has landed since the annual proxy: a Form-4 officer title, or —
+    # strongest of all — the SOX-302 CEO certification (Exhibit 31.1), whose
+    # signer is by law the current principal executive officer. ``def14a`` = the
+    # proxy scrape (default); ``form4`` = Form-4 self-declared officer title;
+    # ``sox302_cert`` = Ex-31.1 signer of the latest 10-Q/10-K.
+    ceo_name_source: Literal["def14a", "form4", "sox302_cert"] = "def14a"
+    # Filing the NAME was read from, when it differs from this proxy (source !=
+    # "def14a"). Lets the UI show "CEO per 10-Q cert · 2026-04-30" so the reader
+    # can trace an overridden name to its authority. None when source == def14a.
+    ceo_name_provenance: FilingProvenance | None = None
     ceo_total_compensation: float | None = None  # USD
     ceo_yoy_change_pct: float | None = None  # percentage units (e.g. 18.4 → 18.4%)
     ceo_pay_ratio: int | None = None  # CEO total / median employee total

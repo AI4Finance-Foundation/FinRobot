@@ -799,6 +799,85 @@ def _extract_ceo_name(text: str) -> str | None:
     return None
 
 
+# A "Firstname [M.] Lastname" run: 2–4 uppercase-first tokens, allowing middle
+# initials ("D."), hyphens ("Jen-Hsun") and apostrophes ("D'Amaro"). NO re.I —
+# the leading [A-Z] must stay case-sensitive or it over-captures lowercase prose.
+_CERT_NAME_RUN = r"[A-Z][A-Za-z.'’\-]+(?:[ \t\xa0]+[A-Z][A-Za-z.'’\-]+){1,3}"
+
+# The defining first sentence of a Section-302 certification:
+#   "I, Timothy D. Cook, certify that:"                         (AAPL — bare)
+#   "I, Henrique Braun, Chief Executive Officer of The Coca-Cola
+#    Company, certify that:"                                    (KO — title clause)
+# The name is bounded by the comma right after it, so the optional title clause
+# (a single comma-delimited run, no comma inside) can never be swallowed into
+# the name. Only "certify" is case-insensitive; the name group is not.
+_CERT_OPENING_RE = re.compile(
+    r"\bI,[ \t\xa0]+(" + _CERT_NAME_RUN + r")[ \t\xa0]*,[ \t\xa0]*"
+    r"(?:[^,\n]{0,90}?,[ \t\xa0]*)?"
+    r"[Cc]ertif",
+)
+
+# Signature-block fallback: the typed name on its own line immediately above the
+# "[Chairman/President and] Chief Executive Officer" title line (every 302 cert
+# closes this way after the "/s/ NAME" graphic line).
+_CERT_SIGBLOCK_RE = re.compile(
+    r"(" + _CERT_NAME_RUN + r")[ \t\xa0]*\n[ \t\xa0\r]*"
+    r"(?:(?:Chairman|Vice[ \t\xa0]+Chair(?:man)?|President)[ \t\xa0]+and[ \t\xa0]+){0,2}"
+    r"Chief[ \t\xa0]+Executive[ \t\xa0]+Officer\b",
+)
+
+
+def _extract_ceo_name_from_cert(cert_text: str) -> str | None:
+    """CEO name from an Exhibit-31.1 (SOX-302) certification — None, never wrong.
+
+    The certification is signed, by law, by the CURRENT principal executive
+    officer, so its signer is the authoritative "who is CEO now" — fresher than
+    the annual DEF 14A prose, which goes stale on a mid-year succession (KO
+    Quincey→Braun, DIS Iger→D'Amaro). Two strategies, strongest first:
+
+      1. The opening "I, <Name>[, <title clause>], certify" sentence — the name
+         is comma-bounded so the title clause cannot leak into it.
+      2. The closing signature block — the typed name directly above the
+         "Chief Executive Officer" title line.
+
+    Every candidate funnels through the shared ``_is_blacklisted_name`` choke
+    (sentence-boundary / corporate-vocabulary / possessive rejects), so a stray
+    boilerplate fragment can never surface as a CEO. A parse miss returns None
+    and the caller falls back to the proxy scrape — a miss is safe.
+    """
+    if not cert_text:
+        return None
+
+    compact = _normalise_proxy_text(cert_text)
+    m = _CERT_OPENING_RE.search(compact)
+    if m is not None:
+        candidate = m.group(1).strip()
+        if len(candidate.split()) >= 2 and not _is_blacklisted_name(candidate):
+            return candidate
+
+    for sig in _CERT_SIGBLOCK_RE.finditer(cert_text):
+        candidate = " ".join(sig.group(1).split())
+        if len(candidate.split()) >= 2 and not _is_blacklisted_name(candidate):
+            return candidate
+
+    return None
+
+
+def _cert_provenance(cert_data: dict[str, Any]) -> FilingProvenance | None:
+    """FilingProvenance for the 10-Q/10-K a cert-sourced CEO name was read from."""
+    if not cert_data.get("filing_date") or not cert_data.get("accession_no"):
+        return None
+    try:
+        return _provenance(
+            form=str(cert_data.get("form") or ""),
+            filing_date=cert_data["filing_date"],
+            accession_no=cert_data["accession_no"],
+            source_url=cert_data.get("source_url"),
+        )
+    except ValueError:
+        return None
+
+
 def build_proxy_compensation(raw_proxy: dict[str, Any]) -> ProxyCompensation | None:
     """Extract a compact DEF 14A compensation summary.
 
@@ -1056,12 +1135,23 @@ def _ceo_name_from_insiders(insiders: list[InsiderTransaction]) -> str | None:
     return max(counts, key=lambda n: (counts[n], latest[n]))
 
 
+def _latest_insider_provenance(
+    insiders: list[InsiderTransaction], name: str
+) -> FilingProvenance | None:
+    """Provenance of the most recent Form-4 filed by ``name`` (for CEO-name source)."""
+    matches = [tx for tx in insiders if (tx.insider_name or "").strip() == name]
+    if not matches:
+        return None
+    return max(matches, key=lambda t: t.filing_date).provenance
+
+
 def compute_ownership_governance(
     *,
     insider_data: dict[str, Any] | None,
     institutional_data: dict[str, Any] | None,
     proxy_data: dict[str, Any] | None,
     schedule13_data: dict[str, Any] | None = None,
+    cert_data: dict[str, Any] | None = None,
 ) -> OwnershipGovernanceAnalysis:
     degraded_sections: list[str] = []
 
@@ -1088,6 +1178,30 @@ def compute_ownership_governance(
             proxy.ceo_name,
         )
         proxy.ceo_name = ceo_from_insiders
+        proxy.ceo_name_source = "form4"
+        proxy.ceo_name_provenance = _latest_insider_provenance(insiders, ceo_from_insiders)
+
+    # SOX-302 CEO certification (Exhibit 31.1) — the HIGHEST-authority current-CEO
+    # source, applied LAST so it wins over both the proxy scrape and the Form-4
+    # title. The signer is by law the current principal executive officer and it
+    # re-files quarterly, so it is the one signal that reflects a mid-year
+    # succession the annual proxy still shows the outgoing CEO for (KO 2026:
+    # proxy=Quincey but 10-Q cert=Braun; DIS 2026: proxy=Iger but 10-Q
+    # cert=D'Amaro). A cert name only wins after clearing the same
+    # _is_blacklisted_name choke; a miss leaves the proxy/Form-4 name untouched.
+    cert_name = _extract_ceo_name_from_cert(str((cert_data or {}).get("cert_text") or ""))
+    if proxy is not None and cert_name:
+        if proxy.ceo_name != cert_name:
+            logger.info(
+                "ownership: CEO name set from SOX-302 cert %r (was %r via %s)",
+                cert_name,
+                proxy.ceo_name,
+                proxy.ceo_name_source,
+            )
+        proxy.ceo_name = cert_name
+        proxy.ceo_name_source = "sox302_cert"
+        proxy.ceo_name_provenance = _cert_provenance(cert_data or {})
+
     if proxy is None:
         degraded_sections.append("proxy_compensation")
     elif (
@@ -1116,7 +1230,7 @@ def compute_ownership_governance(
     # models, so warnings dropped here would never reach
     # artifact.outputs.warnings. Deduped, order-preserving.
     warnings: list[str] = []
-    for payload in (insider_data, institutional_data, proxy_data, schedule13_data):
+    for payload in (insider_data, institutional_data, proxy_data, schedule13_data, cert_data):
         for warning in (payload or {}).get("warnings") or []:
             if warning not in warnings:
                 warnings.append(warning)

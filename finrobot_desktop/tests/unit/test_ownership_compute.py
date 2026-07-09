@@ -726,6 +726,207 @@ def test_extract_ceo_name_appositive_handles_chairman_and_ceo() -> None:
     )
 
 
+# --- SOX-302 CEO certification (Exhibit 31.1) — the authoritative current-CEO
+#     source that outranks the (annual, succession-stale) DEF 14A prose. Signer
+#     texts below are the real formats probed 2026-07-09 across the mega-cap
+#     basket (KO/AAPL/MSFT/JPM/NVDA/GOOGL/XOM/AMZN/META/DIS).
+
+# The two live cert opening formats: a title clause between the name and
+# "certify" (KO/DIS) vs. the bare "I, <Name>, certify" (everyone else).
+_CERT_KO = (
+    "EXHIBIT 31.1 CERTIFICATION\n"
+    "I, Henrique Braun, Chief Executive Officer of The Coca-Cola Company, "
+    "certify that:\n"
+    "1. I have reviewed this Quarterly Report on Form 10-Q ...\n"
+    "Date: April 30, 2026\n/s/ Henrique Braun\nHenrique Braun\n"
+    "Chief Executive Officer of The Coca-Cola Company\n"
+)
+_CERT_AAPL = (
+    "Exhibit 31.1\nI, Timothy D. Cook, certify that:\n"
+    "1. I have reviewed this Quarterly Report on Form 10-Q of Apple Inc. ...\n"
+    "Date: May 1, 2026\nBy: /s/ Timothy D. Cook\nTimothy D. Cook\n"
+    "Chief Executive Officer\n"
+)
+
+
+def test_extract_ceo_name_from_cert_bare_i_certify() -> None:
+    """Bare "I, <Name>, certify" opening (AAPL/MSFT/JPM/NVDA/XOM/AMZN/META)."""
+    from finrobot.engine.compute.operators.ownership import _extract_ceo_name_from_cert
+
+    assert _extract_ceo_name_from_cert(_CERT_AAPL) == "Timothy D. Cook"
+    assert _extract_ceo_name_from_cert("I, Satya Nadella, certify that:") == "Satya Nadella"
+    # Hyphenated + middle-initial legal names survive intact.
+    assert _extract_ceo_name_from_cert("I, Jen-Hsun Huang, certify that:") == "Jen-Hsun Huang"
+    assert _extract_ceo_name_from_cert("I, Darren W. Woods, certify that:") == "Darren W. Woods"
+
+
+def test_extract_ceo_name_from_cert_title_clause_between_name_and_certify() -> None:
+    """KO/DIS format: a title clause sits between the name and "certify". The
+    comma right after the name bounds the capture so the title never leaks in."""
+    from finrobot.engine.compute.operators.ownership import _extract_ceo_name_from_cert
+
+    assert _extract_ceo_name_from_cert(_CERT_KO) == "Henrique Braun"
+    # DIS: apostrophe surname + parenthetical issuer clause before "certify".
+    dis = (
+        'I, Josh D\'Amaro, Chief Executive Officer of The Walt Disney Company '
+        '(the "Company"), certify that:\n'
+    )
+    assert _extract_ceo_name_from_cert(dis) == "Josh D'Amaro"
+
+
+def test_extract_ceo_name_from_cert_signature_block_fallback() -> None:
+    """When the opening sentence can't yield a name, the closing signature block
+    (typed name directly above the CEO title line) is the fallback."""
+    from finrobot.engine.compute.operators.ownership import _extract_ceo_name_from_cert
+
+    cert = (
+        "Exhibit 31.1\nI, the undersigned officer, certify that:\n"
+        "1. I have reviewed this report ...\n"
+        "Date: May 1, 2026\n/s/ Sundar Pichai\nSundar Pichai\n"
+        "Chief Executive Officer (Principal Executive Officer)\n"
+    )
+    assert _extract_ceo_name_from_cert(cert) == "Sundar Pichai"
+
+
+def test_extract_ceo_name_from_cert_rejects_garbage_via_choke() -> None:
+    """Every cert candidate funnels through _is_blacklisted_name — a title-only,
+    corporate-vocabulary, or sentence-fragment run can never surface as a CEO."""
+    from finrobot.engine.compute.operators.ownership import _extract_ceo_name_from_cert
+
+    assert _extract_ceo_name_from_cert("I, Chief Executive Officer, certify that:") is None
+    assert _extract_ceo_name_from_cert("I, Median Employee, certify that:") is None
+    assert _extract_ceo_name_from_cert("I, Acme Corporation, certify that:") is None
+    # Sentence-boundary honorific fragment (MSFT 2026-07 family) → reject.
+    assert _extract_ceo_name_from_cert("I, Mr. Smith., certify that:") is None
+
+
+def test_extract_ceo_name_from_cert_missing_returns_none() -> None:
+    """No cert text / no matchable name → None (caller falls back to proxy)."""
+    from finrobot.engine.compute.operators.ownership import _extract_ceo_name_from_cert
+
+    assert _extract_ceo_name_from_cert("") is None
+    assert _extract_ceo_name_from_cert("This exhibit contains no certification opening.") is None
+
+
+def _ko_proxy_payload() -> dict[str, object]:
+    """KO 2026 DEF 14A prose: scrapes the OUTGOING named CEO 'James Quincey'."""
+    return {
+        "filing_date": "2026-03-16",
+        "accession_no": "0000021344-26-000012",
+        "text": (
+            "except for James Quincey, our Chairman and Chief Executive Officer, and "
+            "Henrique Braun, our Executive Vice President and Chief Operating Officer. "
+            "Our CEO's total compensation was $27,000,000. The CEO pay ratio was 1,624 to 1."
+        ),
+        "source_url": "https://www.sec.gov/Archives/ko-proxy",
+    }
+
+
+def test_ceo_name_cert_overrides_proxy_ko_succession() -> None:
+    """KO 2026 end-to-end: the DEF 14A (filed before the 2026-03-31 succession)
+    still scrapes outgoing CEO 'James Quincey', but the latest 10-Q's Ex-31.1 is
+    signed by 'Henrique Braun'. The cert is the current principal executive
+    officer by law → it wins, with source + provenance recorded."""
+    analysis = compute_ownership_governance(
+        insider_data=None,
+        institutional_data=None,
+        proxy_data=_ko_proxy_payload(),
+        cert_data={
+            "cert_available": True,
+            "cert_text": _CERT_KO,
+            "form": "10-Q",
+            "filing_date": "2026-04-30",
+            "accession_no": "0001628280-26-028802",
+            "source_url": "https://www.sec.gov/Archives/ko-10q",
+        },
+    )
+    comp = analysis.proxy_compensation
+    assert comp is not None
+    assert comp.ceo_name == "Henrique Braun"
+    assert comp.ceo_name_source == "sox302_cert"
+    assert comp.ceo_name_provenance is not None
+    assert comp.ceo_name_provenance.form == "10-Q"
+    assert comp.ceo_name_provenance.filing_date.isoformat() == "2026-04-30"
+    # The comp figures still come from the proxy — only the NAME is overridden.
+    assert comp.ceo_total_compensation == 27_000_000
+    assert comp.filing_date.isoformat() == "2026-03-16"
+
+
+def test_ceo_name_falls_back_to_proxy_when_cert_absent() -> None:
+    """No cert (foreign filer / no Ex-31.1 / fetch miss) → keep the proxy name,
+    source stays 'def14a'. A miss must never blank or corrupt the name."""
+    analysis = compute_ownership_governance(
+        insider_data=None,
+        institutional_data=None,
+        proxy_data=_ko_proxy_payload(),
+        cert_data={"cert_available": False},
+    )
+    comp = analysis.proxy_compensation
+    assert comp is not None
+    assert comp.ceo_name == "James Quincey"
+    assert comp.ceo_name_source == "def14a"
+    assert comp.ceo_name_provenance is None
+
+
+def test_ceo_name_cert_garbage_falls_back_to_proxy() -> None:
+    """A cert whose signer can't be cleanly parsed (choke reject) must NOT
+    override — fall back to the proxy name rather than emit a wrong CEO."""
+    analysis = compute_ownership_governance(
+        insider_data=None,
+        institutional_data=None,
+        proxy_data=_ko_proxy_payload(),
+        cert_data={
+            "cert_available": True,
+            "cert_text": "I, Chief Executive Officer, certify that:\n",
+            "form": "10-Q",
+            "filing_date": "2026-04-30",
+            "accession_no": "0001628280-26-028802",
+        },
+    )
+    comp = analysis.proxy_compensation
+    assert comp is not None
+    assert comp.ceo_name == "James Quincey"
+    assert comp.ceo_name_source == "def14a"
+
+
+def test_ceo_name_cert_wins_over_form4_officer_title() -> None:
+    """Priority: SOX-302 cert > Form-4 officer title > proxy prose. When both a
+    Form-4 CEO title and a cert resolve to different names, the cert (current
+    PEO, quarterly) wins."""
+    analysis = compute_ownership_governance(
+        insider_data={
+            "transactions": [
+                {
+                    "filing_date": "2026-02-10",
+                    "accession_no": "0000000000-26-000001",
+                    "insider_name": "James Quincey",
+                    "insider_position": "Chairman and CEO",
+                    "transaction_type": "sale",
+                    "code": "S",
+                    "shares": 100,
+                    "value": 6000,
+                    "price_per_share": 60.0,
+                    "security_type": "non-derivative",
+                    "security_title": "Common Stock",
+                }
+            ]
+        },
+        institutional_data=None,
+        proxy_data=_ko_proxy_payload(),
+        cert_data={
+            "cert_available": True,
+            "cert_text": _CERT_KO,
+            "form": "10-Q",
+            "filing_date": "2026-04-30",
+            "accession_no": "0001628280-26-028802",
+        },
+    )
+    comp = analysis.proxy_compensation
+    assert comp is not None
+    assert comp.ceo_name == "Henrique Braun"
+    assert comp.ceo_name_source == "sox302_cert"
+
+
 # --- T7#8 (same recurrence, Form-4 leg): a divisional/regional CEO title must
 #     not outrank the parent-company CEO on the filing-count tie-break.
 

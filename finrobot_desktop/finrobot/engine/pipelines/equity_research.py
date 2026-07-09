@@ -425,8 +425,11 @@ async def _execute_ownership_governance_analysis(
     holdings_task = _fetch_optional_sec(deps, ticker, DataType.INSTITUTIONAL_HOLDINGS)
     proxy_task = _fetch_optional_sec(deps, ticker, DataType.PROXY_STATEMENT)
     schedule13_task = _fetch_optional_sec(deps, ticker, DataType.SCHEDULE_13)
-    insider, holdings, proxy, schedule13 = await asyncio.gather(
-        insider_task, holdings_task, proxy_task, schedule13_task
+    # SOX-302 CEO cert (Ex-31.1 of the latest 10-Q/10-K): the authoritative
+    # current-CEO name, fresher than the annual proxy after a succession.
+    cert_task = _fetch_optional_sec(deps, ticker, DataType.CEO_CERTIFICATION)
+    insider, holdings, proxy, schedule13, cert = await asyncio.gather(
+        insider_task, holdings_task, proxy_task, schedule13_task, cert_task
     )
 
     analysis = compute_ownership_governance(
@@ -434,6 +437,7 @@ async def _execute_ownership_governance_analysis(
         institutional_data=holdings,
         proxy_data=proxy,
         schedule13_data=schedule13,
+        cert_data=cert,
     )
 
     # Populate degraded_reasons based on what _fetch_optional_sec returned.

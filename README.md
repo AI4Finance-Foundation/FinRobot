@@ -272,6 +272,7 @@ FinRobot
 │   └── utils.py
 │
 ├── configs
+├── docs
 ├── experiments
 ├── tutorials_beginner (hands-on tutorial)
 │   ├── agent_fingpt_forecaster.ipynb

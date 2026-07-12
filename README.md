@@ -146,10 +146,10 @@ chmod +x deploy.sh
 ./deploy.sh start
 
 #if deploy.sh not working then
-python3 -m venv venv                                                                                                                                           
+python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements-equity.txt                                                                                                                         
-python run_web_app.py  
+pip install -r requirements-equity.txt
+python run_web_app.py
 ```
 Access at `http://127.0.0.1:8001`
 
@@ -218,9 +218,9 @@ https://github.com/user-attachments/assets/93ec0f1e-e28b-4474-a0bf-a79e0c12f0ff
 
 ### The overall framework of FinRobot is organized into four distinct layers, each designed to address specific aspects of financial AI processing and application:
 1. **Financial AI Agents Layer**: The Financial AI Agents Layer now includes Financial Chain-of-Thought (CoT) prompting, enhancing complex analysis and decision-making capacity. Market Forecasting Agents, Document Analysis Agents, and Trading Strategies Agents utilize CoT to dissect financial challenges into logical steps, aligning their advanced algorithms and domain expertise with the evolving dynamics of financial markets for precise, actionable insights.
-2. **Financial LLMs Algorithms Layer**: The Financial LLMs Algorithms Layer configures and utilizes specially tuned models tailored to specific domains and global market analysis. 
-3. **LLMOps and DataOps Layers**: The LLMOps layer implements a multi-source integration strategy that selects the most suitable LLMs for specific financial tasks, utilizing a range of state-of-the-art models. 
-4. **Multi-source LLM Foundation Models Layer**: This foundational layer supports the plug-and-play functionality of various general and specialized LLMs. 
+2. **Financial LLMs Algorithms Layer**: The Financial LLMs Algorithms Layer configures and utilizes specially tuned models tailored to specific domains and global market analysis.
+3. **LLMOps and DataOps Layers**: The LLMOps layer implements a multi-source integration strategy that selects the most suitable LLMs for specific financial tasks, utilizing a range of state-of-the-art models.
+4. **Multi-source LLM Foundation Models Layer**: This foundational layer supports the plug-and-play functionality of various general and specialized LLMs.
 
 
 ## FinRobot: Agent Workflow
@@ -247,7 +247,7 @@ The Smart Scheduler is central to ensuring model diversity and optimizing the in
 
 ## File Structure
 
-The main folder **finrobot** has three subfolders **agents, data_source, functional**. 
+The main folder **finrobot** has three subfolders **agents, data_source, functional**.
 
 ```
 FinRobot
@@ -275,11 +275,11 @@ FinRobot
 ├── experiments
 ├── tutorials_beginner (hands-on tutorial)
 │   ├── agent_fingpt_forecaster.ipynb
-│   └── agent_annual_report.ipynb 
+│   └── agent_annual_report.ipynb
 ├── tutorials_advanced (advanced tutorials for potential finrobot developers)
 │   ├── agent_trade_strategist.ipynb
 │   ├── agent_fingpt_forecaster.ipynb
-│   ├── agent_annual_report.ipynb 
+│   ├── agent_annual_report.ipynb
 │   ├── lmm_agent_mplfinance.ipynb
 │   └── lmm_agent_opt_smacross.ipynb
 ├── setup.py

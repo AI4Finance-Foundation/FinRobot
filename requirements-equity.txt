@@ -45,5 +45,5 @@ bcrypt>=4.0.0
 # PostgreSQL driver (for Cloud SQL deployment)
 pg8000>=1.30.0
 
-# Note: configparser, argparse, datetime, json, os, subprocess, 
+# Note: configparser, argparse, datetime, json, os, subprocess,
 # base64, io, and re are part of Python's standard library

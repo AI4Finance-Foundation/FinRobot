@@ -150,9 +150,8 @@ class FinnHubUtils:
             value = value_list[0]
             output_dict.update({metric: value["v"]})
 
-        for k in output_dict.keys():
-            if selected_columns and k not in selected_columns:
-                output_dict.pop(k)
+        if selected_columns:
+            output_dict = {k: v for k, v in output_dict.items() if k in selected_columns}
 
         return json.dumps(output_dict, indent=2)
 

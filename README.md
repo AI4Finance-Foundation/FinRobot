@@ -289,6 +289,24 @@ FinRobot
 └── README.md
 ```
 
+## Supported Markets / Non-US Stock Tickers
+
+FinRobot's default `YFinanceUtils` data source (`finrobot/data_source/yfinance_utils.py`) is a thin wrapper around the [`yfinance`](https://pypi.org/project/yfinance/) library, so it inherits whatever exchange coverage Yahoo Finance itself provides. For non-US markets, pass the ticker symbol with the correct Yahoo Finance suffix:
+
+| Market | Suffix | Example |
+| --- | --- | --- |
+| Indonesia (IDX) | `.JK` | `BBCA.JK` (Bank Central Asia) |
+| United Kingdom (LSE) | `.L` | `VOD.L` (Vodafone) |
+| Japan (TSE) | `.T` | `7203.T` (Toyota) |
+| India (NSE) | `.NS` | `TCS.NS` (Tata Consultancy Services) |
+
+```python
+from finrobot.data_source.yfinance_utils import YFinanceUtils
+YFinanceUtils.get_stock_data("BBCA.JK", "2024-01-01", "2024-12-31")
+```
+
+**Known limitation:** China A-shares (`.SH` / `.SZ`) and Hong Kong (`.HK`) tickers are frequently unreliable or unavailable through Yahoo Finance itself — this is a data-source coverage issue, not a bug in FinRobot's wrapper code. Fully supporting those markets would require integrating an alternative data source (e.g. [Akshare](https://github.com/akfamily/akshare)) as a separate `data_source` module. See [#22](https://github.com/AI4Finance-Foundation/FinRobot/issues/22) for the ongoing discussion.
+
 ## Installation:
 
 **1. (Recommended) Create a new virtual environment**

@@ -3,6 +3,10 @@ ipython
 huggingface_hub
 matplotlib
 
+# TUI dashboard
+textual>=0.47.0
+rich>=13.7.0
+
 # financial libraries
 finnhub-python
 yfinance

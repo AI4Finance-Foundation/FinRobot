@@ -7,7 +7,7 @@ from .sec_utils import SECUtils
 from .reddit_utils import RedditUtils
 
 
-__all__ = ["FinnHubUtils", "YFinanceUtils", "FMPUtils", "SECUtils"]
+__all__ = ["FinnHubUtils", "YFinanceUtils", "FMPUtils", "SECUtils", "RedditUtils"]
 
 if importlib.util.find_spec("finnlp") is not None:
     from .finnlp_utils import FinNLPUtils

@@ -10,6 +10,7 @@
 // was removed rather than wired up; BUG-067).
 
 import { createBrowserRouter, Navigate, useNavigate } from 'react-router-dom'
+import { SETTINGS_ALLOWED } from './config/deployment'
 import { lazy, Suspense, useEffect } from 'react'
 import { AppShell } from './layout/AppShell'
 import { CoveragePage } from './pages/CoveragePage'
@@ -105,7 +106,11 @@ export const router = createBrowserRouter([
       },
       {
         path: 'settings',
-        element: (
+        // A host that withheld the Settings door must also refuse the address:
+        // hiding the nav button alone would leave the page one URL away.
+        element: !SETTINGS_ALLOWED ? (
+          <Navigate to="/research" replace />
+        ) : (
           <RouteSuspense>
             <SettingsPage />
           </RouteSuspense>
@@ -142,4 +147,9 @@ export const router = createBrowserRouter([
       },
     ],
   },
-])
+], {
+  // Vite fills BASE_URL from the build's `base` option — '/' for the desktop
+  // bundle, so this is a no-op there. Threading it through lets the same routes
+  // work when the app is served from a sub-path instead of the domain root.
+  basename: import.meta.env.BASE_URL,
+})

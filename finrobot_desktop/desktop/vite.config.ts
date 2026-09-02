@@ -4,6 +4,10 @@ import tailwindcss from '@tailwindcss/vite'
 
 // Default port avoids collision with FinRobot backend (8321)
 export default defineConfig({
+  // '/' for the desktop bundle. Set VITE_BASE_PATH (e.g. '/v2/') to emit asset
+  // URLs for a build served from a sub-path; it also becomes import.meta.env
+  // .BASE_URL, which the router uses as its basename.
+  base: process.env.VITE_BASE_PATH ?? '/',
   plugins: [react(), tailwindcss()],
   server: {
     port: 5173,

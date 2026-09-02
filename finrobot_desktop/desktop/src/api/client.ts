@@ -4,7 +4,11 @@ import { fetchWithTimeout } from './fetch'
 
 // Dev: empty string → relative paths go through Vite proxy (same origin, no CORS).
 // Prod: Electron loads from file://, so we need the absolute backend URL.
-const BASE_URL = import.meta.env.DEV ? '' : 'http://127.0.0.1:8321'
+// VITE_API_BASE overrides both, for a build served over HTTP alongside the
+// backend rather than bundled into the desktop shell — set it to '' there so
+// requests stay relative and same-origin.
+const BASE_URL =
+  import.meta.env.VITE_API_BASE ?? (import.meta.env.DEV ? '' : 'http://127.0.0.1:8321')
 
 // The capability token is injected inside fetchWithTimeout (the single home),
 // so every typed api.* request carries it automatically — no openapi-fetch

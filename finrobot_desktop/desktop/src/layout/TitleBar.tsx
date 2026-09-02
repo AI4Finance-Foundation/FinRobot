@@ -20,6 +20,7 @@ import { useI18n } from '../i18n'
 import { startWindowDrag, isWindows } from '../lib/tauri'
 import { UpdatePill } from '../components/UpdatePill'
 import { AI_CHAT_ENABLED } from '../config/features'
+import { SETTINGS_ALLOWED } from '../config/deployment'
 import { BrandAbout } from '../components/BrandAbout'
 
 interface NavDoor {
@@ -97,6 +98,12 @@ const DOORS: NavDoor[] = [
   },
 ]
 
+// Settings configures the whole deployment, so a host that serves this bundle
+// to several accounts can withhold that door — see config/deployment.
+const VISIBLE_DOORS: NavDoor[] = SETTINGS_ALLOWED
+  ? DOORS
+  : DOORS.filter((door) => door.path !== '/settings')
+
 export function TitleBar(): React.ReactElement {
   const aiPanelOpen = useUiStore((s) => s.aiPanelOpen)
   const toggleAiPanel = useUiStore((s) => s.toggleAiPanel)
@@ -130,7 +137,7 @@ export function TitleBar(): React.ReactElement {
 
       {/* HUD instrument cluster — the three product doors, icon-first. */}
       <nav className="tb-cluster" aria-label={locale === 'zh' ? '主导航' : 'Primary'}>
-        {DOORS.map((door) => {
+        {VISIBLE_DOORS.map((door) => {
           const active = isActive(door)
           const label = t(door.labelKey)
           return (

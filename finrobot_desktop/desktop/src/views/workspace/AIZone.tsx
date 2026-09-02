@@ -21,7 +21,8 @@ import { mapErrorToUserMessage } from '../../utils/errorMessage'
 import { useI18n, tSync, type Locale } from '../../i18n'
 import type { ArtifactSummaryV5 } from '../../types/v5'
 import { ArchivedPill } from '../../components/ArchivedPill'
-import { ValuationInstruments, VALUATION_TYPES } from './ValuationInstruments'
+import { ValuationInstruments, VALUATION_TYPES, blockedCtaLabel } from './ValuationInstruments'
+import { SETTINGS_ALLOWED } from '../../config/deployment'
 import { artifactTypeLabel } from './artifactLabels'
 
 // Display label per non-research artifact type (dcf / lbo / comps / …). Kept
@@ -44,6 +45,16 @@ type PreflightReason = 'offline' | 'needsModel' | 'config' | 'providers' | null
 
 function preflightDescription(reason: PreflightReason, locale: Locale): string {
   const zh = locale === 'zh'
+  // Hosted: every branch below ends in "go to Settings", a page this viewer
+  // has no door to — the deployment's keys are shared and administrator-owned.
+  // One honest sentence beats four instructions they cannot follow. The
+  // distinction between the reasons is diagnostic detail for whoever can
+  // actually act on it, and that is the administrator's build.
+  if (!SETTINGS_ALLOWED) {
+    return zh
+      ? 'AI 分析暂不可用。本部署的模型与数据源由管理员统一配置,价格 / 财务 / 估值数字不受影响,可照常查看。'
+      : 'AI analysis is unavailable right now. This deployment’s model and data sources are configured centrally by an administrator; prices, financials and valuation numbers are unaffected.'
+  }
   switch (reason) {
     case 'offline':
       return zh
@@ -935,7 +946,7 @@ function PreflightChecklist({
   health: HealthState | null
   preflightBlocked: boolean
 }): React.ReactElement | null {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   if (!health) return null
   const modelOk = health.modelConfigured
   const providerCount = health.availableProviders.length
@@ -978,7 +989,13 @@ function PreflightChecklist({
           <>
             <span style={{ color: 'var(--text-dim)' }}>○</span>
             <span style={{ color: 'var(--text-muted)' }}>
-              {t('workspace.ai.cold.preflight.modelPending')}
+              {/* The translated string ends in "open Settings", which is only
+                  true where the viewer has that door. */}
+              {SETTINGS_ALLOWED
+                ? t('workspace.ai.cold.preflight.modelPending')
+                : locale === 'zh'
+                  ? 'AI 模型未就绪'
+                  : 'AI model not ready'}
             </span>
           </>
         )}
@@ -1021,19 +1038,13 @@ function RunCta({
   const fontSize = compact ? 12.5 : 14
 
   if (preflightBlocked) {
-    const label =
-      preflightReason === 'offline'
-        ? zh
-          ? '⚠ 后端未连接 · 重试数据源'
-          : '⚠ Backend offline · retry data source'
-        : zh
-          ? '⚠ 去设置补全配置'
-          : '⚠ Fix config in Settings'
+    const label = blockedCtaLabel(preflightReason, zh)
     return (
       <button
         type="button"
         data-testid="run-analysis-blocked"
-        onClick={() => navigate('/settings')}
+        disabled={!SETTINGS_ALLOWED}
+        onClick={SETTINGS_ALLOWED ? () => navigate('/settings') : undefined}
         style={{
           padding: pad,
           background: 'var(--warning-soft)',
@@ -1044,7 +1055,7 @@ function RunCta({
           fontSize,
           fontWeight: 600,
           letterSpacing: '0.04em',
-          cursor: 'pointer',
+          cursor: SETTINGS_ALLOWED ? 'pointer' : 'default',
         }}
       >
         {label}

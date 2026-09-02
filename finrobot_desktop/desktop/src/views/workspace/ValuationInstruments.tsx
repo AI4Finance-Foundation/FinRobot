@@ -25,10 +25,39 @@ import type { Locale } from '../../i18n'
 import type { ArtifactSummaryV5 } from '../../types/v5'
 import type { RunState } from '../../stores/runStreamStore'
 import { artifactTypeLabel } from './artifactLabels'
+import { SETTINGS_ALLOWED } from '../../config/deployment'
 
 // Inline union (1-line) per the codebase's VersionDiffBanner precedent — avoids
 // a circular import back to AIZone, which owns the canonical preflight machinery.
 export type PreflightReason = 'offline' | 'needsModel' | 'config' | 'providers' | null
+
+/**
+ * What a blocked run CTA should say.
+ *
+ * On a hosted deployment (SETTINGS_ALLOWED=false) the configuration is shared
+ * by everyone and only an administrator may change it, so the viewer has no
+ * Settings door at all. Telling them to fix it there would make the CTA a dead
+ * end — a button that navigates nowhere. State the condition instead of
+ * prescribing a remedy they cannot apply.
+ */
+export function blockedCtaLabel(reason: PreflightReason, zh: boolean): string {
+  if (reason === 'offline') {
+    return SETTINGS_ALLOWED
+      ? zh
+        ? '⚠ 后端未连接 · 重试数据源'
+        : '⚠ Backend offline · retry data source'
+      : zh
+        ? '⚠ 后端未连接'
+        : '⚠ Backend offline'
+  }
+  return SETTINGS_ALLOWED
+    ? zh
+      ? '⚠ 去设置补全配置'
+      : '⚠ Fix config in Settings'
+    : zh
+      ? '⚠ AI 分析暂不可用'
+      : '⚠ AI analysis unavailable'
+}
 
 export const VALUATION_TYPES = ['dcf', 'ddm', 'lbo', 'comps'] as const
 
@@ -753,7 +782,8 @@ export function ValuationInstruments({
         <button
           type="button"
           data-testid="standalone-launcher-blocked"
-          onClick={() => navigate('/settings')}
+          disabled={!SETTINGS_ALLOWED}
+          onClick={SETTINGS_ALLOWED ? () => navigate('/settings') : undefined}
           style={{
             width: '100%',
             padding: '11px 14px',
@@ -764,16 +794,10 @@ export function ValuationInstruments({
             fontFamily: 'var(--font-mono)',
             fontSize: 11.5,
             fontWeight: 600,
-            cursor: 'pointer',
+            cursor: SETTINGS_ALLOWED ? 'pointer' : 'default',
           }}
         >
-          {preflightReason === 'offline'
-            ? zh
-              ? '⚠ 后端未连接 · 去重试数据源'
-              : '⚠ Backend offline · retry data source'
-            : zh
-              ? '⚠ 去设置补全配置'
-              : '⚠ Fix config in Settings'}
+          {blockedCtaLabel(preflightReason, zh)}
         </button>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>

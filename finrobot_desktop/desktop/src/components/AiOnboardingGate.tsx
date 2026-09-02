@@ -20,6 +20,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useHealth } from '../hooks/useHealth'
 import { useI18n } from '../i18n'
 import { AI_CHAT_ENABLED } from '../config/features'
+import { SETTINGS_ALLOWED } from '../config/deployment'
 
 export function AiOnboardingGate(): React.ReactElement | null {
   const { locale } = useI18n()
@@ -39,7 +40,13 @@ export function AiOnboardingGate(): React.ReactElement | null {
     onSettings ||
     resolved == null ||
     !resolved.backendReachable ||
-    resolved.modelConfigured
+    resolved.modelConfigured ||
+    // Hosted: the deployment's model is configured centrally and this viewer
+    // has no Settings door, so the overlay's whole call to action — "pick an
+    // AI model" — is something they cannot do. It would open on first visit,
+    // in front of the data they came for, offering a button that navigates
+    // nowhere. The administrator still sees it, on a build where it works.
+    !SETTINGS_ALLOWED
   ) {
     return null
   }

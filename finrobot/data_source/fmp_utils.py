@@ -25,6 +25,24 @@ def init_fmp_api(func):
     return wrapper
 
 
+def _get_filing_date(filing):
+    accepted_date = filing.get("acceptedDate") or ""
+    return (
+        filing.get("filingDate")
+        or filing.get("fillingDate")
+        or accepted_date.split(" ")[0]
+    )
+
+
+def _get_filing_link(filing):
+    return filing.get("finalLink") or filing.get("link") or filing.get("documentUrl")
+
+
+def _is_annual_report(filing):
+    form_type = filing.get("formType") or filing.get("type") or filing.get("form")
+    return form_type is not None and str(form_type).upper() == "10-K"
+
+
 @decorate_all_methods(init_fmp_api)
 class FMPUtils:
 
@@ -71,30 +89,57 @@ class FMPUtils:
     ) -> str:
         """Get the url and filing date of the 10-K report for a given stock and year"""
 
-        url = f"https://financialmodelingprep.com/api/v3/sec_filings/{ticker_symbol}?type=10-k&page=0&apikey={fmp_api_key}"
+        url = "https://financialmodelingprep.com/stable/sec-filings-search/symbol"
+        today = datetime.today().strftime("%Y-%m-%d")
+        params = {
+            "symbol": ticker_symbol,
+            "from": "1990-01-01" if fyear == "latest" else f"{fyear}-01-01",
+            "to": today if fyear == "latest" else f"{fyear}-12-31",
+            "page": 0,
+            "limit": 100,
+            "apikey": fmp_api_key,
+        }
 
         # 发送GET请求
-        filing_url = None
-        response = requests.get(url)
+        filings = []
+        for page in range(10):
+            params["page"] = page
+            response = requests.get(url, params=params)
 
-        # 确保请求成功
-        if response.status_code == 200:
+            # 确保请求成功
+            if response.status_code != 200:
+                return f"Failed to retrieve data: {response.status_code}"
+
             # 解析JSON数据
             data = response.json()
-            # print(data)
-            if fyear == "latest":
-                filing_url = data[0]["finalLink"]
-                filing_date = data[0]["fillingDate"]
-            else:
-                for filing in data:
-                    if filing["fillingDate"].split("-")[0] == fyear:
-                        filing_url = filing["finalLink"]
-                        filing_date = filing["fillingDate"]
-                        break
+            if not isinstance(data, list) or not data:
+                if page == 0:
+                    return f"No SEC filings found for {ticker_symbol}"
+                break
 
-            return f"Link: {filing_url}\nFiling Date: {filing_date}"
-        else:
-            return f"Failed to retrieve data: {response.status_code}"
+            filings.extend(
+                filing
+                for filing in data
+                if _is_annual_report(filing)
+                and _get_filing_date(filing)
+                and _get_filing_link(filing)
+                and (
+                    fyear == "latest"
+                    or _get_filing_date(filing).split("-")[0] == fyear
+                )
+            )
+            if filings or len(data) < params["limit"]:
+                break
+
+        filings.sort(key=_get_filing_date, reverse=True)
+
+        if not filings:
+            return f"No 10-K SEC filing found for {ticker_symbol}"
+
+        filing_url = _get_filing_link(filings[0])
+        filing_date = _get_filing_date(filings[0])
+
+        return f"Link: {filing_url}\nFiling Date: {filing_date}"
 
     def get_historical_market_cap(
         ticker_symbol: Annotated[str, "ticker symbol"],

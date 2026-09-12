@@ -35,7 +35,7 @@ class IPythonUtils:
             return log
 
 
-class CodingUtils:  # Borrowed from https://microsoft.github.io/autogen/docs/notebooks/agentchat_function_call_code_writing
+class CodingUtils:  # Borrowed from https://docs.ag2.ai/notebooks/agentchat_function_call_code_writing#writing-a-software-application-using-function-calls
 
     def list_dir(directory: Annotated[str, "Directory to check."]) -> str:
         """

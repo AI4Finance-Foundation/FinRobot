@@ -343,13 +343,15 @@ pip install -e .
 ```
 **4. modify OAI_CONFIG_LIST_sample file** (in `finrobot_autogen/`)
 ```shell
-1) rename finrobot_autogen/OAI_CONFIG_LIST_sample to finrobot_autogen/OAI_CONFIG_LIST
+1) copy finrobot_autogen/OAI_CONFIG_LIST_sample to finrobot_autogen/OAI_CONFIG_LIST
+   (copy, don't rename — the _sample file is tracked; your copy is gitignored)
 2) remove the four lines of comment within the OAI_CONFIG_LIST file
 3) add your own openai api-key <your OpenAI API key here>
 ```
 **5. modify config_api_keys_sample file** (in `finrobot_autogen/`)
 ```shell
-1) rename finrobot_autogen/config_api_keys_sample to finrobot_autogen/config_api_keys
+1) copy finrobot_autogen/config_api_keys_sample to finrobot_autogen/config_api_keys
+   (copy, don't rename — the _sample file is tracked; your copy is gitignored)
 2) remove the comment within the config_api_keys file
 3) add your own finnhub-api "YOUR_FINNHUB_API_KEY"
 4) add your own financialmodelingprep and sec-api keys "YOUR_FMP_API_KEY" and "YOUR_SEC_API_KEY" (for financial report generation)

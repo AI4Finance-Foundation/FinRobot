@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -9,7 +10,14 @@ if TYPE_CHECKING:
     from finrobot.sdk import FinRobot
 
 __all__ = ["FinRobot", "PipelineResult"]
-__version__ = "0.1.0"
+
+# Single source of truth is pyproject.toml; read it back from the installed
+# distribution so the version can never drift from what was published. The
+# fallback covers running straight from a source tree that was never installed.
+try:
+    __version__ = version("finrobot")
+except PackageNotFoundError:  # pragma: no cover - source checkout without install
+    __version__ = "0.0.0.dev0"
 
 
 def __getattr__(name: str) -> object:

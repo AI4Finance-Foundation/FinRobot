@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 import click
 
+from finrobot import __version__
 from finrobot.config import get_settings
 from finrobot.engine.analysis.prompts import ANALYSIS_TYPES
 from finrobot.engine.data.ticker import validate_ticker
@@ -165,7 +166,7 @@ class CliProgress:
 
 
 @click.group()
-@click.version_option(version="0.1.0", prog_name="finrobot")
+@click.version_option(version=__version__, prog_name="finrobot")
 def cli() -> None:
     """FinRobot — financial AI agent platform."""
 

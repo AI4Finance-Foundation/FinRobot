@@ -59,11 +59,19 @@ jobs:
     defaults:
       run:
         working-directory: finrobot_desktop/desktop
+    strategy:
+      matrix:
+        # Lower bound: @lingui/cli imports fs.globSync, added in Node 22, so
+        # `lingui compile` — the prelude to test, build and dev — cannot even
+        # parse on Node 20. Upper bound: Node 26 defines globalThis.localStorage
+        # itself, which shadows the one jsdom installs and leaves zustand's
+        # persist middleware writing to undefined (66 test failures).
+        node-version: ['22', '24']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ matrix.node-version }}
       - run: npm ci
       - run: npm run lint
       - run: npm run format:check

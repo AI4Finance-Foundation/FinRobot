@@ -78,78 +78,81 @@ function RetiredRouteRedirect({ to, preserveTicker = false }: RetiredRouteRedire
   return null
 }
 
-export const router = createBrowserRouter([
+export const router = createBrowserRouter(
+  [
+    {
+      path: '/',
+      element: <AppShell />,
+      children: [
+        { index: true, element: <Navigate to="/research" replace /> },
+
+        // Research is the search-first homepage; Coverage is the archive desk.
+        { path: 'research', element: <ResearchPage /> },
+        { path: 'coverage', element: <CoveragePage /> },
+
+        // The old /stocks landing retired into Research; the per-ticker
+        // drill-down (StockWorkspace) and report detail keep their routes.
+        {
+          path: 'stocks',
+          element: <RetiredRouteRedirect to="/research" />,
+        },
+        { path: 'stocks/:ticker', element: <StockWorkspace /> },
+        {
+          path: 'stocks/:ticker/runs/:artifactId',
+          element: (
+            <RouteSuspense>
+              <ArtifactDetailPage />
+            </RouteSuspense>
+          ),
+        },
+        {
+          path: 'settings',
+          // A host that withheld the Settings door must also refuse the address:
+          // hiding the nav button alone would leave the page one URL away.
+          element: !SETTINGS_ALLOWED ? (
+            <Navigate to="/research" replace />
+          ) : (
+            <RouteSuspense>
+              <SettingsPage />
+            </RouteSuspense>
+          ),
+        },
+        // v5 deprecation redirects (one release window) — spec §11.4.
+        // Bare retired pages land on /coverage directly (the old /stocks landing
+        // also retired into /coverage, so pointing here avoids a double hop).
+        // The :ticker variants preserve their symbol into /stocks/:ticker
+        // (StockWorkspace) — a canonical route, not a redirect — to keep context.
+        {
+          path: 'dashboard',
+          element: <RetiredRouteRedirect to="/coverage" />,
+        },
+        {
+          path: 'library',
+          element: <RetiredRouteRedirect to="/coverage" />,
+        },
+        {
+          path: 'library/:ticker',
+          element: <RetiredRouteRedirect to="/stocks" preserveTicker />,
+        },
+        {
+          path: 'journal',
+          element: <RetiredRouteRedirect to="/coverage" />,
+        },
+        {
+          path: 'playground',
+          element: <RetiredRouteRedirect to="/coverage" />,
+        },
+        {
+          path: 'playground/:ticker',
+          element: <RetiredRouteRedirect to="/stocks" preserveTicker />,
+        },
+      ],
+    },
+  ],
   {
-    path: '/',
-    element: <AppShell />,
-    children: [
-      { index: true, element: <Navigate to="/research" replace /> },
-
-      // Research is the search-first homepage; Coverage is the archive desk.
-      { path: 'research', element: <ResearchPage /> },
-      { path: 'coverage', element: <CoveragePage /> },
-
-      // The old /stocks landing retired into Research; the per-ticker
-      // drill-down (StockWorkspace) and report detail keep their routes.
-      {
-        path: 'stocks',
-        element: <RetiredRouteRedirect to="/research" />,
-      },
-      { path: 'stocks/:ticker', element: <StockWorkspace /> },
-      {
-        path: 'stocks/:ticker/runs/:artifactId',
-        element: (
-          <RouteSuspense>
-            <ArtifactDetailPage />
-          </RouteSuspense>
-        ),
-      },
-      {
-        path: 'settings',
-        // A host that withheld the Settings door must also refuse the address:
-        // hiding the nav button alone would leave the page one URL away.
-        element: !SETTINGS_ALLOWED ? (
-          <Navigate to="/research" replace />
-        ) : (
-          <RouteSuspense>
-            <SettingsPage />
-          </RouteSuspense>
-        ),
-      },
-      // v5 deprecation redirects (one release window) — spec §11.4.
-      // Bare retired pages land on /coverage directly (the old /stocks landing
-      // also retired into /coverage, so pointing here avoids a double hop).
-      // The :ticker variants preserve their symbol into /stocks/:ticker
-      // (StockWorkspace) — a canonical route, not a redirect — to keep context.
-      {
-        path: 'dashboard',
-        element: <RetiredRouteRedirect to="/coverage" />,
-      },
-      {
-        path: 'library',
-        element: <RetiredRouteRedirect to="/coverage" />,
-      },
-      {
-        path: 'library/:ticker',
-        element: <RetiredRouteRedirect to="/stocks" preserveTicker />,
-      },
-      {
-        path: 'journal',
-        element: <RetiredRouteRedirect to="/coverage" />,
-      },
-      {
-        path: 'playground',
-        element: <RetiredRouteRedirect to="/coverage" />,
-      },
-      {
-        path: 'playground/:ticker',
-        element: <RetiredRouteRedirect to="/stocks" preserveTicker />,
-      },
-    ],
+    // Vite fills BASE_URL from the build's `base` option — '/' for the desktop
+    // bundle, so this is a no-op there. Threading it through lets the same routes
+    // work when the app is served from a sub-path instead of the domain root.
+    basename: import.meta.env.BASE_URL,
   },
-], {
-  // Vite fills BASE_URL from the build's `base` option — '/' for the desktop
-  // bundle, so this is a no-op there. Threading it through lets the same routes
-  // work when the app is served from a sub-path instead of the domain root.
-  basename: import.meta.env.BASE_URL,
-})
+)

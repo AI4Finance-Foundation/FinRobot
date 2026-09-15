@@ -50,6 +50,7 @@ def _symbols(hits) -> list[str]:
 
 # --- build / invariant -----------------------------------------------------
 
+
 def test_build_excludes_invalid_symbols(index: SymbolIndex) -> None:
     """Load-bearing invariant: every indexed symbol passes validate_ticker, so a
     suggestion can never be a symbol the workspace then 422s on. The junk row is
@@ -66,6 +67,7 @@ def test_build_preserves_market_cap_rank(index: SymbolIndex) -> None:
 
 
 # --- acceptance table 8.2 --------------------------------------------------
+
 
 def test_exact_symbol_ranks_first(index: SymbolIndex) -> None:
     assert _symbols(index.search("AAPL"))[0] == "AAPL"
@@ -122,6 +124,7 @@ def test_limit_respected(index: SymbolIndex) -> None:
 # Built with real SEC ranks so the bonus magnitude is actually exercised (the
 # small acceptance fixture above can't, since every rank < the bonus).
 
+
 def _idx(*entries: tuple[str, str, int]) -> SymbolIndex:
     # Use the real _name_words (stop-word filtering included) so these fixtures
     # match production behaviour, not a hand-rolled split.
@@ -176,6 +179,7 @@ def test_corporate_filler_words_excluded_from_name_match() -> None:
 
 # --- global singleton: self-heal vs backoff after a transient fetch failure ---
 
+
 def test_empty_index_self_heals_after_backoff(monkeypatch) -> None:
     """A startup warm that failed (empty index) must not disable the typeahead for
     the whole session: once the backoff expires, the next request reloads."""
@@ -209,6 +213,7 @@ def test_empty_index_in_backoff_serves_degraded_without_refetch(monkeypatch) -> 
 
 # --- adversarial-QA hardening: None-safety + SEC schema drift ----------------
 
+
 def test_search_tolerates_none_query(index: SymbolIndex) -> None:
     """Defensive: search must not raise on None even though the route never
     passes it (q: str = Query(""))."""
@@ -230,6 +235,7 @@ def test_schema_drift_payload_falls_back_to_stale_cache(monkeypatch, tmp_path) -
 
 
 # --- dirty input / degradation --------------------------------------------
+
 
 @pytest.mark.parametrize("q", ["", "   ", "zzzz", "'; --", "苹果", "A" * 50])
 def test_dirty_input_safe_empty_or_no_crash(index: SymbolIndex, q: str) -> None:

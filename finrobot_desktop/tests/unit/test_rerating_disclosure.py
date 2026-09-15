@@ -129,7 +129,10 @@ class TestCompsPeReratingDisclosure:
         m = _comps_pe_method(pc, 10.0, 2.4e9, warnings, current_price=150.0)
         assert m is not None
         assert m.mid == pytest.approx(25.0 * 10.0)  # sub-path fired (median_pe × forward EPS)
-        assert m.assumptions == "anchored to peer median P/E 25.0× × forward EPS (as-reported peer P/E)"
+        assert (
+            m.assumptions
+            == "anchored to peer median P/E 25.0× × forward EPS (as-reported peer P/E)"
+        )
         assert not any(_WARN_TAIL in w for w in warnings)
 
     def test_trailing_path_discloses_and_is_symmetric_on_de_rating(self) -> None:
@@ -171,7 +174,10 @@ class TestEvEbitdaReratingDisclosure:
         m = _ev_ebitda_method(10e9, (25.0, 35.0), 1e9, 0.0, warnings=warnings, current_price=280.0)
         assert m is not None
         assert m.assumptions is not None
-        assert "price-implied EV/TTM-EBITDA 28.0× → own 5y trailing band mid 30.0× (1.07×)" in m.assumptions
+        assert (
+            "price-implied EV/TTM-EBITDA 28.0× → own 5y trailing band mid 30.0× (1.07×)"
+            in m.assumptions
+        )
         assert not any(_WARN_TAIL in w for w in warnings)
 
     def test_symmetric_on_de_rating(self) -> None:
@@ -192,8 +198,12 @@ class TestEvEbitdaReratingDisclosure:
     def test_no_price_discloses_nothing_and_changes_no_number(self) -> None:
         priced_w: list[str] = []
         noprice_w: list[str] = []
-        priced = _ev_ebitda_method(10e9, (25.0, 35.0), 1e9, 0.0, warnings=priced_w, current_price=200.0)
-        noprice = _ev_ebitda_method(10e9, (25.0, 35.0), 1e9, 0.0, warnings=noprice_w, current_price=None)
+        priced = _ev_ebitda_method(
+            10e9, (25.0, 35.0), 1e9, 0.0, warnings=priced_w, current_price=200.0
+        )
+        noprice = _ev_ebitda_method(
+            10e9, (25.0, 35.0), 1e9, 0.0, warnings=noprice_w, current_price=None
+        )
         assert priced is not None and noprice is not None
         assert (noprice.low, noprice.mid, noprice.high, noprice.confidence) == (
             priced.low,
@@ -247,27 +257,29 @@ class TestStructuredReratingRatio:
 
     def test_comps_pe_mixed_caliber_and_no_price_leave_ratio_none(self) -> None:
         mixed = _comps_pe_method(
-            _pc(median_pe=25.0, pe_sample_n=5, target_pe=20.0), 10.0, 2.4e9, [],
+            _pc(median_pe=25.0, pe_sample_n=5, target_pe=20.0),
+            10.0,
+            2.4e9,
+            [],
             current_price=150.0,
         )
         assert mixed is not None and mixed.rerating_ratio is None
         noprice = _comps_pe_method(
             _pc(median_forward_pe=31.9, forward_pe_sample_n=5, target_forward_pe=19.8),
-            10.0, 2.4e9, [], current_price=None,
+            10.0,
+            2.4e9,
+            [],
+            current_price=None,
         )
         assert noprice is not None and noprice.rerating_ratio is None
 
     def test_ev_ebitda_sets_structured_ratio_and_none_without_price(self) -> None:
         # current EV = 100×1e9 + 5e9 = 105e9 → price-implied 10.5×; band mid 15.0×
         # → ratio 1.4286.
-        priced = _ev_ebitda_method(
-            10e9, (12.0, 18.0), 1e9, 5e9, warnings=[], current_price=100.0
-        )
+        priced = _ev_ebitda_method(10e9, (12.0, 18.0), 1e9, 5e9, warnings=[], current_price=100.0)
         assert priced is not None
         assert priced.rerating_ratio == pytest.approx(15.0 / 10.5)
-        noprice = _ev_ebitda_method(
-            10e9, (12.0, 18.0), 1e9, 5e9, warnings=[], current_price=None
-        )
+        noprice = _ev_ebitda_method(10e9, (12.0, 18.0), 1e9, 5e9, warnings=[], current_price=None)
         assert noprice is not None and noprice.rerating_ratio is None
 
 
@@ -292,7 +304,12 @@ class TestEvEbitdaSingleCaliberContract:
     def test_source_and_prose_pin_ttm_caliber_never_forward(self) -> None:
         warnings: list[str] = []
         m = _ev_ebitda_method(
-            10e9, (25.0, 35.0), 1e9, 0.0, band_sample_n=500, warnings=warnings,
+            10e9,
+            (25.0, 35.0),
+            1e9,
+            0.0,
+            band_sample_n=500,
+            warnings=warnings,
             current_price=200.0,
         )
         assert m is not None

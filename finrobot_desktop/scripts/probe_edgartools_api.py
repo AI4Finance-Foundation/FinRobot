@@ -98,9 +98,7 @@ def probe_local_identity_gate() -> dict[str, Any]:
         "none": (_is_valid_identity(None), False),
         "no_email_no_space": (_is_valid_identity("foobar"), False),
         "no_space": (_is_valid_identity("no_space@example.com"), False),
-        "default_config_value": (
-            _is_valid_identity("FinRobot admin@example.com"), False
-        ),
+        "default_config_value": (_is_valid_identity("FinRobot admin@example.com"), False),
         "valid_english": (_is_valid_identity("Jane Doe jane@example.com"), True),
         "valid_chinese": (_is_valid_identity("张三 zhangsan@example.com"), True),
         "leading_trailing_space": (_is_valid_identity("  John j@x.io  "), True),
@@ -139,9 +137,7 @@ def probe_server_can_start_without_identity() -> dict[str, Any]:
             assert registered is False, f"unexpectedly valid: {case!r}"
             results[case or "<empty>"] = {"would_register": False, "raised": False}
         except Exception as e:  # noqa: BLE001
-            results[case or "<empty>"] = {
-                "would_register": False, "raised": True, "error": str(e)
-            }
+            results[case or "<empty>"] = {"would_register": False, "raised": True, "error": str(e)}
     return {
         "no_invalid_case_raises": all(not r["raised"] for r in results.values()),
         "cases": results,
@@ -162,10 +158,12 @@ def probe_edgartools_real_calls(identity: str) -> dict[str, Any]:
     edgar_top_error_name = "Exception"  # fallback
     try:
         from edgar.core import EdgarError  # type: ignore[import-untyped]  # noqa: PLC0415
+
         edgar_top_error_name = EdgarError.__name__
     except ImportError:
         try:
             from edgar import EdgarError  # type: ignore[attr-defined]  # noqa: PLC0415
+
             edgar_top_error_name = EdgarError.__name__
         except ImportError:
             edgar_top_error_name = "ImportError(edgar.core.EdgarError)"
@@ -202,7 +200,7 @@ def probe_edgartools_real_calls(identity: str) -> dict[str, Any]:
                 "cik": str(getattr(c, "cik", "")),
                 "filing_date": str(getattr(filing, "filing_date", "")),
                 "accession_no": getattr(filing, "accession_no", None)
-                    or getattr(filing, "accession_number", None),
+                or getattr(filing, "accession_number", None),
                 "period_of_report": str(getattr(filing, "period_of_report", "")),
                 "form": getattr(filing, "form", None),
                 "homepage_url": getattr(filing, "homepage_url", None),
@@ -225,26 +223,26 @@ def probe_edgartools_real_calls(identity: str) -> dict[str, Any]:
                     # 不同版本可能返回 list[Section] / list[str] / 字典
                     if isinstance(secs, dict):
                         for k, v in secs.items():
-                            sections_raw.append({
-                                "title": str(k),
-                                "text_preview": str(v)[:200] if v else "",
-                                "char_count": len(str(v) if v else ""),
-                            })
+                            sections_raw.append(
+                                {
+                                    "title": str(k),
+                                    "text_preview": str(v)[:200] if v else "",
+                                    "char_count": len(str(v) if v else ""),
+                                }
+                            )
                     elif isinstance(secs, (list, tuple)):
                         for s in secs:
-                            title = (
-                                getattr(s, "title", None)
-                                or getattr(s, "name", None)
-                                or str(s)
-                            )
+                            title = getattr(s, "title", None) or getattr(s, "name", None) or str(s)
                             text = None
                             if hasattr(s, "text"):
                                 text = s.text() if callable(s.text) else s.text
-                            sections_raw.append({
-                                "title": str(title),
-                                "text_preview": (str(text)[:200] if text else ""),
-                                "char_count": len(str(text)) if text else 0,
-                            })
+                            sections_raw.append(
+                                {
+                                    "title": str(title),
+                                    "text_preview": (str(text)[:200] if text else ""),
+                                    "char_count": len(str(text)) if text else 0,
+                                }
+                            )
                     else:
                         sections_raw.append({"raw_type": str(type(secs))})
                 except Exception as e:  # noqa: BLE001
@@ -337,16 +335,21 @@ def probe_edgartools_real_calls(identity: str) -> dict[str, Any]:
                 items = list(getattr(obj, "items", []) or [])
             except Exception as e:  # noqa: BLE001
                 summary["errors"].append(f"TSLA 8-K obj() raised: {e!r}")
-            eightk_dump.append({
-                "filing_date": str(getattr(f, "filing_date", "")),
-                "period_of_report": str(getattr(f, "period_of_report", "")),
-                "accession_no": getattr(f, "accession_no", None),
-                "items_count": len(items),
-                "items_preview": [str(i)[:100] for i in items[:3]],
-                "obj_class": type(obj).__name__ if obj is not None else None,
-            })
+            eightk_dump.append(
+                {
+                    "filing_date": str(getattr(f, "filing_date", "")),
+                    "period_of_report": str(getattr(f, "period_of_report", "")),
+                    "accession_no": getattr(f, "accession_no", None),
+                    "items_count": len(items),
+                    "items_preview": [str(i)[:100] for i in items[:3]],
+                    "obj_class": type(obj).__name__ if obj is not None else None,
+                }
+            )
         write_json("eightk_tsla.json", eightk_dump)
-        summary["eightk"] = {"count": len(eightk_dump), "first": eightk_dump[0] if eightk_dump else None}
+        summary["eightk"] = {
+            "count": len(eightk_dump),
+            "first": eightk_dump[0] if eightk_dump else None,
+        }
     except Exception as e:  # noqa: BLE001
         summary["errors"].append(f"TSLA 8-K probe raised: {e!r}")
 
@@ -372,16 +375,19 @@ def probe_edgartools_real_calls(identity: str) -> dict[str, Any]:
                     if isinstance(tx_attr, list) and tx_attr:
                         sample = tx_attr[0]
                         tx_info["sample_keys"] = (
-                            list(vars(sample).keys()) if hasattr(sample, "__dict__")
+                            list(vars(sample).keys())
+                            if hasattr(sample, "__dict__")
                             else dir(sample)[:20]
                         )
             except Exception as e:  # noqa: BLE001
                 summary["errors"].append(f"TSLA Form 4 obj() raised: {e!r}")
-            form4_dump.append({
-                "filing_date": str(getattr(f, "filing_date", "")),
-                "accession_no": getattr(f, "accession_no", None),
-                **tx_info,
-            })
+            form4_dump.append(
+                {
+                    "filing_date": str(getattr(f, "filing_date", "")),
+                    "accession_no": getattr(f, "accession_no", None),
+                    **tx_info,
+                }
+            )
         write_json("form4_tsla.json", form4_dump)
         summary["form4"] = {
             "count": len(form4_dump),
@@ -530,6 +536,7 @@ def emit_probe_summary(
     real_calls: dict[str, Any],
 ) -> dict[str, Any]:
     import edgar  # type: ignore[import-untyped]  # 5.31 真实 module 名
+
     edgartools_version = getattr(edgar, "__version__", "unknown")
     py_version = ".".join(str(x) for x in sys.version_info[:3])
 

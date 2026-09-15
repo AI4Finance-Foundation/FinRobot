@@ -132,8 +132,7 @@ def _normalise_holding_row(
         value = _opt_number(df_row.get("value"))
         if shares is None or value is None:
             logger.warning(
-                "skip 13F row with missing shares/value (cusip=%s holder=%s): "
-                "shares=%r value=%r",
+                "skip 13F row with missing shares/value (cusip=%s holder=%s): shares=%r value=%r",
                 cusip,
                 filer_name,
                 df_row.get("sharesprnamount"),

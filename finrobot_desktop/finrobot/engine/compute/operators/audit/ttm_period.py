@@ -70,9 +70,7 @@ def audit_ttm_period(fin: FinancialData) -> list[Finding]:
     cadence = _classify_cadence([g for g in gaps if g >= _MIN_QUARTER_GAP_DAYS])
     period_word = "half-year" if cadence == "semiannual" else "quarter"
     expected = _EXPECTED_SEMIANNUAL_PERIODS if cadence == "semiannual" else _EXPECTED_QUARTERS
-    legit_max = (
-        _MAX_SEMIANNUAL_GAP_DAYS if cadence == "semiannual" else _MAX_QUARTER_GAP_DAYS
-    )
+    legit_max = _MAX_SEMIANNUAL_GAP_DAYS if cadence == "semiannual" else _MAX_QUARTER_GAP_DAYS
 
     for newer, older in zip(ordered, ordered[1:]):
         gap = (newer - older).days

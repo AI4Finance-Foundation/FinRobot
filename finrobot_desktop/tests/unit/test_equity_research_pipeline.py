@@ -523,9 +523,9 @@ def test_build_sensitivity_ranges_returns_valid_ranges():
     assert len(wacc_range) == 5
     assert len(tg_range) >= 1
     min_wacc = min(wacc_range)
-    assert all(
-        g < min_wacc for g in tg_range
-    ), f"All tg values must be < min_wacc {min_wacc}, got {tg_range}"
+    assert all(g < min_wacc for g in tg_range), (
+        f"All tg values must be < min_wacc {min_wacc}, got {tg_range}"
+    )
 
 
 def test_sensitivity_center_equals_discount_rate_normal():
@@ -545,9 +545,9 @@ def test_sensitivity_center_preserved_for_low_wacc():
     # WACC 2%, terminal growth 1% — valid (WACC > g) but below the old 3% floor.
     wacc_range, tg_range = build_sensitivity_ranges(0.02, 0.01)
     assert len(wacc_range) == 5
-    assert wacc_range[2] == pytest.approx(
-        0.02
-    ), f"center must equal base WACC 0.02, got {wacc_range[2]} (range={wacc_range})"
+    assert wacc_range[2] == pytest.approx(0.02), (
+        f"center must equal base WACC 0.02, got {wacc_range[2]} (range={wacc_range})"
+    )
     # Gordon validity preserved: every terminal-growth candidate stays below the
     # lowest discount rate.
     assert tg_range and all(g < min(wacc_range) for g in tg_range)
@@ -1091,9 +1091,9 @@ async def test_thesis_overrides_llm_recommendation_with_upside_thresholds(mock_d
 
     assert isinstance(output, StepOutput)
     assert isinstance(output.structured, ThesisResult)
-    assert (
-        output.structured.recommendation == "SELL"
-    ), f"recommendation={output.structured.recommendation} — LLM drift not caught"
+    assert output.structured.recommendation == "SELL", (
+        f"recommendation={output.structured.recommendation} — LLM drift not caught"
+    )
     # And the prompt should have signalled SELL to the LLM.
     actual_prompt = mock_agent_instance.run.call_args[0][0]
     assert "AUTHORITATIVE RECOMMENDATION" in actual_prompt
@@ -1373,9 +1373,9 @@ async def test_low_wacc_run_degrades_to_relative_valuation(mock_deps):
     assert validate_technical_analysis(tech_out.structured).passed is True
     # CONTROL (non-financial): the degrade reason is the generic Gordon-undefined
     # marker only — NOT the balance-sheet-financial category-error reason.
-    assert not any(
-        "balance-sheet financial" in w for w in tech_out.structured.warnings
-    ), "non-financial degrade must not claim the FCFF-DCF is a category error"
+    assert not any("balance-sheet financial" in w for w in tech_out.structured.warnings), (
+        "non-financial degrade must not claim the FCFF-DCF is a category error"
+    )
 
 
 def _insurer_financial_data():
@@ -1520,8 +1520,7 @@ async def test_technical_analysis_reason_is_category_error_for_financial(mock_de
     assert out.structured.historical_bands is None
     assert validate_technical_analysis(out.structured).passed is True
     assert any(
-        "balance-sheet financial" in w and "method withheld" in w
-        for w in out.structured.warnings
+        "balance-sheet financial" in w and "method withheld" in w for w in out.structured.warnings
     ), f"financial degrade must state the category error: {out.structured.warnings}"
 
 
@@ -1726,10 +1725,23 @@ async def test_standalone_dcf_writes_usd_snapshot_back_to_historical_data(mock_d
         return 1.0 / twd_per_usd if currency.upper() == "TWD" else 1.0
 
     hm = HistoricalMetrics(
-        years=[], revenue=[], revenue_growth_yoy=[], cogs=[], gross_profit=[],
-        gross_margin=[], sga=[], sga_ratio=[], ebitda=[], ebitda_margin=[],
-        operating_income=[], operating_margin=[], net_income=[], eps=[],
-        pe_ratio=[], cagr_revenue=None, ticker="2330.TW",
+        years=[],
+        revenue=[],
+        revenue_growth_yoy=[],
+        cogs=[],
+        gross_profit=[],
+        gross_margin=[],
+        sga=[],
+        sga_ratio=[],
+        ebitda=[],
+        ebitda_margin=[],
+        operating_income=[],
+        operating_margin=[],
+        net_income=[],
+        eps=[],
+        pe_ratio=[],
+        cagr_revenue=None,
+        ticker="2330.TW",
     )
     mock_deps.settings.fmp_api_key = None
     ctx: dict[str, object] = {"historical_data": _twd_local_financial_data()}
@@ -1770,10 +1782,23 @@ async def test_standalone_dcf_us_issuer_historical_data_unchanged(mock_deps):
     from finrobot.engine.pipelines.dcf import _execute_dcf_calc
 
     hm = HistoricalMetrics(
-        years=[], revenue=[], revenue_growth_yoy=[], cogs=[], gross_profit=[],
-        gross_margin=[], sga=[], sga_ratio=[], ebitda=[], ebitda_margin=[],
-        operating_income=[], operating_margin=[], net_income=[], eps=[],
-        pe_ratio=[], cagr_revenue=None, ticker="AAPL",
+        years=[],
+        revenue=[],
+        revenue_growth_yoy=[],
+        cogs=[],
+        gross_profit=[],
+        gross_margin=[],
+        sga=[],
+        sga_ratio=[],
+        ebitda=[],
+        ebitda_margin=[],
+        operating_income=[],
+        operating_margin=[],
+        net_income=[],
+        eps=[],
+        pe_ratio=[],
+        cagr_revenue=None,
+        ticker="AAPL",
     )
     mock_deps.settings.fmp_api_key = None
     original = FinancialData(
@@ -1783,13 +1808,20 @@ async def test_standalone_dcf_us_issuer_historical_data_unchanged(mock_deps):
         reporting_currency="USD",
         quote_currency="USD",
         income=IncomeStatement(
-            revenue=4e11, ebitda=1.3e11, net_income=1e11,
-            gross_margin=0.46, operating_margin=0.3, interest_expense=3e9,
+            revenue=4e11,
+            ebitda=1.3e11,
+            net_income=1e11,
+            gross_margin=0.46,
+            operating_margin=0.3,
+            interest_expense=3e9,
         ),
         balance=BalanceSheet(total_debt=1e11, total_cash=6e10),
         market=MarketData(
-            market_cap=3e12, shares_outstanding=1.5e10, current_price=200.0,
-            industry="Consumer Electronics", beta=1.2,
+            market_cap=3e12,
+            shares_outstanding=1.5e10,
+            current_price=200.0,
+            industry="Consumer Electronics",
+            beta=1.2,
         ),
         valuation=ValuationMetrics(),
     )
@@ -1824,10 +1856,19 @@ async def test_standalone_ddm_writes_usd_snapshot_back_to_historical_data(mock_d
 
     now = datetime.now(tz=timezone.utc)
     norm_twd = NormalizedFinancials(
-        ticker="2330.TW", revenue=2_160e9, market_cap=26_000e9, as_of=now,
-        net_income=850e9, shares_outstanding=25.9e9, current_price=1000.0,
-        dividend_per_share=30.0, payout_ratio=0.5, return_on_equity=0.25,
-        book_value_per_share=120.0, beta=1.05, industry="Semiconductors",
+        ticker="2330.TW",
+        revenue=2_160e9,
+        market_cap=26_000e9,
+        as_of=now,
+        net_income=850e9,
+        shares_outstanding=25.9e9,
+        current_price=1000.0,
+        dividend_per_share=30.0,
+        payout_ratio=0.5,
+        return_on_equity=0.25,
+        book_value_per_share=120.0,
+        beta=1.05,
+        industry="Semiconductors",
         sector="Technology",
         provenance=Provenance(provider="yfinance", as_of=now, fetched_at=now),
     )
@@ -1867,10 +1908,23 @@ async def test_standalone_lbo_normalizes_to_usd_and_writes_back(mock_deps):
         return 1.0 / twd_per_usd if currency.upper() == "TWD" else 1.0
 
     hm = HistoricalMetrics(
-        years=[], revenue=[], revenue_growth_yoy=[], cogs=[], gross_profit=[],
-        gross_margin=[], sga=[], sga_ratio=[], ebitda=[], ebitda_margin=[],
-        operating_income=[], operating_margin=[], net_income=[], eps=[],
-        pe_ratio=[], cagr_revenue=None, ticker="2330.TW",
+        years=[],
+        revenue=[],
+        revenue_growth_yoy=[],
+        cogs=[],
+        gross_profit=[],
+        gross_margin=[],
+        sga=[],
+        sga_ratio=[],
+        ebitda=[],
+        ebitda_margin=[],
+        operating_income=[],
+        operating_margin=[],
+        net_income=[],
+        eps=[],
+        pe_ratio=[],
+        cagr_revenue=None,
+        ticker="2330.TW",
     )
     mock_deps.settings.fmp_api_key = None
     ctx: dict[str, object] = {
@@ -2195,12 +2249,12 @@ async def test_peer_analysis_drops_non_positive_revenue_peer_keeps_rest(mock_dep
         ticker="C",
         company_name="Citigroup Inc.",
         timestamp=datetime.now(tz=timezone.utc),
-        income=IncomeStatement(
-            revenue=88e9, ebitda=26e9, net_income=16e9, interest_expense=83e9
-        ),
+        income=IncomeStatement(revenue=88e9, ebitda=26e9, net_income=16e9, interest_expense=83e9),
         balance=BalanceSheet(total_debt=749e9, total_cash=23e9),
         market=MarketData(
-            market_cap=239e9, shares_outstanding=1.7e9, current_price=139.0,
+            market_cap=239e9,
+            shares_outstanding=1.7e9,
+            current_price=139.0,
             industry="Banks - Diversified",
         ),
         valuation=ValuationMetrics(),
@@ -2208,7 +2262,11 @@ async def test_peer_analysis_drops_non_positive_revenue_peer_keeps_rest(mock_dep
     ctx = {"data_collection": target_fd}
 
     out = await execute_peer_analysis(
-        MagicMock(), mock_deps, "prompt", ctx, "C",
+        MagicMock(),
+        mock_deps,
+        "prompt",
+        ctx,
+        "C",
         peers=["WFC", "MUFG", "TD", "RY", "PREFPK"],
     )
     peer_comps = out.structured
@@ -2369,9 +2427,9 @@ async def test_thesis_single_method_out_of_band_withholds_point_keeps_direction(
     assert isinstance(thesis, ThesisResult)
     # Directional verdict (never the deleted REVIEW); the point is withheld.
     assert thesis.recommendation in ("BUY", "HOLD", "SELL")
-    assert (
-        thesis.price_target is None
-    ), f"single-method out-of-band mid must NOT publish a target, got {thesis.price_target}"
+    assert thesis.price_target is None, (
+        f"single-method out-of-band mid must NOT publish a target, got {thesis.price_target}"
+    )
     # The prompt must have carried the point-withheld instruction (not a gate).
     prompt = agent.run.call_args[0][0]
     assert "POINT PRICE TARGET WITHHELD" in prompt
@@ -2433,9 +2491,9 @@ async def test_thesis_single_method_in_band_publishes_with_caveat(mock_deps):
 
     thesis = output.structured
     assert isinstance(thesis, ThesisResult)
-    assert (
-        thesis.price_target == 289.57
-    ), f"in-band single-method mid must become the canonical target, got {thesis.price_target}"
+    assert thesis.price_target == 289.57, (
+        f"in-band single-method mid must become the canonical target, got {thesis.price_target}"
+    )
     # -6.9% upside → HOLD (medium-tier SELL needs -35%).
     assert thesis.recommendation == "HOLD"
     # Basis must disclose the single-method / no-cross-check caliber.

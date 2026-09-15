@@ -180,9 +180,9 @@ def test_price_top_level_keys_present(name: str, price_results: dict[str, DataRe
     three the consumers read MUST be present.
     """
     data = price_results[name].data
-    assert _TOP_LEVEL_KEYS.issubset(
-        data.keys()
-    ), f"{name} PRICE missing required keys: {_TOP_LEVEL_KEYS - set(data.keys())}"
+    assert _TOP_LEVEL_KEYS.issubset(data.keys()), (
+        f"{name} PRICE missing required keys: {_TOP_LEVEL_KEYS - set(data.keys())}"
+    )
 
 
 @pytest.mark.parametrize("name", ["yfinance", "fmp", "finnhub"])
@@ -200,9 +200,9 @@ def test_price_history_bars_have_canonical_keys(
     assert isinstance(history, list)
     assert history, f"{name} price_history is empty"
     for bar in history:
-        assert (
-            set(bar.keys()) == _BAR_KEYS
-        ), f"{name} bar keys {set(bar.keys())} != canonical {_BAR_KEYS}"
+        assert set(bar.keys()) == _BAR_KEYS, (
+            f"{name} bar keys {set(bar.keys())} != canonical {_BAR_KEYS}"
+        )
 
 
 @pytest.mark.parametrize("name", ["yfinance", "fmp", "finnhub"])

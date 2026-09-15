@@ -224,8 +224,7 @@ def seed_lbo_inputs(
                 else f"{marginal_ratio:.1%} of each new revenue dollar"
             )
             reclamp_note = (
-                f", which came to {degraded:.1%} and was capped again into the model's "
-                f"±10% range"
+                f", which came to {degraded:.1%} and was capped again into the model's ±10% range"
                 if nwc_pct != degraded
                 else ""
             )
@@ -360,7 +359,9 @@ def seed_lbo_inputs(
         market_clause = ""
         market_cap = financials.market.market_cap if financials.market else None
         if market_cap and market_cap > 0:
-            net_debt = (financials.balance.total_debt or 0.0) - (financials.balance.total_cash or 0.0)
+            net_debt = (financials.balance.total_debt or 0.0) - (
+                financials.balance.total_cash or 0.0
+            )
             market_ev = market_cap + net_debt
             if market_ev > 0:
                 ratio = entry_ev_ability / market_ev

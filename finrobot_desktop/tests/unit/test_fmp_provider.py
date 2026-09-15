@@ -394,9 +394,9 @@ class TestFMPFetch:
         fallback_warnings = [
             w for w in result.warnings if "/shares-float for AAPL unavailable" in w
         ]
-        assert (
-            fallback_warnings
-        ), f"expected the shares-float fallback warning, got {result.warnings}"
+        assert fallback_warnings, (
+            f"expected the shares-float fallback warning, got {result.warnings}"
+        )
         assert "HTTP 429" in fallback_warnings[0]
         joined = " ".join(result.warnings)
         assert "SUPERSECRET" not in joined
@@ -556,7 +556,9 @@ class TestFMPFetch:
         with patch.object(provider, "_get", get_mock):
             result = await provider.fetch("AAPL", "financials")
         assert result.data["total_debt"] == 111_088_000_000
-        assert get_mock.await_count == 7  # no annual backfill call (3 statements + ratios + km + profile + shares)
+        assert (
+            get_mock.await_count == 7
+        )  # no annual backfill call (3 statements + ratios + km + profile + shares)
 
     def test_resolve_total_debt_sums_components_when_total_missing(self) -> None:
         """_resolve_total_debt defends the None≠0 contract: present total wins,
@@ -814,9 +816,9 @@ class TestFMPFetchHistorical:
         # historical_loaders.py line 55 does `data.get("fiscal_year") or data.get("date")`
         # — a missing fiscal_year causes all years to be skipped → band.sample_count == 0.
         for entry in result.data["yearly_data"]:
-            assert (
-                entry.get("fiscal_year") is not None
-            ), f"yearly entry missing fiscal_year: {entry}"
+            assert entry.get("fiscal_year") is not None, (
+                f"yearly entry missing fiscal_year: {entry}"
+            )
 
     @pytest.mark.asyncio
     async def test_yearly_data_carries_full_historical_schema(self, provider):
@@ -1567,7 +1569,11 @@ class TestFMPPeerCandidates:
                 # carry no isActivelyTrading, so liveness must be backfilled from /profile.
                 return _mock_response(
                     [
-                        {"symbol": "DEADCO", "companyName": "Delisted Co", "mktCap": 200_000_000_000},
+                        {
+                            "symbol": "DEADCO",
+                            "companyName": "Delisted Co",
+                            "mktCap": 200_000_000_000,
+                        },
                         {"symbol": "LIVECO", "companyName": "Live Co", "mktCap": 250_000_000_000},
                     ]
                 )
@@ -1576,7 +1582,13 @@ class TestFMPPeerCandidates:
                     f"screener must filter to active companies: {params!r}"
                 )
                 return _mock_response(
-                    [{"symbol": "SCREENED", "marketCap": 300_000_000_000, "isActivelyTrading": True}]
+                    [
+                        {
+                            "symbol": "SCREENED",
+                            "marketCap": 300_000_000_000,
+                            "isActivelyTrading": True,
+                        }
+                    ]
                 )
             if path == "/ratios-ttm":
                 return _mock_response([{"symbol": sym, "priceToEarningsRatioTTM": 20.0}])

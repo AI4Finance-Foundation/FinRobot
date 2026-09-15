@@ -95,7 +95,11 @@ async def test_empty_input_returns_empty_dict() -> None:
 async def test_happy_path_three_tickers() -> None:
     layer = _FakeDataLayer({"AAPL": 187.32, "MSFT": 412.10, "NVDA": 905.5})
     out = await quote_batch.fetch_quotes_batch_cached(["AAPL", "MSFT", "NVDA"], layer)
-    assert out == {"AAPL": Quote(price=187.32), "MSFT": Quote(price=412.10), "NVDA": Quote(price=905.5)}
+    assert out == {
+        "AAPL": Quote(price=187.32),
+        "MSFT": Quote(price=412.10),
+        "NVDA": Quote(price=905.5),
+    }
 
 
 @pytest.mark.asyncio
@@ -108,7 +112,10 @@ async def test_quote_currency_carried_through_batch_and_l2() -> None:
         currencies={"AAPL": "USD", "2330.TW": "TWD"},
     )
     out = await quote_batch.fetch_quotes_batch_cached(["AAPL", "2330.TW"], layer)
-    assert out == {"AAPL": Quote(price=200.0, currency="USD"), "2330.TW": Quote(price=640.0, currency="TWD")}
+    assert out == {
+        "AAPL": Quote(price=200.0, currency="USD"),
+        "2330.TW": Quote(price=640.0, currency="TWD"),
+    }
 
     # Wipe L1 so the next read must come from the SQLite L2 — currency must persist.
     cache = quote_batch._get_singleton()
@@ -180,7 +187,12 @@ async def test_cold_fan_out_is_concurrent() -> None:
             )
 
     out = await quote_batch.fetch_quotes_batch_cached(["A", "B", "C", "D"], _BarrierLayer())
-    assert out == {"A": Quote(price=100.0), "B": Quote(price=100.0), "C": Quote(price=100.0), "D": Quote(price=100.0)}
+    assert out == {
+        "A": Quote(price=100.0),
+        "B": Quote(price=100.0),
+        "C": Quote(price=100.0),
+        "D": Quote(price=100.0),
+    }
 
 
 @pytest.mark.asyncio
@@ -218,7 +230,9 @@ async def test_all_providers_circuit_open_preserves_stale_price(tmp_path: Any) -
 
     # 1. Warm the cache with a real price.
     warm_layer = _FakeDataLayer({"AAPL": 200.0})
-    assert await quote_batch.fetch_quotes_batch_cached(["AAPL"], warm_layer) == {"AAPL": Quote(price=200.0)}
+    assert await quote_batch.fetch_quotes_batch_cached(["AAPL"], warm_layer) == {
+        "AAPL": Quote(price=200.0)
+    }
 
     # 2. Age the row past the 60s TTL in both L1 and L2 so the next batch
     #    actually re-fetches instead of serving the fresh hit.

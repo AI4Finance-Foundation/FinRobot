@@ -477,8 +477,7 @@ def build_thesis_prompt(
     segment_overview = structured_context.get("segment_overview")
     if isinstance(segment_overview, SegmentOverview) and segment_overview.segments:
         _whitelist_parts.append(
-            f"  - segment_overview ({segment_overview.source}, "
-            f"{segment_overview.period_label}):"
+            f"  - segment_overview ({segment_overview.source}, {segment_overview.period_label}):"
         )
         for seg in segment_overview.segments:
             label = sanitize_untrusted_text(seg.name, max_len=80)

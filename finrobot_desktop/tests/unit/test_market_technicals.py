@@ -69,9 +69,7 @@ class _FakeLayer:
 
 
 def _price(closes: list[float]) -> NormalizedPrice:
-    bars = [
-        PriceBar(date=datetime(2026, 1, 1, tzinfo=UTC).date(), close=c) for c in closes
-    ]
+    bars = [PriceBar(date=datetime(2026, 1, 1, tzinfo=UTC).date(), close=c) for c in closes]
     return NormalizedPrice(
         ticker="AAPL",
         current_price=closes[-1],

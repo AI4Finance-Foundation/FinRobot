@@ -50,20 +50,14 @@ async def test_migrate_empty_legacy_returns_zero(
 
 
 @pytest.mark.asyncio
-async def test_migrate_nonexistent_returns_zero(
-    tmp_path: Path, store: SqliteArtifactStore
-) -> None:
+async def test_migrate_nonexistent_returns_zero(tmp_path: Path, store: SqliteArtifactStore) -> None:
     """Legacy path may not exist on a fresh install — return 0, don't crash."""
-    n = await migrate_filesystem_to_sqlite(
-        legacy_root=tmp_path / "does_not_exist", store=store
-    )
+    n = await migrate_filesystem_to_sqlite(legacy_root=tmp_path / "does_not_exist", store=store)
     assert n == 0
 
 
 @pytest.mark.asyncio
-async def test_migrate_inserts_all_json_files(
-    tmp_path: Path, store: SqliteArtifactStore
-) -> None:
+async def test_migrate_inserts_all_json_files(tmp_path: Path, store: SqliteArtifactStore) -> None:
     legacy = tmp_path / "legacy"
     _write_artifact_json(legacy, "AAPL", "art_a1")
     _write_artifact_json(legacy, "AAPL", "art_a2")
@@ -77,9 +71,7 @@ async def test_migrate_inserts_all_json_files(
 
 
 @pytest.mark.asyncio
-async def test_migrate_ignores_index_json(
-    tmp_path: Path, store: SqliteArtifactStore
-) -> None:
+async def test_migrate_ignores_index_json(tmp_path: Path, store: SqliteArtifactStore) -> None:
     legacy = tmp_path / "legacy"
     _write_artifact_json(legacy, "AAPL", "art_a1")
     # legacy stores wrote an index.json sibling — must not be re-ingested
@@ -89,9 +81,7 @@ async def test_migrate_ignores_index_json(
 
 
 @pytest.mark.asyncio
-async def test_migrate_is_idempotent(
-    tmp_path: Path, store: SqliteArtifactStore
-) -> None:
+async def test_migrate_is_idempotent(tmp_path: Path, store: SqliteArtifactStore) -> None:
     legacy = tmp_path / "legacy"
     _write_artifact_json(legacy, "AAPL", "art_a1")
     await migrate_filesystem_to_sqlite(legacy_root=legacy, store=store)
@@ -102,9 +92,7 @@ async def test_migrate_is_idempotent(
 
 
 @pytest.mark.asyncio
-async def test_migrate_skips_corrupt(
-    tmp_path: Path, store: SqliteArtifactStore
-) -> None:
+async def test_migrate_skips_corrupt(tmp_path: Path, store: SqliteArtifactStore) -> None:
     legacy = tmp_path / "legacy"
     tdir = legacy / "AAPL"
     tdir.mkdir(parents=True)

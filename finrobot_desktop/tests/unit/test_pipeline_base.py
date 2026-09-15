@@ -350,9 +350,9 @@ class TestGatherData:
         ]
         assert len(step_a_line) == 1, f"Expected one compact line for step_a, got: {step_a_line}"
         # D6 fix: the compact line should contain actual text content
-        assert (
-            "step output text" in step_a_line[0]
-        ), f"Step_a compact line missing text snippet: {step_a_line[0]}"
+        assert "step output text" in step_a_line[0], (
+            f"Step_a compact line missing text snippet: {step_a_line[0]}"
+        )
 
 
 class TestPipelineLogging:

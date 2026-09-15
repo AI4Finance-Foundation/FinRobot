@@ -48,7 +48,10 @@ def _extracted(industry: str, sector: str = "Financial Services"):
     )
     price = normalize_price(
         DataResult(
-            data={"current_price": 320.0, "price_history": [{"date": "2026-06-01", "close": 320.0}]},
+            data={
+                "current_price": 320.0,
+                "price_history": [{"date": "2026-06-01", "close": 320.0}],
+            },
             provider="yfinance",
             ticker="T",
             data_type="price",
@@ -58,7 +61,9 @@ def _extracted(industry: str, sector: str = "Financial Services"):
     return extract_financial_data(fin, price)
 
 
-@pytest.mark.parametrize("industry", ["Banks - Diversified", "Banks - Regional", "Insurance - Life"])
+@pytest.mark.parametrize(
+    "industry", ["Banks - Diversified", "Banks - Regional", "Insurance - Life"]
+)
 def test_balance_sheet_financial_ev_nulled_at_source(industry: str) -> None:
     fd = _extracted(industry)
     assert fd.valuation.enterprise_value is None

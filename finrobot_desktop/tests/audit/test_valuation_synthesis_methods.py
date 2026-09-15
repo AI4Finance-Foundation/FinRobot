@@ -293,9 +293,9 @@ class TestDCFAlwaysPresent:
         vs = build_valuation_synthesis(structured_context, current_price=170.0, ticker="AAPL")
         assert vs is not None, "Should produce ValuationSynthesis when DCF + Comps available"
         method_names = {m.name for m in vs.methods}
-        assert (
-            "dcf" in method_names
-        ), f"DCF method missing from synthesis — Bug A regression. Got: {method_names}"
+        assert "dcf" in method_names, (
+            f"DCF method missing from synthesis — Bug A regression. Got: {method_names}"
+        )
 
     def test_dcf_in_aggregate_valuation_directly(self) -> None:
         """aggregate_valuation emits a dcf row when DCFResult is provided."""
@@ -337,9 +337,9 @@ class TestMinMethodCount:
         }
         vs = build_valuation_synthesis(structured_context, current_price=170.0, ticker="AAPL")
         assert vs is not None
-        assert (
-            vs.weighted_price is not None
-        ), "weighted_price must be a float when ≥2 methods are present"
+        assert vs.weighted_price is not None, (
+            "weighted_price must be a float when ≥2 methods are present"
+        )
         assert vs.weighted_price > 0
 
     def test_ddm_calc_step_name_reaches_synthesis(self) -> None:
@@ -377,9 +377,9 @@ class TestSingleMethodWeightedPriceNone:
             )
         ]
         vs = synthesize_valuations(methods, current_price=170.0)
-        assert (
-            vs.weighted_price is None
-        ), "Single-method synthesis must have weighted_price=None (no cross-check)"
+        assert vs.weighted_price is None, (
+            "Single-method synthesis must have weighted_price=None (no cross-check)"
+        )
         assert vs.upside_downside is None
 
     def test_weighted_price_none_propagates_from_build_synthesis(self) -> None:
@@ -469,9 +469,9 @@ class TestGuardExitReasonsReachArtifact:
             method=method,
         )
         assert reason is not None, f"{method} {branch} 分支应产生拒因"
-        assert (
-            "method withheld" in reason
-        ), f"{method} {branch} 拒因缺 surface 标记,会被吞掉: {reason!r}"
+        assert "method withheld" in reason, (
+            f"{method} {branch} 拒因缺 surface 标记,会被吞掉: {reason!r}"
+        )
         assert method in reason, f"拒因必须标明是哪个方法退出: {reason!r}"
 
 
@@ -531,9 +531,9 @@ class TestEvEbitdaBandRevivesMethod:
             historical_ev_ebitda_sample_n=900,
         )
         assert vs is not None
-        assert "ev_ebitda" in [
-            m.name for m in vs.methods
-        ], "EV/EBITDA must appear once the band is threaded — it was dead before"
+        assert "ev_ebitda" in [m.name for m in vs.methods], (
+            "EV/EBITDA must appear once the band is threaded — it was dead before"
+        )
 
     def test_ev_ebitda_row_absent_without_band(self) -> None:
         """No band threaded (the old production state) → row stays dead. This is the
@@ -736,9 +736,9 @@ class TestMethodSuppressionSweep:
     ) -> None:
         vs = build_valuation_synthesis(context_factory(), current_price=100.0, ticker="X")  # type: ignore[operator]
         assert vs is not None, "被抑制方法之外仍有方法解析 → 应产出 ValuationSynthesis"
-        assert any(
-            expected_fragment in w and "method withheld" in w for w in vs.warnings
-        ), f"抑制原因被吞掉,未带标记进 vs.warnings: {vs.warnings}"
+        assert any(expected_fragment in w and "method withheld" in w for w in vs.warnings), (
+            f"抑制原因被吞掉,未带标记进 vs.warnings: {vs.warnings}"
+        )
 
 
 # ---------------------------------------------------------------------------

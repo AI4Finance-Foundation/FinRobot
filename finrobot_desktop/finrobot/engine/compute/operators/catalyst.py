@@ -313,10 +313,42 @@ _DEDUP_WINDOW_DAYS: int = 3
 # inflate similarity between unrelated headlines. Deliberately small/generic.
 _TITLE_STOPWORDS: frozenset[str] = frozenset(
     {
-        "a", "an", "the", "and", "or", "of", "to", "in", "on", "for", "with",
-        "at", "by", "from", "as", "is", "are", "was", "were", "be", "been",
-        "it", "its", "this", "that", "these", "those", "after", "over",
-        "amid", "into", "says", "said", "new", "report", "reports",
+        "a",
+        "an",
+        "the",
+        "and",
+        "or",
+        "of",
+        "to",
+        "in",
+        "on",
+        "for",
+        "with",
+        "at",
+        "by",
+        "from",
+        "as",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "it",
+        "its",
+        "this",
+        "that",
+        "these",
+        "those",
+        "after",
+        "over",
+        "amid",
+        "into",
+        "says",
+        "said",
+        "new",
+        "report",
+        "reports",
     }
 )
 
@@ -423,22 +455,52 @@ _EVENT_TYPE_KEYWORD_BUCKETS: dict[str, tuple[str, ...]] = {
         # "investigat" is a stem (not a full word) so it matches every
         # conjugation — investigate/investigates/investigating/investigation/
         # investigations — with one entry instead of enumerating each.
-        "lawsuit", "sues", "sued", "suit", "litigation", "investigat",
-        "probe", "antitrust", "class action", "settlement",
-        "fine", "fined", "penalty",
+        "lawsuit",
+        "sues",
+        "sued",
+        "suit",
+        "litigation",
+        "investigat",
+        "probe",
+        "antitrust",
+        "class action",
+        "settlement",
+        "fine",
+        "fined",
+        "penalty",
     ),
     "layoffs": (
-        "layoffs", "layoff", "job cuts", "cuts jobs", "cutting jobs",
-        "workforce reduction", "job losses", "headcount reduction",
-        "downsizing", "job cut",
+        "layoffs",
+        "layoff",
+        "job cuts",
+        "cuts jobs",
+        "cutting jobs",
+        "workforce reduction",
+        "job losses",
+        "headcount reduction",
+        "downsizing",
+        "job cut",
     ),
     "mna": (
-        "acquire", "acquires", "acquisition", "merger", "merges", "buyout",
-        "takeover", "divest", "divestiture",
+        "acquire",
+        "acquires",
+        "acquisition",
+        "merger",
+        "merges",
+        "buyout",
+        "takeover",
+        "divest",
+        "divestiture",
     ),
     "leadership": (
-        "resigns", "resignation", "steps down", "appoints", "appointment",
-        "names ceo", "ceo departure", "ousted",
+        "resigns",
+        "resignation",
+        "steps down",
+        "appoints",
+        "appointment",
+        "names ceo",
+        "ceo departure",
+        "ousted",
     ),
 }
 
@@ -470,10 +532,28 @@ _ENTITY_WORD_RE = re.compile(r"\b[A-Z][a-zA-Z']*\b")
 # only affecting this new signal).
 _GENERIC_ENTITY_WORDS: frozenset[str] = frozenset(
     {
-        "investors", "investor", "shareholder", "shareholders", "firm", "firms",
-        "corporation", "corp", "inc", "llc", "llp", "law", "announces",
-        "announcement", "encourages", "investigation", "investigations",
-        "investigates", "regarding", "possible", "losses", "contact",
+        "investors",
+        "investor",
+        "shareholder",
+        "shareholders",
+        "firm",
+        "firms",
+        "corporation",
+        "corp",
+        "inc",
+        "llc",
+        "llp",
+        "law",
+        "announces",
+        "announcement",
+        "encourages",
+        "investigation",
+        "investigations",
+        "investigates",
+        "regarding",
+        "possible",
+        "losses",
+        "contact",
     }
 )
 
@@ -557,7 +637,11 @@ def _is_near_duplicate(
     if domain_a is not None and domain_a == domain_b and _same_day(a.published, b.published):
         return True
     bucket_a = _event_type_bucket(a.headline)
-    if bucket_a is not None and bucket_a == _event_type_bucket(b.headline) and entities_a & entities_b:
+    if (
+        bucket_a is not None
+        and bucket_a == _event_type_bucket(b.headline)
+        and entities_a & entities_b
+    ):
         return True
     return False
 
@@ -591,9 +675,15 @@ _MONEY_RE = re.compile(
 )
 _MONEY_SCALE: dict[str, float] = {
     "k": 1e3,
-    "m": 1e6, "mn": 1e6, "million": 1e6,
-    "b": 1e9, "bn": 1e9, "billion": 1e9,
-    "t": 1e12, "tn": 1e12, "trillion": 1e12,
+    "m": 1e6,
+    "mn": 1e6,
+    "million": 1e6,
+    "b": 1e9,
+    "bn": 1e9,
+    "billion": 1e9,
+    "t": 1e12,
+    "tn": 1e12,
+    "trillion": 1e12,
 }
 _PERCENT_RE = re.compile(r"\d+(?:\.\d+)?\s?%")
 _HEADCOUNT_RE = re.compile(
@@ -602,7 +692,7 @@ _HEADCOUNT_RE = re.compile(
 
 
 def _normalized_money(raw: str) -> float | None:
-    """"$700 million" and "$700M" both normalize to 700_000_000.0 — synonymous
+    """ "$700 million" and "$700M" both normalize to 700_000_000.0 — synonymous
     phrasing must NOT read as a numeric conflict; only genuinely different
     values should.
     """
@@ -670,7 +760,7 @@ def _distinct_value_clusters(values: dict[float, str]) -> list[tuple[float, str]
 
 
 def _numeric_conflict_note(members: list[CatalystEvent]) -> str | None:
-    """"[Sources report differing figures: X; Y]" when merged members cite
+    """ "[Sources report differing figures: X; Y]" when merged members cite
     genuinely DIFFERENT (beyond rounding tolerance) numeric values of the same
     kind. Synonymous phrasing normalizes to the same value and never triggers
     a false conflict — only real disagreement does.
@@ -692,7 +782,7 @@ def _numeric_conflict_note(members: list[CatalystEvent]) -> str | None:
 
 
 def _score_variance_note(members: list[CatalystEvent]) -> str | None:
-    """"[Source disagreement: importance scored X-Y across N reports]" when the
+    """ "[Source disagreement: importance scored X-Y across N reports]" when the
     classifier's per-source importance spread is >= _SCORE_VARIANCE_THRESHOLD.
     """
     scores = [m.impact_score for m in members]

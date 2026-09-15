@@ -83,11 +83,11 @@ async def test_mode_b_equity_research():
     # Check for real financial data markers (not hallucinated)
     lower = summary.lower()
     assert any(kw in lower for kw in ["revenue", "ebitda", "margin"]), "No financial data in report"
-    assert any(
-        kw in lower for kw in ["peer", "comparable", "msft", "googl", "meta"]
-    ), "No peer analysis in report"
-    assert any(
-        kw in lower for kw in ["valuation", "dcf", "multiple", "price target"]
-    ), "No valuation in report"
+    assert any(kw in lower for kw in ["peer", "comparable", "msft", "googl", "meta"]), (
+        "No peer analysis in report"
+    )
+    assert any(kw in lower for kw in ["valuation", "dcf", "multiple", "price target"]), (
+        "No valuation in report"
+    )
 
     print(f"\nMode B report ({elapsed:.1f}s):\n{summary[:2000]}...")

@@ -23,14 +23,16 @@ def test_keyword_set_locked():
     If this fails after you intentionally trimmed the list, update the
     expected set below and document the rationale in the commit message.
     """
-    expected = frozenset({
-        '429',
-        'rate limit',
-        'connection',
-        'timeout',
-        'http error 5',
-        'too many requests',
-    })
+    expected = frozenset(
+        {
+            "429",
+            "rate limit",
+            "connection",
+            "timeout",
+            "http error 5",
+            "too many requests",
+        }
+    )
     assert frozenset(_YFINANCE_SERVICE_DOWN_KEYWORDS) >= expected, (
         f"Service-down keyword set shrank. Expected superset: {expected}. "
         f"Actual: {set(_YFINANCE_SERVICE_DOWN_KEYWORDS)}. "

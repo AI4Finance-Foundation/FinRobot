@@ -1,8 +1,8 @@
 """Plan-B report reconcile: the equity_research builder scans the report step's
-    $-amounts against every numeric leaf it freezes into the artifact (structured
-    snapshot + raw FinancialData). Unmatched amounts are redacted from the scanned
-    narrative steps, while a warning in outputs.warnings + a structured
-    ``report_drift`` block preserves the audit evidence."""
+$-amounts against every numeric leaf it freezes into the artifact (structured
+snapshot + raw FinancialData). Unmatched amounts are redacted from the scanned
+narrative steps, while a warning in outputs.warnings + a structured
+``report_drift`` block preserves the audit evidence."""
 
 from __future__ import annotations
 
@@ -138,9 +138,9 @@ def test_failed_validations_surface_in_artifact_warnings() -> None:
     )
     artifact = build_equity_research_artifact(result, "AAPL", cast(Any, None))
 
-    assert any(
-        "peer_analysis" in w and "degraded" in w for w in artifact.outputs.warnings
-    ), artifact.outputs.warnings
+    assert any("peer_analysis" in w and "degraded" in w for w in artifact.outputs.warnings), (
+        artifact.outputs.warnings
+    )
 
 
 def test_approximation_of_a_real_leaf_is_kept_not_redacted() -> None:

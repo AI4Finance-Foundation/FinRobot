@@ -297,9 +297,9 @@ async def test_historical_bands_warnings_passthrough_from_band():
     assert payload.historical_bands is None
     # Compute layer emits its own diagnostics; at least one warning must be present.
     # The stub has no shares_outstanding → "shares_outstanding 不可得" path fires first.
-    assert (
-        len(payload.warnings) >= 1
-    ), f"Expected >=1 warning from band compute layer, got: {payload.warnings}"
+    assert len(payload.warnings) >= 1, (
+        f"Expected >=1 warning from band compute layer, got: {payload.warnings}"
+    )
     # The warning must NOT be the generic fallback (it should be the compute layer's own text).
     # Any non-empty band.warnings from compute_historical_band are now passed through verbatim.
     assert not all(w == "historical_bands skipped: no valid samples" for w in payload.warnings)

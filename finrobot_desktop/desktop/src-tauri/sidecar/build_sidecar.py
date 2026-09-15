@@ -71,7 +71,7 @@ def _dereference_symlinks(dist_dir: Path) -> None:
     remaining = [p for p in dist_dir.rglob("*") if p.is_symlink()]
     if remaining:
         print(
-            f"[build-sidecar] ERROR: {len(remaining)} symlinks remain after " "dereference",
+            f"[build-sidecar] ERROR: {len(remaining)} symlinks remain after dereference",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -101,7 +101,7 @@ def main() -> int:
     dist_exe = dist_dir / EXE_NAME
     if not dist_exe.is_file():
         print(
-            f"[build-sidecar] ERROR: expected one-dir launcher not found at " f"{dist_exe}",
+            f"[build-sidecar] ERROR: expected one-dir launcher not found at {dist_exe}",
             file=sys.stderr,
         )
         return 1

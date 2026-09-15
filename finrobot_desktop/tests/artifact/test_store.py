@@ -54,9 +54,7 @@ class TestSaveGet:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_cross_ticker_artifact_round_trip(
-        self, store: ArtifactStore
-    ) -> None:
+    async def test_cross_ticker_artifact_round_trip(self, store: ArtifactStore) -> None:
         """Cross-ticker artifacts (ticker=None) save + load like any other.
 
         Legacy implementation kept them in a separate ``_cross/`` directory;
@@ -276,6 +274,7 @@ class TestArchiveStale:
     async def test_fresh_artifact_not_archived(self, store: ArtifactStore) -> None:
         """An artifact created 1h ago should NOT be archived with hours=24."""
         from datetime import timedelta
+
         one_hour_ago = datetime.now(UTC) - timedelta(hours=1)
         art = _make_artifact(id="art_fresh", created_at=one_hour_ago)
         await store.save(art)
@@ -299,6 +298,7 @@ class TestArchiveStale:
     async def test_viewed_artifact_not_archived(self, store: ArtifactStore) -> None:
         """An artifact created 25h ago but viewed recently should NOT be archived."""
         from datetime import timedelta
+
         now = datetime.now(UTC)
         art = _make_artifact(
             id="art_recently_viewed",

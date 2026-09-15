@@ -39,7 +39,10 @@ class IncomeStatement(BaseModel):
         default=None, ge=-5, le=1.02, description="Gross margin as decimal; None when unavailable"
     )
     operating_margin: float | None = Field(
-        default=None, ge=-5, le=1.02, description="Operating margin as decimal; None when unavailable"
+        default=None,
+        ge=-5,
+        le=1.02,
+        description="Operating margin as decimal; None when unavailable",
     )
     # Absolute operating income (EBIT) in USD. Carried alongside the margin so the
     # comps target can hand calculate_core_pe a period-consistent EBIT instead of

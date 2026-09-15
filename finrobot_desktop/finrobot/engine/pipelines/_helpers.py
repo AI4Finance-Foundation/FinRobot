@@ -1017,11 +1017,7 @@ def build_valuation_synthesis(
     #    method still prices, and basis's withheld-only filter must not absorb it
     #    (cover prose stays lean; the football-field row carries assumptions).
     # The REST aggregate route already surfaces agg.warnings whole.
-    forwarded = [
-        w
-        for w in agg.warnings
-        if "method withheld" in w or RERATING_WARNING_MARKER in w
-    ]
+    forwarded = [w for w in agg.warnings if "method withheld" in w or RERATING_WARNING_MARKER in w]
     if forwarded:
         vs.warnings.extend(w for w in forwarded if w not in vs.warnings)
     return vs

@@ -149,6 +149,7 @@ class TestAdanosFetch:
         engages (stale fallback + circuit breaker) instead of returning a
         successful empty 0/3 snapshot that poisons the cache and records a false
         success. Timeouts aren't throttling, so it's a plain ProviderError."""
+
         async def mock_get(path, params=None):
             raise httpx.TimeoutException("timeout")
 
@@ -200,9 +201,7 @@ class TestAdanosFetch:
                 return _mock_response(
                     {"stocks": [{"ticker": "ZZZZ", "buzz_score": 0, "mentions": 0}]}
                 )
-            raise httpx.HTTPStatusError(
-                "429 Too Many Requests", request=request, response=response
-            )
+            raise httpx.HTTPStatusError("429 Too Many Requests", request=request, response=response)
 
         with patch.object(provider, "_get", side_effect=mock_get):
             result = await provider.fetch("ZZZZ", "sentiment")

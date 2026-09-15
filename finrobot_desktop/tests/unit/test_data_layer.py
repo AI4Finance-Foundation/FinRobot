@@ -529,9 +529,9 @@ class TestCrossValidationIntegration:
         layer = DataLayer([p1, p2, p3], cache)
         result = await layer.fetch("financials", "TEST")
         assert p3.fetch_called == 1, "Third provider was not called"
-        assert any(
-            "p3" in w for w in result.warnings
-        ), f"Third provider discrepancy not in warnings: {result.warnings}"
+        assert any("p3" in w for w in result.warnings), (
+            f"Third provider discrepancy not in warnings: {result.warnings}"
+        )
 
     async def test_empty_secondary_skipped_tries_next_provider(self, cache):
         """D5: empty secondary data → warning added, next provider tried."""
@@ -661,9 +661,9 @@ class TestCircuitOpenProvenance:
 
         normalized = await layer.fetch_canonical(DataType.FINANCIALS, "AAPL")
         expected_marker = degraded_circuit_open("fmp")
-        assert (
-            expected_marker in normalized.provenance.degraded
-        ), f"Expected '{expected_marker}' in degraded={normalized.provenance.degraded}"
+        assert expected_marker in normalized.provenance.degraded, (
+            f"Expected '{expected_marker}' in degraded={normalized.provenance.degraded}"
+        )
         assert expected_marker.startswith(DEGRADED_CIRCUIT_OPEN_PREFIX)
 
     async def test_circuit_open_not_persisted_to_raw_cache(self, cache):

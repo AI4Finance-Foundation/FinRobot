@@ -268,12 +268,14 @@ class TestDCFPipelineArtifact:
         assert artifact is not None
 
         params = artifact.assumptions.parameters
-        assert (
-            "wacc" in params or "risk_free_rate" in params
-        ), f"Expected WACC-related field in assumptions, got: {list(params.keys())}"
+        assert "wacc" in params or "risk_free_rate" in params, (
+            f"Expected WACC-related field in assumptions, got: {list(params.keys())}"
+        )
 
     @pytest.mark.asyncio
-    async def test_artifact_outputs_contain_implied_price(self, artifact_store: ArtifactStore) -> None:
+    async def test_artifact_outputs_contain_implied_price(
+        self, artifact_store: ArtifactStore
+    ) -> None:
         pipeline, deps = self._build_minimal_dcf_pipeline(artifact_store)
 
         result = await pipeline.execute(deps, "AAPL")

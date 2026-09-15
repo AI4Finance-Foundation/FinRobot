@@ -51,7 +51,9 @@ from finrobot.server import hydrate_settings_from_secrets
 BASKET = sys.argv[1:] or ["JPM", "GS", "BAC", "WFC", "KO", "AAPL", "MU"]
 
 
-async def _valuation_for(deps: FinRobotDeps, ticker: str) -> tuple[ValuationSynthesis | None, bool, list[str], DDMResult | None]:
+async def _valuation_for(
+    deps: FinRobotDeps, ticker: str
+) -> tuple[ValuationSynthesis | None, bool, list[str], DDMResult | None]:
     """Run the deterministic valuation prefix of equity_research for one ticker.
 
     Returns (valuation_synthesis, gate_withhold, ev_findings, ddm_result)."""
@@ -91,7 +93,9 @@ async def _valuation_for(deps: FinRobotDeps, ticker: str) -> tuple[ValuationSynt
     # numeric_audit gate (the EV blocked_field withhold lives here, separate from the
     # dial's own valuation_withheld). data_collection is the USD-normalized snapshot now.
     audit = audit_artifact(structured_context.get("data_collection"))  # type: ignore[arg-type]
-    ev_findings = [f.check for f in audit.findings if f.field_key in ("enterprise_value", "ev_ebitda")]
+    ev_findings = [
+        f.check for f in audit.findings if f.field_key in ("enterprise_value", "ev_ebitda")
+    ]
     return (
         vs if isinstance(vs, ValuationSynthesis) else None,
         audit.withhold_valuation,

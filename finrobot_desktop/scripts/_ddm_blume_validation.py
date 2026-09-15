@@ -67,11 +67,27 @@ from finrobot.server import hydrate_settings_from_secrets
 # (raises before beta even matters) — unaffected by the change.
 BASKET = sys.argv[1:] or [
     # likely β>1 (the names the fix targets)
-    "JPM", "GS", "MS", "BAC", "XOM", "CVX", "CAT", "MMM", "TXN", "QCOM",
+    "JPM",
+    "GS",
+    "MS",
+    "BAC",
+    "XOM",
+    "CVX",
+    "CAT",
+    "MMM",
+    "TXN",
+    "QCOM",
     # likely β≤1 (defensive — the safety control, must NOT move)
-    "KO", "PG", "JNJ", "SO", "DUK", "VZ", "MCD",
+    "KO",
+    "PG",
+    "JNJ",
+    "SO",
+    "DUK",
+    "VZ",
+    "MCD",
     # non-payers — DDM N/A, must stay N/A
-    "TSLA", "AMZN",
+    "TSLA",
+    "AMZN",
 ]
 
 
@@ -154,7 +170,9 @@ async def main() -> int:
             provider_beta_used = beta_source == "provider-reported 5y beta"
 
             beta_now = _clamp_ddm(raw_picked)
-            beta_fix = _clamp_ddm(adjust_beta_blume(raw_picked) if provider_beta_used else raw_picked)
+            beta_fix = _clamp_ddm(
+                adjust_beta_blume(raw_picked) if provider_beta_used else raw_picked
+            )
 
             # DCF beta for the SAME stock (already Blume-adjusted) — proves the gap.
             try:
@@ -209,7 +227,12 @@ async def main() -> int:
                 note = "‼ new degrade"
 
             # PILLAR 4 — β>1 direction: Blume lowers beta → value rises.
-            if provider_beta_used and raw_picked > 1.0 and math.isfinite(v_now) and math.isfinite(v_fix):
+            if (
+                provider_beta_used
+                and raw_picked > 1.0
+                and math.isfinite(v_now)
+                and math.isfinite(v_fix)
+            ):
                 if not (beta_fix < beta_now - 1e-9 and coe_fix < coe_now and v_fix > v_now - 1e-9):
                     failures.append(
                         f"{t}: β>1 wrong direction (β {beta_now}->{beta_fix}, val {v_now:.2f}->{v_fix:.2f})"

@@ -835,9 +835,7 @@ def test_select_latest_fact_revenue_prefers_total_on_same_period() -> None:
             ),
         }
     )
-    out = _select_latest_fact(
-        facts, _LATEST_REVENUE_CONCEPTS, annual=True, prefer_recent=True
-    )
+    out = _select_latest_fact(facts, _LATEST_REVENUE_CONCEPTS, annual=True, prefer_recent=True)
     assert out is not None
     assert out["concept"] == "us-gaap:Revenues"
     assert out["value"] == 77_084_000_000
@@ -865,9 +863,7 @@ def test_select_latest_fact_revenue_recency_beats_rank() -> None:
             ),
         }
     )
-    out = _select_latest_fact(
-        facts, _LATEST_REVENUE_CONCEPTS, annual=True, prefer_recent=True
-    )
+    out = _select_latest_fact(facts, _LATEST_REVENUE_CONCEPTS, annual=True, prefer_recent=True)
     assert out is not None
     assert out["value"] == 416_161_000_000
     assert "RevenueFromContractWithCustomer" in out["concept"]
@@ -1014,9 +1010,9 @@ async def test_xbrl_concept_snapshot_net_income_dual_key() -> None:
     snapshot = xbrl_concept_snapshot(raw_xbrl)
 
     # No bare us-gaap:NetIncomeLoss key — both records are disambiguated
-    assert (
-        "us-gaap:NetIncomeLoss" not in snapshot
-    ), "bare NetIncomeLoss key must not exist; use :annual/:ttm suffixes"
+    assert "us-gaap:NetIncomeLoss" not in snapshot, (
+        "bare NetIncomeLoss key must not exist; use :annual/:ttm suffixes"
+    )
     assert "us-gaap:NetIncomeLoss:ttm" in snapshot
     assert "us-gaap:NetIncomeLoss:annual" in snapshot
 
@@ -1826,16 +1822,40 @@ class TestCompanyfactsAnnualSeries:
                     "Revenues": {
                         "units": {
                             "USD": [
-                                _fact(start="2024-01-01", end="2024-12-31", val=70_000, fy=2024, filed="2025-02-19"),  # noqa: E501
-                                _fact(start="2025-01-01", end="2025-12-31", val=77_084, fy=2025, filed="2026-02-19"),  # noqa: E501
+                                _fact(
+                                    start="2024-01-01",
+                                    end="2024-12-31",
+                                    val=70_000,
+                                    fy=2024,
+                                    filed="2025-02-19",
+                                ),  # noqa: E501
+                                _fact(
+                                    start="2025-01-01",
+                                    end="2025-12-31",
+                                    val=77_084,
+                                    fy=2025,
+                                    filed="2026-02-19",
+                                ),  # noqa: E501
                             ]
                         }
                     },
                     "RevenueFromContractWithCustomerExcludingAssessedTax": {
                         "units": {
                             "USD": [
-                                _fact(start="2024-01-01", end="2024-12-31", val=2_300, fy=2024, filed="2025-02-19"),  # noqa: E501
-                                _fact(start="2025-01-01", end="2025-12-31", val=2_436, fy=2025, filed="2026-02-19"),  # noqa: E501
+                                _fact(
+                                    start="2024-01-01",
+                                    end="2024-12-31",
+                                    val=2_300,
+                                    fy=2024,
+                                    filed="2025-02-19",
+                                ),  # noqa: E501
+                                _fact(
+                                    start="2025-01-01",
+                                    end="2025-12-31",
+                                    val=2_436,
+                                    fy=2025,
+                                    filed="2026-02-19",
+                                ),  # noqa: E501
                             ]
                         }
                     },
@@ -1863,14 +1883,26 @@ class TestCompanyfactsAnnualSeries:
                     "Revenues": {
                         "units": {
                             "USD": [
-                                _fact(start="2017-10-01", end="2018-09-29", val=265_595, fy=2018, filed="2018-11-05"),  # noqa: E501
+                                _fact(
+                                    start="2017-10-01",
+                                    end="2018-09-29",
+                                    val=265_595,
+                                    fy=2018,
+                                    filed="2018-11-05",
+                                ),  # noqa: E501
                             ]
                         }
                     },
                     "RevenueFromContractWithCustomerExcludingAssessedTax": {
                         "units": {
                             "USD": [
-                                _fact(start="2024-10-01", end="2025-09-27", val=416_161, fy=2025, filed="2025-11-01"),  # noqa: E501
+                                _fact(
+                                    start="2024-10-01",
+                                    end="2025-09-27",
+                                    val=416_161,
+                                    fy=2025,
+                                    filed="2025-11-01",
+                                ),  # noqa: E501
                             ]
                         }
                     },

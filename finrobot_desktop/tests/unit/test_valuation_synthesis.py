@@ -216,7 +216,9 @@ class TestSynthesizeValuations:
         not comps_pe $53.51 (−32.6%). upside_downside tracks the published DCF anchor,
         never the blend ($72.68 / −8.5%) or the outlier; the full range still bounds the band."""
         methods = [
-            ValuationMethod(name="dcf", low=61.1, mid=76.32, high=91.6, confidence=0.85, source="D"),
+            ValuationMethod(
+                name="dcf", low=61.1, mid=76.32, high=91.6, confidence=0.85, source="D"
+            ),
             ValuationMethod(
                 name="comps_pe", low=48.2, mid=53.51, high=58.9, confidence=0.80, source="PE"
             ),
@@ -242,8 +244,12 @@ class TestSynthesizeValuations:
         outlier, comps_pe is mid → comps_pe kept)."""
         methods = [
             ValuationMethod(name="dcf", low=40, mid=50.0, high=60, confidence=0.85, source="D"),
-            ValuationMethod(name="comps_pe", low=70, mid=80.0, high=90, confidence=0.80, source="PE"),
-            ValuationMethod(name="ev_ebitda", low=75, mid=85.0, high=95, confidence=0.72, source="EV"),
+            ValuationMethod(
+                name="comps_pe", low=70, mid=80.0, high=90, confidence=0.80, source="PE"
+            ),
+            ValuationMethod(
+                name="ev_ebitda", low=75, mid=85.0, high=95, confidence=0.72, source="EV"
+            ),
         ]
         result = synthesize_valuations(methods, current_price=80.0)
         assert result.anchor_method == "comps_pe"
@@ -255,11 +261,17 @@ class TestSynthesizeValuations:
         rule, not flip to comps."""
         methods = [
             ValuationMethod(name="dcf", low=15, mid=18.9, high=23, confidence=0.85, source="D"),
-            ValuationMethod(name="comps_pb", low=40, mid=47.0, high=54, confidence=0.6, source="PB"),
-            ValuationMethod(name="ev_ebitda", low=41, mid=48.0, high=55, confidence=0.72, source="EV"),
+            ValuationMethod(
+                name="comps_pb", low=40, mid=47.0, high=54, confidence=0.6, source="PB"
+            ),
+            ValuationMethod(
+                name="ev_ebitda", low=41, mid=48.0, high=55, confidence=0.72, source="EV"
+            ),
         ]
         result = synthesize_valuations(methods, current_price=50.0, cyclical=True)
-        assert result.anchor_method == "dcf"  # cyclical → DCF anchor regardless of comps corroboration
+        assert (
+            result.anchor_method == "dcf"
+        )  # cyclical → DCF anchor regardless of comps corroboration
 
     def test_bimodal_lone_outlier_within_span_not_blended_aapl_2026_06_29(self):
         """AAPL v9: comps_pe $182.97 + dcf $189.27 cluster at ~$185 while ev_ebitda
@@ -338,13 +350,17 @@ class TestSynthesizeValuations:
         blended = synthesize_valuations(
             [
                 ValuationMethod(name="dcf", low=180, mid=200, high=220, confidence=0.5, source="d"),
-                ValuationMethod(name="comps", low=210, mid=230, high=250, confidence=0.5, source="c"),
+                ValuationMethod(
+                    name="comps", low=210, mid=230, high=250, confidence=0.5, source="c"
+                ),
             ],
             current_price=300.0,
         )
         anchored = synthesize_valuations(
             [
-                ValuationMethod(name="dcf", low=61.1, mid=76.32, high=91.6, confidence=0.85, source="D"),
+                ValuationMethod(
+                    name="dcf", low=61.1, mid=76.32, high=91.6, confidence=0.85, source="D"
+                ),
                 ValuationMethod(
                     name="comps_pe", low=48.2, mid=53.51, high=58.9, confidence=0.80, source="PE"
                 ),
@@ -360,7 +376,12 @@ class TestSynthesizeValuations:
                     name="dcf", low=151.72, mid=189.65, high=227.58, confidence=0.85, source="d"
                 ),
                 ValuationMethod(
-                    name="comps_pe", low=438.58, mid=487.31, high=536.04, confidence=0.55, source="c"
+                    name="comps_pe",
+                    low=438.58,
+                    mid=487.31,
+                    high=536.04,
+                    confidence=0.55,
+                    source="c",
                 ),
             ],
             current_price=425.0,
@@ -379,18 +400,30 @@ class TestSynthesizeValuations:
         # point the band design refuses must never re-enter via a desynced stored field).
         ri_above = synthesize_valuations(
             [
-                ValuationMethod(name="comps_pb", low=200, mid=235, high=270, confidence=0.5, source="pb"),
-                ValuationMethod(name="comps_pe", low=120, mid=134, high=150, confidence=0.5, source="pe"),
-                ValuationMethod(name="residual_income", low=87, mid=87, high=129, confidence=0.6, source="ri"),
+                ValuationMethod(
+                    name="comps_pb", low=200, mid=235, high=270, confidence=0.5, source="pb"
+                ),
+                ValuationMethod(
+                    name="comps_pe", low=120, mid=134, high=150, confidence=0.5, source="pe"
+                ),
+                ValuationMethod(
+                    name="residual_income", low=87, mid=87, high=129, confidence=0.6, source="ri"
+                ),
             ],
             current_price=146.0,
             financial_sector=True,
         )
         ri_below = synthesize_valuations(
             [
-                ValuationMethod(name="comps_pb", low=260, mid=280, high=300, confidence=0.5, source="pb"),
-                ValuationMethod(name="comps_pe", low=280, mid=300, high=320, confidence=0.5, source="pe"),
-                ValuationMethod(name="residual_income", low=250, mid=250, high=290, confidence=0.6, source="ri"),
+                ValuationMethod(
+                    name="comps_pb", low=260, mid=280, high=300, confidence=0.5, source="pb"
+                ),
+                ValuationMethod(
+                    name="comps_pe", low=280, mid=300, high=320, confidence=0.5, source="pe"
+                ),
+                ValuationMethod(
+                    name="residual_income", low=250, mid=250, high=290, confidence=0.6, source="ri"
+                ),
             ],
             current_price=220.0,
             financial_sector=True,
@@ -404,9 +437,15 @@ class TestSynthesizeValuations:
         # directional gap) — the band IS the refusal to claim one cycle-point value.
         ri_in = synthesize_valuations(
             [
-                ValuationMethod(name="comps_pb", low=280, mid=300, high=320, confidence=0.5, source="pb"),
-                ValuationMethod(name="comps_pe", low=290, mid=310, high=330, confidence=0.5, source="pe"),
-                ValuationMethod(name="residual_income", low=290, mid=290, high=340, confidence=0.6, source="ri"),
+                ValuationMethod(
+                    name="comps_pb", low=280, mid=300, high=320, confidence=0.5, source="pb"
+                ),
+                ValuationMethod(
+                    name="comps_pe", low=290, mid=310, high=330, confidence=0.5, source="pe"
+                ),
+                ValuationMethod(
+                    name="residual_income", low=290, mid=290, high=340, confidence=0.6, source="ri"
+                ),
             ],
             current_price=331.0,
             financial_sector=True,
@@ -486,10 +525,17 @@ class TestSynthesizeValuations:
                     name="DCF", low=mid * 0.9, mid=mid, high=mid * 1.1, confidence=0.6, source="DCF"
                 ),
                 ValuationMethod(
-                    name="Comps", low=mid * 0.92, mid=mid, high=mid * 1.08, confidence=0.4, source="Comps"
+                    name="Comps",
+                    low=mid * 0.92,
+                    mid=mid,
+                    high=mid * 1.08,
+                    confidence=0.4,
+                    source="Comps",
                 ),
             ]
-            note = (synthesize_valuations(methods, current_price=price).degradation_note or "").lower()
+            note = (
+                synthesize_valuations(methods, current_price=price).degradation_note or ""
+            ).lower()
             assert "calibration band" in note  # the size-of-gap breach IS disclosed
             assert "option value" not in note  # …but its NATURE is never claimed here
             assert "optionality" not in note
@@ -746,7 +792,9 @@ class TestResolveCanonicalThesis:
         still a directional BUY. Mirrors the RI-band path and pins
         synthesize_valuations.upside_downside == the canonical upside."""
         methods = [
-            ValuationMethod(name="dcf", low=1038, mid=1297, high=1557, confidence=0.85, source="DCF"),
+            ValuationMethod(
+                name="dcf", low=1038, mid=1297, high=1557, confidence=0.85, source="DCF"
+            ),
             ValuationMethod(
                 name="ev_ebitda", low=1086, mid=1358, high=1630, confidence=0.72, source="EV"
             ),
@@ -1004,9 +1052,9 @@ class TestConfidenceDial:
         for methods, price, cyc in cases:
             vs = synthesize_valuations(methods, price, cyclical=cyc)
             names = [m.name for m in methods]
-            assert (
-                vs.target_low is not None and vs.target_high is not None
-            ), f"dial blanked the range for {names} @ {price} (withheld={vs.valuation_withheld})"
+            assert vs.target_low is not None and vs.target_high is not None, (
+                f"dial blanked the range for {names} @ {price} (withheld={vs.valuation_withheld})"
+            )
             assert vs.target_high >= vs.target_low
 
 
@@ -1080,9 +1128,7 @@ class TestReratingDominanceGate:
     SELL/deep-value BUY has near-zero blend-vs-DCF displacement and never trips."""
 
     @staticmethod
-    def _m(
-        name: str, mid: float, conf: float, rerating: float | None = None
-    ) -> ValuationMethod:
+    def _m(name: str, mid: float, conf: float, rerating: float | None = None) -> ValuationMethod:
         return ValuationMethod(
             name=name,
             low=mid * 0.9,

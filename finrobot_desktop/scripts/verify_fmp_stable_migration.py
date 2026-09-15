@@ -230,7 +230,7 @@ async def main() -> int:
             if path == "/shares-float":
                 shares = row.get("outstandingShares")
                 if isinstance(shares, (int, float)) and 13e9 < shares < 17e9:
-                    print(f"  ✓ AAPL outstandingShares={shares/1e9:.2f}B(14-15B 外部基准域)")
+                    print(f"  ✓ AAPL outstandingShares={shares / 1e9:.2f}B(14-15B 外部基准域)")
                 elif shares is not None:
                     print(f"  ✗ AAPL outstandingShares={shares} 偏离外部基准 14-15B 域,核口径")
                     failures += 1

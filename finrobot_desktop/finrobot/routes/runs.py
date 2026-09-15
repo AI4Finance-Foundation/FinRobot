@@ -18,6 +18,7 @@ from starlette.responses import StreamingResponse
 from finrobot.engine.data.interface import ProviderError
 from finrobot.engine.data.ticker import validate_ticker
 from finrobot.llm_probe import LlmProbeGate
+
 # registry is import-cheap by design (lazy per-pipeline factory via importlib —
 # see its module docstring), so this does NOT pull the pydantic_ai stack onto the
 # cold-start path; only pipelines.base (Pipeline/PipelineResult, below) does, and

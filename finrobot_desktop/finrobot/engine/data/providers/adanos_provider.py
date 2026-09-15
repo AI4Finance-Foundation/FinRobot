@@ -125,9 +125,7 @@ class AdanosProvider(DataProvider):
                 if isinstance(r, BaseException)
             )
             if all(is_rate_limit_error(e) for e in errors):
-                raise RateLimitedProviderError(
-                    f"Adanos rate limited on all platforms — {detail}"
-                )
+                raise RateLimitedProviderError(f"Adanos rate limited on all platforms — {detail}")
             raise ProviderError(f"Adanos unavailable on all platforms — {detail}")
 
         sources: list[dict[str, Any]] = []

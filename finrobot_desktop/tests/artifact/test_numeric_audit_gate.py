@@ -178,7 +178,11 @@ def test_synthesis_dial_withhold_sets_top_level_flag_like_numeric_audit():
     # gate (_assert_price_snapshot_coherent) rejects a synthesis price that trails
     # the market block, so the mock must keep them coherent.
     vs = synthesize_valuations(
-        [ValuationMethod(name="comps_pb", low=3.92, mid=4.61, high=5.30, confidence=0.6, source="PB")],
+        [
+            ValuationMethod(
+                name="comps_pb", low=3.92, mid=4.61, high=5.30, confidence=0.6, source="PB"
+            )
+        ],
         current_price=100.0,
     )
     assert vs.valuation_withheld is True  # precondition: the dial withheld

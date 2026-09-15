@@ -61,9 +61,9 @@ def test_ic_memo_financials_step_uses_seed_lbo_inputs():
     src = (REPO_ROOT / "finrobot" / "engine" / "pipelines" / "ic_memo.py").read_text()
 
     func_marker = "async def _execute_ic_financials("
-    assert (
-        func_marker in src
-    ), "_execute_ic_financials function missing from ic_memo.py — did you rename it?"
+    assert func_marker in src, (
+        "_execute_ic_financials function missing from ic_memo.py — did you rename it?"
+    )
     start = src.index(func_marker)
     next_func = src.find("\nasync def ", start + 1)
     if next_func == -1:
@@ -72,9 +72,9 @@ def test_ic_memo_financials_step_uses_seed_lbo_inputs():
         next_func = len(src)
     body = src[start:next_func]
 
-    assert (
-        "seed_lbo_inputs" in body
-    ), "_execute_ic_financials must call seed_lbo_inputs() to construct LBOInputs."
+    assert "seed_lbo_inputs" in body, (
+        "_execute_ic_financials must call seed_lbo_inputs() to construct LBOInputs."
+    )
 
     body_no_docstring = re.sub(r'"""[\s\S]*?"""', "", body, count=1)
     banned = {
@@ -100,9 +100,9 @@ def test_lbo_pipeline_uses_seed_lbo_inputs():
     src = (REPO_ROOT / "finrobot" / "engine" / "pipelines" / "lbo.py").read_text()
 
     func_marker = "async def _execute_lbo_params("
-    assert (
-        func_marker in src
-    ), "_execute_lbo_params function missing from pipelines/lbo.py — did you rename it?"
+    assert func_marker in src, (
+        "_execute_lbo_params function missing from pipelines/lbo.py — did you rename it?"
+    )
 
     start = src.index(func_marker)
     next_func = src.find("\nasync def ", start + 1)

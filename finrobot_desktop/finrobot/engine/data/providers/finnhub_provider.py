@@ -98,9 +98,7 @@ class FinnhubProvider(DataProvider):
             httpx.ReadError,
             httpx.WriteError,
         ) as e:
-            raise ProviderError(
-                f"Finnhub network error for '{ticker}' ({type(e).__name__})"
-            ) from e
+            raise ProviderError(f"Finnhub network error for '{ticker}' ({type(e).__name__})") from e
         except ProviderError:
             raise
         except (ValueError, KeyError, TypeError, AttributeError) as e:

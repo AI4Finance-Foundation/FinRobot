@@ -98,19 +98,18 @@ def test_ddm_params_step_uses_seed_not_llm() -> None:
     src = (REPO_ROOT / "finrobot" / "engine" / "pipelines" / "ddm.py").read_text()
 
     # The deterministic executor must exist and be wired into the step.
-    assert (
-        "async def _execute_ddm_seed(" in src
-    ), "_execute_ddm_seed missing from pipelines/ddm.py — did you rename it?"
-    assert (
-        "executor=_execute_ddm_seed" in src
-    ), "ddm_params step must use executor=_execute_ddm_seed."
+    assert "async def _execute_ddm_seed(" in src, (
+        "_execute_ddm_seed missing from pipelines/ddm.py — did you rename it?"
+    )
+    assert "executor=_execute_ddm_seed" in src, (
+        "ddm_params step must use executor=_execute_ddm_seed."
+    )
     assert "seed_ddm_inputs" in src, "pipelines/ddm.py must call seed_ddm_inputs()."
 
     # The banned LLM-selects-numbers path must be fully gone.
     banned = {
         "_execute_ddm_params": (
-            "_execute_ddm_params is the removed LLM-picks-DDM-numbers executor. "
-            "It must not return."
+            "_execute_ddm_params is the removed LLM-picks-DDM-numbers executor. It must not return."
         ),
         "output_type=DDMInputs": (
             "Agent(output_type=DDMInputs) makes the LLM produce DDM parameters — "

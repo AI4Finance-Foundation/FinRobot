@@ -449,7 +449,15 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         try:
             index = await warm_symbol_index(settings.sec_user_agent)
             logger.info("Symbol autocomplete index warmed: %d symbols", len(index.entries))
-        except (OSError, RuntimeError, ValueError, TypeError, KeyError, ImportError, AttributeError):
+        except (
+            OSError,
+            RuntimeError,
+            ValueError,
+            TypeError,
+            KeyError,
+            ImportError,
+            AttributeError,
+        ):
             # warm_symbol_index degrades internally and is contracted never to raise;
             # this enumerates the concrete modes a regression could still leak (disk,
             # async/loop, malformed SEC payload, lazy import) so a warmup blip never
@@ -1325,7 +1333,9 @@ async def chat(request: Request) -> Response:
                 status_code=503,
             )
         return JSONResponse(
-            content={"detail": "AI engine unavailable — re-check your model / API key in Settings."},
+            content={
+                "detail": "AI engine unavailable — re-check your model / API key in Settings."
+            },
             status_code=503,
         )
 

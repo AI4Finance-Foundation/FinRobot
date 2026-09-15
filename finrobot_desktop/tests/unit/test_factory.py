@@ -23,9 +23,7 @@ async def test_shutdown_data_layer_closes_process_singletons(
     async def _fake_sec() -> None:
         calls.append("sec")
 
-    monkeypatch.setattr(
-        "finrobot.engine.data.quote_batch.close_quote_cache_singleton", _fake_quote
-    )
+    monkeypatch.setattr("finrobot.engine.data.quote_batch.close_quote_cache_singleton", _fake_quote)
     monkeypatch.setattr("finrobot.engine.data.sec_holdings_cache.close_singleton", _fake_sec)
 
     await factory.shutdown_data_layer(None)

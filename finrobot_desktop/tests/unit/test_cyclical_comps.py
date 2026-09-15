@@ -396,7 +396,10 @@ class TestThroughCycleRoe:
     def test_non_positive_equity_year_skipped(self):
         # Only a non-positive-equity year (undefined ratio) is skipped; here that drops
         # the sample below min_years → None (can't trust a sub-cycle window).
-        assert through_cycle_roe([10.0, 12.0, 8.0, 15.0, 20.0, 9.0], [100, 0, -50, 100, 100, 100]) is None
+        assert (
+            through_cycle_roe([10.0, 12.0, 8.0, 15.0, 20.0, 9.0], [100, 0, -50, 100, 100, 100])
+            is None
+        )
 
     def test_min_years_guard(self):
         # 4 valid years < default 5 → None (window doesn't span a cycle).

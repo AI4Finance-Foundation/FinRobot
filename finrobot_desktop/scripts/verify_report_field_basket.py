@@ -281,9 +281,12 @@ def _compare(
             ),
             needs_human=True,
         )
-    if path == "b" and field == "shares_outstanding" and _anchor_is_stale(
-        as_of, _SHARES_ANCHOR_MAX_AGE
-    ) and rel > tol:
+    if (
+        path == "b"
+        and field == "shares_outstanding"
+        and _anchor_is_stale(as_of, _SHARES_ANCHOR_MAX_AGE)
+        and rel > tol
+    ):
         as_of_text = as_of.date().isoformat() if as_of else "missing"
         return FieldRow(
             ticker,

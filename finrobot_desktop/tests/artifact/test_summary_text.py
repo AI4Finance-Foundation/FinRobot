@@ -64,9 +64,7 @@ def test_calc_step_wins_llm_narrative_not_surfaced() -> None:
 def test_narrative_is_fallback_when_calc_step_missing() -> None:
     # If the deterministic calc step is empty/missing, fall back to the next
     # priority step (the LLM narrative) rather than the generic report dump.
-    summary = _summary_text(
-        _result(with_calc=False), {}, cast(Any, None), summary_steps=_STEPS
-    )
+    summary = _summary_text(_result(with_calc=False), {}, cast(Any, None), summary_steps=_STEPS)
     assert "Equity Research Report" in summary
     assert "# FinRobot Analysis Report" not in summary
 

@@ -519,10 +519,16 @@ class TestResidualDominatedAttribution:
     def test_residual_dominated_move_does_not_lead_with_minor_driver(self) -> None:
         # Big revenue re-basing (not re-priceable → residual) + a small WACC move.
         a = _equity_artifact(
-            "art_v1", _inputs(beta=1.10, revenue_base=394e9), recommendation="BUY", current_price=170.0
+            "art_v1",
+            _inputs(beta=1.10, revenue_base=394e9),
+            recommendation="BUY",
+            current_price=170.0,
         )
         b = _equity_artifact(
-            "art_v2", _inputs(beta=1.16, revenue_base=520e9), recommendation="BUY", current_price=170.0
+            "art_v2",
+            _inputs(beta=1.16, revenue_base=520e9),
+            recommendation="BUY",
+            current_price=170.0,
         )
         attr = build_semantic_delta(a, b).attribution
         assert attr.available is True
@@ -537,8 +543,12 @@ class TestResidualDominatedAttribution:
 
     def test_genuine_single_driver_still_leads_with_it(self) -> None:
         # Only beta (→ WACC) moves → WACC explains ~all of it → keep "driven by".
-        a = _equity_artifact("art_v1", _inputs(beta=1.10), recommendation="BUY", current_price=170.0)
-        b = _equity_artifact("art_v2", _inputs(beta=1.50), recommendation="BUY", current_price=170.0)
+        a = _equity_artifact(
+            "art_v1", _inputs(beta=1.10), recommendation="BUY", current_price=170.0
+        )
+        b = _equity_artifact(
+            "art_v2", _inputs(beta=1.50), recommendation="BUY", current_price=170.0
+        )
         attr = build_semantic_delta(a, b).attribution
         assert "driven by" in attr.summary_en
         assert "主因" in attr.summary_zh
@@ -552,11 +562,17 @@ class TestMethodSetChange:
 
     def test_added_method_flagged(self) -> None:
         a = _equity_artifact(
-            "art_v1", _inputs(), recommendation="SELL", current_price=296.0,
+            "art_v1",
+            _inputs(),
+            recommendation="SELL",
+            current_price=296.0,
             method_mids={"dcf": 190.0, "comps_pe": 200.0},
         )
         b = _equity_artifact(
-            "art_v2", _inputs(), recommendation="SELL", current_price=296.0,
+            "art_v2",
+            _inputs(),
+            recommendation="SELL",
+            current_price=296.0,
             method_mids={"dcf": 190.0, "comps_pe": 202.0, "ev_ebitda": 265.0},
         )
         delta = build_semantic_delta(a, b)
@@ -568,11 +584,17 @@ class TestMethodSetChange:
 
     def test_same_method_set_no_flag(self) -> None:
         a = _equity_artifact(
-            "art_v1", _inputs(), recommendation="SELL", current_price=296.0,
+            "art_v1",
+            _inputs(),
+            recommendation="SELL",
+            current_price=296.0,
             method_mids={"dcf": 190.0, "comps_pe": 200.0},
         )
         b = _equity_artifact(
-            "art_v2", _inputs(), recommendation="SELL", current_price=296.0,
+            "art_v2",
+            _inputs(),
+            recommendation="SELL",
+            current_price=296.0,
             method_mids={"dcf": 190.0, "comps_pe": 200.0},
         )
         delta = build_semantic_delta(a, b)
@@ -597,5 +619,7 @@ class TestMaterialChange:
 
     def test_rating_flip_is_material(self) -> None:
         a = _equity_artifact("art_v1", _inputs(beta=1.1), recommendation="BUY", current_price=170.0)
-        b = _equity_artifact("art_v2", _inputs(beta=1.1), recommendation="SELL", current_price=170.0)
+        b = _equity_artifact(
+            "art_v2", _inputs(beta=1.1), recommendation="SELL", current_price=170.0
+        )
         assert build_semantic_delta(a, b).material_change is True

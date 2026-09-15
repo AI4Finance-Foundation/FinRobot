@@ -69,11 +69,13 @@ def test_roe_equals_coe_is_worth_book() -> None:
 
 def test_missing_roe_or_book_raises() -> None:
     with pytest.raises(ValueError):
-        calculate_residual_income(_inputs(bvps=50.0, roe=0.10, beta=1.0).model_copy(
-            update={"return_on_equity": None}))
+        calculate_residual_income(
+            _inputs(bvps=50.0, roe=0.10, beta=1.0).model_copy(update={"return_on_equity": None})
+        )
     with pytest.raises(ValueError):
-        calculate_residual_income(_inputs(bvps=50.0, roe=0.10, beta=1.0).model_copy(
-            update={"book_value_per_share": None}))
+        calculate_residual_income(
+            _inputs(bvps=50.0, roe=0.10, beta=1.0).model_copy(update={"book_value_per_share": None})
+        )
 
 
 def test_sub_floor_spread_raises() -> None:

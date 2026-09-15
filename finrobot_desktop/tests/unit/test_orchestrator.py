@@ -125,17 +125,17 @@ class TestCreateLeadAgent:
         specs = iter_pipeline_specs()
         assert specs, "registry returned no pipeline specs"
         for spec in specs:
-            assert (
-                spec.tool_name in tools
-            ), f"pipeline spec {spec.key!r} has no registered tool {spec.tool_name!r}"
+            assert spec.tool_name in tools, (
+                f"pipeline spec {spec.key!r} has no registered tool {spec.tool_name!r}"
+            )
             tool = tools[spec.tool_name]
-            assert (
-                tool.description and tool.description.strip()
-            ), f"tool {spec.tool_name!r} has an empty description"
+            assert tool.description and tool.description.strip(), (
+                f"tool {spec.tool_name!r} has an empty description"
+            )
             # Carried verbatim from the spec (which holds the original docstring).
-            assert (
-                tool.description == spec.tool_description
-            ), f"tool {spec.tool_name!r} description drifted from its spec"
+            assert tool.description == spec.tool_description, (
+                f"tool {spec.tool_name!r} description drifted from its spec"
+            )
 
     def test_ic_memo_spec_maps_to_hyphenless_tool_name(self):
         """The 'ic-memo' key has a hyphen; its tool name must be run_ic_memo

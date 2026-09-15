@@ -116,8 +116,7 @@ class KeychainSecretStore(SecretStore):
             # saved strands the user with a config that dies on next boot. The
             # message carries the key name and backend error, never the value.
             raise SecretStoreError(
-                f"Failed to store secret '{key}' in the OS keychain "
-                f"({type(exc).__name__}: {exc})"
+                f"Failed to store secret '{key}' in the OS keychain ({type(exc).__name__}: {exc})"
             ) from exc
 
     async def delete(self, key: str) -> None:

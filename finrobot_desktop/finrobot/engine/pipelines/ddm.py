@@ -166,7 +166,10 @@ async def _execute_ddm_seed(
     )
     if bvps_note is not None:
         _fin = _fin.model_copy(
-            update={"book_value_per_share": reconciled_bvps, "warnings": [*_fin.warnings, bvps_note]}
+            update={
+                "book_value_per_share": reconciled_bvps,
+                "warnings": [*_fin.warnings, bvps_note],
+            }
         )
 
     # Write the USD-normalized snapshot BACK so build_ddm_artifact's raw_data

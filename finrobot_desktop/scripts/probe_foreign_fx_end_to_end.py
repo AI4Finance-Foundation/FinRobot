@@ -48,10 +48,11 @@ async def main() -> None:
             )
         except asyncio.TimeoutError:
             print(
-                f"[{TICKER}] !!! FINANCIALS fetch HUNG >90s — data-fetch is the hang source", flush=True
+                f"[{TICKER}] !!! FINANCIALS fetch HUNG >90s — data-fetch is the hang source",
+                flush=True,
             )
             return
-        print(f"[{TICKER}] FINANCIALS ok in {time.monotonic()-t0:.1f}s", flush=True)
+        print(f"[{TICKER}] FINANCIALS ok in {time.monotonic() - t0:.1f}s", flush=True)
 
         t0 = time.monotonic()
         try:
@@ -61,7 +62,7 @@ async def main() -> None:
         except asyncio.TimeoutError:
             print(f"[{TICKER}] !!! PRICE fetch HUNG >90s", flush=True)
             return
-        print(f"[{TICKER}] PRICE ok in {time.monotonic()-t0:.1f}s", flush=True)
+        print(f"[{TICKER}] PRICE ok in {time.monotonic() - t0:.1f}s", flush=True)
 
         fd = extract_financial_data(fin, price)
         print("\n=== RAW (pre-pipeline-FX-normalize) ===", flush=True)
@@ -153,7 +154,7 @@ async def main() -> None:
                 print(f"  implied/current ratio = {r:.3f} → {verdict}", flush=True)
         else:
             print(
-                f"  financial_modeling = {type(dcf).__name__} (DCF degraded; warnings={getattr(out,'warnings',None)})",
+                f"  financial_modeling = {type(dcf).__name__} (DCF degraded; warnings={getattr(out, 'warnings', None)})",
                 flush=True,
             )
         print(f"\n  warnings: {getattr(out, 'warnings', None)}", flush=True)

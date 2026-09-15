@@ -221,9 +221,7 @@ async def test_dcf_calc_degrades_for_financial_sector_issuer():
         timestamp=datetime.now(tz=timezone.utc),
     )
 
-    out = await _execute_dcf_calc(
-        MagicMock(), MagicMock(), "", {"historical_data": bank_fd}, "JPM"
-    )
+    out = await _execute_dcf_calc(MagicMock(), MagicMock(), "", {"historical_data": bank_fd}, "JPM")
 
     # No DCFResult — the meaningless implied price is never produced…
     assert out.structured is None

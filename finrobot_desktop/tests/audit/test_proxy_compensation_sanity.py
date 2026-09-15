@@ -118,11 +118,7 @@ def test_no_ceo_keyword_near_dollar_returns_none_for_comp() -> None:
 
 def test_explicit_ceo_total_comp_line_accepted() -> None:
     """Standard NEO table line format is accepted."""
-    text = (
-        "Sundar Pichai\n"
-        "CEO Total Compensation $74,250,000\n"
-        "The CEO pay ratio was 833 to 1.\n"
-    )
+    text = "Sundar Pichai\nCEO Total Compensation $74,250,000\nThe CEO pay ratio was 833 to 1.\n"
     proxy = build_proxy_compensation(_proxy(text))
     assert proxy is not None
     assert proxy.ceo_total_compensation == 74_250_000.0
@@ -169,8 +165,7 @@ def test_all_blacklist_words_are_rejected() -> None:
     """Every word in the blacklist must not survive as a ceo_name by itself."""
     for word in _CEO_NAME_BLACKLIST:
         text = (
-            f"{word} received CEO total compensation of $50,000,000. "
-            "The CEO pay ratio is 400 to 1."
+            f"{word} received CEO total compensation of $50,000,000. The CEO pay ratio is 400 to 1."
         )
         proxy = build_proxy_compensation(_proxy(text))
         if proxy is not None:

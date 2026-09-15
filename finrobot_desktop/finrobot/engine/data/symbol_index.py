@@ -135,9 +135,7 @@ class SymbolIndex:
         except ValueError:
             pass
         q_word = q.strip().lower()
-        exact_bonus = (
-            _EXACT_MATCH_RANK_BONUS if len(q_norm) >= _EXACT_BONUS_MIN_QUERY_LEN else 0
-        )
+        exact_bonus = _EXACT_MATCH_RANK_BONUS if len(q_norm) >= _EXACT_BONUS_MIN_QUERY_LEN else 0
 
         scored: list[tuple[int, str]] = []  # (score, symbol); lower score ranks first
         for e in self.entries:
@@ -153,9 +151,7 @@ class SymbolIndex:
 
 
 def _name_words(name: str) -> tuple[str, ...]:
-    return tuple(
-        w for w in _WORD_SPLIT_RE.split(name.lower()) if w and w not in _NAME_STOPWORDS
-    )
+    return tuple(w for w in _WORD_SPLIT_RE.split(name.lower()) if w and w not in _NAME_STOPWORDS)
 
 
 def build_index_from_payload(payload: Any) -> SymbolIndex:

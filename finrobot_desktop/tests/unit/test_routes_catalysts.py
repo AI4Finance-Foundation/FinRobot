@@ -68,7 +68,10 @@ async def test_catalysts_returns_ranked_events_filtering_sub_threshold(app_with_
     app = app_with_deps
     with (
         patch("finrobot.routes.data.fetch_news", new=AsyncMock(return_value=_raw())),
-        patch("finrobot.engine.analysis.news_classifier.classify_news", new=AsyncMock(return_value=_classified())),
+        patch(
+            "finrobot.engine.analysis.news_classifier.classify_news",
+            new=AsyncMock(return_value=_classified()),
+        ),
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:

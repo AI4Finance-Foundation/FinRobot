@@ -169,11 +169,11 @@ async def main() -> int:
                     f"  → op_margin THROUGH-CYCLE ({len(vals)}y): mean={full_mean:.1%} "
                     f"median={full_med:.1%}  |  LAST-3Y median={l3_med:.1%}  |  "
                     f"peak={max(vals):.1%} trough={min(vals):.1%} "
-                    f"spread={max(vals)-min(vals):.0%}pts"
+                    f"spread={max(vals) - min(vals):.0%}pts"
                 )
                 if l3_med != 0:
                     print(
-                        f"     last-3y vs through-cycle median ratio: {l3_med/full_med:.2f}x"
+                        f"     last-3y vs through-cycle median ratio: {l3_med / full_med:.2f}x"
                         if full_med
                         else ""
                     )

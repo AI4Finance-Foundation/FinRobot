@@ -502,7 +502,9 @@ class FMPProvider(DataProvider):
                         "dividend_per_share / payout_ratio / dividend_yield omitted"
                     )
                 try:
-                    km_rows = (await self._get("/key-metrics-ttm", params={"symbol": ticker})).json()
+                    km_rows = (
+                        await self._get("/key-metrics-ttm", params={"symbol": ticker})
+                    ).json()
                     if isinstance(km_rows, list) and km_rows:
                         key_metrics_ttm = km_rows[0]
                 except (httpx.HTTPError, ProviderError) as exc:

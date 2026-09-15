@@ -497,8 +497,7 @@ def _attribution_summary(
     attributed = sum(it.contribution for it in items)
     if abs(total) > _EPS and abs(attributed) < abs(total) * _MATERIAL_DRIVER_FRACTION:
         return (
-            f"公允价值变化 {fmt_total}，主要来自交互项与数据重估；"
-            f"模型假设变化甚微：{parts_zh}。",
+            f"公允价值变化 {fmt_total}，主要来自交互项与数据重估；模型假设变化甚微：{parts_zh}。",
             f"Fair value moved {fmt_total}, mostly interaction terms and data "
             f"re-basing; model assumptions barely moved ({parts_en}).",
         )
@@ -516,8 +515,7 @@ def _attribution_summary(
     )
     return (
         f"公允价值变化 {fmt_total}，主因 {parts_zh}{resid_zh}。",
-        f"Fair value moved {fmt_total}, "
-        f"driven by {parts_en}{resid_en}.",
+        f"Fair value moved {fmt_total}, driven by {parts_en}{resid_en}.",
     )
 
 

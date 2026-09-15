@@ -118,6 +118,7 @@ def through_cycle_roe(
         return None
     return sum(roes) / len(roes)
 
+
 _COMPS_MIN_MULTIPLE_SAMPLE = 3
 """Minimum surviving peers behind a multiple median before it may price the
 target. NM caps / sanity bounds / missing consensus thin the contributing set
@@ -161,9 +162,7 @@ re-rating is large enough to also flag in the warnings section. Symmetric — fi
 upward re-rate (ratio > 1.25) and a downward de-rate (ratio < 0.75) alike. NOT a financial
 calibration; moving it re-rates no target and drops no row."""
 
-RERATING_WARNING_MARKER: Final[str] = (
-    "judge independently whether that multiple shift is warranted"
-)
+RERATING_WARNING_MARKER: Final[str] = "judge independently whether that multiple shift is warranted"
 """Stable tail every re-rating warning ends with. _helpers.build_valuation_synthesis
 matches on THIS constant to forward these warnings into ValuationSynthesis.warnings
 (the report's warnings section). Single source: reword the warning text only through
@@ -596,7 +595,9 @@ def _comps_pe_method(
             caliber = "forward EPS (peer forward P/E, same caliber)"
             confidence = 0.80
             used_sample_n = peer_comps.forward_pe_sample_n
-            rerating_pe_kind = "forward P/E"  # peer FORWARD median vs self forward P/E — one caliber
+            rerating_pe_kind = (
+                "forward P/E"  # peer FORWARD median vs self forward P/E — one caliber
+            )
         elif peer_comps.median_pe is not None and peer_comps.median_pe > 0:
             refusal = _comps_median_refusal(
                 peer_comps.median_pe,
@@ -792,7 +793,9 @@ def _comps_pb_method(
             raw_scale = tgt_roe / peer_roe
             scale = max(1.0 / _TCROE_SCALE_CAP, min(_TCROE_SCALE_CAP, raw_scale))
             effective_pb = median_pb * scale
-            clamp_note = f" (clamped from {raw_scale:.2f}×)" if abs(scale - raw_scale) > 1e-9 else ""
+            clamp_note = (
+                f" (clamped from {raw_scale:.2f}×)" if abs(scale - raw_scale) > 1e-9 else ""
+            )
             roe_note = (
                 f"; ROE-adjusted ×{scale:.2f}{clamp_note} (through-cycle ROE {tgt_roe:.1%} "
                 f"÷ peer-median {peer_roe:.1%})"
@@ -851,7 +854,9 @@ def _ri_method(ri: RIResult | None) -> ValuationMethodRange | None:
     if ri is None or ri.equity_value_per_share <= 0:
         return None
     trailing = ri.equity_value_per_share
-    forward = ri.forward_value if (ri.forward_value is not None and ri.forward_value > 0) else trailing
+    forward = (
+        ri.forward_value if (ri.forward_value is not None and ri.forward_value > 0) else trailing
+    )
     lo, hi = sorted((trailing, forward))
     # Band = [RI at trailing ROE (our realized return — the independent low end), RI at
     # forward consensus ROE (the recovery boundary)], widened to a MINIMUM of the standard
@@ -1001,13 +1006,7 @@ def _ev_ebitda_method(
     warnings: list[str] | None = None,
     current_price: float | None = None,
 ) -> ValuationMethodRange | None:
-    if (
-        ttm_ebitda is None
-        or ttm_ebitda <= 0
-        or band is None
-        or shares is None
-        or shares <= 0
-    ):
+    if ttm_ebitda is None or ttm_ebitda <= 0 or band is None or shares is None or shares <= 0:
         return None
     # EV/EBITDA is a CURRENT relative-multiple method, so the EV→equity bridge
     # MUST subtract CURRENT net debt (total_debt − cash, same口径 as dcf_seed).

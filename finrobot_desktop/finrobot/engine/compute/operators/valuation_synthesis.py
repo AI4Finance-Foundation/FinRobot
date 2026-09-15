@@ -332,11 +332,20 @@ def _confidence_dial(
             # anchor to the corroborated DCF cash-flow value so the headline isn't a −33%
             # outlier. Cyclicals are EXEMPT — their DCF/PB anchor is intentional even as an
             # outlier (peak-EPS comps are the unreliable side there).
-            if not cyclical and anchor is not None and anchor.name.startswith("comps") and len(methods) >= 3:
+            if (
+                not cyclical
+                and anchor is not None
+                and anchor.name.startswith("comps")
+                and len(methods) >= 3
+            ):
                 dcf = next((m for m in methods if m.name == "dcf"), None)
                 rest = [m.mid for m in methods if m is not anchor]
                 rest_span = (max(rest) / min(rest)) if rest and min(rest) > 0 else float("inf")
-                if dcf is not None and anchor.mid in (lo, hi) and rest_span <= _DIAL_CORROBORATE_SPAN:
+                if (
+                    dcf is not None
+                    and anchor.mid in (lo, hi)
+                    and rest_span <= _DIAL_CORROBORATE_SPAN
+                ):
                     reanchored_from = anchor
                     anchor = dcf
             anchor_name = anchor.name if anchor else None

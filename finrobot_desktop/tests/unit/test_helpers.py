@@ -213,9 +213,9 @@ async def test_historical_metrics_injected_into_structured_context():
     # DCF / LBO / technical steps). The legacy "forecast" intermediate was dead
     # (written, never read — a vestige of the removed chart layer) and has been
     # dropped, so it must NOT reappear here.
-    assert (
-        "historical_metrics" in structured_context
-    ), f"Missing historical_metrics. Keys: {list(structured_context.keys())}"
+    assert "historical_metrics" in structured_context, (
+        f"Missing historical_metrics. Keys: {list(structured_context.keys())}"
+    )
     from finrobot.engine.models.financial import HistoricalMetrics
 
     hm = structured_context["historical_metrics"]

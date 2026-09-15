@@ -605,9 +605,7 @@ class TestClassifyNews:
         mock_deps.settings.model_name = "test-model"
 
         with (
-            patch(
-                "finrobot.engine.analysis.news_classifier.PydanticAgent"
-            ) as MockAgent,
+            patch("finrobot.engine.analysis.news_classifier.PydanticAgent") as MockAgent,
             patch("finrobot.engine.analysis.news_classifier.logger") as mock_logger,
         ):
             mock_agent_instance = AsyncMock()

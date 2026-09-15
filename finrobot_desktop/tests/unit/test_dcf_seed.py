@@ -852,9 +852,7 @@ class TestRevenueBaseNtmCaliber:
             update={"income": fin.income.model_copy(update={"revenue": 451_400_000_000})}
         )
         hist = _aapl_historical().model_copy(
-            update={
-                "revenue": [365_817_000_000, 394_328_000_000, 383_285_000_000, 416_200_000_000]
-            }
+            update={"revenue": [365_817_000_000, 394_328_000_000, 383_285_000_000, 416_200_000_000]}
         )
         return fin, hist
 
@@ -893,7 +891,9 @@ class TestRevenueBaseNtmCaliber:
         # ABOVE the current run-rate — never the last-FY × capped-rate collapse below
         # it ($37B × 1.40 = $52B ≪ the $90B run-rate).
         fin = _aapl_financials().model_copy(
-            update={"income": _aapl_financials().income.model_copy(update={"revenue": 90_000_000_000})}
+            update={
+                "income": _aapl_financials().income.model_copy(update={"revenue": 90_000_000_000})
+            }
         )
         hist = _aapl_historical().model_copy(
             update={"revenue": [15_500_000_000, 25_100_000_000, 30_800_000_000, 37_000_000_000]}
@@ -1109,7 +1109,10 @@ class TestNwcClampDegradation:
         prov = inputs.assumption_provenance["nwc_pct_revenue"]
         assert "ran 13.0% of revenue" in prov
         assert "too high to be a sustainable, ongoing drag" in prov
-        assert "marginal NWC ratio, 26.0% of each new revenue dollar, applied to the 2.0% average growth rate" in prov
+        assert (
+            "marginal NWC ratio, 26.0% of each new revenue dollar, applied to the 2.0% average growth rate"
+            in prov
+        )
         assert "capped down from a raw" not in prov  # marginal in band → no clamp note
         assert "positive figure means working capital is absorbing cash" in prov
 

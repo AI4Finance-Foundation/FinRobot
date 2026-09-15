@@ -222,9 +222,7 @@ def _sec_shares(cik: int) -> _Anchor | None:
             f"newest dei shares fact is {period_end} (>{_STALE_FACT_DAYS}d old) — "
             f"filer abandoned this concept; no current SEC shares truth",
         )
-    url = (
-        f"https://data.sec.gov/api/xbrl/companyconcept/" f"CIK{cik:010d}/{taxonomy}/{concept}.json"
-    )
+    url = f"https://data.sec.gov/api/xbrl/companyconcept/CIK{cik:010d}/{taxonomy}/{concept}.json"
     return _Anchor(
         value=value,
         caliber=f"cover-page shares outstanding ({taxonomy}:{concept}, point-in-time)",

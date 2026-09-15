@@ -88,7 +88,7 @@ class TestNoRawDataGetInComputeOrServices:
         extractor = COMPUTE / "coordinators" / "extractor.py"
         text = extractor.read_text()
         violations = [
-            f"line {text[:m.start()].count(chr(10)) + 1}" for m in _RAW_GET_PATTERN.finditer(text)
+            f"line {text[: m.start()].count(chr(10)) + 1}" for m in _RAW_GET_PATTERN.finditer(text)
         ]
         assert not violations, (
             "extractor.py still has raw .data.get() — ADR-0006 Step 4 not complete.\n"

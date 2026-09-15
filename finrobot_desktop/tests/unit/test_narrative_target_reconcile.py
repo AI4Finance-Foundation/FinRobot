@@ -260,8 +260,12 @@ def test_published_value_band_bounds_survive_withheld_path_scrub() -> None:
     only and the scrubber ate the band the basis publishes.
     """
     methods = [
-        ValuationMethod(name="comps_pb", low=250, mid=266.96, high=285, confidence=0.6, source="PB"),
-        ValuationMethod(name="comps_pe", low=255, mid=269.79, high=288, confidence=0.8, source="PE"),
+        ValuationMethod(
+            name="comps_pb", low=250, mid=266.96, high=285, confidence=0.6, source="PB"
+        ),
+        ValuationMethod(
+            name="comps_pe", low=255, mid=269.79, high=288, confidence=0.8, source="PE"
+        ),
         ValuationMethod(
             name="residual_income", low=263.24, mid=300.04, high=356.15, confidence=0.7, source="RI"
         ),

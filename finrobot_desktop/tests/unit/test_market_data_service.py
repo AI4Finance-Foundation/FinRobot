@@ -155,10 +155,12 @@ class TestLatestSessionChange:
         return normalize_price(raw)
 
     def test_two_closes(self):
-        price = self._price([
-            {"date": "2026-05-26", "close": 100.0},
-            {"date": "2026-05-27", "close": 110.0},
-        ])
+        price = self._price(
+            [
+                {"date": "2026-05-26", "close": 100.0},
+                {"date": "2026-05-27", "close": 110.0},
+            ]
+        )
         change, pct = price.latest_session_change()
         assert change == pytest.approx(10.0)
         assert pct == pytest.approx(10.0)
@@ -168,8 +170,10 @@ class TestLatestSessionChange:
         assert price.latest_session_change() == (None, None)
 
     def test_zero_prev_close_returns_none(self):
-        price = self._price([
-            {"date": "2026-05-26", "close": 0.0},
-            {"date": "2026-05-27", "close": 5.0},
-        ])
+        price = self._price(
+            [
+                {"date": "2026-05-26", "close": 0.0},
+                {"date": "2026-05-27", "close": 5.0},
+            ]
+        )
         assert price.latest_session_change() == (None, None)

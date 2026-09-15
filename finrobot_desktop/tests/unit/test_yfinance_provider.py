@@ -398,9 +398,9 @@ class TestNonUSTickerFormat:
                 side_effect=tracking_ticker,
             ):
                 result = await provider.fetch(ticker, "financials")
-            assert received_symbols == [
-                ticker
-            ], f"Ticker '{ticker}' was not passed through to yfinance"
+            assert received_symbols == [ticker], (
+                f"Ticker '{ticker}' was not passed through to yfinance"
+            )
             assert isinstance(result, DataResult)
             assert result.ticker == ticker
 
@@ -468,9 +468,9 @@ class TestRateLimitBehavior:
             "_MAX_RETRIES re-introduced — retry-inside-provider conflicts "
             "with DataLayer fallback. See yfinance_provider.py docstring."
         )
-        assert not hasattr(
-            yfinance_provider, "_RETRY_DELAYS"
-        ), "_RETRY_DELAYS re-introduced — see _MAX_RETRIES rationale."
+        assert not hasattr(yfinance_provider, "_RETRY_DELAYS"), (
+            "_RETRY_DELAYS re-introduced — see _MAX_RETRIES rationale."
+        )
 
 
 class TestUnsupportedDataType:

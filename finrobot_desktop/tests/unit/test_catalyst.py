@@ -826,7 +826,11 @@ class TestCrossMediaEventFingerprintSignal:
         # signals alone (title Jaccard < 0.6, different domains/days) — if
         # this assertion ever fails the fixture stopped being a real test of
         # the NEW signal and must be reworded harder.
-        from finrobot.engine.compute.operators.catalyst import _DEDUP_JACCARD_MIN, _jaccard, _title_tokens
+        from finrobot.engine.compute.operators.catalyst import (
+            _DEDUP_JACCARD_MIN,
+            _jaccard,
+            _title_tokens,
+        )
 
         assert (
             _jaccard(_title_tokens(events[0].headline), _title_tokens(events[1].headline))

@@ -179,8 +179,7 @@ async def build_sotp_breakdown(
             (
                 seg.get("label") or key,
                 _DEFAULT_EV_GROSS_PROFIT,
-                "default conservative EV/gross-profit proxy 6.0× "
-                "([金融待核 F2] no peer mapping)",
+                "default conservative EV/gross-profit proxy 6.0× ([金融待核 F2] no peer mapping)",
             ),
         )
         label = f"{period_label} segment gross profit".strip()
@@ -256,9 +255,7 @@ async def _build_scenario_band(
     """
     pt = await data_layer.fetch_price_target(ticker)
     if pt is None:
-        warnings.append(
-            "analyst price targets unavailable — forward street scenario band dropped"
-        )
+        warnings.append("analyst price targets unavailable — forward street scenario band dropped")
         return None
     d = pt.data or {}
     count = d.get("analyst_count")
@@ -278,9 +275,7 @@ async def _build_scenario_band(
         cash_flow_floor=cash_flow_floor,
     )
     if band is None:
-        warnings.append(
-            "analyst target distribution incomplete/degenerate — scenario band dropped"
-        )
+        warnings.append("analyst target distribution incomplete/degenerate — scenario band dropped")
     return band
 
 

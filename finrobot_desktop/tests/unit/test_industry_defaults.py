@@ -125,16 +125,12 @@ class TestDatasetArtifact:
     def test_every_alias_target_exists_in_runtime_table(self):
         known = set(list_known_industries())
         missing = {
-            target
-            for target in industry_defaults._ALIAS_MAP.values()
-            if target not in known
+            target for target in industry_defaults._ALIAS_MAP.values() if target not in known
         }
         assert missing == set()
 
     def test_runtime_csv_has_no_blank_numeric_cells(self):
-        csv_path = (
-            Path(industry_defaults.__file__).with_name("datasets") / "industry_medians.csv"
-        )
+        csv_path = Path(industry_defaults.__file__).with_name("datasets") / "industry_medians.csv"
         with csv_path.open(newline="", encoding="utf-8") as fh:
             for line_no, row in enumerate(csv.DictReader(fh), start=2):
                 for key, value in row.items():

@@ -71,9 +71,7 @@ def test_groups_same_ticker_into_one_card_with_runs() -> None:
 
 def test_runs_capped_at_max_per_ticker_but_run_count_is_true_total() -> None:
     """Ticker with 8 runs surfaces 5 rows + run_count=8 for overflow UI."""
-    inputs = [
-        _input(f"a{i}", days_ago=i, type_="research") for i in range(8)
-    ]
+    inputs = [_input(f"a{i}", days_ago=i, type_="research") for i in range(8)]
     out = assemble_recent_tickers(inputs=inputs, limit=5, now=NOW)
     card = out[0]
     assert card.run_count == 8
@@ -87,8 +85,8 @@ def test_top_n_distinct_tickers_by_latest_at() -> None:
     inputs = [
         _input("aapl1", ticker="AAPL", days_ago=20),
         _input("aapl2", ticker="AAPL", days_ago=15),  # AAPL latest = 15d ago
-        _input("msft1", ticker="MSFT", days_ago=1),   # MSFT latest = 1d ago
-        _input("nvda1", ticker="NVDA", days_ago=5),   # NVDA latest = 5d ago
+        _input("msft1", ticker="MSFT", days_ago=1),  # MSFT latest = 1d ago
+        _input("nvda1", ticker="NVDA", days_ago=5),  # NVDA latest = 5d ago
     ]
     out = assemble_recent_tickers(inputs=inputs, limit=2, now=NOW)
     assert [v.ticker for v in out] == ["MSFT", "NVDA"]
@@ -109,8 +107,11 @@ def test_latest_signal_from_latest_run_only() -> None:
         inputs=[
             _input("old", days_ago=30, current_price=95.0),  # would be watching
             _input(
-                "new", days_ago=1,
-                entry_price=100, target_price=120, current_price=125,  # hit
+                "new",
+                days_ago=1,
+                entry_price=100,
+                target_price=120,
+                current_price=125,  # hit
             ),
         ],
         limit=1,
@@ -153,7 +154,9 @@ def test_format_age_label_minute_hour_day() -> None:
 
 
 def test_format_age_label_switches_to_date_past_30_days() -> None:
-    assert format_age_label(NOW - timedelta(days=45), NOW) == (NOW - timedelta(days=45)).strftime("%Y-%m-%d")
+    assert format_age_label(NOW - timedelta(days=45), NOW) == (NOW - timedelta(days=45)).strftime(
+        "%Y-%m-%d"
+    )
 
 
 def test_format_age_label_handles_naive_datetime() -> None:
@@ -178,6 +181,8 @@ def test_row_age_labels_format_correctly() -> None:
 @pytest.mark.parametrize("ticker", ["AAPL", "META", "NVDA"])
 def test_card_includes_ticker_verbatim(ticker: str) -> None:
     out = assemble_recent_tickers(
-        inputs=[_input("a", ticker=ticker)], limit=1, now=NOW,
+        inputs=[_input("a", ticker=ticker)],
+        limit=1,
+        now=NOW,
     )
     assert out[0].ticker == ticker

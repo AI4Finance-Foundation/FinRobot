@@ -384,9 +384,7 @@ async def test_market_implied_reverse_solves_on_usd_price_for_foreign_listing(
     await build_overview(
         _group("2330.TW"),
         artifact_store=store,  # type: ignore[arg-type]
-        data_layer=_StubDataLayer(
-            current=3000.0, quote_currency="TWD", fx_rates={"TWD": 0.03178}
-        ),  # type: ignore[arg-type]
+        data_layer=_StubDataLayer(current=3000.0, quote_currency="TWD", fx_rates={"TWD": 0.03178}),  # type: ignore[arg-type]
         now=NOW,
     )
     assert seen["price"] == pytest.approx(3000.0 * 0.03178)  # USD, not the raw 3000 TWD
@@ -563,12 +561,8 @@ async def test_foreign_local_listing_signal_upside_computed_in_usd() -> None:
     # TWD live 640, rate 0.03125 → $20 USD. Target $24 USD, entry $18 USD.
     # Correct USD upside = (24 − 20) / 20 = +0.20 (a healthy "watching"),
     # NOT the broken (24 − 640) / 640 ≈ −0.96.
-    store = _StubArtifactStore(
-        {"2330.TW": [_summary(ticker="2330.TW", entry=18.0, target=24.0)]}
-    )
-    layer = _StubDataLayer(
-        current=640.0, quote_currency="TWD", fx_rates={"TWD": 0.03125}
-    )
+    store = _StubArtifactStore({"2330.TW": [_summary(ticker="2330.TW", entry=18.0, target=24.0)]})
+    layer = _StubDataLayer(current=640.0, quote_currency="TWD", fx_rates={"TWD": 0.03125})
     ov = await build_overview(
         _group("2330.TW"),
         artifact_store=store,  # type: ignore[arg-type]
@@ -590,12 +584,8 @@ async def test_foreign_local_listing_signal_upside_computed_in_usd() -> None:
 async def test_foreign_local_listing_upside_not_garbage_without_fix() -> None:
     """Regression anchor: the raw-TWD-vs-USD upside would be deeply negative. Prove
     the converted upside is sane (positive, since target > USD price)."""
-    store = _StubArtifactStore(
-        {"2330.TW": [_summary(ticker="2330.TW", entry=18.0, target=24.0)]}
-    )
-    layer = _StubDataLayer(
-        current=640.0, quote_currency="TWD", fx_rates={"TWD": 0.03125}
-    )
+    store = _StubArtifactStore({"2330.TW": [_summary(ticker="2330.TW", entry=18.0, target=24.0)]})
+    layer = _StubDataLayer(current=640.0, quote_currency="TWD", fx_rates={"TWD": 0.03125})
     ov = await build_overview(
         _group("2330.TW"),
         artifact_store=store,  # type: ignore[arg-type]
@@ -646,9 +636,7 @@ async def test_pure_adr_quote_usd_no_fx() -> None:
 async def test_foreign_local_listing_fx_unavailable_degrades_no_fabrication() -> None:
     """FX rate unobtainable → signal/upside left None (degrade), never computed on
     mixed currencies. The display price still shows the honest quote-currency print."""
-    store = _StubArtifactStore(
-        {"2330.TW": [_summary(ticker="2330.TW", entry=18.0, target=24.0)]}
-    )
+    store = _StubArtifactStore({"2330.TW": [_summary(ticker="2330.TW", entry=18.0, target=24.0)]})
     layer = _StubDataLayer(current=640.0, quote_currency="TWD", fx_raises=True)
     ov = await build_overview(
         _group("2330.TW"),

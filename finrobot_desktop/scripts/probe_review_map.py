@@ -58,7 +58,9 @@ async def main() -> None:
             sub_agents = create_sub_agents(deps.settings, skill_registry=deps.skill_runtime)
             pipeline = factories["research"](sub_agents)
             try:
-                result = await asyncio.wait_for(pipeline.execute(deps, ticker, lang="zh"), timeout=200)
+                result = await asyncio.wait_for(
+                    pipeline.execute(deps, ticker, lang="zh"), timeout=200
+                )
             except asyncio.TimeoutError:
                 print(f"  {ticker:8s} TIMEOUT >200s", flush=True)
                 continue
@@ -86,7 +88,9 @@ async def main() -> None:
                 f"\n  {ticker:8s} {flag:10s} target={tgts:>10}  current={curs:>9}  reliable={reliable}",
                 flush=True,
             )
-            print(f"           methods: {'  '.join(methods) or '(none)'}   weighted={wpx}", flush=True)
+            print(
+                f"           methods: {'  '.join(methods) or '(none)'}   weighted={wpx}", flush=True
+            )
             print(f"           basis: {basis[:240]}", flush=True)
         print("\n" + "=" * 100, flush=True)
     finally:

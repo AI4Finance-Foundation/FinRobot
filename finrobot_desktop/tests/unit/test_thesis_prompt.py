@@ -163,7 +163,9 @@ class TestBuildThesisPrompt:
         # ④ The withhold-reason instruction references the AUTHORITATIVE basis instead
         # of hardcoding "methods diverge" — so a fairly-valued bank isn't mis-narrated.
         assert "RESTATING" in prompt
-        assert "do NOT" in prompt and "methods diverge" in prompt  # forbidden unless the basis says so
+        assert (
+            "do NOT" in prompt and "methods diverge" in prompt
+        )  # forbidden unless the basis says so
         assert "FAIRLY VALUED" in prompt
 
     def test_method_fidelity_rule_lists_only_run_methods(self):
@@ -488,9 +490,7 @@ class TestSegmentOverviewGrounding:
                     revenue_share=0.4288,
                     operating_income=69.773e9,
                 ),
-                SegmentShare(
-                    name="Intelligent Cloud", revenue=106.265e9, revenue_share=0.3772
-                ),
+                SegmentShare(name="Intelligent Cloud", revenue=106.265e9, revenue_share=0.3772),
             ],
             warnings=["segment revenue shares are computed against the sum of segments shown"],
         )
@@ -519,7 +519,10 @@ class TestSegmentOverviewGrounding:
         )
         # Deterministic whitelist entry — the ONLY legal source of segment %s.
         assert "segment_overview (sec_xbrl_business_segment, FY ending 2025-06-30)" in prompt
-        assert "Productivity and Business Processes: revenue $120.81B, 42.9% of segment total" in prompt
+        assert (
+            "Productivity and Business Processes: revenue $120.81B, 42.9% of segment total"
+            in prompt
+        )
         assert "Intelligent Cloud: revenue $106.27B, 37.7% of segment total" in prompt
         # Citation rule present, unavailable branch NOT present.
         assert "A real segment/business-line revenue breakdown was fetched" in prompt

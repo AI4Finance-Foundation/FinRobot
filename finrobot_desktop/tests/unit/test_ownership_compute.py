@@ -602,7 +602,7 @@ def test_extract_ceo_name_keeps_honorific_pattern() -> None:
     """`Mr./Ms./Dr. Lastname` near a CEO anchor must still resolve."""
     from finrobot.engine.compute.operators.ownership import _extract_ceo_name
 
-    text = "The Board reappointed Mr. Cook as Chief Executive Officer " "for another term."
+    text = "The Board reappointed Mr. Cook as Chief Executive Officer for another term."
     assert _extract_ceo_name(text) == "Cook"
 
 
@@ -768,7 +768,7 @@ def test_extract_ceo_name_from_cert_title_clause_between_name_and_certify() -> N
     assert _extract_ceo_name_from_cert(_CERT_KO) == "Henrique Braun"
     # DIS: apostrophe surname + parenthetical issuer clause before "certify".
     dis = (
-        'I, Josh D\'Amaro, Chief Executive Officer of The Walt Disney Company '
+        "I, Josh D'Amaro, Chief Executive Officer of The Walt Disney Company "
         '(the "Company"), certify that:\n'
     )
     assert _extract_ceo_name_from_cert(dis) == "Josh D'Amaro"

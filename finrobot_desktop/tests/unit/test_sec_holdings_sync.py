@@ -34,9 +34,7 @@ def _app() -> FastAPI:
     return app
 
 
-def _patch_env(
-    monkeypatch, *, latest: str | None, target: date, complete: bool = True
-) -> None:
+def _patch_env(monkeypatch, *, latest: str | None, target: date, complete: bool = True) -> None:
     import scripts.refresh_sec_holdings as refresh_mod
     from finrobot.engine.data import sec_holdings_cache as cache_mod
 

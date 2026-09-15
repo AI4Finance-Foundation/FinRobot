@@ -63,7 +63,7 @@ async def main() -> None:
                 price = f"${vs.current_price:.0f}"
                 vals = [m.mid for m in vs.methods]
                 if len(vals) >= 2 and min(vals) > 0:
-                    ratio = f"{max(vals)/min(vals):.2f}x"
+                    ratio = f"{max(vals) / min(vals):.2f}x"
             verdict = thesis.recommendation if isinstance(thesis, ThesisResult) else "?"
             tgt = (
                 f"${thesis.price_target:.2f}"

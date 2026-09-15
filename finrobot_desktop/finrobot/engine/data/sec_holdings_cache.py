@@ -289,9 +289,7 @@ async def lookup_holders_for_ticker(
     # column was ever meant to be filled: the field was declared "computed by
     # FinRobot vs prior quarter" but never actually computed, so the column was a
     # permanent dead "—". Now it lights up automatically once ≥2 quarters cache.
-    prior_shares = await _prior_quarter_shares(
-        c, where_sql, where_params, period_end_str
-    )
+    prior_shares = await _prior_quarter_shares(c, where_sql, where_params, period_end_str)
 
     return [
         {

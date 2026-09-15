@@ -57,6 +57,7 @@ def main() -> int:
         return 2
 
     from edgar import Company, set_identity
+
     set_identity(identity)
 
     # ---- 章节正确 API ----
@@ -80,7 +81,9 @@ def main() -> int:
                 "has_income_statement": hasattr(tenk, "income_statement"),
             }
             sections_real[tkr] = sec
-            logger.info(f"  {tkr}: biz={sec['business_chars']} risk={sec['risk_factors_chars']} mdna={sec['management_discussion_chars']}")
+            logger.info(
+                f"  {tkr}: biz={sec['business_chars']} risk={sec['risk_factors_chars']} mdna={sec['management_discussion_chars']}"
+            )
         except Exception as e:  # noqa: BLE001
             sections_real[tkr] = {"error": repr(e)}
     write_json("tenk_attributes_real.json", sections_real)
@@ -92,16 +95,18 @@ def main() -> int:
         tenq_list = []
         for f in tenq_filings:
             obj = f.obj()
-            tenq_list.append({
-                "form": f.form,
-                "filing_date": str(f.filing_date),
-                "period_of_report": str(f.period_of_report),
-                "accession_no": f.accession_no,
-                "obj_class": type(obj).__name__,
-                "has_management_discussion": hasattr(obj, "management_discussion"),
-                "mdna_chars": len(getattr(obj, "management_discussion", "") or ""),
-                "has_income_statement": hasattr(obj, "income_statement"),
-            })
+            tenq_list.append(
+                {
+                    "form": f.form,
+                    "filing_date": str(f.filing_date),
+                    "period_of_report": str(f.period_of_report),
+                    "accession_no": f.accession_no,
+                    "obj_class": type(obj).__name__,
+                    "has_management_discussion": hasattr(obj, "management_discussion"),
+                    "mdna_chars": len(getattr(obj, "management_discussion", "") or ""),
+                    "has_income_statement": hasattr(obj, "income_statement"),
+                }
+            )
         write_json("tenq_aapl_v2.json", tenq_list)
     except Exception as e:  # noqa: BLE001
         write_json("tenq_aapl_v2.json", {"error": repr(e)})
@@ -113,17 +118,17 @@ def main() -> int:
         eightk_list = []
         for f in eightk_filings:
             obj = f.obj()
-            eightk_list.append({
-                "filing_date": str(f.filing_date),
-                "period_of_report": str(f.period_of_report),
-                "accession_no": f.accession_no,
-                "obj_class": type(obj).__name__,
-                "items": list(getattr(obj, "items", []) or []),
-                "text_chars": len(f.text() if hasattr(f, "text") else "") if f else 0,
-                "obj_attrs_sample": [
-                    a for a in dir(obj) if not a.startswith("_")
-                ][:30],
-            })
+            eightk_list.append(
+                {
+                    "filing_date": str(f.filing_date),
+                    "period_of_report": str(f.period_of_report),
+                    "accession_no": f.accession_no,
+                    "obj_class": type(obj).__name__,
+                    "items": list(getattr(obj, "items", []) or []),
+                    "text_chars": len(f.text() if hasattr(f, "text") else "") if f else 0,
+                    "obj_attrs_sample": [a for a in dir(obj) if not a.startswith("_")][:30],
+                }
+            )
         write_json("eightk_tsla_v2.json", eightk_list)
     except Exception as e:  # noqa: BLE001
         write_json("eightk_tsla_v2.json", {"error": repr(e)})
@@ -142,16 +147,26 @@ def main() -> int:
                 "issuer": str(getattr(obj, "issuer", ""))[:100],
                 "reporting_owners": str(getattr(obj, "reporting_owners", ""))[:200],
                 "position": str(getattr(obj, "position", ""))[:200],
-                "common_stock_sales_attr_type": type(getattr(obj, "common_stock_sales", None)).__name__,
-                "common_stock_purchases_attr_type": type(getattr(obj, "common_stock_purchases", None)).__name__,
+                "common_stock_sales_attr_type": type(
+                    getattr(obj, "common_stock_sales", None)
+                ).__name__,
+                "common_stock_purchases_attr_type": type(
+                    getattr(obj, "common_stock_purchases", None)
+                ).__name__,
             }
             try:
-                summary = obj.get_ownership_summary() if hasattr(obj, "get_ownership_summary") else None
+                summary = (
+                    obj.get_ownership_summary() if hasattr(obj, "get_ownership_summary") else None
+                )
                 entry["ownership_summary"] = str(summary)[:500] if summary else None
             except Exception:  # noqa: BLE001
                 entry["ownership_summary"] = "<error>"
             try:
-                activities = obj.get_transaction_activities() if hasattr(obj, "get_transaction_activities") else None
+                activities = (
+                    obj.get_transaction_activities()
+                    if hasattr(obj, "get_transaction_activities")
+                    else None
+                )
                 entry["transaction_activities"] = str(activities)[:500] if activities else None
             except Exception:  # noqa: BLE001
                 entry["transaction_activities"] = "<error>"
@@ -191,17 +206,22 @@ def main() -> int:
     # ---- 顶层异常类（不是 EdgarError） ----
     logger.info("[v2] 顶层异常类")
     import edgar
+
     edgar_exceptions = [
-        name for name in dir(edgar)
+        name
+        for name in dir(edgar)
         if "Error" in name or "Exception" in name and not name.startswith("_")
     ]
-    write_json("edgar_top_exceptions.json", {
-        "available_exception_classes": edgar_exceptions,
-        "recommended_catch": "DataObjectException, CompanyNotFoundError",
-        "edgartools_version": getattr(edgar, "__version__", "unknown"),
-        "python_version": ".".join(str(x) for x in sys.version_info[:3]),
-        "probe_run_at": datetime.now(tz=timezone.utc).isoformat(),
-    })
+    write_json(
+        "edgar_top_exceptions.json",
+        {
+            "available_exception_classes": edgar_exceptions,
+            "recommended_catch": "DataObjectException, CompanyNotFoundError",
+            "edgartools_version": getattr(edgar, "__version__", "unknown"),
+            "python_version": ".".join(str(x) for x in sys.version_info[:3]),
+            "probe_run_at": datetime.now(tz=timezone.utc).isoformat(),
+        },
+    )
 
     logger.info("[v2] done")
     return 0

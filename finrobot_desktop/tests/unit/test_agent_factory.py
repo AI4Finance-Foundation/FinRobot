@@ -100,9 +100,9 @@ class TestCreateSubAgents:
         agents = create_sub_agents(_settings())
         for role in ["analysis", "modeling", "synthesis", "report"]:
             tool_names = set(agents[role]._function_toolset.tools.keys())
-            assert (
-                "query_financial_data" not in tool_names
-            ), f"{role} agent should NOT have query_financial_data"
+            assert "query_financial_data" not in tool_names, (
+                f"{role} agent should NOT have query_financial_data"
+            )
 
     def test_all_agents_use_settings_model(self):
         from pydantic_ai.models.test import TestModel
@@ -110,9 +110,9 @@ class TestCreateSubAgents:
         settings = _settings()
         agents = create_sub_agents(settings)
         for role, agent in agents.items():
-            assert isinstance(
-                agent.model, TestModel
-            ), f"{role} agent should use TestModel from settings.create_model()"
+            assert isinstance(agent.model, TestModel), (
+                f"{role} agent should use TestModel from settings.create_model()"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -144,9 +144,9 @@ class TestInstructionEncoding:
         # Every instruction read for the 5 roles must request utf-8.
         instruction_reads = [e for e in seen]
         assert instruction_reads, "expected at least one instruction file read"
-        assert all(
-            enc == "utf-8" for enc in instruction_reads
-        ), f"instruction reads must pass encoding='utf-8', saw: {instruction_reads}"
+        assert all(enc == "utf-8" for enc in instruction_reads), (
+            f"instruction reads must pass encoding='utf-8', saw: {instruction_reads}"
+        )
 
     def test_lead_instructions_loaded_with_utf8_encoding(self, monkeypatch):
         """create_lead_agent must read instructions.md as UTF-8."""
@@ -161,9 +161,9 @@ class TestInstructionEncoding:
         create_lead_agent(_settings())
 
         assert "utf-8" in seen, "create_lead_agent must read instructions.md as utf-8"
-        assert all(
-            enc == "utf-8" for enc in seen
-        ), f"all reads during lead-agent creation must pass utf-8, saw: {seen}"
+        assert all(enc == "utf-8" for enc in seen), (
+            f"all reads during lead-agent creation must pass utf-8, saw: {seen}"
+        )
 
     def test_instruction_files_decode_under_ascii_locale(self):
         """Direct UTF-8 reads of the Chinese instruction files succeed.

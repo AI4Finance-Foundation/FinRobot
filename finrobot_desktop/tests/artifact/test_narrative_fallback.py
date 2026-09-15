@@ -39,7 +39,11 @@ def _structured() -> dict:
 def _raw_data() -> dict:
     return {
         "company_name": "JPMorgan Chase & Co.",
-        "market": {"industry": "Banks - Diversified", "sector": "Financial Services", "market_cap": 9.3e11},
+        "market": {
+            "industry": "Banks - Diversified",
+            "sector": "Financial Services",
+            "market_cap": 9.3e11,
+        },
         "income": {"revenue": 1.86e11},
     }
 
@@ -50,8 +54,14 @@ def test_null_fields_filled_deterministically_from_structured_data():
     thesis = structured["thesis"]
 
     # Every previously-NULL field is now non-empty.
-    for k in ("tagline", "key_takeaways", "company_overview", "valuation_overview",
-              "competitor_analysis", "news_summary"):
+    for k in (
+        "tagline",
+        "key_takeaways",
+        "company_overview",
+        "valuation_overview",
+        "competitor_analysis",
+        "news_summary",
+    ):
         assert thesis[k], f"{k} should be filled"
 
     # valuation_overview = the deterministic basis (traceable, lists the real reasoning).

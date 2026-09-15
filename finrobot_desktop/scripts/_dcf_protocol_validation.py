@@ -98,12 +98,13 @@ async def main() -> None:
                 if not v["blume"]:
                     inp = inp.model_copy(update={"beta": max(0.3, min(2.5, un_blume(inp.beta)))})
                 chk = market_implied_check(inp, price, horizon_years=v["yrs"])
-                ig = f"{chk.implied_growth:.1%}" if chk.implied_growth is not None else "unreachable"
+                ig = (
+                    f"{chk.implied_growth:.1%}" if chk.implied_growth is not None else "unreachable"
+                )
                 iw = f"{chk.implied_wacc:.2%}" if chk.implied_wacc is not None else "n/a"
                 seeded_g = inp.revenue_growth_rates[0]
                 print(
-                    f"  [{label}] market implies: growth {ig} (seeded {seeded_g:.1%})"
-                    f" | WACC {iw}"
+                    f"  [{label}] market implies: growth {ig} (seeded {seeded_g:.1%}) | WACC {iw}"
                 )
     finally:
         # Non-server entrypoint: join the aiosqlite workers + checkpoint WAL so the

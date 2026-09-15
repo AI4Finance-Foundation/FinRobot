@@ -32,9 +32,9 @@ class TestP1aAcceptance:
         """P1a acceptance: every skill has non-empty full_content."""
         registry = SkillRegistry(SKILLS_DIR)
         for skill in registry.list_all():
-            assert (
-                len(skill.full_content.strip()) > 100
-            ), f"Skill {skill.id} has suspiciously short content ({len(skill.full_content)} chars)"
+            assert len(skill.full_content.strip()) > 100, (
+                f"Skill {skill.id} has suspiciously short content ({len(skill.full_content)} chars)"
+            )
 
     def test_list_summary_fits_context(self):
         """P1a acceptance: list_summary for 56 skills is under 6000 chars (~1500 tokens)."""

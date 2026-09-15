@@ -309,9 +309,9 @@ def test_ensure_deps_provider_chain_includes_news_aggregator():
     try:
         deps = agent._ensure_deps()
         providers = deps.data_layer._providers
-        assert any(
-            isinstance(p, NewsAggregatorProvider) for p in providers
-        ), "SDK provider chain is missing NewsAggregatorProvider — drifted from build_data_layer"
+        assert any(isinstance(p, NewsAggregatorProvider) for p in providers), (
+            "SDK provider chain is missing NewsAggregatorProvider — drifted from build_data_layer"
+        )
     finally:
         import asyncio
 

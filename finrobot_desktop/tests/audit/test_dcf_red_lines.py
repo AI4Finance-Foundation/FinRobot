@@ -267,7 +267,7 @@ def test_ic_memo_financials_step_uses_seed_dcf_inputs():
 
     func_marker = "async def _execute_ic_financials("
     assert func_marker in src, (
-        "_execute_ic_financials function missing from ic_memo.py — " "did you rename it?"
+        "_execute_ic_financials function missing from ic_memo.py — did you rename it?"
     )
     start = src.index(func_marker)
     next_func = src.find("\nasync def ", start + 1)
@@ -277,9 +277,9 @@ def test_ic_memo_financials_step_uses_seed_dcf_inputs():
         next_func = len(src)
     body = src[start:next_func]
 
-    assert (
-        "seed_dcf_inputs" in body
-    ), "_execute_ic_financials must call seed_dcf_inputs() to construct DCFInputs."
+    assert "seed_dcf_inputs" in body, (
+        "_execute_ic_financials must call seed_dcf_inputs() to construct DCFInputs."
+    )
 
     body_no_docstring = re.sub(r'"""[\s\S]*?"""', "", body, count=1)
     banned = {
@@ -316,8 +316,7 @@ def test_equity_research_financial_modeling_uses_seed_dcf_inputs():
     # Locate the function body via a coarse marker.
     func_marker = "async def _execute_financial_modeling("
     assert func_marker in src, (
-        "_execute_financial_modeling function missing from equity_research.py — "
-        "did you rename it?"
+        "_execute_financial_modeling function missing from equity_research.py — did you rename it?"
     )
 
     start = src.index(func_marker)
@@ -351,7 +350,7 @@ def test_equity_research_financial_modeling_uses_seed_dcf_inputs():
     }
     offenders = [tok for tok in banned_in_body if tok in body_no_docstring]
     assert not offenders, "\n".join(
-        f"_execute_financial_modeling body contains banned token '{tok}': " f"{banned_in_body[tok]}"
+        f"_execute_financial_modeling body contains banned token '{tok}': {banned_in_body[tok]}"
         for tok in offenders
     )
 

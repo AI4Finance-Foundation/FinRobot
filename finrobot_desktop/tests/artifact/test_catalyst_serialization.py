@@ -96,12 +96,20 @@ def test_ranking_math_survives_the_exclusion() -> None:
     from finrobot.engine.compute.operators.catalyst import compute_expected_impact
 
     news = CatalystEvent(
-        category="market", headline="n", sentiment="positive",
-        impact_score=4, probability=0.7, reasoning="x",
+        category="market",
+        headline="n",
+        sentiment="positive",
+        impact_score=4,
+        probability=0.7,
+        reasoning="x",
     )  # |EI| = 4 × 0.7 = 2.8
     eightk = CatalystEvent(
-        category="management", headline="8k", sentiment="positive",
-        impact_score=3, probability=1.0, reasoning="x",
+        category="management",
+        headline="8k",
+        sentiment="positive",
+        impact_score=3,
+        probability=1.0,
+        reasoning="x",
     )  # |EI| = 3 × 1.0 = 3.0 — higher despite lower impact_score
     ranked = compute_expected_impact([news, eightk])
     assert ranked[0].headline == "8k"

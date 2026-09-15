@@ -743,8 +743,7 @@ def seed_dcf_inputs(
                 else f"{marginal_ratio:.1%} of each new revenue dollar"
             )
             reclamp_note = (
-                f", which came to {degraded:.1%} and was capped again into the model's "
-                f"±10% range"
+                f", which came to {degraded:.1%} and was capped again into the model's ±10% range"
                 if nwc_pct != degraded
                 else ""
             )

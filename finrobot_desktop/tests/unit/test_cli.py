@@ -457,9 +457,9 @@ class TestCliProgress:
         output = capsys.readouterr().out
         lines = output.strip().split("\n")
         # Last line should contain both the step label and "done"
-        assert (
-            "Data Collection" in lines[-1] and "done" in lines[-1]
-        ), f"Expected step label before 'done' on last line, got: {lines[-1]}"
+        assert "Data Collection" in lines[-1] and "done" in lines[-1], (
+            f"Expected step label before 'done' on last line, got: {lines[-1]}"
+        )
 
 
 class TestBacktestCommand:

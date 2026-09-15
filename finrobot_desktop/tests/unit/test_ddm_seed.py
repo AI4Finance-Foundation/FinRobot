@@ -312,8 +312,7 @@ class TestSeedClamps:
         )
         assert inputs.dividend_per_share == pytest.approx(2.08, abs=1e-4)
         assert (
-            "provider-reported annualized DPS"
-            in inputs.assumption_provenance["dividend_per_share"]
+            "provider-reported annualized DPS" in inputs.assumption_provenance["dividend_per_share"]
         )
 
 
@@ -387,8 +386,13 @@ class TestDdmBetaBand:
 # KO declared-DPS record (FMP stable /dividends, 2026-07-02): full calendar years
 # 2020-2025 = $1.64 → $2.04, a 4.5% 5y CAGR — vs the ROE×(1−payout) formula's 15%.
 KO_DIVIDEND_HISTORY = {
-    "2019": 1.60, "2020": 1.64, "2021": 1.68,
-    "2022": 1.76, "2023": 1.84, "2024": 1.94, "2025": 2.04,
+    "2019": 1.60,
+    "2020": 1.64,
+    "2021": 1.68,
+    "2022": 1.76,
+    "2023": 1.84,
+    "2024": 1.94,
+    "2025": 2.04,
     "2026": 0.53,  # partial (single Q so far) — must be dropped from the CAGR
 }
 
@@ -485,9 +489,7 @@ class TestBuybackDistortedGrowth:
     def test_pb_threshold_boundary(self) -> None:
         # Exactly at the threshold (P/B == 4.0) is NOT distorted; just past it is.
         norm_at = _normalized(book_value_per_share=82.0 / _PB_DISTORTION_THRESHOLD)
-        at = seed_ddm_inputs(
-            _financials(price=82.0), norm_at, dividend_history=KO_DIVIDEND_HISTORY
-        )
+        at = seed_ddm_inputs(_financials(price=82.0), norm_at, dividend_history=KO_DIVIDEND_HISTORY)
         assert "ROE" in at.assumption_provenance["dividend_growth_rates"]
         norm_over = _normalized(book_value_per_share=82.0 / (_PB_DISTORTION_THRESHOLD + 0.5))
         over = seed_ddm_inputs(

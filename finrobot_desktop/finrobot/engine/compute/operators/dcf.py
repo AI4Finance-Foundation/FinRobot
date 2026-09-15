@@ -251,9 +251,7 @@ def margin_swing(inputs: DCFInputs) -> tuple[float | None, float | None] | None:
         if not 0.0 <= margin <= 1.0:
             return None
         try:
-            return calculate_dcf(
-                inputs.model_copy(update={"ebitda_margin": margin})
-            ).implied_price
+            return calculate_dcf(inputs.model_copy(update={"ebitda_margin": margin})).implied_price
         except (ValueError, ArithmeticError):
             return None
 

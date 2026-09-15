@@ -179,8 +179,7 @@ def test_implied_price_nonincreasing_in_wacc(
     lo = calculate_dcf(inputs, wacc_override=wacc, tg_override=tg, mid_year=mid_year)
     hi = calculate_dcf(inputs, wacc_override=wacc + delta, tg_override=tg, mid_year=mid_year)
     assert hi.implied_price <= lo.implied_price + _tolerance(lo.implied_price, hi.implied_price), (
-        f"WACC {wacc:.4f}->{wacc + delta:.4f} RAISED price "
-        f"{lo.implied_price} -> {hi.implied_price}"
+        f"WACC {wacc:.4f}->{wacc + delta:.4f} RAISED price {lo.implied_price} -> {hi.implied_price}"
     )
 
 
@@ -355,9 +354,9 @@ def test_calculate_dcf_outputs_all_finite_or_documented_refusal(
     try:
         result: DCFResult = calculate_dcf(inputs, mid_year=mid_year)
     except ValueError as exc:
-        assert any(
-            s in str(exc) for s in _DOCUMENTED_REFUSALS
-        ), f"undocumented ValueError from legal-domain inputs: {exc}"
+        assert any(s in str(exc) for s in _DOCUMENTED_REFUSALS), (
+            f"undocumented ValueError from legal-domain inputs: {exc}"
+        )
         return
     for field in _NUMERIC_SCALARS:
         value = getattr(result, field)
@@ -420,6 +419,6 @@ def test_wacc_collapses_to_common_cost_when_costs_equal(
     cost_of_equity = risk_free + beta * erp
     cost_of_debt = cost_of_equity / (1 - tax_rate)  # pre-tax cost whose after-tax == coe
     _, wacc = calculate_wacc(risk_free, beta, erp, cost_of_debt, tax_rate, debt_ratio)
-    assert math.isclose(
-        wacc, cost_of_equity, rel_tol=1e-9, abs_tol=1e-12
-    ), f"equal-cost WACC {wacc} != common cost {cost_of_equity} at dr={debt_ratio}"
+    assert math.isclose(wacc, cost_of_equity, rel_tol=1e-9, abs_tol=1e-12), (
+        f"equal-cost WACC {wacc} != common cost {cost_of_equity} at dr={debt_ratio}"
+    )

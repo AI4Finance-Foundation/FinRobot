@@ -130,13 +130,13 @@ async def main() -> int:
             print(
                 f"  → through-cycle op_margin: mean={statistics.mean(opms):.1%} "
                 f"median={statistics.median(opms):.1%}  (last3 median="
-                f"{statistics.median(opms[:3]) if len(opms)>=3 else float('nan'):.1%})"
+                f"{statistics.median(opms[:3]) if len(opms) >= 3 else float('nan'):.1%})"
             )
         if ebms:
             print(
                 f"  → through-cycle ebitda_margin: mean={statistics.mean(ebms):.1%} "
                 f"median={statistics.median(ebms):.1%}  (last3 median="
-                f"{statistics.median(ebms[:3]) if len(ebms)>=3 else float('nan'):.1%})"
+                f"{statistics.median(ebms[:3]) if len(ebms) >= 3 else float('nan'):.1%})"
             )
 
     print("\nDONE_PROFILES")

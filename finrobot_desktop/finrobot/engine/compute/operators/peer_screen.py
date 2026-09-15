@@ -699,7 +699,9 @@ def screen_peers(
         mcap = quotes[s][0]
         return max(mcap, target_mcap) / min(mcap, target_mcap) <= size_gap_demote
 
-    def _fill(ranked: list[tuple[int, float, str]], origin: dict[str, int] | int, far: bool) -> None:
+    def _fill(
+        ranked: list[tuple[int, float, str]], origin: dict[str, int] | int, far: bool
+    ) -> None:
         for _protected_rank, dist, sym in ranked:
             if len(chosen) >= top_n:
                 return

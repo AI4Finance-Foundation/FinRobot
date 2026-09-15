@@ -154,9 +154,7 @@ class TestSpelledOutMagnitudes:
 
     def test_billion_word_scales_and_matches(self):
         # The exact AAPL live shape: "$451.442 Billion USD (TTM)" vs leaf 451.442e9.
-        drift = detect_report_drift(
-            "Revenue: $451.442 Billion USD (TTM)", {451_442_000_000.0}
-        )
+        drift = detect_report_drift("Revenue: $451.442 Billion USD (TTM)", {451_442_000_000.0})
         assert drift.total_dollar_amounts == 1
         assert drift.unmatched_count == 0
 
@@ -199,9 +197,7 @@ class TestSpelledOutMagnitudes:
 
     def test_negative_billion_word_round_trips(self):
         # Sign-aware parsing composes with word suffixes (net-cash net debt).
-        drift = detect_report_drift(
-            "net debt of -$17.93 Billion (net cash).", {-17_930_000_000.0}
-        )
+        drift = detect_report_drift("net debt of -$17.93 Billion (net cash).", {-17_930_000_000.0})
         assert drift.unmatched_count == 0
 
 

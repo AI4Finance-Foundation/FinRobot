@@ -271,45 +271,39 @@ The Smart Scheduler is central to ensuring model diversity and optimizing the in
 
 ## File Structure
 
-The main folder **finrobot** has three subfolders **agents, data_source, functional**. 
+Each generation lives in its own top-level folder. `finrobot_autogen` holds V0;
+its Python package is still importable as `finrobot`, so `pip install finrobot`
+and every existing `from finrobot... import ...` keep working unchanged.
 
 ```
 FinRobot
-├── finrobot (main folder)
-│   ├── agents
-│   	├── agent_library.py
-│   	└── workflow.py
-│   ├── data_source
-│   	├── finnhub_utils.py
-│   	├── finnlp_utils.py
-│   	├── fmp_utils.py
-│   	├── sec_utils.py
-│   	└── yfinance_utils.py
-│   ├── functional
-│   	├── analyzer.py
-│   	├── charting.py
-│   	├── coding.py
-│   	├── quantitative.py
-│   	├── reportlab.py
-│   	└── text.py
-│   ├── toolkits.py
-│   └── utils.py
+├── finrobot_autogen/            # V0 — AutoGen generation (PyPI: pip install finrobot)
+│   ├── finrobot/                #   package root — imported as `finrobot`
+│   │   ├── agents/              #     agent_library.py, workflow.py
+│   │   ├── data_source/         #     finnhub / finnlp / fmp / sec / yfinance utils
+│   │   ├── functional/          #     analyzer, charting, coding, quantitative, text
+│   │   ├── toolkits.py
+│   │   └── utils.py
+│   ├── tutorials_beginner/      #   hands-on tutorials
+│   ├── tutorials_advanced/      #   advanced tutorials for FinRobot developers
+│   ├── experiments/
+│   ├── configs/
+│   ├── report/                  #   sample generated reports
+│   ├── FinNLP/                  #   git submodule
+│   ├── OAI_CONFIG_LIST_sample
+│   ├── config_api_keys_sample
+│   └── requirements.txt
 │
-├── configs
-├── experiments
-├── tutorials_beginner (hands-on tutorial)
-│   ├── agent_fingpt_forecaster.ipynb
-│   └── agent_annual_report.ipynb 
-├── tutorials_advanced (advanced tutorials for potential finrobot developers)
-│   ├── agent_trade_strategist.ipynb
-│   ├── agent_fingpt_forecaster.ipynb
-│   ├── agent_annual_report.ipynb 
-│   ├── lmm_agent_mplfinance.ipynb
-│   └── lmm_agent_opt_smacross.ipynb
+├── finrobot_equity/             # V1 — OpenAI Agents SDK generation
+│   ├── core/                    #   analysis engine
+│   └── web_app/                 #   FastAPI web application
+├── run_web_app.py               #   V1 launcher (runs from repo root)
+├── Dockerfile                   #   V1 container build
+├── deploy.sh, deploy.gcloud.sh  #   V1 deployment
+├── requirements-equity.txt
+│
 ├── setup.py
-├── OAI_CONFIG_LIST_sample
-├── config_api_keys_sample
-├── requirements.txt
+├── LICENSE, NOTICE, TRADEMARK_POLICY.md
 └── README.md
 ```
 
@@ -335,22 +329,22 @@ or install from this repo directly
 ```
 pip install -e .
 ```
-**4. modify OAI_CONFIG_LIST_sample file**
+**4. modify OAI_CONFIG_LIST_sample file** (in `finrobot_autogen/`)
 ```shell
-1) rename OAI_CONFIG_LIST_sample to OAI_CONFIG_LIST
+1) rename finrobot_autogen/OAI_CONFIG_LIST_sample to finrobot_autogen/OAI_CONFIG_LIST
 2) remove the four lines of comment within the OAI_CONFIG_LIST file
 3) add your own openai api-key <your OpenAI API key here>
 ```
-**5. modify config_api_keys_sample file**
+**5. modify config_api_keys_sample file** (in `finrobot_autogen/`)
 ```shell
-1) rename config_api_keys_sample to config_api_keys
+1) rename finrobot_autogen/config_api_keys_sample to finrobot_autogen/config_api_keys
 2) remove the comment within the config_api_keys file
 3) add your own finnhub-api "YOUR_FINNHUB_API_KEY"
 4) add your own financialmodelingprep and sec-api keys "YOUR_FMP_API_KEY" and "YOUR_SEC_API_KEY" (for financial report generation)
 ```
 **6. start navigating the tutorials or the demos below:**
 ```
-# find these notebooks in tutorials
+# find these notebooks in finrobot_autogen/tutorials_beginner and finrobot_autogen/tutorials_advanced
 1) agent_annual_report.ipynb
 2) agent_fingpt_forecaster.ipynb
 3) agent_trade_strategist.ipynb

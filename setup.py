@@ -1,11 +1,14 @@
 from setuptools import setup, find_packages
 
+# V0 (AutoGen) 的包本体已移入 finrobot_autogen/,但对外 import 名仍是 `finrobot`
+_V0_PKG_DIR = "finrobot_autogen/finrobot"
+
 # Read requirements.txt, ignore comments
 try:
-    with open("requirements.txt", "r") as f:
+    with open("finrobot_autogen/requirements.txt", "r") as f:
         REQUIRES = [line.split("#", 1)[0].strip() for line in f if line.strip()]
 except:
-    print("'requirements.txt' not found!")
+    print("'finrobot_autogen/requirements.txt' not found!")
     REQUIRES = list()
 
 setup(
@@ -15,15 +18,20 @@ setup(
     author="AI4Finance Foundation",
     author_email="contact@ai4finance.org",
     url="https://github.com/AI4Finance-Foundation/FinRobot",
-    license="MIT",
-    packages=find_packages(),
+    license="Apache-2.0",
+    packages=(
+        ["finrobot"]
+        + [f"finrobot.{_p}" for _p in find_packages(where=_V0_PKG_DIR)]
+        + find_packages(include=["finrobot_equity", "finrobot_equity.*"])
+    ),
+    package_dir={"finrobot": _V0_PKG_DIR},
     install_requires=REQUIRES,
     description="FinRobot: An Open-Source AI Agent Platform for Financial Applications using LLMs",
     long_description="""FinRobot""",
     classifiers=[
         # Trove classifiers
         # Full list: https://pypi.python.org/pypi?%3Aaction=list_classifiers
-        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: Apache Software License",
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.6",

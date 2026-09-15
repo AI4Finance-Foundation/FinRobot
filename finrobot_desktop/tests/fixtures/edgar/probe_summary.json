@@ -1,0 +1,71 @@
+{
+  "probe_run_at": "2026-05-27T04:32:00Z",
+  "edgartools_version": "5.31.5",
+  "python_version": "3.11.15",
+  "identity_used_was_valid": true,
+  "identity": {
+    "valid_identity_success": true,
+    "default_identity_rejected_locally": true,
+    "server_can_start_without_valid_identity": true
+  },
+  "sections": {
+    "sample_count": 5,
+    "comment": "v1 probe 用 tenk.sections() 失败（5.31 是 attribute 不是 method）。v2 probe 用直接 attribute tenk.business / .risk_factors / .management_discussion 成功，见 tenk_attributes_real.json。",
+    "real_attribute_chars_by_ticker": {
+      "AAPL":  {"business": 16054,  "risk_factors": 68163,  "management_discussion": 18018},
+      "MSFT":  {"business": 48799,  "risk_factors": 68824,  "management_discussion": 49534},
+      "NVDA":  {"business": 48222,  "risk_factors": 114773, "management_discussion": 34156},
+      "JPM":   {"business": 39220,  "risk_factors": 112862, "management_discussion": 396},
+      "BRK-B": {"business": 126911, "risk_factors": 21888,  "management_discussion": 127344},
+      "TSLA":  {"business": 0,      "risk_factors": 0,      "management_discussion": 0,
+                "note": "latest 10-K is 10-K/A (amended) — EdgarTools v5.31 fallback parser 章节为空"}
+    },
+    "canonicalizer_required": false,
+    "canonicalizer_strategy": "direct_attribute_access",
+    "section_attributes_verified": ["business", "risk_factors", "management_discussion", "directors_officers_and_governance", "subsidiaries", "auditor", "notes"],
+    "edge_cases_requiring_fallback": [
+      "10-K/A (amended) → 章节 attribute 全空；适配层必须 c.get_filings(form='10-K', amendments=False).latest(1)",
+      "金融机构（如 JPM）management_discussion 可能极短（396 chars vs 实际 100+ 页）→ 适配层降级用 filing.text() 全文 + 自家 BM25 切"
+    ]
+  },
+  "forms": {
+    "10k": "ok",
+    "10q": "ok",
+    "8k": "ok (obj class is CurrentReport, not EightK)",
+    "form4": "ok (use .insider_name / .position / .get_ownership_summary() / .get_transaction_activities() — NOT .transactions)",
+    "def14a": "ok (obj class is ProxyStatement)",
+    "xbrl_facts": "ok (use EntityFacts.get_revenue() / .get_net_income() / .get_ttm_revenue() typed getters — NOT .to_pandas(tag))",
+    "13f_strategy": "local_index_required"
+  },
+  "thirteenf_decision": {
+    "decision": "local_index_required",
+    "reverse_api_methods_tried": ["get_institutional_holders", "institutional_holders", "get_13f_holders", "holders", "get_owners"],
+    "reverse_api_available": false,
+    "forward_path_works": true,
+    "forward_sample": {
+      "filer_cik": "1513703",
+      "filing_date": "2026-05-26",
+      "obj_class": "ThirteenF",
+      "holdings_class": "DataFrame",
+      "holdings_rows_in_one_filing": 386
+    },
+    "implication_for_gate2": "门 2 必须新增 ~/.finrobot/sec_holdings_cache.db schema + 季度刷新后台任务（spec v4 §4 门 2）"
+  },
+  "async_runtime": {
+    "serve_start_stop_10x": "ok",
+    "test_method": "kill + nohup 启动 10 次 / curl /health 验证 + grep stderr 'RuntimeError|Event loop is closed|TypeError|AttributeError|ModuleNotFoundError'",
+    "errors_found": 0,
+    "log_files": "/tmp/finrobot-start-{1..10}.log"
+  },
+  "edgar_top_exceptions_real": {
+    "available": ["DataObjectException", "CompanyNotFoundError"],
+    "edgartools_version_provides_no_EdgarError": true,
+    "recommended_catch": "(DataObjectException, CompanyNotFoundError, OSError, RuntimeError, ValueError, AttributeError, TypeError)"
+  },
+  "api_corrections_for_spec_v4": {
+    "spec_v3_assumption": "tenk.sections() method, tenk.mdna attr, EdgarError class, EntityFacts.to_pandas(tag), Form4.transactions, EightK class",
+    "actual_v5_31_5": "tenk.business/.risk_factors/.management_discussion direct attrs, DataObjectException, EntityFacts.get_revenue()/.get_concept(tag), Form4.get_transaction_activities(), CurrentReport class",
+    "spec_correction_count": 6
+  },
+  "blockers_for_gate2": []
+}

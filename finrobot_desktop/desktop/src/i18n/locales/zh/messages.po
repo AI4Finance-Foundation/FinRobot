@@ -1,0 +1,3173 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh\n"
+"MIME-Version: 1.0\n"
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Plural-Forms: \n"
+
+#. js-lingui-explicit-id
+msgid "chat.collapse"
+msgstr "收起"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.body"
+msgstr "我能查实时行情、财报、新闻，也能跑估值模型。"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.example.1"
+msgstr "{ticker} 今天为什么跌？"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.heading"
+msgstr "问一个关于金融的问题"
+
+#. js-lingui-explicit-id
+msgid "chat.error.context"
+msgstr "对话过长，请开启新对话。"
+
+#. js-lingui-explicit-id
+msgid "chat.error.generic"
+msgstr "请求失败。"
+
+#. js-lingui-explicit-id
+msgid "chat.error.unavailable"
+msgstr "服务暂时不可用，稍后再试。"
+
+#. js-lingui-explicit-id
+msgid "chat.expand"
+msgstr "展开对话"
+
+#. js-lingui-explicit-id
+msgid "chat.input.placeholder"
+msgstr "给 FinRobot 留言…（Enter 发送，Shift+Enter 换行）"
+
+#. js-lingui-explicit-id
+msgid "chat.newSession"
+msgstr "新对话"
+
+#. js-lingui-explicit-id
+msgid "chat.overlength"
+msgstr "{count} / {max} 字符"
+
+#. js-lingui-explicit-id
+msgid "chat.reasoning"
+msgstr "思考过程"
+
+#. js-lingui-explicit-id
+msgid "chat.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
+msgid "chat.send"
+msgstr "发送"
+
+#. js-lingui-explicit-id
+msgid "chat.stop"
+msgstr "停止"
+
+#. js-lingui-explicit-id
+msgid "chat.thinking"
+msgstr "思考中…"
+
+#. js-lingui-explicit-id
+msgid "chat.status.requesting"
+msgstr "请求中…"
+
+#. js-lingui-explicit-id
+msgid "chat.status.responding"
+msgstr "回复中…"
+
+#. js-lingui-explicit-id
+msgid "chat.status.running"
+msgstr "运行 {tool}…"
+
+#. js-lingui-explicit-id
+msgid "chat.status.stalled"
+msgstr "仍在等待…"
+
+#. js-lingui-explicit-id
+msgid "chat.title.explore"
+msgstr "探索"
+
+#. js-lingui-explicit-id
+msgid "common.loading"
+msgstr "加载中…"
+
+#. js-lingui-explicit-id
+msgid "common.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
+msgid "nav.settings"
+msgstr "设置"
+
+#. js-lingui-explicit-id
+msgid "nav.research"
+msgstr "研究台"
+
+#. js-lingui-explicit-id
+msgid "nav.coverage"
+msgstr "研究库"
+
+#. js-lingui-explicit-id
+msgid "nav.back"
+msgstr "返回"
+
+#. js-lingui-explicit-id
+msgid "settings.save"
+msgstr "保存"
+
+#. js-lingui-explicit-id
+msgid "settings.saveFailed"
+msgstr "保存失败：{error}"
+
+#. js-lingui-explicit-id
+msgid "settings.saved"
+msgstr "已保存"
+
+#. js-lingui-explicit-id
+msgid "settings.section.data"
+msgstr "数据源"
+
+#. js-lingui-explicit-id
+msgid "settings.title"
+msgstr "设置"
+
+#. js-lingui-explicit-id
+msgid "toolcard.failed"
+msgstr "工具调用失败"
+
+#. js-lingui-explicit-id
+msgid "toolcard.openArtifact"
+msgstr "📁 打开研报"
+
+#. js-lingui-explicit-id
+msgid "toolcard.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
+msgid "verdict.buy"
+msgstr "买入"
+
+#. js-lingui-explicit-id
+msgid "verdict.hold"
+msgstr "持有"
+
+#. js-lingui-explicit-id
+msgid "verdict.withheld"
+msgstr "已隐藏"
+
+#. js-lingui-explicit-id
+msgid "verdict.sell"
+msgstr "卖出"
+
+#. js-lingui-explicit-id
+msgid "confidence.high"
+msgstr "模型置信 · 高"
+
+#. js-lingui-explicit-id
+msgid "confidence.medium"
+msgstr "模型置信 · 中"
+
+#. js-lingui-explicit-id
+msgid "confidence.low"
+msgstr "模型置信 · 低"
+
+#. js-lingui-explicit-id
+msgid "confidence.veryLow"
+msgstr "模型置信 · 稀疏"
+
+#. js-lingui-explicit-id
+msgid "targetRange.label"
+msgstr "12 个月目标价"
+
+#. js-lingui-explicit-id
+msgid "targetRange.withheld"
+msgstr "点位目标价已隐藏 — 方向判断仍然成立"
+
+#. js-lingui-explicit-id
+msgid "targetRange.fairValueLabel"
+msgstr "合理估值"
+
+#. js-lingui-explicit-id
+msgid "targetRange.withinFairValue"
+msgstr "现价在合理价值区间内 — 估值合理"
+
+#. js-lingui-explicit-id
+msgid "targetRange.anchoredOn"
+msgstr "锚定 {method}"
+
+#. js-lingui-explicit-id
+msgid "targetRange.legendLive"
+msgstr "现价"
+
+#. js-lingui-explicit-id
+msgid "targetRange.legendTarget"
+msgstr "目标"
+
+#. js-lingui-explicit-id
+msgid "targetRange.aria"
+msgstr "目标价 {point}，区间 {lo} 至 {hi}；置信越低区间越宽。"
+
+#. js-lingui-explicit-id
+msgid "targetRange.ariaWithheld"
+msgstr "点位目标价已隐藏；可辩护的目标价应落在 {lo} 至 {hi} 区间。"
+
+#. js-lingui-explicit-id
+msgid "errors.network.offline"
+msgstr "网络连接失败，请检查网络"
+
+#. js-lingui-explicit-id
+msgid "errors.server.unavailable"
+msgstr "服务暂时不可用，请稍后重试"
+
+#. js-lingui-explicit-id
+msgid "errors.client.invalid"
+msgstr "请求异常，请刷新页面"
+
+#. js-lingui-explicit-id
+msgid "errors.notfound"
+msgstr "数据不存在"
+
+#. js-lingui-explicit-id
+msgid "errors.cancelled"
+msgstr "已取消"
+
+#. js-lingui-explicit-id
+msgid "errors.unknown"
+msgstr "加载失败，请稍后重试"
+
+#. js-lingui-explicit-id
+msgid "report.timeline.archived"
+msgstr "已归档"
+
+#. js-lingui-explicit-id
+msgid "report.timeline.current"
+msgstr "当前"
+
+#. js-lingui-explicit-id
+msgid "report.timeline.empty"
+msgstr "尚无历史版本 · 重跑分析后将累积"
+
+#. js-lingui-explicit-id
+msgid "report.timeline.versionCount"
+msgstr "共 {count} 版"
+
+#. js-lingui-explicit-id
+msgid "signal.hit"
+msgstr "已达标"
+
+#. js-lingui-explicit-id
+msgid "signal.watching"
+msgstr "跟踪中"
+
+#. js-lingui-explicit-id
+msgid "signal.failed"
+msgstr "未达标"
+
+#. js-lingui-explicit-id
+msgid "report.toc.heading"
+msgstr "研报章节"
+
+#. js-lingui-explicit-id
+msgid "report.leftRail.targetLabel"
+msgstr "目标价"
+
+#. js-lingui-explicit-id
+msgid "report.leftRail.spotLabel"
+msgstr "现价"
+
+#. js-lingui-explicit-id
+msgid "report.computeWarnings"
+msgstr "计算警告"
+
+#. js-lingui-explicit-id
+msgid "report.methodologyNotes"
+msgstr "方法说明"
+
+#. js-lingui-explicit-id
+msgid "report.audit.status.caveated"
+msgstr "数据口径提示"
+
+#. js-lingui-explicit-id
+msgid "report.audit.status.unpublishable"
+msgstr "核心数据不可用"
+
+#. js-lingui-explicit-id
+msgid "report.audit.withheldNote"
+msgstr "部分核心数字无法核验，受影响字段的点位目标价已隐藏（目标价置为 N/A）。方向性评级仍然成立；核对下列字段后再依赖这些数字。"
+
+#. js-lingui-explicit-id
+msgid "report.audit.unpublishableNote"
+msgstr "本标的的核心数据（价格、标识或基础财务）未能从任何数据源解析，下方数字可能不可靠。稍后重试以重新取数。"
+
+#. js-lingui-explicit-id
+msgid "report.audit.severity.blocked"
+msgstr "已拦截"
+
+#. js-lingui-explicit-id
+msgid "report.audit.severity.review"
+msgstr "存疑"
+
+#. js-lingui-explicit-id
+msgid "report.audit.severity.info"
+msgstr "提示"
+
+#. js-lingui-explicit-id
+msgid "report.audit.notesTitle"
+msgstr "估值说明"
+
+#. js-lingui-explicit-id
+msgid "report.audit.note.financialSectorEv"
+msgstr "银行估值 —— {fields} 对存款型机构不适用（存款是经营原料，而非资本结构，也没有干净的 EBITDA）。改用 P/B、P/TBV、ROTCE、DDM 估值。"
+
+#. js-lingui-explicit-id
+msgid "report.audit.note.lossMakerPe"
+msgstr "P/E 在此不适用 —— 盈利为负。改用 EV/Revenue、P/B、DCF。"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.kv.revenueBase"
+msgstr "营收（基期）"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.kv.netIncome"
+msgstr "净利润"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.revenueEbitda"
+msgstr "营收 & EBITDA 走势"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.marginTrend"
+msgstr "利润率趋势"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.cashFlow"
+msgstr "现金流构成"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.dcfForecast"
+msgstr "DCF 预测（代码计算）"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.chart.title.revenueEbitda"
+msgstr "历史 + DCF 预测"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.chart.title.margin"
+msgstr "毛利 / EBITDA / 营业利润率"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.chart.title.cashFlow"
+msgstr "经营 / 投资 / 筹资"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.yearPlus"
+msgstr "第 {n} 年"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.revenue"
+msgstr "营收"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.fcf"
+msgstr "自由现金流"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.source"
+msgstr "来源：10-K 文件 + 确定性预测模型"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.empty"
+msgstr "该研报未保存财务输入 — 重新生成后此处补齐。"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.terminalGrowth"
+msgstr "永续增长率"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.taxRate"
+msgstr "税率"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.dcfImplied"
+msgstr "DCF 隐含价格"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.enterpriseValue"
+msgstr "企业价值"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.equityValue"
+msgstr "权益价值"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.marketImpliedGrowth"
+msgstr "市场隐含增长"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.marketImplied.horizon"
+msgstr "{n} 年期"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.marketImplied.na"
+msgstr "无解"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.marketImpliedWacc"
+msgstr "市场隐含 WACC"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.marketImplied.vsDcf"
+msgstr "vs DCF {wacc}"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.marketImplied.unreachableNote"
+msgstr "市场隐含增长无解:即便 {ceiling} 的年增长也只能推到 {price} — 市场在为现金流模型无法捕捉的期权价值定价,DCF 点估值不适用于此类标的。"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.empty"
+msgstr "该研报缺 DCF 输出 — 重新生成可得到完整估值模型。"
+
+#. js-lingui-explicit-id
+msgid "chapter.cashflowMethods.notApplicableForFinancials"
+msgstr "现金流估值——DCF、Monte Carlo、EV/EBITDA、P/FCF——不适用于资产负债表型金融机构(银行/保险):当存款、浮存金、准备金是经营原料而非资本结构时,自由现金流与 EV 属于类别错误。本标的以 P/B · P/E · residual income · DDM 估值,详见估值 football field。"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.subheading.football"
+msgstr "估值三角（足球场图）"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.football.title"
+msgstr "分方法目标价区间"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.forwardEstimates"
+msgstr "估算基础"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.subheading.bridge"
+msgstr "DCF 价值桥（瀑布图）"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.title"
+msgstr "DCF 估值桥：现金流现值 → 企业价值 → 股权价值"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.pvFcf"
+msgstr "FCF 现值"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.pvTerminal"
+msgstr "终值现值"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.ev"
+msgstr "企业价值"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.netCash"
+msgstr "净现金"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.netDebt"
+msgstr "减：净债务"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.equity"
+msgstr "股权价值"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.subheading.assumptions"
+msgstr "关键假设"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.subheading.matrix"
+msgstr "敏感性矩阵"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.subheading.notes"
+msgstr "敏感性解读"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.lead"
+msgstr "DCF 锚定四个支点："
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.revenueCagr"
+msgstr "营收年均增速"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.ebitdaMargin"
+msgstr "终值 EBITDA 利润率"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.terminalGrowth"
+msgstr "永续增长"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.terminalBase"
+msgstr "戈登终值资本化的是常态化稳态 FCF"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.terminalBaseNote"
+msgstr "——capex 归一到维护性水平、营运资本增量归一到永续增速；与仍背着成长期再投资的显式末年 FCF 不同。"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.matrix.title"
+msgstr "WACC × 永续增长率 → 隐含价"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.empty"
+msgstr "该研报未生成敏感性分析 — 请重新生成研报以得到 WACC × 永续增长率热力网格。"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.notes.wacc"
+msgstr "在基准永续增长率下变动 WACC，隐含价区间为"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.notes.tg"
+msgstr "在基准 WACC 下变动永续增长率，区间为"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.notes.mostSensitive"
+msgstr "因此该估值对 {driver} 最敏感。"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.driver.wacc"
+msgstr "WACC"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.driver.tg"
+msgstr "永续增长率"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.notes.margin"
+msgstr "在 WACC 与永续增长率保持基准的前提下,EBITDA margin ±2pp 的变动使隐含价在"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.title"
+msgstr "显式期假设 · 模型 vs 当下"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver"
+msgstr "驱动项"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.modelUses"
+msgstr "模型取值(依据)"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.currentActual"
+msgstr "当下实际"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver.growth"
+msgstr "营收增速"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver.margin"
+msgstr "EBITDA margin"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver.capex"
+msgstr "资本开支 / 营收"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver.nwc"
+msgstr "ΔNWC / 营收"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.na"
+msgstr "N/A"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.clampedTooltip"
+msgstr "ΔNWC/营收 中位数落在 ±10% 建模区间之外,已夹取至区间边界。"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.footnote"
+msgstr "假设基于历史中位数,未纳入已公告的结构性变化。"
+
+#. js-lingui-explicit-id
+msgid "chart.sensitivity.legend.lower"
+msgstr "隐含价值更低"
+
+#. js-lingui-explicit-id
+msgid "chart.sensitivity.legend.higher"
+msgstr "隐含价值更高"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.close"
+msgstr "收盘"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.ohlc"
+msgstr "开/高/低"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.volume"
+msgstr "成交量"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.empty"
+msgstr "该标的暂无价格历史数据"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.loading"
+msgstr "加载中…"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.trend"
+msgstr "走势"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.last"
+msgstr "最新收盘"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.latest"
+msgstr "最新"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.target12m"
+msgstr "12 个月目标价："
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.currentPrice"
+msgstr "现价"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.low52w"
+msgstr "52 周低"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.high52w"
+msgstr "52 周高"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.position52w"
+msgstr "52 周分位"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.beta5y"
+msgstr "Beta（5 年）"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.vsSpx"
+msgstr "对比 SPX"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.position.nearHigh"
+msgstr "接近高位"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.position.nearLow"
+msgstr "接近低位"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.position.upperRange"
+msgstr "区间上半"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.position.lowerRange"
+msgstr "区间下半"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.empty.price"
+msgstr "价格数据暂不可用，请检查代码是否有效或稍后重试"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.empty.overlay"
+msgstr "量化叠加层尚未生成 · 重新生成研报后将显示蒙特卡洛分布 / 交易点位 / 历史估值带"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.subheading.monteCarlo"
+msgstr "蒙特卡洛分布"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.subheading.sniper"
+msgstr "支撑 / 阻力位"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.subheading.tacticalReference"
+msgstr "战术交易参考"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.subheading.historicalBands"
+msgstr "历史 EV/EBITDA 估值带"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.mc.mean"
+msgstr "均值"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.mc.std"
+msgstr "标准差"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.mc.currentPct"
+msgstr "现价分位"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.mc.sims"
+msgstr "模拟次数"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.idealBuy"
+msgstr "理想买点"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.safetyMargin"
+msgstr "安全边际 {pct}%"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.secondaryBuy"
+msgstr "二次买点"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.atSupport"
+msgstr "支撑位附近"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.stopLoss"
+msgstr "止损"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.takeProfit"
+msgstr "止盈"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.dcfTarget"
+msgstr "DCF 目标价"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.idealShort"
+msgstr "理想开空"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.secondaryShort"
+msgstr "二次开空"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.atResistance"
+msgstr "阻力位附近"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.coverTarget"
+msgstr "平仓目标"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.dcfCover"
+msgstr "DCF 平仓价"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.withheldUnreliable"
+msgstr "方向性交易点位已隐去：估值方法未交叉验证（DCF 与可比公司分歧过大，点位目标价已扣发），无可锚定的可靠目标。方向性评级仍然成立；仅保留下方支撑 / 阻力供参考。"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.tacticalFraming"
+msgstr "由 DCF 公允价值与近期价格走势机械推导的进出场参考位——仅为执行层的战术参照，并非投资论点本身。"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.support20d"
+msgstr "支撑（20 日）"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.resistance20d"
+msgstr "阻力（20 日）"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.rrRatio"
+msgstr "风险收益比"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.suggestedSize"
+msgstr "建议仓位"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.ofPortfolio"
+msgstr "占总仓位"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.current"
+msgstr "当前"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.median"
+msgstr "中位"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.insiderFlow"
+msgstr "内部人公开市场净流"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.concentration"
+msgstr "机构持仓集中度"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.net"
+msgstr "净"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.nonMarketExcl"
+msgstr "{n} 笔非市场交易已排除"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.topHolders"
+msgstr "前 {n} 大持有人"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.ofTotal"
+msgstr "占 13F 总额"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.heading.insiders"
+msgstr "内部人交易（Form 4）"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.heading.institutions"
+msgstr "机构持仓（13F-HR）"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.heading.compensation"
+msgstr "高管薪酬（DEF 14A）"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.heading.alerts"
+msgstr "5% 以上股东事件（13D / 13G）"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.title"
+msgstr "需要配置 SEC EDGAR 身份"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.body"
+msgstr "SEC EDGAR 要求每个数据请求携带可识别的 User-Agent。配置后将自动拉取 Form 4 内部人交易、13F 机构持仓、DEF 14A 高管薪酬等数据。"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.cta"
+msgstr "前往设置"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.insiders"
+msgstr "近期无内部人交易记录"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.institutions"
+msgstr "尚无 13F 机构持仓数据"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.compensation"
+msgstr "尚无最近 DEF 14A 代理声明数据"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.alerts"
+msgstr "无 5% 以上股东事件"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.insiders"
+msgstr "Form 4 数据不可用 · 旧报告缺少具体原因，请重跑分析获取最新 SEC 状态"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.institutions"
+msgstr "13F 机构持仓缓存未建立 · 该同步默认关闭(需下载整季度全市场申报),在设置中开启或手动触发后重新生成研报即可显示"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.institutions.cta"
+msgstr "前往设置 · SEC 13F"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.compensation"
+msgstr "CEO 薪酬不可用 · 本次运行未能从最新代理声明解析出薪酬数据"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.alerts"
+msgstr "Schedule 13 数据不可用"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.insiders.identity_missing"
+msgstr "Form 4 数据不可用 · SEC 身份未启用，请在设置页填入“姓名或机构 + 邮箱”后重跑分析"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.insiders.no_recent_filings"
+msgstr "Form 4 数据不可用 · 该公司近 90 天内无内部人交易申报"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.insiders.fetch_error"
+msgstr "Form 4 数据不可用 · 本次运行 SEC 取数失败，内部人交易未纳入"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.proxy.parse_failed"
+msgstr "DEF 14A 解析失败 · 代理声明中未能提取有效薪酬数据"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.date"
+msgstr "申报日"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.name"
+msgstr "姓名"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.role"
+msgstr "职位"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.transaction"
+msgstr "交易类型"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.shares"
+msgstr "股数"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.value"
+msgstr "金额"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.holder"
+msgstr "持有机构"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.changePct"
+msgstr "环比变化"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.periodEnd"
+msgstr "期末"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.shareClass"
+msgstr "{letter} 类股"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.kv.ceoName"
+msgstr "CEO"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.kv.ceoComp"
+msgstr "CEO 总薪酬"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.kv.payRatio"
+msgstr "CEO/员工薪酬比"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.sale"
+msgstr "卖出"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.purchase"
+msgstr "买入"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.exercise"
+msgstr "期权行使"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.other_disposition"
+msgstr "其他处置"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.grant"
+msgstr "授予"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.award"
+msgstr "奖励"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.tax_withholding"
+msgstr "纳税扣股"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.conversion"
+msgstr "衍生品转换"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.exercise_otm"
+msgstr "价外行权"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.exercise_itm_atm"
+msgstr "价内/平价行权"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.disposition_to_issuer"
+msgstr "向发行人处置"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.discretionary"
+msgstr "自主交易"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.equity_swap"
+msgstr "股权互换"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.tender"
+msgstr "要约出售"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.voluntary_report"
+msgstr "自愿申报"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.estate"
+msgstr "继承处置"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.voting_trust"
+msgstr "表决权信托"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.small_acquisition"
+msgstr "小额收购"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.gift"
+msgstr "赠与"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.expiration_short"
+msgstr "空头到期"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.expiration_long"
+msgstr "多头到期"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.other"
+msgstr "其他"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.alert.shares"
+msgstr "股"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.alert.ofClass"
+msgstr "占流通股"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.source.def14a"
+msgstr "数据源：DEF 14A · 申报日 {date}"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.provenance.tooltip"
+msgstr "{form} · accession {accession} · {date}"
+
+#. js-lingui-explicit-id
+msgid "marketdata.age.justNow"
+msgstr "刚刚"
+
+#. js-lingui-explicit-id
+msgid "marketdata.age.sAgo"
+msgstr "{n}s 前"
+
+#. js-lingui-explicit-id
+msgid "marketdata.age.minAgo"
+msgstr "{n}min 前"
+
+#. js-lingui-explicit-id
+msgid "marketdata.age.hAgo"
+msgstr "{n}h 前"
+
+#. js-lingui-explicit-id
+msgid "marketdata.tier.fresh"
+msgstr "近实时"
+
+#. js-lingui-explicit-id
+msgid "marketdata.tier.delayed"
+msgstr "延迟"
+
+#. js-lingui-explicit-id
+msgid "marketdata.tier.stale"
+msgstr "陈旧"
+
+#. js-lingui-explicit-id
+msgid "marketdata.zoneHeader"
+msgstr "MARKET DATA · 非 AI"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.title"
+msgstr "未找到 {ticker}"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.description"
+msgstr "yfinance 无该代码的数据。请检查拼写。"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.backButton"
+msgstr "回搜索"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.hint1"
+msgstr "仅支持美股（NASDAQ / NYSE / AMEX）"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.hint2"
+msgstr "当前仅按代码搜索，不支持公司名"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.hint3"
+msgstr "港股 / A 股代码不支持"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.hint4"
+msgstr "如确认拼写无误，可能 yfinance 暂未收录该代码"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.equityResearch"
+msgstr "股票研报"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.scaleTitle"
+msgstr "估值落差"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.marketLive"
+msgstr "市价 · 报告时"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.ledeA.pre"
+msgstr "市场正在为"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.ledeA.mid"
+msgstr "的年营收增长定价，期限"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.modelTopsOut"
+msgstr "现金流模型可达上限"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.withheldTitle"
+msgstr "为增长定价"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.withheldBody"
+msgstr "现价是模型现金流中枢价值的 {multiple} ;这部分溢价押的是隐含增长,不是价值买点。"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.belowValueTitle"
+msgstr "低于现金流价值"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.belowValueBody"
+msgstr "现价是模型现金流中枢价值的 {multiple} ——市场付的价低于现金流经济学隐含的水平；隐含增长路径是关键变量。"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.atValueTitle"
+msgstr "处于现金流价值"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.atValueBody"
+msgstr "现价与模型现金流中枢价值相当——按现金流经济学定价公允；隐含增长是关键变量。"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.fairValueBand"
+msgstr "现金流公允区间"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.ledeB.pre"
+msgstr "即便"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.ledeB.mid"
+msgstr "的年增长，期限"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.ledeB.impliesOnly"
+msgstr "也只能推到"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.ledeB.marketAt"
+msgstr "—— 而市价处于"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.optionalityTitle"
+msgstr "市价在为现金流模型无法捕捉的期权价值定价。"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.optionalityBody"
+msgstr "基本面点估值不适用于此类标的 —— 这道落差是故事，不是折现率。"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.anchor.implied"
+msgstr "市场隐含"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.anchor.ceiling"
+msgstr "现金流上限"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.anchor.value"
+msgstr "现金流估值"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.typeLabel"
+msgstr "类型"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.version"
+msgstr "第 v{version} 版"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.versionOfTotal"
+msgstr "第 v{version} 版 · 共 {total} 份"
+
+#. js-lingui-explicit-id
+msgid "chapter.companyOverview.empty"
+msgstr "该研报未包含公司概览叙述，请重新生成完整研报即可在本章看到投行口吻的公司业务与定位描述。"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.directionalHeading"
+msgstr "方向判读"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.categoryHeading"
+msgstr "类别构成"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.netSentiment"
+msgstr "净情绪"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.eventCount"
+msgstr "覆盖 {count} 条近期催化剂事件"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.crossRef"
+msgstr "逐条事件（含来源与日期）见上方近期新闻事件流；前瞻性多空催化剂见投资论点章。"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.empty"
+msgstr "该研报未抓取到催化剂事件。"
+
+#. js-lingui-explicit-id
+msgid "chapter.thesis.empty"
+msgstr "该研报缺少投资论点字段，请重新生成完整研报。"
+
+#. js-lingui-explicit-id
+msgid "chapter.thesis.keyTakeaways"
+msgstr "核心要点"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.empty"
+msgstr "该研报未生成新闻情绪段 — 重新生成研报即在此章产出关键事件的论点支撑 / 挑战分析。"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.snapshotNote"
+msgstr "快照冻结于研报生成时 · 跨研报版本对比可追踪叙事演变"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.feed.heading"
+msgstr "可溯源事件流"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.feed.empty"
+msgstr "该研报未抓取到可溯源事件 — 以上方 AI 摘要为准。"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.feed.sourceTooltip"
+msgstr "打开来源：{source}"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.feed.impactTooltip"
+msgstr "影响力 {score}/5"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.empty"
+msgstr "该研报未生成同业对标 — 重新生成研报后此处补齐"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.col.ticker"
+msgstr "代码"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.col.revenue"
+msgstr "营收"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.col.grossMargin"
+msgstr "毛利率"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.col.opMargin"
+msgstr "营业利润率"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.peerMedian"
+msgstr "同业中位数："
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.subheading.multiples"
+msgstr "估值倍数对比"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.subheading.profile"
+msgstr "多维画像"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.subheading.positioning"
+msgstr "相对同业的定位"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.chart.multiples"
+msgstr "P/E 与 EV/EBITDA 对比同业"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.chart.radar"
+msgstr "标的 vs 同业中位数（中位=100;越往外越有利）"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.heat.label"
+msgstr "单元格底色 vs 同业中位数："
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.heat.favorable"
+msgstr "更便宜 / 更强"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.heat.unfavorable"
+msgstr "更贵 / 更弱"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.heat.inline"
+msgstr "±5% 以内 = 持平（不着色）"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.unit"
+msgstr "金额"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.expensive"
+msgstr "偏贵"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.fair"
+msgstr "合理"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.cheap"
+msgstr "偏便宜"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.unknown"
+msgstr "未知"
+
+#. js-lingui-explicit-id
+msgid "report.load.missingId"
+msgstr "缺少研报编号"
+
+#. js-lingui-explicit-id
+msgid "report.load.missingIdBody"
+msgstr "访问路径不完整，请回工作区重新选择研报。"
+
+#. js-lingui-explicit-id
+msgid "report.load.loading"
+msgstr "加载研报中…"
+
+#. js-lingui-explicit-id
+msgid "report.load.failed"
+msgstr "加载失败"
+
+#. js-lingui-explicit-id
+msgid "report.load.failedBody"
+msgstr "无法加载研报，请稍后重试。"
+
+#. js-lingui-explicit-id
+msgid "report.lang.mismatch"
+msgstr "本报告正文以{lang}撰写，不随界面语言切换。"
+
+#. js-lingui-explicit-id
+msgid "report.lang.zh"
+msgstr "中文"
+
+#. js-lingui-explicit-id
+msgid "report.lang.en"
+msgstr "英文"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.back"
+msgstr "返回 {ticker} 工作区"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerunStarted"
+msgstr "{ticker} 重跑 {reportType} 已启动"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerunStartedBody"
+msgstr "分析进行中，完成后可在工作区抽屉查看版本历史"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerunFailed"
+msgstr "启动重跑失败"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.toTarget"
+msgstr "距目标"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerun"
+msgstr "重跑"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportHtml"
+msgstr "导出 HTML"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportHtmlTitle"
+msgstr "导出与页面完全一致的 HTML 研报（暗色主题、图表、连续滚动；可用任意浏览器打开/分享）"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportHtmlDone"
+msgstr "已导出 HTML 研报"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportHtmlFailed"
+msgstr "导出 HTML 失败"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.eps"
+msgstr "每股收益（EPS）趋势"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.chart.title.eps"
+msgstr "基本 EPS · 逐年"
+
+#. js-lingui-explicit-id
+msgid "chart.epsTrend.eps"
+msgstr "EPS"
+
+#. js-lingui-explicit-id
+msgid "chart.epsTrend.yoy"
+msgstr "同比"
+
+#. js-lingui-explicit-id
+msgid "settings.loadFailed"
+msgstr "加载设置失败"
+
+#. js-lingui-explicit-id
+msgid "settings.loading"
+msgstr "加载设置中..."
+
+#. js-lingui-explicit-id
+msgid "settings.saveFailedRetry"
+msgstr "✗ 保存失败 · 点击重试"
+
+#. js-lingui-explicit-id
+msgid "settings.loadError.title"
+msgstr "无法加载设置"
+
+#. js-lingui-explicit-id
+msgid "settings.loadError.body"
+msgstr "后端不可用或返回错误,设置无法显示或保存。请确认 FinRobot 后端正在运行后重试——连接恢复前,这里输入的任何内容都不会被保存。"
+
+#. js-lingui-explicit-id
+msgid "settings.saving"
+msgstr "保存中…"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.hintEmpty"
+msgstr "解锁 10-K / 10-Q / 8-K 等申报 — 填姓名 + 邮箱，例如 {example}"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.hintInvalid"
+msgstr "格式未通过：不要只填邮箱；必须像 {example} 这样包含名称和邮箱"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.hintPending"
+msgstr "格式有效，正在自动保存；保存后后台会重新加载 SEC 数据层。"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.hintActive"
+msgstr "已启用：新分析会拉取 10-K / Ownership / XBRL；已经生成的报告需要重新跑才会更新"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.hintUnconfirmed"
+msgstr "格式有效，但后台尚未确认启用；请等待保存完成或查看保存失败提示"
+
+#. js-lingui-explicit-id
+msgid "settings.startupError.title"
+msgstr "启动配置错误"
+
+#. js-lingui-explicit-id
+msgid "settings.startupError.hint"
+msgstr "修复下方字段后会自动重新校验。LLM 路由将在配置修复前返回 503。"
+
+#. js-lingui-explicit-id
+msgid "settings.section.dataSources"
+msgstr "数据源"
+
+#. js-lingui-explicit-id
+msgid "settings.dataSources.baselineBadge"
+msgstr "默认在线"
+
+#. js-lingui-explicit-id
+msgid "settings.dataSources.baselineHint"
+msgstr "实时行情、财报与新闻 — 无需任何密钥即可使用。"
+
+#. js-lingui-explicit-id
+msgid "settings.section.aiModel"
+msgstr "AI 模型"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.configured"
+msgstr "已配置"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.saved"
+msgstr "已保存"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.verified"
+msgstr "已验证"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.failed"
+msgstr "验证失败"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.required"
+msgstr "必填"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.optional"
+msgstr "可选"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.active"
+msgstr "已启用"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.pending"
+msgstr "待启用"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.recommended"
+msgstr "建议配置"
+
+#. js-lingui-explicit-id
+msgid "settings.fmp.label"
+msgstr "FMP API 密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.fmp.placeholder"
+msgstr "输入 FMP API 密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.fmp.hint"
+msgstr "准确财报、D&A 与盈利惊喜 — 有免费额度"
+
+#. js-lingui-explicit-id
+msgid "settings.finnhub.label"
+msgstr "Finnhub API 密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.finnhub.placeholder"
+msgstr "输入 Finnhub API 密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.finnhub.hint"
+msgstr "补充公司新闻与公司概况"
+
+#. js-lingui-explicit-id
+msgid "settings.adanos.label"
+msgstr "Adanos API 密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.adanos.placeholder"
+msgstr "输入 Adanos API 密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.adanos.hint"
+msgstr "来自 Reddit、X、Polymarket 的散户情绪"
+
+#. js-lingui-explicit-id
+msgid "settings.alphaVantage.label"
+msgstr "Alpha Vantage API 密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.alphaVantage.placeholder"
+msgstr "输入 Alpha Vantage API 密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.alphaVantage.hint"
+msgstr "为新闻流做情绪打分"
+
+#. js-lingui-explicit-id
+msgid "settings.apiKey.getKey"
+msgstr "申请密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.label"
+msgstr "SEC EDGAR 身份 (User-Agent)"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.placeholder"
+msgstr "姓名或机构 邮箱@example.com"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.preview"
+msgstr "SEC 请求头预览："
+
+#. js-lingui-explicit-id
+msgid "settings.model.label"
+msgstr "模型"
+
+#. js-lingui-explicit-id
+msgid "settings.section.secHoldings"
+msgstr "SEC 13F 机构持仓"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.intro"
+msgstr "13F 反向索引用于在研报「机构持仓」一节展示「谁持有这只票」。建立索引需下载整个季度全市场的 13F-HR 申报,约 1-2 小时、占用较多 SEC 请求,因此默认关闭。"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.autoRefresh"
+msgstr "启动时自动同步"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.autoRefreshDesc"
+msgstr "每次启动时若缓存为空或超过 60 天,自动在后台重建(首次仍需约 1-2 小时)。"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.statusPopulated"
+msgstr "已建立 · {rows} 行 · {tickers} 只标的 · 截至 {period}"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.statusEmpty"
+msgstr "缓存未建立 · 尚无机构持仓数据"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.stale"
+msgstr "已过期 — {expected} 季度 13F 申报已到期但尚未同步"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.syncNow"
+msgstr "立即同步"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.syncing"
+msgstr "同步中…"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.syncFailed"
+msgstr "同步失败,请查看日志"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.identityRequired"
+msgstr "请先在上方「SEC EDGAR」配置有效身份后再同步"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.runningHint"
+msgstr "正在下载并解析整季度 13F-HR,可能需 1-2 小时;期间可离开本页,完成后重新生成研报即可看到机构持仓。"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.confirmTitle"
+msgstr "开始 13F 同步?"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.confirmBody"
+msgstr "将下载整季度全市场 13F-HR 文件(约 1-2 小时,SEC 请求压力较大),在后台运行,期间可离开本页。完成后需重新生成研报才能看到机构持仓。"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.confirmProceed"
+msgstr "开始同步"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.startedAt"
+msgstr "开始于 {time}"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.syncError"
+msgstr "无法启动同步——后端不可用或返回错误。"
+
+#. js-lingui-explicit-id
+msgid "settings.saveFailedTitle"
+msgstr "保存失败"
+
+#. js-lingui-explicit-id
+msgid "settings.savedOk"
+msgstr "✓ 已保存"
+
+#. js-lingui-explicit-id
+msgid "shell.about.aria"
+msgstr "关于 FinRobot"
+
+#. js-lingui-explicit-id
+msgid "shell.about.charity"
+msgstr "501(c)(3) 非营利 · 开源"
+
+#. js-lingui-explicit-id
+msgid "shell.about.starGithub"
+msgstr "在 GitHub 点亮 Star"
+
+#. js-lingui-explicit-id
+msgid "shell.footer.copyright"
+msgstr "版权所有 © AI4Finance Foundation"
+
+#. js-lingui-explicit-id
+msgid "shell.titlebar.aiAssistant"
+msgstr "AI 助手"
+
+#. js-lingui-explicit-id
+msgid "shell.warning.collapse"
+msgstr "收起"
+
+#. js-lingui-explicit-id
+msgid "shell.warning.more"
+msgstr "+{count} 更多"
+
+#. js-lingui-explicit-id
+msgid "shell.error.renderFailed"
+msgstr "页面渲染出错"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.invalidTicker"
+msgstr "代码格式不对 · 用 1-12 个字母 / 数字 / .-"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.searchPlaceholder"
+msgstr "输入股票代码 · 如 AAPL"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.analyze"
+msgstr "分析"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.cockpitLabel"
+msgstr "AI 研究驾驶舱"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.tickerAria"
+msgstr "股票代码"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.statusGenerating"
+msgstr "正在生成 {name}"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.statusDone"
+msgstr "{name} · 完成"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.statusFailed"
+msgstr "{name} · 失败"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.statusCancelled"
+msgstr "{name} · 已取消"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.cancel"
+msgstr "取消"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.cancelling"
+msgstr "取消中…"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.elapsed"
+msgstr " · 已运行 {s}s"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.eta"
+msgstr " · 还剩 ~{s}s"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.totalDuration"
+msgstr " · 总耗时 {s}s"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.openReport"
+msgstr "→ 打开研报"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.dismissAria"
+msgstr "关闭进度面板"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.retrying"
+msgstr "重试中 {attempt}/{max}"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.degraded"
+msgstr "已降级"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.footer"
+msgstr "数字由代码算出，不是 LLM 编 · 任一步骤失败整份研报重新生成"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.failedMsg"
+msgstr "⚠️ 研报生成失败 · {error}"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.retryLater"
+msgstr "请稍后重试"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.research"
+msgstr "AI 完整研报"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.icMemo"
+msgstr "投委备忘"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.earnings"
+msgstr "财报电话会分析"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.lbo"
+msgstr "LBO 估值"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.ddm"
+msgstr "股息折现"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.comps"
+msgstr "同业对标"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.dcf"
+msgstr "DCF 估值"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.dataCollection.label"
+msgstr "数据收集"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.dataCollection.help"
+msgstr "拉取 10-K / 10-Q / 价格 / 新闻"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.catalystAnalysis.label"
+msgstr "催化剂识别"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.catalystAnalysis.help"
+msgstr "新闻分类 + 事件提取 + 影响打分"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.peerAnalysis.label"
+msgstr "同业对标"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.peerAnalysis.help"
+msgstr "5 家可比公司财务比较"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.financialModeling.label"
+msgstr "财务建模"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.financialModeling.help"
+msgstr "DCF 蒙特卡洛 + Comps + 敏感性"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.ownershipGovernance.label"
+msgstr "股权与治理"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.ownershipGovernance.help"
+msgstr "内部人交易 + 机构持仓 + 高管薪酬"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.technicalAnalysis.label"
+msgstr "技术与高阶"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.technicalAnalysis.help"
+msgstr "蒙特卡洛 + 入场点位 + 价格走势"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.thesis.label"
+msgstr "投资论点"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.thesis.help"
+msgstr "生成 target_price + 风险因素"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.report.label"
+msgstr "整合报告"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.report.help"
+msgstr "13 章研报 + LLM 叙事"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.zoneTitle"
+msgstr "📊 市场数据"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.zoneDesc"
+msgstr "来源 yfinance / SEC EDGAR / FMP · 实时拉，跟 AI 研报互不依赖。"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.snapshot"
+msgstr "📊 行情快照"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.valuationBand"
+msgstr "📐 倍数 vs 自身历史"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.valuationBandError"
+msgstr "估值带暂不可用（≠ 无带）· 点击重试"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.priceTrend"
+msgstr "📈 价格趋势"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.financialsTtm"
+msgstr "💰 财务指标 · TTM"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.catalystCalendar"
+msgstr "📅 催化剂日历"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.catalystClassifying"
+msgstr "正在分类新闻 — 首次加载约 15s"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.marketCap"
+msgstr "市值"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.revenueTtm"
+msgstr "营收 TTM"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.streetCaliber"
+msgstr "报告口径 {v}"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.evEbitdaCaliber"
+msgstr "主显=营业口径 EV/EBITDA（EBITDA=EBIT+D&A）。EV 已扣现金，故不计利息收入。报告口径=净利+税+利息+D&A，含利息收入，多数零售聚合站用这个——不是卖方一致预期。"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.betaCaliber"
+msgstr "原始回归值"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.betaCaliberDetail"
+msgstr "此为数据源原始 5 年回归 β，未经调整。AI 研报中 DCF/WACC 估值用的是同一个 β 经 Blume 非对称调整后的值：β>1 按 2/3·β+1/3·1.0 向大盘收敛（高 β 估计噪声更大、更易均值回归）；β≤1（真实低 β 防御股）则保持原值不调整。两个数字并列出现且不同是正常的口径差异，不是数据错误。"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.ebitdaCaliber"
+msgstr "主显=营业口径 EBITDA（EBIT+D&A）。报告口径=净利+税+利息+D&A，含非营业收入，故高于营业口径；不是卖方一致预期(Street)。"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.unnamedEvent"
+msgstr "(未命名事件)"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.catalystSourceCount"
+msgstr "报道此事件的不同来源数(近重复已合并)"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.noCatalysts"
+msgstr "暂无近期事件 · 财报 / 产品发布 / 监管"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.dataUnavailable"
+msgstr "市场数据源暂不可用"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.dataUnavailableHint"
+msgstr "上游返回 {status} · 点击重试"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.dataUnavailableHintNoStatus"
+msgstr "数据源暂时不可用 · 点击重试"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.engineStarting"
+msgstr "数据引擎启动中…"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.engineStartingHint"
+msgstr "实时数据稍候自动加载"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentRateLimited"
+msgstr "散户情绪源被限流"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentRateLimitedHint"
+msgstr "数据源限流,稍后自动重试"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.catalystError"
+msgstr "催化剂识别暂不可用（≠ 无催化剂）· 点击重试"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.source"
+msgstr "来源 {provider}"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.ttmAsOf"
+msgstr "TTM 截至 {date}"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.closeOnly"
+msgstr "仅收盘价 · 52周高低用收盘价"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.ttmLag"
+msgstr "TTM 落后 · 分母非最新季"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.ccyInferred"
+msgstr "币种推断 · 非财报直接标注"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.priceFallbackClose"
+msgstr "价格为最新收盘 · 休市或仅收盘价源"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.periodBasisUnknown"
+msgstr "报告期未确认 · 按 TTM 处理"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.circuitOpen"
+msgstr "{provider} 源跳过 · 熔断冷却中"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.providerDivergence"
+msgstr "{field} 跨源不一致 · 已标交叉校验"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.priceDivergence"
+msgstr "{field} 行情源不一致 · 需复核实时报价"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.trend.uptrend"
+msgstr "↑ 多头排列"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.trend.downtrend"
+msgstr "↓ 空头排列"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.trend.sideways"
+msgstr "→ 盘整"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.trendInsufficient"
+msgstr "趋势数据不足（不足 20 个交易日）"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.trendUnavailable"
+msgstr "趋势数据暂不可用"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.rangeMarker"
+msgstr "现价 {price} · 区间位置 {pct}%"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.low52w"
+msgstr "52W低 {v}"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.high52w"
+msgstr "52W高 {v}"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.range"
+msgstr "区间 {pct}%"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentiment"
+msgstr "散户情绪"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentDesc"
+msgstr "Reddit / X.com / Polymarket 散户讨论的多空倾向与热度（Adanos）。多空占比为各覆盖平台的等权平均。"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentUnconfigured"
+msgstr "未配置 Adanos"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentUnconfiguredHint"
+msgstr "在设置中填入 Adanos API key 后即可解锁散户情绪。"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentGoSettings"
+msgstr "去设置 →"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentCoverage"
+msgstr "覆盖 {coverage} 平台"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentBullish"
+msgstr "看多"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentBearish"
+msgstr "看空"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentBuzz"
+msgstr "平均热度"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentAlignment.aligned"
+msgstr "各平台一致"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentAlignment.split"
+msgstr "各平台分歧"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentAlignment.partial_divergence"
+msgstr "部分分歧"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentAlignment.single_source"
+msgstr "单一来源"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentAlignment.no_data"
+msgstr "无数据"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentNoSources"
+msgstr "暂无平台返回数据。"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.zoneTitle"
+msgstr "🤖 AI 研报"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.zoneDesc"
+msgstr "AI 投研报告 · 投资论点、估值分析（DCF / 同业 / DDM）、风险催化剂等 13 章节，数字由代码算出，判断由 LLM 给出。"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.reportCount"
+msgstr "共 {n} 份研报"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.neverRun"
+msgstr "未跑过"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.running"
+msgstr "正在跑 …"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.retry"
+msgstr "↻ 重试"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.error.title"
+msgstr "加载失败 — 后端服务不可达或返回错误"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.error.hint"
+msgstr "请检查后端服务是否正常运行"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.toast.alreadyRunning"
+msgstr "{ticker} 已有分析正在进行"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.toast.alreadyRunningDesc"
+msgstr "请等待当前分析结束后再发起新的"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.toast.launched"
+msgstr "{ticker} 研报已启动"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.toast.launchedDesc"
+msgstr "分析进行中，约 60 秒后此处会自动刷新"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.toast.launchFailed"
+msgstr "启动研报失败"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.checking"
+msgstr "检查研报历史中…"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.title"
+msgstr "还未为 {ticker} 生成研报"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.descPrefix"
+msgstr "生成一份"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.descBold"
+msgstr "13 章投行级研报"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.descSuffix"
+msgstr "： 投资论点 · 公司概览 · 财务分析 · 估值（DCF + 同业 + DDM）· 新闻事件 · 敏感性 · 催化剂 · 技术分析 · 竞争格局 · 财务数据 · 股权与治理（含封面与免责声明）"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.launchBtn"
+msgstr "▶ 立即跑 AI 研报（~60s）"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.immutableNote"
+msgstr "研报一旦生成即不可变 · 重新生成会追加新版本，不会覆盖旧版"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.preflight.passed"
+msgstr "预检通过"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.preflight.modelConfigured"
+msgstr "已配置 AI 模型"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.preflight.modelPending"
+msgstr "尚未配置 AI 模型 · 去设置"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.preflight.dataSources"
+msgstr "{n} 个数据源在线"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.verdictLabel"
+msgstr "裁决"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.target12mo"
+msgstr "12 个月目标价"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.openFull"
+msgstr "打开完整研报"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.rerun"
+msgstr "重跑"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.history"
+msgstr "⏱ 历史版本 · {n} 份"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.notAnalyzed"
+msgstr "尚未分析 · 运行一个模型"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.versionCurrent"
+msgstr "当前"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.versionNow"
+msgstr "现在"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.age.justNow"
+msgstr "刚刚"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.age.minAgo"
+msgstr "{n} 分钟前"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.age.hAgo"
+msgstr "{n} 小时前"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.age.dAgo"
+msgstr "{n} 天前"
+
+#. js-lingui-explicit-id
+msgid "workspace.hero.closedAsOf"
+msgstr "收盘 · {date}"
+
+#. js-lingui-explicit-id
+msgid "workspace.hero.usMarket"
+msgstr "美股"
+
+#. js-lingui-explicit-id
+msgid "workspace.toast.reportDone"
+msgstr "{ticker} 研报完成"
+
+#. js-lingui-explicit-id
+msgid "workspace.toast.reportCancelled"
+msgstr "{ticker} 任务已取消"
+
+#. js-lingui-explicit-id
+msgid "workspace.toast.reportDoneDesc"
+msgstr "完整 13 章研报已生成，点击右侧 AI 区\"打开完整研报\"查看"
+
+#. js-lingui-explicit-id
+msgid "workspace.toast.reportFailed"
+msgstr "{ticker} 研报失败"
+
+#. js-lingui-explicit-id
+msgid "workspace.toast.retryLater"
+msgstr "请稍后重试"
+
+#. js-lingui-explicit-id
+msgid "workspace.missingTicker"
+msgstr "缺少股票代码，请通过搜索或自选股进入。"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.model.configuredInSettings"
+msgstr "模型在 Settings 中配置"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.send.title"
+msgstr "发送 (↵ · Shift+↵ 换行)"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.expand.open"
+msgstr "展开聊天"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.context.label"
+msgstr "上下文"
+
+#. js-lingui-explicit-id
+msgid "term.ariaLabel"
+msgstr "术语：{term}"
+
+#. js-lingui-explicit-id
+msgid "term.askMore"
+msgstr "让 FinRobot 详细讲讲 →"
+
+#. js-lingui-explicit-id
+msgid "sourced.title"
+msgstr "数据来源"
+
+#. js-lingui-explicit-id
+msgid "sourced.provider"
+msgstr "来源"
+
+#. js-lingui-explicit-id
+msgid "sourced.unknown"
+msgstr "未知"
+
+#. js-lingui-explicit-id
+msgid "sourced.fetchedAt"
+msgstr "抓取时间"
+
+#. js-lingui-explicit-id
+msgid "sourced.asOf"
+msgstr "数据截至"
+
+#. js-lingui-explicit-id
+msgid "sourced.formula"
+msgstr "公式"
+
+#. js-lingui-explicit-id
+msgid "sourced.warning"
+msgstr "警告"
+
+#. js-lingui-explicit-id
+msgid "sourced.openReport"
+msgstr "打开完整研报 →"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.offScalePrefix"
+msgstr "市价 {price} 距模型估值中位 {mid} 偏离"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.overvalued"
+msgstr "模型隐含明显高估"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.undervalued"
+msgstr "模型隐含明显低估"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.offScaleSuffix"
+msgstr "，请审计假设来源后再下结论。"
+
+#. js-lingui-explicit-id
+msgid "chart.series.revenue"
+msgstr "营收"
+
+#. js-lingui-explicit-id
+msgid "chart.tooltip.projected"
+msgstr "预测 · 模型估算"
+
+#. js-lingui-explicit-id
+msgid "chart.series.ebitda"
+msgstr "EBITDA"
+
+#. js-lingui-explicit-id
+msgid "chart.margin.gross"
+msgstr "毛利率"
+
+#. js-lingui-explicit-id
+msgid "chart.margin.ebitda"
+msgstr "EBITDA 利润率"
+
+#. js-lingui-explicit-id
+msgid "chart.margin.operating"
+msgstr "营业利润率"
+
+#. js-lingui-explicit-id
+msgid "chart.cashflow.operating"
+msgstr "经营"
+
+#. js-lingui-explicit-id
+msgid "chart.cashflow.investing"
+msgstr "投资"
+
+#. js-lingui-explicit-id
+msgid "chart.cashflow.financing"
+msgstr "筹资"
+
+#. js-lingui-explicit-id
+msgid "chart.cashflow.net"
+msgstr "净现金流"
+
+#. js-lingui-explicit-id
+msgid "chart.peer.evEbitda"
+msgstr "EV/EBITDA"
+
+#. js-lingui-explicit-id
+msgid "chart.peer.pe"
+msgstr "市盈率"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.company"
+msgstr "本公司"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.benchmark"
+msgstr "同业基准"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.pe"
+msgstr "市盈率"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.evEbitda"
+msgstr "EV/EBITDA"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.evRevenue"
+msgstr "EV/营收"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.grossMargin"
+msgstr "毛利率"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.operatingMargin"
+msgstr "营业利润率"
+
+#. js-lingui-explicit-id
+msgid "chart.waterfall.total"
+msgstr "合计"
+
+#. js-lingui-explicit-id
+msgid "chart.waterfall.add"
+msgstr "增加"
+
+#. js-lingui-explicit-id
+msgid "chart.waterfall.subtract"
+msgstr "减少"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.current"
+msgstr "现价"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.offScaleBadge"
+msgstr "超出区间"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.mid"
+msgstr "中值"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.title"
+msgstr "{metric} · 当前 vs 自身 {window} 区间"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.cheap"
+msgstr "偏低"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.fair"
+msgstr "中性"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.rich"
+msgstr "偏高"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.unknown"
+msgstr "无"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.samples"
+msgstr "{count} 期"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.median"
+msgstr "中位"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.now"
+msgstr "当前"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.target"
+msgstr "目标价"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.mcap"
+msgstr "市值"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.revttm"
+msgstr "营收 TTM"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.upside"
+msgstr "上行空间"
+
+#. js-lingui-explicit-id
+msgid "coverage.notRun"
+msgstr "未运行"
+
+#. js-lingui-explicit-id
+msgid "coverage.run"
+msgstr "运行"
+
+#. js-lingui-explicit-id
+msgid "coverage.running"
+msgstr "运行中"
+
+#. js-lingui-explicit-id
+msgid "coverage.loading"
+msgstr "加载覆盖池…"
+
+#. js-lingui-explicit-id
+msgid "coverage.error.groupsFailed"
+msgstr "无法连接 Coverage 服务——可能仍在启动中。"
+
+#. js-lingui-explicit-id
+msgid "coverage.error.overviewFailed"
+msgstr "无法加载该覆盖组的数据。"
+
+#. js-lingui-explicit-id
+msgid "coverage.error.retry"
+msgstr "重试"
+
+#. js-lingui-explicit-id
+msgid "coverage.error.marketFailed"
+msgstr "行情拉取失败，点击重试。"
+
+#. js-lingui-explicit-id
+msgid "coverage.error.dismiss"
+msgstr "关闭"
+
+#. js-lingui-explicit-id
+msgid "coverage.emptyGroup"
+msgstr "还没有覆盖记录 — 打开研究入口搜索第一支股票。"
+
+#. js-lingui-explicit-id
+msgid "coverage.filterEmpty"
+msgstr "没有符合当前视图的股票 · 切到「全部」查看完整覆盖"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.fresh"
+msgstr "数据新鲜"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.target"
+msgstr "目标价"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.label"
+msgstr "市场隐含"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.fundamental"
+msgstr "隐含 {g}/yr"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.fundamentalTitle"
+msgstr "现价隐含约 {g}/yr 营收增速(over {n}y),由最新存量 DCF 按现价反推。仅作单名上下文,不用于跨名排名。"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.optionValue"
+msgstr "✕ 期权价"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.optionValueTitle"
+msgstr "增速到 {ceiling}/yr 都够不着现价(即便如此也只值 {price})——市场在为 DCF 无法建模的期权价值定价,且在更低的合理 WACC 下仍成立。"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.nearCeiling"
+msgstr "⚠ 临界"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.nearCeilingTitle"
+msgstr "在该名自身 WACC 下不可达,但更低的合理 WACC 能解释现价——对 WACC 敏感,故不断言为期权价。"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.refreshing"
+msgstr "刷新中"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.closed"
+msgstr "收盘 · {date}"
+
+#. js-lingui-explicit-id
+msgid "coverage.reason.run_failed"
+msgstr "运行失败"
+
+#. js-lingui-explicit-id
+msgid "coverage.reason.never_run"
+msgstr "待研报"
+
+#. js-lingui-explicit-id
+msgid "coverage.reason.signal_closed"
+msgstr "结论待复核"
+
+#. js-lingui-explicit-id
+msgid "coverage.reason.warning"
+msgstr "数据告警"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.reports"
+msgstr "{n} 份研报 · 最新 {date}"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.noReports"
+msgstr "尚无分析记录"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.modelOnly"
+msgstr "暂无研报 · {n} 条模型记录"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.open"
+msgstr "打开 {ticker}"
+
+#. js-lingui-explicit-id
+msgid "coverage.emptyArchive.title"
+msgstr "还没有覆盖记录"
+
+#. js-lingui-explicit-id
+msgid "coverage.emptyArchive.body"
+msgstr "先从研究入口搜索一支股票。第一支跑过的股票会自动沉淀到这里，带着历史研报和最新状态。"
+
+#. js-lingui-explicit-id
+msgid "coverage.emptyArchive.action"
+msgstr "打开研究入口"
+
+#. js-lingui-explicit-id
+msgid "hotState.targetWithheld"
+msgstr "目标价暂缓给出 · 估值方法在交叉验证中分歧 — 打开研报查看勾稽核对明细 →"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.researchTicker"
+msgstr "研究 {ticker}"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.button"
+msgstr "清除"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.confirmTitle"
+msgstr "清除已保存的 API 密钥？"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.confirmBody"
+msgstr "将从安全存储（系统钥匙串）中删除这个 API 密钥。删除后需要重新填写才能使用该服务。"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.cancel"
+msgstr "取消"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.confirm"
+msgstr "清除"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.doneTitle"
+msgstr "已清除"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.doneBody"
+msgstr "API 密钥已从安全存储中删除。"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.failTitle"
+msgstr "清除失败"
+
+#. js-lingui-explicit-id
+msgid "settings.subtitle"
+msgstr "API 密钥与数据源在这里配置，全部保存在本机。"
+
+#. js-lingui-explicit-id
+msgid "settings.secretStorage.localFile"
+msgstr "密钥存储在本机的本地文件中"
+
+#. js-lingui-explicit-id
+msgid "settings.llm.apiKeyLabel"
+msgstr "API 密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.llm.apiKeyPlaceholder"
+msgstr "填入 {provider} 的 API 密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.onboarding.title"
+msgstr "先配置一个 AI 模型密钥"
+
+#. js-lingui-explicit-id
+msgid "settings.onboarding.body"
+msgstr "FinRobot 用大模型生成研报叙事——选一个服务商、填入它的 API 密钥即可开始。下方数据源密钥（FMP 等）可选，用于更高质量的财务数据。"
+
+#. js-lingui-explicit-id
+msgid "settings.key.show"
+msgstr "显示"
+
+#. js-lingui-explicit-id
+msgid "settings.key.hide"
+msgstr "隐藏"
+
+#. js-lingui-explicit-id
+msgid "settings.provider.label"
+msgstr "服务商"
+
+#. js-lingui-explicit-id
+msgid "settings.provider.customTag"
+msgstr "自定义"
+
+#. js-lingui-explicit-id
+msgid "settings.provider.placeholder"
+msgstr "选择模型提供方"
+
+#. js-lingui-explicit-id
+msgid "settings.model.idPlaceholder"
+msgstr "模型 id（如 deepseek-chat）"
+
+#. js-lingui-explicit-id
+msgid "settings.llm.apiKeyLabelFor"
+msgstr "{provider} API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.title"
+msgstr "自定义服务商（OpenAI 兼容）"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.name"
+msgstr "名称"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.remove"
+msgstr "删除"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.baseUrl"
+msgstr "Base URL"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.apiKey"
+msgstr "API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.apiKeyPlaceholder"
+msgstr "填入该服务商的 API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.add"
+msgstr "添加服务商"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.addEntry"
+msgstr "添加自定义服务商"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.cancel"
+msgstr "取消"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.incompleteTitle"
+msgstr "名称和 Base URL 为必填"
+
+#. js-lingui-explicit-id
+msgid "settings.test.button"
+msgstr "测试连接"
+
+#. js-lingui-explicit-id
+msgid "settings.test.testing"
+msgstr "测试中…"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.ok"
+msgstr "连接正常"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.no_key"
+msgstr "该服务商未配置 API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.no_model"
+msgstr "请先填写模型 id"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.auth"
+msgstr "鉴权失败——请检查 API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.connect"
+msgstr "无法连接端点——请检查 Base URL"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.not_found"
+msgstr "模型不存在——请检查模型 id"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.http"
+msgstr "服务商返回错误"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.unknown"
+msgstr "连接测试失败"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.ok"
+msgstr "连接正常"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.no_key"
+msgstr "该数据源未配置 API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.auth"
+msgstr "API Key 无效——请检查 Key"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.connect"
+msgstr "无法连接数据源——请检查网络"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.not_found"
+msgstr "数据源拒绝了该请求"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.http"
+msgstr "数据源返回错误"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.plan"
+msgstr "key 看起来有效，但所在 FMP 套餐无权访问该端点（legacy/付费限制）"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.rate_limited"
+msgstr "数据源限流（429）——稍后再试"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.unknown"
+msgstr "连接测试失败"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.subcopy"
+msgstr "输入一个股票代码，打开可追溯的 AI 投研工作台"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.subcopyAccent"
+msgstr "确定性计算 + LLM 叙事 · 数字皆可回溯"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.popular"
+msgstr "热门"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.suggestionsLabel"
+msgstr "搜索建议"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.suggestionsAria"
+msgstr "股票代码建议"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.research.name"
+msgstr "AI 投研报告"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.research.desc"
+msgstr "13 章投行级 equity research，给出 BUY / HOLD / SELL"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.valuation.name"
+msgstr "确定性估值"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.valuation.desc"
+msgstr "DCF · 同业 · DDM · LBO · 敏感性，数字由纯函数算出"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.provenance.name"
+msgstr "数字可追溯"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.provenance.desc"
+msgstr "每个关键数字回溯到数据源 · 口径 · 公式 · 函数"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.signals.name"
+msgstr "催化剂 & 治理"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.signals.desc"
+msgstr "新闻 · 8-K · 机构持仓 · 内部人 · 13D/13G"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.quant.name"
+msgstr "量化叠加 & IC 辩论"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.quant.desc"
+msgstr "Monte Carlo · 交易点位 · 牛熊 IC 辩论"
+
+#. js-lingui-explicit-id
+msgid "update.pill.available"
+msgstr "更新到 {version}"
+
+#. js-lingui-explicit-id
+msgid "update.pill.downloading"
+msgstr "更新中"
+
+#. js-lingui-explicit-id
+msgid "update.pill.installing"
+msgstr "安装中…"
+
+#. js-lingui-explicit-id
+msgid "update.pill.ready"
+msgstr "更新就绪"
+
+#. js-lingui-explicit-id
+msgid "update.pill.retry"
+msgstr "更新失败，重试"
+
+#. js-lingui-explicit-id
+msgid "update.toast.available"
+msgstr "发现新版本 — 点顶部按钮即可更新"
+
+#. js-lingui-explicit-id
+msgid "update.toast.upToDate"
+msgstr "已是最新版本"
+
+#. js-lingui-explicit-id
+msgid "update.toast.checkFailed"
+msgstr "检查更新失败"
+
+#. js-lingui-explicit-id
+msgid "update.gate.title"
+msgstr "需要更新才能继续"
+
+#. js-lingui-explicit-id
+msgid "update.gate.body"
+msgstr "当前版本已停止支持，请更新到 {version} 后继续使用 FinRobot。"
+
+#. js-lingui-explicit-id
+msgid "update.gate.button"
+msgstr "立即更新"
+
+#. js-lingui-explicit-id
+msgid "settings.nav.updates"
+msgstr "更新"
+
+#. js-lingui-explicit-id
+msgid "settings.section.updates"
+msgstr "更新"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.intro"
+msgstr "检查并安装 FinRobot 的新版本。"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.currentVersion"
+msgstr "当前版本：{version}"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.checkButton"
+msgstr "检查更新"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.checking"
+msgstr "检查中…"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.browserOnly"
+msgstr "更新检查仅在桌面 App 中可用。"
+
+#. js-lingui-explicit-id
+msgid "coverage.refresh.button"
+msgstr "刷新"
+
+#. js-lingui-explicit-id
+msgid "coverage.refresh.refreshing"
+msgstr "刷新中…"
+
+#. js-lingui-explicit-id
+msgid "coverage.refresh.upToDate"
+msgstr "已是最新收盘"
+
+#. js-lingui-explicit-id
+msgid "coverage.refresh.updated"
+msgstr "已更新"
+
+#. js-lingui-explicit-id
+msgid "coverage.refresh.aria"
+msgstr "刷新行情数据"
+
+#. js-lingui-explicit-id
+msgid "runs.error.alreadyActive"
+msgstr "{ticker} 已有任务正在运行。"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerunRunningTitle"
+msgstr "{ticker} 已有任务正在运行"
+
+#. js-lingui-explicit-id
+msgid "settings.providerStatus.cooldown"
+msgstr "冷却中"
+
+#. js-lingui-explicit-id
+msgid "settings.providerStatus.dotOk"
+msgstr "实时状态：该数据源响应正常"
+
+#. js-lingui-explicit-id
+msgid "settings.providerStatus.dotOpen"
+msgstr "实时状态：近期调用失败——冷却结束前暂停使用，之后自动重试"
+
+#. js-lingui-explicit-id
+msgid "settings.providerStatus.dotNa"
+msgstr "该数据源无实时遥测"
+
+#. js-lingui-explicit-id
+msgid "settings.providerStatus.cooldownUntil"
+msgstr "冷却至"
+
+#. js-lingui-explicit-id
+msgid "settings.providerStatus.unavailable"
+msgstr "数据源状态不可用——后端未连接。"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.priceHistoryStale"
+msgstr "历史K线为缓存旧数据 · 实时源仅提供现价"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.title"
+msgstr "市场隐含预期"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.subtitle"
+msgstr "· 反解市场押了什么"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.loading"
+msgstr "反解中…"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.lede"
+msgstr "市场价不对应一个估值，对应一族假设组合。三个反解各钉死两根轴、解第三根——读法是「固定 X，市场就要求 Y」："
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.axis.growth"
+msgstr "增长轴 · 固定 WACC + 5年"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.axis.wacc"
+msgstr "折现轴 · 固定增长曲线"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.axis.horizon"
+msgstr "年限轴 · 固定增长 + WACC"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.tooltip.growth"
+msgstr "{g}% 增长"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.tooltip.impliedYears"
+msgstr "隐含年限"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.unreachable"
+msgstr "够不着"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.years"
+msgstr "年"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.lineTitle"
+msgstr "增长 → 隐含年限 等价线"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.fixedWacc"
+msgstr "固定 WACC"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.waccSlider"
+msgstr "折现率 WACC"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.priorNote"
+msgstr "✓/⚠ 是 analyst 可信先验，不是算法客观结论；换一组固定的轴，结论就变。市场价落在这条线上，你信线上哪一段，是你的判断。"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.solved"
+msgstr "在固定 {growth}% 增长、{wacc}% WACC 下，${target} 对应约 {horizon} 年的高增长窗口（整数年之间线性插值）。注意：该年限取决于固定的 {growth}% 增长——换一个同样合理的增长率会得到不同年限。"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.notConverged"
+msgstr "在迭代上限内未收敛到精确解——显示值为近似值，非精确根。"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.growth.aboveRange"
+msgstr "${target} 在模型增长区间 [{lo}%, {hi}%] 内无解。{lo}% 增长 → ${priceLo}；{hi}% 增长 → ${priceHi}。市场要么在定价超出该区间的增长，要么另一个输入（利润率 / WACC / 净负债）需要复核。"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.growth.belowRange"
+msgstr "${target} 无解：当前价已低于模型最低增长（{lo}% → ${priceLo}）所产生的值——区间内最慢的增长也会高估它。"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.outOfWaccRange"
+msgstr "${target} 在 WACC 区间 [{lo}%, {hi}%] 内无解。WACC {lo}% → ${priceLo}；WACC {hi}% → ${priceHi}。"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.horizon.aboveRange"
+msgstr "在固定 {growth}% 增长下，${target} 超出 1–{maxHorizon}y 的可达区间 [${priceLo}, ${priceHi}]。增长假设太低——再长的高增长窗口也够不到它。换一个固定增长率会得到不同年限。"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.horizon.belowRange"
+msgstr "在固定 {growth}% 增长下，${target} 超出 1–{maxHorizon}y 的可达区间 [${priceLo}, ${priceHi}]。当前价已低于最短窗口对应的隐含值。换一个固定增长率会得到不同年限。"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.gordonUndefined"
+msgstr "在固定 {growth}% 增长下，终值增长 {tg}% 未低于 WACC {wacc}%——Gordon 模型无定义，无法求解年限。"

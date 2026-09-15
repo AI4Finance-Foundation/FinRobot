@@ -1,0 +1,118 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project
+*.log
+
+# Database cache
+finrobot_cache.db
+finrobot_cache.db-shm
+finrobot_cache.db-wal
+*.db
+*.db-shm
+*.db-wal
+
+# Local data (root-only — must not shadow finrobot/engine/data/)
+/data/
+资料/
+
+# Environment
+.env
+.env.local
+.env.development
+.env.production
+
+# Desktop / Electron
+node_modules/
+desktop/dist/
+desktop/out/
+desktop/.vite/
+# Internal docs — local only, not published. 给 Claude / Codex 跨会话看，不进 git。
+# 进 git 的只有 README.md + 运行时资产 (finrobot/engine/**/instructions、skills/)。
+ARCHITECTURE.md
+CODE_OF_CONDUCT.md
+CONTRIBUTING.md
+REVIEW_FINDINGS.md
+specs/
+docs/
+AGENTS.md
+CLAUDE.md
+
+# Claude Code config (local, not version-controlled)
+.claude/
+
+# npx skills lock 文件（skills 本体落在 .claude/skills/，已随 .claude/ 忽略；lock 也不进仓库）
+skills-lock.json
+
+# Codex CLI config (local, not version-controlled)
+.codex/
+
+# AI development memory (local, not version-controlled)
+project-memory/
+
+# Research (unconfirmed directions, not open-sourced)
+调研/
+
+# evolve.sh — private module-level autopilot (script + runtime artifacts)
+scripts/evolve.sh
+scripts/evolve_progress.py
+scripts/.evolve_state.json
+scripts/evolve_raw.jsonl
+scripts/evolve.log
+
+# Desktop sidecar binaries — multi-hundred-MB PyInstaller onedir output, frozen
+# locally / in CI by desktop/src-tauri/sidecar/build.sh into sidecar/dist/. The
+# source (spec + entry + build script under desktop/src-tauri/sidecar/) is
+# tracked; the frozen output is not. desktop/.gitignore's generic `dist/` already
+# catches this, but this explicit root rule is the backstop so the bundle can
+# never leak into git if that generic rule is ever narrowed.
+desktop/src-tauri/sidecar/dist/
+
+# understand-anything — local codebase-analysis tool cache (graph/batches/tmp).
+# Regenerated on demand; never part of the project source.
+.understand-anything/
+
+# design-demos — UI 重设计探索的临时产物（HTML mockup + 截图），本地参考用，不进仓库
+design-demos/
+
+# rope's local cache, created by scripts/find_refs.py on each run; never source.
+.ropeproject/
+
+# 发布操作手册 — 本地私人备忘（含发布步骤/账号细节），不进版本管理
+/发布须知.md
+
+# app 图标母图 — 1024² RGBA squircle 源（由设计原图裁切 tile + 圆角透明遮罩而来，
+# 重生成命令：cd desktop && npm run tauri icon -- src-tauri/icon-source.png）。
+# 1.1MB 超 pre-commit 的 500KB 限；生成出的全套图标（icons/ 下 icns/ico/PNG/
+# Windows tiles）已入库,这张母图本地留作重生成源,不进版本管理。
+desktop/src-tauri/icon-source.png
+
+# coverage measurement artifacts (pytest --cov, explicit runs only)
+.coverage
+.coverage.*
+htmlcov/
+
+# Playwright output — .last-run.json marker + traces/screenshots/report, regenerated each run.
+test-results/
+playwright-report/

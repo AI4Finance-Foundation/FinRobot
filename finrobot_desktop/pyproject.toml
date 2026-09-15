@@ -1,0 +1,132 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "finrobot"
+version = "0.1.0"
+description = "A financial AI agent platform with extensible skill ecosystem"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+authors = [
+    { name = "FinRobot Contributors" },
+]
+keywords = ["finance", "ai", "agent", "llm", "pydantic"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business :: Financial",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "pydantic-ai>=1.70.0",
+    "pydantic-settings>=2.0",
+    "fastapi>=0.115",
+    "uvicorn>=0.34",
+    "aiosqlite>=0.20",
+    "yfinance>=0.2",
+    "click>=8.1",
+    "pyyaml>=6.0",
+    "matplotlib>=3.8",
+    "jinja2>=3.1",
+    "rank-bm25>=0.2.2",
+    "keyring>=25.0",
+    "edgartools>=5.31.5",
+    "ddgs>=9.14.4",
+]
+
+[project.optional-dependencies]
+backtest = ["backtrader>=1.9"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",       # coverage 显式开启: pytest tests/ --cov=finrobot --cov-report=term-missing
+    "hypothesis>=6.100",     # property-based tests — see tests/unit/test_property_dcf.py
+    "httpx>=0.27",
+    "ruff>=0.8",
+    "mypy>=1.10",
+    "rope>=1.14",  # deterministic static reference scan — see scripts/find_refs.py
+]
+# Desktop packaging: freezes `finrobot serve` into the standalone sidecar
+# binary that the Tauri shell spawns. See desktop/src-tauri/sidecar/.
+package = [
+    "pyinstaller>=6.10",
+]
+
+[project.scripts]
+finrobot = "finrobot.cli:cli"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# Skip live-network/LLM tests by default so `pytest tests/` runs the
+# deterministic offline gate to completion (they otherwise stall the run on
+# real yfinance/SEC/LLM calls). Run them explicitly with `-m integration`
+# (or override: `pytest -m "integration or not integration"`).
+addopts = "-m 'not integration'"
+markers = [
+    "integration: tests that call real external APIs (yfinance, LLM)",
+    "slow: tests that take > 10 seconds",
+]
+
+# Coverage is measurement-only (no fail-under gate) and EXPLICITLY opted in —
+# never put --cov into pytest addopts: it slows every default `pytest tests/`
+# run shared by parallel sessions. Run it on demand:
+#   pytest tests/ --cov=finrobot --cov-report=term-missing
+# (full suite occasionally wedges under parallel sessions; split by directory,
+#  coverage data accumulates with --cov-append)
+[tool.coverage.run]
+source = ["finrobot"]
+branch = true
+omit = [
+    "finrobot/cli.py",                  # click entry points — exercised manually / via dev.sh
+    "finrobot/server.py",               # uvicorn bootstrap, integration-only surface
+    "finrobot/engine/backtest/backtrader_adapter.py",  # optional extra (backtrader)
+]
+
+[tool.coverage.report]
+precision = 1
+show_missing = false
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "@overload",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+
+[[tool.mypy.overrides]]
+module = [
+    "yfinance.*",
+    "pydantic_ai.*",
+    "rank_bm25.*",
+    "aiosqlite.*",
+    "backtrader.*",
+    "edgar.*",        # edgartools 5.31 ships without py.typed
+    "nest_asyncio",   # transitive via edgartools
+]
+ignore_missing_imports = true
+
+# backtrader exposes Strategy as Any, so any subclass triggers
+# "Class cannot subclass Strategy (has type Any)" in --strict.
+[[tool.mypy.overrides]]
+module = "finrobot.engine.backtest.backtrader_adapter"
+disallow_subclassing_any = false
+
+[dependency-groups]
+dev = [
+    "pandas-stubs>=3.0.0.260204",
+    "xlrd>=2.0.2",
+]

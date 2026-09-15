@@ -1,0 +1,26 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "enables the default permissions for FinRobot Desktop",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-toggle-maximize",
+    "shell:allow-open",
+    "dialog:default",
+    "dialog:allow-save",
+    "fs:default",
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "$HOME/**" }]
+    },
+    "os:default",
+    "os:allow-locale",
+    "updater:default",
+    "process:default",
+    "process:allow-restart"
+  ]
+}

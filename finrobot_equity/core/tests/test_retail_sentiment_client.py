@@ -3,6 +3,7 @@
 
 import os
 import sys
+from datetime import date
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 
@@ -49,6 +50,17 @@ def test_get_snapshot_aggregates_available_sources(monkeypatch):
                 }
             ]
         },
+        "/news/stocks/v1/compare": {
+            "stocks": [
+                {
+                    "ticker": "TSLA",
+                    "buzz_score": 70.0,
+                    "bullish_pct": 52.0,
+                    "mentions": 500,
+                    "trend": "stable",
+                }
+            ]
+        },
         "/polymarket/stocks/v1/compare": {
             "stocks": [
                 {
@@ -61,11 +73,16 @@ def test_get_snapshot_aggregates_available_sources(monkeypatch):
             ]
         },
     }
+    windows = []
 
     def fake_get(url, **kwargs):
         path = url.replace("https://api.adanos.org", "")
         assert kwargs["params"]["tickers"] == "TSLA"
-        assert kwargs["params"]["days"] == 7
+        assert "days" not in kwargs["params"]
+        from_date = date.fromisoformat(kwargs["params"]["from"])
+        to_date = date.fromisoformat(kwargs["params"]["to"])
+        assert (to_date - from_date).days == 6
+        windows.append((kwargs["params"]["from"], kwargs["params"]["to"]))
         assert kwargs["headers"]["X-API-Key"] == "test-key"
         return _Response(fixtures[path])
 
@@ -74,13 +91,16 @@ def test_get_snapshot_aggregates_available_sources(monkeypatch):
     snapshot = RetailSentimentClient(api_key="test-key").get_snapshot("tsla")
 
     assert snapshot["ticker"] == "TSLA"
-    assert snapshot["coverage"] == "3/3"
-    assert snapshot["average_buzz"] == 75.3
-    assert snapshot["bullish_avg"] == 58.0
+    assert snapshot["coverage"] == "4/4"
+    assert snapshot["average_buzz"] == 74.0
+    assert snapshot["bullish_avg"] == 56.5
     assert snapshot["source_alignment"] == "Bullish alignment"
+    assert len(set(windows)) == 1
+    assert len(windows) == 4
     assert [source["key"] for source in snapshot["sources"]] == [
         "reddit",
         "x",
+        "news",
         "polymarket",
     ]
 
@@ -109,7 +129,7 @@ def test_get_snapshot_skips_failed_source(monkeypatch):
 
     snapshot = RetailSentimentClient(api_key="test-key").get_snapshot("MSFT")
 
-    assert snapshot["coverage"] == "1/3"
+    assert snapshot["coverage"] == "1/4"
     assert snapshot["average_buzz"] == 71.0
     assert snapshot["bullish_avg"] == 49.0
     assert snapshot["source_alignment"] == "Single-source signal"
@@ -123,7 +143,7 @@ def test_prompt_formatter_renders_retail_sentiment_snapshot():
             "average_buzz": 73.9,
             "bullish_avg": 57.1,
             "source_alignment": "Partial divergence",
-            "coverage": "2/3",
+            "coverage": "2/4",
             "sources": [
                 {
                     "label": "Reddit",
@@ -161,7 +181,7 @@ def test_html_formatter_renders_retail_sentiment_block():
             "average_buzz": 70.3,
             "bullish_avg": 52.4,
             "source_alignment": "Neutral alignment",
-            "coverage": "2/3",
+            "coverage": "2/4",
             "sources": [
                 {
                     "label": "Reddit",
@@ -194,7 +214,7 @@ def test_professional_report_renders_retail_sentiment_section():
                 "average_buzz": 74.4,
                 "bullish_avg": 58.8,
                 "source_alignment": "Bullish alignment",
-                "coverage": "2/3",
+                "coverage": "2/4",
                 "sources": [
                     {
                         "label": "Reddit",

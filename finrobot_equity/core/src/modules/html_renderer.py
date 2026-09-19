@@ -897,7 +897,7 @@ def format_retail_sentiment_html(sentiment_data: dict) -> str:
     if sentiment_data.get("bullish_avg") is not None:
         summary_items.append(f"Bullish Avg: {sentiment_data['bullish_avg']}%")
     summary_items.append(f"Source Alignment: {sentiment_data.get('source_alignment', 'No coverage')}")
-    summary_items.append(f"Coverage: {sentiment_data.get('coverage', '0/3')}")
+    summary_items.append(f"Coverage: {sentiment_data.get('coverage', '0/4')}")
 
     source_rows = []
     for source in sentiment_data.get("sources", []):

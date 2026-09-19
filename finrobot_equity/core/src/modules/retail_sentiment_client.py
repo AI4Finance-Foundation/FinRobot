@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from statistics import mean
 from typing import Any, Dict, List, Optional
 
@@ -30,6 +31,13 @@ class RetailSentimentClient:
             "activity_label": "Mentions",
         },
         {
+            "key": "news",
+            "label": "News",
+            "path": "/news/stocks/v1/compare",
+            "activity_field": "mentions",
+            "activity_label": "Mentions",
+        },
+        {
             "key": "polymarket",
             "label": "Polymarket",
             "path": "/polymarket/stocks/v1/compare",
@@ -51,11 +59,12 @@ class RetailSentimentClient:
     def get_snapshot(self, ticker: str, days_back: int = 7) -> Dict[str, Any]:
         """Return a compact retail sentiment snapshot across public sources."""
         normalized_ticker = ticker.strip().upper().replace("$", "")
+        date_window = self._date_window(days_back)
         sources: List[Dict[str, Any]] = []
 
         for spec in self.PLATFORM_SPECS:
             try:
-                row = self._fetch_source_row(spec, normalized_ticker, days_back)
+                row = self._fetch_source_row(spec, normalized_ticker, date_window)
             except Exception as exc:
                 print(
                     f"Warning: Failed to fetch retail sentiment for {normalized_ticker} "
@@ -87,11 +96,11 @@ class RetailSentimentClient:
         self,
         spec: Dict[str, str],
         ticker: str,
-        days_back: int,
+        date_window: Dict[str, str],
     ) -> Optional[Dict[str, Any]]:
         response = requests.get(
             f"{self.base_url}{spec['path']}",
-            params={"tickers": ticker, "days": days_back},
+            params={"tickers": ticker, **date_window},
             headers={"X-API-Key": self.api_key},
             timeout=self.timeout,
         )
@@ -104,6 +113,13 @@ class RetailSentimentClient:
                 return item
 
         return None
+
+    @staticmethod
+    def _date_window(days_back: int) -> Dict[str, str]:
+        """Build an inclusive UTC date window without using deprecated ``days``."""
+        to_date = datetime.now(timezone.utc).date()
+        from_date = to_date - timedelta(days=days_back - 1)
+        return {"from": from_date.isoformat(), "to": to_date.isoformat()}
 
     def _normalize_source(
         self,
@@ -181,7 +197,7 @@ def format_retail_sentiment_for_prompt(snapshot: Dict[str, Any]) -> str:
         f"- Average Buzz: {snapshot.get('average_buzz', 'N/A')}/100" if snapshot.get("average_buzz") is not None else "- Average Buzz: N/A",
         f"- Bullish Avg: {snapshot.get('bullish_avg', 'N/A')}%" if snapshot.get("bullish_avg") is not None else "- Bullish Avg: N/A",
         f"- Source Alignment: {snapshot.get('source_alignment', 'N/A')}",
-        f"- Coverage: {snapshot.get('coverage', '0/3')}",
+        f"- Coverage: {snapshot.get('coverage', '0/4')}",
     ]
 
     for source in snapshot.get("sources", []):

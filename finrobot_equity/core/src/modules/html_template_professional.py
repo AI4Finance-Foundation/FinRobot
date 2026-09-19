@@ -671,7 +671,7 @@ def format_retail_sentiment_html_professional(sentiment_data: dict) -> str:
 
     avg_buzz = sentiment_data.get("average_buzz")
     bullish_avg = sentiment_data.get("bullish_avg")
-    coverage = sentiment_data.get("coverage", "0/3")
+    coverage = sentiment_data.get("coverage", "0/4")
     alignment = sentiment_data.get("source_alignment", "No coverage")
     sources = sentiment_data.get("sources", [])
 

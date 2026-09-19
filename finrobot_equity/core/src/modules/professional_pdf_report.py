@@ -883,7 +883,7 @@ class ProfessionalEquityReport:
             if retail_sentiment.get('bullish_avg') is not None:
                 summary_items.append(f"Bullish Avg: {retail_sentiment['bullish_avg']}%")
             summary_items.append(f"Source Alignment: {retail_sentiment.get('source_alignment', 'No coverage')}")
-            summary_items.append(f"Coverage: {retail_sentiment.get('coverage', '0/3')}")
+            summary_items.append(f"Coverage: {retail_sentiment.get('coverage', '0/4')}")
 
             for item in summary_items:
                 self.elements.append(Paragraph(f"• {item}", self.styles['BulletPoint']))

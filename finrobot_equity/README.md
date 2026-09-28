@@ -20,6 +20,18 @@ Where it sits relative to the others:
 
 The same files are checked in under `core/output/`.
 
+<div align="center">
+<img src="../figs/equity-webapp.png" width="92%" alt="The web interface: ticker, comparables, report components and enhanced-analysis toggles on the left; run status on the right"/>
+</div>
+
+<p align="center"><i>The interface you deploy — enter a ticker, pick the peers and the sections you want, and generate.</i></p>
+
+<div align="center">
+<img src="../figs/equity-report.png" width="92%" alt="Generated equity research report: rating, price target, key metrics and the investment thesis"/>
+</div>
+
+<p align="center"><i>And what comes out: a standalone HTML report with a rating, a price target, the key multiples, and the thesis behind them.</i></p>
+
 ---
 
 ## Quick start
@@ -111,6 +123,12 @@ python finrobot_equity/core/src/create_equity_report.py \
 │  Output: CSV + JSON + TXT       │     │  Output: multi-page HTML     │
 └─────────────────────────────────┘     └──────────────────────────────┘
 ```
+
+<div align="center">
+<img src="../figs/equity-charts.png" width="92%" alt="Report section pairing computed charts with the AI-written valuation analysis"/>
+</div>
+
+<p align="center"><i>Each section pairs figures computed from the FMP data — revenue/EBITDA trajectory, EPS against the P/E multiple — with the paragraph an agent wrote about them.</i></p>
 
 Step 1 is deterministic up to the last stage: the statements, ratios, forecasts, and peer multiples are computed from FMP data before any model is called. Step 2 can optionally re-run the narrative agents (`--enable-text-regeneration`) when a section fails validation.
 

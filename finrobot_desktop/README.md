@@ -1,10 +1,14 @@
-# FinRobot Desktop
+# FinRobot Desktop — V2
 
-> Investment-bank-grade equity research, in a desktop app — deterministic finance numbers + LLM narrative, every figure traceable back to a function call.
+> Investment-bank-grade equity research in a desktop app: deterministic finance numbers plus LLM narrative, with every figure traceable back to a function call.
 
-FinRobot 是面向金融分析师 / 量化研究员 / 主动投资者的开源桌面端股票研究 app。一份 `research` pipeline 一键产出 13 章 artifact：Cover · Investment Thesis · Company Overview · Financial Analysis · Valuation · Recent News · Sensitivity · Catalysts · Technical & Advanced · Competitive Landscape · Financial Data · Ownership & Governance · Disclaimer。
+FinRobot Desktop is an open-source equity research workstation for analysts, quantitative researchers, and active investors. A single `research` run produces a 13-chapter artifact — Cover, Investment Thesis, Company Overview, Financial Analysis, Valuation, Recent News, Sensitivity, Catalysts, Technical & Advanced, Competitive Landscape, Financial Data, Ownership & Governance, Disclaimer.
 
-**核心赌注：数字由代码算出，判断由 LLM 给出。** LLM 永远不产出无法追溯到 `engine/compute/*` 函数调用的数字。
+**The core bet: numbers are computed by code, judgment is supplied by the LLM.** The model never emits a figure that cannot be traced back to a call in `finrobot/engine/compute/`.
+
+This is V2 in the [FinRobot version lineage](../README.md). For the AutoGen original see [`finrobot_autogen/`](../finrobot_autogen/); for the report-generation web app see [`finrobot_equity/`](../finrobot_equity/).
+
+---
 
 ## How it works
 
@@ -13,7 +17,83 @@ The app ships as a single `.app` containing two binaries that talk over local HT
 - **`finrobot-desktop`** — the Tauri shell: native window, menu bar, and the React UI.
 - **`finrobot-server`** — a self-contained Python backend (FastAPI + PydanticAI + the deterministic compute engine), launched automatically in the background on `127.0.0.1:8321`.
 
-You never start anything by hand. Opening the app boots the backend; quitting it shuts the backend down. No Python, no `uv`, no source tree required on the user's machine.
+You never start anything by hand. Opening the app boots the backend; quitting it shuts the backend down. No Python, no `uv`, and no source tree are required on the user's machine.
+
+## Architecture
+
+```
+                       Tauri shell (Rust) ── React 19 UI
+                                 │  HTTP  127.0.0.1:8321
+                       FastAPI routes ── PydanticAI agents
+                                 │
+          ┌──────────────────────┼──────────────────────┐
+     pipelines              compute engine          data layer
+  (7 workflows)      (32 pure-Python operators)   (7 providers,
+                                                   with failover)
+                                 │
+                          artifact store (SQLite)
+```
+
+### Agents
+
+Nine agents, each defined by a markdown instruction file in `finrobot/engine/agents/instructions/`:
+
+| Group | Agents | Role |
+|:---|:---|:---|
+| Pipeline | `data`, `analysis`, `modeling`, `synthesis`, `report` | The main research chain — gather, interpret, model, reconcile, write |
+| Debate | `bull`, `bear`, `judge` | Argue the long and short case, then adjudicate |
+| Orchestration | lead agent (`factory.py`, `orchestrator.py`) | Routes the request and sequences the rest |
+
+Because instructions are plain markdown, changing an agent's behavior does not require touching Python.
+
+### Pipelines
+
+Seven workflows in `finrobot/engine/pipelines/`, each a sequence of typed steps with validators and retry:
+
+| Pipeline | CLI | Output |
+|:---|:---|:---|
+| `equity_research.py` | `finrobot research` | Full 13-chapter research artifact |
+| `dcf.py` | `finrobot dcf` | Discounted cash flow valuation |
+| `ddm.py` | `finrobot ddm` | Dividend discount model |
+| `lbo.py` | `finrobot lbo` | Leveraged buyout model |
+| `comps.py` | `finrobot comps` | Comparable-company analysis |
+| `earnings_analysis.py` | `finrobot earnings` | Earnings review |
+| `ic_memo.py` | `finrobot ic-memo` | Investment-committee memo |
+
+`finrobot dcf` automatically falls back to DDM for companies where a dividend model is the more defensible approach; pass `--force-dcf` to override.
+
+### Deterministic compute
+
+`finrobot/engine/compute/` is the part the LLM is not allowed to improvise around:
+
+- **26 operators** — `dcf`, `ddm`, `lbo`, `multiples`, `monte_carlo`, `sotp`, `residual_income`, `peer_screen`, `forward_estimates`, `fx_normalize`, `ownership`, `catalyst`, `signal`, and their seed variants.
+- **6 audit operators** — `currency_caliber`, `ev_bridge`, `narrative_divergence`, `narrative_numeric_grounding`, `sector_sign`, `ttm_period`. These check the *narrative* against the numbers and flag drift.
+- **7 coordinators** — assemble operator inputs from the data layer (`extractor`, `historical_extractor`, `segment_extractor`, `market`, `news`, `dcf_seed`, `technical_payload`).
+
+Everything here is pure Python with no model in the loop, which is what makes the numbers reproducible and the provenance checkable.
+
+### Data layer
+
+Seven providers in `finrobot/engine/data/providers/`, behind a common interface with health tracking and automatic failover:
+
+`yfinance` · `edgar` (SEC) · `fmp` · `finnhub` · `adanos` (retail sentiment) · `news_aggregator` · `fx`
+
+Supporting pieces: response caching, a symbol index, quote batching, SEC holdings sync, and a validator that rejects malformed provider payloads before they reach the compute engine.
+
+### Skills
+
+`skills/` holds **56** analyst playbooks as `SKILL.md` files, grouped by desk:
+
+| Category | Count | Category | Count |
+|:---|:---|:---|:---|
+| `financial-analysis` | 11 | `equity-research` | 9 |
+| `private-equity` | 10 | `investment-banking` | 9 |
+| `partner-lseg` | 8 | `wealth-management` | 6 |
+| `partner-spglobal` | 3 | | |
+
+Browse them from the CLI with `finrobot skill list` and `finrobot skill search <query>`. Attribution for third-party material is in `skills/ATTRIBUTION.md`.
+
+---
 
 ## Install (macOS, Apple Silicon)
 
@@ -25,16 +105,37 @@ You never start anything by hand. Opening the app boots the backend; quitting it
    ```
 4. **First run** — open **Settings** and paste your own LLM API key (DeepSeek / OpenAI / Anthropic). FinRobot orchestrates *your* LLM account; it does not ship a key. Until a key is set, the app opens fine but analysis requests return a "configure your API key" notice instead of running.
 
-Running an analysis needs internet (market data from yfinance / SEC EDGAR / optional FMP, plus your LLM provider). Launching and browsing existing reports does not.
+Running an analysis needs internet access (market data from yfinance / SEC EDGAR / optional FMP, plus your LLM provider). Launching the app and browsing existing reports does not.
+
+Intel Macs, Windows, and Linux are not covered by the current release; on those platforms, run from source.
+
+## Use from the command line
+
+Installing the Python package gives you a `finrobot` CLI independent of the desktop shell:
+
+```bash
+uv sync                          # or: pip install -e .
+finrobot research AAPL           # full research artifact
+finrobot dcf MSFT                # DCF (auto-switches to DDM where appropriate)
+finrobot comps NVDA --peers AMD,INTC
+finrobot ic-memo TSLA
+finrobot ask AAPL "How exposed is the gross margin to tariffs?"
+finrobot backtest ...            # needs the `backtest` extra
+finrobot serve                   # run the backend on its own
+```
+
+Most commands accept `--model` to pick the LLM (e.g. `anthropic:claude-sonnet-4-6`) and `--lang en|zh` to set the output language.
+
+Four notebooks in `tutorials/` cover the same ground interactively: equity research, DCF valuation, backtesting, and RAG Q&A.
 
 ## Build from source
 
-Prerequisites: [`uv`](https://docs.astral.sh/uv/), Node 20+, Rust toolchain, and the Tauri CLI (`cargo install tauri-cli` → `cargo tauri`).
+Prerequisites: [`uv`](https://docs.astral.sh/uv/), Node 20+, a Rust toolchain, and the Tauri CLI (`cargo install tauri-cli` → `cargo tauri`). Python 3.11+.
 
 ```bash
 uv sync --extra package            # backend deps + pyinstaller (for the sidecar)
 bash desktop/src-tauri/sidecar/build.sh
-                                    # freeze finrobot-server into desktop/src-tauri/binaries/
+                                   # freeze finrobot-server into desktop/src-tauri/binaries/
 
 cd desktop
 cargo tauri dev                    # run the desktop app (debug)
@@ -48,10 +149,39 @@ cargo tauri build                  # produce FinRobot.app + .dmg under desktop/s
 ./dev.sh --app      # desktop shell  → Tauri native window (live backend, skips the frozen sidecar)
 ```
 
-`--app` sets `FINROBOT_DEV_LIVE_BACKEND=1` so the Tauri shell skips spawning the bundled sidecar; the WebView then talks to the live backend through the Vite proxy. Or run just the backend with hot-reload: `finrobot serve --reload`.
+`--app` sets `FINROBOT_DEV_LIVE_BACKEND=1` so the Tauri shell skips spawning the bundled sidecar; the WebView then talks to the live backend through the Vite proxy. Or run just the backend with hot reload: `finrobot serve --reload`.
 
-CLI usage, the Python SDK, and the engine architecture / contracts are documented in the in-repo `CLAUDE.md` (developer reference).
+## Development
+
+```bash
+uv sync --extra dev
+pytest tests/                                          # 237 test files; live-network tests are skipped by default
+pytest tests/ --cov=finrobot --cov-report=term-missing
+ruff check . && mypy finrobot                          # also wired into .pre-commit-config.yaml
+```
+
+Layout:
+
+```
+finrobot_desktop/
+├── finrobot/              # Python backend
+│   ├── engine/            #   agents, pipelines, compute, data, skills
+│   ├── routes/            #   FastAPI endpoints (runs, artifacts, valuation, …)
+│   ├── artifact/          #   report storage, contracts, semantic diff (SQLite)
+│   ├── audit/ obs/        #   provenance checks and observability
+│   ├── cli.py server.py   #   CLI and ASGI entry points
+│   └── sdk.py             #   programmatic API
+├── desktop/               # Tauri shell + React 19 / Vite 6 / Zustand / Recharts
+├── skills/                # 56 analyst playbooks (SKILL.md)
+├── tutorials/             # 4 notebooks
+├── tests/                 # pytest suite, incl. Hypothesis property tests
+└── scripts/               # maintenance and build tooling
+```
+
+CI (`.github/workflows/desktop-ci.yml`) runs the backend on Python 3.11 / 3.12 and the frontend on Node 22 / 24.
+
+For deeper reference: `finrobot/engine/instructions.md` describes the engine's contracts, `finrobot/engine/agents/instructions/*.md` holds each agent's brief, and `finrobot/sdk.py` is the programmatic entry point.
 
 ## License
 
-Apache 2.0
+Apache 2.0 — see [LICENSE](./LICENSE).

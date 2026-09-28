@@ -75,6 +75,27 @@ Every output is provenance-tracked.
 
 A native desktop equity research cockpit powered by a production-grade multi-agent architecture. It takes analysts from market data and company filings to valuation, debate, synthesis, and investment-committee-style reports in one traceable workflow.
 
+<div align="center">
+<img src="figs/desktop-cockpit.png" width="92%" alt="FinRobot Desktop — the research cockpit: enter a ticker to open a fully traceable AI research desk"/>
+</div>
+
+<table>
+<tr>
+<td width="50%"><img src="figs/desktop-workspace.png" alt="Stock workspace: live market data on the left, the AI research verdict and valuation instruments on the right"/></td>
+<td width="50%"><img src="figs/desktop-report.png" alt="A 13-chapter equity research report with its price target, confidence level and chapter navigation"/></td>
+</tr>
+<tr>
+<td><b>Stock workspace</b> — live market data pulled independently of any AI report, beside the research verdict and the DCF / DDM / LBO / comps instruments.</td>
+<td><b>Research report</b> — 13 chapters, a 12-month target with its range, model confidence, and the data caveats the audit operators raised.</td>
+</tr>
+</table>
+
+<div align="center">
+<img src="figs/desktop-dcf.png" width="92%" alt="DCF forecast table labelled code-computed, with WACC, terminal growth and tax rate, next to the LLM's narrative"/>
+</div>
+
+<p align="center"><i>The design principle, visible in the product: the DCF table is labelled <b>code-computed</b> — a ten-year forecast from pure-Python operators — while the paragraph beside it is the LLM reading those numbers back.</i></p>
+
 👉 **Latest release:** [FinRobot Desktop v0.1.0](https://github.com/AI4Finance-Foundation/FinRobot/releases/tag/desktop-v0.1.0)
 
 For macOS Apple Silicon (M1/M2/M3 or later), download `FinRobot_0.1.0_aarch64.dmg` and drag **FinRobot** into **Applications**. Intel Mac builds are not available in this release.

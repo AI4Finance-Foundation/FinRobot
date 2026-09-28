@@ -14,10 +14,11 @@ rust-version = "1.77.2"
 name = "app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-# dev 模式（cargo tauri dev）跑的是 target/debug 下的裸 binary，macOS Dock / 悬停
-# 显示的就是这个 binary 名。不显式设会 fallback 到 package name "finrobot-desktop"
-# （Tauri v2 已知行为 tauri-apps/tauri#13874）。命名成 FinRobot 让 dev 与 build
-# （build 另由 tauri.conf 的 mainBinaryName 命名）两个模式的名字一致。
+# In dev mode (cargo tauri dev) what runs is the bare binary under target/debug,
+# and its name is what macOS shows in the Dock and on hover. Without setting this
+# explicitly it falls back to the package name "finrobot-desktop" (known Tauri v2
+# behaviour, tauri-apps/tauri#13874). Naming it FinRobot keeps dev and build
+# consistent — build takes its name from mainBinaryName in tauri.conf instead.
 [[bin]]
 name = "FinRobot"
 path = "src/main.rs"

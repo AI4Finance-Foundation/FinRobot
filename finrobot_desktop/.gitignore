@@ -35,6 +35,7 @@ finrobot_cache.db-wal
 
 # Local data (root-only — must not shadow finrobot/engine/data/)
 /data/
+# "materials" — local reference files
 资料/
 
 # Environment
@@ -48,8 +49,9 @@ node_modules/
 desktop/dist/
 desktop/out/
 desktop/.vite/
-# Internal docs — local only, not published. 给 Claude / Codex 跨会话看，不进 git。
-# 进 git 的只有 README.md + 运行时资产 (finrobot/engine/**/instructions、skills/)。
+# Internal docs — local only, not published. Kept for Claude / Codex to read
+# across sessions; not committed. Only README.md and the runtime assets
+# (finrobot/engine/**/instructions, skills/) go into git.
 ARCHITECTURE.md
 CODE_OF_CONDUCT.md
 CONTRIBUTING.md
@@ -62,7 +64,8 @@ CLAUDE.md
 # Claude Code config (local, not version-controlled)
 .claude/
 
-# npx skills lock 文件（skills 本体落在 .claude/skills/，已随 .claude/ 忽略；lock 也不进仓库）
+# npx skills lock file. The skills themselves live in .claude/skills/, already
+# ignored along with .claude/; the lock file stays out of the repo too.
 skills-lock.json
 
 # Codex CLI config (local, not version-controlled)
@@ -72,6 +75,7 @@ skills-lock.json
 project-memory/
 
 # Research (unconfirmed directions, not open-sourced)
+# "research" — local scratch directory
 调研/
 
 # evolve.sh — private module-level autopilot (script + runtime artifacts)
@@ -93,19 +97,23 @@ desktop/src-tauri/sidecar/dist/
 # Regenerated on demand; never part of the project source.
 .understand-anything/
 
-# design-demos — UI 重设计探索的临时产物（HTML mockup + 截图），本地参考用，不进仓库
+# design-demos — throwaway output from UI redesign exploration (HTML mockups +
+# screenshots). Local reference only, not committed.
 design-demos/
 
 # rope's local cache, created by scripts/find_refs.py on each run; never source.
 .ropeproject/
 
-# 发布操作手册 — 本地私人备忘（含发布步骤/账号细节），不进版本管理
+# Release runbook — a private local note (release steps and account details),
+# kept out of version control.
 /发布须知.md
 
-# app 图标母图 — 1024² RGBA squircle 源（由设计原图裁切 tile + 圆角透明遮罩而来，
-# 重生成命令：cd desktop && npm run tauri icon -- src-tauri/icon-source.png）。
-# 1.1MB 超 pre-commit 的 500KB 限；生成出的全套图标（icons/ 下 icns/ico/PNG/
-# Windows tiles）已入库,这张母图本地留作重生成源,不进版本管理。
+# App icon master — the 1024² RGBA squircle source (a tile cropped from the
+# design original, with a rounded-corner transparent mask).
+# Regenerate with: cd desktop && npm run tauri icon -- src-tauri/icon-source.png
+# At 1.1MB it exceeds pre-commit's 500KB limit. The generated icon set (icns /
+# ico / PNG / Windows tiles under icons/) is committed; this master stays local
+# as the regeneration source and is not version-controlled.
 desktop/src-tauri/icon-source.png
 
 # coverage measurement artifacts (pytest --cov, explicit runs only)

@@ -3,7 +3,8 @@
 /* ═══════════════════════════════════════════════════════════════
    FINROBOT DESIGN SYSTEM · COSMIC DESKTOP
    Graphite terminal dark + restrained blue/violet edge light + cyan signal
-   See: project-memory/编码模式/UI-风格规范-cosmic桌面版.md (§2/§3)
+   See the cosmic desktop style spec, §2/§3:
+   project-memory/编码模式/UI-风格规范-cosmic桌面版.md
    Desktop shell uses one dark theme.
    ═══════════════════════════════════════════════════════════════ */
 
@@ -95,17 +96,17 @@
   /* Top fade strip behind the ticker hero header — bg-card → transparent. */
   --gradient-hero-strip: linear-gradient(180deg, rgba(13, 16, 24, 0.68) 0%, transparent 100%);
 
-  /* ── Coverage card verdict chroma (研究库 card wall) ──────────────────────
+  /* ── Coverage card verdict chroma (research library card wall) ───────────
      Each analyzed card is a graphite slab whose TOP edge carries its verdict
      hue, fading to the neutral card floor #0c1016 by 60%; the border is a deep
      same-hue tint; analyzed cards (BUY/SELL/HOLD) also get a 1px top hairline in
-     the signal hue. NOT RUN / WITHHELD = neutral, no hairline. 涨绿跌红. This is
+     the signal hue. NOT RUN / WITHHELD = neutral, no hairline. Green = up, red = down. This is
      a deliberately brighter signal palette than the --success/--danger/--warning
      badge tokens. The coverage card's verdict badge text/dot ALSO use this
      bright set (--card-*-fg below) so badge and hairline share one hue; the
      report cover/right-rail badges keep the deeper --success/--warning/--danger
      semantic tokens. Hex centralised here so the card rules reference tokens
-     only (cosmic spec §2). 涨绿跌红 throughout. */
+     only (cosmic spec §2). Green = up, red = down throughout. */
   --card-sell-bg: linear-gradient(180deg, #171318 0%, #0c1016 60%);
   --card-sell-edge: #2a1d22;
   --card-sell-line: linear-gradient(90deg, transparent, rgba(248, 113, 113, 0.55), transparent);
@@ -129,7 +130,8 @@
   --accent-amber: #f59e0b;
 
   /* ── Alpha derivatives of accent / surface tokens (cosmic spec §2:
-     "所有颜色来自 CSS Variables，没有硬编码 hex"). When a card / pill /
+     "every colour comes from a CSS variable, no hard-coded hex"). When a card /
+     pill /
      glow needs a tinted version of an existing accent, reference one
      of these instead of inlining `rgba(...)`. */
   --border-amber-soft: rgba(245, 158, 11, 0.25); /* amber 0.25 — zone header divider */
@@ -299,7 +301,7 @@
   --radius-md: 12px;
   --radius-lg: 16px;
   --radius-xl: 24px;
-  --radius-pill: 999px; /* 标签 / freshness pill / chip 药丸圆角 */
+  --radius-pill: 999px; /* pill radius: tags / freshness pill / chip */
 
   /* ── Spacing ladder (4/8/12/16/24/32/48) ─────────────────────── */
   --sp-1: 4px;
@@ -431,7 +433,7 @@
    blue/violet/cyan/green/red — NOT the design's amber. So this scope holds NO
    colour overrides; the rewritten report primitives use the global cosmic
    tokens directly. Kept as a hook for any future layout-only scoping.
-   (2026-06-17 — see UI 风格规范 §3 + 变更日志.)
+   (2026-06-17 — see the UI style spec §3 and its changelog.)
    ─────────────────────────────────────────────────────────────────────── */
 .report-doc {
   /* layout-only marker — colours inherit the global cosmic tokens */
@@ -4971,7 +4973,7 @@ select.settings-input {
   border: 1px solid var(--line);
 }
 
-/* Pipeline 列表 */
+/* Pipeline list */
 .pipe-list {
   background: var(--bg-1);
   border: 1px solid var(--line);
@@ -5053,7 +5055,7 @@ select.settings-input {
   color: var(--bg-0);
 }
 
-/* 最近报告 */
+/* Recent reports */
 .reports {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -5351,7 +5353,7 @@ select.settings-input {
   color: var(--text-primary);
 }
 
-/* 上下文条 — 隐藏，功能未完成 */
+/* Context bar — hidden; feature unfinished */
 .ai-context {
   display: none;
   align-items: center;
@@ -5385,7 +5387,7 @@ select.settings-input {
   color: var(--accent);
 }
 
-/* 消息列表 */
+/* Message list */
 .ai-messages {
   position: relative;
   z-index: 4;
@@ -5517,7 +5519,7 @@ select.settings-input {
   box-shadow: 0 0 6px var(--aip-accent-glow);
 }
 
-/* Trace 块 — thin spacing wrapper around the ToolCard (which owns its own
+/* Trace block — thin spacing wrapper around the ToolCard (which owns its own
    card chrome); no double box. */
 .trace {
   margin-top: 6px;
@@ -5849,7 +5851,7 @@ select.settings-input {
   }
 }
 
-/* AI 状态行 — REAL streaming status (phase label + live dot + elapsed seconds).
+/* AI status line — REAL streaming status (phase label + live dot + elapsed seconds).
    Replaces the old fake 3-dot blinker; complements the per-tool ToolCard state.
    Live = blue panel accent; stalled (>3s no new content, no tool running) =
    honest red. Mono elapsed counter, right-aligned. */
@@ -5890,7 +5892,7 @@ select.settings-input {
   animation: none;
 }
 
-/* AI 输入区 */
+/* AI input area */
 .ai-input-wrap {
   position: relative;
   z-index: 6;
@@ -6183,7 +6185,7 @@ select.settings-input {
   max-width: 240px;
 }
 
-/* 拖拽调宽手柄 */
+/* Drag handle for resizing width */
 .aipanel-resize-handle {
   position: absolute;
   left: 0;
@@ -6199,7 +6201,8 @@ select.settings-input {
   background: var(--accent-hover);
 }
 
-/* 图标列（折叠态）— 仅保留用于向后兼容（测试），实际折叠动效由 .ai-panel-expand-btn 处理 */
+/* Icon column (collapsed state) — kept only for backward compatibility with
+   tests; the actual collapse animation is handled by .ai-panel-expand-btn */
 .ai-icon-column {
   display: none;
   width: 0;
@@ -7049,7 +7052,7 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   opacity: 0.7;
 }
 
-/* ── Coverage Desk card surface (研究库) ──────────────────────────────────
+/* ── Coverage Desk card surface (research library) ───────────────────────
    Border / background / elevation / the spec-mandated top accent glow line and
    the hover lift live here, NOT inline: a style object can express none of
    :hover, ::before, or layered shadows, and the card's old inline
@@ -7084,7 +7087,7 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   min-height: 248px;
   padding: 16px;
 }
-/* Top 1px signal hairline (cosmic spec §6.1 「顶部渐变发光线 必加」). Full-width
+/* Top 1px signal hairline (cosmic spec §6.1, "top gradient glow line, required"). Full-width
    top:0 — the card's overflow:hidden + radius clips it to the rounded corners.
    The hue is per-verdict (data-signal rules below); its 0.55 alpha is baked into
    the gradient, so this base layer is fully opaque. Neutral cards hide it. */
@@ -7658,7 +7661,8 @@ body.app-bg .cosmic-stars.cosmic-stars-fast {
   color: var(--text-muted);
 }
 /* Reverse-DCF market-implied growth — the promoted row in the withheld-target
-   state. Amber neutral warning (not 涨绿跌红): a rising implied growth just
+   state. Amber neutral warning (not the green-up/red-down convention): a rising
+   implied growth just
    raises the bar. */
 .version-diff-metric--implied_growth,
 .version-diff-rail--review {

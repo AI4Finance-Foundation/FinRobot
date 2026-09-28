@@ -18,6 +18,21 @@ The other two generations serve different purposes: [`finrobot_equity/`](../finr
 
 ---
 
+<div align="center">
+<img src="../figs/desktop-cockpit.png" width="92%" alt="The research cockpit: enter a ticker to open a fully traceable AI research desk"/>
+</div>
+
+<table>
+<tr>
+<td width="50%"><img src="../figs/desktop-workspace.png" alt="Stock workspace"/></td>
+<td width="50%"><img src="../figs/desktop-report.png" alt="13-chapter research report"/></td>
+</tr>
+<tr>
+<td><b>Stock workspace</b> — live market data pulled independently of any AI report, beside the research verdict and the valuation instruments.</td>
+<td><b>Research report</b> — 13 chapters, a 12-month target with its range, model confidence, and the caveats the audit operators raised.</td>
+</tr>
+</table>
+
 ## How it works
 
 The app ships as a single `.app` containing two binaries that talk over local HTTP:
@@ -70,6 +85,12 @@ Seven workflows in `finrobot/engine/pipelines/`, each a sequence of typed steps 
 
 `finrobot dcf` automatically falls back to DDM for companies where a dividend model is the more defensible approach; pass `--force-dcf` to override.
 
+<div align="center">
+<img src="../figs/desktop-financials.png" width="92%" alt="Financial analysis chapter: profit cascade from revenue through EBITDA to net income"/>
+</div>
+
+<p align="center"><i>The <code>equity_research</code> pipeline's financial-analysis chapter — profit cascade from revenue to net income, with margins.</i></p>
+
 ### Deterministic compute
 
 `finrobot/engine/compute/` is the part the LLM is not allowed to improvise around:
@@ -80,6 +101,16 @@ Seven workflows in `finrobot/engine/pipelines/`, each a sequence of typed steps 
 
 Everything here is pure Python with no model in the loop, which is what makes the numbers reproducible and the provenance checkable.
 
+<div align="center">
+<img src="../figs/desktop-dcf.png" width="92%" alt="DCF forecast table labelled code-computed, next to the LLM narrative"/>
+</div>
+
+<div align="center">
+<img src="../figs/desktop-valuation.png" width="92%" alt="Football-field valuation triangulation and the explicit-period assumptions behind the DCF"/>
+</div>
+
+<p align="center"><i>Top: the DCF table is labelled <b>code-computed</b> — ten years from pure-Python operators — while the paragraph beside it is the LLM reading those numbers back.<br/>Bottom: the football field triangulates methods, and every assumption states the basis it came from.</i></p>
+
 ### Data layer
 
 Seven providers in `finrobot/engine/data/providers/`, behind a common interface with health tracking and automatic failover:
@@ -87,6 +118,12 @@ Seven providers in `finrobot/engine/data/providers/`, behind a common interface 
 `yfinance` · `edgar` (SEC) · `fmp` · `finnhub` · `adanos` (retail sentiment) · `news_aggregator` · `fx`
 
 Supporting pieces: response caching, a symbol index, quote batching, SEC holdings sync, and a validator that rejects malformed provider payloads before they reach the compute engine.
+
+<div align="center">
+<img src="../figs/desktop-data-sources.png" width="92%" alt="Data source settings showing each provider's health state"/>
+</div>
+
+<p align="center"><i>Each provider carries a health state — always on, saved, optional, cooling down — which is what the failover reads when a source stops answering.</i></p>
 
 ### Skills
 

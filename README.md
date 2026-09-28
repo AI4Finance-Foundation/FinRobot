@@ -15,9 +15,13 @@
 <img align="center" src=figs/logo_white_background.jpg width="40%"/>
 </div>
 
-**FinRobot** is an AI Agent platform tailored for financial applications, surpassing FinGPT's single-model approach. It unifies multiple AI technologies — including LLMs, reinforcement learning, and quantitative analytics — to power investment research automation, algorithmic trading strategies, and risk assessment, delivering a full-stack intelligent solution for the financial industry.
+**FinRobot** is an open-source platform for **agentic AI in finance** — more precisely, a **harness**: the layer that sits between a language model and a conclusion someone would act on.
 
-**Concept of AI Agent**: an AI Agent is an intelligent entity that uses large language models as its brain to perceive its environment, make decisions, and execute actions. Unlike traditional artificial intelligence, AI Agents possess the ability to independently think and utilize tools to progressively achieve given objectives.
+The model is the swappable part. FinRobot runs against OpenAI, Anthropic or DeepSeek — or any endpoint you register — and expects you to change your mind about which. What stays is everything built around it: deterministic operators that compute the numbers, audit operators that reconcile the narrative back against them, typed pipelines with per-step validation and retry, a data layer that fails over when a provider stops answering, and a provenance trail behind every figure. That scaffolding is the harness, and it is where the engineering lives.
+
+**Why the distinction matters.** A model reasoning freely will write a DCF that reads well and does not reconcile. Finance is not graded on plausibility. So FinRobot draws one hard line through every workflow — numbers are computed in code, judgment comes from the model — and invests in the half that can be checked. Agency is useful exactly to the degree it is constrained.
+
+This is where it goes beyond [FinGPT](https://github.com/AI4Finance-Foundation/FinGPT)'s single-model approach: LLMs, quantitative analytics and deterministic valuation are composed into complete workflows for investment research automation, trading strategy development, and risk assessment.
 
 [Whitepaper on arXiv](https://arxiv.org/abs/2405.14767) · [Official Academic Page](https://ai4finance.org/research/finrobot-open-source-ai-agent.html)
 
@@ -49,7 +53,7 @@ FinRobot evolves alongside the rapid development of AI-agent frameworks. Rather 
 | **V0** | AutoGen | [`finrobot_autogen/`](./finrobot_autogen/) | Educational / reference | The original FinRobot multi-agent architecture for financial applications |
 | **V1** | OpenAI Agents SDK | [`finrobot_equity/`](./finrobot_equity/) | Self-hosted web app | Equity-research agents, financial analysis, valuation, and automated report generation |
 | **V2** | PydanticAI | [`finrobot_desktop/`](./finrobot_desktop/) | **Production** — also hosted at [finrobot.ai/v2](https://finrobot.ai/v2) | Structured, type-safe agent workflows for professional equity research |
-| **V3** | DeepSeek-Harness | FinRobot V3 | In development | A more autonomous architecture for financial analysis and decision-making |
+| **V3** | DeepSeek-Harness | FinRobot V3 | In development | Widening the harness — more autonomy inside the same constraints |
 
 All three are open source. **V2 is the production system** — the deterministic compute engine, the provenance guarantees, and the agent orchestration described below all live there. V0 is kept because it is small enough to read and learn from, not because it is the recommended way to run research today.
 

@@ -1,0 +1,26 @@
+{
+  "AAPL": {
+    "ttm_revenue_type": "TTMMetric",
+    "ttm_revenue_value": "TTMMetric(concept='us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax', value=451,442,000,000, periods=[Q3 2025, Q4 2025, Q1 2026, Q2 2026])",
+    "get_revenue_type": "float",
+    "get_revenue_str_sample": "416161000000.0",
+    "get_net_income_type": "float",
+    "available_periods_count": "?"
+  },
+  "MSFT": {
+    "ttm_revenue_type": "TTMMetric",
+    "ttm_revenue_value": "TTMMetric(concept='us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax', value=318,273,000,000, periods=[Q4 2025, Q1 2026, Q2 2026, Q3 2026])",
+    "get_revenue_type": "float",
+    "get_revenue_str_sample": "281724000000.0",
+    "get_net_income_type": "float",
+    "available_periods_count": "?"
+  },
+  "GOOGL": {
+    "ttm_revenue_type": "TTMMetric",
+    "ttm_revenue_value": "TTMMetric(concept='us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax', value=359,713,000,000, periods=[Q2 2024, Q3 2024, Q4 2024, Q1 2025])",
+    "get_revenue_type": "float",
+    "get_revenue_str_sample": "350018000000.0",
+    "get_net_income_type": "float",
+    "available_periods_count": "?"
+  }
+}

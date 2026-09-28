@@ -1,0 +1,17 @@
+/* Export viewer shell. Imported LAST so it overrides App.css.
+   App.css locks scrolling on html,body (the app scrolls inside an inner
+   .main-content that does not exist in the export), so re-enable document
+   scroll, and center the chapters as a reading column on the cosmic backdrop. */
+html,
+body {
+  height: auto !important;
+  overflow: auto !important;
+  margin: 0;
+  background: var(--bg-void);
+}
+
+.report-export-shell {
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 28px 24px 72px;
+}

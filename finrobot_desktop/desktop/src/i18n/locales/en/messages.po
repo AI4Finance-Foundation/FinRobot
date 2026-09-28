@@ -1,0 +1,3173 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: \n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Plural-Forms: \n"
+
+#. js-lingui-explicit-id
+msgid "chat.collapse"
+msgstr "Collapse"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.body"
+msgstr "I have access to live prices, financials, news and can run valuations."
+
+#. js-lingui-explicit-id
+msgid "chat.empty.example.1"
+msgstr "Why is {ticker} down today?"
+
+#. js-lingui-explicit-id
+msgid "chat.empty.heading"
+msgstr "Ask anything about finance"
+
+#. js-lingui-explicit-id
+msgid "chat.error.context"
+msgstr "Conversation too long. Start a new chat."
+
+#. js-lingui-explicit-id
+msgid "chat.error.generic"
+msgstr "Request failed."
+
+#. js-lingui-explicit-id
+msgid "chat.error.unavailable"
+msgstr "Service unavailable. Try again in a moment."
+
+#. js-lingui-explicit-id
+msgid "chat.expand"
+msgstr "Open chat"
+
+#. js-lingui-explicit-id
+msgid "chat.input.placeholder"
+msgstr "Message FinRobot… (Enter to send, Shift+Enter for newline)"
+
+#. js-lingui-explicit-id
+msgid "chat.newSession"
+msgstr "New chat"
+
+#. js-lingui-explicit-id
+msgid "chat.overlength"
+msgstr "{count} / {max} characters"
+
+#. js-lingui-explicit-id
+msgid "chat.reasoning"
+msgstr "Reasoning"
+
+#. js-lingui-explicit-id
+msgid "chat.retry"
+msgstr "Retry"
+
+#. js-lingui-explicit-id
+msgid "chat.send"
+msgstr "Send"
+
+#. js-lingui-explicit-id
+msgid "chat.stop"
+msgstr "Stop"
+
+#. js-lingui-explicit-id
+msgid "chat.thinking"
+msgstr "Thinking…"
+
+#. js-lingui-explicit-id
+msgid "chat.status.requesting"
+msgstr "Requesting…"
+
+#. js-lingui-explicit-id
+msgid "chat.status.responding"
+msgstr "Responding…"
+
+#. js-lingui-explicit-id
+msgid "chat.status.running"
+msgstr "Running {tool}…"
+
+#. js-lingui-explicit-id
+msgid "chat.status.stalled"
+msgstr "still waiting…"
+
+#. js-lingui-explicit-id
+msgid "chat.title.explore"
+msgstr "Explore"
+
+#. js-lingui-explicit-id
+msgid "common.loading"
+msgstr "Loading…"
+
+#. js-lingui-explicit-id
+msgid "common.retry"
+msgstr "Retry"
+
+#. js-lingui-explicit-id
+msgid "nav.settings"
+msgstr "Settings"
+
+#. js-lingui-explicit-id
+msgid "nav.research"
+msgstr "Research"
+
+#. js-lingui-explicit-id
+msgid "nav.coverage"
+msgstr "Coverage"
+
+#. js-lingui-explicit-id
+msgid "nav.back"
+msgstr "Back"
+
+#. js-lingui-explicit-id
+msgid "settings.save"
+msgstr "Save"
+
+#. js-lingui-explicit-id
+msgid "settings.saveFailed"
+msgstr "Save failed: {error}"
+
+#. js-lingui-explicit-id
+msgid "settings.saved"
+msgstr "Saved."
+
+#. js-lingui-explicit-id
+msgid "settings.section.data"
+msgstr "Data sources"
+
+#. js-lingui-explicit-id
+msgid "settings.title"
+msgstr "Settings"
+
+#. js-lingui-explicit-id
+msgid "toolcard.failed"
+msgstr "Tool call failed"
+
+#. js-lingui-explicit-id
+msgid "toolcard.openArtifact"
+msgstr "📁 Open report"
+
+#. js-lingui-explicit-id
+msgid "toolcard.retry"
+msgstr "Retry"
+
+#. js-lingui-explicit-id
+msgid "verdict.buy"
+msgstr "BUY"
+
+#. js-lingui-explicit-id
+msgid "verdict.hold"
+msgstr "HOLD"
+
+#. js-lingui-explicit-id
+msgid "verdict.withheld"
+msgstr "WITHHELD"
+
+#. js-lingui-explicit-id
+msgid "verdict.sell"
+msgstr "SELL"
+
+#. js-lingui-explicit-id
+msgid "confidence.high"
+msgstr "MODEL CONFIDENCE · HIGH"
+
+#. js-lingui-explicit-id
+msgid "confidence.medium"
+msgstr "MODEL CONFIDENCE · MEDIUM"
+
+#. js-lingui-explicit-id
+msgid "confidence.low"
+msgstr "MODEL CONFIDENCE · LOW"
+
+#. js-lingui-explicit-id
+msgid "confidence.veryLow"
+msgstr "MODEL CONFIDENCE · SPARSE"
+
+#. js-lingui-explicit-id
+msgid "targetRange.label"
+msgstr "12-Month Target"
+
+#. js-lingui-explicit-id
+msgid "targetRange.withheld"
+msgstr "Point target withheld — rating stands on direction"
+
+#. js-lingui-explicit-id
+msgid "targetRange.fairValueLabel"
+msgstr "Fairly Valued"
+
+#. js-lingui-explicit-id
+msgid "targetRange.withinFairValue"
+msgstr "Within fair-value range — fairly valued"
+
+#. js-lingui-explicit-id
+msgid "targetRange.anchoredOn"
+msgstr "anchored on {method}"
+
+#. js-lingui-explicit-id
+msgid "targetRange.legendLive"
+msgstr "Live"
+
+#. js-lingui-explicit-id
+msgid "targetRange.legendTarget"
+msgstr "Target"
+
+#. js-lingui-explicit-id
+msgid "targetRange.aria"
+msgstr "Target {point} within a {lo} to {hi} band; the band widens as confidence drops."
+
+#. js-lingui-explicit-id
+msgid "targetRange.ariaWithheld"
+msgstr "Point target withheld; a defensible target would sit in the {lo} to {hi} band."
+
+#. js-lingui-explicit-id
+msgid "errors.network.offline"
+msgstr "Network connection failed. Please check your connection."
+
+#. js-lingui-explicit-id
+msgid "errors.server.unavailable"
+msgstr "Service temporarily unavailable. Please try again later."
+
+#. js-lingui-explicit-id
+msgid "errors.client.invalid"
+msgstr "Request failed. Please refresh the page."
+
+#. js-lingui-explicit-id
+msgid "errors.notfound"
+msgstr "Resource not found."
+
+#. js-lingui-explicit-id
+msgid "errors.cancelled"
+msgstr "Cancelled."
+
+#. js-lingui-explicit-id
+msgid "errors.unknown"
+msgstr "Failed to load. Please try again later."
+
+#. js-lingui-explicit-id
+msgid "report.timeline.archived"
+msgstr "archived"
+
+#. js-lingui-explicit-id
+msgid "report.timeline.current"
+msgstr "current"
+
+#. js-lingui-explicit-id
+msgid "report.timeline.empty"
+msgstr "No history yet. Run analysis again to build a timeline."
+
+#. js-lingui-explicit-id
+msgid "report.timeline.versionCount"
+msgstr "{count} versions"
+
+#. js-lingui-explicit-id
+msgid "signal.hit"
+msgstr "HIT"
+
+#. js-lingui-explicit-id
+msgid "signal.watching"
+msgstr "WATCHING"
+
+#. js-lingui-explicit-id
+msgid "signal.failed"
+msgstr "FAILED"
+
+#. js-lingui-explicit-id
+msgid "report.toc.heading"
+msgstr "REPORT NAV"
+
+#. js-lingui-explicit-id
+msgid "report.leftRail.targetLabel"
+msgstr "Target"
+
+#. js-lingui-explicit-id
+msgid "report.leftRail.spotLabel"
+msgstr "spot"
+
+#. js-lingui-explicit-id
+msgid "report.computeWarnings"
+msgstr "COMPUTE WARNINGS"
+
+#. js-lingui-explicit-id
+msgid "report.methodologyNotes"
+msgstr "Methodology notes"
+
+#. js-lingui-explicit-id
+msgid "report.audit.status.caveated"
+msgstr "Data Caveats"
+
+#. js-lingui-explicit-id
+msgid "report.audit.status.unpublishable"
+msgstr "Core Data Unresolved"
+
+#. js-lingui-explicit-id
+msgid "report.audit.withheldNote"
+msgstr "Some core numbers could not be verified, so the point target for the affected fields is withheld (target set to N/A). The directional rating still stands on the broader read. Reconcile the fields below before relying on those numbers."
+
+#. js-lingui-explicit-id
+msgid "report.audit.unpublishableNote"
+msgstr "Core data for this name (price, identity, or basic financials) could not be resolved from any source, so the figures below may be unreliable. Re-run later for a fresh fetch."
+
+#. js-lingui-explicit-id
+msgid "report.audit.severity.blocked"
+msgstr "BLOCKED"
+
+#. js-lingui-explicit-id
+msgid "report.audit.severity.review"
+msgstr "CAVEAT"
+
+#. js-lingui-explicit-id
+msgid "report.audit.severity.info"
+msgstr "INFO"
+
+#. js-lingui-explicit-id
+msgid "report.audit.notesTitle"
+msgstr "Valuation Notes"
+
+#. js-lingui-explicit-id
+msgid "report.audit.note.financialSectorEv"
+msgstr "Bank valuation — {fields} aren't meaningful for a deposit-funded institution (deposits are operating raw material, not capital structure, and there's no clean EBITDA). Valued on P/B, P/TBV, ROTCE and DDM instead."
+
+#. js-lingui-explicit-id
+msgid "report.audit.note.lossMakerPe"
+msgstr "P/E is not meaningful here — earnings are negative. Leaning on EV/Revenue, P/B and DCF instead."
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.kv.revenueBase"
+msgstr "Revenue (Base)"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.kv.netIncome"
+msgstr "Net Income"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.revenueEbitda"
+msgstr "Revenue & EBITDA Trajectory"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.marginTrend"
+msgstr "Margin Trend"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.cashFlow"
+msgstr "Cash Flow Composition"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.dcfForecast"
+msgstr "DCF Forecast (Code-Computed)"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.chart.title.revenueEbitda"
+msgstr "Historical + DCF Forecast"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.chart.title.margin"
+msgstr "Gross / EBITDA / Operating Margin"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.chart.title.cashFlow"
+msgstr "Operating / Investing / Financing"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.yearPlus"
+msgstr "Year +{n}"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.revenue"
+msgstr "Revenue"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.fcf"
+msgstr "Free Cash Flow"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.source"
+msgstr "Source: 10-K filings + deterministic forward model"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.empty"
+msgstr "No financial inputs saved in this report — re-run to populate."
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.terminalGrowth"
+msgstr "Terminal Growth"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.taxRate"
+msgstr "Tax Rate"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.dcfImplied"
+msgstr "DCF Implied Price"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.enterpriseValue"
+msgstr "Enterprise Value"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.equityValue"
+msgstr "Equity Value"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.marketImpliedGrowth"
+msgstr "Market-Implied Growth"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.marketImplied.horizon"
+msgstr "over {n}y"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.marketImplied.na"
+msgstr "Unreachable"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.kv.marketImpliedWacc"
+msgstr "Market-Implied WACC"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.marketImplied.vsDcf"
+msgstr "vs DCF {wacc}"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.marketImplied.unreachableNote"
+msgstr "Market-implied growth is unreachable: even {ceiling} annual growth only implies {price} — the market is pricing optionality no cash-flow model can capture, so a DCF point value does not apply to this name."
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.empty"
+msgstr "No DCF output in this report — re-run to generate the full valuation model."
+
+#. js-lingui-explicit-id
+msgid "chapter.cashflowMethods.notApplicableForFinancials"
+msgstr "Cash-flow valuation — DCF, Monte Carlo, EV/EBITDA and P/FCF — does not apply to a balance-sheet financial (bank / insurer): free cash flow and enterprise value are category errors when deposits, float and reserves are operating raw material, not capital structure. This name is valued on P/B · P/E · residual income · DDM — see the valuation football field."
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.subheading.football"
+msgstr "Valuation Triangulation (Football Field)"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.football.title"
+msgstr "Target-Price Range by Method"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.forwardEstimates"
+msgstr "Forward Estimates"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.subheading.bridge"
+msgstr "DCF Value Bridge (Waterfall)"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.title"
+msgstr "DCF Bridge: PV of Cash Flows → Enterprise Value → Equity Value"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.pvFcf"
+msgstr "PV of FCF"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.pvTerminal"
+msgstr "PV of Terminal"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.ev"
+msgstr "Enterprise Value"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.netCash"
+msgstr "Net Cash"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.netDebt"
+msgstr "Less: Net Debt"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.bridge.equity"
+msgstr "Equity Value"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.subheading.assumptions"
+msgstr "Key Assumptions"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.subheading.matrix"
+msgstr "Sensitivity Matrix"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.subheading.notes"
+msgstr "Sensitivity Notes"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.lead"
+msgstr "The DCF anchors on four pivots:"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.revenueCagr"
+msgstr "avg revenue growth"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.ebitdaMargin"
+msgstr "terminal EBITDA margin"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.terminalGrowth"
+msgstr "terminal growth"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.terminalBase"
+msgstr "The Gordon terminal value capitalizes a normalized steady-state FCF of"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.assumptions.terminalBaseNote"
+msgstr " — capex normalized to the maintenance level and working-capital build to the perpetual growth rate. It differs from the final explicit-year FCF, which still carries growth-phase reinvestment."
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.matrix.title"
+msgstr "WACC × Terminal Growth → Implied Price"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.empty"
+msgstr "This report has no sensitivity analysis — regenerate it to get the WACC × terminal-growth grid."
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.notes.wacc"
+msgstr "Varying WACC at base terminal growth, implied price ranges"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.notes.tg"
+msgstr "varying terminal growth at base WACC, it ranges"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.notes.mostSensitive"
+msgstr "The valuation is therefore most sensitive to {driver}."
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.driver.wacc"
+msgstr "WACC"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.driver.tg"
+msgstr "terminal growth"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.notes.margin"
+msgstr "Holding WACC and terminal growth at base, a ±2pp EBITDA-margin shift moves implied price across"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.title"
+msgstr "Explicit-Period Assumptions · Model vs Current"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver"
+msgstr "Driver"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.modelUses"
+msgstr "Model uses (basis)"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.currentActual"
+msgstr "Current actual"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver.growth"
+msgstr "Revenue growth"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver.margin"
+msgstr "EBITDA margin"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver.capex"
+msgstr "Capex / revenue"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.driver.nwc"
+msgstr "ΔNWC / revenue"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.na"
+msgstr "N/A"
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.clampedTooltip"
+msgstr "The ΔNWC/revenue median fell outside the ±10% modelling band and was clamped to it."
+
+#. js-lingui-explicit-id
+msgid "chapter.sensitivity.reconciliation.footnote"
+msgstr "Assumptions are trailing-median based and do not incorporate announced structural changes."
+
+#. js-lingui-explicit-id
+msgid "chart.sensitivity.legend.lower"
+msgstr "Lower implied value"
+
+#. js-lingui-explicit-id
+msgid "chart.sensitivity.legend.higher"
+msgstr "Higher implied value"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.close"
+msgstr "Close"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.ohlc"
+msgstr "O/H/L"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.volume"
+msgstr "Volume"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.empty"
+msgstr "No price history available for this ticker"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.loading"
+msgstr "Loading…"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.trend"
+msgstr "trend"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.last"
+msgstr "Last close"
+
+#. js-lingui-explicit-id
+msgid "chart.priceTrend.latest"
+msgstr "Latest"
+
+#. js-lingui-explicit-id
+msgid "chapter.valuation.target12m"
+msgstr "12-Month Target:"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.currentPrice"
+msgstr "Current Price"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.low52w"
+msgstr "52W Low"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.high52w"
+msgstr "52W High"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.position52w"
+msgstr "52W Position"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.beta5y"
+msgstr "Beta (5Y)"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.kv.vsSpx"
+msgstr "vs SPX"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.position.nearHigh"
+msgstr "near high"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.position.nearLow"
+msgstr "near low"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.position.upperRange"
+msgstr "upper half"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.position.lowerRange"
+msgstr "lower half"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.empty.price"
+msgstr "Price data unavailable — check ticker or retry later"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.empty.overlay"
+msgstr "Quant overlays not yet generated · re-run to see Monte Carlo / trade levels / historical bands"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.subheading.monteCarlo"
+msgstr "Monte Carlo Distribution"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.subheading.sniper"
+msgstr "Support / Resistance Levels"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.subheading.tacticalReference"
+msgstr "Tactical Trade Reference"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.subheading.historicalBands"
+msgstr "Historical EV/EBITDA Bands"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.mc.mean"
+msgstr "Mean"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.mc.std"
+msgstr "Std Dev"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.mc.currentPct"
+msgstr "Current Pct"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.mc.sims"
+msgstr "Sims"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.idealBuy"
+msgstr "Ideal Buy"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.safetyMargin"
+msgstr "safety {pct}%"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.secondaryBuy"
+msgstr "Secondary Buy"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.atSupport"
+msgstr "at support"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.stopLoss"
+msgstr "Stop Loss"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.takeProfit"
+msgstr "Take Profit"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.dcfTarget"
+msgstr "DCF target"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.idealShort"
+msgstr "Ideal short"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.secondaryShort"
+msgstr "Add on bounce"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.atResistance"
+msgstr "Near resistance"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.coverTarget"
+msgstr "Cover target"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.dcfCover"
+msgstr "DCF cover"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.withheldUnreliable"
+msgstr "Directional trade levels withheld: the valuation methods do not corroborate (DCF vs comps diverge too far — the headline point target was withheld), so there is no defensible target to anchor a trade. The directional rating still stands; support / resistance below are shown for reference only."
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.tacticalFraming"
+msgstr "Mechanical entry / exit levels derived from the DCF fair value and recent price action — a tactical implementation reference, not the investment thesis."
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.support20d"
+msgstr "Support (20d)"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.resistance20d"
+msgstr "Resistance (20d)"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.rrRatio"
+msgstr "R / R Ratio"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.suggestedSize"
+msgstr "Suggested Size"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.sniper.ofPortfolio"
+msgstr "of portfolio"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.current"
+msgstr "Current"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.median"
+msgstr "Median"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.insiderFlow"
+msgstr "Insider open-market flow"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.concentration"
+msgstr "Institutional concentration"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.net"
+msgstr "net"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.nonMarketExcl"
+msgstr "{n} non-market excluded"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.topHolders"
+msgstr "top {n} holders"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.signal.ofTotal"
+msgstr "of 13F value"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.heading.insiders"
+msgstr "Insider Transactions (Form 4)"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.heading.institutions"
+msgstr "Institutional Holdings (13F-HR)"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.heading.compensation"
+msgstr "Executive Compensation (DEF 14A)"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.heading.alerts"
+msgstr "5%+ Shareholder Events (13D / 13G)"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.title"
+msgstr "SEC EDGAR identity required"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.body"
+msgstr "SEC EDGAR requires every data request to carry an identifiable User-Agent. Once configured, FinRobot pulls insider transactions, 13F institutional holdings, and proxy compensation automatically."
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.cta"
+msgstr "Open Settings"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.insiders"
+msgstr "No recent insider transactions"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.institutions"
+msgstr "No 13F institutional holdings yet"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.compensation"
+msgstr "No recent DEF 14A proxy data"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.empty.alerts"
+msgstr "No 5%+ shareholder events"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.insiders"
+msgstr "Form 4 data unavailable — this older report has no specific reason; re-run analysis for the latest SEC status"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.institutions"
+msgstr "13F holdings cache not built — this sync is off by default (it downloads a full quarter of market-wide filings); enable or trigger it in Settings, then re-run the analysis to populate it"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.institutions.cta"
+msgstr "Open Settings · SEC 13F"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.compensation"
+msgstr "CEO compensation unavailable — the latest proxy statement could not be parsed for this run"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.alerts"
+msgstr "Schedule 13 data unavailable"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.insiders.identity_missing"
+msgstr "Form 4 unavailable — SEC identity is not active; enter \"name or organization + email\" in Settings, then re-run analysis"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.insiders.no_recent_filings"
+msgstr "Form 4 unavailable — no insider transactions filed in the past 90 days"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.insiders.fetch_error"
+msgstr "Form 4 unavailable — the SEC data request failed for this run; insider activity is omitted"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.degraded.proxy.parse_failed"
+msgstr "DEF 14A parse failed — no valid compensation data extracted from proxy statement"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.date"
+msgstr "Filed"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.role"
+msgstr "Role"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.transaction"
+msgstr "Type"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.shares"
+msgstr "Shares"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.value"
+msgstr "Value"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.holder"
+msgstr "Holder"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.changePct"
+msgstr "QoQ Δ"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.col.periodEnd"
+msgstr "Period End"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.shareClass"
+msgstr "Class {letter}"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.kv.ceoName"
+msgstr "CEO"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.kv.ceoComp"
+msgstr "CEO Total Comp"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.kv.payRatio"
+msgstr "CEO Pay Ratio"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.sale"
+msgstr "Sale"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.purchase"
+msgstr "Purchase"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.exercise"
+msgstr "Exercise"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.other_disposition"
+msgstr "Other Disposition"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.grant"
+msgstr "Grant"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.award"
+msgstr "Award"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.tax_withholding"
+msgstr "Tax withholding"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.conversion"
+msgstr "Conversion"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.exercise_otm"
+msgstr "Exercise (OTM)"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.exercise_itm_atm"
+msgstr "Exercise (ITM/ATM)"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.disposition_to_issuer"
+msgstr "Disposition to issuer"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.discretionary"
+msgstr "Discretionary"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.equity_swap"
+msgstr "Equity swap"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.tender"
+msgstr "Tender"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.voluntary_report"
+msgstr "Voluntary report"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.estate"
+msgstr "Estate transfer"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.voting_trust"
+msgstr "Voting trust"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.small_acquisition"
+msgstr "Small acquisition"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.gift"
+msgstr "Gift"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.expiration_short"
+msgstr "Short expiration"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.expiration_long"
+msgstr "Long expiration"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.tx.other"
+msgstr "Other"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.alert.shares"
+msgstr "shares"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.alert.ofClass"
+msgstr "of class"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.source.def14a"
+msgstr "Source: DEF 14A · filed {date}"
+
+#. js-lingui-explicit-id
+msgid "chapter.ownership.provenance.tooltip"
+msgstr "{form} · accession {accession} · {date}"
+
+#. js-lingui-explicit-id
+msgid "marketdata.age.justNow"
+msgstr "just now"
+
+#. js-lingui-explicit-id
+msgid "marketdata.age.sAgo"
+msgstr "{n}s ago"
+
+#. js-lingui-explicit-id
+msgid "marketdata.age.minAgo"
+msgstr "{n}min ago"
+
+#. js-lingui-explicit-id
+msgid "marketdata.age.hAgo"
+msgstr "{n}h ago"
+
+#. js-lingui-explicit-id
+msgid "marketdata.tier.fresh"
+msgstr "Live"
+
+#. js-lingui-explicit-id
+msgid "marketdata.tier.delayed"
+msgstr "Delayed"
+
+#. js-lingui-explicit-id
+msgid "marketdata.tier.stale"
+msgstr "Stale"
+
+#. js-lingui-explicit-id
+msgid "marketdata.zoneHeader"
+msgstr "MARKET DATA · Non-AI"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.title"
+msgstr "Ticker {ticker} not found"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.description"
+msgstr "yfinance has no data for this symbol. Check the spelling."
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.backButton"
+msgstr "Back to search"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.hint1"
+msgstr "Only US markets are supported (NASDAQ / NYSE / AMEX)"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.hint2"
+msgstr "Search by ticker only — company name search is not supported"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.hint3"
+msgstr "HK / A-share tickers are not supported"
+
+#. js-lingui-explicit-id
+msgid "ticker.notFound.hint4"
+msgstr "If the spelling is correct, yfinance may not list this ticker"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.equityResearch"
+msgstr "EQUITY RESEARCH"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.scaleTitle"
+msgstr "The Gap"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.marketLive"
+msgstr "MARKET · AT REPORT"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.ledeA.pre"
+msgstr "The market is pricing in"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.ledeA.mid"
+msgstr "revenue growth over"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.modelTopsOut"
+msgstr "Cash-flow model tops out"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.withheldTitle"
+msgstr "Priced for growth"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.withheldBody"
+msgstr "the price is {multiple} the model's central cash-flow value; that premium is a bet on the implied growth, not a value entry."
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.belowValueTitle"
+msgstr "Below cash-flow value"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.belowValueBody"
+msgstr "the price is {multiple} the model's central cash-flow value — the market is paying less than the cash-flow economics imply; the implied growth path is the swing factor."
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.atValueTitle"
+msgstr "At cash-flow value"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.atValueBody"
+msgstr "the price sits at the model's central cash-flow value — fairly priced on cash-flow economics; the implied growth is the swing factor."
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.fairValueBand"
+msgstr "Cash-flow fair value"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.ledeB.pre"
+msgstr "Even"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.ledeB.mid"
+msgstr "annual growth over"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.ledeB.impliesOnly"
+msgstr "implies only"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.ledeB.marketAt"
+msgstr "— the market is at"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.optionalityTitle"
+msgstr "Priced on optionality no cash-flow model can capture."
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.optionalityBody"
+msgstr "A fundamentals point target doesn't apply to this name — the gap is a story, not a discount rate."
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.anchor.implied"
+msgstr "Market-implied"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.anchor.ceiling"
+msgstr "Cash-flow ceiling"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.reverseDcf.anchor.value"
+msgstr "Cash-flow value"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.typeLabel"
+msgstr "TYPE"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.version"
+msgstr "v{version}"
+
+#. js-lingui-explicit-id
+msgid "chapter.cover.versionOfTotal"
+msgstr "v{version} of {total}"
+
+#. js-lingui-explicit-id
+msgid "chapter.companyOverview.empty"
+msgstr "This report has no company-overview narrative. Re-run a full report to add an investment-bank-style write-up of the company's business and positioning here."
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.directionalHeading"
+msgstr "Directional Read"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.categoryHeading"
+msgstr "Category Mix"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.netSentiment"
+msgstr "net sentiment"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.eventCount"
+msgstr "across {count} recent catalyst events"
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.crossRef"
+msgstr "Individual events, with their sources and dates, are itemized in the recent-news feed above; forward-looking bull and bear catalysts are covered in the investment thesis."
+
+#. js-lingui-explicit-id
+msgid "chapter.catalysts.empty"
+msgstr "No catalyst events were captured for this report."
+
+#. js-lingui-explicit-id
+msgid "chapter.thesis.empty"
+msgstr "This report is missing the investment-thesis field. Please regenerate the full report."
+
+#. js-lingui-explicit-id
+msgid "chapter.thesis.keyTakeaways"
+msgstr "Key Takeaways"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.empty"
+msgstr "This report has no news-sentiment section — regenerate the report to produce a thesis support / challenge read on the key events here."
+
+#. js-lingui-explicit-id
+msgid "chapter.news.snapshotNote"
+msgstr "Snapshot frozen at artifact creation · compare across artifact versions to track how the narrative evolved"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.feed.heading"
+msgstr "Sourced feed"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.feed.empty"
+msgstr "No sourced events were captured for this report — the AI summary above stands on its own."
+
+#. js-lingui-explicit-id
+msgid "chapter.news.feed.sourceTooltip"
+msgstr "Open source: {source}"
+
+#. js-lingui-explicit-id
+msgid "chapter.news.feed.impactTooltip"
+msgstr "Impact {score}/5"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.empty"
+msgstr "No peer comparables were generated for this report — regenerate to populate"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.col.ticker"
+msgstr "Ticker"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.col.revenue"
+msgstr "Revenue"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.col.grossMargin"
+msgstr "Gross Margin"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.col.opMargin"
+msgstr "Op Margin"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.peerMedian"
+msgstr "Peer median:"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.subheading.multiples"
+msgstr "Multiples Comparison"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.subheading.profile"
+msgstr "Multi-Dimensional Profile"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.subheading.positioning"
+msgstr "Positioning vs Peers"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.chart.multiples"
+msgstr "P/E & EV/EBITDA vs Peers"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.chart.radar"
+msgstr "Target vs Peer Median (median = 100; outward = more favorable)"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.heat.label"
+msgstr "Cell shading vs peer median:"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.heat.favorable"
+msgstr "cheaper / stronger"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.heat.unfavorable"
+msgstr "richer / weaker"
+
+#. js-lingui-explicit-id
+msgid "chapter.competitive.heat.inline"
+msgstr "within ±5% = in-line (no tint)"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.table.unit"
+msgstr "Amount"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.expensive"
+msgstr "Expensive"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.fair"
+msgstr "Fair"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.cheap"
+msgstr "Cheap"
+
+#. js-lingui-explicit-id
+msgid "chapter.technical.band.unknown"
+msgstr "Unknown"
+
+#. js-lingui-explicit-id
+msgid "report.load.missingId"
+msgstr "Missing report ID"
+
+#. js-lingui-explicit-id
+msgid "report.load.missingIdBody"
+msgstr "The path is incomplete — return to the workspace and reselect a report."
+
+#. js-lingui-explicit-id
+msgid "report.load.loading"
+msgstr "Loading report…"
+
+#. js-lingui-explicit-id
+msgid "report.load.failed"
+msgstr "Failed to load"
+
+#. js-lingui-explicit-id
+msgid "report.load.failedBody"
+msgstr "Could not load the report. Please try again later."
+
+#. js-lingui-explicit-id
+msgid "report.lang.mismatch"
+msgstr "This report was written in {lang}; its body does not follow the interface language."
+
+#. js-lingui-explicit-id
+msgid "report.lang.zh"
+msgstr "Chinese"
+
+#. js-lingui-explicit-id
+msgid "report.lang.en"
+msgstr "English"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.back"
+msgstr "Back to {ticker} workspace"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerunStarted"
+msgstr "{ticker} {reportType} re-run started"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerunStartedBody"
+msgstr "Analysis in progress — version history appears in the workspace drawer when done"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerunFailed"
+msgstr "Failed to start re-run"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.toTarget"
+msgstr "To target"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerun"
+msgstr "Re-run"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportHtml"
+msgstr "Export HTML"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportHtmlTitle"
+msgstr "Export an HTML report identical to the page (dark theme, charts, continuous scroll; open/share in any browser)"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportHtmlDone"
+msgstr "HTML report exported"
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.exportHtmlFailed"
+msgstr "HTML export failed"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.subheading.eps"
+msgstr "Earnings per Share (EPS) Trend"
+
+#. js-lingui-explicit-id
+msgid "chapter.financial.chart.title.eps"
+msgstr "Basic EPS · by Year"
+
+#. js-lingui-explicit-id
+msgid "chart.epsTrend.eps"
+msgstr "EPS"
+
+#. js-lingui-explicit-id
+msgid "chart.epsTrend.yoy"
+msgstr "YoY"
+
+#. js-lingui-explicit-id
+msgid "settings.loadFailed"
+msgstr "Failed to load settings"
+
+#. js-lingui-explicit-id
+msgid "settings.loading"
+msgstr "Loading settings…"
+
+#. js-lingui-explicit-id
+msgid "settings.saveFailedRetry"
+msgstr "✗ Save failed · click to retry"
+
+#. js-lingui-explicit-id
+msgid "settings.loadError.title"
+msgstr "Can't load settings"
+
+#. js-lingui-explicit-id
+msgid "settings.loadError.body"
+msgstr "The backend is unreachable or returned an error, so settings can't be shown or saved. Make sure the FinRobot backend is running, then retry — nothing you type here would be saved until the connection is restored."
+
+#. js-lingui-explicit-id
+msgid "settings.saving"
+msgstr "Saving…"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.hintEmpty"
+msgstr "Unlocks 10-K / 10-Q / 8-K filings — enter a name + email, e.g. {example}"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.hintInvalid"
+msgstr "Invalid: don't enter only an email — include a name and email like {example}"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.hintPending"
+msgstr "Format looks valid — saving automatically; the SEC data layer reloads once saved."
+
+#. js-lingui-explicit-id
+msgid "settings.sec.hintActive"
+msgstr "Active: new analyses fetch 10-K / Ownership / XBRL; existing reports need a re-run to update."
+
+#. js-lingui-explicit-id
+msgid "settings.sec.hintUnconfirmed"
+msgstr "Valid, but the backend hasn't confirmed activation; wait for the save to finish or check for a save error."
+
+#. js-lingui-explicit-id
+msgid "settings.startupError.title"
+msgstr "Startup configuration error"
+
+#. js-lingui-explicit-id
+msgid "settings.startupError.hint"
+msgstr "Fixing the fields below re-validates automatically. LLM routing returns 503 until the config is fixed."
+
+#. js-lingui-explicit-id
+msgid "settings.section.dataSources"
+msgstr "Data Sources"
+
+#. js-lingui-explicit-id
+msgid "settings.dataSources.baselineBadge"
+msgstr "Always on"
+
+#. js-lingui-explicit-id
+msgid "settings.dataSources.baselineHint"
+msgstr "Live prices, financials & news — works with no key."
+
+#. js-lingui-explicit-id
+msgid "settings.section.aiModel"
+msgstr "AI Model"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.configured"
+msgstr "Configured"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.saved"
+msgstr "Saved"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.verified"
+msgstr "Verified"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.failed"
+msgstr "Failed"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.required"
+msgstr "Required"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.optional"
+msgstr "Optional"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.active"
+msgstr "Active"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.pending"
+msgstr "Pending"
+
+#. js-lingui-explicit-id
+msgid "settings.badge.recommended"
+msgstr "Recommended"
+
+#. js-lingui-explicit-id
+msgid "settings.fmp.label"
+msgstr "FMP API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.fmp.placeholder"
+msgstr "Enter FMP API key"
+
+#. js-lingui-explicit-id
+msgid "settings.fmp.hint"
+msgstr "Accurate financials, D&A & earnings surprises — free tier"
+
+#. js-lingui-explicit-id
+msgid "settings.finnhub.label"
+msgstr "Finnhub API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.finnhub.placeholder"
+msgstr "Enter Finnhub API key"
+
+#. js-lingui-explicit-id
+msgid "settings.finnhub.hint"
+msgstr "Adds company news & profile"
+
+#. js-lingui-explicit-id
+msgid "settings.adanos.label"
+msgstr "Adanos API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.adanos.placeholder"
+msgstr "Enter Adanos API key"
+
+#. js-lingui-explicit-id
+msgid "settings.adanos.hint"
+msgstr "Retail sentiment from Reddit, X & Polymarket"
+
+#. js-lingui-explicit-id
+msgid "settings.alphaVantage.label"
+msgstr "Alpha Vantage API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.alphaVantage.placeholder"
+msgstr "Enter Alpha Vantage API key"
+
+#. js-lingui-explicit-id
+msgid "settings.alphaVantage.hint"
+msgstr "Sentiment scoring for the news feed"
+
+#. js-lingui-explicit-id
+msgid "settings.apiKey.getKey"
+msgstr "Get a key"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.label"
+msgstr "SEC EDGAR Identity (User-Agent)"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.placeholder"
+msgstr "Name or org email@example.com"
+
+#. js-lingui-explicit-id
+msgid "settings.sec.preview"
+msgstr "SEC request header preview: "
+
+#. js-lingui-explicit-id
+msgid "settings.model.label"
+msgstr "Model"
+
+#. js-lingui-explicit-id
+msgid "settings.section.secHoldings"
+msgstr "SEC 13F Holdings"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.intro"
+msgstr "The 13F reverse index powers the report's \"who holds this stock\" institutional-holdings section. Building it downloads a full quarter of market-wide 13F-HR filings (~1-2 hours, heavy SEC traffic), so it is off by default."
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.autoRefresh"
+msgstr "Auto-sync on startup"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.autoRefreshDesc"
+msgstr "On each startup, rebuild in the background when the cache is empty or older than 60 days (first build still takes ~1-2 hours)."
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.statusPopulated"
+msgstr "Built · {rows} rows · {tickers} tickers · as of {period}"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.statusEmpty"
+msgstr "Not built — no institutional holdings cached yet"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.stale"
+msgstr "Stale — quarter {expected} 13F filings are due but not yet synced"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.syncNow"
+msgstr "Sync now"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.syncing"
+msgstr "Syncing…"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.syncFailed"
+msgstr "Sync failed — check logs"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.identityRequired"
+msgstr "Configure a valid SEC identity above before syncing"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.runningHint"
+msgstr "Downloading and parsing a full quarter of 13F-HR filings — this can take 1-2 hours. You can leave this page; re-run the analysis once it finishes to populate institutional holdings."
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.confirmTitle"
+msgstr "Start 13F sync?"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.confirmBody"
+msgstr "This downloads a full quarter of market-wide 13F-HR filings (~1-2 hours, heavy SEC traffic). It runs in the background — you can leave this page. Reports must be regenerated after it finishes to pick up institutional holdings."
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.confirmProceed"
+msgstr "Start sync"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.startedAt"
+msgstr "Started at {time}"
+
+#. js-lingui-explicit-id
+msgid "settings.secHoldings.syncError"
+msgstr "Couldn't start the sync — the backend is unreachable or returned an error."
+
+#. js-lingui-explicit-id
+msgid "settings.saveFailedTitle"
+msgstr "Save failed"
+
+#. js-lingui-explicit-id
+msgid "settings.savedOk"
+msgstr "✓ Saved"
+
+#. js-lingui-explicit-id
+msgid "shell.about.aria"
+msgstr "About FinRobot"
+
+#. js-lingui-explicit-id
+msgid "shell.about.charity"
+msgstr "501(c)(3) non-profit · open-source"
+
+#. js-lingui-explicit-id
+msgid "shell.about.starGithub"
+msgstr "Star on GitHub"
+
+#. js-lingui-explicit-id
+msgid "shell.footer.copyright"
+msgstr "Copyright © AI4Finance Foundation"
+
+#. js-lingui-explicit-id
+msgid "shell.titlebar.aiAssistant"
+msgstr "AI Assistant"
+
+#. js-lingui-explicit-id
+msgid "shell.warning.collapse"
+msgstr "Collapse"
+
+#. js-lingui-explicit-id
+msgid "shell.warning.more"
+msgstr "+{count} more"
+
+#. js-lingui-explicit-id
+msgid "shell.error.renderFailed"
+msgstr "Page render error"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.invalidTicker"
+msgstr "Invalid symbol · use 1-12 letters / digits / .-"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.searchPlaceholder"
+msgstr "Enter a ticker · e.g. AAPL"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.analyze"
+msgstr "Analyze"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.cockpitLabel"
+msgstr "AI research cockpit"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.tickerAria"
+msgstr "Ticker symbol"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.statusGenerating"
+msgstr "Generating {name}"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.statusDone"
+msgstr "{name} · Done"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.statusFailed"
+msgstr "{name} · Failed"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.statusCancelled"
+msgstr "{name} · Cancelled"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.cancelling"
+msgstr "Cancelling…"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.elapsed"
+msgstr " · {s}s elapsed"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.eta"
+msgstr " · ~{s}s left"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.totalDuration"
+msgstr " · {s}s total"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.openReport"
+msgstr "→ Open report"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.dismissAria"
+msgstr "Dismiss progress panel"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.retrying"
+msgstr "Retrying {attempt}/{max}"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.degraded"
+msgstr "Degraded"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.footer"
+msgstr "Numbers are computed in code, not authored by the LLM · any step failure regenerates the whole report"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.failedMsg"
+msgstr "⚠️ Report generation failed · {error}"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.retryLater"
+msgstr "Please try again later"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.research"
+msgstr "Full AI Research"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.icMemo"
+msgstr "IC Memo"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.earnings"
+msgstr "Earnings Call Analysis"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.lbo"
+msgstr "LBO Valuation"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.ddm"
+msgstr "Dividend Discount"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.comps"
+msgstr "Peer Comps"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.type.dcf"
+msgstr "DCF Valuation"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.dataCollection.label"
+msgstr "Data Collection"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.dataCollection.help"
+msgstr "Fetch 10-K / 10-Q / prices / news"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.catalystAnalysis.label"
+msgstr "Catalyst Detection"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.catalystAnalysis.help"
+msgstr "News classification + event extraction + impact scoring"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.peerAnalysis.label"
+msgstr "Peer Comps"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.peerAnalysis.help"
+msgstr "Financial comparison across 5 comparables"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.financialModeling.label"
+msgstr "Financial Modeling"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.financialModeling.help"
+msgstr "DCF Monte Carlo + Comps + sensitivity"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.ownershipGovernance.label"
+msgstr "Ownership & Governance"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.ownershipGovernance.help"
+msgstr "Insider trades + institutional holdings + exec comp"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.technicalAnalysis.label"
+msgstr "Technical & Advanced"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.technicalAnalysis.help"
+msgstr "Monte Carlo + entry levels + price action"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.thesis.label"
+msgstr "Investment Thesis"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.thesis.help"
+msgstr "Generate target price + risk factors"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.report.label"
+msgstr "Report Assembly"
+
+#. js-lingui-explicit-id
+msgid "workspace.pipeline.step.report.help"
+msgstr "13-chapter report + LLM narrative"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.zoneTitle"
+msgstr "📊 Market Data"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.zoneDesc"
+msgstr "Source: yfinance / SEC EDGAR / FMP · pulled live, independent of any AI report."
+
+#. js-lingui-explicit-id
+msgid "workspace.market.snapshot"
+msgstr "📊 Quote Snapshot"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.valuationBand"
+msgstr "📐 Multiple vs Own History"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.valuationBandError"
+msgstr "Valuation band unavailable (≠ no band) · click to retry"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.priceTrend"
+msgstr "📈 Price Trend"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.financialsTtm"
+msgstr "💰 Financials · TTM"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.catalystCalendar"
+msgstr "📅 Catalyst Calendar"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.catalystClassifying"
+msgstr "Classifying news — first load ~15s"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.marketCap"
+msgstr "Market Cap"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.revenueTtm"
+msgstr "Revenue TTM"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.streetCaliber"
+msgstr "Reported {v}"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.evEbitdaCaliber"
+msgstr "Primary = operating EV/EBITDA (EBITDA = EBIT + D&A). EV is net of cash, so interest income is excluded. Reported = net income + tax + interest + D&A, includes interest income — the caliber most retail aggregators quote, not analyst consensus."
+
+#. js-lingui-explicit-id
+msgid "workspace.market.betaCaliber"
+msgstr "Raw regression"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.betaCaliberDetail"
+msgstr "This is the data provider's raw 5-year regression beta, unadjusted. The DCF/WACC valuation in the AI report uses this same beta after an asymmetric Blume adjustment: β>1 shrinks 2/3·β+1/3·1.0 toward the market (high-β estimates are noisier and mean-revert); β≤1 — a genuine low-β defensive — is kept as-is, unadjusted. The two figures can legitimately differ; that is a caliber difference, not a data error."
+
+#. js-lingui-explicit-id
+msgid "workspace.market.ebitdaCaliber"
+msgstr "Primary = operating EBITDA (EBIT + D&A). Reported = net income + tax + interest + D&A — the caliber retail aggregators quote; includes non-operating income, so it runs above the operating figure. Not analyst (Street) consensus."
+
+#. js-lingui-explicit-id
+msgid "workspace.market.unnamedEvent"
+msgstr "(unnamed event)"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.catalystSourceCount"
+msgstr "Distinct sources reporting this event (near-duplicates merged)"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.noCatalysts"
+msgstr "No recent events · earnings / product launches / regulatory"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.dataUnavailable"
+msgstr "Market data source unavailable"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.dataUnavailableHint"
+msgstr "Upstream returned {status} · click to retry"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.dataUnavailableHintNoStatus"
+msgstr "Source temporarily unavailable · click to retry"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.engineStarting"
+msgstr "Data engine is starting…"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.engineStartingHint"
+msgstr "Live data loads in a moment — retrying automatically"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentRateLimited"
+msgstr "Retail sentiment source is rate-limited"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentRateLimitedHint"
+msgstr "Rate-limited by the data source · auto-retrying shortly"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.retry"
+msgstr "Retry"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.catalystError"
+msgstr "Catalyst detection unavailable (≠ no catalysts) · click to retry"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.source"
+msgstr "Source {provider}"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.ttmAsOf"
+msgstr "TTM as of {date}"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.closeOnly"
+msgstr "Close-only · 52w high/low from closing prices"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.ttmLag"
+msgstr "TTM lag · denominator not latest quarter"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.ccyInferred"
+msgstr "Currency inferred · not stated directly in filings"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.priceFallbackClose"
+msgstr "Price is last close · market closed or close-only feed"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.periodBasisUnknown"
+msgstr "Reporting period unconfirmed · assumed TTM"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.circuitOpen"
+msgstr "{provider} source skipped · circuit-breaker cooldown"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.providerDivergence"
+msgstr "{field} differs across sources · cross-check flagged"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.priceDivergence"
+msgstr "{field} differs across quote sources · review live price"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.trend.uptrend"
+msgstr "↑ Uptrend"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.trend.downtrend"
+msgstr "↓ Downtrend"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.trend.sideways"
+msgstr "→ Sideways"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.trendInsufficient"
+msgstr "Insufficient trend data (under 20 trading days)"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.trendUnavailable"
+msgstr "Trend data unavailable"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.rangeMarker"
+msgstr "Current {price} · range position {pct}%"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.low52w"
+msgstr "52W Low {v}"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.high52w"
+msgstr "52W High {v}"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.range"
+msgstr "Range {pct}%"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentiment"
+msgstr "Retail Sentiment"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentDesc"
+msgstr "Retail bull/bear lean and buzz across Reddit / X.com / Polymarket (Adanos). Headline split is an unweighted average across covered platforms."
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentUnconfigured"
+msgstr "Adanos not configured"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentUnconfiguredHint"
+msgstr "Add an Adanos API key in Settings to unlock retail sentiment."
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentGoSettings"
+msgstr "Settings →"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentCoverage"
+msgstr "{coverage} platforms covered"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentBullish"
+msgstr "Bullish"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentBearish"
+msgstr "Bearish"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentBuzz"
+msgstr "Avg buzz"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentAlignment.aligned"
+msgstr "Sources aligned"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentAlignment.split"
+msgstr "Sources split"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentAlignment.partial_divergence"
+msgstr "Partial divergence"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentAlignment.single_source"
+msgstr "Single source"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentAlignment.no_data"
+msgstr "No data"
+
+#. js-lingui-explicit-id
+msgid "workspace.market.sentimentNoSources"
+msgstr "No platform returned data."
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.zoneTitle"
+msgstr "🤖 AI Research"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.zoneDesc"
+msgstr "AI research report · 13 chapters spanning investment thesis, valuation (DCF / comps / DDM), risks and catalysts — numbers computed in code, judgments from the LLM."
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.reportCount"
+msgstr "{n} reports"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.neverRun"
+msgstr "Never run"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.running"
+msgstr "Running …"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.retry"
+msgstr "↻ Retry"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.error.title"
+msgstr "Load failed — backend unreachable or returned an error"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.error.hint"
+msgstr "Check whether the backend service is running"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.toast.alreadyRunning"
+msgstr "{ticker} analysis already in progress"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.toast.alreadyRunningDesc"
+msgstr "Wait for the current run to finish before starting a new one"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.toast.launched"
+msgstr "{ticker} report started"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.toast.launchedDesc"
+msgstr "Analysis in progress — this view refreshes automatically in about 60s"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.toast.launchFailed"
+msgstr "Failed to start report"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.checking"
+msgstr "Checking report history…"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.title"
+msgstr "No report generated for {ticker} yet"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.descPrefix"
+msgstr "Generate a"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.descBold"
+msgstr "13-chapter investment-bank-grade report"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.descSuffix"
+msgstr ": investment thesis · company overview · financial analysis · valuation (DCF + comps + DDM) · news & events · sensitivity · catalysts · technicals · competitive landscape · financial data · ownership & governance (with cover and disclaimer)"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.launchBtn"
+msgstr "▶ Run AI Research now (~60s)"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.immutableNote"
+msgstr "Reports are immutable once generated · regenerating appends a new version, never overwrites the old one"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.preflight.passed"
+msgstr "Preflight passed"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.preflight.modelConfigured"
+msgstr "AI model configured"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.preflight.modelPending"
+msgstr "No AI model yet · open Settings"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.cold.preflight.dataSources"
+msgstr "{n} data sources online"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.verdictLabel"
+msgstr "Verdict"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.target12mo"
+msgstr "12-Month Target"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.openFull"
+msgstr "Open full report"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.rerun"
+msgstr "Rerun"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.history"
+msgstr "⏱ Version history · {n}"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.hot.notAnalyzed"
+msgstr "Not yet analyzed · run a model"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.versionCurrent"
+msgstr "current"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.versionNow"
+msgstr "now"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.age.justNow"
+msgstr "just now"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.age.minAgo"
+msgstr "{n}min ago"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.age.hAgo"
+msgstr "{n}h ago"
+
+#. js-lingui-explicit-id
+msgid "workspace.ai.age.dAgo"
+msgstr "{n}d ago"
+
+#. js-lingui-explicit-id
+msgid "workspace.hero.closedAsOf"
+msgstr "Close · {date}"
+
+#. js-lingui-explicit-id
+msgid "workspace.hero.usMarket"
+msgstr "US"
+
+#. js-lingui-explicit-id
+msgid "workspace.toast.reportDone"
+msgstr "{ticker} report complete"
+
+#. js-lingui-explicit-id
+msgid "workspace.toast.reportCancelled"
+msgstr "{ticker} run cancelled"
+
+#. js-lingui-explicit-id
+msgid "workspace.toast.reportDoneDesc"
+msgstr "The full 13-chapter report is ready — click \"Open full report\" in the AI panel on the right to view it"
+
+#. js-lingui-explicit-id
+msgid "workspace.toast.reportFailed"
+msgstr "{ticker} report failed"
+
+#. js-lingui-explicit-id
+msgid "workspace.toast.retryLater"
+msgstr "Please try again later"
+
+#. js-lingui-explicit-id
+msgid "workspace.missingTicker"
+msgstr "No ticker specified — enter one via search or your watchlist."
+
+#. js-lingui-explicit-id
+msgid "chatpanel.model.configuredInSettings"
+msgstr "Model is configured in Settings"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.send.title"
+msgstr "Send (↵ · Shift+↵ for newline)"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.expand.open"
+msgstr "Open chat"
+
+#. js-lingui-explicit-id
+msgid "chatpanel.context.label"
+msgstr "Context"
+
+#. js-lingui-explicit-id
+msgid "term.ariaLabel"
+msgstr "Term: {term}"
+
+#. js-lingui-explicit-id
+msgid "term.askMore"
+msgstr "Ask FinRobot to explain →"
+
+#. js-lingui-explicit-id
+msgid "sourced.title"
+msgstr "Data source"
+
+#. js-lingui-explicit-id
+msgid "sourced.provider"
+msgstr "Source"
+
+#. js-lingui-explicit-id
+msgid "sourced.unknown"
+msgstr "Unknown"
+
+#. js-lingui-explicit-id
+msgid "sourced.fetchedAt"
+msgstr "Fetched at"
+
+#. js-lingui-explicit-id
+msgid "sourced.asOf"
+msgstr "As of"
+
+#. js-lingui-explicit-id
+msgid "sourced.formula"
+msgstr "Formula"
+
+#. js-lingui-explicit-id
+msgid "sourced.warning"
+msgstr "Warning"
+
+#. js-lingui-explicit-id
+msgid "sourced.openReport"
+msgstr "Open full report →"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.offScalePrefix"
+msgstr "Market price {price} deviates from the model's median valuation {mid} by"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.overvalued"
+msgstr "the model implies clear overvaluation"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.undervalued"
+msgstr "the model implies clear undervaluation"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.offScaleSuffix"
+msgstr " — audit the assumption sources before drawing conclusions."
+
+#. js-lingui-explicit-id
+msgid "chart.series.revenue"
+msgstr "Revenue"
+
+#. js-lingui-explicit-id
+msgid "chart.tooltip.projected"
+msgstr "Projected · model estimate"
+
+#. js-lingui-explicit-id
+msgid "chart.series.ebitda"
+msgstr "EBITDA"
+
+#. js-lingui-explicit-id
+msgid "chart.margin.gross"
+msgstr "Gross"
+
+#. js-lingui-explicit-id
+msgid "chart.margin.ebitda"
+msgstr "EBITDA"
+
+#. js-lingui-explicit-id
+msgid "chart.margin.operating"
+msgstr "Operating"
+
+#. js-lingui-explicit-id
+msgid "chart.cashflow.operating"
+msgstr "Operating"
+
+#. js-lingui-explicit-id
+msgid "chart.cashflow.investing"
+msgstr "Investing"
+
+#. js-lingui-explicit-id
+msgid "chart.cashflow.financing"
+msgstr "Financing"
+
+#. js-lingui-explicit-id
+msgid "chart.cashflow.net"
+msgstr "Net Cash Flow"
+
+#. js-lingui-explicit-id
+msgid "chart.peer.evEbitda"
+msgstr "EV/EBITDA"
+
+#. js-lingui-explicit-id
+msgid "chart.peer.pe"
+msgstr "P/E Ratio"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.company"
+msgstr "Company"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.benchmark"
+msgstr "Benchmark"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.pe"
+msgstr "P/E"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.evEbitda"
+msgstr "EV/EBITDA"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.evRevenue"
+msgstr "EV/Revenue"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.grossMargin"
+msgstr "Gross Margin"
+
+#. js-lingui-explicit-id
+msgid "chart.radar.dim.operatingMargin"
+msgstr "Operating Margin"
+
+#. js-lingui-explicit-id
+msgid "chart.waterfall.total"
+msgstr "Total"
+
+#. js-lingui-explicit-id
+msgid "chart.waterfall.add"
+msgstr "Add"
+
+#. js-lingui-explicit-id
+msgid "chart.waterfall.subtract"
+msgstr "Subtract"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.current"
+msgstr "Current"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.offScaleBadge"
+msgstr "off-scale"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.mid"
+msgstr "Mid"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.title"
+msgstr "{metric} · now vs own {window} range"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.cheap"
+msgstr "cheap"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.fair"
+msgstr "fair"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.rich"
+msgstr "rich"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.unknown"
+msgstr "n/a"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.samples"
+msgstr "{count} obs"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.median"
+msgstr "median"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.history.now"
+msgstr "now"
+
+#. js-lingui-explicit-id
+msgid "chart.footballField.target"
+msgstr "Target"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.mcap"
+msgstr "Mkt Cap"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.revttm"
+msgstr "Rev TTM"
+
+#. js-lingui-explicit-id
+msgid "coverage.col.upside"
+msgstr "Upside"
+
+#. js-lingui-explicit-id
+msgid "coverage.notRun"
+msgstr "Not run"
+
+#. js-lingui-explicit-id
+msgid "coverage.run"
+msgstr "Run"
+
+#. js-lingui-explicit-id
+msgid "coverage.running"
+msgstr "Running"
+
+#. js-lingui-explicit-id
+msgid "coverage.loading"
+msgstr "Loading coverage…"
+
+#. js-lingui-explicit-id
+msgid "coverage.emptyGroup"
+msgstr "No coverage records yet — open Research to study the first ticker."
+
+#. js-lingui-explicit-id
+msgid "coverage.error.groupsFailed"
+msgstr "Couldn't reach the coverage service — it may still be starting."
+
+#. js-lingui-explicit-id
+msgid "coverage.error.overviewFailed"
+msgstr "Couldn't load this group's coverage data."
+
+#. js-lingui-explicit-id
+msgid "coverage.error.retry"
+msgstr "Retry"
+
+#. js-lingui-explicit-id
+msgid "coverage.error.marketFailed"
+msgstr "Market data failed to load — click retry."
+
+#. js-lingui-explicit-id
+msgid "coverage.error.dismiss"
+msgstr "Dismiss"
+
+#. js-lingui-explicit-id
+msgid "coverage.filterEmpty"
+msgstr "Nothing matches this view · switch to All for the full list"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.fresh"
+msgstr "fresh"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.target"
+msgstr "Tgt"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.label"
+msgstr "Mkt implied"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.fundamental"
+msgstr "{g}/yr priced in"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.fundamentalTitle"
+msgstr "Live price implies ~{g}/yr revenue growth over {n}y (reverse-DCF from the latest stored model, re-solved at the live price). Per-name context, not a cross-name ranking."
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.optionValue"
+msgstr "✕ Option-value"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.optionValueTitle"
+msgstr "No growth up to {ceiling}/yr reaches the live price (even then only {price}) — priced on optionality a DCF cannot model, and it holds at a plausibly lower WACC."
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.nearCeiling"
+msgstr "⚠ Near-ceiling"
+
+#. js-lingui-explicit-id
+msgid "coverage.implied.nearCeilingTitle"
+msgstr "Unreachable at this name's own WACC, but a plausibly lower WACC explains the price — WACC-sensitive, so not asserted as option-value."
+
+#. js-lingui-explicit-id
+msgid "coverage.card.refreshing"
+msgstr "refreshing"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.closed"
+msgstr "Close · {date}"
+
+#. js-lingui-explicit-id
+msgid "coverage.reason.run_failed"
+msgstr "Run failed"
+
+#. js-lingui-explicit-id
+msgid "coverage.reason.never_run"
+msgstr "Needs research"
+
+#. js-lingui-explicit-id
+msgid "coverage.reason.signal_closed"
+msgstr "Review thesis"
+
+#. js-lingui-explicit-id
+msgid "coverage.reason.warning"
+msgstr "Data flag"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.reports"
+msgstr "{n} reports · latest {date}"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.noReports"
+msgstr "No records yet"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.modelOnly"
+msgstr "No report yet · {n} model records"
+
+#. js-lingui-explicit-id
+msgid "coverage.card.open"
+msgstr "Open {ticker}"
+
+#. js-lingui-explicit-id
+msgid "coverage.emptyArchive.title"
+msgstr "No coverage records yet"
+
+#. js-lingui-explicit-id
+msgid "coverage.emptyArchive.body"
+msgstr "Start from Research. The first ticker you study will appear here with its report history and latest status."
+
+#. js-lingui-explicit-id
+msgid "coverage.emptyArchive.action"
+msgstr "Open Research"
+
+#. js-lingui-explicit-id
+msgid "hotState.targetWithheld"
+msgstr "Target withheld · valuation methods diverged on cross-validation — open the report for the reconciliation detail →"
+
+#. js-lingui-explicit-id
+msgid "coverage.starter.researchTicker"
+msgstr "Research {ticker}"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.button"
+msgstr "Clear"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.confirmTitle"
+msgstr "Clear saved API key?"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.confirmBody"
+msgstr "This removes the API key from secure storage (the OS keychain). You'll need to re-enter it before that service works again."
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.confirm"
+msgstr "Clear"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.doneTitle"
+msgstr "Cleared"
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.doneBody"
+msgstr "The API key was removed from secure storage."
+
+#. js-lingui-explicit-id
+msgid "settings.clearKey.failTitle"
+msgstr "Couldn't clear key"
+
+#. js-lingui-explicit-id
+msgid "settings.subtitle"
+msgstr "Configure your API keys and data sources here — everything is stored locally on this machine."
+
+#. js-lingui-explicit-id
+msgid "settings.secretStorage.localFile"
+msgstr "Keys are stored in a local file on this device"
+
+#. js-lingui-explicit-id
+msgid "settings.llm.apiKeyLabel"
+msgstr "API key"
+
+#. js-lingui-explicit-id
+msgid "settings.llm.apiKeyPlaceholder"
+msgstr "Enter your {provider} API key"
+
+#. js-lingui-explicit-id
+msgid "settings.onboarding.title"
+msgstr "Add an AI model key to begin"
+
+#. js-lingui-explicit-id
+msgid "settings.onboarding.body"
+msgstr "FinRobot uses a large language model to write the report narrative — pick a provider and paste its API key to begin. The data-source keys below (FMP, etc.) are optional and improve financial-data quality."
+
+#. js-lingui-explicit-id
+msgid "settings.key.show"
+msgstr "Show"
+
+#. js-lingui-explicit-id
+msgid "settings.key.hide"
+msgstr "Hide"
+
+#. js-lingui-explicit-id
+msgid "settings.provider.label"
+msgstr "Provider"
+
+#. js-lingui-explicit-id
+msgid "settings.provider.customTag"
+msgstr "Custom"
+
+#. js-lingui-explicit-id
+msgid "settings.provider.placeholder"
+msgstr "Select a provider"
+
+#. js-lingui-explicit-id
+msgid "settings.model.idPlaceholder"
+msgstr "Model id (e.g. deepseek-chat)"
+
+#. js-lingui-explicit-id
+msgid "settings.llm.apiKeyLabelFor"
+msgstr "{provider} API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.title"
+msgstr "Custom provider (OpenAI-compatible)"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.name"
+msgstr "Name"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.remove"
+msgstr "Remove"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.baseUrl"
+msgstr "Base URL"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.apiKey"
+msgstr "API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.apiKeyPlaceholder"
+msgstr "Enter the provider's API key"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.add"
+msgstr "Add provider"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.addEntry"
+msgstr "Add a custom provider"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+msgid "settings.customProvider.incompleteTitle"
+msgstr "Name and Base URL are required"
+
+#. js-lingui-explicit-id
+msgid "settings.test.button"
+msgstr "Test connection"
+
+#. js-lingui-explicit-id
+msgid "settings.test.testing"
+msgstr "Testing…"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.ok"
+msgstr "Connection OK"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.no_key"
+msgstr "No API key set for this provider"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.no_model"
+msgstr "Enter a model id first"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.auth"
+msgstr "Authentication failed — check the API key"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.connect"
+msgstr "Could not reach the endpoint — check the Base URL"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.not_found"
+msgstr "Model not found — check the model id"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.http"
+msgstr "The provider returned an error"
+
+#. js-lingui-explicit-id
+msgid "settings.test.result.unknown"
+msgstr "Connection test failed"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.ok"
+msgstr "Connection OK"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.no_key"
+msgstr "No API key set for this data source"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.auth"
+msgstr "Invalid API key — check the key"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.connect"
+msgstr "Could not reach the data source — check your network"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.not_found"
+msgstr "The data source rejected the request"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.http"
+msgstr "The data source returned an error"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.plan"
+msgstr "Key looks valid, but your FMP plan can't access this endpoint (legacy/premium restriction)"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.rate_limited"
+msgstr "Rate limited by the data source — try again later"
+
+#. js-lingui-explicit-id
+msgid "settings.dataTest.result.unknown"
+msgstr "Connection test failed"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.subcopy"
+msgstr "Enter a ticker to open a fully traceable AI research desk"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.subcopyAccent"
+msgstr "Deterministic compute + LLM narrative · every number traces back"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.popular"
+msgstr "Popular"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.suggestionsLabel"
+msgstr "Suggestions"
+
+#. js-lingui-explicit-id
+msgid "landing.hero.suggestionsAria"
+msgstr "Ticker suggestions"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.research.name"
+msgstr "AI research report"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.research.desc"
+msgstr "13-chapter IB-grade equity research with a BUY / HOLD / SELL call"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.valuation.name"
+msgstr "Deterministic valuation"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.valuation.desc"
+msgstr "DCF · comps · DDM · LBO · sensitivity — numbers from pure functions"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.provenance.name"
+msgstr "Traceable numbers"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.provenance.desc"
+msgstr "Every key number traces to source · basis · formula · function"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.signals.name"
+msgstr "Catalysts & governance"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.signals.desc"
+msgstr "News · 8-K · institutional holdings · insiders · 13D/13G"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.quant.name"
+msgstr "Quant overlay & IC debate"
+
+#. js-lingui-explicit-id
+msgid "landing.dock.quant.desc"
+msgstr "Monte Carlo · trade levels · bull/bear IC debate"
+
+#. js-lingui-explicit-id
+msgid "update.pill.available"
+msgstr "Update to {version}"
+
+#. js-lingui-explicit-id
+msgid "update.pill.downloading"
+msgstr "Updating"
+
+#. js-lingui-explicit-id
+msgid "update.pill.installing"
+msgstr "Installing…"
+
+#. js-lingui-explicit-id
+msgid "update.pill.ready"
+msgstr "Update ready"
+
+#. js-lingui-explicit-id
+msgid "update.pill.retry"
+msgstr "Update failed — retry"
+
+#. js-lingui-explicit-id
+msgid "update.toast.available"
+msgstr "Update available — use the button at the top to install"
+
+#. js-lingui-explicit-id
+msgid "update.toast.upToDate"
+msgstr "You're on the latest version"
+
+#. js-lingui-explicit-id
+msgid "update.toast.checkFailed"
+msgstr "Couldn't check for updates"
+
+#. js-lingui-explicit-id
+msgid "update.gate.title"
+msgstr "Update required to continue"
+
+#. js-lingui-explicit-id
+msgid "update.gate.body"
+msgstr "This version is no longer supported. Update to {version} to continue using FinRobot."
+
+#. js-lingui-explicit-id
+msgid "update.gate.button"
+msgstr "Update now"
+
+#. js-lingui-explicit-id
+msgid "settings.nav.updates"
+msgstr "Updates"
+
+#. js-lingui-explicit-id
+msgid "settings.section.updates"
+msgstr "Updates"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.intro"
+msgstr "Check for and install new versions of FinRobot."
+
+#. js-lingui-explicit-id
+msgid "settings.updates.currentVersion"
+msgstr "Current version: {version}"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.checkButton"
+msgstr "Check for updates"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.checking"
+msgstr "Checking…"
+
+#. js-lingui-explicit-id
+msgid "settings.updates.browserOnly"
+msgstr "Update checks are only available in the desktop app."
+
+#. js-lingui-explicit-id
+msgid "coverage.refresh.button"
+msgstr "Refresh"
+
+#. js-lingui-explicit-id
+msgid "coverage.refresh.refreshing"
+msgstr "Refreshing…"
+
+#. js-lingui-explicit-id
+msgid "coverage.refresh.upToDate"
+msgstr "Up to date · market closed"
+
+#. js-lingui-explicit-id
+msgid "coverage.refresh.updated"
+msgstr "Updated"
+
+#. js-lingui-explicit-id
+msgid "coverage.refresh.aria"
+msgstr "Refresh market data"
+
+#. js-lingui-explicit-id
+msgid "runs.error.alreadyActive"
+msgstr "A run for {ticker} is already in progress."
+
+#. js-lingui-explicit-id
+msgid "report.toolbar.rerunRunningTitle"
+msgstr "A run for {ticker} is already in progress"
+
+#. js-lingui-explicit-id
+msgid "settings.providerStatus.cooldown"
+msgstr "Cooldown"
+
+#. js-lingui-explicit-id
+msgid "settings.providerStatus.dotOk"
+msgstr "Live: this source is responding normally"
+
+#. js-lingui-explicit-id
+msgid "settings.providerStatus.dotOpen"
+msgstr "Live: recent calls failed — paused until the cooldown ends, then retried automatically"
+
+#. js-lingui-explicit-id
+msgid "settings.providerStatus.dotNa"
+msgstr "No live telemetry for this source"
+
+#. js-lingui-explicit-id
+msgid "settings.providerStatus.cooldownUntil"
+msgstr "cooldown until"
+
+#. js-lingui-explicit-id
+msgid "settings.providerStatus.unavailable"
+msgstr "Provider status unavailable — backend unreachable."
+
+#. js-lingui-explicit-id
+msgid "workspace.market.degraded.priceHistoryStale"
+msgstr "Stale history · chart & 52w range from last cached bars (live source served quote only)"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.title"
+msgstr "Market-implied expectations"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.subtitle"
+msgstr "· reverse-solve what the market is betting"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.loading"
+msgstr "Reverse-solving…"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.lede"
+msgstr "The market price implies a FAMILY of assumption combos, not one valuation. Each reverse solve pins two axes and solves the third — read it as 'fixing X, the market requires Y':"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.axis.growth"
+msgstr "Growth · fix WACC + 5y"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.axis.wacc"
+msgstr "Discount · fix growth curve"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.axis.horizon"
+msgstr "Horizon · fix growth + WACC"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.tooltip.growth"
+msgstr "{g}% growth"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.tooltip.impliedYears"
+msgstr "Implied years"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.unreachable"
+msgstr "unreachable"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.years"
+msgstr "y"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.lineTitle"
+msgstr "growth → implied horizon equivalence line"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.fixedWacc"
+msgstr "fixed WACC"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.waccSlider"
+msgstr "discount WACC"
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.priorNote"
+msgstr "✓/⚠ are analyst credibility priors, not an objective verdict; swap the fixed axes and the answer changes. The market price sits on this line — which segment you believe is your call."
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.solved"
+msgstr "At a fixed {growth}% growth and {wacc}% WACC, ${target} implies a ~{horizon}-year high-growth window (linear interpolation between integer years). Note: this horizon depends on the fixed {growth}% growth — an equally plausible growth rate yields a different horizon."
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.notConverged"
+msgstr "Did not converge to an exact solution after the iteration cap — the value shown is an approximation, not an exact root."
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.growth.aboveRange"
+msgstr "No solution for ${target} within the model's growth range [{lo}%, {hi}%]. {lo}% growth → ${priceLo}; {hi}% growth → ${priceHi}. The market is either pricing in growth beyond that range, or another input (margins / WACC / net debt) needs re-checking."
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.growth.belowRange"
+msgstr "No solution for ${target}: the price already sits below what the model's lowest growth ({lo}% → ${priceLo}) produces — even the slowest growth in range overshoots it."
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.outOfWaccRange"
+msgstr "No solution for ${target} within the WACC range [{lo}%, {hi}%]. WACC {lo}% → ${priceLo}; WACC {hi}% → ${priceHi}."
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.horizon.aboveRange"
+msgstr "At a fixed {growth}% growth, ${target} falls outside the 1–{maxHorizon}y reachable range [${priceLo}, ${priceHi}]. The growth assumption is too low — no high-growth window, however long, can reach it. A different fixed growth rate yields a different horizon."
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.horizon.belowRange"
+msgstr "At a fixed {growth}% growth, ${target} falls outside the 1–{maxHorizon}y reachable range [${priceLo}, ${priceHi}]. The current price is already below the shortest-window implied value. A different fixed growth rate yields a different horizon."
+
+#. js-lingui-explicit-id
+msgid "valuation.implied.reason.gordonUndefined"
+msgstr "At a fixed {growth}% growth, terminal growth {tg}% is not below WACC {wacc}% — the Gordon model is undefined, so no horizon can be solved."

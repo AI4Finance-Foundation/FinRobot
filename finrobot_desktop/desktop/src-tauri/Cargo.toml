@@ -1,0 +1,46 @@
+[package]
+name = "finrobot-desktop"
+version = "0.1.0"
+description = "FinRobot Desktop — Tauri shell wrapping the FastAPI server"
+authors = ["FinRobot Contributors"]
+license = "Apache-2.0"
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+# dev 模式（cargo tauri dev）跑的是 target/debug 下的裸 binary，macOS Dock / 悬停
+# 显示的就是这个 binary 名。不显式设会 fallback 到 package name "finrobot-desktop"
+# （Tauri v2 已知行为 tauri-apps/tauri#13874）。命名成 FinRobot 让 dev 与 build
+# （build 另由 tauri.conf 的 mainBinaryName 命名）两个模式的名字一致。
+[[bin]]
+name = "FinRobot"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2.6.1", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.11.1", features = [] }
+tauri-plugin-log = "2"
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-os = "2"
+ureq = "2"
+tauri-plugin-process = "2"
+# Per-launch capability token (random, handed to the sidecar via env + to the
+# WebView via the capability_token command). v4 = random; getrandom is already
+# in the tree via tauri, so this adds no new transitive crate.
+uuid = { version = "1", features = ["v4"] }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"

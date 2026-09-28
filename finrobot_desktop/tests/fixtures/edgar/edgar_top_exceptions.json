@@ -1,0 +1,10 @@
+{
+  "available_exception_classes": [
+    "CompanyNotFoundError",
+    "DataObjectException"
+  ],
+  "recommended_catch": "DataObjectException, CompanyNotFoundError",
+  "edgartools_version": "unknown",
+  "python_version": "3.11.15",
+  "probe_run_at": "2026-05-27T04:29:56.062881+00:00"
+}

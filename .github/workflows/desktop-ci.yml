@@ -1,0 +1,79 @@
+# CI for the V2 desktop generation (finrobot_desktop/).
+#
+# Lives at the repo root because GitHub only reads .github/workflows/ there,
+# but every step is scoped to finrobot_desktop/ so V0 and V1 are untouched.
+name: Desktop CI
+
+on:
+  push:
+    branches: [master]
+    paths: ['finrobot_desktop/**', '.github/workflows/desktop-ci.yml']
+  pull_request:
+    branches: [master]
+    paths: ['finrobot_desktop/**', '.github/workflows/desktop-ci.yml']
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: finrobot_desktop
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync --all-extras
+
+      - name: Lint
+        run: uv run ruff check finrobot/
+
+      # Was `pre-commit run ruff-format --all-files`, which resolves files from
+      # the git root — now the whole monorepo, including never-formatted V0/V1
+      # code. Scope it to this project's directory instead.
+      - name: Format check
+        run: uv run ruff format --check .
+
+      - name: Type check
+        run: uv run mypy finrobot/ --strict
+
+      - name: Unit tests
+        run: uv run pytest tests/unit/ -v
+        env:
+          FINROBOT_MODEL_NAME: "test"
+          FINROBOT_DEEPSEEK_API_KEY: "test-key"
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: finrobot_desktop/desktop
+    strategy:
+      matrix:
+        # Lower bound: @lingui/cli imports fs.globSync, added in Node 22, so
+        # `lingui compile` — the prelude to test, build and dev — cannot even
+        # parse on Node 20. Upper bound: Node 26 defines globalThis.localStorage
+        # itself, which shadows the one jsdom installs and leaves zustand's
+        # persist middleware writing to undefined (66 test failures).
+        node-version: ['22', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build

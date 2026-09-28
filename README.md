@@ -158,7 +158,7 @@ If `deploy.sh` doesn't work in your environment:
 
 ```bash
 python3 -m venv venv && source venv/bin/activate
-pip install -r finrobot_equity/requirements-equity.txt
+pip install -r finrobot_equity/requirements.txt
 python finrobot_equity/run_web_app.py
 ```
 
@@ -247,7 +247,7 @@ FinRobot/
 │   ├── run_web_app.py           #   launcher
 │   ├── deploy.sh                #   local deployment
 │   ├── deploy.gcloud.sh         #   Cloud Run deployment
-│   └── requirements-equity.txt
+│   └── requirements.txt
 │
 ├── Dockerfile .dockerignore     # V1 container build — must stay at the repo
 │                                # root, since the image imports the app as

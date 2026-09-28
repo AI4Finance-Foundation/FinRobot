@@ -37,7 +37,7 @@ PID_FILE="${SCRIPT_DIR}/.app.pid"
 LOG_DIR="${SCRIPT_DIR}/logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="${LOG_DIR}/app.log"
-REQUIREMENTS_EQUITY="${SCRIPT_DIR}/requirements-equity.txt"
+REQUIREMENTS_EQUITY="${SCRIPT_DIR}/requirements.txt"
 REQUIREMENTS_WEB="${SCRIPT_DIR}/web_requirements.txt"
 
 # Web app configuration

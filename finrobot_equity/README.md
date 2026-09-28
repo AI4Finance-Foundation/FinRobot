@@ -59,7 +59,7 @@ If `deploy.sh` doesn't work in your environment, start it by hand:
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements-equity.txt
+pip install -r requirements.txt
 python run_web_app.py           # --host / --port / --no-reload are available
 ```
 

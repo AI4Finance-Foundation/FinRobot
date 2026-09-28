@@ -13,6 +13,9 @@ quant/
 coding/
 *.egg-info/
 .DS_Store
+
+# Editor config (personal, not shared)
+.vscode/
 projects/
 dist/
 tmp/

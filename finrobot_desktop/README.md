@@ -150,6 +150,12 @@ uv sync                        # backend dependencies
 ./dev.sh                       # → open http://localhost:5173
 ```
 
+A bare `uv sync` installs the base dependencies and **removes** any extras already in the environment, so if you have been working with `--extra dev` or `--extra package`, sync with those flags instead of dropping them:
+
+```bash
+uv sync --extra dev            # keeps pytest / ruff / mypy installed
+```
+
 `dev.sh` starts two processes and wires them together:
 
 ```

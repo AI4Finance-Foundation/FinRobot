@@ -317,19 +317,11 @@ The overall framework is organized into four layers, each addressing a specific 
 
 ### Agent workflow
 
-<div align="center">
-<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/ff8033be-2326-424a-ac11-17e2c9c4983d" width="60%"/>
-</div>
-
 1. **Perception** — captures and interprets multimodal financial data from market feeds, news, and economic indicators, structuring it for analysis.
 2. **Brain** — the core processing unit: consumes perception output with LLMs and applies Financial CoT to generate structured instructions.
 3. **Action** — executes those instructions with tools, turning analysis into outcomes: trades, portfolio adjustments, reports, or alerts.
 
 ### Smart Scheduler
-
-<div align="center">
-<img align="center" src="https://github.com/AI4Finance-Foundation/FinRobot/assets/31713746/06fa0b78-ac53-48d3-8a6e-98d15386327e" width="60%"/>
-</div>
 
 The Smart Scheduler ensures model diversity and selects the most appropriate LLM for each task.
 

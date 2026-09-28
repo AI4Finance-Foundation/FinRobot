@@ -94,7 +94,7 @@ A native desktop equity research cockpit powered by a production-grade multi-age
 <img src="figs/desktop-dcf.png" width="92%" alt="DCF forecast table labelled code-computed, with WACC, terminal growth and tax rate, next to the LLM's narrative"/>
 </div>
 
-<p align="center"><i>The design principle, visible in the product: the DCF table is labelled <b>code-computed</b> — a ten-year forecast from pure-Python operators — while the paragraph beside it is the LLM reading those numbers back.</i></p>
+<p align="center"><i>The design principle, visible in the product: the DCF table is labelled <b>code-computed</b> — a ten-year forecast from pure-Python operators — while the paragraph beside it is the LLM reading those numbers back across all three valuation methods.</i></p>
 
 👉 **Latest release:** [FinRobot Desktop v0.1.0](https://github.com/AI4Finance-Foundation/FinRobot/releases/tag/desktop-v0.1.0)
 

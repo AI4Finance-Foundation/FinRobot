@@ -109,7 +109,7 @@ Everything here is pure Python with no model in the loop, which is what makes th
 <img src="../figs/desktop-valuation.png" width="92%" alt="Football-field valuation triangulation and the explicit-period assumptions behind the DCF"/>
 </div>
 
-<p align="center"><i>Top: the DCF table is labelled <b>code-computed</b> — ten years from pure-Python operators — while the paragraph beside it is the LLM reading those numbers back.<br/>Bottom: the football field triangulates methods, and every assumption states the basis it came from.</i></p>
+<p align="center"><i>Top: the DCF table is labelled <b>code-computed</b> — ten years from pure-Python operators — while the paragraph beside it is the LLM reading those numbers back.<br/>Bottom: the football field triangulates three methods — DCF, forward-P/E comps and EV/EBITDA. They diverged 2.6x here, so the point target was withheld and only the range ships; each assumption still states the basis it came from.</i></p>
 
 ### Data layer
 

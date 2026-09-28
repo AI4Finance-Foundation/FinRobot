@@ -136,6 +136,40 @@ Most commands accept `--model` to pick the LLM (e.g. `anthropic:claude-sonnet-4-
 
 Four notebooks in `tutorials/` cover the same ground interactively: equity research, DCF valuation, backtesting, and RAG Q&A.
 
+## Run in a browser
+
+The same backend and the same UI can run as a local web service, with no `.dmg` and no Rust toolchain — useful on Intel Macs, Linux, and Windows, where there is no desktop build.
+
+**Prerequisites:** [`uv`](https://docs.astral.sh/uv/) and Node 20+. Python 3.11+.
+
+```bash
+cd finrobot_desktop
+uv sync                        # backend dependencies
+(cd desktop && npm install)    # frontend dependencies — one time
+
+./dev.sh                       # → open http://localhost:5173
+```
+
+`dev.sh` starts two processes and wires them together:
+
+```
+  Vite dev server  :5173   ← you open this in the browser
+        │  proxies /api, /chat, /health, /openapi.json
+        ▼
+  finrobot serve   :8321   ← FastAPI backend, run from source
+```
+
+It waits for the backend's `/openapi.json` to answer before starting the frontend, and prints the backend log path (`/tmp/finrobot-backend.log`) if startup fails. `Ctrl+C` stops both. Backend edits need a restart of the script; frontend edits hot-reload.
+
+Configure your LLM API key from the **Settings** page in the browser UI, exactly as in the desktop app — keys are stored in the OS keychain, not in a `.env` file.
+
+Two things to know before you run it:
+
+- **`dev.sh` first kills whatever is listening on :8321 and :5173.** If FinRobot.app is open, that includes its bundled backend. Quit the app first.
+- **In browser mode the local API is unauthenticated.** The desktop shell mints a per-launch capability token and the backend enforces it; a plain browser has no Tauri IPC to read that token from, so the backend starts with the auth middleware as a no-op (see `finrobot/auth.py`). It still binds loopback only, but any other process on the machine can reach `:8321` while it runs — including `/api/settings`, which holds your keys. Prefer the desktop app on a shared machine.
+
+`finrobot serve` on its own exposes only the JSON API — it does not serve the UI, so the Vite server is what makes the browser version work. There is currently no static production build for browser use either: `npm run build` emits assets for the desktop bundle, and `npm run preview` has no proxy configured, so its `/api` calls would not reach the backend.
+
 ## Build from source
 
 Prerequisites: [`uv`](https://docs.astral.sh/uv/), Node 20+, a Rust toolchain, and the Tauri CLI (`cargo install tauri-cli` → `cargo tauri`). Python 3.11+.
@@ -150,14 +184,14 @@ cargo tauri dev                    # run the desktop app (debug)
 cargo tauri build                  # produce FinRobot.app + .dmg under desktop/src-tauri/target/release/bundle/
 ```
 
-`build.sh` freezes the backend into a PyInstaller sidecar, so a plain `cd desktop && cargo tauri dev` runs against that **frozen** binary — backend edits won't show up until you re-run `build.sh`. For a live edit loop (backend source + frontend HMR, no re-freezing) use `dev.sh`, which starts a source-tree `finrobot serve` on :8321 and points the frontend at it:
+`build.sh` freezes the backend into a PyInstaller sidecar, so a plain `cd desktop && cargo tauri dev` runs against that **frozen** binary — backend edits won't show up until you re-run `build.sh`. For a live edit loop (backend source + frontend HMR, no re-freezing) use `dev.sh`:
 
 ```bash
-./dev.sh            # browser shell  → http://localhost:5173
-./dev.sh --app      # desktop shell  → Tauri native window (live backend, skips the frozen sidecar)
+./dev.sh            # browser shell  → http://localhost:5173  (see "Run in a browser")
+./dev.sh --app      # desktop shell  → Tauri native window, live backend
 ```
 
-`--app` sets `FINROBOT_DEV_LIVE_BACKEND=1` so the Tauri shell skips spawning the bundled sidecar; the WebView then talks to the live backend through the Vite proxy. Or run just the backend with hot reload: `finrobot serve --reload`.
+`--app` sets `FINROBOT_DEV_LIVE_BACKEND=1` so the Tauri shell skips spawning the bundled sidecar; the WebView then talks through the Vite proxy to the source-tree backend `dev.sh` started. Or run just the backend with hot reload: `finrobot serve --reload`.
 
 ## Development
 

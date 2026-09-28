@@ -119,14 +119,27 @@ Full details in [`finrobot_desktop/README.md`](./finrobot_desktop/README.md).
 
 ## Getting started
 
-### V2 — the desktop app and CLI
+### V2 — the desktop app, a local web UI, or the CLI
 
-Download the [release](https://github.com/AI4Finance-Foundation/FinRobot/releases/tag/desktop-v0.1.0), or run from source:
+Three ways to run the same engine.
+
+**Desktop app** — download the [release](https://github.com/AI4Finance-Foundation/FinRobot/releases/tag/desktop-v0.1.0) (macOS Apple Silicon).
+
+**Local web UI** — the same interface in a browser, no `.dmg` and no Rust toolchain, so it also works on Intel Macs, Linux, and Windows:
 
 ```bash
 cd finrobot_desktop
-uv sync
+uv sync                        # backend dependencies
+(cd desktop && npm install)    # frontend dependencies — one time
 
+./dev.sh                       # → open http://localhost:5173
+```
+
+`dev.sh` runs the FastAPI backend on `:8321` and a Vite server on `:5173` that proxies the API to it; `Ctrl+C` stops both. Note that it first frees those two ports, so quit FinRobot.app if it is open, and that the local API is unauthenticated in browser mode — details in [`finrobot_desktop/README.md`](./finrobot_desktop/README.md).
+
+**CLI** — after `uv sync` in `finrobot_desktop/`:
+
+```bash
 finrobot research AAPL          # full 13-chapter research artifact
 finrobot dcf MSFT               # DCF valuation (auto-switches to DDM where appropriate)
 finrobot comps NVDA --peers AMD,INTC

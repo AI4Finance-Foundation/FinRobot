@@ -304,8 +304,6 @@ FinRobot/
   </a>
 </div>
 
-<img width="1490" height="808" alt="image" src="https://github.com/user-attachments/assets/bf56065d-a134-4ff8-99e2-8a1e52258ce7" />
-
 <p align="center">
   ▶️ Click the image above to watch the demo video, or see the short preview below.
 </p>

@@ -1,10 +1,10 @@
 # FinRobot V0 — AutoGen Multi-Agent Framework
 
-> The original FinRobot: a library of role-based financial agents, data-source wrappers, and analysis tools built on [Microsoft AutoGen](https://github.com/microsoft/autogen).
+> **Educational.** The original FinRobot: a library of role-based financial agents, data-source wrappers, and analysis tools built on [Microsoft AutoGen](https://github.com/microsoft/autogen).
 
-This is the codebase behind the [FinRobot whitepaper](https://arxiv.org/abs/2405.14767). It stays in the repository as the reference implementation of the paper and as the most approachable entry point for learning how financial agents are wired together — the agent definitions, the tool-registration pattern, and the data plumbing are all small enough to read end to end.
+This is the codebase behind the [FinRobot whitepaper](https://arxiv.org/abs/2405.14767), kept in the repository for **learning and reference** — teaching, coursework, reproducing the paper, and understanding how financial agents are wired together. The agent definitions, the tool-registration pattern, and the data plumbing are all small enough to read end to end, which is exactly why it is worth keeping.
 
-For newer work, see [`finrobot_equity/`](../finrobot_equity/) (V1, equity research) and [`finrobot_desktop/`](../finrobot_desktop/) (V2, desktop app).
+**It is not the production system.** There is no deterministic compute layer here, no provenance tracking, and no guarantee that a number in the output was computed rather than generated — the agents call tools and the LLM writes the result. For research you intend to act on, use [`finrobot_desktop/`](../finrobot_desktop/) (V2), where financial figures come from pure-Python operators and every one is traceable. For a self-hosted report-generating web service, use [`finrobot_equity/`](../finrobot_equity/) (V1).
 
 ---
 
@@ -171,10 +171,10 @@ The two `lmm_*` notebooks need a vision-capable model configured in `OAI_CONFIG_
 
 ## Status
 
-V0 is stable and kept working, but active development has moved to V1 and V2. If you are starting something new, read this first for the concepts, then build on:
+V0 is stable and kept working, but it is maintained as teaching material, not as a product — active development happens in V1 and V2. Read this generation for the concepts, then build on:
 
-- [`finrobot_equity/`](../finrobot_equity/) — equity research reports, OpenAI Agents SDK
-- [`finrobot_desktop/`](../finrobot_desktop/) — desktop app, PydanticAI, deterministic compute engine
+- [`finrobot_desktop/`](../finrobot_desktop/) — **production**: desktop app and CLI, PydanticAI, deterministic compute engine
+- [`finrobot_equity/`](../finrobot_equity/) — **web app**: self-hosted equity research report generator
 
 ## License
 

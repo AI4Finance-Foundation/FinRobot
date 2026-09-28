@@ -1,8 +1,14 @@
 # FinRobot Equity — V1
 
-> AI-powered equity research report generator. Fetches financial data, runs LLM-based analysis, and produces professional multi-page HTML/PDF reports — from a single command or a web interface.
+> **A self-hosted web app.** AI-powered equity research report generator: fetches financial data, runs LLM-based analysis, and produces professional multi-page HTML/PDF reports — from a browser or a single command.
 
-This is V1 in the [FinRobot version lineage](../README.md): the practical, self-hostable report generator. It is narrower than the desktop app ([`finrobot_desktop/`](../finrobot_desktop/), V2) and more opinionated than the AutoGen library ([`finrobot_autogen/`](../finrobot_autogen/), V0) — it does one thing, which is turn a ticker into a research report you can hand to someone.
+This is V1 in the [FinRobot version lineage](../README.md). It is a **web service you deploy**, not a desktop application and not a framework — you run `./deploy.sh start`, open a browser, and people on your network get a form that turns a ticker into a report. That narrow shape is the point: one job, done through a UI.
+
+Where it sits relative to the others:
+
+- **[`finrobot_desktop/`](../finrobot_desktop/) (V2)** is the production agent system — a deeper research pipeline, a deterministic compute engine, and full numeric provenance. Choose it when the analysis itself matters most.
+- **This project (V1)** is the choice when *browser access* matters most: a shared internal tool, a demo, a hosted deployment behind your own auth.
+- **[`finrobot_autogen/`](../finrobot_autogen/) (V0)** is educational — the AutoGen library behind the whitepaper.
 
 ### Example output
 

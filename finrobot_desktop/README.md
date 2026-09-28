@@ -1,12 +1,20 @@
 # FinRobot Desktop — V2
 
-> Investment-bank-grade equity research in a desktop app: deterministic finance numbers plus LLM narrative, with every figure traceable back to a function call.
+> **The production FinRobot.** Investment-bank-grade equity research in a desktop app: deterministic finance numbers plus LLM narrative, with every figure traceable back to a function call.
 
 FinRobot Desktop is an open-source equity research workstation for analysts, quantitative researchers, and active investors. A single `research` run produces a 13-chapter artifact — Cover, Investment Thesis, Company Overview, Financial Analysis, Valuation, Recent News, Sensitivity, Catalysts, Technical & Advanced, Competitive Landscape, Financial Data, Ownership & Governance, Disclaimer.
 
 **The core bet: numbers are computed by code, judgment is supplied by the LLM.** The model never emits a figure that cannot be traced back to a call in `finrobot/engine/compute/`.
 
-This is V2 in the [FinRobot version lineage](../README.md). For the AutoGen original see [`finrobot_autogen/`](../finrobot_autogen/); for the report-generation web app see [`finrobot_equity/`](../finrobot_equity/).
+This is V2 in the [FinRobot version lineage](../README.md), and it is the generation meant for real work. What makes it the production system rather than a larger demo:
+
+- **32 deterministic operators** compute every financial figure in pure Python — the LLM narrates them, it does not produce them.
+- **6 audit operators** check the narrative back against the numbers and flag drift before a report ships.
+- **A typed pipeline runtime** with per-step validators and retry, rather than an open-ended agent conversation.
+- **7 data providers behind failover**, with response validation that rejects malformed payloads before they reach the compute layer.
+- **237 test files**, property-based tests, and CI across Python 3.11/3.12 and Node 22/24.
+
+The other two generations serve different purposes: [`finrobot_equity/`](../finrobot_equity/) (V1) is a self-hosted web app for browser-based report generation, and [`finrobot_autogen/`](../finrobot_autogen/) (V0) is the educational AutoGen library behind the whitepaper.
 
 ---
 

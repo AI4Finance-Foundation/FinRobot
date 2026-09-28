@@ -28,13 +28,13 @@
 
 ## Where to start
 
-FinRobot is three projects sharing one financial domain layer. Each has its own README — pick the one that matches what you want to do.
+FinRobot is three projects sharing one financial domain layer. They are not three versions of the same thing competing for your attention — they serve different purposes.
 
-| Directory | Version | What it is | Choose it to… |
+| Directory | Version | What it is | Use it for |
 |:---|:---|:---|:---|
-| **[`finrobot_desktop/`](./finrobot_desktop/)** | V2 | Native desktop research workstation — PydanticAI + FastAPI + React/Tauri | Run investment-bank-grade research locally, or drive it from the `finrobot` CLI |
-| **[`finrobot_equity/`](./finrobot_equity/)** | V1 | Equity research report generator with a FastAPI web interface | Self-host something that turns a ticker into a shareable HTML/PDF report |
-| **[`finrobot_autogen/`](./finrobot_autogen/)** | V0 | The original AutoGen multi-agent library — the codebase behind the whitepaper | Learn how financial agents are wired together, or build on a small, readable framework |
+| **[`finrobot_desktop/`](./finrobot_desktop/)** | V2 | **Production** — the real agent system. Native desktop research workstation on PydanticAI + FastAPI + React/Tauri | Actual research work. This is the one to use if you want output you can act on |
+| **[`finrobot_equity/`](./finrobot_equity/)** | V1 | **Web app** — a self-hosted report generator with a FastAPI interface | Standing up a browser-based service that turns a ticker into a shareable HTML/PDF report |
+| **[`finrobot_autogen/`](./finrobot_autogen/)** | V0 | **Educational** — the original AutoGen library, the codebase behind the whitepaper | Learning how financial agents are wired together, teaching, and reproducing the paper. Not intended for production use |
 
 `pip install finrobot` installs the V0 package. Its source moved into `finrobot_autogen/`, but the import name did not change — every existing `from finrobot... import ...` keeps working.
 
@@ -44,16 +44,16 @@ FinRobot is three projects sharing one financial domain layer. Each has its own 
 
 FinRobot evolves alongside the rapid development of AI-agent frameworks. Rather than being tied to a single agent stack, each generation explores how emerging agent architectures can improve financial analysis, research, and decision-making.
 
-| Version | Agent Framework | Project | Availability | Focus |
+| Version | Agent Framework | Project | Maturity | Focus |
 |---|---|---|---|---|
-| **V0** | AutoGen | [`finrobot_autogen/`](./finrobot_autogen/) | Open source | The original FinRobot multi-agent architecture for financial applications |
-| **V1** | OpenAI Agents SDK | [`finrobot_equity/`](./finrobot_equity/) | Open source | Equity-research agents, financial analysis, valuation, and automated report generation |
-| **V2** | PydanticAI | [`finrobot_desktop/`](./finrobot_desktop/) | Open source; also hosted at [finrobot.ai/v2](https://finrobot.ai/v2) | Structured, type-safe agent workflows for professional equity research |
+| **V0** | AutoGen | [`finrobot_autogen/`](./finrobot_autogen/) | Educational / reference | The original FinRobot multi-agent architecture for financial applications |
+| **V1** | OpenAI Agents SDK | [`finrobot_equity/`](./finrobot_equity/) | Self-hosted web app | Equity-research agents, financial analysis, valuation, and automated report generation |
+| **V2** | PydanticAI | [`finrobot_desktop/`](./finrobot_desktop/) | **Production** — also hosted at [finrobot.ai/v2](https://finrobot.ai/v2) | Structured, type-safe agent workflows for professional equity research |
 | **V3** | DeepSeek-Harness | FinRobot V3 | In development | A more autonomous architecture for financial analysis and decision-making |
 
-> **Our philosophy:** FinRobot is not defined by any single agent framework. We continuously adopt, evaluate, and evolve with state-of-the-art agent architectures while keeping the financial domain layer — tools, workflows, deterministic computation, and decision-making capabilities — at the core.
+All three are open source. **V2 is the production system** — the deterministic compute engine, the provenance guarantees, and the agent orchestration described below all live there. V0 is kept because it is small enough to read and learn from, not because it is the recommended way to run research today.
 
-V0 is kept for educational and reference use; V2 is the current generation.
+> **Our philosophy:** FinRobot is not defined by any single agent framework. We continuously adopt, evaluate, and evolve with state-of-the-art agent architectures while keeping the financial domain layer — tools, workflows, deterministic computation, and decision-making capabilities — at the core.
 
 ---
 

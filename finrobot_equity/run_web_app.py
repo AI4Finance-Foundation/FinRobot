@@ -5,8 +5,8 @@ Start the FinRobot Equity Research Web Application
 This script starts the FastAPI web application for equity research analysis.
 
 Usage:
-    python run_web_app.py
-    
+    python finrobot_equity/run_web_app.py
+
     Or from the FinRobot root directory:
     python -m finrobot_equity.run_web_app
 """
@@ -15,8 +15,9 @@ import sys
 import os
 import uvicorn
 
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# The app is imported as `finrobot_equity.web_app.main`, so the repo root — this
+# file's parent directory — is what has to be importable, not this directory.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def run_web_app(host: str = "127.0.0.1", port: int = 8001, reload: bool = True):
     """

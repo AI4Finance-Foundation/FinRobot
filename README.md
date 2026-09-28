@@ -142,24 +142,24 @@ Building the Tauri desktop shell is covered in [`finrobot_desktop/README.md`](./
 cp finrobot_equity/core/config/config.ini.example finrobot_equity/core/config/config.ini
 # edit config.ini: fmp_api_key, openai_api_key, (optional) adanos_api_key
 
-chmod +x deploy.sh
-./deploy.sh start          # → http://127.0.0.1:8001
+chmod +x finrobot_equity/deploy.sh
+./finrobot_equity/deploy.sh start          # → http://127.0.0.1:8001
 ```
 
 | Command | Description |
 |:---|:---|
-| `./deploy.sh start` | Start the web app (auto-installs dependencies) |
-| `./deploy.sh stop` | Stop the application |
-| `./deploy.sh restart` | Restart the application |
-| `./deploy.sh status` | Check running status |
-| `./deploy.sh install` | Install/update dependencies only |
+| `./finrobot_equity/deploy.sh start` | Start the web app (auto-installs dependencies) |
+| `./finrobot_equity/deploy.sh stop` | Stop the application |
+| `./finrobot_equity/deploy.sh restart` | Restart the application |
+| `./finrobot_equity/deploy.sh status` | Check running status |
+| `./finrobot_equity/deploy.sh install` | Install/update dependencies only |
 
 If `deploy.sh` doesn't work in your environment:
 
 ```bash
 python3 -m venv venv && source venv/bin/activate
-pip install -r requirements-equity.txt
-python run_web_app.py
+pip install -r finrobot_equity/requirements-equity.txt
+python finrobot_equity/run_web_app.py
 ```
 
 A two-step CLI pipeline is available as well — see [`finrobot_equity/README.md`](./finrobot_equity/README.md).
@@ -243,12 +243,15 @@ FinRobot/
 │
 ├── finrobot_equity/             # V1 — OpenAI Agents SDK generation
 │   ├── core/                    #   analysis engine + 8 section-writing agents
-│   └── web_app/                 #   FastAPI web application
-├── run_web_app.py               #   V1 launcher (runs from repo root)
-├── deploy.sh deploy.gcloud.sh   #   V1 deployment
-├── Dockerfile                   #   V1 container build
-├── requirements-equity.txt
+│   ├── web_app/                 #   FastAPI web application
+│   ├── run_web_app.py           #   launcher
+│   ├── deploy.sh                #   local deployment
+│   ├── deploy.gcloud.sh         #   Cloud Run deployment
+│   └── requirements-equity.txt
 │
+├── Dockerfile .dockerignore     # V1 container build — must stay at the repo
+│                                # root, since the image imports the app as
+│                                # finrobot_equity.web_app.main
 ├── .github/workflows/           # desktop CI (backend 3.11/3.12, frontend Node 22/24)
 ├── setup.py                     # packages V0 (as `finrobot`) + V1 for PyPI
 ├── LICENSE NOTICE TRADEMARK_POLICY.md

@@ -10,6 +10,9 @@
 # - Process management
 #
 # Usage:
+#   Run from this directory as ./deploy.sh, or from the repo root as
+#   ./finrobot_equity/deploy.sh — paths resolve either way.
+#
 #   ./deploy.sh start      - Start the web application
 #   ./deploy.sh stop       - Stop the application
 #   ./deploy.sh status     - Check application status
@@ -26,12 +29,14 @@ set -e
 # ============================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The app is imported as `finrobot_equity.web_app.main`, so the repo root — the
+# parent of this directory — is what has to be on PYTHONPATH.
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 VENV_DIR="${SCRIPT_DIR}/venv"
 PID_FILE="${SCRIPT_DIR}/.app.pid"
-LOG_DIR="${SCRIPT_DIR}/finrobot_equity/logs"
+LOG_DIR="${SCRIPT_DIR}/logs"
 mkdir -p "$LOG_DIR"
 LOG_FILE="${LOG_DIR}/app.log"
-#REQUIREMENTS_CORE="${SCRIPT_DIR}/requirements.txt"
 REQUIREMENTS_EQUITY="${SCRIPT_DIR}/requirements-equity.txt"
 REQUIREMENTS_WEB="${SCRIPT_DIR}/web_requirements.txt"
 
@@ -252,8 +257,8 @@ start_app() {
     fi
     
     # Start the application
-    # Add current directory to PYTHONPATH so finrobot_equity can be imported
-    export PYTHONPATH="$SCRIPT_DIR:$PYTHONPATH"
+    # Add the repo root to PYTHONPATH so finrobot_equity can be imported
+    export PYTHONPATH="$REPO_ROOT:$PYTHONPATH"
     
     nohup python "$SCRIPT_DIR/run_web_app.py" \
         --host "$WEB_HOST" \
@@ -431,6 +436,7 @@ CONFIGURATION:
     
     cp finrobot_equity/core/config/config.ini.example \
        finrobot_equity/core/config/config.ini
+    (paths shown from the repo root)
     
     Edit config.ini with your API keys:
     [API_KEYS]
@@ -442,10 +448,10 @@ ENVIRONMENT VARIABLES:
   WEB_PORT      Port number (default: 8001)
   WEB_RELOAD    Enable auto-reload (default: true)
 
-LOG FILES:
-  Application logs: finrobot_equity/logs/app.log
-  Task logs:        finrobot_equity/logs/task_{id}.log
-  Process ID file: .app.pid
+LOG FILES (relative to this script's directory):
+  Application logs: logs/app.log
+  Task logs:        logs/task_{id}.log
+  Process ID file:  .app.pid
 
 TROUBLESHOOTING:
   Issue: Port already in use

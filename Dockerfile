@@ -11,7 +11,9 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY requirements-equity.txt .
+# Built from the repo root: the app is imported as finrobot_equity.web_app.main,
+# so finrobot_equity/ has to land under /app as a package directory.
+COPY finrobot_equity/requirements-equity.txt .
 RUN pip install --no-cache-dir -r requirements-equity.txt && \
     apt-get purge -y --auto-remove build-essential && \
     rm -rf /var/lib/apt/lists/*

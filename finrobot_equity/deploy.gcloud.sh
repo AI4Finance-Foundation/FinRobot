@@ -7,10 +7,17 @@
 #   - config.ini with real API keys at finrobot_equity/core/config/config.ini
 #
 # Usage:
-#   chmod +x deploy.gcloud.sh
-#   ./deploy.gcloud.sh
+#   chmod +x finrobot_equity/deploy.gcloud.sh
+#   ./finrobot_equity/deploy.gcloud.sh
 #
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The image is built from the repo root: the container runs
+# `finrobot_equity.web_app.main`, so finrobot_equity/ must be a subdirectory of
+# the build context, and `gcloud builds submit --tag` reads the Dockerfile from
+# the root of whatever it uploads.
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 # ── Configuration ────────────────────────────────────────────────────────────
 PROJECT_ID="your-project-id"
@@ -24,7 +31,7 @@ DB_NAME="finrobot"
 DB_USER="finrobot"
 DB_PASS="$(openssl rand -base64 24)"         # random password, stored in secret
 SECRET_NAME="finrobot-config-ini"
-CONFIG_INI_PATH="finrobot_equity/core/config/config.ini"
+CONFIG_INI_PATH="${SCRIPT_DIR}/core/config/config.ini"
 
 echo "=========================================="
 echo " FinRobot Cloud Run Deployment"
@@ -122,7 +129,7 @@ gcloud artifacts repositories describe "${REPO_NAME}" \
         --quiet
 
 echo "Building and pushing image with Cloud Build..."
-gcloud builds submit --tag "${IMAGE}" --quiet
+(cd "${REPO_ROOT}" && gcloud builds submit --tag "${IMAGE}" --quiet)
 
 # ── Step 5: Deploy Cloud Run ─────────────────────────────────────────────────
 echo ""

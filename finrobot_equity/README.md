@@ -26,6 +26,8 @@ The same files are checked in under `core/output/`.
 
 ### 1. Configure API keys
 
+From the repository root:
+
 ```bash
 cp finrobot_equity/core/config/config.ini.example finrobot_equity/core/config/config.ini
 ```
@@ -43,7 +45,7 @@ With `adanos_api_key` set, the pipeline adds an optional **Retail Sentiment Insi
 
 ### 2. Run the web app
 
-From the repository root:
+From this directory:
 
 ```bash
 chmod +x deploy.sh
@@ -180,7 +182,7 @@ finrobot_equity/
 
 ### Deployment commands
 
-Run from the repository root.
+Run from this directory, or from the repo root as `./finrobot_equity/deploy.sh …` — the script resolves its own paths either way.
 
 | Command | Description |
 |:---|:---|
@@ -190,7 +192,7 @@ Run from the repository root.
 | `./deploy.sh status` | Check running status and recent logs |
 | `./deploy.sh install` | Install/update dependencies only |
 
-`deploy.gcloud.sh` and the root `Dockerfile` cover container and Google Cloud deployment.
+`deploy.gcloud.sh` covers Google Cloud Run deployment. The `Dockerfile` and `.dockerignore` stay at the repo root: the container imports the app as `finrobot_equity.web_app.main`, so the build context has to be the root with `finrobot_equity/` as a subdirectory under it.
 
 ### Environment variables
 

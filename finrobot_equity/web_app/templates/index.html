@@ -227,6 +227,25 @@
                     </div>
                 </div>
 
+                <!-- AI Provider Selection -->
+                <div>
+                    <label class="block text-[10px] font-medium text-slate-400 mb-2 ml-1">AI Provider</label>
+                    <div class="grid grid-cols-4 gap-1.5">
+                        <button type="button" @click="form.default_service = ''" class="py-1 px-1.5 rounded-lg text-[10px] font-medium border transition-all duration-200 text-center" :class="!form.default_service ? 'bg-indigo-500/20 text-indigo-300 border-indigo-500/50' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'">
+                            Default
+                        </button>
+                        <button type="button" @click="form.default_service = 'openai'" class="py-1 px-1.5 rounded-lg text-[10px] font-medium border transition-all duration-200 text-center" :class="form.default_service === 'openai' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'">
+                            OpenAI
+                        </button>
+                        <button type="button" @click="form.default_service = 'nvidia'" class="py-1 px-1.5 rounded-lg text-[10px] font-medium border transition-all duration-200 text-center" :class="form.default_service === 'nvidia' ? 'bg-green-500/20 text-green-300 border-green-500/50' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'">
+                            NVIDIA
+                        </button>
+                        <button type="button" @click="form.default_service = 'gemini'" class="py-1 px-1.5 rounded-lg text-[10px] font-medium border transition-all duration-200 text-center" :class="form.default_service === 'gemini' ? 'bg-blue-500/20 text-blue-300 border-blue-500/50' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'">
+                            Gemini
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Enhanced Analysis Options -->
                 <div>
                     <label class="block text-[10px] font-medium text-slate-400 mb-2 ml-1">Enhanced Analysis</label>
@@ -497,6 +516,7 @@
                         margin_improvement: 0.01,
                         generate_text: true,
                         generate_pdf: true,
+                        default_service: '',
                         enable_sensitivity_analysis: false,
                         enable_catalyst_analysis: false,
                         enable_enhanced_news: false,

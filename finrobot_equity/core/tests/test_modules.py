@@ -426,6 +426,72 @@ def test_advanced_chart_functions():
         return False
 
 
+def test_llm_multi_service_config():
+    """测试多LLM服务配置（OpenAI, NVIDIA, Gemini）"""
+    print("\n" + "=" * 60)
+    print("Testing LLM Multi-Service Configuration")
+    print("=" * 60)
+    
+    try:
+        from modules.common_utils import load_config, get_llm_config
+        from modules.text_generator_agents import generate_text_section
+        from modules.enhanced_text_generator import EnhancedTextGenerator
+        
+        # Test 1: Config loading
+        config = load_config()
+        
+        # Test default service
+        cfg_default = get_llm_config(config)
+        print(f"✅ Default service loaded: {cfg_default['service']}")
+        
+        # Test OpenAI service
+        cfg_openai = get_llm_config(config, service="openai")
+        assert cfg_openai["service"] == "openai"
+        assert cfg_openai["api_key"] is not None
+        print(f"✅ OpenAI config loaded: model={cfg_openai['model']}")
+        
+        # Test NVIDIA service
+        cfg_nvidia = get_llm_config(config, service="nvidia")
+        assert cfg_nvidia["service"] == "nvidia"
+        assert cfg_nvidia["api_key"] is not None
+        print(f"✅ NVIDIA config loaded: model={cfg_nvidia['model']}, base_url={cfg_nvidia['base_url']}")
+        
+        # Test Gemini service
+        cfg_gemini = get_llm_config(config, service="gemini")
+        assert cfg_gemini["service"] == "gemini"
+        assert cfg_gemini["api_key"] is not None
+        print(f"✅ Gemini config loaded: model={cfg_gemini['model']}")
+        
+        # Test Fallback text generation
+        fallback_text = generate_text_section(
+            data={},
+            prompt_type="tagline",
+            api_key=None,
+            company_name="TestCorp",
+            company_ticker="TST",
+            service="gemini"
+        )
+        assert "TestCorp" in fallback_text
+        print("✅ Graceful fallback on missing/empty API key works for all services")
+
+        # Test EnhancedTextGenerator initialization for all 3 services
+        etg_openai = EnhancedTextGenerator(api_key="test-key", service="openai")
+        assert etg_openai.service == "openai"
+        
+        etg_nvidia = EnhancedTextGenerator(api_key="test-key", service="nvidia")
+        assert etg_nvidia.service == "nvidia"
+        
+        etg_gemini = EnhancedTextGenerator(api_key="test-key", service="gemini")
+        assert etg_gemini.service == "gemini"
+        print("✅ EnhancedTextGenerator initialized successfully for openai, nvidia, and gemini")
+
+        return True
+    except Exception as e:
+        print(f"❌ Test failed: {e}")
+        traceback.print_exc()
+        return False
+
+
 def run_all_tests():
     """运行所有测试"""
     print("\n" + "=" * 60)

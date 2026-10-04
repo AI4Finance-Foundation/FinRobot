@@ -8,7 +8,10 @@ from __future__ import annotations
 from statistics import mean
 from typing import Any, Dict, List, Optional
 
-import requests
+try:
+    import requests
+except ImportError:
+    requests = None
 
 
 class RetailSentimentClient:

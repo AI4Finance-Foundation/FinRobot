@@ -1774,6 +1774,13 @@ class FMPProvider(DataProvider):
         # only signal and is key-free — so the data layer can fall through the
         # provider chain without charging the circuit breaker. The message
         # carries path + status only, never the URL (which embeds ?apikey=).
+        if resp.status_code == 402:
+            # Payment Required is an account/billing entitlement response, not a
+            # transient provider outage. Keep it out of the circuit-breaker retry
+            # path just like the explicit 403 plan/legacy response below.
+            raise ProviderPlanError(
+                f"FMP account payment/plan access required for {path} (HTTP 402)"
+            )
         if resp.status_code == 403:
             try:
                 body = resp.text[:500].lower()

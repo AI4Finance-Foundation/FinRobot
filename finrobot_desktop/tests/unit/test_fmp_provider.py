@@ -1930,13 +1930,25 @@ class TestFMPPrice:
 
 
 class TestFMPPlanGate:
-    """403 + key-free plan/legacy body → typed ProviderPlanError from _get, so
-    the data layer falls through the chain without charging the breaker."""
+    """Non-retryable payment/plan responses become ProviderPlanError so the
+    data layer falls through without charging the provider circuit breaker."""
 
     @staticmethod
     def _resp(status: int, text: str) -> httpx.Response:
         request = httpx.Request("GET", "https://financialmodelingprep.com/stable/news/stock")
         return httpx.Response(status, text=text, request=request)
+
+    @pytest.mark.asyncio
+    async def test_402_payment_required_is_typed_as_account_plan_gate(self, provider, monkeypatch):
+        from finrobot.engine.data.interface import ProviderPlanError
+
+        monkeypatch.setattr(
+            provider._client,
+            "get",
+            AsyncMock(return_value=self._resp(402, '{"error": "payment required"}')),
+        )
+        with pytest.raises(ProviderPlanError, match="HTTP 402"):
+            await provider._get("/financials", params={"symbol": "SYNTH"})
 
     @pytest.mark.asyncio
     async def test_403_with_plan_body_raises_provider_plan_error(self, provider, monkeypatch):

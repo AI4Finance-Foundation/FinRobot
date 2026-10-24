@@ -3,6 +3,17 @@
 # Get your free API key at: https://financialmodelingprep.com/developer
 fmp_api_key = YOUR_FMP_API_KEY
 
+# ==============================================================================
+# LLM Service Selection
+# ==============================================================================
+# Choose the default AI service to use for generating text and reports:
+# Options: openai, nvidia, gemini
+# Default: openai
+default_service = openai
+
+# ==============================================================================
+# OpenAI Configuration
+# ==============================================================================
 # OpenAI API Key (or compatible API provider)
 # Get your API key at: https://platform.openai.com/account/api-keys
 openai_api_key = YOUR_OPENAI_API_KEY
@@ -11,16 +22,55 @@ openai_api_key = YOUR_OPENAI_API_KEY
 # Default: https://api.openai.com/v1
 openai_base_url = https://api.openai.com/v1
 
-# Model name (optional, change for proxy services)
-# Model name (optional, change for proxy services)
-# OpenAI Model (choose one of the following ):
+# OpenAI Model (choose one of the following):
 #   gpt-4.1       - Latest flagship model, best quality (recommended for production)
 #   gpt-4.1-mini  - Fast and cost-effective (recommended for development/testing)
 #   gpt-4o        - Previous generation flagship, stable and reliable
 #   gpt-4o-mini   - Previous generation lightweight model
 # Default: gpt-4.1-mini
-openai_model = gpt-4.1
+openai_model = gpt-4.1-mini
 
+# ==============================================================================
+# NVIDIA NIM AI Enterprise Configuration
+# ==============================================================================
+# Nvidia Riva / NIM API Key (or compatible API provider)
+# Get your API key at: https://build.nvidia.com/nvidia
+nvidia_api_key = YOUR_NVIDIA_API_KEY
+
+# NVIDIA NIM AI Enterprise API Base URL (optional, change for proxy services)
+# Default: https://integrate.api.nvidia.com/v1
+nvidia_base_url = https://integrate.api.nvidia.com/v1
+
+# NVIDIA Model (choose one of the following):
+#   nvidia/nemotron-3.5-lightning-30b-a3b - Fast and efficient Nemotron model
+#   meta/llama-3.1-70b-instruct           - High-performance open model
+#   nvidia/llama-3.1-nemotron-70b-instruct - NVIDIA-tuned Llama model
+# Default: nvidia/nemotron-3.5-lightning-30b-a3b
+nvidia_model = nvidia/nemotron-3.5-lightning-30b-a3b
+
+# ==============================================================================
+# Google Gemini Configuration
+# ==============================================================================
+# Google AI Studio / Gemini API key
+# Get your API key at: https://aistudio.google.com/
+gemini_api_key = YOUR_GEMINI_API_KEY
+
+# Gemini Base URL (optional)
+# Default: https://generativelanguage.googleapis.com/v1beta/openai/
+gemini_base_url = https://generativelanguage.googleapis.com/v1beta/openai/
+
+# Google Gemini Model (choose one of the following):
+#   gemini-2.5-flash - Latest fast and powerful model (recommended)
+#   gemini-2.5-pro   - Flagship reasoning model
+#   gemini-1.5-flash - Lightweight and fast
+#   gemini-1.5-pro   - Highly capable model
+#   gemini-3.6-flash - Previous generation flagship
+# Default: gemini-2.5-flash
+gemini_model = gemini-2.5-flash
+
+# ==============================================================================
+# Other Integrations
+# ==============================================================================
 # Adanos Finance API key (optional, enables retail sentiment insights in equity reports)
 adanos_api_key = YOUR_ADANOS_API_KEY
 

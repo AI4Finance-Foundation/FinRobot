@@ -49,53 +49,123 @@ Be specific about the rating, target price, key risks, and trigger conditions fo
 Support all conclusions with data references."""
     }
     
-    def __init__(self, api_key: str = None, base_url: str = None):
+    def __init__(self, api_key: str = None, base_url: str = None, service: str = "openai", model: str = None):
         """
         初始化增强文本生成器
         
         Args:
-            api_key: OpenAI API密钥
+            api_key: LLM API密钥 (OpenAI / NVIDIA / Gemini)
             base_url: API基础URL（可选）
+            service: AI服务提供商 ('openai', 'nvidia', 'gemini')
+            model: 模型名称（可选）
         """
-        self.api_key = api_key or os.getenv('OPENAI_API_KEY')
+        self.service = (service or "openai").strip().lower()
+        if self.service in ["google", "google_gemini", "gemini_ai"]:
+            self.service = "gemini"
+        elif self.service in ["nv", "nvidia_nim", "nim"]:
+            self.service = "nvidia"
+
+        # Default model selection based on service
+        default_model = "gpt-4.1-mini"
+        if self.service == "nvidia":
+            default_model = "nvidia/nemotron-3.5-lightning-30b-a3b"
+            base_url = base_url or "https://integrate.api.nvidia.com/v1"
+        elif self.service == "gemini":
+            default_model = "gemini-2.5-flash"
+            base_url = base_url or "https://generativelanguage.googleapis.com/v1beta/openai/"
+            if "gemini.api.ai" in base_url:
+                base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+
+        self.api_key = api_key or os.getenv(f"{self.service.upper()}_API_KEY") or os.getenv('OPENAI_API_KEY')
         self.base_url = base_url
-        self.config = TextGenerationConfig()
+        self.config = TextGenerationConfig(model=model or default_model)
         self.client = None
         self._init_client()
     
     def _init_client(self):
-        """初始化OpenAI客户端"""
+        """初始化LLM客户端"""
+        if not self.api_key:
+            logger.warning(f"⚠️ No API key provided for {self.service.upper()}")
+            return
+
         try:
             from openai import OpenAI
+            client_kwargs = {"api_key": self.api_key, "timeout": 60.0}
             if self.base_url:
-                self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
-            else:
-                self.client = OpenAI(api_key=self.api_key)
-            logger.info("✅ OpenAI client initialized")
+                client_kwargs["base_url"] = self.base_url
+            self.client = OpenAI(**client_kwargs)
+            logger.info(f"✅ {self.service.upper()} client initialized (model: {self.config.model})")
         except Exception as e:
-            logger.warning(f"⚠️ Could not initialize OpenAI client: {e}")
+            logger.warning(f"⚠️ Could not initialize OpenAI-compatible client for {self.service}: {e}")
             self.client = None
+
+    def _clean_output(self, text: str) -> str:
+        """清理输出中的思考标签"""
+        if not text:
+            return text
+        import re
+        return re.sub(r'<think>[\s\S]*?</think>', '', text).strip()
+
+    def _generate_with_gemini_rest(self, system_prompt: str, user_prompt: str) -> Optional[str]:
+        """使用Gemini REST API直接生成"""
+        import urllib.request
+        import json
+        model_name = self.config.model.replace("models/", "")
+        endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={self.api_key}"
+        
+        payload = {
+            "system_instruction": {"parts": [{"text": system_prompt}]},
+            "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
+            "generationConfig": {"temperature": self.config.temperature, "maxOutputTokens": self.config.max_tokens}
+        }
+        try:
+            req = urllib.request.Request(
+                endpoint,
+                data=json.dumps(payload).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                candidates = data.get("candidates", [])
+                if candidates and "content" in candidates[0] and "parts" in candidates[0]["content"]:
+                    return self._clean_output(candidates[0]["content"]["parts"][0]["text"])
+        except Exception as e:
+            logger.error(f"Gemini REST fallback failed: {e}")
+        return None
 
     def _generate_with_llm(self, system_prompt: str, user_prompt: str) -> str:
         """使用LLM生成文本"""
-        if not self.client:
+        if not self.client and self.service != "gemini":
             logger.warning("LLM client not available, using fallback")
             return self._generate_fallback(user_prompt)
         
-        try:
-            response = self.client.chat.completions.create(
-                model=self.config.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            logger.error(f"LLM generation failed: {e}")
-            return self._generate_fallback(user_prompt)
+        if self.client:
+            try:
+                response = self.client.chat.completions.create(
+                    model=self.config.model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt}
+                    ],
+                    temperature=self.config.temperature,
+                    max_tokens=self.config.max_tokens
+                )
+                raw = response.choices[0].message.content or ""
+                return self._clean_output(raw)
+            except Exception as e:
+                logger.warning(f"Client generation failed for {self.service}: {e}")
+                if self.service == "gemini":
+                    logger.info("Retrying with Gemini REST direct endpoint...")
+                    res = self._generate_with_gemini_rest(system_prompt, user_prompt)
+                    if res:
+                        return res
+                return self._generate_fallback(user_prompt)
+        elif self.service == "gemini" and self.api_key:
+            res = self._generate_with_gemini_rest(system_prompt, user_prompt)
+            if res:
+                return res
+        return self._generate_fallback(user_prompt)
     
     def _generate_fallback(self, context: str) -> str:
         """生成回退文本（当LLM不可用时）"""
@@ -518,9 +588,9 @@ Generate an investment recommendation that:
         return f"{formatted_value} (Source: {source}{date_str})"
 
 
-def create_enhanced_text_generator(api_key: str = None, base_url: str = None) -> EnhancedTextGenerator:
+def create_enhanced_text_generator(api_key: str = None, base_url: str = None, service: str = "openai", model: str = None) -> EnhancedTextGenerator:
     """创建增强文本生成器实例"""
-    return EnhancedTextGenerator(api_key, base_url)
+    return EnhancedTextGenerator(api_key=api_key, base_url=base_url, service=service, model=model)
 
 
 if __name__ == "__main__":

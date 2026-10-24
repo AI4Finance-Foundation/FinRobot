@@ -9,7 +9,7 @@ import pytz
 
 EASTERN_TZ = pytz.timezone('America/New_York')
 
-from modules.common_utils import load_config, get_api_key
+from modules.common_utils import load_config, get_api_key, get_llm_config
 from modules.report_data_loader import load_analysis_csv, load_text_from_file
 from modules.html_renderer import render_html_report, render_combined_html_report, HTML_TEMPLATE_PAGE_1, HTML_TEMPLATE_PAGE_2_FINANCIAL_SUMMARY, HTML_TEMPLATE_PAGE_3_PEER_COMPARISON, HTML_TEMPLATE_PAGE_4_SENSITIVITY_CATALYST, HTML_TEMPLATE_PAGE_5_NEWS_CHARTS, HTML_TEMPLATE_COMBINED, format_dataframe_to_html_table
 from modules.html_template_professional import render_professional_html_report
@@ -192,7 +192,8 @@ def validate_and_fix_text_content(text_content: str, text_type: str, company_nam
 
 def regenerate_text_if_needed(text_content: str, text_type: str, company_name: str, company_ticker: str, 
                              analysis_df: pd.DataFrame, peer_ebitda_df: pd.DataFrame, 
-                             peer_ev_ebitda_df: pd.DataFrame, api_key: str = None) -> str:
+                             peer_ev_ebitda_df: pd.DataFrame, api_key: str = None,
+                             base_url: str = None, model: str = None, service: str = "openai") -> str:
     """Generate text content using AI, calling the single unified function."""
     
     # This function now handles all text types through the same logic if regeneration is enabled.
@@ -205,14 +206,17 @@ def regenerate_text_if_needed(text_content: str, text_type: str, company_name: s
                 "peer_ev_ebitda": peer_ev_ebitda_df,
             }
             
-            print(f"🤖 Regenerating '{text_type}' using AI...")
+            print(f"🤖 Regenerating '{text_type}' using {service.upper()} AI...")
             # Call the single, unified text generation function
             generated_text = generate_text_section(
-                data_for_generation, 
-                text_type, 
-                api_key, 
-                company_name, 
-                company_ticker
+                data=data_for_generation, 
+                prompt_type=text_type, 
+                api_key=api_key, 
+                company_name=company_name, 
+                company_ticker=company_ticker,
+                base_url=base_url,
+                model=model,
+                service=service
             )
             
             # Basic validation of the generated content
@@ -231,10 +235,10 @@ def regenerate_text_if_needed(text_content: str, text_type: str, company_name: s
     return validate_and_fix_text_content(text_content, text_type, company_name, company_ticker)
 
 
-def process_text_content(args, analysis_df, peer_ebitda_df, peer_ev_ebitda_df, openai_api_key):
+def process_text_content(args, analysis_df, peer_ebitda_df, peer_ev_ebitda_df, api_key=None, base_url=None, model=None, service="openai"):
     """Process all text content with enhanced AI generation for competitor analysis and takeaways."""
     
-    print("📖 Loading and processing text content...")
+    print(f"📖 Loading and processing text content (AI service: {service.upper()})...")
     
     # Load raw text content
     raw_texts = {
@@ -266,11 +270,12 @@ def process_text_content(args, analysis_df, peer_ebitda_df, peer_ev_ebitda_df, o
             )
             
             # Force regeneration for CSV-like data even without the flag
-            if is_csv_data and openai_api_key:
+            if is_csv_data and api_key:
                 print(f"⚠️ Detected CSV data in {text_type}, forcing AI regeneration...")
                 processed_texts[text_type] = regenerate_text_if_needed(
                     raw_content or "", text_type, args.company_name, args.company_ticker,
-                    analysis_df, peer_ebitda_df, peer_ev_ebitda_df, openai_api_key
+                    analysis_df, peer_ebitda_df, peer_ev_ebitda_df, api_key=api_key,
+                    base_url=base_url, model=model, service=service
                 )
             # If no API key, provide a fallback
             elif is_csv_data:
@@ -281,10 +286,11 @@ def process_text_content(args, analysis_df, peer_ebitda_df, peer_ev_ebitda_df, o
                     processed_texts[text_type] = f"Revenue Growth: {args.company_name}'s revenue growth shows consistent performance trends.\n\nGross Profit Margin: {args.company_name}'s gross profit margins demonstrate operational effectiveness.\n\nSG&A Expense Margin: {args.company_name}'s SG&A expense management shows disciplined cost control.\n\nEBITDA Margin Stability: {args.company_name}'s EBITDA margin stability reflects strong underlying fundamentals."
             else:
                 # Regular flow for non-CSV data
-                if args.enable_text_regeneration and openai_api_key:
+                if args.enable_text_regeneration and api_key:
                     processed_texts[text_type] = regenerate_text_if_needed(
                         raw_content or "", text_type, args.company_name, args.company_ticker,
-                        analysis_df, peer_ebitda_df, peer_ev_ebitda_df, openai_api_key
+                        analysis_df, peer_ebitda_df, peer_ev_ebitda_df, api_key=api_key,
+                        base_url=base_url, model=model, service=service
                     )
                 else:
                     processed_texts[text_type] = validate_and_fix_text_content(
@@ -292,10 +298,11 @@ def process_text_content(args, analysis_df, peer_ebitda_df, peer_ev_ebitda_df, o
                     )
         else:
             # Regular flow for other text types
-            if args.enable_text_regeneration and openai_api_key:
+            if args.enable_text_regeneration and api_key:
                 processed_texts[text_type] = regenerate_text_if_needed(
                     raw_content or "", text_type, args.company_name, args.company_ticker,
-                    analysis_df, peer_ebitda_df, peer_ev_ebitda_df, openai_api_key
+                    analysis_df, peer_ebitda_df, peer_ev_ebitda_df, api_key=api_key,
+                    base_url=base_url, model=model, service=service
                 )
             else:
                 processed_texts[text_type] = validate_and_fix_text_content(
@@ -362,6 +369,9 @@ def main():
     
     # Text regeneration option
     parser.add_argument("--enable-text-regeneration", action="store_true", help="Enable AI text regeneration if content quality is poor.")
+    parser.add_argument("--default-service", "--service", dest="service", type=str, default=None, choices=["openai", "nvidia", "gemini"], help="AI service to use (openai, nvidia, gemini). Default is read from config.ini")
+    parser.add_argument("--llm-model", type=str, default=None, help="Custom LLM model name override.")
+    parser.add_argument("--llm-base-url", type=str, default=None, help="Custom LLM API base URL override.")
     
     # 新增增强功能选项
     parser.add_argument("--enable-enhanced-charts", action="store_true", help="Enable enhanced chart generation with 11 professional chart types.")
@@ -379,19 +389,31 @@ def main():
     print(f"HTML reports will be saved to: {output_dir}")
 
     # --- Load configuration and API key ---
-    openai_api_key = None
+    llm_service = "openai"
+    llm_api_key = None
+    llm_base_url = None
+    llm_model = None
+    fmp_api_key = None
+
     try:
         config = load_config(args.config_file)
         fmp_api_key = get_api_key(config, "API_KEYS", "fmp_api_key")
+        
+        # Load LLM config (OpenAI, NVIDIA, Gemini)
+        llm_cfg = get_llm_config(config, service=args.service)
+        llm_service = llm_cfg["service"]
+        llm_api_key = llm_cfg["api_key"]
+        llm_base_url = args.llm_base_url or llm_cfg["base_url"]
+        llm_model = args.llm_model or llm_cfg["model"]
+
         if args.enable_text_regeneration:
-            try:
-                openai_api_key = get_api_key(config, "API_KEYS", "openai_api_key")
-                print("✅ OpenAI API key loaded for text regeneration")
-            except Exception as e:
-                print(f"⚠️ Warning: OpenAI API key not available: {e}")
+            if llm_api_key:
+                print(f"✅ {llm_service.upper()} API key loaded for text regeneration (Model: {llm_model})")
+            else:
+                print(f"⚠️ Warning: {llm_service.upper()} API key not available in config.ini")
                 print("Text regeneration will be disabled")
     except Exception as e:
-        print(f"Warning: Could not load FMP API key: {e}")
+        print(f"Warning: Could not load configuration: {e}")
         fmp_api_key = None
 
     # --- Auto-fetch market data if not provided and API key available ---
@@ -465,7 +487,16 @@ def main():
     peer_ev_ebitda_df = load_analysis_csv(args.peer_ev_ebitda_csv) if args.peer_ev_ebitda_csv else pd.DataFrame()
 
     # Process text content with AI enhancement
-    processed_texts = process_text_content(args, analysis_df, peer_ebitda_df, peer_ev_ebitda_df, openai_api_key)
+    processed_texts = process_text_content(
+        args, 
+        analysis_df, 
+        peer_ebitda_df, 
+        peer_ev_ebitda_df, 
+        api_key=llm_api_key, 
+        base_url=llm_base_url, 
+        model=llm_model, 
+        service=llm_service
+    )
     
     # Fix stale dates in cached text (e.g. "June 2024" → actual report date)
     import re as _re

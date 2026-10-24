@@ -6,7 +6,7 @@ import os
 import pandas as pd
 import json 
 
-from modules.common_utils import load_config, get_api_key
+from modules.common_utils import load_config, get_api_key, get_llm_config
 from modules.financial_data_processor import calculate_growth_and_forecasts, extract_historical_metrics_from_api_data
 from modules.market_data_api import (
     get_comprehensive_financial_data,
@@ -32,6 +32,9 @@ def main():
     # API Configuration
     parser.add_argument("--config-file", type=str, default=None, help="Path to the configuration file (e.g., config.ini).")
     parser.add_argument("--years-limit", type=int, default=5, help="Number of years of historical data to fetch.")
+    parser.add_argument("--default-service", "--service", dest="service", type=str, default=None, choices=["openai", "nvidia", "gemini"], help="AI service to use (openai, nvidia, gemini). Default is read from config.ini")
+    parser.add_argument("--llm-model", type=str, default=None, help="Custom LLM model name override.")
+    parser.add_argument("--llm-base-url", type=str, default=None, help="Custom LLM API base URL override.")
     
     # Output Configuration
     parser.add_argument("--output-dir", type=str, help="Directory to save all outputs. Default: ./output/[TICKER]/analysis/")
@@ -41,7 +44,7 @@ def main():
     parser.add_argument("--peer-tickers", type=str, nargs="*", default=[], help="List of peer tickers for comparative analysis (e.g., GOOG MSFT).")
 
     # Text Generation
-    parser.add_argument("--generate-text-sections", action="store_true", help="Enable generation of text sections using OpenAI.")
+    parser.add_argument("--generate-text-sections", action="store_true", help="Enable generation of text sections using AI.")
     parser.add_argument("--text-output-dir", type=str, default=None, help="Directory to save generated text files.")
 
     # NEWS PARAMETERS
@@ -81,35 +84,47 @@ def main():
         print(f"Text outputs will be saved to: {text_output_dir}")
 
     # Load configuration and API keys
-    openai_base_url = None
     adanos_api_key = os.getenv("ADANOS_API_KEY")
     adanos_base_url = os.getenv("ADANOS_BASE_URL", "https://api.adanos.org")
+    llm_service = "openai"
+    llm_api_key = None
+    llm_base_url = None
+    llm_model = None
+
     try:
         config = load_config(args.config_file)
         fmp_api_key = get_api_key(config, section="API_KEYS", key="fmp_api_key")
         adanos_api_key = config.get("API_KEYS", "adanos_api_key", fallback=adanos_api_key)
         adanos_base_url = config.get("API_KEYS", "adanos_base_url", fallback=adanos_base_url)
+        
+        # Load LLM config (OpenAI, NVIDIA, Gemini)
+        llm_cfg = get_llm_config(config, service=args.service)
+        llm_service = llm_cfg["service"]
+        llm_api_key = llm_cfg["api_key"]
+        llm_base_url = args.llm_base_url or llm_cfg["base_url"]
+        llm_model = args.llm_model or llm_cfg["model"]
+
+        # Backward compatibility aliases
+        openai_api_key = llm_api_key
+        openai_base_url = llm_base_url
+        openai_model = llm_model
+
         if args.generate_text_sections:
-            openai_api_key = get_api_key(config, section="API_KEYS", key="openai_api_key")
-            # Try to get base_url for proxy services (like SiliconFlow)
-            try:
-                openai_base_url = get_api_key(config, section="API_KEYS", key="openai_base_url")
-                print(f"Using OpenAI base URL: {openai_base_url}")
-            except:
-                pass  # base_url is optional
-            # Try to get model name for proxy services
-            try:
-                openai_model = get_api_key(config, section="API_KEYS", key="openai_model")
-                print(f"Using model: {openai_model}")
-            except:
-                openai_model = None  # model is optional
+            print(f"🤖 LLM Service: {llm_service.upper()}")
+            print(f"🤖 Model: {llm_model}")
+            if llm_base_url:
+                print(f"📡 Base URL: {llm_base_url}")
+            if not llm_api_key:
+                print(f"⚠️ Warning: No API key found for {llm_service.upper()} in config.ini")
     except Exception as e:
         print(f"Error loading configuration: {e}")
         print("Please ensure config.ini exists with valid API keys:")
         print("[API_KEYS]")
+        print("default_service = openai  # options: openai, nvidia, gemini")
         print("fmp_api_key = YOUR_FMP_API_KEY")
         print("openai_api_key = YOUR_OPENAI_API_KEY")
-        print("openai_base_url = https://api.xxx.com/v1  # optional, for proxy services")
+        print("nvidia_api_key = YOUR_NVIDIA_API_KEY")
+        print("gemini_api_key = YOUR_GEMINI_API_KEY")
         return
 
     print(f"Starting FMP API-based financial analysis for {args.company_name} ({args.company_ticker})")
@@ -398,10 +413,10 @@ def main():
 
     # 5. Text Generation (Unified Logic)
     if args.generate_text_sections:
-        print("\nGenerating AI-powered text sections...")
+        print(f"\nGenerating AI-powered text sections using {llm_service.upper()}...")
         
-        if 'openai_api_key' not in locals() or not openai_api_key:
-            print("Error: OpenAI API key not loaded. Skipping text generation.")
+        if not llm_api_key:
+            print(f"Error: {llm_service.upper()} API key not loaded. Skipping text generation.")
         else:
             data_for_text_gen = {
                 "financial_metrics": final_data_df,
@@ -438,13 +453,14 @@ def main():
                 try:
                     # Call the single, unified function for all types
                     generated_text = generate_text_section(
-                        data_for_text_gen, 
-                        text_type, 
-                        openai_api_key, 
-                        args.company_name, 
-                        args.company_ticker,
-                        base_url=openai_base_url,
-                        model=openai_model
+                        data=data_for_text_gen, 
+                        prompt_type=text_type, 
+                        api_key=llm_api_key, 
+                        company_name=args.company_name, 
+                        company_ticker=args.company_ticker,
+                        base_url=llm_base_url,
+                        model=llm_model,
+                        service=llm_service
                     )
                     
                     # Fallback validation can remain here as a safety net

@@ -196,6 +196,41 @@ finrobot_equity/
 
 ---
 
+### Configuration
+
+```ini
+[API_KEYS]
+fmp_api_key = YOUR_FMP_API_KEY          # https://financialmodelingprep.com/developer
+
+# Default AI service to use: gemini, openai, nvidia
+default_service = gemini
+
+# Google Gemini
+gemini_api_key = YOUR_GEMINI_API_KEY    # https://aistudio.google.com/
+gemini_model = gemini-3.8-flash
+gemini_base_url = https://generativelanguage.googleapis.com/v1beta/openai/
+
+# OpenAI
+openai_api_key = YOUR_OPENAI_API_KEY    # https://platform.openai.com/account/api-keys
+openai_model = gpt-4.1-mini
+openai_base_url = https://api.openai.com/v1
+
+# NVIDIA NIM AI Enterprise
+nvidia_api_key = YOUR_NVIDIA_API_KEY    # https://build.nvidia.com/nvidia
+nvidia_model = nvidia/nemotron-3.5-lightning-30b-a3b
+nvidia_base_url = https://integrate.api.nvidia.com/v1
+
+# Adanos Retail Sentiment
+adanos_api_key = YOUR_ADANOS_API_KEY    # Optional: enables Retail Sentiment Insights
+adanos_base_url = https://api.adanos.org
+```
+
+You can select the active AI provider in `config.ini` using `default_service` (`gemini`, `openai`, `nvidia`), via CLI flags (`--default-service gemini` or `--service nvidia`), or directly in the web UI.
+
+If `adanos_api_key` is configured, the report pipeline adds an optional **Retail Sentiment Insights** layer to the equity research output. It supplements the existing news workflow with structured public-retail activity snapshots across Reddit, X.com, and Polymarket.
+
+---
+
 ## Reference
 
 ### Deployment commands

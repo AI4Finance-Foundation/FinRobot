@@ -352,6 +352,10 @@ class AnalysisRequest(BaseModel):
     generate_pdf: bool = True
     fmp_api_key: Optional[str] = None
     openai_api_key: Optional[str] = None
+    nvidia_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
+    default_service: Optional[str] = None
+    service: Optional[str] = None
     # 新增增强功能选项
     enable_sensitivity_analysis: bool = True
     enable_catalyst_analysis: bool = True
@@ -444,6 +448,11 @@ def execute_analysis_pipeline(task_id: str, req: AnalysisRequest):
     if req.enable_enhanced_news:
         cmd_analysis.append("--enable-enhanced-news")
         
+    # Service selection
+    selected_service = req.default_service or req.service
+    if selected_service:
+        cmd_analysis.extend(["--default-service", selected_service])
+        
     cmd_analysis.extend(["--config-file", config_file])
 
     if not run_process(cmd_analysis, task_id, cwd=SRC_ROOT):
@@ -477,6 +486,9 @@ def execute_analysis_pipeline(task_id: str, req: AnalysisRequest):
         "--config-file", config_file,
         "--enable-text-regeneration"
     ]
+    
+    if selected_service:
+        cmd_report.extend(["--default-service", selected_service])
     
     # 新增增强功能选项
     if req.enable_enhanced_charts:

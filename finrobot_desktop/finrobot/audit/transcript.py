@@ -108,7 +108,7 @@ def is_valid_session_id(session_id: str) -> bool:
         return False
     if "/" in session_id or "\\" in session_id:
         return False
-    return bool(_SESSION_ID_RE.match(session_id))
+    return bool(_SESSION_ID_RE.fullmatch(session_id))
 
 
 def sanitize_session_id(session_id: str) -> str:

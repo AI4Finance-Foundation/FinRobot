@@ -472,6 +472,7 @@ def test_is_valid_session_id_accepts_safe_stems(good: str) -> None:
         "sess id",  # whitespace
         "a" * 129,  # too long
         "sess\n2",  # control char
+        "sess\n",  # trailing newline: a bare `$` anchor would accept it
     ],
 )
 def test_is_valid_session_id_rejects_traversal(bad: str) -> None:

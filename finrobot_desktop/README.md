@@ -115,7 +115,7 @@ Everything here is pure Python with no model in the loop, which is what makes th
 
 Seven providers in `finrobot/engine/data/providers/`, behind a common interface with health tracking and automatic failover:
 
-`yfinance` · `edgar` (SEC) · `fmp` · `finnhub` · `adanos` (retail sentiment) · `news_aggregator` · `fx`
+`yfinance` · `edgar` (SEC) · `fmp` · `finnhub` · `adanos` (retail sentiment) · `news_aggregator` (yfinance headlines, plus optional Alpha Vantage sentiment and Scavio Google News) · `fx`
 
 Supporting pieces: response caching, a symbol index, quote batching, SEC holdings sync, and a validator that rejects malformed provider payloads before they reach the compute engine.
 

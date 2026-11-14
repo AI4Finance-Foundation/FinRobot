@@ -160,6 +160,7 @@ class SettingsResponse(BaseModel):
     finnhub_api_key_set: bool
     alpha_vantage_api_key_set: bool
     adanos_api_key_set: bool
+    scavio_api_key_set: bool
     sec_user_agent: str
     # Authoritative answer to "did the backend accept this identity?" — the
     # SAME gate (``_is_valid_identity``) that decides whether build_data_layer
@@ -211,6 +212,7 @@ class SettingsUpdate(BaseModel):
     finnhub_api_key: str | None = Field(default=None, repr=False)
     alpha_vantage_api_key: str | None = Field(default=None, repr=False)
     adanos_api_key: str | None = Field(default=None, repr=False)
+    scavio_api_key: str | None = Field(default=None, repr=False)
 
     @field_validator("log_level", mode="before")
     @classmethod
@@ -575,6 +577,18 @@ async def _probe_alpha_vantage(key: str) -> None:
         raise ProviderError(str(note) if note else "Alpha Vantage returned no feed")
 
 
+async def _probe_scavio(key: str) -> None:
+    import httpx
+
+    # The usage endpoint is free (no credit charged), so testing the key costs nothing.
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(
+            "https://api.scavio.dev/api/v1/usage",
+            headers={"Authorization": f"Bearer {key}"},
+        )
+        resp.raise_for_status()
+
+
 # provider id → (settings key attribute, probe). Keyed off the same data-secret
 # fields the rest of this module uses; adding a new keyed source is one entry.
 _DATA_PROBES: dict[str, tuple[str, Callable[[str], Awaitable[None]]]] = {
@@ -582,6 +596,7 @@ _DATA_PROBES: dict[str, tuple[str, Callable[[str], Awaitable[None]]]] = {
     "finnhub": ("finnhub_api_key", _probe_finnhub),
     "adanos": ("adanos_api_key", _probe_adanos),
     "alpha_vantage": ("alpha_vantage_api_key", _probe_alpha_vantage),
+    "scavio": ("scavio_api_key", _probe_scavio),
 }
 
 
@@ -636,7 +651,7 @@ def _classify_data_provider_error(exc: BaseException) -> tuple[str, str]:
 class TestDataProviderRequest(BaseModel):
     """Live connectivity check for a data-source API key (FMP / Finnhub / …)."""
 
-    provider: str  # fmp | finnhub | adanos | alpha_vantage
+    provider: str  # fmp | finnhub | adanos | alpha_vantage | scavio
 
 
 @router.post("/test-data-provider", response_model=TestProviderResponse)
@@ -730,6 +745,8 @@ async def _build_response(request: Request) -> SettingsResponse:
         available.append("alpha_vantage")
     if keychain_presence.get("adanos_api_key", False) or settings.adanos_api_key:
         available.append("adanos")
+    if await _has_key("scavio_api_key", "scavio_api_key"):
+        available.append("scavio")
 
     # LLM provider registry: built-ins + user customs, each tagged with whether
     # its key is stored and whether it's a (non-deletable) built-in.
@@ -759,6 +776,7 @@ async def _build_response(request: Request) -> SettingsResponse:
         alpha_vantage_api_key_set=await _has_key("alpha_vantage_api_key", "alpha_vantage_api_key"),
         adanos_api_key_set=keychain_presence.get("adanos_api_key", False)
         or bool(settings.adanos_api_key),
+        scavio_api_key_set=await _has_key("scavio_api_key", "scavio_api_key"),
         sec_user_agent=settings.sec_user_agent,
         sec_identity_active=_is_valid_identity(settings.sec_user_agent),
         sec_identity_dismissed_at=settings.sec_identity_dismissed_at,

@@ -1605,6 +1605,18 @@ msgid "settings.alphaVantage.hint"
 msgstr "为新闻流做情绪打分"
 
 #. js-lingui-explicit-id
+msgid "settings.scavio.label"
+msgstr "Scavio API Key"
+
+#. js-lingui-explicit-id
+msgid "settings.scavio.placeholder"
+msgstr "Enter Scavio API key"
+
+#. js-lingui-explicit-id
+msgid "settings.scavio.hint"
+msgstr "Google News headlines for the news feed (paid, 1 credit per fetch)"
+
+#. js-lingui-explicit-id
 msgid "settings.apiKey.getKey"
 msgstr "申请密钥"
 

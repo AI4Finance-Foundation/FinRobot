@@ -21,7 +21,7 @@ import os
 import stat
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi import FastAPI
@@ -370,6 +370,25 @@ async def test_get_settings_reports_adanos_key_set(tmp_path: Path) -> None:
     body = resp.json()
     assert body["adanos_api_key_set"] is True
     assert "alpha_vantage_api_key_set" in body
+
+
+@pytest.mark.asyncio
+async def test_get_settings_reports_scavio_key_set(tmp_path: Path) -> None:
+    """scavio_api_key_set reflects the stored key and adds scavio to available."""
+    app = _make_app(tmp_path, settings=_settings(scavio_api_key="sk-scavio"))
+    async with _client(app) as c:
+        resp = await c.get("/api/settings")
+    body = resp.json()
+    assert body["scavio_api_key_set"] is True
+    assert "scavio" in body["available_providers"]
+    assert "sk-scavio" not in resp.text
+
+    app = _make_app(tmp_path, settings=_settings())
+    async with _client(app) as c:
+        resp = await c.get("/api/settings")
+    body = resp.json()
+    assert body["scavio_api_key_set"] is False
+    assert "scavio" not in body["available_providers"]
 
 
 # ---------------------------------------------------------------------------
@@ -1514,6 +1533,44 @@ async def test_test_data_provider_maps_connect_error(tmp_path: Path, monkeypatch
     body = resp.json()
     assert body["ok"] is False
     assert body["code"] == "connect"
+
+
+@pytest.mark.asyncio
+async def test_scavio_probe_uses_the_free_usage_endpoint() -> None:
+    """The Scavio key test calls GET /api/v1/usage (no credit) with a Bearer header."""
+    import httpx
+
+    from finrobot.routes.settings import _probe_scavio
+
+    assert _DATA_PROBES["scavio"] == ("scavio_api_key", _probe_scavio)
+    request = httpx.Request("GET", "https://api.scavio.dev/api/v1/usage")
+    with patch("httpx.AsyncClient") as MockClient:
+        client = MockClient.return_value.__aenter__.return_value
+        client.get = AsyncMock(return_value=httpx.Response(200, json={}, request=request))
+        await _probe_scavio("sk-scavio")
+
+    client.get.assert_awaited_once_with(
+        "https://api.scavio.dev/api/v1/usage",
+        headers={"Authorization": "Bearer sk-scavio"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_scavio_probe_rejected_key_maps_to_auth() -> None:
+    import httpx
+
+    from finrobot.routes.settings import _classify_data_provider_error, _probe_scavio
+
+    request = httpx.Request("GET", "https://api.scavio.dev/api/v1/usage")
+    with patch("httpx.AsyncClient") as MockClient:
+        client = MockClient.return_value.__aenter__.return_value
+        client.get = AsyncMock(return_value=httpx.Response(401, json={}, request=request))
+        with pytest.raises(httpx.HTTPStatusError) as exc_info:
+            await _probe_scavio("sk-bad")
+
+    code, detail = _classify_data_provider_error(exc_info.value)
+    assert code == "auth"
+    assert "sk-bad" not in detail
 
 
 # ---------------------------------------------------------------------------

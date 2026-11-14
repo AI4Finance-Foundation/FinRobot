@@ -1,8 +1,9 @@
 # finrobot/engine/data/providers/news_aggregator.py
 """Multi-source news aggregation provider.
 
-Fetches news from yfinance (free, no key — via ``YFinanceProvider``) and Alpha
-Vantage News Sentiment (free tier, requires FINROBOT_ALPHA_VANTAGE_API_KEY).
+Fetches news from yfinance (free, no key — via ``YFinanceProvider``), Alpha
+Vantage News Sentiment (free tier, requires FINROBOT_ALPHA_VANTAGE_API_KEY) and
+Google News through the Scavio API (paid, optional, requires a Scavio API key).
 Deduplicates by headline prefix similarity and returns a unified news list
 with optional sentiment scores.
 
@@ -50,15 +51,23 @@ _TIMEOUT = 12.0
 _ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
 _AV_MIN_INTERVAL = 12.5  # Alpha Vantage free tier: 5 calls/min -> 1 per 12s; add buffer
 _DEDUP_PREFIX_LEN = 50  # headlines sharing this many leading chars are duplicates
+# Scavio Google News search. One request is one credit; it is never retried.
+_SCAVIO_NEWS_URL = "https://api.scavio.dev/api/v2/google/news"
+_SCAVIO_TIMEOUT = 30.0
+_SCAVIO_MAX_ITEMS = 30
 
 
 class NewsAggregatorProvider(DataProvider):
-    """Aggregates news from yfinance + Alpha Vantage.
+    """Aggregates news from yfinance + Alpha Vantage + Scavio (Google News).
 
     yfinance: free, no API key required — the always-on source, fetched through
     a held ``YFinanceProvider`` (no direct yfinance import; see module docstring).
     Alpha Vantage: only used when ``alpha_vantage_api_key`` is provided, and adds
     per-ticker sentiment scores on top of the yfinance headlines.
+    Scavio: only used when ``scavio_api_key`` is provided. Searches Google News
+    for "<ticker> stock", newest first, so the aggregator still has headlines
+    when yfinance is rate-limited. Each fetch is one paid request (no retry);
+    the layer's NEWS cache (30 min) bounds how often it runs.
 
     This provider only supports DataType.NEWS.
     """
@@ -67,9 +76,11 @@ class NewsAggregatorProvider(DataProvider):
         self,
         *,
         alpha_vantage_api_key: str = "",
+        scavio_api_key: str = "",
         yfinance_provider: YFinanceProvider | None = None,
     ) -> None:
         self._av_key = alpha_vantage_api_key
+        self._scavio_key = scavio_api_key
         self._av_lock = asyncio.Lock()
         self._av_last_call: float = 0.0
         # Delegate the free no-key Yahoo headlines to the sanctioned yfinance
@@ -89,17 +100,22 @@ class NewsAggregatorProvider(DataProvider):
             raise ProviderError(f"NewsAggregatorProvider only supports NEWS, got '{data_type}'")
 
         tasks: list[asyncio.Task[list[dict[str, Any]]]] = []
+        source_names: list[str] = []
         tasks.append(asyncio.create_task(self._fetch_yfinance(ticker)))
+        source_names.append("yfinance")
         if self._av_key:
             tasks.append(asyncio.create_task(self._fetch_alpha_vantage(ticker)))
+            source_names.append("Alpha Vantage")
+        if self._scavio_key:
+            tasks.append(asyncio.create_task(self._fetch_scavio(ticker)))
+            source_names.append("Scavio")
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         all_items: list[dict[str, Any]] = []
         warnings: list[str] = []
         failures: list[str] = []
-        for i, result in enumerate(results):
-            source_name = "yfinance" if i == 0 else "Alpha Vantage"
+        for source_name, result in zip(source_names, results):
             if isinstance(result, BaseException):
                 # User-facing warning carries the exception TYPE only — the raw
                 # message (yfinance/httpx) embeds the upstream request URL, and this
@@ -232,6 +248,52 @@ class NewsAggregatorProvider(DataProvider):
                     "published": self._parse_av_date(article.get("time_published", "")),
                     "sentiment_score": av_score,
                     "category": article.get("category_within_source"),
+                }
+            )
+
+        return items
+
+    async def _fetch_scavio(self, ticker: str) -> list[dict[str, Any]]:
+        """Fetch Google News headlines for the ticker from the Scavio API.
+
+        One POST, newest first (``so=1``). The key travels in the Authorization
+        header, never the URL, and errors carry status + ticker only.
+        """
+        payload = {"query": f"{ticker} stock", "so": 1}
+        headers = {"Authorization": f"Bearer {self._scavio_key}"}
+        try:
+            async with httpx.AsyncClient(timeout=_SCAVIO_TIMEOUT) as client:
+                resp = await client.post(_SCAVIO_NEWS_URL, json=payload, headers=headers)
+                resp.raise_for_status()
+        except httpx.TimeoutException as e:
+            raise ProviderError(f"Scavio timeout for '{ticker}'") from e
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 429:
+                raise RateLimitedProviderError(f"Scavio HTTP 429 for '{ticker}'") from e
+            raise ProviderError(f"Scavio HTTP {e.response.status_code} for '{ticker}'") from e
+        except httpx.HTTPError as e:
+            raise ProviderError(f"Scavio request failed for '{ticker}'") from e
+
+        try:
+            data = resp.json()
+        except ValueError as e:
+            raise ProviderError(f"Scavio returned invalid JSON for '{ticker}'") from e
+
+        items: list[dict[str, Any]] = []
+        for article in (data.get("news_results") or [])[:_SCAVIO_MAX_ITEMS]:
+            title = (article.get("title") or "").strip()
+            if not title:
+                continue
+            source = article.get("source") or {}
+            items.append(
+                {
+                    "title": title,
+                    "source": (source.get("name") if isinstance(source, dict) else None)
+                    or "Google News",
+                    "url": article.get("link", ""),
+                    "published": self._normalize_published(article.get("iso_date", "")),
+                    "sentiment_score": None,  # filled by keyword scorer later
+                    "category": None,
                 }
             )
 

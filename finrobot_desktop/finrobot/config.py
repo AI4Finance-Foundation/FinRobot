@@ -146,6 +146,7 @@ DATA_PROVIDER_SECRET_FIELDS: tuple[str, ...] = (
     "finnhub_api_key",
     "alpha_vantage_api_key",
     "adanos_api_key",
+    "scavio_api_key",
 )
 
 
@@ -224,6 +225,7 @@ class FinRobotSettings(BaseSettings):
     finnhub_api_key: str = ""
     alpha_vantage_api_key: str = ""
     adanos_api_key: str = ""
+    scavio_api_key: str = ""
     sec_user_agent: str = "FinRobot admin@example.com"
     # 2026-05-27 (EdgarTools migration): Per SEC policy, automated tools
     # MUST declare a real identity in the User-Agent. The default above is

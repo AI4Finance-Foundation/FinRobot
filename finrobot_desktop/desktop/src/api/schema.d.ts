@@ -3529,6 +3529,8 @@ export interface components {
       alpha_vantage_api_key_set: boolean
       /** Adanos Api Key Set */
       adanos_api_key_set: boolean
+      /** Scavio Api Key Set */
+      scavio_api_key_set: boolean
       /** Sec User Agent */
       sec_user_agent: string
       /** Sec Identity Active */
@@ -3589,6 +3591,8 @@ export interface components {
       alpha_vantage_api_key?: string | null
       /** Adanos Api Key */
       adanos_api_key?: string | null
+      /** Scavio Api Key */
+      scavio_api_key?: string | null
     }
     /** SniperPoints */
     SniperPoints: {

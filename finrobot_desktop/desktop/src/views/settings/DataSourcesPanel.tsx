@@ -24,6 +24,7 @@ const DATA_SOURCE_SIGNUP_URLS = {
   finnhub: 'https://finnhub.io/register',
   adanos: 'https://adanos.org/register',
   alphaVantage: 'https://www.alphavantage.co/support/#api-key',
+  scavio: 'https://scavio.dev',
 } as const
 
 // ── Unified data-source row (门五②) ─────────────────────────────────────────
@@ -50,6 +51,7 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   edgar_tools: 'SEC EDGAR',
   adanos: 'Adanos',
   alpha_vantage: 'Alpha Vantage',
+  scavio: 'Scavio',
   news_aggregator: 'News Aggregator',
 }
 
@@ -62,6 +64,7 @@ const KEYED_PROVIDER_ROWS = new Set([
   'finnhub',
   'adanos',
   'alpha_vantage',
+  'scavio',
 ])
 
 /** One data-source row: live circuit dot + name + state badge + inline config
@@ -153,6 +156,7 @@ interface DataSourcesPanelProps {
   finnhubConfigured: boolean
   adanosConfigured: boolean
   alphaVantageConfigured: boolean
+  scavioConfigured: boolean
   fmpKey: string
   setFmpKey: (v: string) => void
   finnhubKey: string
@@ -161,6 +165,8 @@ interface DataSourcesPanelProps {
   setAdanosKey: (v: string) => void
   alphaVantageKey: string
   setAlphaVantageKey: (v: string) => void
+  scavioKey: string
+  setScavioKey: (v: string) => void
   dataTestState: DataTestState
   setDataTestState: React.Dispatch<React.SetStateAction<DataTestState>>
   scheduleStandardSave: (payload: Record<string, unknown>) => void
@@ -183,6 +189,7 @@ export function DataSourcesPanel({
   finnhubConfigured,
   adanosConfigured,
   alphaVantageConfigured,
+  scavioConfigured,
   fmpKey,
   setFmpKey,
   finnhubKey,
@@ -191,6 +198,8 @@ export function DataSourcesPanel({
   setAdanosKey,
   alphaVantageKey,
   setAlphaVantageKey,
+  scavioKey,
+  setScavioKey,
   dataTestState,
   setDataTestState,
   scheduleStandardSave,
@@ -248,6 +257,11 @@ export function DataSourcesPanel({
     setAlphaVantageKey(v)
     setDataTestState((s) => ({ ...s, alpha_vantage: { status: 'idle' } }))
     if (v.trim()) scheduleStandardSave({ alpha_vantage_api_key: v.trim() })
+  }
+  const handleScavioKeyChange = (v: string) => {
+    setScavioKey(v)
+    setDataTestState((s) => ({ ...s, scavio: { status: 'idle' } }))
+    if (v.trim()) scheduleStandardSave({ scavio_api_key: v.trim() })
   }
   // Live connectivity test for a data-source key. Flushes any unsaved edit first
   // so the backend tests the key the user is looking at, then probes it.
@@ -482,6 +496,30 @@ export function DataSourcesPanel({
             <>
               {t('settings.alphaVantage.hint')}
               {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.alphaVantage)}
+            </>
+          }
+        />
+
+        {/* Scavio is nested under News Aggregator like Alpha Vantage, so it has
+        no standalone live breaker row either. */}
+        <DataSourceRow
+          health={healthByName.get('scavio')}
+          name={PROVIDER_DISPLAY_NAMES.scavio}
+          badge={renderKeyBadge(scavioConfigured, 'optional', 'scavio')}
+          control={renderKeyControl({
+            labelKey: 'settings.scavio.label',
+            placeholderKey: 'settings.scavio.placeholder',
+            configured: scavioConfigured,
+            value: scavioKey,
+            onChange: handleScavioKeyChange,
+            clearField: 'scavio_api_key',
+            testProvider: 'scavio',
+          })}
+          result={renderTestResult('scavio')}
+          hint={
+            <>
+              {t('settings.scavio.hint')}
+              {renderSignupLink(DATA_SOURCE_SIGNUP_URLS.scavio)}
             </>
           }
         />

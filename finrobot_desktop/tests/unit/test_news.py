@@ -921,3 +921,208 @@ class TestNewsAggregatorYfinanceSource:
         assert items[0]["title"] == "Big news for AAPL"
         # keyword scorer filled the missing sentiment
         assert items[0]["sentiment_score"] is not None
+
+
+# Trimmed from a live Scavio /api/v2/google/news response (2026-11-14,
+# query "AVGO stock", so=1). Only the fields the aggregator reads are kept.
+_SCAVIO_AVGO_RESPONSE = {
+    "news_results": [
+        {
+            "position": 1,
+            "title": "Broadcom: Nvidia Has A Problem, And That Creates An Opportunity (NASDAQ:AVGO)",
+            "link": "https://seekingalpha.com/article/4968075-broadcom-nvidia-has-a-problem-and-that-creates-an-opportunity",
+            "source": {"name": "Seeking Alpha", "authors": ["Kenio Fontes"]},
+            "date": "4 hours ago",
+            "iso_date": "2026-11-14T00:33:16Z",
+        },
+        {
+            "position": 3,
+            "title": "Broadcom falls 4.76% in Friday's session",
+            "link": "https://www.globalbankingandfinance.com/broadcom-avgo-falls-2026-11-13/",
+            "source": {"name": "Global Banking & Finance Review"},
+            "date": "7 hours ago",
+            "iso_date": "2026-11-13T22:02:09Z",
+        },
+        {"position": 4, "title": "", "link": "https://example.com/untitled"},
+    ],
+    "credits_used": 1,
+}
+
+
+def _scavio_response(status: int, payload: dict | None = None) -> httpx.Response:
+    request = httpx.Request("POST", "https://api.scavio.dev/api/v2/google/news")
+    return httpx.Response(status, json=payload or {}, request=request)
+
+
+class TestNewsAggregatorScavioSource:
+    """Optional Scavio (Google News) source: only runs with a key, one POST per
+    fetch, key in the Authorization header only, never retried."""
+
+    @staticmethod
+    def _yf_result(ticker: str, items: list[dict]) -> DataResult:
+        return DataResult(
+            data={"news_items": items},
+            provider="yfinance",
+            ticker=ticker,
+            data_type=DataType.NEWS,
+            timestamp=datetime.now(tz=timezone.utc),
+        )
+
+    @pytest.mark.asyncio
+    async def test_maps_google_news_results(self):
+        provider = NewsAggregatorProvider(scavio_api_key="test-scavio-key")
+
+        with patch("httpx.AsyncClient") as MockClient:
+            client = MockClient.return_value.__aenter__.return_value
+            client.post = AsyncMock(return_value=_scavio_response(200, _SCAVIO_AVGO_RESPONSE))
+            items = await provider._fetch_scavio("AVGO")
+
+        client.post.assert_awaited_once()
+        args, kwargs = client.post.call_args
+        assert args[0] == "https://api.scavio.dev/api/v2/google/news"
+        assert kwargs["json"] == {"query": "AVGO stock", "so": 1}
+        assert kwargs["headers"] == {"Authorization": "Bearer test-scavio-key"}
+
+        assert len(items) == 2  # the untitled result is skipped
+        first = items[0]
+        assert first["title"].startswith("Broadcom: Nvidia Has A Problem")
+        assert first["source"] == "Seeking Alpha"
+        assert first["url"].startswith("https://seekingalpha.com/article/4968075")
+        assert first["published"].startswith("2026-11-14T00:33:16")
+        assert first["sentiment_score"] is None
+        assert first["category"] is None
+        assert items[1]["source"] == "Global Banking & Finance Review"
+
+    @pytest.mark.asyncio
+    async def test_caps_the_number_of_headlines(self):
+        many = {
+            "news_results": [
+                {"title": f"Headline {i}", "link": f"https://example.com/{i}"} for i in range(100)
+            ]
+        }
+        provider = NewsAggregatorProvider(scavio_api_key="test-scavio-key")
+
+        with patch("httpx.AsyncClient") as MockClient:
+            client = MockClient.return_value.__aenter__.return_value
+            client.post = AsyncMock(return_value=_scavio_response(200, many))
+            items = await provider._fetch_scavio("AVGO")
+
+        assert len(items) == 30
+        assert items[0]["source"] == "Google News"
+        assert items[0]["published"] == ""
+
+    @pytest.mark.asyncio
+    async def test_no_key_never_calls_scavio(self):
+        fake_yf = MagicMock()
+        fake_yf.fetch = AsyncMock(
+            return_value=self._yf_result("AVGO", [{"title": "Yahoo headline", "source": "Yahoo"}])
+        )
+        provider = NewsAggregatorProvider(yfinance_provider=fake_yf)
+
+        with patch.object(provider, "_fetch_scavio", AsyncMock()) as scavio:
+            result = await provider.fetch("AVGO", DataType.NEWS)
+
+        scavio.assert_not_called()
+        assert [i["title"] for i in result.data["news_items"]] == ["Yahoo headline"]
+
+    @pytest.mark.asyncio
+    async def test_headlines_survive_a_rate_limited_yfinance(self):
+        """The issue #113 shape: yfinance is rate-limited, Scavio still answers."""
+        fake_yf = MagicMock()
+        fake_yf.fetch = AsyncMock(side_effect=RateLimitedProviderError("Too Many Requests"))
+        provider = NewsAggregatorProvider(
+            scavio_api_key="test-scavio-key", yfinance_provider=fake_yf
+        )
+
+        with patch("httpx.AsyncClient") as MockClient:
+            client = MockClient.return_value.__aenter__.return_value
+            client.post = AsyncMock(return_value=_scavio_response(200, _SCAVIO_AVGO_RESPONSE))
+            result = await provider.fetch("AVGO", DataType.NEWS)
+
+        items = result.data["news_items"]
+        assert len(items) == 2
+        assert all(i["sentiment_score"] is not None for i in items)
+        assert result.warnings == ["yfinance fetch failed: RateLimitedProviderError"]
+
+    @pytest.mark.asyncio
+    async def test_scavio_failure_is_reported_under_its_own_name(self):
+        fake_yf = MagicMock()
+        fake_yf.fetch = AsyncMock(
+            return_value=self._yf_result("AVGO", [{"title": "Yahoo headline", "source": "Yahoo"}])
+        )
+        provider = NewsAggregatorProvider(
+            scavio_api_key="test-scavio-key", yfinance_provider=fake_yf
+        )
+
+        with patch.object(
+            provider, "_fetch_scavio", AsyncMock(side_effect=ProviderError("Scavio HTTP 402"))
+        ):
+            result = await provider.fetch("AVGO", DataType.NEWS)
+
+        assert len(result.data["news_items"]) == 1
+        assert result.warnings == ["Scavio fetch failed: ProviderError"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("status", [401, 402, 500])
+    async def test_http_error_is_one_request_and_omits_key(self, status):
+        provider = NewsAggregatorProvider(scavio_api_key="LIVEKEY_SHOULD_NOT_LEAK")
+
+        with patch("httpx.AsyncClient") as MockClient:
+            client = MockClient.return_value.__aenter__.return_value
+            client.post = AsyncMock(return_value=_scavio_response(status, {"error": "nope"}))
+            with pytest.raises(ProviderError) as exc_info:
+                await provider._fetch_scavio("AVGO")
+
+        client.post.assert_awaited_once()
+        msg = str(exc_info.value)
+        assert str(status) in msg
+        assert "AVGO" in msg
+        assert "LIVEKEY_SHOULD_NOT_LEAK" not in msg
+        assert not isinstance(exc_info.value, RateLimitedProviderError)
+
+    @pytest.mark.asyncio
+    async def test_429_is_typed_as_rate_limited(self):
+        provider = NewsAggregatorProvider(scavio_api_key="LIVEKEY_SHOULD_NOT_LEAK")
+
+        with patch("httpx.AsyncClient") as MockClient:
+            client = MockClient.return_value.__aenter__.return_value
+            client.post = AsyncMock(return_value=_scavio_response(429, {"error": "slow down"}))
+            with pytest.raises(RateLimitedProviderError) as exc_info:
+                await provider._fetch_scavio("AVGO")
+
+        assert is_rate_limit_error(exc_info.value)
+        assert "LIVEKEY_SHOULD_NOT_LEAK" not in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_timeout_raises_provider_error(self):
+        provider = NewsAggregatorProvider(scavio_api_key="test-scavio-key")
+
+        with patch("httpx.AsyncClient") as MockClient:
+            client = MockClient.return_value.__aenter__.return_value
+            client.post = AsyncMock(side_effect=httpx.ReadTimeout("timed out"))
+            with pytest.raises(ProviderError, match="Scavio timeout for 'AVGO'"):
+                await provider._fetch_scavio("AVGO")
+
+        client.post.assert_awaited_once()
+
+    def test_factory_passes_the_key_to_the_aggregator(self):
+        from types import SimpleNamespace
+
+        from finrobot.engine.data.factory import build_provider_chain
+
+        settings = SimpleNamespace(
+            fmp_api_key="",
+            finnhub_api_key="",
+            sec_user_agent="",
+            adanos_api_key="",
+            alpha_vantage_api_key="",
+            scavio_api_key="test-scavio-key",
+        )
+        chain = build_provider_chain(settings)
+        aggregator = next(p for p in chain if isinstance(p, NewsAggregatorProvider))
+        assert aggregator._scavio_key == "test-scavio-key"
+
+        settings.scavio_api_key = ""
+        chain = build_provider_chain(settings)
+        aggregator = next(p for p in chain if isinstance(p, NewsAggregatorProvider))
+        assert aggregator._scavio_key == ""

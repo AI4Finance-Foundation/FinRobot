@@ -82,11 +82,15 @@ def build_provider_chain(settings: Any) -> list[Any]:
         providers.append(AdanosProvider(api_key=settings.adanos_api_key))
 
     # News aggregator — always registered; uses yfinance Ticker.news (free, no
-    # key) as its always-on source, plus Alpha Vantage sentiment when a key is
-    # provided. (Its old free source, Yahoo's RSS headline feed, was 404'd by
-    # Yahoo — BUG-072 — so it now reads the same headlines via yfinance.)
+    # key) as its always-on source, plus Alpha Vantage sentiment and Scavio
+    # (Google News) headlines when their keys are provided. (Its old free
+    # source, Yahoo's RSS headline feed, was 404'd by Yahoo — BUG-072 — so it
+    # now reads the same headlines via yfinance.)
     av_key = getattr(settings, "alpha_vantage_api_key", "")
-    providers.append(NewsAggregatorProvider(alpha_vantage_api_key=av_key))
+    scavio_key = getattr(settings, "scavio_api_key", "")
+    providers.append(
+        NewsAggregatorProvider(alpha_vantage_api_key=av_key, scavio_api_key=scavio_key)
+    )
 
     return providers
 

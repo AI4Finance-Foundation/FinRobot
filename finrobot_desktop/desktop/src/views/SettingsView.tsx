@@ -83,6 +83,7 @@ export default function SettingsView() {
   const [finnhubKey, setFinnhubKey] = useState('')
   const [adanosKey, setAdanosKey] = useState('')
   const [alphaVantageKey, setAlphaVantageKey] = useState('')
+  const [scavioKey, setScavioKey] = useState('')
   const [secUserAgent, setSecUserAgent] = useState('')
   const [modelName, setModelName] = useState('')
   const [llmApiKey, setLlmApiKey] = useState('')
@@ -146,6 +147,7 @@ export default function SettingsView() {
       setFinnhubKey('')
       setAdanosKey('')
       setAlphaVantageKey('')
+      setScavioKey('')
       setLlmApiKey('')
       const r = data as { model_name?: string; sec_user_agent?: string }
       if (r?.model_name) setModelName(r.model_name)
@@ -174,6 +176,7 @@ export default function SettingsView() {
   const finnhubConfigured = settingsResp?.finnhub_api_key_set ?? false
   const adanosConfigured = settingsResp?.adanos_api_key_set ?? false
   const alphaVantageConfigured = settingsResp?.alpha_vantage_api_key_set ?? false
+  const scavioConfigured = settingsResp?.scavio_api_key_set ?? false
   const startupError = settingsResp?.startup_error ?? null
   // True when a usable LLM is selected. False on a fresh install (no model yet)
   // — that's onboarding, NOT an error, so it gets a friendly notice rather than
@@ -416,6 +419,7 @@ export default function SettingsView() {
                   finnhubConfigured={finnhubConfigured}
                   adanosConfigured={adanosConfigured}
                   alphaVantageConfigured={alphaVantageConfigured}
+                  scavioConfigured={scavioConfigured}
                   fmpKey={fmpKey}
                   setFmpKey={setFmpKey}
                   finnhubKey={finnhubKey}
@@ -424,6 +428,8 @@ export default function SettingsView() {
                   setAdanosKey={setAdanosKey}
                   alphaVantageKey={alphaVantageKey}
                   setAlphaVantageKey={setAlphaVantageKey}
+                  scavioKey={scavioKey}
+                  setScavioKey={setScavioKey}
                   dataTestState={dataTestState}
                   setDataTestState={setDataTestState}
                   scheduleStandardSave={scheduleStandardSave}
